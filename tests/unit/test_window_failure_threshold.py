@@ -68,7 +68,7 @@ class TestWindowFailureThreshold:
         detector = AdDetector(api_key='test-key')
         (final_ads, all_raw_responses, failed_windows, failure,
          category_missing, category_total, category_repaired,
-         windows_judged, windows_compliant) = _run_pass(
+         addressing) = _run_pass(
             detector, 6, {0, 1})
 
         assert failure is not None
@@ -84,7 +84,7 @@ class TestWindowFailureThreshold:
         detector = AdDetector(api_key='test-key')
         (final_ads, all_raw_responses, failed_windows, failure,
          category_missing, category_total, category_repaired,
-         windows_judged, windows_compliant) = _run_pass(
+         addressing) = _run_pass(
             detector, 6, {0})
 
         assert failure is None
@@ -100,13 +100,13 @@ class TestWindowFailureThreshold:
         detector = AdDetector(api_key='test-key')
 
         (final_ads, _all_raw, failed_windows, failure,
-         _cm, _ct, _cr, _wj, _wc) = _run_pass(detector, 6, {0, 1, 2, 3, 4})
+         _cm, _ct, _cr, _addressing) = _run_pass(detector, 6, {0, 1, 2, 3, 4})
         assert failure is None
         assert failed_windows == 5
         assert len(final_ads) == 1
 
         (final_ads, _all_raw, failed_windows, failure,
-         _cm, _ct, _cr, _wj, _wc) = _run_pass(detector, 6, {0, 1, 2, 3, 4, 5})
+         _cm, _ct, _cr, _addressing) = _run_pass(detector, 6, {0, 1, 2, 3, 4, 5})
         assert failure is not None
         assert failed_windows == 6
 

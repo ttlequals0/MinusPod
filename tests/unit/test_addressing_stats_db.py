@@ -73,3 +73,28 @@ def test_yield_columns_exist_and_are_nullable(temp_db):
         # NULL must be storable: it is the marker for pre-yield history.
         assert cols[col]['notnull'] == 0, f"{col} must be nullable"
         assert cols[col]['dflt_value'] is None, f"{col} must have no default"
+
+
+def test_record_with_yield_stores_counts(temp_db):
+    temp_db.record_addressing_log(
+        'show-a', 'ep1', 'detection', 'random', 'segment_ids', 6, 6,
+        ads_proposed=9, ads_kept=7, ads_dropped_invalid_ref=2,
+        ads_dropped_out_of_window=0, ads_dropped_too_long=0)
+    row = temp_db.get_connection().execute(
+        "SELECT * FROM addressing_log").fetchone()
+    assert row['ads_proposed'] == 9
+    assert row['ads_kept'] == 7
+    assert row['ads_dropped_invalid_ref'] == 2
+    assert row['ads_dropped_out_of_window'] == 0
+    assert row['ads_dropped_too_long'] == 0
+
+
+def test_record_without_yield_stores_null(temp_db):
+    # Positional-only call: the pre-yield signature. Must keep working and
+    # must land as NULL, not 0, so legacy-shaped writes stay distinguishable.
+    temp_db.record_addressing_log(
+        'show-a', 'ep1', 'detection', 'random', 'timestamps', 5, 5)
+    row = temp_db.get_connection().execute(
+        "SELECT * FROM addressing_log").fetchone()
+    assert row['ads_proposed'] is None
+    assert row['ads_kept'] is None

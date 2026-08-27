@@ -7,7 +7,7 @@ import json
 import logging
 from unittest.mock import patch, MagicMock
 
-from ad_detector import AdDetector, WindowResult
+from ad_detector import AddressingStats, AdDetector, WindowResult
 from config import SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION, normalize_segment_category
 from database import DEFAULT_VERIFICATION_PROMPT
 from utils.constants import DEFAULT_SYSTEM_PROMPT, SHOW_SEGMENTS_PROMPT_SECTION
@@ -101,7 +101,7 @@ def test_verification_wires_category_actions_into_repair_and_dedup():
     action_map = dict(_all_remove_map(), self_promo='keep', outro='beep')
     detector = AdDetector(api_key='test-key')
     detector.db = _FakeDb(segment_actions=action_map)
-    run_pass = MagicMock(return_value=([], [], 0, None, 0, 0, 0, 0, 0))
+    run_pass = MagicMock(return_value=([], [], 0, None, 0, 0, 0, AddressingStats()))
 
     with patch.object(detector, 'initialize_client'), \
          patch.object(detector, 'get_verification_prompt', return_value='verification'), \

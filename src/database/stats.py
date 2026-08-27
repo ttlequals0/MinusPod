@@ -838,22 +838,33 @@ class StatsMixin:
     def record_addressing_log(self, podcast_slug: str, episode_id: str,
                                pass_name: str, configured_mode: str,
                                effective_mode: str, windows_judged: int,
-                               windows_compliant: int) -> None:
-        """Record one addressing-mode compliance sample to addressing_log
-        (random addressing mode A/B tracking).
+                               windows_compliant: int, *,
+                               ads_proposed: int | None = None,
+                               ads_kept: int | None = None,
+                               ads_dropped_invalid_ref: int | None = None,
+                               ads_dropped_out_of_window: int | None = None,
+                               ads_dropped_too_long: int | None = None) -> None:
+        """Record one addressing-mode sample to addressing_log (random
+        addressing mode A/B tracking).
 
         One row per detection/verification pass that judged at least one
-        window. Callers wrap this in try/except -- stats must never fail a
-        detection pass.
+        window. The yield keywords are optional; omitted they store NULL,
+        which marks the row as carrying no yield data (pre-2.92 rows look
+        the same way). Callers wrap this in try/except; stats must never
+        fail a detection pass.
         """
         conn = self.get_connection()
         conn.execute(
             """INSERT INTO addressing_log
                (podcast_slug, episode_id, pass_name, configured_mode,
-                effective_mode, windows_judged, windows_compliant)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                effective_mode, windows_judged, windows_compliant,
+                ads_proposed, ads_kept, ads_dropped_invalid_ref,
+                ads_dropped_out_of_window, ads_dropped_too_long)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (podcast_slug, episode_id, pass_name, configured_mode,
-             effective_mode, windows_judged, windows_compliant),
+             effective_mode, windows_judged, windows_compliant,
+             ads_proposed, ads_kept, ads_dropped_invalid_ref,
+             ads_dropped_out_of_window, ads_dropped_too_long),
         )
         conn.commit()
 

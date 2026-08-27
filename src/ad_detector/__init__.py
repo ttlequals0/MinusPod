@@ -10,6 +10,7 @@ import logging
 import random
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from typing import NamedTuple
 
 from audio_enforcer import AudioEnforcer
@@ -1286,16 +1287,14 @@ class AdDetector:
 
         Returns ``(final_ads, all_raw_responses, failed_windows,
         failure_response, category_missing, category_total,
-        category_repaired, windows_judged, windows_compliant)`` where
-        ``failure_response`` is the all-windows-failed envelope the caller
-        must return as-is, or None. ``category_missing``/``category_total``
-        count raw LLM markers still missing "category" across non-failed
-        windows before dedup, after repair ran. ``category_repaired`` is how
-        many repair resolved. ``windows_judged``/``windows_compliant`` are
-        the addressing-mode compliance counts (random addressing mode A/B
-        tracking): windows_judged excludes failed windows (nothing to judge);
-        windows_compliant is how many of those honored their addressing
-        contract (see WindowResult.compliant / _process_single_window).
+        category_repaired, addressing)`` where ``failure_response`` is the
+        all-windows-failed envelope the caller must return as-is, or None.
+        ``category_missing``/``category_total`` count raw LLM markers still
+        missing "category" across non-failed windows before dedup, after
+        repair ran. ``category_repaired`` is how many repair resolved.
+        ``addressing`` is this pass's AddressingStats sample (random
+        addressing mode A/B tracking): failed windows are excluded, and the
+        yield counters cover only judged windows.
         """
         all_raw_responses = []
         all_window_ads = []
@@ -1640,14 +1639,21 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Ad: {ad['start']:.1f}s-{ad['end']:.1f}s "
                            f"({ad['end']-ad['start']:.0f}s) end_text='{(ad.get('end_text') or '')[:50]}'")
 
-            # Addressing-mode compliance sample (random addressing mode A/B
-            # tracking). Only recorded when at least one window was judged;
-            # never allowed to fail the pass.
-            if windows_judged > 0:
+            # Addressing-mode sample (random addressing mode A/B tracking).
+            # Only recorded when at least one window was judged; never
+            # allowed to fail the pass.
+            if addressing.windows_judged > 0:
                 try:
                     self.db.record_addressing_log(
                         slug, episode_id, 'detection', configured_mode,
-                        addressing_mode, windows_judged, windows_compliant)
+                        addressing_mode,
+                        addressing.windows_judged,
+                        addressing.windows_compliant,
+                        ads_proposed=addressing.ads_proposed,
+                        ads_kept=addressing.ads_kept,
+                        ads_dropped_invalid_ref=addressing.dropped_invalid_ref,
+                        ads_dropped_out_of_window=addressing.dropped_out_of_window,
+                        ads_dropped_too_long=addressing.dropped_too_long)
                 except Exception as e:
                     logger.warning(f"[{slug}:{episode_id}] addressing log write failed: {e}")
 
@@ -3021,11 +3027,18 @@ class AdDetector:
             else:
                 logger.info(f"[{slug}:{episode_id}] Verification: No additional ads found")
 
-            if windows_judged > 0:
+            if addressing.windows_judged > 0:
                 try:
                     self.db.record_addressing_log(
                         slug, episode_id, 'verification', configured_mode,
-                        addressing_mode, windows_judged, windows_compliant)
+                        addressing_mode,
+                        addressing.windows_judged,
+                        addressing.windows_compliant,
+                        ads_proposed=addressing.ads_proposed,
+                        ads_kept=addressing.ads_kept,
+                        ads_dropped_invalid_ref=addressing.dropped_invalid_ref,
+                        ads_dropped_out_of_window=addressing.dropped_out_of_window,
+                        ads_dropped_too_long=addressing.dropped_too_long)
                 except Exception as e:
                     logger.warning(f"[{slug}:{episode_id}] addressing log write failed: {e}")
 
