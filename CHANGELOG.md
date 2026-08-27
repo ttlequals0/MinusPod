@@ -34,8 +34,13 @@ release notes.
   provider catalog does not list, such as proxies, private deployments, and
   newly released models. Adapted from @d-portero's fork.
 - Processing History shows the reason a run failed under the episode title,
-  truncated with the full text on hover. Adapted from Daniele Portero's
-  fork.
+  truncated with the full text on hover. Adapted from @d-portero's fork.
+- The addressing-mode Stats card now tracks ad yield per mode alongside
+  contract compliance: ads proposed, ads kept, and drops split by reason.
+  Invalid segment-id references are counted, which is the signal the
+  segment-ID experiment exists to measure. Yield is recorded from this
+  version on; older runs carry none and are excluded from the yield
+  numbers.
 
 ### Fixed
 
