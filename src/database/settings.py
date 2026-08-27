@@ -274,6 +274,18 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'rss_refresh_interval_minutes': SettingSpec(
         default='15', seeded=True, resettable=False,
         payload_key='rssRefreshIntervalMinutes', payload_kind='int'),
+    # Queue boost sizes (#625 follow-up). Manual covers single-episode user
+    # actions (reprocess, JIT play); bulk covers Reprocess All and segment
+    # re-renders, defaulting to 0 so backlog work cannot starve them.
+    'queue_manual_boost': SettingSpec(
+        default='20', seeded=True, resettable=False,
+        payload_key='queueManualBoost', payload_kind='int'),
+    'queue_fresh_boost': SettingSpec(
+        default='5', seeded=True, resettable=False,
+        payload_key='queueFreshBoost', payload_kind='int'),
+    'queue_bulk_boost': SettingSpec(
+        default='0', seeded=True, resettable=False,
+        payload_key='queueBulkBoost', payload_kind='int'),
     'podping_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='podpingEnabled', payload_kind='bool'),

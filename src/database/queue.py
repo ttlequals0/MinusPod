@@ -7,10 +7,37 @@ from utils.time import ISO_FORMAT, utc_now
 logger = logging.getLogger(__name__)
 
 # Priority boosts (#625): applied on top of the feed's base queue_priority
-# (10 high / 0 normal / -10 low) at enqueue time.
+# (10 high / 0 normal / -10 low) at enqueue time. These are the fallback
+# defaults; operators can change the stored queue_*_boost settings, and
+# compute_queue_priority reads through to them on every enqueue.
 FRESH_EPISODE_BOOST = 5
 MANUAL_REQUEST_BOOST = 20
+BULK_REQUEST_BOOST = 0
 FRESH_WINDOW_HOURS = 48
+
+_BOOST_SETTINGS = (
+    ('queue_manual_boost', MANUAL_REQUEST_BOOST),
+    ('queue_fresh_boost', FRESH_EPISODE_BOOST),
+    ('queue_bulk_boost', BULK_REQUEST_BOOST),
+)
+
+
+def resolve_queue_boosts() -> dict[str, int]:
+    """Stored boost settings with per-key fallback to the constants.
+
+    Inline import: database.queue is part of the Database mixin family, so a
+    module-level Database import would be circular.
+    """
+    from database import Database
+    resolved = {}
+    for key, fallback in _BOOST_SETTINGS:
+        try:
+            resolved[key] = int(Database().get_setting(key))
+        except (TypeError, ValueError):
+            resolved[key] = fallback
+        except Exception:
+            resolved[key] = fallback
+    return resolved
 
 # Bound on the row-level detail returned by get_queue_status.
 _QUEUE_STATUS_ITEMS_LIMIT = 100
@@ -19,18 +46,28 @@ _QUEUE_STATUS_ITEMS_LIMIT = 100
 _PENDING_QUEUE_LIMIT = 200
 
 
-def compute_queue_priority(feed_priority, published_at_iso, manual=False, now=None,
-                            apply_fresh_boost=True):
-    """Base feed priority plus boosts for fresh episodes and manual requests."""
+def compute_queue_priority(feed_priority, published_at_iso, manual=False,
+                            bulk=False, now=None, apply_fresh_boost=True):
+    """Base feed priority plus boosts for fresh episodes, manual requests,
+    and bulk operations.
+
+    ``manual`` is a single-episode user action (reprocess, JIT play);
+    ``bulk`` is backlog work (Reprocess All, segment re-renders), which
+    defaults to no boost so it cannot starve manual requests or fresh
+    releases. Boost sizes are operator-configurable settings.
+    """
+    boosts = resolve_queue_boosts()
     p = int(feed_priority or 0)
     if manual:
-        p += MANUAL_REQUEST_BOOST
+        p += boosts['queue_manual_boost']
+    if bulk:
+        p += boosts['queue_bulk_boost']
     if apply_fresh_boost and published_at_iso:
         try:
             published = datetime.fromisoformat(published_at_iso.replace('Z', '+00:00'))
             now = now or datetime.now(timezone.utc)
             if (now - published) <= timedelta(hours=FRESH_WINDOW_HOURS):
-                p += FRESH_EPISODE_BOOST
+                p += boosts['queue_fresh_boost']
         except ValueError:
             pass
     return p
@@ -135,10 +172,14 @@ class QueueMixin:
                      status = 'pending',
                      attempts = CASE WHEN auto_process_queue.status = 'pending'
                                      THEN auto_process_queue.attempts ELSE 0 END,
-                     -- A row already pending keeps its priority; only a
-                     -- reopened completed/failed row picks up the new value.
+                     -- A pending row's priority can only rise. Keeping the
+                     -- old value guards boosts against background re-upserts;
+                     -- taking MAX also lets a later JIT play or manual
+                     -- reprocess climb past a bulk backlog instead of being
+                     -- silently discarded (#625 follow-up).
                      priority = CASE WHEN auto_process_queue.status = 'pending'
-                                     THEN auto_process_queue.priority ELSE excluded.priority END,
+                                     THEN MAX(auto_process_queue.priority, excluded.priority)
+                                     ELSE excluded.priority END,
                      error_message = NULL,
                      original_url = excluded.original_url,
                      title = COALESCE(excluded.title, auto_process_queue.title),

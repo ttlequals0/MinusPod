@@ -183,14 +183,19 @@ Changing an action map only affects episodes processed after the change. To appl
 
 Each feed has a **Queue priority**: High, Normal (default), or Low, set on the feed's settings page. High processes ahead of other queued episodes; Low runs only once nothing else is waiting.
 
-Two automatic boosts stack on top of a feed's base priority:
+Three automatic boosts stack on top of a feed's base priority, and the size of each is a setting under **Settings > Global Defaults > Queue boosts**:
 
-| Boost | When it applies |
-|---|---|
-| Fresh episode | The episode's publish date is within 48 hours of now, and the global **Process new episodes first** setting (Settings > Global Defaults, on by default) is on. |
-| Manual reprocess | You reprocess an episode by hand (Reprocess, Full Analysis, or Re-detect Ads). Always applies, regardless of the global setting. |
+| Boost | Default | When it applies |
+|---|---|---|
+| Play or reprocess | 20 | You press play on an unprocessed episode, or reprocess one by hand (Reprocess, Full Analysis, or Re-detect Ads). Always applies. |
+| New episode | 5 | The episode's publish date is within 48 hours of now, and the global **Process new episodes first** toggle (on by default) is on. |
+| Reprocess All | 0 | Bulk work: Reprocess All on a feed, or segment re-renders. The default of 0 keeps a backlog run behind everything else. |
 
-Changing a feed's queue priority restamps every episode of that feed still pending in the queue with the new base priority. API: `queuePriority` on `PATCH /api/v1/feeds/{slug}` (`high`, `normal`, or `low`); the global toggle is `processNewEpisodesFirst` on `PUT /api/v1/settings`.
+The defaults encode one rule: a request you make right now beats backlog work, always. Before 2.92.1, Reprocess All stamped every episode with the full manual boost, so a 93-episode backfill could pin a just-published episode 94th in line for two days. Raise the Reprocess All boost only if you want backfills to compete with new releases.
+
+A queued episode's priority can rise but never fall: pressing play on an episode that is already sitting in the queue lifts it to the play boost, while background refreshes can never knock a boosted episode back down.
+
+Changing a feed's queue priority restamps every episode of that feed still pending in the queue with the new base priority. API: `queuePriority` on `PATCH /api/v1/feeds/{slug}` (`high`, `normal`, or `low`); the boost sizes are `queueManualBoost`, `queueFreshBoost`, and `queueBulkBoost` (0-100) and the toggle is `processNewEpisodesFirst`, all on `PUT /api/v1/settings`.
 
 ### Title blacklist
 

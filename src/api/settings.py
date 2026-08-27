@@ -267,6 +267,16 @@ def get_settings():
     except (ValueError, TypeError):
         rss_refresh_interval_minutes = registry_get_default('rss_refresh_interval_minutes')
 
+    def _int_setting(key):
+        try:
+            return int(_setting_value(settings, key, registry_default(key)))
+        except (TypeError, ValueError):
+            return registry_get_default(key)
+
+    queue_manual_boost = _int_setting('queue_manual_boost')
+    queue_fresh_boost = _int_setting('queue_fresh_boost')
+    queue_bulk_boost = _int_setting('queue_bulk_boost')
+
     podping_enabled = coerce_bool_setting(_setting_value(
         settings, 'podping_enabled', registry_default('podping_enabled')))
 
@@ -529,6 +539,9 @@ def get_settings():
         'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
         'rssRefreshIntervalMinutes': _sv(
             'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
+        'queueManualBoost': _sv('queue_manual_boost', queue_manual_boost),
+        'queueFreshBoost': _sv('queue_fresh_boost', queue_fresh_boost),
+        'queueBulkBoost': _sv('queue_bulk_boost', queue_bulk_boost),
         'podpingEnabled': _sv('podping_enabled', podping_enabled),
         'segmentCategoryActions': _sv(
             'segment_category_actions', segment_category_actions),
@@ -686,6 +699,7 @@ def update_ad_detection_settings():
         _apply_model_fields,
         _apply_processing_flags,
         _apply_feed_refresh_fields,
+        _apply_queue_boost_fields,
         _apply_min_cut_confidence,
         _apply_audio_fields,
         _apply_size_caps,
@@ -972,6 +986,27 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['omitTemperature'] else 'false'
         db.set_setting('omit_temperature', value, is_default=False)
         logger.info(f"Updated omit_temperature to: {value}")
+    return None
+
+
+def _apply_queue_boost_fields(db, data):
+    """Persist queue boost sizes. Manual should stay above bulk or backlog
+    work outranks user requests again; that relationship is the operator's
+    call, so it is documented, not enforced."""
+    for json_key, db_key in (
+        ('queueManualBoost', 'queue_manual_boost'),
+        ('queueFreshBoost', 'queue_fresh_boost'),
+        ('queueBulkBoost', 'queue_bulk_boost'),
+    ):
+        if json_key in data:
+            try:
+                value = int(data[json_key])
+            except (TypeError, ValueError):
+                return error_response(f'{json_key} must be an integer', 400)
+            if value < 0 or value > 100:
+                return error_response(f'{json_key} must be between 0 and 100', 400)
+            db.set_setting(db_key, str(value), is_default=False)
+            logger.info(f"Updated {db_key} to: {value}")
     return None
 
 

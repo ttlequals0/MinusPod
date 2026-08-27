@@ -982,3 +982,41 @@ class TestEpisodeLogSettings:
         assert resp.status_code == 400
         assert 'episodeLogLevel' in json.loads(resp.data)['error']
         assert database.Database().get_setting('episode_log_level') == 'info'
+
+
+class TestQueueBoostSettings:
+    """Queue boost sizes round-trip through GET/PUT with range validation."""
+
+    def test_get_exposes_the_defaults(self, client):
+        resp = client.get('/api/v1/settings')
+        data = resp.get_json()
+        assert data['queueManualBoost']['value'] == 20
+        assert data['queueFreshBoost']['value'] == 5
+        assert data['queueBulkBoost']['value'] == 0
+
+    def test_put_round_trips(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'queueManualBoost': 30, 'queueBulkBoost': 10}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        data = client.get('/api/v1/settings').get_json()
+        assert data['queueManualBoost']['value'] == 30
+        assert data['queueBulkBoost']['value'] == 10
+
+    def test_put_rejects_out_of_range(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'queueFreshBoost': 101}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+
+    def test_put_rejects_non_integer(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'queueManualBoost': 'lots'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400

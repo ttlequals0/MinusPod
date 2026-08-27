@@ -4024,6 +4024,21 @@ paths:
                   maximum: 1440
                   description: Minutes between background RSS refresh passes for every feed. A change applies after the wait already in progress finishes. Default 15.
                   example: 15
+                queueManualBoost:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: Priority added when a user plays an unprocessed episode or reprocesses one by hand. Default 20.
+                queueFreshBoost:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: Priority added to episodes published within the last 48 hours while processNewEpisodesFirst is on. Default 5.
+                queueBulkBoost:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: Priority added to bulk work (Reprocess All, segment re-renders). Default 0 keeps backlog runs behind everything else. Default 0.
                 podpingEnabled:
                   type: boolean
                   description: Opt-in listener that polls public Hive API nodes for Podping publish notifications and refreshes a matching feed immediately. Off by default.
@@ -4344,6 +4359,21 @@ paths:
                     hold for review; shorter candidates are dropped. 0
                     disables the floor (default 10).
                   example: 10
+            queueManualBoost:
+              type: integer
+              minimum: 0
+              maximum: 100
+              description: Priority added when a user plays an unprocessed episode or reprocesses one by hand. Default 20.
+            queueFreshBoost:
+              type: integer
+              minimum: 0
+              maximum: 100
+              description: Priority added to episodes published within the last 48 hours while processNewEpisodesFirst is on. Default 5.
+            queueBulkBoost:
+              type: integer
+              minimum: 0
+              maximum: 100
+              description: Priority added to bulk work (Reprocess All, segment re-renders). Default 0 keeps backlog runs behind everything else. Default 0.
       responses:
         '200':
           description: Settings updated
@@ -9570,6 +9600,36 @@ components:
               minimum: 5
               maximum: 1440
               description: Minutes between background RSS refresh passes for every feed. Default 15.
+            isDefault:
+              type: boolean
+        queueManualBoost:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 0
+              maximum: 100
+              description: Priority added when a user plays an unprocessed episode or reprocesses one by hand. Default 20.
+            isDefault:
+              type: boolean
+        queueFreshBoost:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 0
+              maximum: 100
+              description: Priority added to episodes published within the last 48 hours while processNewEpisodesFirst is on. Default 5.
+            isDefault:
+              type: boolean
+        queueBulkBoost:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 0
+              maximum: 100
+              description: Priority added to bulk work (Reprocess All, segment re-renders). Default 0 keeps backlog runs behind everything else. Default 0.
             isDefault:
               type: boolean
         podpingEnabled:

@@ -1196,8 +1196,12 @@ def bulk_episode_action(slug):
             try:
                 ep = episodes_by_id.get(episode_id)
                 if ep:
+                    # Bulk work enqueues at base + fresh only. Stamping a
+                    # whole backlog with the manual boost starved JIT plays
+                    # and single reprocesses for days (93 two-year-old
+                    # episodes at +20 once pinned a fresh episode 94th).
                     priority = compute_queue_priority(
-                        podcast.get('queue_priority'), ep.get('published_at'), manual=True)
+                        podcast.get('queue_priority'), ep.get('published_at'), bulk=True)
                     db.upsert_episode_for_processing(
                         slug, episode_id,
                         ep.get('original_url', ''),

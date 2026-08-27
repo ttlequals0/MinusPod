@@ -234,6 +234,9 @@ function Settings() {
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
+  const [queueManualBoost, setQueueManualBoost] = useState(20);
+  const [queueFreshBoost, setQueueFreshBoost] = useState(5);
+  const [queueBulkBoost, setQueueBulkBoost] = useState(0);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
   const [artworkBadgePosition, setArtworkBadgePosition] = useState<BadgePosition>('bottom-right');
@@ -503,6 +506,9 @@ function Settings() {
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
     { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
     { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },
+    { key: 'queueManualBoost', kind: 'val', useDefault: true, literal: 20, value: queueManualBoost, set: setQueueManualBoost },
+    { key: 'queueFreshBoost', kind: 'val', useDefault: true, literal: 5, value: queueFreshBoost, set: setQueueFreshBoost },
+    { key: 'queueBulkBoost', kind: 'val', useDefault: true, literal: 0, value: queueBulkBoost, set: setQueueBulkBoost },
     // Ad detection
     { key: 'minCutConfidence', kind: 'val', useDefault: true, value: minCutConfidence, set: setMinCutConfidence },
     { key: 'minContentBetweenAdsSeconds', kind: 'val', useDefault: true, literal: 12, value: minContentBetweenAdsSeconds, set: setMinContentBetweenAdsSeconds },
@@ -890,6 +896,12 @@ function Settings() {
         onAutoProcessEnabledChange={setAutoProcessEnabled}
         rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
         onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
+        queueManualBoost={queueManualBoost}
+        onQueueManualBoostChange={setQueueManualBoost}
+        queueFreshBoost={queueFreshBoost}
+        onQueueFreshBoostChange={setQueueFreshBoost}
+        queueBulkBoost={queueBulkBoost}
+        onQueueBulkBoostChange={setQueueBulkBoost}
         podpingEnabled={podpingEnabled}
         onPodpingEnabledChange={setPodpingEnabled}
         maxFeedEpisodes={maxFeedEpisodes}

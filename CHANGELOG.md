@@ -11,6 +11,25 @@ release notes.
 
 ## [Unreleased]
 
+## [2.92.1] - 2026-08-27
+
+### Added
+
+- Queue boost sizes are settings under Settings > Global Defaults > Queue
+  boosts: play-or-reprocess (default 20), new-episode (default 5), and
+  Reprocess All (default 0). `queueManualBoost`, `queueFreshBoost`, and
+  `queueBulkBoost` on `PUT /api/v1/settings`.
+
+### Fixed
+
+- A play request or manual reprocess now always outranks backlog work.
+  Reprocess All and segment re-renders no longer stamp every episode with
+  the full manual boost, which once pinned a just-published episode 94th
+  behind a 93-episode two-year-old backfill for an estimated two days. A
+  queued episode's priority can now rise but never fall, so playing an
+  episode that is already queued lifts it to the front instead of the
+  boost being silently discarded.
+
 ## [2.92.0] - 2026-08-27
 
 ### Added

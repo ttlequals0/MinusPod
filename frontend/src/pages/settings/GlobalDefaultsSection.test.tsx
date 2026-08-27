@@ -7,8 +7,8 @@
  * their own card, SegmentActionsSection; see SegmentActionsSection.test.tsx.
  */
 import { useState } from 'react';
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GlobalDefaultsSection from './GlobalDefaultsSection';
 import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
@@ -30,6 +30,12 @@ function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
         onOnlyExposeProcessedDefaultChange={() => {}}
         processNewEpisodesFirst
         onProcessNewEpisodesFirstChange={() => {}}
+        queueManualBoost={20}
+        onQueueManualBoostChange={() => {}}
+        queueFreshBoost={5}
+        onQueueFreshBoostChange={() => {}}
+        queueBulkBoost={0}
+        onQueueBulkBoostChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -65,6 +71,12 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onOnlyExposeProcessedDefaultChange={() => {}}
         processNewEpisodesFirst
         onProcessNewEpisodesFirstChange={() => {}}
+        queueManualBoost={20}
+        onQueueManualBoostChange={() => {}}
+        queueFreshBoost={5}
+        onQueueFreshBoostChange={() => {}}
+        queueBulkBoost={0}
+        onQueueBulkBoostChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -100,6 +112,12 @@ function ProcessNewFirstHarness({ onCommit }: { onCommit: (payload: ProcessNewFi
         onOnlyExposeProcessedDefaultChange={() => {}}
         processNewEpisodesFirst={processNewEpisodesFirst}
         onProcessNewEpisodesFirstChange={setProcessNewEpisodesFirst}
+        queueManualBoost={20}
+        onQueueManualBoostChange={() => {}}
+        queueFreshBoost={5}
+        onQueueFreshBoostChange={() => {}}
+        queueBulkBoost={0}
+        onQueueBulkBoostChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -250,6 +268,12 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onOnlyExposeProcessedDefaultChange={() => {}}
         processNewEpisodesFirst
         onProcessNewEpisodesFirstChange={() => {}}
+        queueManualBoost={20}
+        onQueueManualBoostChange={() => {}}
+        queueFreshBoost={5}
+        onQueueFreshBoostChange={() => {}}
+        queueBulkBoost={0}
+        onQueueBulkBoostChange={() => {}}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
         episodeLogRetentionDays={30}
@@ -313,6 +337,12 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onOnlyExposeProcessedDefaultChange={() => {}}
         processNewEpisodesFirst
         onProcessNewEpisodesFirstChange={() => {}}
+        queueManualBoost={20}
+        onQueueManualBoostChange={() => {}}
+        queueFreshBoost={5}
+        onQueueFreshBoostChange={() => {}}
+        queueBulkBoost={0}
+        onQueueBulkBoostChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={retentionDays}
@@ -379,6 +409,12 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
         onOnlyExposeProcessedDefaultChange={() => {}}
         processNewEpisodesFirst
         onProcessNewEpisodesFirstChange={() => {}}
+        queueManualBoost={20}
+        onQueueManualBoostChange={() => {}}
+        queueFreshBoost={5}
+        onQueueFreshBoostChange={() => {}}
+        queueBulkBoost={0}
+        onQueueBulkBoostChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -409,5 +445,55 @@ describe('GlobalDefaultsSection: Text recurrence hints toggle', () => {
     await user.click(screen.getByRole('button', { name: 'Commit' }));
 
     expect(committed).toEqual({ textRecurrenceHints: true });
+  });
+});
+
+describe('GlobalDefaultsSection: queue boosts', () => {
+  function renderBoosts(onManual = () => {}) {
+    return render(
+      <GlobalDefaultsSection
+        autoProcessEnabled={false}
+        onAutoProcessEnabledChange={() => {}}
+        rssRefreshIntervalMinutes={15}
+        onRssRefreshIntervalMinutesChange={() => {}}
+        podpingEnabled={false}
+        onPodpingEnabledChange={() => {}}
+        maxFeedEpisodes={10}
+        onMaxFeedEpisodesChange={() => {}}
+        onlyExposeProcessedDefault={false}
+        onOnlyExposeProcessedDefaultChange={() => {}}
+        processNewEpisodesFirst={true}
+        onProcessNewEpisodesFirstChange={() => {}}
+        queueManualBoost={20}
+        onQueueManualBoostChange={onManual}
+        queueFreshBoost={5}
+        onQueueFreshBoostChange={() => {}}
+        queueBulkBoost={0}
+        onQueueBulkBoostChange={() => {}}
+        lowAdYieldAction="nothing"
+        onLowAdYieldActionChange={() => {}}
+        episodeLogRetentionDays={30}
+        onEpisodeLogRetentionDaysChange={() => {}}
+        episodeLogLevel="info"
+        onEpisodeLogLevelChange={() => {}}
+        textRecurrenceHints={false}
+        onTextRecurrenceHintsChange={() => {}}
+      />
+    );
+  }
+
+  it('renders the three boost fields with their current values', () => {
+    renderBoosts();
+    expect((screen.getByLabelText('Play or reprocess') as HTMLInputElement).value).toBe('20');
+    expect((screen.getByLabelText('New episode') as HTMLInputElement).value).toBe('5');
+    expect((screen.getByLabelText('Reprocess All') as HTMLInputElement).value).toBe('0');
+  });
+
+  it('reports an edited manual boost', () => {
+    const onManual = vi.fn();
+    renderBoosts(onManual);
+    const input = screen.getByLabelText('Play or reprocess');
+    fireEvent.change(input, { target: { value: '30' } });
+    expect(onManual).toHaveBeenCalledWith(30);
   });
 });

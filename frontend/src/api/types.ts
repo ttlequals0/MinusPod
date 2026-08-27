@@ -453,6 +453,9 @@ export interface Settings {
   maxFeedEpisodes: SettingValueNumber;
   podpingEnabled: SettingValueBoolean;
   rssRefreshIntervalMinutes: SettingValueNumber;
+  queueManualBoost: SettingValueNumber;
+  queueFreshBoost: SettingValueNumber;
+  queueBulkBoost: SettingValueNumber;
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
@@ -652,6 +655,9 @@ export interface UpdateSettingsPayload {
   maxFeedEpisodes?: number;
   podpingEnabled?: boolean;
   rssRefreshIntervalMinutes?: number;
+  queueManualBoost?: number;
+  queueFreshBoost?: number;
+  queueBulkBoost?: number;
   // Partial map: only the categories being changed need to be present. The
   // backend merges this over the stored global map (unlike the per-feed
   // PATCH, which replaces the stored map outright).

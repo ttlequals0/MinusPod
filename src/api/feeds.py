@@ -1618,8 +1618,10 @@ def rerender_segments(slug):
                 episode.get('published_at'),
             )
             if not started:
+                # Bulk recut: no manual boost, same policy as Reprocess All.
+                # JIT plays and single reprocesses must outrank backlog work.
                 priority = compute_queue_priority(
-                    podcast.get('queue_priority'), episode.get('published_at'), manual=True)
+                    podcast.get('queue_priority'), episode.get('published_at'), bulk=True)
                 db.upsert_episode_for_processing(
                     slug, episode_id, episode.get('original_url'),
                     episode.get('title', 'Unknown'),

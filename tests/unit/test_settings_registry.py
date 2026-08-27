@@ -85,6 +85,9 @@ SEED_SNAPSHOT = {
     'review_model': 'same_as_pass',
     'review_prompt': ('sha256', '39a5e1808bec2b3036231a120e0fb6635f159eb7e1d33b0821dea178f95ce02f'),  # Updated for semantic is_ad schema line
     'rss_refresh_interval_minutes': '15',
+    'queue_manual_boost': '20',
+    'queue_fresh_boost': '5',
+    'queue_bulk_boost': '0',
     'segment_category_actions': '{}',
     'system_prompt': ('sha256', '082a8f30ee3b475c44b0f5d1af7a9e4d12035cdfdf3da8d427c8c59037acba58'),  # Updated for cross_promo semantics change
     'transcribe_chunk_overlap_seconds': '30',
@@ -164,6 +167,7 @@ NON_RESETTABLE_KEYS = (
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
     'rss_refresh_interval_minutes', 'segment_category_actions',
+    'queue_manual_boost', 'queue_fresh_boost', 'queue_bulk_boost',
     'community_sync_categories',
     'system_prompt_override', 'verification_prompt_override',
     'review_prompt_override', 'resurrect_prompt_override',
@@ -421,11 +425,12 @@ class TestGetDefaults:
         # seed_sponsors_reviewer + seed_sponsors_resurrect added after that (89 -> 93).
         # textRecurrenceHints added after that (93 -> 94).
         # adAddressingMode added after that (94 -> 95).
+        # queueManualBoost + queueFreshBoost + queueBulkBoost after that (95 -> 98).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 95
+        assert len(payload_keys) == 98
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

@@ -18,6 +18,12 @@ interface GlobalDefaultsSectionProps {
   onOnlyExposeProcessedDefaultChange: (enabled: boolean) => void;
   processNewEpisodesFirst: boolean;
   onProcessNewEpisodesFirstChange: (enabled: boolean) => void;
+  queueManualBoost: number;
+  onQueueManualBoostChange: (value: number) => void;
+  queueFreshBoost: number;
+  onQueueFreshBoostChange: (value: number) => void;
+  queueBulkBoost: number;
+  onQueueBulkBoostChange: (value: number) => void;
   lowAdYieldAction: LowAdYieldAction;
   onLowAdYieldActionChange: (action: LowAdYieldAction) => void;
   episodeLogRetentionDays: number;
@@ -41,6 +47,12 @@ function GlobalDefaultsSection({
   onOnlyExposeProcessedDefaultChange,
   processNewEpisodesFirst,
   onProcessNewEpisodesFirstChange,
+  queueManualBoost,
+  onQueueManualBoostChange,
+  queueFreshBoost,
+  onQueueFreshBoostChange,
+  queueBulkBoost,
+  onQueueBulkBoostChange,
   lowAdYieldAction,
   onLowAdYieldActionChange,
   episodeLogRetentionDays,
@@ -88,6 +100,68 @@ function GlobalDefaultsSection({
           <p className="mt-2 text-sm text-muted-foreground">
             Episodes published in the last 48 hours jump ahead of queued backlog.
           </p>
+        </div>
+
+        {/* Queue boosts: how far each kind of request jumps the queue.
+            Higher number processes sooner; ties process oldest first. */}
+        <div className="pt-4 border-t border-border">
+          <p className="text-sm font-medium text-foreground mb-1">Queue boosts</p>
+          <p className="text-sm text-muted-foreground mb-3">
+            How far each kind of request jumps the queue. Higher processes sooner; ties go to whichever queued first.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label htmlFor="queueManualBoost" className="block text-sm text-foreground mb-2">
+                Play or reprocess
+              </label>
+              <NumberInput
+                id="queueManualBoost"
+                value={queueManualBoost}
+                min={0}
+                max={100}
+                step={1}
+                fallback={20}
+                onCommit={onQueueManualBoostChange}
+              />
+              <p className="mt-2 text-sm text-muted-foreground">
+                Pressing play on an unprocessed episode, or reprocessing one. Keep this the highest so your requests are never stuck behind backlog work. Default 20.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="queueFreshBoost" className="block text-sm text-foreground mb-2">
+                New episode
+              </label>
+              <NumberInput
+                id="queueFreshBoost"
+                value={queueFreshBoost}
+                min={0}
+                max={100}
+                step={1}
+                fallback={5}
+                onCommit={onQueueFreshBoostChange}
+              />
+              <p className="mt-2 text-sm text-muted-foreground">
+                Episodes published in the last 48 hours, while the toggle above is on. Default 5.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="queueBulkBoost" className="block text-sm text-foreground mb-2">
+                Reprocess All
+              </label>
+              <NumberInput
+                id="queueBulkBoost"
+                value={queueBulkBoost}
+                min={0}
+                max={100}
+                step={1}
+                fallback={0}
+                onCommit={onQueueBulkBoostChange}
+              />
+              <p className="mt-2 text-sm text-muted-foreground">
+                Bulk work like Reprocess All and segment re-renders. 0 keeps a backlog run behind everything else. Default 0.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Feed refresh interval */}
