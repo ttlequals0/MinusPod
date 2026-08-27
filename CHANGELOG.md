@@ -11,6 +11,50 @@ release notes.
 
 ## [Unreleased]
 
+## [2.92.0] - 2026-08-27
+
+### Added
+
+- Per-feed retention override on the feed settings page. A feed can follow
+  the global retention window, keep its episodes for its own number of
+  days, or archive so nothing is ever deleted. Archive is meant for shows
+  that stopped publishing, where a swept episode cannot be fetched again.
+  An archived feed is also skipped by the "Clear all processed audio"
+  action, which otherwise overrides retention: a per-feed 0 is a deliberate
+  "never delete this show", while a feed inheriting a globally disabled
+  retention is still wiped. `retentionDaysOverride` on
+  `PATCH /api/v1/feeds/{slug}`.
+- Per-feed override for keeping the pre-cut original audio, with the same
+  inherit / on / off shape as the global toggle. Archived feeds keep their
+  originals too, so this is how to archive a show without paying for the
+  uncut copies. Applies from the next episode processed and does not delete
+  originals already on disk. `keepOriginalAudioOverride` on
+  `PATCH /api/v1/feeds/{slug}`.
+- AI Models settings fields can switch to free text for model IDs the
+  provider catalog does not list, such as proxies, private deployments, and
+  newly released models. Adapted from @d-portero's fork.
+- Processing History shows the reason a run failed under the episode title,
+  truncated with the full text on hover. Adapted from Daniele Portero's
+  fork.
+
+### Fixed
+
+- A permanently broken artwork URL was refetched every few hours despite
+  the 6-hour failure cache. Every download stored a cache entry, successes
+  included, and since eviction is oldest-first the 1024-slot cache filled
+  with entries nothing reads and pushed the real failure entries out before
+  their TTL. Only failures are cached now, and a forced retry that succeeds
+  clears the entry.
+
+### Changed
+
+- Episode lookups behind the just-in-time serve path are cached for 15
+  minutes. A podcast client sends a HEAD for every unprocessed episode on
+  each refresh cycle, and each one refetched and reparsed the whole
+  upstream RSS feed. Re-rendering a served feed drops that feed's entries,
+  and misses are not cached, so a feed caught mid-publish does not 404 for
+  the whole window. Adapted from @stansz's fork.
+
 ## [2.91.2] - 2026-08-26
 
 ### Fixed
