@@ -28,6 +28,7 @@ from main_app.cache import TTLCache
 # tuple-reorder footgun the audit flagged.
 from main_app import db, rss_parser, storage, status_service, pattern_service
 from main_app.feed_auth import active_feed_key
+from main_app.shared_state import invalidate_episode_lookup_cache
 
 import webhook_service
 
@@ -532,6 +533,9 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           hide_title_patterns=hide_title_patterns)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
+    # A re-render means the upstream feed moved, so any episode lookups
+    # pinned from the old copy (URL, title, artwork) are now suspect.
+    invalidate_episode_lookup_cache(slug)
 
 
 def rebuild_served_rss(slug, podcast=None):

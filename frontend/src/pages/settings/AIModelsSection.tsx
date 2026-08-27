@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ClaudeModel } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -35,11 +36,19 @@ function AIModelsSection({
   // A saved model id missing from the live catalog (wrong provider for
   // the stored tag, renamed model, transient probe failure) would render
   // the <select> blank, which users read as "the setting was reset".
+  const isOrphan = (value: string) =>
+    Boolean(value) && !!models && !models.some((m) => m.id === value);
+
   const renderOrphan = (value: string) => {
-    if (!value || !models) return null;
-    if (models.some((m) => m.id === value)) return null;
+    if (!isOrphan(value)) return null;
     return <option value={value}>{value} (current, not in catalog)</option>;
   };
+
+  // The catalog only lists what the provider advertises. Proxies, private
+  // deployments, and brand-new model ids need a way in, so each field can
+  // switch to free text. An orphaned value still renders as a list option
+  // above, so the switch stays the user's call rather than an inference.
+  const [typedFields, setTypedFields] = useState<Record<string, boolean>>({});
 
   const renderModelSelect = ({
     id,
@@ -55,11 +64,33 @@ function AIModelsSection({
     description: ReactNode;
   }) => {
     const notConfigured = !value;
+    const typed = typedFields[id] ?? false;
     return (
       <div>
-        <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">
-          {label}
-        </label>
+        <div className="flex items-baseline justify-between gap-3 mb-2">
+          <label htmlFor={id} className="block text-sm font-medium text-foreground">
+            {label}
+          </label>
+          <button
+            type="button"
+            onClick={() => setTypedFields((prev) => ({ ...prev, [id]: !typed }))}
+            className={`text-xs text-primary hover:underline transition-colors rounded ${focusRing}`}
+          >
+            {typed ? 'Choose from list' : 'Type a model ID'}
+          </button>
+        </div>
+        {typed ? (
+          <input
+            type="text"
+            id={id}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Provider's exact model ID"
+            spellCheck={false}
+            autoComplete="off"
+            className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+          />
+        ) : (
         <select
           id={id}
           value={value}
@@ -74,6 +105,7 @@ function AIModelsSection({
             </option>
           ))}
         </select>
+        )}
         {notConfigured && (
           <p className="mt-1 text-sm text-muted-foreground">Pick a model before processing episodes.</p>
         )}

@@ -617,7 +617,13 @@ class Storage:
             return False
 
         ok = self._download_episode_artwork_uncached(slug, episode_id, artwork_url)
-        self._artwork_failure_cache.set(failure_key, not ok)
+        # Only failures are stored. Caching successes too would fill the cache
+        # with entries nothing reads, and eviction is oldest-first, so a
+        # long-lived failure entry would be pushed out well before its TTL.
+        if ok:
+            self._artwork_failure_cache.delete(failure_key)
+        else:
+            self._artwork_failure_cache.set(failure_key, True)
         return ok
 
     def _download_episode_artwork_uncached(self, slug: str, episode_id: str,
@@ -867,7 +873,12 @@ class Storage:
             return False
 
         ok = self._download_artwork_uncached(slug, artwork_url, force)
-        self._artwork_failure_cache.set(failure_key, not ok)
+        # Failures only; see download_episode_artwork. A forced retry that
+        # succeeds clears the entry so the unforced path stops being blocked.
+        if ok:
+            self._artwork_failure_cache.delete(failure_key)
+        else:
+            self._artwork_failure_cache.set(failure_key, True)
         return ok
 
     def _download_artwork_uncached(self, slug: str, artwork_url: str,

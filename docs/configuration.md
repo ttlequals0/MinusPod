@@ -202,6 +202,22 @@ A per-feed **Skipped episodes** choice decides how a skipped episode is served: 
 
 API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each) and `titleSkipAction` (`serve_original` or `hide`) on `PATCH /api/v1/feeds/{slug}`.
 
+### Per-feed retention
+
+Global retention lives in Settings > Storage & Retention and applies to every feed. Any single feed can override it from its own settings page with the **Retention** control, which offers three choices:
+
+- **Use global** (default) follows the global window, so nothing changes for existing feeds.
+- **Keep for N days** sets a window for this feed alone. Use a short window on a daily news show you never revisit, or a long one on a show you catch up with slowly.
+- **Archive, never delete** keeps every processed episode indefinitely. This is the option for shows that have stopped publishing, where a swept episode is gone for good because the publisher's feed no longer carries it.
+
+An archived feed is also skipped by the **Clear all processed audio** action in Settings. That action is an explicit operator wipe and overrides the global retention window, but a per-feed archive is a deliberate "never delete this show", so it wins. A feed that inherits a globally disabled retention is still wiped by that action.
+
+Archive keeps the pre-cut original audio as well as the cut version. To archive a show without paying for the uncut copies, set **Original audio** to "Discard the uncut copy" on the same page.
+
+The **Original audio** control overrides the global "Keep original audio" toggle for one feed, with the same three choices: inherit, keep, or discard. The pre-cut audio is what Review mode in the ad editor plays, so discarding it disables that button for episodes processed afterwards. It roughly halves what the feed stores. The change applies to the next episode processed; it does not delete originals already on disk.
+
+API: `retentionDaysOverride` (integer, `null` to inherit, `0` to archive, 1 to 3650 for a day count) and `keepOriginalAudioOverride` (boolean or `null` to inherit) on `PATCH /api/v1/feeds/{slug}`.
+
 ### Blocked user agents for just-in-time processing
 
 Settings > Security has an **Agents that skip processing** list, empty by default. If a listed User-Agent asks for an episode MinusPod has not processed yet, MinusPod answers with a 302 to the original audio URL rather than queueing a transcription and ad-detection run. Already-processed episodes are unaffected and still serve the cut version to every client, listed or not.

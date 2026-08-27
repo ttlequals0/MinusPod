@@ -41,6 +41,7 @@ refresh_logger = logging.getLogger('podcast.refresh')
 
 # Import shared warn-dedup set so routes and processing share one instance
 from main_app.shared_state import permanently_failed_warned as _permanently_failed_warned
+from main_app.shared_state import episode_lookup_cache, episode_lookup_key
 # Singletons created in main_app/__init__.py before this submodule is
 # loaded by the explicit `from main_app.routes import register_routes`
 # in that file, so importing them here at module level is safe. Replaces
@@ -140,7 +141,17 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     Returns (episode_dict, podcast_name) or (None, None).
     episode_dict keys: url, title, description, artwork_url, published.
     Falls back to database if episode is not in the upstream RSS feed.
+
+    Hits are cached for EPISODE_LOOKUP_TTL_SECONDS. A podcast client HEADs
+    every unprocessed episode on each of its refreshes, and without this
+    each one refetches and reparses the whole upstream feed. Misses are not
+    cached: a feed caught mid-publish would otherwise 404 for the full TTL.
     """
+    cache_key = episode_lookup_key(slug, episode_id)
+    cached = episode_lookup_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
     if original_feed:
         parsed_feed = rss_parser.parse_feed(original_feed, source=slug)
@@ -149,20 +160,23 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
             original_feed, parsed_feed=parsed_feed, source=slug)
         for ep in episodes:
             if ep['id'] == episode_id:
+                episode_lookup_cache.set(cache_key, (ep, podcast_name))
                 return ep, podcast_name
 
     # Fallback: episode not in upstream RSS (dropped off due to age/cap).
     # Use the original_url stored in the database from discovery.
     episode = episode_row or db.get_episode(slug, episode_id)
     if episode and episode.get('original_url'):
-        return {
+        result = ({
             'id': episode_id,
             'url': episode['original_url'],
             'title': episode.get('title'),
             'description': episode.get('description'),
             'artwork_url': episode.get('artwork_url'),
             'published': episode.get('published_at'),
-        }, episode.get('podcast_title', 'Unknown')
+        }, episode.get('podcast_title', 'Unknown'))
+        episode_lookup_cache.set(cache_key, result)
+        return result
 
     return None, None
 

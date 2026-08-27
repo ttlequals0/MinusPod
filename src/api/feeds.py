@@ -55,6 +55,34 @@ from utils.validation import is_valid_slug
 from slugify import slugify as make_slug
 
 
+# 10 years. High enough that nobody hits it by accident, low enough that a
+# fat-fingered value cannot overflow the date arithmetic in the sweep.
+MAX_RETENTION_DAYS_OVERRIDE = 3650
+
+
+def _validate_retention_override(value):
+    """Validate the per-feed retention override.
+
+    Returns (db_value, error). db_value is the integer to persist: None
+    clears the override and falls back to the global setting, 0 archives the
+    feed so nothing is ever deleted, and a positive value is a day count.
+    """
+    if value is None:
+        return None, None
+    if isinstance(value, bool):
+        return None, 'retentionDaysOverride must be an integer'
+    try:
+        days = int(value)
+    except (ValueError, TypeError):
+        return None, 'retentionDaysOverride must be an integer'
+    if days < 0:
+        return None, 'retentionDaysOverride cannot be negative'
+    if days > MAX_RETENTION_DAYS_OVERRIDE:
+        return None, (f'retentionDaysOverride cannot exceed '
+                      f'{MAX_RETENTION_DAYS_OVERRIDE} days')
+    return days, None
+
+
 def _normalize_language_override(value):
     """Validate the per-feed language override.
 
@@ -506,6 +534,8 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'daiPlatform': podcast.get('dai_platform'),
         'maxEpisodes': podcast.get('max_episodes'),
         'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
+        'retentionDaysOverride': podcast.get('retention_days_override'),
+        'keepOriginalAudioOverride': _deserialize_nullable_bool(podcast.get('keep_original_audio_override')),
     }
 
 
@@ -691,6 +721,13 @@ def add_feed():
         if lang_err:
             return error_response(lang_err, 400)
 
+    retention_override = None
+    if 'retentionDaysOverride' in data:
+        retention_override, retention_err = _validate_retention_override(
+            data['retentionDaysOverride'])
+        if retention_err:
+            return error_response(retention_err, 400)
+
     # Create podcast
     try:
         db.create_podcast(slug, source_url)
@@ -715,6 +752,16 @@ def add_feed():
                 slug,
                 only_expose_processed_episodes=_serialize_nullable_bool(
                     data['onlyExposeProcessedEpisodes']),
+            )
+
+        if 'retentionDaysOverride' in data:
+            db.update_podcast(slug, retention_days_override=retention_override)
+
+        if 'keepOriginalAudioOverride' in data:
+            db.update_podcast(
+                slug,
+                keep_original_audio_override=_serialize_nullable_bool(
+                    data['keepOriginalAudioOverride']),
             )
 
         # Invalidate feed cache since we added a new feed
@@ -1120,6 +1167,16 @@ def update_feed(slug):
     if 'onlyExposeProcessedEpisodes' in data:
         updates['only_expose_processed_episodes'] = _serialize_nullable_bool(
             data['onlyExposeProcessedEpisodes'])
+
+    if 'retentionDaysOverride' in data:
+        days, days_err = _validate_retention_override(data['retentionDaysOverride'])
+        if days_err:
+            return error_response(days_err, 400)
+        updates['retention_days_override'] = days
+
+    if 'keepOriginalAudioOverride' in data:
+        updates['keep_original_audio_override'] = _serialize_nullable_bool(
+            data['keepOriginalAudioOverride'])
 
     # Validated last so every cheap field validation can 400 before the
     # network fetch inside _validate_source_url runs. An unchanged URL is a

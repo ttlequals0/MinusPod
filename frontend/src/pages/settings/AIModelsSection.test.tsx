@@ -3,8 +3,9 @@
  * placeholder shown when a model setting is an empty string (requires
  * an explicit LLM model instead of a hardcoded fallback).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import AIModelsSection from './AIModelsSection';
 import type { ClaudeModel } from '../../api/types';
 
@@ -78,5 +79,47 @@ describe('AIModelsSection: empty catalog banner', () => {
     expect(
       screen.getByText('No models available from the LLM provider. Check that your provider is configured correctly and the endpoint is reachable.')
     ).toBeDefined();
+  });
+});
+
+describe('AIModelsSection: typing a model ID', () => {
+  it('swaps the list for a text field and back', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('SELECT');
+
+    await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
+    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('INPUT');
+
+    await user.click(screen.getAllByRole('button', { name: 'Choose from list' })[0]);
+    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('SELECT');
+  });
+
+  it('reports what was typed', async () => {
+    const user = userEvent.setup();
+    const onSelectedModelChange = vi.fn();
+    renderSection({ selectedModel: '', onSelectedModelChange });
+
+    await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
+    await user.type(screen.getByLabelText('Ad Detection Model'), 'x');
+
+    expect(onSelectedModelChange).toHaveBeenCalledWith('x');
+  });
+
+  it('switches only the field whose button was clicked', async () => {
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
+
+    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('INPUT');
+    expect(screen.getByLabelText('Verification Model').tagName).toBe('SELECT');
+    expect(screen.getByLabelText('Chapters Model').tagName).toBe('SELECT');
+  });
+
+  it('keeps the orphan option available in list mode', () => {
+    renderSection({ selectedModel: 'retired-model' });
+    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('SELECT');
+    expect(screen.getByRole('option', { name: 'retired-model (current, not in catalog)' })).toBeDefined();
   });
 });

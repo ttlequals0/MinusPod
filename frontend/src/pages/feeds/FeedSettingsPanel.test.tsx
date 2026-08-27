@@ -46,6 +46,7 @@ const mockGetSettings = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   getSettings: (...args: unknown[]) => mockGetSettings(...args),
+  getAudioSettings: () => Promise.resolve({ keepOriginalAudio: true }),
 }));
 
 // FeedTagsEditor queries api/community internally; not under test here.
@@ -868,5 +869,62 @@ describe('FeedSettingsPanel run log override', () => {
     await userEvent.selectOptions(
       screen.getByRole('combobox', { name: RUN_LOG_SELECT_NAME }), '');
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { episodeLogs: null });
+  });
+});
+
+describe('FeedSettingsPanel retention overrides', () => {
+  it('shows the global window in the inherit option', async () => {
+    renderPanel(makeFeed());
+    expect(await screen.findByRole('option', { name: 'Use global (30 days)' })).toBeDefined();
+  });
+
+  it('archiving sends a zero override', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed());
+    const select = await screen.findByLabelText('Retention');
+    await user.selectOptions(select, 'archive');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ retentionDaysOverride: 0 })));
+  });
+
+  it('marks an archived feed and hides the day field', async () => {
+    renderPanel(makeFeed({ retentionDaysOverride: 0 }));
+    expect(await screen.findByText('Archived')).toBeDefined();
+    expect(screen.queryByLabelText('Retention days')).toBeNull();
+  });
+
+  it('shows the day field for a custom window', async () => {
+    renderPanel(makeFeed({ retentionDaysOverride: 7 }));
+    const days = await screen.findByLabelText('Retention days') as HTMLInputElement;
+    expect(days.value).toBe('7');
+  });
+
+  it('returning to global clears the override', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ retentionDaysOverride: 7 }));
+    const select = await screen.findByLabelText('Retention');
+    await user.selectOptions(select, 'global');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ retentionDaysOverride: null })));
+  });
+
+  it('discarding the original sends false', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed());
+    const select = await screen.findByLabelText('Keep original audio');
+    await user.selectOptions(select, 'off');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ keepOriginalAudioOverride: false })));
+  });
+
+  it('badges an explicit keep-original override', async () => {
+    renderPanel(makeFeed({ keepOriginalAudioOverride: false }));
+    expect(await screen.findByText('Override: discarding')).toBeDefined();
+  });
+
+  it('leaves the keep-original badge off while inheriting', async () => {
+    renderPanel(makeFeed());
+    await screen.findByLabelText('Keep original audio');
+    expect(screen.queryByText(/^Override: (keeping|discarding)$/)).toBeNull();
   });
 });

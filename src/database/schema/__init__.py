@@ -376,6 +376,12 @@ class SchemaMixin:
             # Per-feed episode run log storage (#660); NULL = follow the
             # global setting, 'on' = store, 'off' = never store.
             ('episode_logs', 'TEXT'),
+            # Per-feed retention override; NULL = follow the global
+            # retention_days setting, 0 = archive (never delete), N = N days.
+            ('retention_days_override', 'INTEGER'),
+            # Per-feed pre-cut original audio override; NULL = follow the
+            # global keep_original_audio setting, 0 = off, 1 = on.
+            ('keep_original_audio_override', 'INTEGER'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

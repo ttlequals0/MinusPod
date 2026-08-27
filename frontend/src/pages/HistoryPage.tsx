@@ -241,13 +241,23 @@ function HistoryPage() {
                   </span>
                 )}
               </div>
-              <Link
-                to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
-                className={`text-primary hover:underline text-sm block truncate mb-3 ${focusRing}`}
-                title={entry.episodeTitle}
-              >
-                {entry.episodeTitle}
-              </Link>
+              <div className="mb-3">
+                <Link
+                  to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
+                  className={`text-primary hover:underline text-sm block truncate ${focusRing}`}
+                  title={entry.episodeTitle}
+                >
+                  {entry.episodeTitle}
+                </Link>
+                {entry.status !== 'completed' && entry.errorMessage && (
+                  <p
+                    className="text-xs text-destructive truncate cursor-help mt-1"
+                    title={entry.errorMessage}
+                  >
+                    {entry.errorMessage}
+                  </p>
+                )}
+              </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>{formatDateTime(entry.processedAt)}</span>
                 <span>{formatDuration(entry.processingDurationSeconds)}</span>
@@ -321,6 +331,14 @@ function HistoryPage() {
                       >
                         {entry.episodeTitle}
                       </Link>
+                      {entry.status !== 'completed' && entry.errorMessage && (
+                        <span
+                          className="block text-xs text-destructive truncate max-w-[200px] cursor-help mt-1"
+                          title={entry.errorMessage}
+                        >
+                          {entry.errorMessage}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
                       {formatDateTime(entry.processedAt)}

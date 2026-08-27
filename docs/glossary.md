@@ -10,6 +10,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Addressing mode** - An experimental detector setting where the LLM names numbered transcript lines (`segment_ids`) instead of inventing start and end timestamps (`timestamps`), or where `random` draws one of the two per run so the Stats page can compare their compliance percentage over time. Timestamps stays the default while benchmark results decide whether that changes. [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
 
+**Archive mode** - A per-feed retention setting that keeps every processed episode indefinitely, ignoring the global retention window and the "Clear all processed audio" action. Set it on shows you never want swept, such as ones that have stopped publishing. [Configuration > Per-feed retention](configuration.md#per-feed-retention)
+
 **Audio analysis** - A pre-detection pass over the audio itself (volume shifts, transitions, silence) whose signals feed the detector and validator. [How It Works > Audio Analysis](how-it-works.md#audio-analysis)
 
 **Audio cue** - A short, repeated sound a show plays around its ad breaks (a sting, a jingle). MinusPod can learn one as a template and use matches as hard evidence for ad boundaries. [Audio Cue Detection](audio-cues.md)
@@ -106,7 +108,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Resurrected** - A detection the validator rejected that the Ad Reviewer overruled and put back in the cut list. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
-**Retention** - How long processed audio is kept before the episode resets to Discovered. The pre-cut original can have its own shorter window. [Web Interface > Overview](web-interface.md#overview)
+**Retention** - How long processed audio is kept before the episode resets to Discovered. The pre-cut original can have its own shorter window, and any feed can override the whole window on its own settings page. [Configuration > Per-feed retention](configuration.md#per-feed-retention)
 
 ## S
 

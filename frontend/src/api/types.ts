@@ -104,6 +104,11 @@ export interface Feed {
   skipTranscription?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
+  // Per-feed retention: null inherits the global window, 0 archives the feed
+  // so nothing is ever deleted, a positive value is a day count.
+  retentionDaysOverride?: number | null;
+  // Per-feed pre-cut original audio: null inherits the global setting.
+  keepOriginalAudioOverride?: boolean | null;
   // Per-feed episode title blacklist: fnmatch glob patterns matched against
   // episode titles. A match is never queued or JIT-processed.
   titleSkipPatterns?: string[];

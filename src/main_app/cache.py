@@ -48,3 +48,13 @@ class TTLCache:
                 self._cache.pop(key, None)
             else:
                 self._cache.clear()
+
+    def invalidate_prefix(self, prefix: str):
+        """Invalidate every key starting with `prefix`.
+
+        For caches whose keys namespace several entries under one owner, so
+        the owner can drop all of its entries without tracking them.
+        """
+        with self._lock:
+            for k in [k for k in self._cache if k.startswith(prefix)]:
+                del self._cache[k]

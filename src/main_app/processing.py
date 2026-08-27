@@ -4659,8 +4659,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Retain the pre-cut audio for the ad-editor "Review mode" playback
             # when the user hasn't opted out. Moved rather than copied so the
             # temp file in the finally-block below no longer exists.
-            keep_original_raw = db.get_setting('keep_original_audio')
-            keep_original = (keep_original_raw or 'true').lower() != 'false'
+            keep_original = db.resolve_keep_original_audio(
+                slug, podcast_settings)
             if keep_original and os.path.exists(audio_path):
                 original_final = storage.get_original_path(slug, episode_id)
                 original_final.parent.mkdir(parents=True, exist_ok=True)

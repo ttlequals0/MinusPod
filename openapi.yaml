@@ -260,6 +260,18 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed override. true hides non-processed episodes; false shows everything; null falls back to the global onlyExposeProcessedDefault setting.
+                retentionDaysOverride:
+                  type:
+                    - integer
+                    - 'null'
+                  minimum: 0
+                  maximum: 3650
+                  description: Per-feed retention override. Null falls back to the global retentionDays setting; 0 archives the feed so processed audio is never deleted, including by the force-all cleanup; 1-3650 keeps it for that many days.
+                keepOriginalAudioOverride:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed override for retaining the pre-cut original audio. Null falls back to the global keepOriginalAudio setting; true always keeps it; false never does. Applies from the next episode processed.
       responses:
         '201':
           description: Feed created successfully
@@ -751,6 +763,18 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed override. true hides non-processed episodes; false shows everything; null falls back to the global onlyExposeProcessedDefault setting.
+                retentionDaysOverride:
+                  type:
+                    - integer
+                    - 'null'
+                  minimum: 0
+                  maximum: 3650
+                  description: Per-feed retention override. Null falls back to the global retentionDays setting; 0 archives the feed so processed audio is never deleted, including by the force-all cleanup; 1-3650 keeps it for that many days.
+                keepOriginalAudioOverride:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed override for retaining the pre-cut original audio. Null falls back to the global keepOriginalAudio setting; true always keeps it; false never does. Applies from the next episode processed.
                 segmentCategoryActions:
                   type:
                     - object
@@ -8297,6 +8321,18 @@ components:
             - boolean
             - 'null'
           description: Per-feed override for hiding upstream episodes whose status is not 'processed' from the served RSS feed. Null means use the global onlyExposeProcessedDefault setting. true/false override the global for this feed (issue #181).
+        retentionDaysOverride:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          maximum: 3650
+          description: Per-feed retention override. Null falls back to the global retentionDays setting; 0 archives the feed so processed audio is never deleted, including by the force-all cleanup; 1-3650 keeps it for that many days.
+        keepOriginalAudioOverride:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed override for retaining the pre-cut original audio. Null falls back to the global keepOriginalAudio setting; true always keeps it; false never does. Applies from the next episode processed.
         segmentCategoryActions:
           type:
             - object

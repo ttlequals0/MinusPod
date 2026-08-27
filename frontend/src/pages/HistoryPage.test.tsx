@@ -104,3 +104,32 @@ describe('HistoryPage: Version column', () => {
     });
   });
 });
+
+describe('HistoryPage: failure reason', () => {
+  it('shows the reason a run failed', async () => {
+    renderPage([makeEntry({ status: 'failed', errorMessage: 'Whisper API returned 401' })]);
+    const shown = await screen.findAllByText('Whisper API returned 401');
+    expect(shown.length).toBeGreaterThan(0);
+  });
+
+  it('keeps the full text reachable when the row truncates it', async () => {
+    const long = 'Transcription failed: ' + 'x'.repeat(200);
+    renderPage([makeEntry({ status: 'failed', errorMessage: long })]);
+    const shown = await screen.findAllByText(long);
+    expect(shown[0].getAttribute('title')).toBe(long);
+  });
+
+  it('says nothing extra for a completed run', async () => {
+    renderPage([makeEntry({ status: 'completed', errorMessage: undefined })]);
+    await screen.findAllByText('Episode One');
+    expect(screen.queryByText(/Whisper API/)).toBeNull();
+  });
+
+  it('falls back to the status badge when a failure carries no message', async () => {
+    renderPage([makeEntry({ status: 'failed', errorMessage: undefined })]);
+    const badges = await screen.findAllByText('Failed');
+    const withTitle = badges.filter((el) => el.hasAttribute('title'));
+    expect(withTitle.length).toBeGreaterThan(0);
+    expect(withTitle[0].getAttribute('title')).toBe('Processing failed');
+  });
+});

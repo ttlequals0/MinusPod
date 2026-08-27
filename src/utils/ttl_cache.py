@@ -52,6 +52,10 @@ class TTLCache:
             for k, _ in oldest:
                 del self._store[k]
 
+    def delete(self, key) -> None:
+        """Drop one entry if present."""
+        self._store.pop(key, None)
+
     def clear(self) -> None:
         """Drop all cached entries."""
         self._store.clear()
