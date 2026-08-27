@@ -183,7 +183,7 @@ Changing an action map only affects episodes processed after the change. To appl
 
 Each feed has a **Queue priority**: High, Normal (default), or Low, set on the feed's settings page. High processes ahead of other queued episodes; Low runs only once nothing else is waiting.
 
-Three automatic boosts stack on top of a feed's base priority, and the size of each is a setting under **Settings > Global Defaults > Queue boosts**:
+Three automatic boosts stack on top of a feed's base priority, and the size of each is a setting under **Settings > Global Defaults > Queue priority**:
 
 | Boost | Default | When it applies |
 |---|---|---|

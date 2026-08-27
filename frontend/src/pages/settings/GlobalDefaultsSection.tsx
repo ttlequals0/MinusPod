@@ -102,17 +102,17 @@ function GlobalDefaultsSection({
           </p>
         </div>
 
-        {/* Queue boosts: how far each kind of request jumps the queue.
+        {/* Queue priority: how far each kind of request jumps the queue.
             Higher number processes sooner; ties process oldest first. */}
         <div className="pt-4 border-t border-border">
-          <p className="text-sm font-medium text-foreground mb-1">Queue boosts</p>
+          <p className="text-sm font-medium text-foreground mb-1">Queue priority</p>
           <p className="text-sm text-muted-foreground mb-3">
-            How far each kind of request jumps the queue. Higher processes sooner; ties go to whichever queued first.
+            How far each request type jumps the queue. Ties process oldest first.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label htmlFor="queueManualBoost" className="block text-sm text-foreground mb-2">
-                Play or reprocess
+                Play / Reprocess
               </label>
               <NumberInput
                 id="queueManualBoost"
@@ -124,7 +124,7 @@ function GlobalDefaultsSection({
                 onCommit={onQueueManualBoostChange}
               />
               <p className="mt-2 text-sm text-muted-foreground">
-                Pressing play on an unprocessed episode, or reprocessing one. Keep this the highest so your requests are never stuck behind backlog work. Default 20.
+                Playing an unprocessed episode or reprocessing one. Keep highest so your requests skip the backlog. Default 20.
               </p>
             </div>
             <div>
@@ -141,7 +141,7 @@ function GlobalDefaultsSection({
                 onCommit={onQueueFreshBoostChange}
               />
               <p className="mt-2 text-sm text-muted-foreground">
-                Episodes published in the last 48 hours, while the toggle above is on. Default 5.
+                Published in the last 48 hours. Needs the toggle above. Default 5.
               </p>
             </div>
             <div>
@@ -158,7 +158,7 @@ function GlobalDefaultsSection({
                 onCommit={onQueueBulkBoostChange}
               />
               <p className="mt-2 text-sm text-muted-foreground">
-                Bulk work like Reprocess All and segment re-renders. 0 keeps a backlog run behind everything else. Default 0.
+                Reprocess All and segment re-renders. Leave at 0 to keep backfills last. Default 0.
               </p>
             </div>
           </div>

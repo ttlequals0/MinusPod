@@ -16,7 +16,7 @@ release notes.
 ### Added
 
 - Queue boost sizes are settings under Settings > Global Defaults > Queue
-  boosts: play-or-reprocess (default 20), new-episode (default 5), and
+  priority: play-or-reprocess (default 20), new-episode (default 5), and
   Reprocess All (default 0). `queueManualBoost`, `queueFreshBoost`, and
   `queueBulkBoost` on `PUT /api/v1/settings`.
 

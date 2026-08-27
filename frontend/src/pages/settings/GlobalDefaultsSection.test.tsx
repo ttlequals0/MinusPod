@@ -484,7 +484,7 @@ describe('GlobalDefaultsSection: queue boosts', () => {
 
   it('renders the three boost fields with their current values', () => {
     renderBoosts();
-    expect((screen.getByLabelText('Play or reprocess') as HTMLInputElement).value).toBe('20');
+    expect((screen.getByLabelText('Play / Reprocess') as HTMLInputElement).value).toBe('20');
     expect((screen.getByLabelText('New episode') as HTMLInputElement).value).toBe('5');
     expect((screen.getByLabelText('Reprocess All') as HTMLInputElement).value).toBe('0');
   });
@@ -492,7 +492,7 @@ describe('GlobalDefaultsSection: queue boosts', () => {
   it('reports an edited manual boost', () => {
     const onManual = vi.fn();
     renderBoosts(onManual);
-    const input = screen.getByLabelText('Play or reprocess');
+    const input = screen.getByLabelText('Play / Reprocess');
     fireEvent.change(input, { target: { value: '30' } });
     expect(onManual).toHaveBeenCalledWith(30);
   });
