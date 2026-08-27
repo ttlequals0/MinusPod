@@ -7689,6 +7689,27 @@ components:
         compliancePct:
           type: number
           description: 100 * windowsCompliant / windowsJudged, rounded to 1 decimal. 0.0 when windowsJudged is 0.
+        yieldRuns:
+          type: integer
+          description: Passes that recorded yield data. Rows from before 2.92.0 carry none and are excluded from every yield number below, so this denominator can lag runs.
+        adsProposed:
+          type: integer
+          description: Ads the model returned across judged windows, before any filtering. Yield rows only.
+        adsKept:
+          type: integer
+          description: Proposed ads that survived reference resolution and the window/duration filter into the pipeline.
+        adsDroppedInvalidRef:
+          type: integer
+          description: Ads dropped for referencing a segment id that does not exist. Structurally zero for timestamps mode; an invented timestamp is not detectable at this stage.
+        adsDroppedOutOfWindow:
+          type: integer
+          description: Ads dropped for starting outside their detection window.
+        adsDroppedTooLong:
+          type: integer
+          description: Ads dropped for exceeding the per-window maximum ad duration.
+        keptPct:
+          type: number
+          description: 100 * adsKept / adsProposed over yield rows, 0.0 when nothing was proposed.
     ConnectionTestResult:
       type: object
       properties:
