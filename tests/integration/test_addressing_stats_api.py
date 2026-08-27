@@ -57,3 +57,23 @@ def test_addressing_stats_podcast_slug_filter(app_client):
     assert resp_other.status_code == 200
     data_other = resp_other.get_json()
     assert data_other['modes']['segment_ids']['runs'] == 0
+
+
+def test_addressing_stats_exposes_yield_fields(app_client):
+    _authed(app_client)
+    from api import get_database
+
+    db = get_database()
+    db.record_addressing_log(
+        'y-show', 'ep1', 'detection', 'random', 'segment_ids', 5, 5,
+        ads_proposed=4, ads_kept=3, ads_dropped_invalid_ref=1,
+        ads_dropped_out_of_window=0, ads_dropped_too_long=0)
+
+    resp = app_client.get('/api/v1/stats/addressing?podcast_slug=y-show')
+    assert resp.status_code == 200
+    seg = resp.get_json()['modes']['segment_ids']
+    assert seg['yieldRuns'] == 1
+    assert seg['adsProposed'] == 4
+    assert seg['adsKept'] == 3
+    assert seg['adsDroppedInvalidRef'] == 1
+    assert seg['keptPct'] == 75.0

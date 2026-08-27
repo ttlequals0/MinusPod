@@ -30,7 +30,11 @@ def test_zero_row_modes_present_as_zeros(temp_db):
     for mode in ('timestamps', 'segment_ids'):
         entry = stats['modes'][mode]
         assert entry == {
-            'runs': 0, 'windowsJudged': 0, 'windowsCompliant': 0, 'compliancePct': 0.0,
+            'runs': 0, 'windowsJudged': 0, 'windowsCompliant': 0,
+            'compliancePct': 0.0, 'yieldRuns': 0, 'adsProposed': 0,
+            'adsKept': 0, 'adsDroppedInvalidRef': 0,
+            'adsDroppedOutOfWindow': 0, 'adsDroppedTooLong': 0,
+            'keptPct': 0.0,
         }
 
 
@@ -40,7 +44,11 @@ def test_only_one_mode_has_rows_other_stays_zero(temp_db):
     stats = temp_db.get_addressing_stats()
     assert stats['modes']['timestamps']['runs'] == 1
     assert stats['modes']['segment_ids'] == {
-        'runs': 0, 'windowsJudged': 0, 'windowsCompliant': 0, 'compliancePct': 0.0,
+        'runs': 0, 'windowsJudged': 0, 'windowsCompliant': 0,
+        'compliancePct': 0.0, 'yieldRuns': 0, 'adsProposed': 0,
+        'adsKept': 0, 'adsDroppedInvalidRef': 0,
+        'adsDroppedOutOfWindow': 0, 'adsDroppedTooLong': 0,
+        'keptPct': 0.0,
     }
 
 
@@ -98,3 +106,40 @@ def test_record_without_yield_stores_null(temp_db):
         "SELECT * FROM addressing_log").fetchone()
     assert row['ads_proposed'] is None
     assert row['ads_kept'] is None
+
+
+def test_yield_aggregates_exclude_legacy_rows(temp_db):
+    # Legacy-shaped row: no yield recorded.
+    temp_db.record_addressing_log(
+        'show-a', 'ep1', 'detection', 'random', 'segment_ids', 10, 10)
+    # Two new rows with yield.
+    temp_db.record_addressing_log(
+        'show-a', 'ep2', 'detection', 'random', 'segment_ids', 6, 6,
+        ads_proposed=8, ads_kept=6, ads_dropped_invalid_ref=2,
+        ads_dropped_out_of_window=0, ads_dropped_too_long=0)
+    temp_db.record_addressing_log(
+        'show-a', 'ep3', 'verification', 'random', 'segment_ids', 4, 4,
+        ads_proposed=2, ads_kept=1, ads_dropped_invalid_ref=0,
+        ads_dropped_out_of_window=1, ads_dropped_too_long=0)
+
+    seg = temp_db.get_addressing_stats()['modes']['segment_ids']
+    # Compliance still spans all three rows.
+    assert seg['runs'] == 3
+    assert seg['windowsJudged'] == 20
+    # Yield spans only the two rows that recorded it.
+    assert seg['yieldRuns'] == 2
+    assert seg['adsProposed'] == 10
+    assert seg['adsKept'] == 7
+    assert seg['adsDroppedInvalidRef'] == 2
+    assert seg['adsDroppedOutOfWindow'] == 1
+    assert seg['adsDroppedTooLong'] == 0
+    assert seg['keptPct'] == 70.0
+
+
+def test_yield_zeroed_when_no_rows_recorded_it(temp_db):
+    temp_db.record_addressing_log(
+        'show-a', 'ep1', 'detection', 'random', 'timestamps', 5, 5)
+    ts = temp_db.get_addressing_stats()['modes']['timestamps']
+    assert ts['yieldRuns'] == 0
+    assert ts['adsProposed'] == 0
+    assert ts['keptPct'] == 0.0

@@ -888,7 +888,13 @@ class StatsMixin:
             SELECT effective_mode,
                    COUNT(*) AS runs,
                    SUM(windows_judged) AS windows_judged,
-                   SUM(windows_compliant) AS windows_compliant
+                   SUM(windows_compliant) AS windows_compliant,
+                   COUNT(ads_proposed) AS yield_runs,
+                   SUM(ads_proposed) AS ads_proposed,
+                   SUM(ads_kept) AS ads_kept,
+                   SUM(ads_dropped_invalid_ref) AS dropped_invalid_ref,
+                   SUM(ads_dropped_out_of_window) AS dropped_out_of_window,
+                   SUM(ads_dropped_too_long) AS dropped_too_long
             FROM addressing_log
             {where_clause}
             GROUP BY effective_mode
@@ -896,17 +902,32 @@ class StatsMixin:
             params,
         ).fetchall()
 
-        modes = {
-            mode: {'runs': 0, 'windowsJudged': 0, 'windowsCompliant': 0, 'compliancePct': 0.0}
-            for mode in ('timestamps', 'segment_ids')
+        zero = {
+            'runs': 0, 'windowsJudged': 0, 'windowsCompliant': 0,
+            'compliancePct': 0.0, 'yieldRuns': 0, 'adsProposed': 0,
+            'adsKept': 0, 'adsDroppedInvalidRef': 0,
+            'adsDroppedOutOfWindow': 0, 'adsDroppedTooLong': 0,
+            'keptPct': 0.0,
         }
+        modes = {mode: dict(zero) for mode in ('timestamps', 'segment_ids')}
         for r in rows:
             judged = r['windows_judged'] or 0
             compliant = r['windows_compliant'] or 0
+            # SUM skips NULLs and COUNT(col) counts non-NULL, so rows from
+            # before yield recording existed never dilute these rates.
+            proposed = r['ads_proposed'] or 0
+            kept = r['ads_kept'] or 0
             modes[r['effective_mode']] = {
                 'runs': r['runs'],
                 'windowsJudged': judged,
                 'windowsCompliant': compliant,
                 'compliancePct': round(100.0 * compliant / judged, 1) if judged else 0.0,
+                'yieldRuns': r['yield_runs'] or 0,
+                'adsProposed': proposed,
+                'adsKept': kept,
+                'adsDroppedInvalidRef': r['dropped_invalid_ref'] or 0,
+                'adsDroppedOutOfWindow': r['dropped_out_of_window'] or 0,
+                'adsDroppedTooLong': r['dropped_too_long'] or 0,
+                'keptPct': round(100.0 * kept / proposed, 1) if proposed else 0.0,
             }
         return {'modes': modes}
