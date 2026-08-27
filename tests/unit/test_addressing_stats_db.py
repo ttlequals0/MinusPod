@@ -61,3 +61,15 @@ def test_podcast_slug_filter(temp_db):
 
     stats_all = temp_db.get_addressing_stats()
     assert stats_all['modes']['timestamps']['runs'] == 2
+
+
+def test_yield_columns_exist_and_are_nullable(temp_db):
+    conn = temp_db.get_connection()
+    cols = {row['name']: row for row in
+            conn.execute("PRAGMA table_info(addressing_log)").fetchall()}
+    for col in ('ads_proposed', 'ads_kept', 'ads_dropped_invalid_ref',
+                'ads_dropped_out_of_window', 'ads_dropped_too_long'):
+        assert col in cols, f"missing column {col}"
+        # NULL must be storable: it is the marker for pre-yield history.
+        assert cols[col]['notnull'] == 0, f"{col} must be nullable"
+        assert cols[col]['dflt_value'] is None, f"{col} must have no default"
