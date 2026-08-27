@@ -238,6 +238,19 @@ How often each mode's LLM contract is actually honored shows up on the Stats pag
 
 Default `timestamps`. API: `PUT /api/v1/settings/ad-detection` with `adAddressingMode` (`timestamps`, `segment_ids`, or `random`).
 
+The Stats page tracks two things per mode. Contract compliance says whether
+the model used the requested output shape; both modes hold near 100%
+and it exists mostly as a canary. Ad yield is the comparison that matters:
+how many ads each mode proposed, how many survived into the pipeline, and
+why the rest were dropped. The "invalid ref" drop count only exists for
+segment IDs, and that asymmetry is the point of the experiment: a made-up
+segment ID is caught and dropped, while a made-up timestamp sails through
+and has to be caught by later validation, if it is caught at all.
+
+Yield is recorded from 2.92.0 on. Older runs carry no yield data and are
+excluded from the yield numbers, so the yield sample starts empty and can
+lag the compliance sample.
+
 ### Ad Reviewer
 
 The ad reviewer is an opt-in third LLM stage that sits between detection and audio cutting. After pass 1 detection (and again after pass 2), the reviewer takes each candidate ad along with 60 seconds of transcript on either side and decides one of three things: confirm the detection as is, adjust the start or end timestamps within a configured cap, or reject the segment as a false positive. The reviewer also gets a second look at validator-rejected detections whose confidence sits within 20 percentage points of your `min_cut_confidence` slider, and may resurrect them as real ads.

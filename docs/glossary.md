@@ -8,7 +8,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Ad Reviewer** - An optional second LLM that double-checks each planned cut before it happens and can confirm, adjust, reject, or resurrect a detection. Off by default. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
-**Addressing mode** - An experimental detector setting where the LLM names numbered transcript lines (`segment_ids`) instead of inventing start and end timestamps (`timestamps`), or where `random` draws one of the two per run so the Stats page can compare their compliance percentage over time. Timestamps stays the default while benchmark results decide whether that changes. [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
+**Addressing mode** - An experimental detector setting where the LLM names numbered transcript lines (`segment_ids`) instead of inventing start and end timestamps (`timestamps`), or where `random` draws one of the two per run. Timestamps stays the default while results decide whether that changes. The Stats page compares the modes on contract compliance and on ad yield (proposed vs kept, with drop reasons). [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
 
 **Archive mode** - A per-feed retention setting that keeps every processed episode indefinitely, ignoring the global retention window and the "Clear all processed audio" action. Set it on shows you never want swept, such as ones that have stopped publishing. [Configuration > Per-feed retention](configuration.md#per-feed-retention)
 
