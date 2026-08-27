@@ -47,29 +47,36 @@ class MaintenanceMixin:
         pre-pass and the main processed-file pass below."""
         return (utc_now() - timedelta(days=days)).strftime(ISO_FORMAT)
 
-    def _retention_groups(self, conn) -> dict[int, list[str]]:
-        """Resolved retention window (days) -> the slugs that share it.
+    def _retention_groups(self, conn) -> tuple[dict[int, list[str]], dict[str, bool]]:
+        """(resolved retention window -> slugs sharing it, slug -> retains
+        originals), from one query over podcasts.
 
         Feeds cluster into a handful of distinct windows, so grouping keeps
-        the sweep to one query per window instead of one per feed, without
-        pushing date arithmetic into SQL.
+        the sweep to one query per window instead of one per feed. Precedence
+        is delegated to the same helpers the per-feed resolvers use so the
+        two paths cannot drift. The keep-original map rides along because
+        resolving it per slug would cost one podcast aggregate each, on
+        every cleanup tick.
         """
+        from database.podcasts import (
+            effective_keep_original, effective_retention_days)
         try:
             global_days = int(self.get_setting('retention_days') or '30')
         except (TypeError, ValueError):
             global_days = 30
+        global_keep = (self.get_setting('keep_original_audio') or 'true').lower() != 'false'
         groups: dict[int, list[str]] = {}
+        keep_by_slug: dict[str, bool] = {}
         rows = conn.execute(
-            "SELECT slug, retention_days_override FROM podcasts").fetchall()
+            "SELECT slug, retention_days_override, keep_original_audio_override "
+            "FROM podcasts").fetchall()
         for row in rows:
-            override = row['retention_days_override']
-            days = int(override) if override is not None else global_days
+            days = effective_retention_days(
+                row['retention_days_override'], global_days)
             groups.setdefault(days, []).append(row['slug'])
-        return groups
-
-    def _keep_original_slugs(self, slugs: list[str]) -> list[str]:
-        """Subset of `slugs` whose feeds retain the pre-cut original."""
-        return [s for s in slugs if self.resolve_keep_original_audio(s)]
+            keep_by_slug[row['slug']] = effective_keep_original(
+                row['keep_original_audio_override'], global_keep)
+        return groups, keep_by_slug
 
     def _resolve_original_retention(self, retention_days: int):
         """Return original_retention_days if the pre-pass should run, else None.
@@ -188,18 +195,21 @@ class MaintenanceMixin:
 
         if not force_all:
             episodes_to_reset = []
-            for retention_days, slugs in self._retention_groups(conn).items():
+            groups, keep_by_slug = self._retention_groups(conn)
+            for retention_days, slugs in groups.items():
                 # Archived feeds (explicit 0) and a globally disabled
                 # retention both land here and are simply never swept.
                 if retention_days <= 0:
                     continue
 
                 # First pass: original-only deletion when the operator set a
-                # shorter retention for the pre-cut copy. Limited to the
-                # feeds that actually retain originals, and skipped when the
-                # two windows match (the main pass below already covers it).
-                self._cleanup_originals_only(
-                    conn, self._keep_original_slugs(slugs), retention_days, storage)
+                # shorter retention for the pre-cut copy. Gated up front: on
+                # the default install (original_retention_days unset) it is
+                # a no-op and the keep-original filter would be pure waste.
+                if self._resolve_original_retention(retention_days) is not None:
+                    self._cleanup_originals_only(
+                        conn, [s for s in slugs if keep_by_slug.get(s)],
+                        retention_days, storage)
 
                 cutoff_str = self._retention_cutoff_str(retention_days)
                 for chunk in _chunked(slugs):

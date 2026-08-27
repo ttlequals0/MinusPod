@@ -22,7 +22,6 @@ import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import NumberInput from '../../components/NumberInput';
 import { selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 
@@ -194,8 +193,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     ? `${globalStorageRetentionDays} days` : 'never delete';
 
   // Keep-original lives on its own endpoint rather than the settings bundle.
+  // Same key Settings.tsx uses so its keep-original mutation invalidates
+  // this label too; a second key here would go stale on global toggles.
   const { data: audioSettings } = useQuery({
-    queryKey: ['settings', 'audio'],
+    queryKey: ['audio-settings'],
     queryFn: getAudioSettings,
   });
   const globalKeepOriginalLabel = audioSettings?.keepOriginalAudio === false
@@ -220,12 +221,21 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [snapLagInput, setSnapLagInput] = useState(s(feed.cueSnapLagOverride));
   const [maxAdDurInput, setMaxAdDurInput] = useState(s(feed.maxAdDurationOverride));
   const [maxAdDurRejectInput, setMaxAdDurRejectInput] = useState(s(feed.maxAdDurationRejectOverride));
+  // Retention days edits stay local until blur. Committing per keystroke
+  // would PATCH every intermediate digit (typing 365 sends 3, then 36) and
+  // retention is the one field where an intermediate value deletes audio.
+  const [retentionDaysInput, setRetentionDaysInput] = useState(
+    feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
+      ? String(feed.retentionDaysOverride) : '');
 
   // Reseed inputs from the server feed object when it changes (e.g. after a
   // successful mutation or a background refetch). This mirrors useSyncFromQuery
   // applied to each field individually so that a mutation response immediately
   // reflects the persisted value without waiting for a second refetch.
   useSyncFromQuery(feed, (f) => {
+    setRetentionDaysInput(
+      f.retentionDaysOverride != null && f.retentionDaysOverride > 0
+        ? String(f.retentionDaysOverride) : '');
     setCueScoreInput(f.cueTemplateScoreOverride != null ? String(f.cueTemplateScoreOverride) : '');
     setPairMinInput(s(f.cuePairMinBreakOverride));
     setPairMaxInput(s(f.cuePairMaxBreakOverride));
@@ -943,7 +953,12 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     const mode = e.target.value as RetentionMode;
                     if (mode === 'global') updateMutation.mutate({ retentionDaysOverride: null });
                     else if (mode === 'archive') updateMutation.mutate({ retentionDaysOverride: 0 });
-                    else updateMutation.mutate({ retentionDaysOverride: globalStorageRetentionDays });
+                    // Seeding from the global window would send 0 (= archive,
+                    // silently) whenever global retention is disabled.
+                    else updateMutation.mutate({
+                      retentionDaysOverride: globalStorageRetentionDays > 0
+                        ? globalStorageRetentionDays : 30,
+                    });
                   }}
                   disabled={updateMutation.isPending}
                   className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
@@ -955,15 +970,23 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </select>
                 {retentionMode === 'custom' && (
                   <>
-                    <NumberInput
-                      value={feed.retentionDaysOverride ?? globalStorageRetentionDays}
+                    <DraftNumberInput
+                      value={feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
+                        ? feed.retentionDaysOverride : null}
+                      fallback={null}
                       min={1}
                       max={MAX_RETENTION_DAYS}
-                      fallback={globalStorageRetentionDays}
                       step={1}
-                      parse={(v) => parseInt(v, 10)}
+                      parse={parseOptionalNumber}
+                      onChange={(v) => setRetentionDaysInput(v != null ? String(v) : '')}
+                      onBlur={() => commitFloat(
+                        retentionDaysInput, feed.retentionDaysOverride,
+                        'retentionDaysOverride', 1, MAX_RETENTION_DAYS,
+                        () => setRetentionDaysInput(
+                          feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
+                            ? String(feed.retentionDaysOverride) : ''))}
+                      className="w-24 px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                       ariaLabel="Retention days"
-                      onCommit={(v) => updateMutation.mutate({ retentionDaysOverride: v })}
                     />
                     <span className="text-xs text-muted-foreground">days</span>
                   </>

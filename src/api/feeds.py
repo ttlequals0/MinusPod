@@ -728,6 +728,13 @@ def add_feed():
         if retention_err:
             return error_response(retention_err, 400)
 
+    keep_original_override = None
+    if 'keepOriginalAudioOverride' in data:
+        keep_original_override, keep_err = _normalize_cue_bool_override(
+            data['keepOriginalAudioOverride'], 'keepOriginalAudioOverride')
+        if keep_err:
+            return error_response(keep_err, 400)
+
     # Create podcast
     try:
         db.create_podcast(slug, source_url)
@@ -759,10 +766,7 @@ def add_feed():
 
         if 'keepOriginalAudioOverride' in data:
             db.update_podcast(
-                slug,
-                keep_original_audio_override=_serialize_nullable_bool(
-                    data['keepOriginalAudioOverride']),
-            )
+                slug, keep_original_audio_override=keep_original_override)
 
         # Invalidate feed cache since we added a new feed
         from main_app.feeds import invalidate_feed_cache
@@ -1175,8 +1179,11 @@ def update_feed(slug):
         updates['retention_days_override'] = days
 
     if 'keepOriginalAudioOverride' in data:
-        updates['keep_original_audio_override'] = _serialize_nullable_bool(
-            data['keepOriginalAudioOverride'])
+        v, err = _normalize_cue_bool_override(
+            data['keepOriginalAudioOverride'], 'keepOriginalAudioOverride')
+        if err:
+            return error_response(err, 400)
+        updates['keep_original_audio_override'] = v
 
     # Validated last so every cheap field validation can 400 before the
     # network fetch inside _validate_source_url runs. An unchanged URL is a

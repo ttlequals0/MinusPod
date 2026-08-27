@@ -1269,7 +1269,19 @@ def _apply_provider_fields(db, data):
             logger.exception("Failed to fetch model catalog after provider change")
             advertised = set()
         if advertised:
-            for setting_key in ('claude_model', 'verification_model', 'chapters_model'):
+            # An ID written by THIS request is operator intent, not stale
+            # carryover from the previous provider, and off-catalog IDs are
+            # exactly what the typed-model-ID entry exists for (proxies,
+            # private deployments). The prune only targets settings the
+            # request did not touch.
+            explicit = {
+                'claude_model': 'claudeModel',
+                'verification_model': 'verificationModel',
+                'chapters_model': 'chaptersModel',
+            }
+            for setting_key, json_key in explicit.items():
+                if json_key in data:
+                    continue
                 current = db.get_setting(setting_key)
                 if current and current not in advertised:
                     logger.info(

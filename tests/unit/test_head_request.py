@@ -180,6 +180,15 @@ class TestHeadUpstreamHelper:
 class TestLookupEpisode:
     """Test _lookup_episode helper."""
 
+    @pytest.fixture(autouse=True)
+    def _clear_lookup_cache(self):
+        # _lookup_episode caches every episode of a fetched feed, so a hit
+        # from an earlier test would mask the fetch behavior under test.
+        from main_app.shared_state import episode_lookup_cache
+        episode_lookup_cache.invalidate()
+        yield
+        episode_lookup_cache.invalidate()
+
     @patch('main_app.routes.rss_parser')
     def test_returns_episode_and_podcast_name(self, mock_rss):
         mock_rss.fetch_feed.return_value = '<rss></rss>'

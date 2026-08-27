@@ -620,9 +620,10 @@ class Storage:
         # Only failures are stored. Caching successes too would fill the cache
         # with entries nothing reads, and eviction is oldest-first, so a
         # long-lived failure entry would be pushed out well before its TTL.
-        if ok:
-            self._artwork_failure_cache.delete(failure_key)
-        else:
+        # No delete-on-success here: unlike the podcast path there is no
+        # force bypass, so a live failure entry always returns early above
+        # and success can never coexist with one.
+        if not ok:
             self._artwork_failure_cache.set(failure_key, True)
         return ok
 

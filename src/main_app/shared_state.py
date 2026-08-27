@@ -14,11 +14,16 @@ from main_app.cache import TTLCache
 # Upstream-RSS lookups behind serve_episode. A podcast client HEADs every
 # unprocessed episode on each refresh, and each miss used to refetch and
 # reparse the whole upstream feed. The TTL matches the background RSS
-# refresh interval, and feeds.py drops a feed's entries whenever it
-# re-renders that feed, so a stale entry cannot outlive a real change.
+# refresh interval. feeds.py drops a feed's entries when it re-renders that
+# feed, but the cache is per-process: under multiple gunicorn workers only
+# the re-rendering worker sees the invalidation, so the other workers can
+# serve entries up to one TTL stale. That bound is the guarantee, not the
+# invalidation.
 EPISODE_LOOKUP_TTL_SECONDS = 15 * 60
 
-episode_lookup_cache = TTLCache(EPISODE_LOOKUP_TTL_SECONDS)
+# One entry per episode per feed; a fetch caches the whole parsed feed, so
+# the cap must hold a full library (feeds x feed length), not one page.
+episode_lookup_cache = TTLCache(EPISODE_LOOKUP_TTL_SECONDS, max_size=8192)
 
 
 def episode_lookup_key(slug: str, episode_id: str) -> str:

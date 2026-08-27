@@ -158,10 +158,17 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
         podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
         episodes = rss_parser.extract_episodes(
             original_feed, parsed_feed=parsed_feed, source=slug)
+        # The whole feed is parsed either way, so cache every entry: a client
+        # refresh HEADs N unprocessed episodes back to back, and caching only
+        # the requested one would repeat the identical fetch+parse N times.
+        found = None
         for ep in episodes:
+            episode_lookup_cache.set(
+                episode_lookup_key(slug, ep['id']), (ep, podcast_name))
             if ep['id'] == episode_id:
-                episode_lookup_cache.set(cache_key, (ep, podcast_name))
-                return ep, podcast_name
+                found = ep
+        if found is not None:
+            return found, podcast_name
 
     # Fallback: episode not in upstream RSS (dropped off due to age/cap).
     # Use the original_url stored in the database from discovery.
@@ -175,7 +182,12 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
             'artwork_url': episode.get('artwork_url'),
             'published': episode.get('published_at'),
         }, episode.get('podcast_title', 'Unknown'))
-        episode_lookup_cache.set(cache_key, result)
+        # Cache only when upstream really answered and lacks the episode.
+        # A transient fetch failure (timeout, 5xx, open breaker) also lands
+        # here, and caching then would pin the discovery-time URL for the
+        # full TTL when upstream may recover in seconds.
+        if original_feed:
+            episode_lookup_cache.set(cache_key, result)
         return result
 
     return None, None

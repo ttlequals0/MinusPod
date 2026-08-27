@@ -38,6 +38,21 @@ def podping_declaration_columns(uses_podping: bool | None,
     }
 
 
+
+def effective_retention_days(override, global_days: int) -> int:
+    """Single source of retention precedence: per-feed override when
+    non-NULL, else the global window. Used by the per-feed resolver and
+    the bulk sweep grouping so the rule cannot be edited in one place
+    and silently diverge in the other."""
+    return int(override) if override is not None else int(global_days)
+
+
+def effective_keep_original(override, global_keep: bool) -> bool:
+    """Single source of keep-original precedence, mirror of
+    effective_retention_days."""
+    return bool(override) if override is not None else bool(global_keep)
+
+
 class PodcastMixin:
     """Podcast management methods."""
 
@@ -563,16 +578,18 @@ class PodcastMixin:
         retention_days setting. 0 or less means never delete, matching what
         the global setting already does, so an archived feed is just a feed
         whose resolved window is 0.
+
+        Precedence itself lives in effective_retention_days so the bulk
+        sweep in maintenance.py and this per-feed resolver cannot drift.
         """
         if podcast is None:
             podcast = self.get_podcast_by_slug(slug)
         per_feed = podcast.get('retention_days_override') if podcast else None
-        if per_feed is not None:
-            return int(per_feed)
         try:
-            return int(self.get_setting('retention_days') or '30')
+            global_days = int(self.get_setting('retention_days') or '30')
         except (TypeError, ValueError):
-            return 30
+            global_days = 30
+        return effective_retention_days(per_feed, global_days)
 
     def is_archived(self, slug: str, podcast: dict | None = None) -> bool:
         """True when this feed's resolved retention never expires."""
@@ -589,9 +606,8 @@ class PodcastMixin:
         if podcast is None:
             podcast = self.get_podcast_by_slug(slug)
         per_feed = podcast.get('keep_original_audio_override') if podcast else None
-        if per_feed is not None:
-            return bool(per_feed)
-        return (self.get_setting('keep_original_audio') or 'true').lower() != 'false'
+        global_keep = (self.get_setting('keep_original_audio') or 'true').lower() != 'false'
+        return effective_keep_original(per_feed, global_keep)
 
     def resolve_segment_actions(self, slug: str,
                                 podcast: dict | None = None) -> dict[str, str]:
