@@ -48,8 +48,16 @@ const { DASHBOARD, REVIEWER_STATS, FEED, mockGetAddressingStats } = vi.hoisted((
   };
   const addressingStats: AddressingStats = {
     modes: {
-      timestamps: { runs: 4, windowsJudged: 20, windowsCompliant: 18, compliancePct: 90.0 },
-      segment_ids: { runs: 2, windowsJudged: 10, windowsCompliant: 6, compliancePct: 60.0 },
+      timestamps: {
+        runs: 4, windowsJudged: 20, windowsCompliant: 18, compliancePct: 90.0,
+        yieldRuns: 0, adsProposed: 0, adsKept: 0, adsDroppedInvalidRef: 0,
+        adsDroppedOutOfWindow: 0, adsDroppedTooLong: 0, keptPct: 0.0,
+      },
+      segment_ids: {
+        runs: 2, windowsJudged: 10, windowsCompliant: 6, compliancePct: 60.0,
+        yieldRuns: 2, adsProposed: 10, adsKept: 7, adsDroppedInvalidRef: 2,
+        adsDroppedOutOfWindow: 1, adsDroppedTooLong: 0, keptPct: 70.0,
+      },
     },
   };
   const feed: Feed = {
@@ -100,10 +108,11 @@ describe('StatsPage addressing modes section', () => {
     expect(screen.getByText('Segment IDs')).toBeTruthy();
     expect(screen.getByText('90.0%')).toBeTruthy();
     expect(screen.getByText('60.0%')).toBeTruthy();
-    // Runs and windows-judged values per mode.
+    // Runs and windows-judged values per mode. '2' also appears as the
+    // segment_ids Yield runs metric, so count rather than assert-single.
     expect(screen.getByText('4')).toBeTruthy();
     expect(screen.getByText('20')).toBeTruthy();
-    expect(screen.getByText('2')).toBeTruthy();
+    expect(screen.getAllByText('2').length).toBeGreaterThan(0);
     expect(screen.getByText('10')).toBeTruthy();
   });
 
@@ -119,5 +128,20 @@ describe('StatsPage addressing modes section', () => {
     await waitFor(() => {
       expect(mockGetAddressingStats).toHaveBeenCalledWith('a-show');
     });
+  });
+});
+
+describe('StatsPage addressing yield', () => {
+  it('shows kept rate and drop counts once yield data exists', async () => {
+    renderPage();
+    expect(await screen.findByText('70.0%')).toBeTruthy();
+    expect(screen.getByText('7 / 10')).toBeTruthy();
+    expect(screen.getByText(/2 invalid ref/)).toBeTruthy();
+  });
+
+  it('says yield has no data yet instead of showing a fake zero', async () => {
+    renderPage();
+    // The timestamps card in the fixture has yieldRuns 0.
+    expect(await screen.findByText('No yield data yet')).toBeTruthy();
   });
 });

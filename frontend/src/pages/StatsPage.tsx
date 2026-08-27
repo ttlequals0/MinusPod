@@ -378,7 +378,7 @@ export default function StatsPage() {
         <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
           <h2 className="text-lg font-semibold text-foreground mb-1">Addressing modes</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            How often the model honors each addressing contract. Random-mode runs count toward whichever mode was drawn.
+            Contract compliance and ad yield per addressing mode. Random-mode runs count toward whichever mode was drawn. Yield is recorded from 2.92.0 on, so its sample can lag the compliance sample.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {(['timestamps', 'segment_ids'] as const).map((mode) => {
@@ -392,6 +392,24 @@ export default function StatsPage() {
                     <Metric label="Runs" value={stats.runs} />
                     <Metric label="Windows judged" value={stats.windowsJudged} />
                     <Metric label="Compliance" value={`${stats.compliancePct.toFixed(1)}%`} />
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-border">
+                    {stats.yieldRuns > 0 ? (
+                      <>
+                        <div className="grid grid-cols-3 gap-3">
+                          <Metric label="Ads kept" value={`${stats.adsKept} / ${stats.adsProposed}`} />
+                          <Metric label="Kept rate" value={`${stats.keptPct.toFixed(1)}%`} />
+                          <Metric label="Yield runs" value={stats.yieldRuns} />
+                        </div>
+                        {(stats.adsDroppedInvalidRef > 0 || stats.adsDroppedOutOfWindow > 0 || stats.adsDroppedTooLong > 0) && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Dropped: {stats.adsDroppedInvalidRef} invalid ref, {stats.adsDroppedOutOfWindow} out of window, {stats.adsDroppedTooLong} too long
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No yield data yet</p>
+                    )}
                   </div>
                 </div>
               );

@@ -1021,6 +1021,15 @@ export interface AddressingModeStats {
   windowsJudged: number;
   windowsCompliant: number;
   compliancePct: number;
+  // Yield sample. Recorded from 2.92.0 on; yieldRuns is its own
+  // denominator and lags runs until history ages out.
+  yieldRuns: number;
+  adsProposed: number;
+  adsKept: number;
+  adsDroppedInvalidRef: number;
+  adsDroppedOutOfWindow: number;
+  adsDroppedTooLong: number;
+  keptPct: number;
 }
 
 export interface AddressingStats {
