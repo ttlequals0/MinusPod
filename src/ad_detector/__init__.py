@@ -201,6 +201,40 @@ class WindowResult(NamedTuple):
     # worker that doesn't track compliance -- e.g. the keep-content pass).
     addressing_mode: str = 'timestamps'
     compliant: bool | None = None
+    # Yield and waste for this window (random addressing mode A/B tracking).
+    # Compliance only says the model used the requested output shape, so
+    # these say what the shape actually produced. ``ads_proposed`` is what
+    # the model returned before filtering; ``len(ads)`` is what survived.
+    # ``dropped_invalid_ref`` is segment_ids-only: an invented segment id
+    # is detectable and gets dropped, an invented timestamp is not.
+    ads_proposed: int = 0
+    dropped_invalid_ref: int = 0
+    dropped_out_of_window: int = 0
+    dropped_too_long: int = 0
+
+
+@dataclass
+class AddressingStats:
+    """One pass's addressing-mode sample (random addressing mode A/B).
+
+    Compliance alone cannot separate the two modes: it only asks whether the
+    model used the requested output shape, and both modes clear that bar
+    almost always. The yield and waste counters say what the shape actually
+    produced, which is the part that differs.
+
+    ``dropped_invalid_ref`` has no timestamps-mode equivalent on purpose. An
+    invented segment id is detectable and gets dropped; an invented timestamp
+    is not, and survives into ``ads_kept``. Reading the two modes' kept
+    counts without that column is misleading.
+    """
+
+    windows_judged: int = 0
+    windows_compliant: int = 0
+    ads_proposed: int = 0
+    ads_kept: int = 0
+    dropped_invalid_ref: int = 0
+    dropped_out_of_window: int = 0
+    dropped_too_long: int = 0
 
 
 def _resolve_parallel_windows() -> int:
@@ -1049,6 +1083,7 @@ class AdDetector:
         # compliance is "extraction produced a parseable ads array", including
         # a valid empty array -- only a totally unparseable response is
         # non-compliant. See parse_ads_from_response's compliance_meta doc.
+        dropped_invalid_ref = 0
         if addressing_mode == 'segment_ids':
             id_ads, used_ids = parse_id_ads_from_response(
                 response_text, slug, episode_id,
@@ -1058,6 +1093,12 @@ class AdDetector:
                 window_ads = resolve_segment_id_ads(
                     id_ads, window_segments, slug, episode_id,
                     sponsor_service=self.sponsor_service)
+                # Everything resolve_segment_id_ads discarded referenced a
+                # segment id that does not exist in this window. That is the
+                # hallucination this mode exists to catch, so count it rather
+                # than let it disappear into the yield number.
+                ads_proposed = len(id_ads)
+                dropped_invalid_ref = max(0, ads_proposed - len(window_ads))
             else:
                 logger.warning(
                     f"[{slug}:{episode_id}] {window_label}: model ignored "
@@ -1065,6 +1106,7 @@ class AdDetector:
                 window_ads = parse_ads_from_response(
                     response_text, slug, episode_id,
                     sponsor_service=self.sponsor_service)
+                ads_proposed = len(window_ads)
                 if validate_timestamps:
                     window_ads = validate_ad_timestamps(
                         window_ads, window_segments, window_start, window_end)
@@ -1075,10 +1117,13 @@ class AdDetector:
                 sponsor_service=self.sponsor_service,
                 compliance_meta=compliance_meta)
             compliant = not compliance_meta['extraction_failed']
+            ads_proposed = len(window_ads)
             if validate_timestamps:
                 window_ads = validate_ad_timestamps(
                     window_ads, window_segments, window_start, window_end)
 
+        dropped_out_of_window = 0
+        dropped_too_long = 0
         valid_window_ads = []
         for ad in window_ads:
             duration = ad['end'] - ad['start']
@@ -1089,6 +1134,10 @@ class AdDetector:
             if in_window and reasonable_length:
                 valid_window_ads.append(ad)
             else:
+                if not in_window:
+                    dropped_out_of_window += 1
+                else:
+                    dropped_too_long += 1
                 logger.warning(
                     f"[{slug}:{episode_id}] {window_label} rejected ad: "
                     f"{ad['start']:.1f}s-{ad['end']:.1f}s ({duration:.0f}s) - "
@@ -1110,6 +1159,10 @@ class AdDetector:
             transcript_excerpt='\n'.join(transcript_lines),
             addressing_mode=addressing_mode,
             compliant=compliant,
+            ads_proposed=ads_proposed,
+            dropped_invalid_ref=dropped_invalid_ref,
+            dropped_out_of_window=dropped_out_of_window,
+            dropped_too_long=dropped_too_long,
         )
 
     def _run_windows(self, windows, *, max_workers, progress_callback,
@@ -1290,17 +1343,21 @@ class AdDetector:
         )
 
         category_repaired = 0
-        windows_judged = 0
-        windows_compliant = 0
+        addressing = AddressingStats()
         for result in window_results:
             if result.failed:
                 failed_windows += 1
                 last_error = result.last_error
                 continue
             if result.compliant is not None:
-                windows_judged += 1
+                addressing.windows_judged += 1
                 if result.compliant:
-                    windows_compliant += 1
+                    addressing.windows_compliant += 1
+                addressing.ads_proposed += result.ads_proposed
+                addressing.ads_kept += len(result.ads)
+                addressing.dropped_invalid_ref += result.dropped_invalid_ref
+                addressing.dropped_out_of_window += result.dropped_out_of_window
+                addressing.dropped_too_long += result.dropped_too_long
             if category_repair_enabled:
                 # _repair_window_categories no-ops when nothing here is
                 # missing a category; checking first would just scan `ads`
@@ -1331,7 +1388,8 @@ class AdDetector:
             failure = _windows_failed_response(
                 pass_label.lower(), failed_windows, len(windows),
                 last_error, model)
-            return [], all_raw_responses, failed_windows, failure, 0, 0, 0, 0, 0
+            return ([], all_raw_responses, failed_windows, failure,
+                    0, 0, 0, AddressingStats())
 
         # Raw LLM markers with no "category": the merge seam leaves these
         # unset, so this counts what stays uncategorized end to end.
@@ -1342,7 +1400,7 @@ class AdDetector:
         final_ads = deduplicate_window_ads(all_window_ads, action_map=action_map)
         return (final_ads, all_raw_responses, failed_windows, None,
                 category_missing, category_total, category_repaired,
-                windows_judged, windows_compliant)
+                addressing)
 
     def _repair_window_categories(self, *, ads, transcript_excerpt, model,
                                    llm_timeout, max_retries, slug, episode_id,
@@ -1523,7 +1581,7 @@ class AdDetector:
 
             (final_ads, all_raw_responses, failed_windows, failure,
              category_missing, category_total, category_repaired,
-             windows_judged, windows_compliant) = self._run_detection_pass(
+             addressing) = self._run_detection_pass(
                 windows,
                 pass_label='Detection',
                 model=model,
@@ -2913,7 +2971,7 @@ class AdDetector:
             # can distinguish first-pass from verification.
             (final_ads, all_raw_responses, _failed_windows, failure,
              category_missing, category_total, category_repaired,
-             windows_judged, windows_compliant) = self._run_detection_pass(
+             addressing) = self._run_detection_pass(
                 windows,
                 pass_label='Verification',
                 model=model,

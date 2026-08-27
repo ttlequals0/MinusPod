@@ -485,7 +485,19 @@ TABLE_DDL['addressing_log'] = """CREATE TABLE IF NOT EXISTS addressing_log (
     configured_mode TEXT NOT NULL,
     effective_mode TEXT NOT NULL,
     windows_judged INTEGER NOT NULL,
-    windows_compliant INTEGER NOT NULL
+    windows_compliant INTEGER NOT NULL,
+    -- Yield and waste per pass, so the two addressing modes can be compared
+    -- on what they actually produced rather than only on whether they used
+    -- the requested output shape. ads_proposed counts what the model
+    -- returned before any filtering; ads_kept is what survived into the
+    -- pipeline; the three drop counters say why the rest were discarded.
+    -- ads_dropped_invalid_ref is segment_ids-only by construction: an
+    -- invented segment id is detectable, an invented timestamp is not.
+    ads_proposed INTEGER NOT NULL DEFAULT 0,
+    ads_kept INTEGER NOT NULL DEFAULT 0,
+    ads_dropped_invalid_ref INTEGER NOT NULL DEFAULT 0,
+    ads_dropped_out_of_window INTEGER NOT NULL DEFAULT 0,
+    ads_dropped_too_long INTEGER NOT NULL DEFAULT 0
 )"""
 
 SCHEMA_SQL = """

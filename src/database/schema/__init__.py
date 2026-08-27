@@ -463,6 +463,15 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"published_at normalization migration: {e}")
 
+        # -- Addressing log columns (per-mode yield and waste) --
+        if self._table_exists(conn, 'addressing_log'):
+            addr_cols = self._get_table_columns(conn, 'addressing_log')
+            for col in ('ads_proposed', 'ads_kept', 'ads_dropped_invalid_ref',
+                        'ads_dropped_out_of_window', 'ads_dropped_too_long'):
+                self._add_column_if_missing(
+                    conn, 'addressing_log', col,
+                    'INTEGER NOT NULL DEFAULT 0', addr_cols)
+
         # -- Ad patterns table columns --
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'avg_duration', 'REAL', ap_cols)
