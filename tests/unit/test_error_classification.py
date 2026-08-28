@@ -18,6 +18,9 @@ from main_app.processing import is_transient_error
     (requests.exceptions.HTTPError('403 Client Error: Forbidden for url: x'), False),
     (requests.exceptions.HTTPError('401 Client Error: Unauthorized'), False),
     (Exception('Invalid audio: unsupported format'), False),
+    # Local feeds have no upstream: a missing retained original never
+    # recovers on retry, so it must not loop through the full retry ladder.
+    (Exception('original audio missing'), False),
     # Network faults and unknown errors retry.
     (requests.exceptions.ConnectionError('reset'), True),
     (Exception('something weird happened'), True),

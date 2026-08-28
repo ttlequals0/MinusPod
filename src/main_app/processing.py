@@ -247,6 +247,10 @@ def is_transient_error(error: Exception) -> bool:
         'invalid audio', 'unsupported format', 'corrupt',
         'authentication', 'unauthorized', 'forbidden',
         '400 ', '401 ', '403 ',
+        # Local feeds have no upstream to retry against: a missing retained
+        # original never recovers on its own, so retrying just burns the
+        # full ladder before landing on permanently_failed anyway.
+        'original audio missing',
     ]
     if any(pattern in error_msg for pattern in permanent_patterns):
         return False
@@ -477,6 +481,8 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
         if original_path and os.path.exists(original_path):
             audio_path = _copy_retained_original_to_temp(original_path)
             audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
+        elif is_local_feed(podcast):
+            raise Exception("original audio missing")
         else:
             audio_path = _download_episode_audio(episode_url)
         audio_logger.info(f"[{slug}:{episode_id}] Transcription skipped (per-feed setting)")
@@ -515,6 +521,8 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
         if original_path and os.path.exists(original_path):
             audio_path = _copy_retained_original_to_temp(original_path)
             audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
+        elif is_local_feed(podcast):
+            raise Exception("original audio missing")
         else:
             audio_path = _download_episode_audio(episode_url)
         language_override = get_feed_language_override(db, slug)

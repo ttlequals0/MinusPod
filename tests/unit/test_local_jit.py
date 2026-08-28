@@ -116,6 +116,45 @@ def test_non_local_missing_original_still_downloads():
     download_fn.assert_called_once_with('http://cdn.example.com/e.mp3')
 
 
+def test_skip_transcription_local_missing_original_raises_without_downloading():
+    """cue_only+skip_transcription branch: same local://-sentinel guard as
+    the fresh-episode branch."""
+    mock_storage = MagicMock()
+    mock_storage.get_original_path.return_value = None
+
+    with patch.object(processing, 'storage', mock_storage), \
+         patch.object(processing, '_download_episode_audio') as download_fn:
+        with pytest.raises(Exception, match='original audio missing'):
+            processing._download_and_transcribe(
+                'arc', 's01e01', 'local://s01e01', 'Archive',
+                skip_transcription=True, podcast=_local('arc'))
+
+    download_fn.assert_not_called()
+
+
+def test_existing_transcript_local_missing_original_raises_without_downloading():
+    """Reprocess-with-existing-transcript branch: same guard. A local
+    episode being reprocessed should still have its original (keep_original
+    is forced on for local feeds), but if it was ever lost this must not
+    fall through to downloading the local:// sentinel."""
+    segments = [_seg(0.0, 10.0, 'hi')]
+    mock_storage = MagicMock()
+    mock_storage.get_transcript.return_value = 'existing transcript'
+    mock_storage.get_original_path.return_value = None
+    mock_db = MagicMock()
+    mock_db.get_original_segments.return_value = list(segments)
+
+    with patch.object(processing, 'storage', mock_storage), \
+         patch.object(processing, 'db', mock_db), \
+         patch.object(processing, '_download_episode_audio') as download_fn:
+        with pytest.raises(Exception, match='original audio missing'):
+            processing._download_and_transcribe(
+                'arc', 's01e01', 'local://s01e01', 'Archive',
+                podcast=_local('arc'))
+
+    download_fn.assert_not_called()
+
+
 # ---------------------------------------------------------------------
 # _lookup_episode: local feeds skip rss_parser.fetch_feed
 # ---------------------------------------------------------------------
