@@ -48,6 +48,19 @@ function isRetryable(status: number): boolean {
   return status >= 500 || status === 429;
 }
 
+// A 429's Retry-After (e.g. from a flask-limiter rate limit) is
+// authoritative when the server sends one: honor it over the fixed backoff
+// schedule instead of guessing. Only the numeric-seconds form is parsed
+// (what this backend sends); a missing header, an HTTP-date value, or
+// anything else non-numeric falls back to the fixed delay for that attempt.
+function retryAfterMs(response: Response): number | null {
+  const header = response.headers.get('Retry-After');
+  if (!header) return null;
+  const seconds = Number(header);
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  return seconds * 1000;
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -130,7 +143,10 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
       // Retry on 5xx / 429 (not on 4xx client errors)
       if (!response.ok) {
         if (isRetryable(response.status) && attempt < maxAttempts - 1) {
-          await sleep(RETRY_DELAYS[attempt], signal);
+          const delay = response.status === 429
+            ? retryAfterMs(response) ?? RETRY_DELAYS[attempt]
+            : RETRY_DELAYS[attempt];
+          await sleep(delay, signal);
           continue;
         }
         const error = await response.json().catch(() => ({ error: 'Request failed' }));

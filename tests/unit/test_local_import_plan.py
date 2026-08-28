@@ -348,12 +348,27 @@ def test_build_import_plan_collision_with_existing_ids_errors_unless_overwrite(t
                               overwrite=False, now_iso=NOW_ISO)
     assert plan['entries'][0]['errors']
     assert plan['totals']['importable'] == 0
+    # replacesExisting is a collision marker independent of overwrite: this
+    # entry DID collide, it just also errored out because overwrite is off.
+    assert plan['entries'][0]['replacesExisting'] is True
 
     audio2 = _write(tmp_path / 'S01E01 - Pilot.mp3')
     plan2 = build_import_plan('myshow', [audio2], existing_ids={'s01e01'},
                                overwrite=True, now_iso=NOW_ISO)
     assert plan2['entries'][0]['errors'] == []
     assert plan2['totals']['importable'] == 1
+    assert plan2['entries'][0]['replacesExisting'] is True
+
+
+def test_build_import_plan_replaces_existing_false_when_no_collision(tmp_path):
+    audio = _write(tmp_path / 'S01E01 - Pilot.mp3')
+    plan = build_import_plan('myshow', [audio], existing_ids=set(),
+                              overwrite=True, now_iso=NOW_ISO)
+    assert plan['entries'][0]['errors'] == []
+    # overwrite=True with nothing to collide with must not claim a
+    # replacement -- replacesExisting tracks an actual id collision, not
+    # the overwrite flag itself.
+    assert plan['entries'][0]['replacesExisting'] is False
 
 
 def test_build_import_plan_sidecar_overrides_token_and_rechecks_collision(tmp_path):
@@ -497,6 +512,20 @@ def test_plan_hash_order_independent(tmp_path):
     a = _write(tmp_path / 'a.mp3')
     b = _write(tmp_path / 'b.mp3')
     assert plan_hash([a, b]) == plan_hash([b, a])
+
+
+def test_plan_hash_changes_with_overwrite_flag(tmp_path):
+    """(round-2 review finding 4) Same exact files, different overwrite ->
+    different hash. overwrite changes which entries error out vs. commit
+    (a collision is an error with overwrite off, a clean overwrite with it
+    on), so a commit whose overwrite doesn't match the reviewed scan must
+    409 as stale too -- not just a commit whose files changed. Binding
+    overwrite into the hash is what makes that 409 actually fire."""
+    a = _write(tmp_path / 'a.mp3')
+    sources = [a]
+    assert plan_hash(sources, overwrite=False) != plan_hash(sources, overwrite=True)
+    # Stable per value, same as the file-only hash already is.
+    assert plan_hash(sources, overwrite=True) == plan_hash(sources, overwrite=True)
 
 
 def test_plan_hash_skips_vanished_path_without_raising(tmp_path):

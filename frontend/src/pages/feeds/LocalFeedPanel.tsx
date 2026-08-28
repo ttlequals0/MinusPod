@@ -195,6 +195,21 @@ function cleanP20Rows(rows: P20Row[]): P20Row[] {
     .filter((row) => Object.keys(row).length > 0);
 }
 
+// Counts only entries that will actually overwrite an existing episode on
+// commit (replacesExisting AND no errors -- a collision that errored out
+// instead, because overwrite was off when this was scanned, never commits
+// at all) so the "and replace N existing" clause can't overstate how many
+// episodes get replaced. Hidden entirely when that count is 0, even if
+// plan.overwrite is true (an overwrite-enabled scan with no actual
+// collisions has nothing to call out).
+function commitButtonLabel(plan: ImportPlan): string {
+  const total = plan.totals.importable;
+  const replacing = plan.entries.filter((e) => e.replacesExisting && e.errors.length === 0).length;
+  const base = `Import ${total} episode${total === 1 ? '' : 's'}`;
+  if (replacing === 0) return base;
+  return `${base} and replace ${replacing} existing`;
+}
+
 interface Props {
   feed: Feed;
   slug: string;
@@ -356,27 +371,29 @@ function LocalFeedPanel({ feed, slug }: Props) {
       // Sequential, one file per request, rather than one multipart request
       // for the whole batch: the only way to surface "x of y" progress, and
       // it lets one bad file fail without losing the rest of the batch.
-      const staged: string[] = [];
       const rejected: ImportRejectedFile[] = [];
       for (let i = 0; i < files.length; i++) {
         setUploadProgress({ current: i + 1, total: files.length });
         const file = files[i];
         try {
           const result = await importUpload(slug, [file]);
-          staged.push(...result.staged);
           rejected.push(...result.rejected);
         } catch (e) {
           rejected.push({ file: file.name, reason: getErrorMessage(e, 'Upload failed') });
         }
       }
+      // Commit the accumulated rejections now, before the trailing scan --
+      // those uploads already happened and are real results; a scan
+      // failure right after must not wipe them out from under the
+      // operator along with the (unrelated) scan error.
+      setUploadRejected(rejected);
       const scanned = await importScan(slug, { source: 'staging', overwrite });
-      return { staged, rejected, scanned };
+      return { scanned };
     },
     // Clear a stale error from a previous failed attempt as soon as a new
     // one starts, rather than leaving it displayed under the new state.
     onMutate: () => { setImportError(null); setUploadProgress(null); },
-    onSuccess: ({ rejected, scanned }) => {
-      setUploadRejected(rejected);
+    onSuccess: ({ scanned }) => {
       setPlan(scanned);
       setImportSource('staging');
     },
@@ -669,6 +686,26 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
           {importError && <p className="text-sm text-destructive mb-3">{importError}</p>}
 
+          {/* The scan itself can fail after some/all files already uploaded
+              (no plan gets set in that case), but the per-file rejections
+              from the upload step already happened and are real -- shown
+              here so a scan failure doesn't hide them along with itself.
+              Once a plan exists, ImportPreviewTable below takes over
+              showing the same list merged with the plan's own rejections. */}
+          {!plan && uploadRejected.length > 0 && (
+            <div className="mb-3">
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Rejected files</h4>
+              <ul className="text-sm space-y-1">
+                {uploadRejected.map((r) => (
+                  <li key={r.file} className="flex flex-col sm:flex-row sm:justify-between sm:gap-3">
+                    <span className="truncate font-medium">{r.file}</span>
+                    <span className="text-xs text-muted-foreground">{r.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {plan && (
             <div className="mb-4">
               <ImportPreviewTable
@@ -683,11 +720,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
                   disabled={commitMutation.isPending || plan.totals.importable === 0 || importRunning}
                   className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}
                 >
-                  {commitMutation.isPending
-                    ? 'Starting...'
-                    : plan.overwrite
-                    ? `Import and replace ${plan.totals.importable} existing episode${plan.totals.importable === 1 ? '' : 's'}`
-                    : `Import ${plan.totals.importable} episode${plan.totals.importable === 1 ? '' : 's'}`}
+                  {commitMutation.isPending ? 'Starting...' : commitButtonLabel(plan)}
                 </button>
                 <button
                   type="button"

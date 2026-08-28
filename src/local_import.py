@@ -201,9 +201,9 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
     return None
 
 
-def plan_hash(sources: list[Path]) -> str:
-    """sha256 over sorted (name, size, mtime_ns) tuples; commit refuses a
-    stale hash (TOCTOU guard).
+def plan_hash(sources: list[Path], overwrite: bool = False) -> str:
+    """sha256 over sorted (name, size, mtime_ns) tuples plus the overwrite
+    flag; commit refuses a stale hash (TOCTOU guard).
 
     A source that vanishes between listing and stat (e.g. a running
     commit's shutil.move racing a concurrent scan) is skipped rather than
@@ -211,7 +211,17 @@ def plan_hash(sources: list[Path]) -> str:
     it from the hash is the correct outcome anyway: a commit re-scan that
     no longer sees the file will compute a different hash than the
     original scan, which is exactly the staleness a caller needs to
-    detect."""
+    detect.
+
+    overwrite rides in the hash for the same reason: it changes which
+    entries error out vs. commit (a collision is an error when overwrite
+    is False, a clean overwrite when True), so a commit whose overwrite
+    doesn't match the reviewed scan must 409 as stale too -- otherwise the
+    operator could review a plan built one way and have commit silently
+    rebuild and act on it the other way. overwrite defaults to False only
+    so callers that don't care about it (existing tests fixturing sources
+    alone) don't have to pass it; build_import_plan below always passes
+    its own overwrite explicitly."""
     tuples = []
     for p in sources:
         try:
@@ -220,7 +230,7 @@ def plan_hash(sources: list[Path]) -> str:
             continue
         tuples.append((p.name, stat_result.st_size, stat_result.st_mtime_ns))
     tuples.sort()
-    payload = json.dumps(tuples, sort_keys=True).encode('utf-8')
+    payload = json.dumps((tuples, overwrite), sort_keys=True).encode('utf-8')
     return hashlib.sha256(payload).hexdigest()
 
 
@@ -232,9 +242,18 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
                   'audioPath','descriptionFile','descriptionPath',
                   'artworkFile','artworkPath','sidecarFile','sidecarPath',
                   'publishedAt','publishedAtSource': 'explicit'|'synthesized',
-                  'bytes','mtimeNs', 'warnings': [], 'errors': []}],
+                  'bytes','mtimeNs', 'warnings': [], 'errors': [],
+                  'replacesExisting': bool}],
      'rejected': [{'file', 'reason'}],
      'totals': {'importable': N, 'rejected': N, 'errors': N, 'bytes': N}}
+
+    replacesExisting is true whenever the entry's episodeId already exists
+    in the feed, regardless of overwrite -- it's a collision marker, not an
+    outcome. Whether that collision becomes an error (overwrite=False) or a
+    clean, committable overwrite (overwrite=True) is entirely down to
+    errors being empty or not; a caller counting "how many will this commit
+    actually replace" wants entries where replacesExisting is true AND
+    errors is empty.
 
     The *Path keys (audioPath/descriptionPath/artworkPath/sidecarPath) and
     mtimeNs exist for the commit engine: it reads a file by its exact
@@ -363,9 +382,14 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
                 candidates[i]['errors'].append(
                     f'duplicate episode id {eid} also used by {", ".join(others)}')
 
-    # Collisions against already-imported episodes.
+    # Collisions against already-imported episodes. Recorded on every
+    # candidate that collides (replaces_existing), overwrite or not, so the
+    # client can count exactly how many entries an overwrite=True commit
+    # will actually replace -- errors is what gates whether it does; a
+    # colliding id only turns into an error when overwrite is off.
     for c in candidates:
-        if c['episode_id'] in existing_ids and not overwrite:
+        c['replaces_existing'] = c['episode_id'] in existing_ids
+        if c['replaces_existing'] and not overwrite:
             c['errors'].append(f'episode {c["episode_id"]} already exists')
 
     candidates.sort(key=lambda c: (c['season'], c['episode']))
@@ -415,6 +439,7 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
             'mtimeNs': c['mtime_ns'],
             'warnings': c['warnings'],
             'errors': c['errors'],
+            'replacesExisting': c['replaces_existing'],
         })
 
     importable = sum(1 for e in entries if not e['errors'])
@@ -424,7 +449,7 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     return {
         'slug': slug,
         'overwrite': overwrite,
-        'planHash': plan_hash(sources),
+        'planHash': plan_hash(sources, overwrite),
         'entries': entries,
         'rejected': rejected,
         'totals': {

@@ -252,21 +252,46 @@ def _head_local(slug, episode_id):
     abort(404)
 
 
-def _local_original_response(slug, episode_id):
-    """200 with the retained original for a local-feed episode that isn't
-    PROCESSED yet, instead of the 503/410 that would otherwise be returned.
+def _local_original_response(slug, episode_id, requested_version=None):
+    """200 with the best available audio for a local-feed episode that
+    isn't PROCESSED right now, instead of the 503/410 that would otherwise
+    be returned.
 
-    A local feed's only source audio is the original mp3 already sitting on
-    disk; there is no upstream to redirect to and no reason to make a
-    listener's client retry-and-give-up while the single ProcessingQueue
-    slot is busy with someone else's backlog. Returns None (caller falls
-    back to its normal response) when no original is retained.
+    Reprocess window: status can read pending/processing/failed while an
+    earlier version's cut is still sitting on disk (e.g. a second reprocess
+    was just requested; the first reprocess's output is untouched until
+    this run finishes). That already-cut file must be preferred over the
+    raw, ad-laden original -- serving the original here would hand
+    listeners an ad-laden episode for as long as every reprocess takes,
+    which is strictly worse than the 503 this function exists to avoid.
+    Tries the exact version the URL requested first (a client with a
+    stale versioned RSS URL), then whatever processed_version the DB
+    currently has, and only falls back to the retained original when
+    neither processed file exists. Returns None (caller falls back to its
+    normal response) when nothing at all is retained.
     """
+    episode = db.get_episode(slug, episode_id)
+    current_version = (episode or {}).get('processed_version') or 0
+    candidate_versions = []
+    if requested_version is not None:
+        candidate_versions.append(requested_version)
+    if current_version not in candidate_versions:
+        candidate_versions.append(current_version)
+    for version in candidate_versions:
+        processed_path = storage.get_episode_path(slug, episode_id, version=version)
+        if processed_path.exists():
+            feed_logger.info(
+                f"[{slug}:{episode_id}] serving processed file (v={version}) "
+                f"during reprocess window")
+            response = send_file(processed_path, mimetype='audio/mpeg', conditional=True)
+            response.headers['Accept-Ranges'] = 'bytes'
+            return response
+
     original_path = storage.get_original_path(slug, episode_id)
     if not original_path.exists():
         return None
     feed_logger.info(
-        f"[{slug}:{episode_id}] serving retained original while processing is pending")
+        f"[{slug}:{episode_id}] serving retained original (episode not processed)")
     response = send_file(original_path, mimetype='audio/mpeg', conditional=True)
     response.headers['Accept-Ranges'] = 'bytes'
     return response
@@ -500,7 +525,7 @@ def register_routes(app):
             # should never be blanked by a permanently-failed ad-removal
             # pass when the untouched source audio is right there.
             if local_feed:
-                original_response = _routes._local_original_response(slug, episode_id)
+                original_response = _routes._local_original_response(slug, episode_id, requested_version)
                 if original_response is not None:
                     return original_response
             return Response(
@@ -515,7 +540,7 @@ def register_routes(app):
                 feed_logger.warning(f"[{slug}:{episode_id}] Max retries ({MAX_EPISODE_RETRIES}) exceeded, marking permanently failed")
                 db.upsert_episode(slug, episode_id, status=EpisodeStatus.PERMANENTLY_FAILED.value)
                 if local_feed:
-                    original_response = _routes._local_original_response(slug, episode_id)
+                    original_response = _routes._local_original_response(slug, episode_id, requested_version)
                     if original_response is not None:
                         return original_response
                 return Response(
@@ -533,7 +558,7 @@ def register_routes(app):
                     wait_remaining = int(cooldown_seconds - elapsed)
                     feed_logger.debug(f"[{slug}:{episode_id}] Failed {elapsed:.0f}s ago, cooldown {cooldown_seconds}s (retry {retry_count})")
                     if local_feed:
-                        original_response = _routes._local_original_response(slug, episode_id)
+                        original_response = _routes._local_original_response(slug, episode_id, requested_version)
                         if original_response is not None:
                             return original_response
                     return Response(
@@ -548,7 +573,7 @@ def register_routes(app):
         elif status == EpisodeStatus.PROCESSING:
             feed_logger.info(f"[{slug}:{episode_id}] Currently processing")
             if local_feed:
-                original_response = _routes._local_original_response(slug, episode_id)
+                original_response = _routes._local_original_response(slug, episode_id, requested_version)
                 if original_response is not None:
                     return original_response
             return Response(
@@ -611,7 +636,7 @@ def register_routes(app):
         if started:
             feed_logger.info(f"[{slug}:{episode_id}] Started background processing")
             if local_feed:
-                original_response = _routes._local_original_response(slug, episode_id)
+                original_response = _routes._local_original_response(slug, episode_id, requested_version)
                 if original_response is not None:
                     return original_response
             return Response(
@@ -622,7 +647,7 @@ def register_routes(app):
         elif reason == "already_processing":
             feed_logger.info(f"[{slug}:{episode_id}] Already processing")
             if local_feed:
-                original_response = _routes._local_original_response(slug, episode_id)
+                original_response = _routes._local_original_response(slug, episode_id, requested_version)
                 if original_response is not None:
                     return original_response
             return Response(
@@ -651,7 +676,7 @@ def register_routes(app):
             queue_position = status_service.get_queue_position(slug, episode_id)
             feed_logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), queued at position {queue_position}")
             if local_feed:
-                original_response = _routes._local_original_response(slug, episode_id)
+                original_response = _routes._local_original_response(slug, episode_id, requested_version)
                 if original_response is not None:
                     return original_response
             return Response(

@@ -499,10 +499,14 @@ function EpisodeDetail() {
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
   // An episode that hasn't gone through the pipeline yet reads "Process",
-  // not "Reprocess" -- discovered/pending are the only statuses that mean
-  // no processing attempt has happened (every other status implies at
-  // least one run already occurred).
-  const neverProcessed = episode.status === 'discovered' || episode.status === 'pending';
+  // not "Reprocess". Keyed on processedAt presence, not status: status
+  // cycles back through pending/processing on every reprocess (a
+  // reprocess-queued or currently-reprocessing episode must still read
+  // "Reprocess"), while processedAt is set once on the first completed run
+  // and never cleared by a later reprocess (reset_episode_for_reprocess in
+  // reprocess_modes.py leaves it untouched), so it stays the reliable
+  // "has this ever finished processing" signal throughout that window.
+  const neverProcessed = !episode.processedAt;
   const reprocessLabel = neverProcessed ? 'Process' : 'Reprocess';
 
   // Detected-Ads header row 2: pass counts and time saved.

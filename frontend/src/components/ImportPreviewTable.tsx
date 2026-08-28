@@ -84,8 +84,32 @@ interface Column {
   render: (entry: ImportPlanEntry) => ReactNode;
 }
 
+function ReplacesPill({ entry }: { entry: ImportPlanEntry }) {
+  // Only for a collision that will actually go through as an overwrite on
+  // commit (replacesExisting + no errors) -- a collision that errored out
+  // instead (overwrite off) already has its own error badge/reason and
+  // doesn't need a second marker saying the same thing twice.
+  if (!entry.replacesExisting || entry.errors.length > 0) return null;
+  return (
+    <span
+      className="px-1.5 py-0.5 text-xs rounded font-medium bg-warning/20 text-warning"
+      title="An episode with this ID already exists; committing replaces it."
+    >
+      replaces
+    </span>
+  );
+}
+
 const COLUMNS: Column[] = [
-  { label: 'Episode', render: (e) => e.episodeId },
+  {
+    label: 'Episode',
+    render: (e) => (
+      <span className="inline-flex items-center gap-1.5">
+        {e.episodeId}
+        <ReplacesPill entry={e} />
+      </span>
+    ),
+  },
   { label: 'Title', render: (e) => <span className="block max-w-xs truncate" title={e.title}>{e.title}</span> },
   { label: 'Date', render: (e) => <DateCell entry={e} /> },
   { label: 'Sidecars', render: (e) => <SidecarDots entry={e} /> },
@@ -122,7 +146,10 @@ function ImportPreviewTable({ entries, rejected, totals }: Props) {
         {entries.map((entry) => (
           <div key={entry.episodeId} className="bg-card border border-border rounded-lg p-4 text-sm">
             <div className="flex items-center justify-between gap-2 mb-2 font-medium">
-              <span>{entry.episodeId}</span>
+              <span className="inline-flex items-center gap-1.5">
+                {entry.episodeId}
+                <ReplacesPill entry={entry} />
+              </span>
               <StatusBadge entry={entry} />
             </div>
             <p className="truncate mb-2" title={entry.title}>{entry.title}</p>

@@ -177,6 +177,13 @@ export interface Episode {
   pendingReviewCount?: number;
   error?: string | null;
   artworkUrl?: string | null;
+  // Set once, on the first successful processing run, and left untouched
+  // by every reprocess after that (reset_episode_for_reprocess in
+  // reprocess_modes.py never clears it) -- unlike status, which cycles
+  // back through pending/processing on every reprocess, processedAt
+  // presence is the reliable "has this episode ever finished processing"
+  // signal. null/absent means never processed.
+  processedAt?: string | null;
 }
 
 export interface EpisodeNeighbor {

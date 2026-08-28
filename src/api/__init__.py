@@ -52,7 +52,21 @@ limiter = Limiter(
 
 
 def init_limiter(app):
-    """Initialize rate limiter with Flask app."""
+    """Initialize rate limiter with Flask app.
+
+    Deliberately NOT headers_enabled=True: flask-limiter's header
+    injection runs on every response for any route with an applicable
+    limit (default_limits apply app-wide, not just the api blueprint) and
+    unconditionally overwrites an existing Retry-After header with its own
+    computed reset time -- tried this, and it silently rewrote the
+    explicit Retry-After values routes.py's JIT 503 responses set (30/60/
+    Retry-After-computed-cooldown), which is a much bigger blast radius
+    than the one 429 path this was meant to help. apiRequest's retry
+    (frontend/src/api/client.ts) still reads Retry-After off a 429 when a
+    server happens to send one, and falls back to its fixed backoff
+    schedule when it doesn't -- so nothing downstream depends on this
+    being enabled.
+    """
     limiter.init_app(app)
     logger.debug("Rate limiter initialized: 200/min, 1000/hr default limits")
 

@@ -605,6 +605,7 @@ def _parse_import_request(data):
 # ---------- POST /feeds/<slug>/import/upload ----------
 
 @api.route('/feeds/<slug>/import/upload', methods=['POST'])
+@limiter.exempt
 @log_request
 def upload_import_files(slug):
     """Stage one or more archive-import files ahead of scan/commit.
@@ -615,8 +616,12 @@ def upload_import_files(slug):
     filename, not a generated one. A basename containing a path separator,
     '..', NUL, or that's empty/a dotfile is rejected per-file rather than
     failing the whole request. Covered by _widen_upload_cap's 1 GB cap
-    (api/__init__.py); no dedicated rate limit here for the same reason as
-    upload_local_episode -- a large multipart upload already self-limits.
+    (api/__init__.py); no dedicated per-route rate limit for the same
+    reason as upload_local_episode -- a large multipart upload already
+    self-limits. Exempted from the blueprint's default per-IP limits too:
+    the UI uploads a batch one file per request (needed for per-file
+    progress), and a batch past ~200 files would otherwise start 429ing
+    partway through on the default 200/min cap.
     """
     db = get_database()
     storage = get_storage()
@@ -691,10 +696,12 @@ def commit_import(slug):
 
     Re-scans server-side and compares the client-echoed planHash rather
     than trusting anything the client sends beyond planHash/source/
-    overwrite -- a 409 on mismatch means files changed underneath the
-    scan (TOCTOU guard shared with plan_hash's docstring). The freshly
-    rebuilt server-side plan (with paths) is what's handed to
-    start_commit, never client-supplied entries.
+    overwrite -- a 409 on mismatch means either the files changed
+    underneath the scan, or this commit's overwrite doesn't match what the
+    reviewed plan was scanned with (plan_hash folds overwrite into the
+    hash for exactly this; see its docstring). The freshly rebuilt
+    server-side plan (with paths) is what's handed to start_commit, never
+    client-supplied entries.
     """
     db = get_database()
     storage = get_storage()

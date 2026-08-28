@@ -109,6 +109,7 @@ function makePlan(overrides: Partial<ImportPlan> = {}): ImportPlan {
         mtimeNs: 0,
         warnings: [],
         errors: [],
+        replacesExisting: false,
       },
     ],
     rejected: [{ file: 'stray.wav', reason: 'not a supported audio format (only .mp3 is imported)' }],
@@ -548,6 +549,31 @@ describe('LocalFeedPanel', () => {
     expect(screen.getByText('network blip')).toBeDefined();
   });
 
+  it('keeps the per-file rejected list visible when the trailing scan itself fails', async () => {
+    const user = userEvent.setup();
+    // One real per-file rejection during upload, then the scan step (which
+    // runs once after the whole batch uploads) throws.
+    mockImportUpload
+      .mockResolvedValueOnce({ staged: [], rejected: [{ file: 'bad.flac', reason: 'not a supported audio format (only .mp3 is imported)' }] })
+      .mockResolvedValueOnce({ staged: ['a.mp3'], rejected: [] });
+    mockImportScan.mockRejectedValue(new Error('scan blew up'));
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    const files = [
+      new File(['x'], 'bad.flac', { type: 'audio/x-flac' }),
+      new File(['a'], 'a.mp3', { type: 'audio/mpeg' }),
+    ];
+    await user.upload(fileInput, files);
+
+    await waitFor(() => expect(screen.getByText(/scan blew up/)).toBeDefined());
+    // The upload step's own rejection must still be visible even though
+    // the scan that followed it failed -- it was committed to state
+    // before the scan call, not only inside the mutation's onSuccess.
+    expect(screen.getByText('bad.flac')).toBeDefined();
+    expect(screen.getByText(/not a supported audio format/)).toBeDefined();
+  });
+
   // ---- Add-episode / bulk-import affordances after a completed import ----
 
   it('keeps Add episode, Choose files, and Scan server directory enabled once the import status is done', async () => {
@@ -606,7 +632,9 @@ describe('LocalFeedPanel', () => {
   it('threads the checked overwrite state into both the scan call and the commit call', async () => {
     const user = userEvent.setup();
     mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
-    mockImportScan.mockResolvedValue(makePlan({ overwrite: true }));
+    const plan = makePlan({ overwrite: true });
+    plan.entries[0] = { ...plan.entries[0], replacesExisting: true };
+    mockImportScan.mockResolvedValue(plan);
     mockImportCommit.mockResolvedValue({ message: 'import started' });
     renderPanel(makeFeed());
 
@@ -618,9 +646,14 @@ describe('LocalFeedPanel', () => {
     await waitFor(() => expect(mockImportScan).toHaveBeenCalledWith('archive-show', { source: 'staging', overwrite: true }));
     await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
 
-    // The plan came back with overwrite entries, so the commit button's
-    // copy reflects it.
-    const confirmButton = screen.getByRole('button', { name: /Import and replace 1 existing episode/ });
+    // The scanned entry actually collides (replacesExisting) and cleanly
+    // committed (no errors, since overwrite was on), so the "replace"
+    // clause counts it and the preview table flags the row.
+    // Renders in both the desktop table row and the mobile card (jsdom has
+    // no CSS to actually hide either), same duplication the file's other
+    // table-scoped assertions already account for.
+    expect(screen.getAllByText('replaces').length).toBeGreaterThanOrEqual(1);
+    const confirmButton = screen.getByRole('button', { name: 'Import 1 episode and replace 1 existing' });
     await user.click(confirmButton);
 
     await waitFor(() => expect(mockImportCommit).toHaveBeenCalledWith('archive-show', {
@@ -628,6 +661,24 @@ describe('LocalFeedPanel', () => {
       source: 'staging',
       overwrite: true,
     }));
+  });
+
+  it('hides the "replace" clause when overwrite is on but nothing in the plan actually collides', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    // overwrite=true but replacesExisting stays false on the only entry --
+    // an overwrite-enabled scan that happens to have no collisions must
+    // not claim it's replacing anything.
+    mockImportScan.mockResolvedValue(makePlan({ overwrite: true }));
+    renderPanel(makeFeed());
+
+    await user.click(screen.getByLabelText('Replace episodes that already exist'));
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    expect(screen.getByRole('button', { name: 'Import 1 episode' })).toBeDefined();
+    expect(screen.queryByText('replaces')).toBeNull();
   });
 
   it('threads overwrite into the directory scan call too', async () => {
@@ -658,7 +709,7 @@ describe('LocalFeedPanel', () => {
     // shown plan, and its planHash, were actually built with), not the
     // live checkbox, so scan and commit can never desync and 409.
     await user.click(screen.getByLabelText('Replace episodes that already exist'));
-    await user.click(screen.getByRole('button', { name: /Import and replace/ }));
+    await user.click(screen.getByRole('button', { name: /^Import 1 episode/ }));
 
     await waitFor(() => expect(mockImportCommit).toHaveBeenCalledWith('archive-show', {
       planHash: 'hash-abc123',

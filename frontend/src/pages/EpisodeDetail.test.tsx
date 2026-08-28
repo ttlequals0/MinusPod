@@ -116,6 +116,10 @@ function makeEpisode(overrides: Partial<EpisodeDetailType> = {}): EpisodeDetailT
     title: 'Test Episode',
     published: '2026-01-01T00:00:00Z',
     status: 'completed',
+    // Matches the default 'completed' status: a completed episode has, by
+    // construction, finished at least one processing run. Tests exercising
+    // "never processed" override this to null explicitly.
+    processedAt: '2026-01-01T00:00:00Z',
     hasOriginalAudio: true,
     corrections: [],
     pendingReviewMarkers: [heldMarker],
@@ -1112,14 +1116,23 @@ describe('Process vs Reprocess label (single episode)', () => {
   });
 
   it('labels the action button "Process" for a never-processed (discovered) episode', async () => {
-    renderDetail(makeEpisode({ status: 'discovered', pendingReviewMarkers: [] }));
+    renderDetail(makeEpisode({ status: 'discovered', processedAt: null, pendingReviewMarkers: [] }));
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     expect(screen.getByRole('button', { name: 'Process' })).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Reprocess' })).toBeNull();
   });
 
   it('labels the action button "Process" for a never-processed (pending) episode', async () => {
-    renderDetail(makeEpisode({ status: 'pending', pendingReviewMarkers: [] }));
+    renderDetail(makeEpisode({ status: 'pending', processedAt: null, pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    expect(screen.getByRole('button', { name: 'Process' })).toBeDefined();
+  });
+
+  it('labels the action button "Process" for a never-processed episode deferred to the offline queue', async () => {
+    // Regression case: 'deferred' can happen before an episode's first
+    // run too, so status alone can't distinguish this from a
+    // reprocess-queued episode -- only processedAt can.
+    renderDetail(makeEpisode({ status: 'deferred', processedAt: null, pendingReviewMarkers: [] }));
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     expect(screen.getByRole('button', { name: 'Process' })).toBeDefined();
   });
@@ -1137,9 +1150,21 @@ describe('Process vs Reprocess label (single episode)', () => {
     expect(screen.getByRole('button', { name: 'Reprocess' })).toBeDefined();
   });
 
+  it('labels the action button "Reprocess" for a reprocess-queued episode (status back to pending, processedAt still set)', async () => {
+    // Regression case (round-2 review finding): a reprocess request flips
+    // status back to pending/processing but reset_episode_for_reprocess
+    // never clears processedAt, so the episode has been processed before
+    // and must keep reading "Reprocess" throughout that window, not
+    // regress to "Process".
+    renderDetail(makeEpisode({ status: 'pending', processedAt: '2025-06-01T00:00:00Z', pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    expect(screen.getByRole('button', { name: 'Reprocess' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Process' })).toBeNull();
+  });
+
   it('carries the "Process" label into the dropdown menu\'s first entry for a never-processed episode', async () => {
     const user = userEvent.setup();
-    renderDetail(makeEpisode({ status: 'discovered', pendingReviewMarkers: [] }));
+    renderDetail(makeEpisode({ status: 'discovered', processedAt: null, pendingReviewMarkers: [] }));
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     await user.click(screen.getByRole('button', { name: 'Process' }));
     expect(screen.getAllByText('Process').length).toBeGreaterThanOrEqual(2);

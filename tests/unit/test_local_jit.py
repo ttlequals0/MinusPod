@@ -386,3 +386,129 @@ def test_local_processed_serves_processed_file_fast_path_untouched():
 
     assert resp.status_code == 200
     assert resp.data == b'PROCESSED-BYTES'
+
+
+# ---------------------------------------------------------------------
+# Reprocess window (round-2 review finding 1): a local episode mid-
+# reprocess (status back to pending/processing/failed) must prefer an
+# already-cut processed file still on disk over the raw, ad-laden
+# original.
+# ---------------------------------------------------------------------
+
+def test_local_reprocess_window_serves_processed_file_unversioned_url():
+    """(8) status=pending (reprocess just requested, not yet running) with
+    processed_version=1's file still on disk and the original also present
+    -> the unversioned URL serves the ad-free processed file, not the
+    original."""
+    slug, ep = 'locreprocu', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='discovered')
+    db.upsert_episode(slug, ep, status='pending', processed_version=1)
+    _write_original(slug, ep, b'ORIGINAL-SHOULD-NOT-BE-SERVED')
+    processed_path = storage.get_episode_path(slug, ep, version=1)
+    processed_path.parent.mkdir(parents=True, exist_ok=True)
+    processed_path.write_bytes(b'PROCESSED-V1-BYTES')
+
+    with patch('main_app.processing.start_background_processing',
+               return_value=(False, 'queue_busy:other:ep')), \
+         patch('main_app.routes.status_service') as mock_status, \
+         patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        mock_status.get_queue_position.return_value = 1
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'PROCESSED-V1-BYTES'
+
+
+def test_local_reprocess_window_serves_processed_file_versioned_url():
+    """(9) Same reprocess window, requested via the exact versioned URL the
+    RSS still points at."""
+    slug, ep = 'locreprocv', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='discovered')
+    db.upsert_episode(slug, ep, status='pending', processed_version=1)
+    _write_original(slug, ep, b'ORIGINAL-SHOULD-NOT-BE-SERVED')
+    processed_path = storage.get_episode_path(slug, ep, version=1)
+    processed_path.parent.mkdir(parents=True, exist_ok=True)
+    processed_path.write_bytes(b'PROCESSED-V1-BYTES')
+
+    with patch('main_app.processing.start_background_processing',
+               return_value=(False, 'queue_busy:other:ep')), \
+         patch('main_app.routes.status_service') as mock_status, \
+         patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        mock_status.get_queue_position.return_value = 1
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}-v1.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'PROCESSED-V1-BYTES'
+
+
+def test_local_reprocess_window_stale_versioned_url_falls_back_to_current_version():
+    """(10) A client holding a stale -v1 URL from before a second completed
+    reprocess (processed_version now 2, v1's file since pruned) still gets
+    the current v2 processed file during a third reprocess's pending
+    window, not the original -- the "requested version, else current
+    version" fallback order."""
+    slug, ep = 'locreprocstale', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='discovered')
+    db.upsert_episode(slug, ep, status='pending', processed_version=2)
+    _write_original(slug, ep, b'ORIGINAL-SHOULD-NOT-BE-SERVED')
+    processed_path = storage.get_episode_path(slug, ep, version=2)
+    processed_path.parent.mkdir(parents=True, exist_ok=True)
+    processed_path.write_bytes(b'PROCESSED-V2-BYTES')
+    # v1's file is deliberately absent (pruned by an earlier commit).
+
+    with patch('main_app.processing.start_background_processing',
+               return_value=(False, 'queue_busy:other:ep')), \
+         patch('main_app.routes.status_service') as mock_status, \
+         patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        mock_status.get_queue_position.return_value = 1
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}-v1.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'PROCESSED-V2-BYTES'
+
+
+# ---------------------------------------------------------------------
+# Subscribed-feed regression guards (round-2 review finding 8): the
+# reprocess-window processed-file preference above, and every
+# local-feed branch in serve_episode, is local_feed-gated -- a
+# subscribed feed's PROCESSING/PERMANENTLY_FAILED responses must be
+# byte-for-byte unchanged.
+# ---------------------------------------------------------------------
+
+def test_subscribed_feed_processing_still_503():
+    """(11) PROCESSING status still 503s for a subscribed feed."""
+    slug, ep = 'subproc', 'a1b2c3d4e5f7'
+    db.create_podcast(slug, 'https://example.com/sub/feed.xml', feed_type='subscribed')
+    db.upsert_episode(slug, ep, original_url='https://example.com/sub/ep9.mp3',
+                      status='processing', title='Ep9')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': 'https://example.com/sub/feed.xml',
+                                     'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 503
+    assert resp.headers.get('Retry-After') == '30'
+
+
+def test_subscribed_feed_permanently_failed_still_410():
+    """(12) PERMANENTLY_FAILED status still 410s for a subscribed feed."""
+    slug, ep = 'subperm', 'a1b2c3d4e5f8'
+    db.create_podcast(slug, 'https://example.com/sub/feed.xml', feed_type='subscribed')
+    db.upsert_episode(slug, ep, original_url='https://example.com/sub/ep9.mp3',
+                      status='permanently_failed', title='Ep9')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': 'https://example.com/sub/feed.xml',
+                                     'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 410

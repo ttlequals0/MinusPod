@@ -510,13 +510,15 @@ export interface ImportUploadResult {
 export async function importUpload(slug: string, files: File[]): Promise<ImportUploadResult> {
   const formData = new FormData();
   for (const file of files) formData.append('files', file);
-  // Non-idempotent: a retry after a timed-out attempt could re-save the
-  // same files twice (harmless for content but would double the request
-  // cost of a large batch).
+  // Retries ARE wanted here (default apiRequest behavior, so no
+  // skipRetry): the UI calls this once per file, so a retry re-saves at
+  // most one file under its original basename -- harmless -- and a bounded
+  // retry is exactly what turns a transient 429 (e.g. a large batch
+  // briefly hitting a rate limit) into a silent success instead of a
+  // rejected row.
   return apiRequest<ImportUploadResult>(`/feeds/${slug}/import/upload`, {
     method: 'POST',
     body: formData,
-    skipRetry: true,
   });
 }
 
@@ -537,6 +539,12 @@ export interface ImportPlanEntry {
   mtimeNs: number;
   warnings: string[];
   errors: string[];
+  // True whenever this episodeId already exists in the feed, independent
+  // of overwrite -- a collision marker, not an outcome. It's only errors
+  // being empty that says whether this entry actually commits: with
+  // overwrite off the collision itself becomes an error; with overwrite on
+  // it doesn't, and this entry cleanly overwrites the existing episode.
+  replacesExisting: boolean;
 }
 
 export interface ImportPlan {

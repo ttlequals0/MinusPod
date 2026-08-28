@@ -201,6 +201,24 @@ def test_upload_400_on_subscribed_feed(app_client, subscribed_feed):
     assert resp.status_code == 400
 
 
+def test_upload_exempt_from_default_rate_limit(app_client, local_feed):
+    """(round-2 review finding 2) The blueprint's default rate limit
+    (200/min, api/__init__.py) must not apply to this route: the UI now
+    uploads one file per request (sequential per-file uploads for "x of y"
+    progress), so a batch past 200 files would otherwise start 429ing
+    partway through even though nothing is actually wrong. Functional,
+    not an internals check: loops past the default limit against the real
+    endpoint and confirms every response is a normal 200, never a 429 --
+    this module's autouse _reset_rate_limiter fixture confirms the limiter
+    itself is genuinely active in this test process."""
+    slug = local_feed['slug']
+    _authed(app_client)
+
+    for i in range(205):
+        resp = _upload(app_client, slug, [(f'ex{i:04d}.mp3', b'x')])
+        assert resp.status_code == 200, f'request {i} got {resp.status_code}: {resp.get_json()}'
+
+
 # ---------- scan ----------
 
 def test_scan_strips_internal_paths_and_returns_plan(app_client, local_feed):
@@ -283,6 +301,34 @@ def test_commit_stale_hash_409(app_client, local_feed):
     resp = app_client.post(
         f'/api/v1/feeds/{slug}/import/commit',
         json={'planHash': 'stale-not-a-real-hash', 'source': 'staging', 'overwrite': False},
+        headers=headers,
+    )
+
+    assert resp.status_code == 409
+    assert 're-run scan' in resp.get_json()['error']
+
+
+def test_commit_overwrite_mismatch_from_scan_409s(app_client, local_feed):
+    """(round-2 review finding 4) The exact same files, scanned with
+    overwrite=False, then committed with overwrite=True (or vice versa)
+    must 409 as stale -- plan_hash folds overwrite into the hash, so a
+    commit whose overwrite doesn't match what was reviewed at scan time
+    can never slip through as if nothing had changed."""
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    _upload(app_client, slug, [('s01e01.mp3', b'audio-bytes')])
+    scan_resp = app_client.post(
+        f'/api/v1/feeds/{slug}/import/scan',
+        json={'source': 'staging', 'overwrite': False},
+        headers=headers,
+    )
+    plan_hash = scan_resp.get_json()['planHash']
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/import/commit',
+        json={'planHash': plan_hash, 'source': 'staging', 'overwrite': True},
         headers=headers,
     )
 
