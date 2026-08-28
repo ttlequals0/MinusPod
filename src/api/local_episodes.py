@@ -29,12 +29,13 @@ from config import MIN_PRESERVED_CHAPTERS
 from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
+from local_import import build_import_plan, get_import_status, start_commit
 from processing_queue import ProcessingQueue
 from storage import _detect_image_mime
 from utils.audio import get_audio_duration
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
-from utils.validation import is_valid_episode_id
+from utils.validation import is_dangerous_slug, is_valid_episode_id
 
 logger = logging.getLogger('podcast.api')
 
@@ -512,3 +513,213 @@ def upload_local_episode_artwork(slug, episode_id):
 
     _rebuild(slug, podcast=podcast)
     return json_response({'message': 'Artwork uploaded', 'episodeId': episode_id}, 200)
+
+
+# ========== Bulk archive import (#625 Task 11) ==========
+
+# Plan-entry keys that resolve to absolute server-side filesystem paths.
+# build_import_plan puts these in each entry for the commit engine to read
+# files by exact resolved path (local_import.py:381-392) -- they must never
+# reach the client, which only needs the basenames (audioFile etc, kept).
+_PLAN_INTERNAL_PATH_KEYS = ('audioPath', 'descriptionPath', 'artworkPath', 'sidecarPath')
+
+_IMPORT_SOURCE_CHOICES = ('staging', 'directory', 'both')
+
+
+def _reject_reason_for_basename(name):
+    """None if ``name`` is safe to use as a staged file's basename, else a
+    human-readable rejection reason. Mirrors is_dangerous_slug's traversal
+    checks (.., /, \\, NUL) plus a dotfile/empty-name check -- filenames
+    are far more permissive than slugs (spaces, case, punctuation are all
+    fine), so this doesn't reuse is_valid_slug's strict charset."""
+    if not name:
+        return 'empty filename'
+    if is_dangerous_slug(name):
+        return 'invalid filename'
+    if name.startswith('.'):
+        return 'hidden file (dotfile)'
+    return None
+
+
+def _collect_import_sources(storage, slug, source):
+    """Files (not directories) under the requested source dir(s), sorted by
+    name for a deterministic plan/hash. Neither staging nor the
+    user-managed import dir is guaranteed to exist -- an absent directory
+    just contributes no files."""
+    dirs = []
+    if source in ('staging', 'both'):
+        dirs.append(storage.import_staging_dir(slug, create=False))
+    if source in ('directory', 'both'):
+        dirs.append(storage.import_source_dir(slug))
+
+    sources = []
+    for d in dirs:
+        if not d.is_dir():
+            continue
+        sources.extend(p for p in sorted(d.iterdir()) if p.is_file())
+    return sources
+
+
+def _client_import_plan(plan):
+    """The scan/commit-mismatch response payload: ``plan`` with every
+    entry's internal absolute-path keys stripped (Task 10 review contract
+    -- server filesystem layout must never leave the server). mtimeNs and
+    everything else pass through verbatim."""
+    entries = [
+        {k: v for k, v in entry.items() if k not in _PLAN_INTERNAL_PATH_KEYS}
+        for entry in plan['entries']
+    ]
+    return {**plan, 'entries': entries}
+
+
+def _existing_episode_ids(db, slug):
+    episodes, _ = db.get_episodes(slug, status='all', limit=10000)
+    return {ep['episode_id'] for ep in episodes}
+
+
+def _parse_import_request(data):
+    """Shared body validation for scan/commit. Returns
+    (source, overwrite, error_response_or_None)."""
+    if not isinstance(data, dict):
+        return None, None, error_response('Request body must be an object', 400)
+    source = data.get('source', 'both')
+    if source not in _IMPORT_SOURCE_CHOICES:
+        return None, None, error_response(
+            f'source must be one of {", ".join(_IMPORT_SOURCE_CHOICES)}', 400)
+    overwrite = data.get('overwrite', False)
+    if not isinstance(overwrite, bool):
+        return None, None, error_response('overwrite must be a boolean', 400)
+    return source, overwrite, None
+
+
+# ---------- POST /feeds/<slug>/import/upload ----------
+
+@api.route('/feeds/<slug>/import/upload', methods=['POST'])
+@log_request
+def upload_import_files(slug):
+    """Stage one or more archive-import files ahead of scan/commit.
+
+    Multipart, repeated field ``files``; each is saved under its ORIGINAL
+    basename into import_staging_dir(slug, create=True) -- the sNNeNN
+    naming scheme (parsed later by build_import_plan) needs the real
+    filename, not a generated one. A basename containing a path separator,
+    '..', NUL, or that's empty/a dotfile is rejected per-file rather than
+    failing the whole request. Covered by _widen_upload_cap's 1 GB cap
+    (api/__init__.py); no dedicated rate limit here for the same reason as
+    upload_local_episode -- a large multipart upload already self-limits.
+    """
+    db = get_database()
+    storage = get_storage()
+
+    podcast, err = _require_local_feed(db, slug)
+    if err:
+        return err
+
+    uploads = request.files.getlist('files')
+    if not uploads:
+        return error_response('at least one file is required (multipart field "files")', 400)
+
+    staged = []
+    rejected = []
+    staging_dir = None
+    for upload in uploads:
+        name = upload.filename or ''
+        reason = _reject_reason_for_basename(name)
+        if reason:
+            rejected.append({'file': name, 'reason': reason})
+            continue
+        if staging_dir is None:
+            staging_dir = storage.import_staging_dir(slug, create=True)
+        upload.save(str(staging_dir / name))
+        staged.append(name)
+
+    return json_response({'staged': staged, 'rejected': rejected}, 200)
+
+
+# ---------- POST /feeds/<slug>/import/scan ----------
+
+@api.route('/feeds/<slug>/import/scan', methods=['POST'])
+@log_request
+def scan_import(slug):
+    """Dry-run preview: scans staging/the import dir and returns the plan
+    the UI renders for review before commit."""
+    db = get_database()
+    storage = get_storage()
+
+    podcast, err = _require_local_feed(db, slug)
+    if err:
+        return err
+
+    data = request.get_json(silent=True)
+    if data is None:
+        data = {}
+    source, overwrite, verr = _parse_import_request(data)
+    if verr:
+        return verr
+
+    sources = _collect_import_sources(storage, slug, source)
+    existing_ids = _existing_episode_ids(db, slug)
+    plan = build_import_plan(slug, sources, existing_ids,
+                             overwrite=overwrite, now_iso=utc_now_iso())
+    return json_response(_client_import_plan(plan), 200)
+
+
+# ---------- POST /feeds/<slug>/import/commit ----------
+
+@api.route('/feeds/<slug>/import/commit', methods=['POST'])
+@log_request
+def commit_import(slug):
+    """Start committing a previously scanned plan.
+
+    Re-scans server-side and compares the client-echoed planHash rather
+    than trusting anything the client sends beyond planHash/source/
+    overwrite -- a 409 on mismatch means files changed underneath the
+    scan (TOCTOU guard shared with plan_hash's docstring). The freshly
+    rebuilt server-side plan (with paths) is what's handed to
+    start_commit, never client-supplied entries.
+    """
+    db = get_database()
+    storage = get_storage()
+
+    podcast, err = _require_local_feed(db, slug)
+    if err:
+        return err
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return error_response('Request body must be an object', 400)
+
+    client_hash = data.get('planHash')
+    if not isinstance(client_hash, str) or not client_hash:
+        return error_response('planHash is required', 400)
+
+    source, overwrite, verr = _parse_import_request(data)
+    if verr:
+        return verr
+
+    sources = _collect_import_sources(storage, slug, source)
+    existing_ids = _existing_episode_ids(db, slug)
+    plan = build_import_plan(slug, sources, existing_ids,
+                             overwrite=overwrite, now_iso=utc_now_iso())
+    if plan['planHash'] != client_hash:
+        return error_response('files changed since scan; re-run scan', 409)
+
+    started, message = start_commit(slug, plan, db=db, storage=storage)
+    if not started:
+        return error_response(message, 409)
+    return json_response({'message': 'import started'}, 202)
+
+
+# ---------- GET /feeds/<slug>/import/status ----------
+
+@api.route('/feeds/<slug>/import/status', methods=['GET'])
+@log_request
+def import_status(slug):
+    """Passthrough of local_import.get_import_status for the UI's poll."""
+    db = get_database()
+
+    podcast, err = _require_local_feed(db, slug)
+    if err:
+        return err
+
+    return json_response(get_import_status(slug), 200)
