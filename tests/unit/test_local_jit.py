@@ -24,6 +24,36 @@ import main_app.routes as routes_mod  # noqa: E402
 from main_app import app, db, storage  # noqa: E402
 
 
+# Every test below creates a podcast (and some also queue a real
+# auto_process_queue row via the queue-busy JIT path) against the shared
+# module-level db/storage singletons -- tests.app_bootstrap's design leaks
+# those singletons across the whole pytest session by intent (see its
+# docstring), so anything left uncleaned here is still sitting in the
+# database when a LATER test module runs in the same session. A leaked
+# pending auto_process_queue row at the head of the queue broke
+# test_offline_queue.py's FIFO-ordering assertions this way in CI.
+# delete_podcast cascades to every FK-linked child table, including
+# auto_process_queue (see its docstring in database/podcasts.py), since
+# this connection runs with foreign_keys on -- so deleting the podcast
+# alone is enough. Deleting every slug this file ever uses, after every
+# single test rather than just the one that ran, keeps this correct even
+# if a test is skipped, parametrized differently later, or fails midway.
+_ALL_LOCAL_JIT_SLUGS = [
+    'archead', 'archead2',
+    'locqbusy', 'locproc', 'locfail', 'locperm', 'locmissing',
+    'subqueue', 'locrange', 'locprocessed',
+    'locreprocu', 'locreprocv', 'locreprocstale',
+    'subproc', 'subperm',
+]
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_local_jit_podcasts():
+    yield
+    for slug in _ALL_LOCAL_JIT_SLUGS:
+        db.delete_podcast(slug)
+
+
 def _local(slug):
     return {'id': 1, 'slug': slug, 'source_url': f'local://{slug}',
             'feed_type': 'local', 'title': 'Archive'}
