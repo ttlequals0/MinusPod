@@ -58,3 +58,45 @@ def test_delete_processed_file_keep_original(db, tmp_path):
     orig.write_bytes(b'AUDIO')
     storage.delete_processed_file('arc', 's01e01', keep_original=True)
     assert orig.exists()
+
+
+def test_local_original_and_processed_survive_force_all(db, tmp_path):
+    """The manual 'Clear all processed audio' path (force_all=True) must
+    exempt local feeds exactly like the scheduled sweep: it holds the only
+    copy of the audio, so neither the original nor the processed file may
+    be deleted, and the episode row must not be reset."""
+    from storage import Storage
+    storage = Storage(str(tmp_path))
+    orig = _make_local_with_old_episode(db, storage)
+    processed = storage.get_episode_path('arc', 's01e01')
+    processed.parent.mkdir(parents=True, exist_ok=True)
+    processed.write_bytes(b'PROCESSED')
+
+    reset, freed = db.cleanup_old_episodes(force_all=True, storage=storage)
+
+    assert orig.exists(), "force_all must never delete a local feed's original"
+    assert processed.exists(), "force_all must never delete a local feed's processed file"
+    episode = db.get_episode('arc', 's01e01')
+    assert episode['status'] == 'processed', "local feed episode must not be reset"
+    assert episode['processed_file'] == 's01e01.mp3'
+
+
+def test_subscribed_feed_still_cleaned_under_force_all(db, tmp_path):
+    """No regression: force_all must still wipe a normal (non-local, non-
+    archived) feed's processed episodes."""
+    from storage import Storage
+    storage = Storage(str(tmp_path))
+    ep_id = 'abcdef012345'
+    db.create_podcast('show', 'https://example.com/show.xml')
+    db.upsert_episode('show', ep_id, original_url=f'https://example.com/{ep_id}.mp3',
+                      status='processed', title='ep', processed_file=f'{ep_id}.mp3')
+    processed = storage.get_episode_path('show', ep_id)
+    processed.parent.mkdir(parents=True, exist_ok=True)
+    processed.write_bytes(b'PROCESSED')
+
+    reset, freed = db.cleanup_old_episodes(force_all=True, storage=storage)
+
+    assert reset == 1
+    assert not processed.exists(), "force_all must still clean subscribed feeds"
+    episode = db.get_episode('show', ep_id)
+    assert episode['status'] == 'discovered'

@@ -230,13 +230,17 @@ class MaintenanceMixin:
         else:
             # An explicit wipe still honours archive mode: retention_days_override
             # of 0 is a deliberate "never delete this feed", not an inherited
-            # default, so it outranks the operator-triggered sweep.
+            # default, so it outranks the operator-triggered sweep. Local
+            # feeds hold the only copy of their audio (no upstream to
+            # re-download), so they are exempt the same way the scheduled
+            # sweep exempts them in _retention_groups.
             episodes_to_reset = conn.execute(
                 """SELECT e.episode_id, p.slug
                    FROM episodes e
                    JOIN podcasts p ON e.podcast_id = p.id
                    WHERE e.processed_file IS NOT NULL
                      AND e.status IN ('processed', 'failed', 'permanently_failed')
+                     AND p.feed_type != 'local'
                      AND (p.retention_days_override IS NULL
                           OR p.retention_days_override > 0)"""
             ).fetchall()
