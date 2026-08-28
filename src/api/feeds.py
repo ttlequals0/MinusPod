@@ -562,7 +562,8 @@ _P20_LOCKED_VALUES = ('yes', 'no')
 _P20_LOCKED_OWNER_MAX = 200
 # Basic shape check, not full RFC 5322 validation -- good enough to catch
 # fat-finger input; podcast:locked's owner attribute is a contact email.
-_P20_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+# Dot-free domain labels keep the match linear (CodeQL py/polynomial-redos).
+_P20_EMAIL_RE = re.compile(r'^[^@\s]+@(?:[^@\s.]+\.)+[^@\s.]+$')
 _P20_SCALAR_KEYS = ('medium', 'locked', 'locked_owner')
 
 
