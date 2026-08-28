@@ -138,6 +138,8 @@ def test_fresh_transcription_appends_tail_before_persist():
     extended = base + [dict(_seg(100.5, 120.0, 'post-roll'), novad_tail=True)]
     mock_storage = MagicMock()
     mock_storage.get_transcript.return_value = None
+    # No retained original: the fresh-episode branch must download, not reuse.
+    mock_storage.get_original_path.return_value = '/nonexistent/ep1-original.mp3'
     mock_t = MagicMock()
     mock_t.check_audio_availability.return_value = (True, None)
     mock_t.download_audio.return_value = '/tmp/dl.mp3'
