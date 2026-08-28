@@ -277,6 +277,8 @@ class PodpingListener:
     def _refresh_feed_map(self):
         feed_map = {}
         for podcast in self.db.get_podcast_feed_urls():
+            if podcast.get('feed_type') == 'local':
+                continue
             source_url = podcast.get('source_url')
             if source_url:
                 feed_map[normalize_feed_url(source_url)] = podcast['slug']

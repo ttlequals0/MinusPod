@@ -46,7 +46,7 @@ from utils.constants import EpisodeStatus
 from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
-from database.podcasts import EPISODE_STATUSES, PodcastMixin
+from database.podcasts import EPISODE_STATUSES, PodcastMixin, is_local_feed
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
@@ -1316,6 +1316,9 @@ def refresh_feed(slug):
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return error_response('Feed not found', 404)
+
+    if is_local_feed(podcast):
+        return error_response('Local feed has no upstream to refresh', 400)
 
     if not podcast.get('source_url'):
         return error_response('Feed has no source URL', 400)

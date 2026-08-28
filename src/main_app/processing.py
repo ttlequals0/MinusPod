@@ -666,6 +666,10 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
     worker, so an abandoned worker (episode failed meanwhile) can never
     stamp a different job.
     """
+    if is_local_feed(db.get_podcast_by_slug(slug)):
+        audio_logger.debug(
+            f"[{slug}:{episode_id}] Differential fetch skipped: local feed")
+        return None
     try:
         explicit = resolve_differential_fetch_setting(db, podcast_id)
         if not differential_fetch_effective(
