@@ -25,6 +25,7 @@ from config import (
     title_matches_skip_patterns,
     user_agent_is_jit_blocked,
 )
+from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
 from utils.constants import EpisodeStatus, REPROCESS_SOURCE_JIT
@@ -153,7 +154,12 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     if cached is not None:
         return cached
 
-    original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
+    # Local feeds have no upstream to fetch (source_url is the
+    # local://<slug> sentinel, not a real address); go straight to the DB
+    # fallback below. Also avoids an SSRF-blocked fetch_feed call on every
+    # lookup.
+    podcast = db.get_podcast_by_slug(slug)
+    original_feed = None if is_local_feed(podcast) else rss_parser.fetch_feed(feed_map[slug]['in'])
     if original_feed:
         parsed_feed = rss_parser.parse_feed(original_feed, source=slug)
         podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
@@ -226,6 +232,24 @@ def _head_upstream(slug, episode_id, original_url):
             proxy_resp.content_length = int(resp.headers['Content-Length'])
         return proxy_resp
     abort(503)
+
+
+def _head_local(slug, episode_id):
+    """HEAD response for a not-yet-processed local-feed episode.
+
+    Local feeds have no upstream to proxy (original_url is the
+    local://<episode_id> sentinel), so report on whatever audio is already
+    held: the retained original, or a processed file left over from an
+    earlier version. 404 when neither exists.
+    """
+    for path in (storage.get_original_path(slug, episode_id),
+                 storage.get_episode_path(slug, episode_id)):
+        if path.exists():
+            proxy_resp = Response('', status=200)
+            proxy_resp.headers['Content-Type'] = 'audio/mpeg'
+            proxy_resp.content_length = path.stat().st_size
+            return proxy_resp
+    abort(404)
 
 
 def register_routes(app):
@@ -490,6 +514,8 @@ def register_routes(app):
         if request.method == 'HEAD' and status != EpisodeStatus.PROCESSED:
             ep_data, _ = _routes._lookup_episode(slug, episode_id, feed_map, episode_row=episode)
             if ep_data:
+                if is_local_feed(db.get_podcast_by_slug(slug)):
+                    return _routes._head_local(slug, episode_id)
                 return _routes._head_upstream(slug, episode_id, ep_data['url'])
             abort(404)
 
