@@ -46,6 +46,9 @@ requires_ffmpeg = pytest.mark.skipif(
     reason='ffmpeg/ffprobe not available')
 
 SLUG = 'e2e-local-show'
+# Step 7's negative control: a subscribed feed, to prove force_all's local-feed
+# exemption is feed_type-specific rather than the step being vacuously true.
+CONTROL_SLUG = 'e2e-local-show-retention-control'
 
 # Import commit runs on a real background daemon thread (see
 # local_import.start_commit); polling avoids monkeypatching threading.Thread
@@ -67,8 +70,8 @@ def _wait_for_import_done(client, slug):
                          f'{_IMPORT_POLL_TIMEOUT_S}s')
 
 
-def _delete_podcast_row(conn):
-    conn.execute("DELETE FROM podcasts WHERE slug = ?", (SLUG,))
+def _delete_podcast_rows(conn):
+    conn.execute("DELETE FROM podcasts WHERE slug IN (?, ?)", (SLUG, CONTROL_SLUG))
     conn.commit()
 
 
@@ -88,12 +91,12 @@ def client():
     db.set_setting('app_password', '')
     app.config['TESTING'] = True
 
-    _delete_podcast_row(db.get_connection())
+    _delete_podcast_rows(db.get_connection())
 
     with app.test_client() as c:
         yield c
 
-    _delete_podcast_row(db.get_connection())
+    _delete_podcast_rows(db.get_connection())
     shutil.rmtree(storage_module.Storage().import_staging_dir(SLUG), ignore_errors=True)
 
 
@@ -153,6 +156,7 @@ def test_local_feed_end_to_end_flow(client, real_mp3_bytes):
     assert len(plan['entries']) == 3
     assert len(plan['rejected']) == 1
     assert plan['rejected'][0]['file'] == 'not-a-valid-name.mp3'
+    assert 'sNNeNN naming scheme' in plan['rejected'][0]['reason']
     assert sorted(e['episodeId'] for e in plan['entries']) == ['s01e01', 's01e02', 's01e03']
     for entry in plan['entries']:
         for key in ('audioPath', 'descriptionPath', 'artworkPath', 'sidecarPath'):
@@ -246,8 +250,16 @@ def test_local_feed_end_to_end_flow(client, real_mp3_bytes):
         ['s01e01', 's01e02', 's01e03']
 
     # ---- Step 7: retention sweep + force_all both leave local originals
-    # (and the retained processed file) untouched ----
-    db.update_podcast(SLUG, retention_days_override=0)
+    # (and the retained processed file) untouched, while a subscribed feed's
+    # old processed episode IS cleaned under force_all -- proving the
+    # exemption is feed_type-specific rather than this step being vacuously
+    # true. override=1, not 0: retention_days<=0 is a separate "archived,
+    # never sweep" skip that fires in BOTH sweep paths regardless of
+    # feed_type (the non-force_all grouping's `if retention_days <= 0:
+    # continue`, and force_all's own `retention_days_override > 0` WHERE
+    # clause), so a 0 override would make this step pass even with the
+    # feed_type=='local' exemptions deleted from database/maintenance.py.
+    db.update_podcast(SLUG, retention_days_override=1)
     orig_path = storage.get_original_path(SLUG, 's01e02')
     assert orig_path.exists()
     processed_path = storage.get_episode_path(SLUG, 's01e02')
@@ -264,10 +276,33 @@ def test_local_feed_end_to_end_flow(client, real_mp3_bytes):
     assert orig_path.exists(), 'the scheduled sweep must never touch a local original'
     assert processed_path.exists()
 
+    # Negative control, mirroring tests/unit/test_local_feed_retention.py's
+    # test_subscribed_feed_still_cleaned_under_force_all: created only now,
+    # after the scheduled sweep above, so that sweep never saw it and this
+    # assertion is isolated to force_all's own exemption logic.
+    db.create_podcast(CONTROL_SLUG, 'https://example.com/control-feed.xml',
+                      'Retention Control')
+    control_ep = 'abcdef012345'
+    db.upsert_episode(CONTROL_SLUG, control_ep,
+                      original_url=f'https://example.com/{control_ep}.mp3',
+                      status='processed', title='Control Episode',
+                      processed_file=f'{control_ep}.mp3')
+    control_processed = storage.get_episode_path(CONTROL_SLUG, control_ep)
+    control_processed.parent.mkdir(parents=True, exist_ok=True)
+    control_processed.write_bytes(b'CONTROL')
+    conn.execute(
+        "UPDATE episodes SET processed_at = '2020-01-01T00:00:00Z', "
+        "created_at = '2020-01-01T00:00:00Z' WHERE episode_id = ?",
+        (control_ep,))
+    conn.commit()
+
     db.cleanup_old_episodes(force_all=True, storage=storage)
     assert orig_path.exists(), 'force_all must never touch a local original'
     assert processed_path.exists()
     assert db.get_episode(SLUG, 's01e02')['status'] == 'processed'
+    assert not control_processed.exists(), \
+        'force_all must still clean a subscribed feed (negative control)'
+    assert db.get_episode(CONTROL_SLUG, control_ep)['status'] == 'discovered'
 
     # ---- Step 8: OPML export -- original mode omits the local feed,
     # modified mode includes it ----
