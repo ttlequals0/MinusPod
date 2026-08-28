@@ -12,11 +12,12 @@
  *     absent when it's true.
  *   - Saving metadata sends null (not omitted) for a blanked author/
  *     categories, and always sends p20.locked_owner so a blank one clears.
- *   - Podcasting 2.0 list tag editors (funding/person/license/location/txt):
- *     rows seed from feed.p20, an added+filled row is sent in the PATCH
- *     payload, removing the last row of a tag sends [], a funding row
- *     without a url blocks save with an inline message instead of a
- *     request, and the scalar p20 keys still ride along in the payload.
+ *   - Podcasting 2.0 list tag editors (funding/person/license/location/txt/
+ *     podroll): rows seed from feed.p20, an added+filled row is sent in the
+ *     PATCH payload, removing the last row of a tag sends [], a funding row
+ *     without a url (or a podroll row without a feed GUID) blocks save with
+ *     an inline message instead of a request, and the scalar p20 keys still
+ *     ride along in the payload.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -288,5 +289,61 @@ describe('LocalFeedPanel', () => {
 
     expect(await screen.findByText('Every funding row needs a URL.')).toBeDefined();
     expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('seeds a podroll row from feed.p20 and sends it in the PATCH payload', async () => {
+    const user = userEvent.setup();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+    renderPanel(makeFeed({
+      p20: {
+        medium: 'podcast',
+        locked: 'yes',
+        locked_owner: '',
+        podroll: [{ feedGuid: '29cdca4a-32d8-56ba-b48b-09a011c5daa9', feedUrl: 'https://example.com/feed.xml' }],
+      },
+    }));
+
+    expect(screen.getByDisplayValue('29cdca4a-32d8-56ba-b48b-09a011c5daa9')).toBeDefined();
+    expect(screen.getByDisplayValue('https://example.com/feed.xml')).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalled());
+    const payload = mockUpdateFeed.mock.calls[0][1];
+    expect(payload.p20.podroll).toEqual([
+      { feedGuid: '29cdca4a-32d8-56ba-b48b-09a011c5daa9', feedUrl: 'https://example.com/feed.xml' },
+    ]);
+  });
+
+  it('blocks save with an inline message when a podroll row has no feed GUID', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
+
+    await user.click(screen.getByRole('button', { name: '+ Add show' }));
+    await user.type(screen.getByLabelText('Feed URL'), 'https://example.com/feed.xml');
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    expect(await screen.findByText('Every podroll row needs a feed GUID.')).toBeDefined();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('sends [] for podroll when its last row is removed, clearing it', async () => {
+    const user = userEvent.setup();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+    renderPanel(makeFeed({
+      p20: {
+        medium: 'podcast',
+        locked: 'yes',
+        locked_owner: '',
+        podroll: [{ feedGuid: '29cdca4a-32d8-56ba-b48b-09a011c5daa9' }],
+      },
+    }));
+
+    await user.click(screen.getByRole('button', { name: 'Remove Podroll row 1' }));
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalled());
+    const payload = mockUpdateFeed.mock.calls[0][1];
+    expect(payload.p20.podroll).toEqual([]);
   });
 });

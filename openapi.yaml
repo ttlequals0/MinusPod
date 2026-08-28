@@ -873,7 +873,7 @@ paths:
                     Local feeds only; 400 on a subscribed feed. Merged onto
                     the feed's existing stored p20 object, so an unspecified
                     tag is left untouched, except sending the literal
-                    JSON null, which clears the five list tags and any
+                    JSON null, which clears the six list tags and any
                     stored locked_owner in one shot (see LocalFeedP20).
                     guid can never be set here.
       responses:
@@ -8599,10 +8599,10 @@ components:
         - 'null'
       description: >-
         Podcasting 2.0 channel-level extras for a local feed. Sending null
-        clears the five list tags (funding/person/license/location/txt) and
-        any stored locked_owner, but leaves guid/medium/locked alone. guid
-        is minted once at feed creation from the feed URL and can never be
-        set through this field, at create or PATCH.
+        clears the six list tags (funding/person/license/location/txt/
+        podroll) and any stored locked_owner, but leaves guid/medium/locked
+        alone. guid is minted once at feed creation from the feed URL and
+        can never be set through this field, at create or PATCH.
       properties:
         funding:
           type: array
@@ -8645,6 +8645,24 @@ components:
             properties:
               text: { type: string }
               purpose: { type: string }
+        podroll:
+          type: array
+          description: >-
+            Other shows to recommend, rendered as a podcast:podroll
+            container of remoteItem children. Max 50 entries.
+          items:
+            type: object
+            required: [feedGuid]
+            properties:
+              feedGuid:
+                type: string
+                format: uuid
+                description: UUID of the recommended feed.
+              feedUrl: { type: string, format: uri }
+              itemGuid: { type: string }
+              medium:
+                type: string
+                enum: [podcast, music, video, film, audiobook, newsletter, blog]
         medium:
           type: string
           enum: [podcast, music, video, film, audiobook, newsletter, blog]

@@ -740,3 +740,189 @@ def test_post_local_feed_p20_medium_locked_override_minted_defaults(app_client):
         assert channel_json['guid']
     finally:
         db.delete_podcast(slug)
+
+
+# -- _validate_p20_podroll (direct unit coverage) --
+
+_PODROLL_GUID = '29cdca4a-32d8-56ba-b48b-09a011c5daa9'
+
+
+def test_validate_p20_podroll_happy_path():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({
+        'podroll': [{
+            'feedGuid': _PODROLL_GUID,
+            'feedUrl': 'https://example.com/feed.xml',
+            'medium': 'podcast',
+        }],
+    })
+    assert err is None
+    assert cleaned == {'podroll': [{
+        'feedGuid': _PODROLL_GUID,
+        'feedUrl': 'https://example.com/feed.xml',
+        'medium': 'podcast',
+    }]}
+
+
+def test_validate_p20_podroll_uppercase_guid_accepted():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'podroll': [{'feedGuid': _PODROLL_GUID.upper()}]})
+    assert err is None
+    assert cleaned['podroll'][0]['feedGuid'] == _PODROLL_GUID.upper()
+
+
+def test_validate_p20_podroll_requires_feed_guid():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'podroll': [{'feedUrl': 'https://example.com/feed.xml'}]})
+    assert cleaned is None
+    assert 'feedGuid' in err
+
+
+def test_validate_p20_podroll_rejects_malformed_feed_guid():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'podroll': [{'feedGuid': 'not-a-uuid'}]})
+    assert cleaned is None
+    assert 'feedGuid' in err
+
+
+def test_validate_p20_podroll_rejects_non_http_feed_url():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'podroll': [{
+        'feedGuid': _PODROLL_GUID, 'feedUrl': 'javascript:alert(1)',
+    }]})
+    assert cleaned is None
+    assert 'feedUrl' in err
+
+
+def test_validate_p20_podroll_medium_whitelist():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'podroll': [{
+        'feedGuid': _PODROLL_GUID, 'medium': 'spaghetti',
+    }]})
+    assert cleaned is None
+    assert 'medium' in err
+
+
+def test_validate_p20_podroll_max_entries():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({
+        'podroll': [{'feedGuid': _PODROLL_GUID} for _ in range(51)],
+    })
+    assert cleaned is None
+    assert 'at most 50' in err
+
+
+def test_validate_p20_podroll_drops_unknown_keys():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'podroll': [{
+        'feedGuid': _PODROLL_GUID, 'bogus': 'nope',
+    }]})
+    assert err is None
+    assert cleaned == {'podroll': [{'feedGuid': _PODROLL_GUID}]}
+
+
+# -- PATCH /feeds/<slug> p20.podroll --
+
+def test_patch_p20_podroll_round_trips(app_client, local_feed):
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {'podroll': [{
+            'feedGuid': _PODROLL_GUID,
+            'feedUrl': 'https://example.com/feed.xml',
+            'medium': 'podcast',
+        }]},
+    }, headers=headers)
+    assert resp.status_code == 200
+
+    channel_json = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert channel_json['podroll'] == [{
+        'feedGuid': _PODROLL_GUID,
+        'feedUrl': 'https://example.com/feed.xml',
+        'medium': 'podcast',
+    }]
+    # Minted at creation, must survive an unrelated p20 PATCH.
+    assert channel_json['guid']
+
+
+def test_patch_p20_podroll_missing_feed_guid_400(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'p20': {'podroll': [{'feedUrl': 'https://example.com/feed.xml'}]}},
+                            headers=headers)
+    assert resp.status_code == 400
+
+
+def test_patch_p20_podroll_bad_feed_url_400(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {'podroll': [{'feedGuid': _PODROLL_GUID, 'feedUrl': 'ftp://example.com/feed.xml'}]},
+    }, headers=headers)
+    assert resp.status_code == 400
+
+
+def test_patch_p20_podroll_bad_medium_400(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {'podroll': [{'feedGuid': _PODROLL_GUID, 'medium': 'bogus'}]},
+    }, headers=headers)
+    assert resp.status_code == 400
+
+
+def test_patch_p20_podroll_per_tag_clear_still_works(app_client, local_feed):
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {'podroll': [{'feedGuid': _PODROLL_GUID}]},
+    }, headers=headers)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'p20': {'podroll': []}}, headers=headers)
+    assert resp.status_code == 200
+    channel_json = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert channel_json['podroll'] == []
+
+
+def test_patch_p20_null_also_clears_podroll(app_client, local_feed):
+    """{"p20": null} is the "clear everything operator-editable" shortcut
+    (same as the five list tags) -- podroll is operator-supplied data too."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {'podroll': [{'feedGuid': _PODROLL_GUID}]},
+    }, headers=headers)
+    before = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert before['podroll']
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'p20': None}, headers=headers)
+    assert resp.status_code == 200
+
+    after = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert 'podroll' not in after
+    assert after['guid'] == before['guid']

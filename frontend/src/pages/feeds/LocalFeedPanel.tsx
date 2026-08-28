@@ -24,11 +24,13 @@ const P20_MEDIUM_OPTIONS = ['podcast', 'music', 'video', 'film', 'audiobook', 'n
 const fieldCls = 'w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
 const fileInputCls = `block w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:text-sm ${btnSecondary} file:transition-colors ${focusRing}`;
 
-// ---- Podcasting 2.0 list tags (funding/person/license/location/txt) ----
-// One row shape (plain string fields) serves all five tags; the field list
+// ---- Podcasting 2.0 list tags (funding/person/license/location/txt/podroll) ----
+// One row shape (plain string fields) serves all six tags; the field list
 // per tag mirrors local_feed_builder.py's attribute whitelist (_FUNDING_ATTRS
-// etc.) and api/feeds.py's _validate_p20_items, so the UI can never offer an
-// attribute the backend would strip.
+// etc.) and api/feeds.py's _validate_p20_items / _validate_p20_podroll, so
+// the UI can never offer an attribute the backend would strip. podroll rows
+// have no 'text' field -- the framework treats every field uniformly, so
+// that needs no special casing here.
 type P20Row = Record<string, string>;
 
 interface P20FieldDef {
@@ -38,14 +40,15 @@ interface P20FieldDef {
 }
 
 interface P20TagDef {
-  tag: 'funding' | 'person' | 'license' | 'location' | 'txt';
+  tag: 'funding' | 'person' | 'license' | 'location' | 'txt' | 'podroll';
   title: string;
   hint: string;
   addLabel: string;
   fields: P20FieldDef[];
-  // Client-side mirror of the backend's two hard requirements
-  // (_validate_p20_items: funding needs a url, person needs a name/text) so
-  // a bad row is caught before the request instead of surfacing a 400.
+  // Client-side mirror of the backend's hard requirements
+  // (_validate_p20_items: funding needs a url, person needs a name/text;
+  // _validate_p20_podroll: every entry needs a feedGuid) so a bad row is
+  // caught before the request instead of surfacing a 400.
   requiredKey?: string;
   requiredError?: string;
 }
@@ -108,6 +111,19 @@ const P20_TAG_DEFS: P20TagDef[] = [
       { key: 'text', label: 'Text', placeholder: 'Free text' },
       { key: 'purpose', label: 'Purpose', placeholder: 'verify' },
     ],
+  },
+  {
+    tag: 'podroll',
+    title: 'Podroll',
+    hint: 'Other shows to recommend alongside this one.',
+    addLabel: '+ Add show',
+    fields: [
+      { key: 'feedGuid', label: 'Feed GUID', placeholder: '29cdca4a-32d8-56ba-b48b-09a011c5daa9' },
+      { key: 'feedUrl', label: 'Feed URL', placeholder: 'https://...' },
+      { key: 'medium', label: 'Medium', placeholder: 'podcast' },
+    ],
+    requiredKey: 'feedGuid',
+    requiredError: 'Every podroll row needs a feed GUID.',
   },
 ];
 
@@ -174,17 +190,20 @@ function LocalFeedPanel({ feed, slug }: Props) {
   const [licenseRows, setLicenseRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.license));
   const [locationRows, setLocationRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.location));
   const [txtRows, setTxtRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.txt));
+  const [podrollRows, setPodrollRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.podroll));
   const [p20ValidationError, setP20ValidationError] = useState<string | null>(null);
   const [metaSaved, setMetaSaved] = useState(false);
 
   // Rows/setters per tag, keyed the same way P20_TAG_DEFS is, so the editor
   // markup below and the save handler can both loop over P20_TAG_DEFS
-  // instead of five near-identical blocks.
+  // instead of six near-identical blocks.
   const p20RowsByTag: Record<string, P20Row[]> = {
     funding: fundingRows, person: personRows, license: licenseRows, location: locationRows, txt: txtRows,
+    podroll: podrollRows,
   };
   const p20SettersByTag: Record<string, Dispatch<SetStateAction<P20Row[]>>> = {
     funding: setFundingRows, person: setPersonRows, license: setLicenseRows, location: setLocationRows, txt: setTxtRows,
+    podroll: setPodrollRows,
   };
 
   // Reseed the form from the server feed object whenever its identity
@@ -204,6 +223,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
     setLicenseRows(normalizeP20Rows(f.p20?.license));
     setLocationRows(normalizeP20Rows(f.p20?.location));
     setTxtRows(normalizeP20Rows(f.p20?.txt));
+    setPodrollRows(normalizeP20Rows(f.p20?.podroll));
   });
 
   const metaMutation = useMutation({
@@ -248,7 +268,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
     // locked_owner always sent, even blank: '' is the backend's delete
     // sentinel for clearing a previously-set owner (_validate_p20_scalar),
     // so omitting the key here would leave a cleared owner un-cleared. The
-    // five tag arrays are likewise always sent -- an empty array is how a
+    // six tag arrays are likewise always sent -- an empty array is how a
     // cleared tag reaches the backend (undefined would drop the key and
     // leave the old rows untouched).
     metaMutation.mutate({
@@ -459,7 +479,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
           <CollapsibleSection
             title="Podcasting 2.0 tags"
-            subtitle="Funding, people, license, location, and text tags for apps that support them."
+            subtitle="Funding, people, license, location, text, and podroll tags for apps that support them."
             defaultOpen={false}
             storageKey={`local-p20-${slug}`}
           >
@@ -626,7 +646,7 @@ interface P20TagEditorProps {
 
 // One tag's block inside the "Podcasting 2.0 tags" nested collapsible:
 // existing rows (one bordered card per row, a labeled input per field, a
-// Remove button) plus an Add button. Shared across all five tags -- the
+// Remove button) plus an Add button. Shared across all six tags -- the
 // field list is the only thing that differs between them (P20_TAG_DEFS).
 function P20TagEditor({ slug, def, rows, onChange, disabled }: P20TagEditorProps) {
   const addRow = () => onChange((prev) => [...prev, {}]);

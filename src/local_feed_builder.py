@@ -11,7 +11,10 @@ Podcasting 2.0 channel/episode extras (funding, person, license, location,
 txt) are read from ``podcasts.p20_channel_json`` / ``episodes.p20_item_json``
 as ``{"tag": [{"text": ..., <attr>: ...}, ...]}`` -- a list per tag, even for
 the spec-singular ``license``/``location`` tags, so one small serializer
-covers all five without a special case.
+covers all five without a special case. ``podroll`` is channel-level too,
+stored the same way as ``{"podroll": [{"feedGuid": ..., <attr>: ...}, ...]}``,
+but rendered as a nested container of remoteItem children instead (see
+``_emit_podroll``) since it has no flat ``<podcast:podroll>text</...>`` form.
 """
 import json
 import logging
@@ -35,6 +38,13 @@ _PERSON_ATTRS = ('role', 'group', 'img', 'href')
 _LICENSE_ATTRS = ('url',)
 _LOCATION_ATTRS = ('geo', 'osm')
 _TXT_ATTRS = ('purpose',)
+
+# podcast:podroll is a channel-level container of self-closing remoteItem
+# children rather than a flat list of <podcast:{tag}> elements, so it isn't
+# covered by _emit_pc2_items -- see _emit_podroll below. Attr order matches
+# the podcastindex namespace's own remoteItem example (feedGuid, feedUrl,
+# itemGuid, medium).
+_PODROLL_REMOTE_ITEM_ATTRS = ('feedGuid', 'feedUrl', 'itemGuid', 'medium')
 
 
 def _load_json_dict(raw: str | None) -> dict:
@@ -74,6 +84,26 @@ def _emit_pc2_items(lines: list, tag: str, items, attr_keys: tuple) -> None:
             lines.append(f'  <podcast:{tag}{attr_str}>{rss_parser._escape_xml(text)}</podcast:{tag}>')
         else:
             lines.append(f'  <podcast:{tag}{attr_str} />')
+
+
+def _emit_podroll(lines: list, entries) -> None:
+    """Append a ``<podcast:podroll>`` container wrapping one self-closing
+    ``<podcast:remoteItem>`` per dict in ``entries`` that has a feedGuid.
+    Emits nothing when there are no valid entries -- unlike the five
+    _emit_pc2_items tags, an empty podroll container is not meaningful to a
+    podcast app and would just be noise in the served feed."""
+    valid = [e for e in (entries or []) if isinstance(e, dict) and e.get('feedGuid')]
+    if not valid:
+        return
+    lines.append('  <podcast:podroll>')
+    for entry in valid:
+        attr_parts = []
+        for key in _PODROLL_REMOTE_ITEM_ATTRS:
+            value = entry.get(key)
+            if value:
+                attr_parts.append(f'{key}="{rss_parser._escape_xml(str(value))}"')
+        lines.append(f'    <podcast:remoteItem {" ".join(attr_parts)} />')
+    lines.append('  </podcast:podroll>')
 
 
 def _channel_artwork_url(slug: str, base: str, feed_auth_key: str | None,
@@ -241,6 +271,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
     _emit_pc2_items(lines, 'license', channel_json.get('license'), _LICENSE_ATTRS)
     _emit_pc2_items(lines, 'location', channel_json.get('location'), _LOCATION_ATTRS)
     _emit_pc2_items(lines, 'txt', channel_json.get('txt'), _TXT_ATTRS)
+    _emit_podroll(lines, channel_json.get('podroll'))
 
     lines.append('<podcast:txt purpose="ai-content">true</podcast:txt>')
 

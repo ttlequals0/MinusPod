@@ -183,11 +183,11 @@ This is a public, feed-key-gated route (same key as the RSS feed and audio enclo
 
 Local feeds carry a pragmatic subset of the Podcast Namespace, set through the `p20` object on the feed (`PATCH /api/v1/feeds/{slug}`) and on individual episodes (`PATCH /api/v1/feeds/{slug}/episodes/{episodeId}`).
 
-Feed level (`p20`): `funding` (list of `{text, url}`), `person` (list of `{text, role, group, img, href}`), `license` (list of `{text, url}`), `location` (list of `{text, geo, osm}`), `txt` (list of `{text, purpose}`), plus the scalars `medium` (one of `podcast`, `music`, `video`, `film`, `audiobook`, `newsletter`, `blog`), `locked` (`yes` or `no`), and `locked_owner` (an email address; blank clears it). `guid` is minted once at creation from the feed URL and can't be set or changed through this field. Sending `p20: null` clears the five list tags and any locked owner, but leaves `guid`, `medium`, and `locked` alone.
+Feed level (`p20`): `funding` (list of `{text, url}`), `person` (list of `{text, role, group, img, href}`), `license` (list of `{text, url}`), `location` (list of `{text, geo, osm}`), `txt` (list of `{text, purpose}`), `podroll` (list of `{feedGuid, feedUrl, itemGuid, medium}`, recommending other shows; `feedGuid` is required and must be a UUID, the rest are optional), plus the scalars `medium` (one of `podcast`, `music`, `video`, `film`, `audiobook`, `newsletter`, `blog`), `locked` (`yes` or `no`), and `locked_owner` (an email address; blank clears it). `guid` is minted once at creation from the feed URL and can't be set or changed through this field. Sending `p20: null` clears the six list tags and any locked owner, but leaves `guid`, `medium`, and `locked` alone.
 
 Episode level (`p20`): `person` and `location`, both lists in the same shape as above.
 
-Out of scope for now: value-for-value splits, `liveItem`, `podroll`, and Podping announcements for local feeds (MinusPod's Podping support today only listens for upstream announcements on subscribed feeds; it doesn't publish its own).
+Out of scope for now: value-for-value splits, `liveItem`, and Podping announcements for local feeds (MinusPod's Podping support today only listens for upstream announcements on subscribed feeds; it doesn't publish its own).
 
 ## What doesn't apply to local feeds
 

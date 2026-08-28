@@ -153,6 +153,54 @@ def test_locked_without_owner_has_no_owner_attribute():
     assert '<podcast:locked>yes</podcast:locked>' in xml
 
 
+def test_podroll_container_renders_with_escaped_remote_item_attrs():
+    slug = 'podroll-render'
+    _seed(slug)
+    mf.db.update_podcast(slug, p20_channel_json=json.dumps({
+        'guid': CHANNEL_GUID,
+        'locked': 'yes',
+        'medium': 'podcast',
+        'podroll': [{
+            'feedGuid': '29cdca4a-32d8-56ba-b48b-09a011c5daa9',
+            'feedUrl': 'https://example.com/feed.xml?a=1&b=2',
+            'medium': 'podcast',
+        }],
+    }))
+    podcast = mf.db.get_podcast_by_slug(slug)
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    assert '<podcast:podroll>' in xml
+    assert '</podcast:podroll>' in xml
+    assert ('<podcast:remoteItem feedGuid="29cdca4a-32d8-56ba-b48b-09a011c5daa9" '
+            'feedUrl="https://example.com/feed.xml?a=1&amp;b=2" medium="podcast" />') in xml
+
+    parsed = feedparser.parse(xml)
+    assert parsed.bozo == 0
+
+
+def test_podroll_absent_when_no_valid_entries():
+    slug = 'podroll-empty'
+    _seed(slug)
+    mf.db.update_podcast(slug, p20_channel_json=json.dumps({
+        'guid': CHANNEL_GUID,
+        'locked': 'yes',
+        'medium': 'podcast',
+        'podroll': [],
+    }))
+    podcast = mf.db.get_podcast_by_slug(slug)
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    assert '<podcast:podroll>' not in xml
+
+
+def test_podroll_absent_when_key_missing():
+    xml = _render('podroll-missing')
+
+    assert '<podcast:podroll>' not in xml
+
+
 def test_rebuild_local_feed_persists_and_reads_back():
     slug = 'roundtrip'
     podcast = _seed(slug)

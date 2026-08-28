@@ -551,6 +551,14 @@ def _p20_tag_attrs() -> dict:
 _P20_URL_ATTRS = ('url', 'href')
 _P20_URL_RE = re.compile(r'^https?://', re.IGNORECASE)
 
+# podcast:podroll remoteItem entries. feedGuid is the only required attr
+# (podcastindex namespace); standard 8-4-4-4-12 hex UUID shape, case
+# insensitive since the spec doesn't mandate lowercase.
+_P20_PODROLL_MAX = 50
+_P20_FEED_GUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    re.IGNORECASE)
+
 # Scalar (non-list-tag) p20 keys, per design spec section 6: medium and
 # locked (with optional owner email) are editable; guid is minted once at
 # creation and is immutable everywhere -- rejected outright rather than
@@ -637,14 +645,64 @@ def _validate_p20_items(tag, items, allowed_attrs):
     return cleaned, None
 
 
+def _validate_p20_podroll(items):
+    """Validate a podcast:podroll remoteItem list against the shape
+    local_feed_builder._emit_podroll expects: ``{feedGuid, feedUrl?,
+    itemGuid?, medium?}``. Returns (cleaned_items, error).
+
+    feedGuid is required and must look like a UUID; feedUrl must start
+    http(s):// when present; medium must be one of _P20_MEDIUM_VALUES when
+    present. Unknown keys are silently dropped, the same leniency
+    _validate_p20_items applies to unlisted attrs.
+    """
+    if not isinstance(items, list):
+        return None, 'p20.podroll must be a list'
+    if len(items) > _P20_PODROLL_MAX:
+        return None, f'p20.podroll must have at most {_P20_PODROLL_MAX} entries'
+    cleaned = []
+    for i, item in enumerate(items):
+        if not isinstance(item, dict):
+            return None, f'p20.podroll[{i}] must be an object'
+        feed_guid = item.get('feedGuid')
+        if not isinstance(feed_guid, str) or not _P20_FEED_GUID_RE.match(feed_guid.strip()):
+            return None, f'p20.podroll[{i}].feedGuid must be a valid UUID'
+        cleaned_item = {'feedGuid': feed_guid.strip()}
+
+        feed_url = item.get('feedUrl')
+        if feed_url is not None:
+            if not isinstance(feed_url, str):
+                return None, f'p20.podroll[{i}].feedUrl must be a string'
+            if feed_url and not _P20_URL_RE.match(feed_url):
+                return None, f'p20.podroll[{i}].feedUrl must start with http:// or https://'
+            cleaned_item['feedUrl'] = feed_url
+
+        item_guid = item.get('itemGuid')
+        if item_guid is not None:
+            if not isinstance(item_guid, str):
+                return None, f'p20.podroll[{i}].itemGuid must be a string'
+            cleaned_item['itemGuid'] = item_guid
+
+        medium = item.get('medium')
+        if medium is not None:
+            if medium not in _P20_MEDIUM_VALUES:
+                return None, (f"p20.podroll[{i}].medium must be one of: "
+                              f"{', '.join(_P20_MEDIUM_VALUES)}")
+            cleaned_item['medium'] = medium
+
+        cleaned.append(cleaned_item)
+    return cleaned, None
+
+
 def _validate_p20(value):
     """Validate a client-supplied p20 channel-extras object.
 
     Returns (cleaned_dict, error). None/absent clears to {}. Accepts the
     five list-tag keys the builder renders (funding/person/license/location/
-    txt) plus the scalar keys medium/locked/locked_owner (design spec
-    section 6). 'guid' is minted once at creation and is never
-    client-settable through this field, at POST or PATCH.
+    txt), the podroll remoteItem list (validated separately -- its shape
+    doesn't fit the {text, <attr>} pattern the other five share), plus the
+    scalar keys medium/locked/locked_owner (design spec section 6). 'guid'
+    is minted once at creation and is never client-settable through this
+    field, at POST or PATCH.
 
     A cleaned value of None under 'locked_owner' is a delete sentinel (blank
     string or explicit null clears the stored owner) -- callers must merge
@@ -669,6 +727,12 @@ def _validate_p20(value):
             # in `cleaned`, not dropped, so the merge sites below can tell
             # "clear this key" apart from "the client never sent this key".
             cleaned[key] = cleaned_val
+            continue
+        if key == 'podroll':
+            cleaned_items, err = _validate_p20_podroll(val)
+            if err:
+                return None, err
+            cleaned[key] = cleaned_items
             continue
         if key not in tag_attrs:
             return None, f"p20: unknown tag '{key}'"
@@ -1400,13 +1464,13 @@ def update_feed(slug):
             existing_channel_json = {}
 
         if data['p20'] is None:
-            # p20: null clears the five list tags and any operator-supplied
-            # locked_owner, but preserves the minted guid and medium/locked
-            # -- a per-tag clear ({"p20": {"funding": []}}) already works
-            # via the merge below; this is the "clear everything
-            # operator-editable" shortcut. guid/medium/locked are never
-            # touched here since they aren't cleared by this shortcut.
-            for tag in _p20_tag_attrs():
+            # p20: null clears the five list tags, podroll, and any
+            # operator-supplied locked_owner, but preserves the minted guid
+            # and medium/locked -- a per-tag clear ({"p20": {"funding": []}})
+            # already works via the merge below; this is the "clear
+            # everything operator-editable" shortcut. guid/medium/locked are
+            # never touched here since they aren't cleared by this shortcut.
+            for tag in (*_p20_tag_attrs(), 'podroll'):
                 existing_channel_json.pop(tag, None)
             existing_channel_json.pop('locked_owner', None)
             updates['p20_channel_json'] = json.dumps(existing_channel_json)
