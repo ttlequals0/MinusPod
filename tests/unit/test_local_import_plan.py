@@ -217,6 +217,19 @@ def _write_text(path: Path, text: str):
     return path
 
 
+def test_build_import_plan_source_defaults_to_both_and_passes_through(tmp_path):
+    audio = _write(tmp_path / 'S01E01 - Pilot.mp3')
+    default_plan = build_import_plan('myshow', [audio], existing_ids=set(),
+                                     overwrite=False, now_iso=NOW_ISO)
+    assert default_plan['source'] == 'both'
+
+    audio2 = _write(tmp_path / 'S01E02 - Pilot.mp3')
+    explicit_plan = build_import_plan('myshow', [audio2], existing_ids=set(),
+                                      overwrite=False, now_iso=NOW_ISO,
+                                      source='directory')
+    assert explicit_plan['source'] == 'directory'
+
+
 def test_build_import_plan_basic_matched_entry(tmp_path):
     audio = _write(tmp_path / 'S01E01 - Pilot.mp3')
     sources = [audio]
@@ -392,6 +405,28 @@ def test_build_import_plan_collision_with_existing_ids_errors_unless_overwrite(t
     assert plan2['entries'][0]['errors'] == []
     assert plan2['totals']['importable'] == 1
     assert plan2['entries'][0]['replacesExisting'] is True
+
+
+def test_build_import_plan_wide_existing_id_collides_with_canonical_rescan(tmp_path):
+    """(Review round 2, minor item 4) A pre-fix wide DB id (s01e0006,
+    imported before ac2d1eb3's id canonicalization) must still be detected
+    as a collision against a fresh rescan of the same episode, which always
+    mints the minimal-width id (s01e06) -- both sides of the comparison are
+    canonicalized, not just the freshly-scanned candidate."""
+    audio = _write(tmp_path / 'S01E06 - Pilot.mp3')
+    plan = build_import_plan('myshow', [audio], existing_ids={'s01e0006'},
+                              overwrite=False, now_iso=NOW_ISO)
+    assert plan['entries'][0]['episodeId'] == 's01e06'
+    assert plan['entries'][0]['replacesExisting'] is True
+    assert plan['entries'][0]['errors']
+    assert plan['totals']['importable'] == 0
+
+    audio2 = _write(tmp_path / 'S01E06 - Pilot.mp3')
+    plan2 = build_import_plan('myshow', [audio2], existing_ids={'s01e0006'},
+                               overwrite=True, now_iso=NOW_ISO)
+    assert plan2['entries'][0]['replacesExisting'] is True
+    assert plan2['entries'][0]['errors'] == []
+    assert plan2['totals']['importable'] == 1
 
 
 def test_build_import_plan_replaces_existing_false_when_no_collision(tmp_path):

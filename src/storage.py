@@ -216,9 +216,17 @@ class Storage:
         commit (``<data>/import-staging/<slug>/``, local-feeds #625 Task 10).
 
         Browser-uploaded batch files land here ahead of the commit engine's
-        move into the podcast's episode storage. The commit engine removes
-        each file's staging entry as it commits and deletes the directory
-        once empty, so a stale staging dir signals an interrupted import.
+        move into the podcast's episode storage. A commit whose scan/commit
+        request source included staging ('staging' or 'both') sweeps this
+        directory clean -- committed audio, consumed sidecars, rejected
+        files, and anything else left in it -- and removes the directory
+        itself once the commit finishes, whether or not every entry
+        actually committed. A commit scanned/run with source='directory'
+        never touches this directory at all, even if it has stale content.
+        Outside a commit, a stale staging dir just means an upload/scan
+        happened and nothing has committed yet; `DELETE
+        /feeds/{slug}/import/staging` (local_import.py) clears it on
+        demand.
         """
         if is_dangerous_slug(slug):
             raise PathContainmentError(f"refusing dangerous slug {slug!r}")
@@ -233,8 +241,10 @@ class Storage:
 
         Never created here: an operator populates it directly on the shared
         filesystem, so its absence just means nothing has been dropped in
-        yet. The commit engine moves each committed entry's audio out of
-        it but leaves sidecar files (json/txt/artwork) untouched.
+        yet. The commit engine moves each successfully committed entry's
+        audio out of it AND deletes that entry's sidecar files (json/txt/
+        artwork) with it -- a rejected or errored entry's files are left in
+        place untouched, for the operator to fix and re-scan.
         """
         if is_dangerous_slug(slug):
             raise PathContainmentError(f"refusing dangerous slug {slug!r}")

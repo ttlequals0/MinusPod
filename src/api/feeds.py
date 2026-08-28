@@ -1812,6 +1812,18 @@ def delete_feed(slug):
         if is_local_feed(podcast):
             _best_effort_rmtree(slug, storage.import_staging_dir(slug, create=False))
             _best_effort_rmtree(slug, storage.import_source_dir(slug))
+            # The per-feed import job state/lock files (local_import.py's
+            # <data>/.import-jobs/<slug>.{json,lock}) also live outside
+            # podcasts_dir -- without this, recreating a feed under the
+            # same slug would read back the deleted feed's stale import
+            # report (or, if a commit happened to be running, its lock)
+            # instead of starting clean. Best-effort, same rationale as
+            # the dirs above.
+            try:
+                from local_import import clear_job_files
+                clear_job_files(storage, slug)
+            except Exception as e:
+                logger.warning(f"[{slug}] could not clear import job files: {e}")
 
         logger.info(f"Deleted feed: {slug}")
         return json_response({'message': 'Feed deleted', 'slug': slug})

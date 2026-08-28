@@ -193,6 +193,20 @@ def test_upload_missing_files_field_400(app_client, local_feed):
     assert resp.status_code == 400
 
 
+def test_upload_409_while_import_running(app_client, local_feed):
+    """Same guard as clear_import_staging: writing new files into staging
+    while a commit is running for this feed could race the commit's sweep
+    or land unnoticed in a 'both'-sourced commit's plan."""
+    slug = local_feed['slug']
+    _authed(app_client)
+
+    fake_status = {'state': 'running', 'processed': 0, 'total': 1, 'startedAt': '2026-08-27T00:00:00Z'}
+    with patch('api.local_episodes.get_import_status', return_value=fake_status):
+        resp = _upload(app_client, slug, [('s01e01.mp3', b'audio-bytes')])
+
+    assert resp.status_code == 409
+
+
 def test_upload_400_on_subscribed_feed(app_client, subscribed_feed):
     slug = subscribed_feed['slug']
     _authed(app_client)
@@ -260,7 +274,9 @@ def test_scan_default_source_is_both(app_client, local_feed):
         headers=headers,
     )
     assert resp.status_code == 200
-    assert len(resp.get_json()['entries']) == 1
+    body = resp.get_json()
+    assert len(body['entries']) == 1
+    assert body['source'] == 'both'
 
 
 def test_scan_invalid_source_400(app_client, local_feed):

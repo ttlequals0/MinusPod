@@ -325,8 +325,9 @@ def upload_local_episode(slug):
             # The retained original IS the audio just moved into place above
             # -- without this, hasOriginalAudio stays false and the
             # /original.mp3 route 404s until a processing run happens to
-            # write this column itself (main_app/processing.py).
-            original_file=f'{episode_id}-original.mp3',
+            # write this column itself. Same relative-path form
+            # main_app/processing.py's _persist_episode_state uses.
+            original_file=f'episodes/{episode_id}-original.mp3',
         )
 
         chapters = probe_chapters(str(final_path))
@@ -657,6 +658,14 @@ def upload_import_files(slug):
     the UI uploads a batch one file per request (needed for per-file
     progress), and a batch past ~200 files would otherwise start 429ing
     partway through on the default 200/min cap.
+
+    409s while an import is running for this feed, same guard as
+    ``clear_import_staging``: the commit engine may be sweeping/reading
+    staging by resolved path right now, so writing new files into it mid-
+    commit could race the sweep (a just-uploaded file deleted before the
+    operator ever sees it) or -- for source='both' -- get silently
+    scanned into files that no plan hash the operator reviewed accounted
+    for.
     """
     db = get_database()
     storage = get_storage()
@@ -664,6 +673,9 @@ def upload_import_files(slug):
     podcast, err = _require_local_feed(db, slug)
     if err:
         return err
+
+    if get_import_status(slug, storage).get('state') == 'running':
+        return error_response('cannot upload while an import is running', 409)
 
     uploads = request.files.getlist('files')
     if not uploads:
@@ -718,7 +730,8 @@ def scan_import(slug):
     sources = _collect_import_sources(storage, slug, source)
     existing_ids = _existing_episode_ids(db, slug)
     plan = build_import_plan(slug, sources, existing_ids,
-                             overwrite=overwrite, now_iso=utc_now_iso())
+                             overwrite=overwrite, now_iso=utc_now_iso(),
+                             source=source)
     return json_response(_client_import_plan(plan), 200)
 
 
@@ -760,7 +773,8 @@ def commit_import(slug):
     sources = _collect_import_sources(storage, slug, source)
     existing_ids = _existing_episode_ids(db, slug)
     plan = build_import_plan(slug, sources, existing_ids,
-                             overwrite=overwrite, now_iso=utc_now_iso())
+                             overwrite=overwrite, now_iso=utc_now_iso(),
+                             source=source)
     if plan['planHash'] != client_hash:
         # Disambiguate the two ways a hash can go stale: the flag folds
         # into plan_hash (see its docstring), so a client-echoed hash that

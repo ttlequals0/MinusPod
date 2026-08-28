@@ -139,6 +139,12 @@ describe('LocalFeedPanel', () => {
     vi.clearAllMocks();
     mockImportStatus.mockResolvedValue(IDLE_STATUS);
     mockClearImportStaging.mockResolvedValue({ message: 'staging cleared' });
+    // "Clear staged files" is destructive and confirms first; default to
+    // confirming so existing tests don't all need to stub this themselves.
+    // Tests covering the decline path override this per-test. Assigned
+    // directly (not vi.spyOn) since jsdom doesn't implement window.confirm
+    // at all in this setup.
+    window.confirm = vi.fn(() => true);
   });
 
   it('renders for a local feed', async () => {
@@ -226,6 +232,28 @@ describe('LocalFeedPanel', () => {
     expect(confirmButton.disabled).toBe(true);
     await user.click(confirmButton);
     expect(mockImportCommit).not.toHaveBeenCalled();
+  });
+
+  it('does not throw and still allows commit when the plan is missing batchErrors entirely', async () => {
+    // Simulates a stale/cached plan shape from before this field existed --
+    // the TS type says required, but a real runtime object might not have
+    // it. Optional-chaining in the disabled check must not throw.
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    const planWithoutBatchErrors = makePlan() as Partial<ImportPlan>;
+    delete planWithoutBatchErrors.batchErrors;
+    mockImportScan.mockResolvedValue(planWithoutBatchErrors as ImportPlan);
+    mockImportCommit.mockResolvedValue({ message: 'import started' });
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    const confirmButton = screen.getByRole('button', { name: /Import 1 episode/ }) as HTMLButtonElement;
+    expect(confirmButton.disabled).toBe(false);
+    await user.click(confirmButton);
+    await waitFor(() => expect(mockImportCommit).toHaveBeenCalled());
   });
 
   it('shows a warning when the feed has no artwork', () => {
@@ -744,9 +772,9 @@ describe('LocalFeedPanel', () => {
     }));
   });
 
-  // ---- Staging lifecycle (cancel clears staging; leftovers surfaced) ----
+  // ---- Staging lifecycle (Cancel is non-destructive; leftovers surfaced) ----
 
-  it('clears staging when the plan is canceled', async () => {
+  it('Cancel drops the plan locally without touching staging', async () => {
     const user = userEvent.setup();
     mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
     mockImportScan.mockResolvedValue(makePlan());
@@ -758,20 +786,23 @@ describe('LocalFeedPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    await waitFor(() => expect(mockClearImportStaging).toHaveBeenCalledWith('archive-show'));
     expect(document.querySelector('table')).toBeNull();
+    // Non-destructive: no server call. Staging is only ever cleared by the
+    // explicit "Clear staged files" button or the server's own post-commit
+    // sweep.
+    expect(mockClearImportStaging).not.toHaveBeenCalled();
   });
 
-  it('shows a note and a clear-staged-files button when the scanned plan has more entries than the batch just uploaded', async () => {
+  it('shows a note and a clear-staged-files button when staging holds files this batch did not just upload', async () => {
     const user = userEvent.setup();
     mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
-    // Two entries came back from the scan even though only one file was
-    // just uploaded -- the second one is left over from an earlier,
-    // canceled attempt that staged it and never committed.
+    // Two entries came back from the scan even though only 'a.mp3' was
+    // just uploaded -- 'b.mp3' is left over from an earlier, canceled
+    // attempt that staged it and never committed.
     const twoEntryPlan = makePlan({
       entries: [
-        { ...makePlan().entries[0], episodeId: 's01e01', audioFile: 'a.mp3' },
-        { ...makePlan().entries[0], episodeId: 's01e02', audioFile: 'b.mp3' },
+        { ...makePlan().entries[0], episodeId: 's01e01', audioFile: 'a.mp3', descriptionFile: null },
+        { ...makePlan().entries[0], episodeId: 's01e02', audioFile: 'b.mp3', descriptionFile: null },
       ],
     });
     mockImportScan.mockResolvedValue(twoEntryPlan);
@@ -781,17 +812,47 @@ describe('LocalFeedPanel', () => {
     await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
     await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
 
-    expect(screen.getByText(/left over from an earlier attempt/)).toBeDefined();
+    expect(screen.getByText('Includes 1 file left over from an earlier attempt.')).toBeDefined();
     await user.click(screen.getByRole('button', { name: 'Clear staged files' }));
 
+    expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => expect(mockClearImportStaging).toHaveBeenCalledWith('archive-show'));
     expect(document.querySelector('table')).toBeNull();
+  });
+
+  it('does not clear staging when the clear-staged-files confirm is declined', async () => {
+    window.confirm = vi.fn(() => false);
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    const twoEntryPlan = makePlan({
+      entries: [
+        { ...makePlan().entries[0], episodeId: 's01e01', audioFile: 'a.mp3', descriptionFile: null },
+        { ...makePlan().entries[0], episodeId: 's01e02', audioFile: 'b.mp3', descriptionFile: null },
+      ],
+    });
+    mockImportScan.mockResolvedValue(twoEntryPlan);
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    await user.click(screen.getByRole('button', { name: 'Clear staged files' }));
+
+    expect(mockClearImportStaging).not.toHaveBeenCalled();
+    // Plan stays put -- declining the confirm changes nothing.
+    expect(document.querySelector('table')).not.toBeNull();
   });
 
   it('does not show the leftover-files note when the scan matches exactly what was just uploaded', async () => {
     const user = userEvent.setup();
     mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
-    mockImportScan.mockResolvedValue(makePlan());
+    const matchingPlan = makePlan({
+      entries: [
+        { ...makePlan().entries[0], audioFile: 'a.mp3', descriptionFile: null },
+      ],
+    });
+    mockImportScan.mockResolvedValue(matchingPlan);
     renderPanel(makeFeed());
 
     const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;

@@ -119,6 +119,21 @@ def test_get_import_status_idle_for_unknown_slug():
     }
 
 
+def test_get_import_status_does_not_create_jobs_dir(db_storage, local_feed):
+    """Status polls are a read path -- they must not have the side effect
+    of conjuring <data>/.import-jobs/ for a feed that never committed
+    anything."""
+    db, storage = db_storage
+    slug = local_feed
+    jobs_dir = storage.data_dir / '.import-jobs'
+    assert not jobs_dir.exists()
+
+    status = local_import.get_import_status(slug, storage)
+
+    assert status['state'] == 'idle'
+    assert not jobs_dir.exists()
+
+
 def test_storage_import_dirs_paths(db_storage):
     _db, storage = db_storage
 
@@ -329,7 +344,7 @@ def test_commit_three_entries_into_empty_feed(db_storage, local_feed, real_mp3_b
         # Report bug 1: original_file must be set on commit so
         # hasOriginalAudio is true immediately, not just after the first
         # processing run happens to write the column.
-        assert episode['original_file'] == f'{episode_id}-original.mp3'
+        assert episode['original_file'] == f'episodes/{episode_id}-original.mp3'
 
     # The import-dir audio was consumed by the move.
     for name in names:
@@ -614,7 +629,10 @@ def test_commit_uses_plan_resolved_path_not_basename_lookup(
     """Important fix: a same-named file sitting in the OTHER scanned
     directory must never cause the wrong file to be committed. The commit
     engine must use the plan's own resolved path, not a basename lookup
-    across staging + the import dir."""
+    across staging + the import dir. Also pins the scoped-sweep fix: a
+    source='directory' plan never scanned staging, so it must never touch
+    it either, even though a finished commit otherwise sweeps staging
+    clean (Fix 11)."""
     db, storage = db_storage
     slug = local_feed
     import_dir = storage.import_source_dir(slug)
@@ -631,7 +649,7 @@ def test_commit_uses_plan_resolved_path_not_basename_lookup(
     # must never be picked up, even though basename resolution alone would
     # be ambiguous.
     plan = build_import_plan(slug, [import_dir / name], existing_ids=set(),
-                             overwrite=False, now_iso=NOW_ISO)
+                             overwrite=False, now_iso=NOW_ISO, source='directory')
     assert plan['entries'][0]['bytes'] == len(import_bytes)
 
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
@@ -643,11 +661,11 @@ def test_commit_uses_plan_resolved_path_not_basename_lookup(
     # own resolved import_dir path won.
     assert committed_path.read_bytes() == import_bytes
 
-    # The staging file was irrelevant to THIS plan, but a finished commit
-    # sweeps the whole staging directory regardless (operator ruling,
-    # Fix 11) -- it does not survive just because this plan never
-    # referenced it.
-    assert not staging_dir.exists()
+    # The staging file was irrelevant to THIS plan AND this plan's source
+    # was 'directory' -- a directory-sourced commit must never touch
+    # staging, so the unrelated file survives untouched.
+    assert (staging_dir / name).exists()
+    assert (staging_dir / name).read_bytes() == staging_bytes
 
 
 @requires_ffmpeg
@@ -750,7 +768,9 @@ def test_staging_swept_after_commit_even_with_rejected_files_present(
         db_storage, local_feed, real_mp3_bytes):
     """Operator ruling: a finished commit clears everything left in
     staging, rejected files and skipped entries included, and removes the
-    directory itself -- not just the entries that were part of this plan."""
+    directory itself -- not just the entries that were part of this plan.
+    Only when the plan's source actually included staging (Fix: scoped
+    sweep) -- explicit source='staging' here pins that."""
     db, storage = db_storage
     slug = local_feed
     staging_dir = storage.import_staging_dir(slug, create=True)
@@ -763,7 +783,7 @@ def test_staging_swept_after_commit_even_with_rejected_files_present(
 
     sources = [staging_dir / f'{good_name}.mp3', staging_dir / 'stray-file.wav']
     plan = build_import_plan(slug, sources, existing_ids=set(),
-                             overwrite=False, now_iso=NOW_ISO)
+                             overwrite=False, now_iso=NOW_ISO, source='staging')
     assert plan['totals']['rejected'] == 1
 
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)

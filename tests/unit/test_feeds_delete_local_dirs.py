@@ -96,6 +96,43 @@ def test_delete_local_feed_survives_a_failing_rmtree(app_client):
     assert resp.get_json()['message'] == 'Feed deleted'
 
 
+def test_delete_local_feed_clears_import_job_files(app_client):
+    """A recreated slug must never resurrect the deleted feed's stale
+    import report (or an unremovable phantom lock): delete also clears
+    <data>/.import-jobs/<slug>.{json,lock}, best-effort like the staging/
+    import dirs. Status for the (recreated) slug reads idle afterward."""
+    from api import get_database, get_storage
+    from local_import import get_import_status
+
+    db, storage = get_database(), get_storage()
+    slug = 'feeds-delete-local-import-jobs'
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    db.create_podcast(slug, f'local://{slug}', 'Local Test', feed_type='local')
+    jobs_dir = storage.data_dir / '.import-jobs'
+    jobs_dir.mkdir(parents=True, exist_ok=True)
+    (jobs_dir / f'{slug}.json').write_text(
+        '{"state": "done", "processed": 1, "total": 1, '
+        '"startedAt": "2026-08-27T00:00:00Z", "report": {}}')
+    (jobs_dir / f'{slug}.lock').write_text('')
+
+    resp = app_client.delete(f'/api/v1/feeds/{slug}', headers=headers)
+    assert resp.status_code == 200
+
+    assert not (jobs_dir / f'{slug}.json').exists()
+    assert not (jobs_dir / f'{slug}.lock').exists()
+
+    # Recreating the slug must read idle, not the old feed's report.
+    db.create_podcast(slug, f'local://{slug}', 'Local Test Again', feed_type='local')
+    try:
+        assert get_import_status(slug, storage) == {
+            'state': 'idle', 'processed': 0, 'total': 0, 'startedAt': None,
+        }
+    finally:
+        db.delete_podcast(slug)
+
+
 def test_delete_subscribed_feed_does_not_touch_local_import_dirs(app_client):
     """A subscribed feed has no import directories of its own, and must
     never be probed for a local feed's staging/import dirs it happens to

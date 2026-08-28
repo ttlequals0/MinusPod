@@ -31,7 +31,7 @@ from pathlib import Path
 from config import MIN_PRESERVED_CHAPTERS
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
-from storage import _detect_image_mime
+from storage import _detect_image_mime, _safe_join_under
 from utils.atomic_json import write_json_atomic
 from utils.audio import extract_embedded_artwork, get_audio_duration
 from utils.time import utc_now_iso
@@ -256,10 +256,30 @@ def plan_hash(sources: list[Path], overwrite: bool = False) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _canonical_episode_id(episode_id: str) -> str:
+    """Normalize an episode id to minimal zero-padded width (sNNeNN), the
+    same formula parse_basename/sidecar-override id minting already use.
+
+    A pre-fix wide id like 's01e0006' (imported before ac2d1eb3's id
+    canonicalization) normalizes to 's01e06', so it compares equal to a
+    freshly-scanned candidate that always mints the minimal-width id for the
+    same season/episode -- without this, an old wide-id row and a rescan of
+    the same episode look like two different ids and collision detection
+    (replacesExisting / the overwrite-required error) never fires for it.
+    An id that doesn't match the sNNeNN shape (should not occur for a local
+    feed) passes through unchanged rather than raising."""
+    match = _TOKEN_RE.match(episode_id)
+    if not match:
+        return episode_id
+    season = int(match.group(1))
+    episode = int(match.group(2))
+    return f's{season:02d}e{episode:02d}'
+
+
 def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
-                      *, overwrite: bool, now_iso: str) -> dict:
+                      *, overwrite: bool, now_iso: str, source: str = 'both') -> dict:
     """Returns the dry-run plan:
-    {'slug', 'overwrite', 'planHash',
+    {'slug', 'overwrite', 'source', 'planHash',
      'entries': [{'episodeId','season','episode','title','audioFile',
                   'audioPath','descriptionFile','descriptionPath',
                   'artworkFile','artworkPath','sidecarFile','sidecarPath',
@@ -269,6 +289,14 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
      'rejected': [{'file', 'reason'}],
      'batchErrors': [msg, ...],
      'totals': {'importable': N, 'rejected': N, 'errors': N, 'bytes': N}}
+
+    ``source`` ('staging'|'directory'|'both', matching the scan/commit API
+    request) rides along on the plan purely for the commit engine: it gates
+    whether ``_commit_entries`` is allowed to sweep the staging directory at
+    all -- a plan scanned/committed with source='directory' must never touch
+    staging, even if something else left files there. It plays no role in
+    plan_hash or in resolving any entry's files (those already come from
+    each entry's own resolved *Path key, regardless of source).
 
     batchErrors holds errors that apply to the whole batch rather than one
     entry -- currently just an out-of-order explicit-date pair (see
@@ -291,6 +319,10 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     resolved path from here rather than re-resolving a bare filename
     against the staging/import directories, and re-stats bytes+mtimeNs
     against the live file as a TOCTOU guard before committing it."""
+    # Canonicalize once up front so every membership test below compares
+    # like with like -- see _canonical_episode_id.
+    existing_ids = {_canonical_episode_id(eid) for eid in existing_ids}
+
     rejected: list[dict] = []
     groups: dict[str, list[Path]] = {}
 
@@ -488,6 +520,7 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     return {
         'slug': slug,
         'overwrite': overwrite,
+        'source': source,
         'planHash': plan_hash(sources, overwrite),
         'entries': entries,
         'rejected': rejected,
@@ -525,18 +558,32 @@ _FREE_SPACE_MARGIN = 1.1
 # mechanism and stale-lock probe idiom as processing_queue.py's
 # ProcessingQueue, just one lock per feed slug instead of one global lock.
 
+def _jobs_dir_path(storage) -> Path:
+    """The per-feed import-job-state directory, WITHOUT creating it.
+
+    Read paths (status polls, lock probes) must not have the side effect of
+    conjuring a directory that nothing has ever written to -- only a write
+    path (state write, lock acquire) may create it, via ``_jobs_dir``
+    below."""
+    return storage.data_dir / '.import-jobs'
+
+
 def _jobs_dir(storage) -> Path:
-    d = storage.data_dir / '.import-jobs'
+    """Same directory as ``_jobs_dir_path``, created if missing. Only call
+    this from a write path."""
+    d = _jobs_dir_path(storage)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _job_state_path(storage, slug: str) -> Path:
-    return _jobs_dir(storage) / f'{slug}.json'
+def _job_state_path(storage, slug: str, *, create: bool = False) -> Path:
+    base = _jobs_dir(storage) if create else _jobs_dir_path(storage)
+    return _safe_join_under(base, f'{slug}.json')
 
 
-def _job_lock_path(storage, slug: str) -> Path:
-    return _jobs_dir(storage) / f'{slug}.lock'
+def _job_lock_path(storage, slug: str, *, create: bool = False) -> Path:
+    base = _jobs_dir(storage) if create else _jobs_dir_path(storage)
+    return _safe_join_under(base, f'{slug}.lock')
 
 
 def _read_job_state(storage, slug: str) -> dict | None:
@@ -552,13 +599,24 @@ def _read_job_state(storage, slug: str) -> dict | None:
 
 
 def _write_job_state(storage, slug: str, state: dict) -> None:
-    if not write_json_atomic(_job_state_path(storage, slug), state):
+    if not write_json_atomic(_job_state_path(storage, slug, create=True), state):
         logger.warning(f"[{slug}] could not write import job state")
 
 
 def _clear_job_state(storage, slug: str) -> None:
     try:
         _job_state_path(storage, slug).unlink()
+    except OSError:
+        pass
+
+
+def clear_job_files(storage, slug: str) -> None:
+    """Best-effort removal of this feed's import job state + lock files
+    (e.g. on feed delete), so a slug reused later never resurrects the
+    deleted feed's stale import report or an unremovable phantom lock."""
+    _clear_job_state(storage, slug)
+    try:
+        _job_lock_path(storage, slug).unlink()
     except OSError:
         pass
 
@@ -571,7 +629,7 @@ def _try_acquire_import_lock(storage, slug: str):
     holder (any process, including this one via a different open file
     description) already has it.
     """
-    fh = open(_job_lock_path(storage, slug), 'w')
+    fh = open(_job_lock_path(storage, slug, create=True), 'w')
     try:
         fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
@@ -878,7 +936,11 @@ def _commit_entry(slug: str, entry: dict, db, storage,
         # The retained original IS the audio just moved into place above --
         # without this, hasOriginalAudio stays false and the /original.mp3
         # route 404s until a processing run happens to write this column.
-        original_file=f'{episode_id}-original.mp3',
+        # Same relative-path form main_app/processing.py's
+        # _persist_episode_state uses ('episodes/{id}-original.mp3'), for
+        # anything that ever treats the column as a path rather than a
+        # bare truthiness flag.
+        original_file=f'episodes/{episode_id}-original.mp3',
     )
 
     chapters = probe_chapters(str(final_path))
@@ -964,6 +1026,9 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
     """
     entries = plan.get('entries', [])
     overwrite = bool(plan.get('overwrite'))
+    # 'directory'-sourced commit never scanned staging, so it must never
+    # touch it either -- gates the sweep in the finally block below.
+    source = plan.get('source', 'both')
     staging_dir = storage.import_staging_dir(slug)
 
     # Keeps title/publishedAt/description/warnings for the queueing step
@@ -1046,7 +1111,13 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
         # single rmtree of the whole dir) mirrors clear_import_staging: a
         # busy bind-mounted staging dir can refuse to remove ITSELF while
         # still allowing its contents to go one at a time.
-        if staging_dir.exists():
+        #
+        # Scoped to source in ('staging', 'both'): a plan scanned/committed
+        # with source='directory' never looked at staging at all, so it
+        # must never sweep it either -- an operator mid-upload for a
+        # SEPARATE directory-sourced commit must not have their in-progress
+        # staging batch wiped out from under them.
+        if source in ('staging', 'both') and staging_dir.exists():
             for child in staging_dir.iterdir():
                 try:
                     if child.is_dir():

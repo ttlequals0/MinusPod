@@ -151,10 +151,8 @@ def list_episodes(slug):
 
     # Hoisted once for the whole list (not re-derived per episode in the
     # loop below): the local-artwork fallback needs to know whether this
-    # feed is local and, if so, the current feed auth key.
+    # feed is local.
     is_local = is_local_feed(podcast)
-    feed_auth_key = get_feed_auth_key(db) if is_local else None
-    key_suffix = f"?key={feed_auth_key}" if feed_auth_key else ""
 
     # Get query params
     status = request.args.get('status', 'all')
@@ -172,8 +170,7 @@ def list_episodes(slug):
 
     episode_list = []
     for ep in episodes:
-        item = _episode_base_json(ep, slug=slug, is_local=is_local,
-                                  storage=storage, key_suffix=key_suffix)
+        item = _episode_base_json(ep, slug=slug, is_local=is_local, storage=storage)
         item['ad_count'] = ep['ads_removed']
         item['episodeNumber'] = ep.get('episode_number')
         episode_list.append(item)
@@ -197,38 +194,41 @@ def _secure_artwork_url(url):
     return url if (url or '').startswith(('https://', 'http://')) else None
 
 
-def _local_artwork_fallback_url(ep, *, is_local, storage, slug, key_suffix):
-    """The public local-episode artwork route, or None.
+def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
+    """The admin artwork proxy route, or None.
 
     Local episodes (uploaded/imported) never get an ``artwork_url`` column
     value -- that column is only ever populated from an upstream RSS item's
     image, and a local feed has no upstream. When the episode has a cached
     cover (embedded-art extraction or an explicit upload) but no
-    ``artwork_url``, this falls back to the same public route
-    local_feed_builder.py emits in the served RSS's ``itunes:image``, so the
-    admin UI can show the cover MinusPod actually has cached rather than a
-    blank. Subscribed-feed episodes are untouched: a missing artwork_url
-    there legitimately means no cover.
+    ``artwork_url``, this falls back to the same-shaped internal proxy route
+    every other consumer of this field gets (``_secure_artwork_url`` returns
+    a plain http(s) URL the client fetches through its own artwork proxy;
+    this returns the analogous same-origin route directly) -- NOT the
+    public, feed-key-gated route local_feed_builder.py emits in the served
+    RSS, which would leak the feed auth key into an ordinary API response.
+    Subscribed-feed episodes are untouched: a missing artwork_url there
+    legitimately means no cover.
     """
     if not is_local or storage is None:
         return None
     if not storage.has_episode_artwork(slug, ep['episode_id']):
         return None
-    return f"/episodes/{slug}/{ep['episode_id']}/artwork{key_suffix}"
+    return f"/api/v1/feeds/{slug}/episodes/{ep['episode_id']}/artwork"
 
 
-def _episode_base_json(ep, *, slug=None, is_local=False, storage=None, key_suffix=''):
+def _episode_base_json(ep, *, slug=None, is_local=False, storage=None):
     """Shared camelCase fields for the episode list and detail serializers.
 
     Status is mapped for frontend compatibility: 'processed' -> 'completed';
     discovered/permanently_failed pass through.
 
-    ``slug``/``is_local``/``storage``/``key_suffix`` are only needed for the
-    local-episode artworkUrl fallback (see _local_artwork_fallback_url) --
-    omitted, this behaves exactly as before (artworkUrl from the column
-    only). Callers pass a hoisted ``is_local``/``storage``/``key_suffix``
-    rather than re-deriving them per episode, so a list response doesn't
-    re-query the podcast row or feed auth key once per row.
+    ``slug``/``is_local``/``storage`` are only needed for the local-episode
+    artworkUrl fallback (see _local_artwork_fallback_url) -- omitted, this
+    behaves exactly as before (artworkUrl from the column only). Callers
+    pass a hoisted ``is_local``/``storage`` rather than re-deriving them per
+    episode, so a list response doesn't re-query the podcast row once per
+    row.
     """
     time_saved = 0
     if ep.get('original_duration') and ep.get('new_duration'):
@@ -237,7 +237,7 @@ def _episode_base_json(ep, *, slug=None, is_local=False, storage=None, key_suffi
     artwork_url = _secure_artwork_url(ep.get('artwork_url'))
     if artwork_url is None and slug is not None:
         artwork_url = _local_artwork_fallback_url(
-            ep, is_local=is_local, storage=storage, slug=slug, key_suffix=key_suffix)
+            ep, is_local=is_local, storage=storage, slug=slug)
 
     return {
         'id': ep['episode_id'],
@@ -401,8 +401,7 @@ def get_episode(slug, episode_id):
         except (json.JSONDecodeError, TypeError):
             dai_differential = None
 
-    base = _episode_base_json(episode, slug=slug, is_local=is_local,
-                              storage=storage, key_suffix=key_suffix)
+    base = _episode_base_json(episode, slug=slug, is_local=is_local, storage=storage)
     status = base['status']
 
     # Get file size and Podcasting 2.0 asset availability if processed

@@ -58,7 +58,7 @@ For archives, drop files into the import directory or upload a batch, then run a
 
 **Where files come from**: two places, and you can use either or both in the same import.
 
-- **Staging area** (`<data>/import-staging/<slug>/`): files you `POST` to `/api/v1/feeds/{slug}/import/upload` (multipart, repeated `files` field). A finished commit clears the whole directory automatically, rejected files and skipped entries included, so nothing from a completed import lingers on disk. An abandoned attempt (nothing ever committed) is the case that needs manual cleanup: `DELETE /api/v1/feeds/{slug}/import/staging` empties it on demand (409 while an import is running); the UI's Cancel button calls this automatically, and also offers it directly when a scan turns up more files than you just uploaded.
+- **Staging area** (`<data>/import-staging/<slug>/`): files you `POST` to `/api/v1/feeds/{slug}/import/upload` (multipart, repeated `files` field, 409 while an import is already running). A finished commit clears the whole directory automatically, rejected files and skipped entries included, so nothing from a completed import lingers on disk. That only happens when the commit's `source` was `staging` or `both`, though: a `directory`-only commit never scanned staging, and never touches it. An abandoned attempt (nothing ever committed) is the case that needs manual cleanup: `DELETE /api/v1/feeds/{slug}/import/staging` empties it on demand (409 while an import is running). The UI's Cancel button only drops the reviewed plan on your screen; it doesn't touch staging. Use "Clear staged files" (shown once a scan turns up more files than you just uploaded, with a confirmation prompt) to actually empty it.
 - **Import directory** (`<data>/import/<slug>/`): files you place there yourself, outside MinusPod. This is for archives already sitting on the same host or a mounted volume. MinusPod moves the audio file out of it on a successful commit and deletes that file's sidecars (`.txt`, `.json`, artwork) along with it; a rejected or errored file's sidecars are left in place so you can fix and re-scan them. Point this at the same filesystem as your data directory if you can: the commit is then a same-volume move rather than a copy, which matters for a large archive.
 
 Deleting the feed itself (`DELETE /api/v1/feeds/{slug}`) removes both of these directories along with everything still in them, sidecars included, since neither belongs anywhere once the feed is gone.
@@ -146,11 +146,13 @@ A formal JSON Schema for this file is published at [`docs/schemas/episode-sideca
 
 If you don't set `published_at` (sidecar or per-episode edit), MinusPod synthesizes one from episode order: sorted by (season, episode), the newest episode in the batch anchors at import time and each earlier one steps back a day. An explicit date anywhere in the batch also anchors the schedule, and MinusPod spaces the episodes between anchors evenly rather than always stepping by exactly a day.
 
-Explicit dates that land out of order relative to the (season, episode) sort are a hard error: the dry-run report names the conflicting episode ids, and the batch can't commit until you fix the sidecars.
+Explicit dates that land out of order relative to the (season, episode) sort are a hard error: the dry-run report's top-level `batchErrors` names the two conflicting episode ids, and only those two entries carry the error individually. The rest of the batch shows clean, but commit refuses the whole plan while `batchErrors` is non-empty. Fix the offending sidecar(s) and re-scan.
 
 #### Duplicates and existing episodes
 
 Two files landing on the same episode id within one batch is a per-file error on both. An id that already exists in the feed is also an error, unless you pass `overwrite: true`, in which case a re-import fully replaces that episode: new audio and metadata come in, and the prior transcript, chapters, and ad-detection results are discarded as the episode goes back to `discovered`. Its processing-history and token-usage rows are kept. Existing episodes are never silently overwritten without the flag.
+
+Episode ids always mint at minimal zero-padded width: `s01e0006 - Title.mp3` mints `s01e06`, not `s01e0006`, regardless of how many digits the filename itself uses. This also applies when comparing against what's already in the feed, so a rescan of an episode that was imported before this normalization existed (and is still sitting in the database under a wide id like `s01e0006`) still collides correctly with the id a fresh scan mints for it.
 
 #### Scan, then commit
 

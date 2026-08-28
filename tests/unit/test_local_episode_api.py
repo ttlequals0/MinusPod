@@ -800,9 +800,11 @@ def test_episode_artwork_upload_happy_path(app_client, local_feed):
 def test_list_and_detail_artwork_url_falls_back_to_local_route(app_client, local_feed):
     """Report bug 6: a local episode's artwork_url column is never
     populated (there's no upstream RSS item image to source it from), so
-    both the list and detail serializers must fall back to the public
-    local artwork route when a cover is actually cached -- not leave
-    artworkUrl null."""
+    both the list and detail serializers must fall back to the admin
+    artwork proxy route when a cover is actually cached -- not leave
+    artworkUrl null. Must be the internal /api/v1/... proxy, not the
+    public feed-key-gated route local_feed_builder emits in the RSS (a
+    list/detail JSON response must never carry the feed auth key)."""
     slug = local_feed['slug']
     db = local_feed['db']
     _seed_episode(db, slug, 's01e01')
@@ -817,7 +819,7 @@ def test_list_and_detail_artwork_url_falls_back_to_local_route(app_client, local
     )
     assert upload_resp.status_code == 200
 
-    expected = f'/episodes/{slug}/s01e01/artwork'
+    expected = f'/api/v1/feeds/{slug}/episodes/s01e01/artwork'
 
     list_resp = app_client.get(f'/api/v1/feeds/{slug}/episodes')
     list_item = next(e for e in list_resp.get_json()['episodes'] if e['episodeId'] == 's01e01')
