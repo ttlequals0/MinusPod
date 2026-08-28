@@ -188,7 +188,7 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
           </div>
           <div>
             <label htmlFor="ep-edit-description" className="block text-sm font-medium text-foreground mb-2">Description</label>
-            <textarea id="ep-edit-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={editFieldCls} />
+            <textarea id="ep-edit-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className={editFieldCls} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

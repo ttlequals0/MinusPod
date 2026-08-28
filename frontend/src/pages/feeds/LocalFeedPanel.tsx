@@ -505,7 +505,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
               id={`local-description-${slug}`}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              rows={6}
               className={fieldCls}
             />
           </div>
