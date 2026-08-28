@@ -183,7 +183,7 @@ Whether an imported or uploaded episode gets queued for ad detection depends on 
 
 Either way, with auto-process off (or an episode that didn't get queued), the episode still processes on first play, via manual reprocess, or through the bulk episode actions, exactly like a subscribed feed.
 
-Until an episode is processed, its enclosure URL is unversioned, which triggers just-in-time processing the first time a player requests it, the same behavior as an unprocessed episode on a subscribed feed.
+Until an episode is processed, its enclosure URL is unversioned, which triggers just-in-time processing the first time a player requests it. Unlike a subscribed feed, where that wait (or a queue backlog, a retry cooldown, a permanent failure) returns a 503 or 410, a local feed serves the retained original right away instead, with range support, so a fresh archive isn't unlistenable behind a long queue. The episode page's own player does the same: while a local episode is unprocessed, it plays the retained original directly, labeled as such.
 
 ## Episode artwork in the served feed
 

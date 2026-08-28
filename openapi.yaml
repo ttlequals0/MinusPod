@@ -842,6 +842,11 @@ paths:
                     - boolean
                     - 'null'
                   description: When true, the served RSS uses MinusPod episode ids as item GUIDs instead of passing upstream GUIDs through (issue 598). Switching it on a feed with subscribers makes podcast apps treat every episode as new once. Null and false both mean upstream GUIDs. New feeds are created with true.
+                description:
+                  type:
+                    - string
+                    - 'null'
+                  description: Feed description, rewritten into the served channel <description>. Editable on any feed, local or subscribed, unlike title/author/explicit/categories/p20 below, which are local-feed only.
                 title:
                   type: string
                   description: >-
@@ -6071,6 +6076,12 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: An import is already running for this feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /feeds/{slug}/import/scan:
     post:
@@ -6189,6 +6200,43 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/import/staging:
+    delete:
+      tags:
+        - LocalFeeds
+      summary: Clear a local feed's upload staging area
+      description: >-
+        Local feeds only. Empties <data>/import-staging/<slug>/. The UI
+        clears staging itself at the start of every new file selection, so
+        this is mainly for wiping an abandoned upload attempt by hand.
+      operationId: clearImportStaging
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      responses:
+        '200':
+          description: Staging cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Not a local feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: An import is already running for this feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /system/queue:
     get:
@@ -9141,7 +9189,7 @@ components:
         artworkUrl:
           type: string
           nullable: true
-          description: Episode cover declared by the publisher. Null when the episode declares none, or when the URL is not https and would be blocked as mixed content; clients fall back to the feed artwork.
+          description: Episode cover declared by the publisher. Null when the episode declares none, or when the URL is not https and would be blocked as mixed content; clients fall back to the feed artwork. A local feed has no publisher, so this instead falls back to /api/v1/feeds/{slug}/episodes/{episode_id}/artwork whenever the episode has a cached cover (an upload or embedded-artwork extraction), and stays null only when it has none.
         error:
           type: string
           nullable: true
@@ -9371,6 +9419,14 @@ components:
           items:
             type: string
           description: Non-empty means this entry will not be committed (e.g. duplicate id in the batch, collision with an existing episode without overwrite, invalid sidecar, out-of-order explicit date).
+        replacesExisting:
+          type: boolean
+          description: True whenever episodeId already exists in the feed, regardless of overwrite. A collision marker, not an outcome; whether it errors or cleanly overwrites depends on the overwrite flag and whether errors is empty.
+        replacesExistingId:
+          type:
+            - string
+            - 'null'
+          description: The actual existing row's episode_id when replacesExisting is true, else null. Usually identical to episodeId, but can be the row's original wide-zero-padded id (e.g. s01e0006) for an episode imported before id canonicalization, which an overwrite replaces rather than duplicates.
 
     LocalImportPlan:
       type: object
@@ -9384,9 +9440,13 @@ components:
           type: string
         overwrite:
           type: boolean
+        source:
+          type: string
+          enum: [staging, directory, both]
+          description: Echoes the source this plan was scanned with; commit re-derives from this same value and gates the post-commit staging sweep on it.
         planHash:
           type: string
-          description: sha256 over the sorted (name, size, mtime) of every scanned source file. Echo this back to import/commit; a mismatch there means the source directory changed since this scan.
+          description: sha256 over the sorted (name, size, mtime) of every scanned source file, plus overwrite. Echo this back to import/commit; a mismatch there means the source directory changed since this scan, or overwrite was flipped after scanning.
         entries:
           type: array
           items:
@@ -9401,6 +9461,11 @@ components:
               reason:
                 type: string
           description: Files that did not match the naming scheme at all (or are hidden/incomplete/empty/a non-mp3 audio format), never imported.
+        batchErrors:
+          type: array
+          items:
+            type: string
+          description: Errors that block the whole batch rather than one entry (currently just an out-of-order explicit-publish-date pair). Commit refuses the plan while this is non-empty, even though only the two offending entries carry the message in their own errors.
         totals:
           type: object
           properties:
@@ -9420,7 +9485,7 @@ components:
         state:
           type: string
           enum: [idle, running, done, error]
-          description: idle means no import has ever been started for this feed (or the server has restarted since).
+          description: idle means no import has ever been started for this feed. State is file-backed and shared across worker processes, so it survives a worker restart; a worker that crashed mid-commit self-heals to error with an "import interrupted" report the next time this is polled.
         processed:
           type: integer
         total:
@@ -9471,7 +9536,7 @@ components:
               description: episodeIds queued for auto-process (only possible when the feed already had episodes before this commit).
             error:
               type: string
-              description: Present only when state is error, meaning an exception escaped the whole batch rather than a per-file failure (those land in failed above).
+              description: Present only when state is error. Either an exception escaped the whole batch (a per-file failure lands in failed above instead), or the value "import interrupted", meaning a worker crashed mid-commit and this state was self-healed from a stuck running job whose lock nobody still holds.
 
     EpisodeProcessingRun:
       type: object

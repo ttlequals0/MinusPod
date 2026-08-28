@@ -72,7 +72,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## I
 
-**Import directory** - The user-managed folder for a local feed's archive import, `<data>/import/<slug>/`. You place audio and sidecar files there yourself; MinusPod only moves each file's audio out on commit and never deletes a sidecar it did not put there. [Local Feeds > Bulk import](local-feeds.md#bulk-import)
+**Import directory** - The user-managed folder for a local feed's archive import, `<data>/import/<slug>/`. You place audio and sidecar files there yourself; on a successful commit MinusPod moves the audio out and deletes that episode's sidecars along with it, leaving a rejected or errored file's sidecars in place to fix and re-scan. [Local Feeds > Bulk import](local-feeds.md#bulk-import)
 
 ## K
 

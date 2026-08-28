@@ -38,7 +38,8 @@ release notes.
 - Episode edits reject unknown fields instead of silently ignoring typos;
   the overwrite-mismatch error names the actual cause; enclosures carry a
   length attribute; the import panel's Cancel no longer deletes staged
-  files (the Clear staged files button, with a confirmation, does).
+  files. Staging is now cleared automatically at the start of each new
+  file selection instead, so one pick of files never piles onto another.
 
 ## [2.93.1] - 2026-08-28
 
