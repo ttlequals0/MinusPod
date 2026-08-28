@@ -264,8 +264,8 @@ class EpisodeMixin:
                     error_message, ad_detection_status, artwork_url, episode_number,
                     retry_count, published_at, deferred_at, deferred_service,
                     reprocess_requested_at, reprocess_source,
-                    season_number, p20_item_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    season_number, p20_item_json, original_file)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     podcast_id,
                     episode_id,
@@ -292,6 +292,7 @@ class EpisodeMixin:
                     kwargs.get('reprocess_source'),
                     kwargs.get('season_number'),
                     kwargs.get('p20_item_json'),
+                    kwargs.get('original_file'),
                 )
             )
             db_id = cursor.lastrowid

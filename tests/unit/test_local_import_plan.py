@@ -1,5 +1,6 @@
 """Tests for the pure planning half of local_import.py: naming parser,
 sidecar validation, date synthesis, and the dry-run plan builder."""
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -463,7 +464,9 @@ def test_build_import_plan_out_of_order_explicit_anchors_error_all_clean_entries
 def test_build_import_plan_future_dated_non_final_anchor_errors_batch(tmp_path):
     """Regression: a future-dated explicit sidecar on a NON-final entry must
     still be caught against the implicit now_iso anchor on the final entry,
-    even though the final entry itself has no explicit date."""
+    even though the final entry itself has no explicit date. Only the two
+    offending entries (B and the forced-anchor final C) carry the error --
+    an unrelated entry (A) stays clean, per the plan-level-attribution fix."""
     a = _write(tmp_path / 'S01E01 - A.mp3')
     b = _write(tmp_path / 'S01E02 - B.mp3')
     _write_text(tmp_path / 'S01E02 - B.json', '{"published_at": "2030-01-01T00:00:00Z"}')
@@ -471,9 +474,15 @@ def test_build_import_plan_future_dated_non_final_anchor_errors_batch(tmp_path):
     sources = [a, b, tmp_path / 'S01E02 - B.json', c]
     plan = build_import_plan('myshow', sources, existing_ids=set(),
                               overwrite=False, now_iso=NOW_ISO)
-    assert plan['totals']['importable'] == 0
-    for entry in plan['entries']:
-        assert entry['errors']
+    assert len(plan['batchErrors']) == 1
+
+    by_audio = {e['audioFile']: e for e in plan['entries']}
+    assert by_audio['S01E02 - B.mp3']['errors']
+    assert by_audio['S01E03 - C.mp3']['errors']
+    assert by_audio['S01E01 - A.mp3']['errors'] == []
+    # Only the unrelated entry is (individually) importable; the batch as a
+    # whole still can't commit because batchErrors is non-empty.
+    assert plan['totals']['importable'] == 1
 
 
 def test_build_import_plan_duplicate_sidecar_date_does_not_backdate_clean_siblings(tmp_path):
@@ -581,3 +590,48 @@ def test_plan_hash_skips_vanished_path_without_raising(tmp_path):
     after = plan_hash(sources)  # same Path objects; b no longer exists
 
     assert after != before
+
+
+# ---------------------------------------------------------------------------
+# build_import_plan: batch-level date-order errors (plan-level attribution)
+# ---------------------------------------------------------------------------
+
+def test_build_import_plan_batch_error_attributes_only_offending_pair(tmp_path):
+    """An out-of-order explicit-date pair must error only the two offending
+    entries, not every clean candidate in the batch. The plan also gets a
+    top-level batchErrors entry naming them, and an unrelated entry that
+    needed synthesis stays clean (errors == [])."""
+    e1 = _write(tmp_path / 'S01E01 - One.mp3')
+    _write_text(tmp_path / 'S01E01 - One.json',
+               json.dumps({'published_at': '2026-02-01T00:00:00Z'}))
+    e2 = _write(tmp_path / 'S01E02 - Two.mp3')
+    _write_text(tmp_path / 'S01E02 - Two.json',
+               json.dumps({'published_at': '2026-01-01T00:00:00Z'}))  # earlier -> out of order
+    e3 = _write(tmp_path / 'S01E03 - Three.mp3')
+
+    sources = [e1, tmp_path / 'S01E01 - One.json',
+              e2, tmp_path / 'S01E02 - Two.json', e3]
+    plan = build_import_plan('myshow', sources, existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+
+    assert len(plan['batchErrors']) == 1
+    assert 's01e01' in plan['batchErrors'][0]
+    assert 's01e02' in plan['batchErrors'][0]
+
+    entries_by_id = {e['episodeId']: e for e in plan['entries']}
+    assert entries_by_id['s01e01']['errors'] == plan['batchErrors']
+    assert entries_by_id['s01e02']['errors'] == plan['batchErrors']
+    # Unrelated entry (needed synthesis, nothing to do with the offending
+    # pair): clean, not stamped with an error naming two ids it has no
+    # relation to.
+    assert entries_by_id['s01e03']['errors'] == []
+    # Only the unrelated entry is importable; the whole batch still can't
+    # commit (batchErrors non-empty) -- that gate is enforced by the caller.
+    assert plan['totals']['importable'] == 1
+
+
+def test_build_import_plan_no_batch_errors_when_dates_are_fine(tmp_path):
+    audio = _write(tmp_path / 'S01E01 - Pilot.mp3')
+    plan = build_import_plan('myshow', [audio], existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+    assert plan['batchErrors'] == []

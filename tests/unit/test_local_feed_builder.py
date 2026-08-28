@@ -310,3 +310,37 @@ def test_episode_artwork_gate_reflects_cached_cover():
 
     assert f'/episodes/{slug}/s01e02/artwork' in xml
     assert f'/episodes/{slug}/s01e01/artwork' not in xml
+
+
+def test_enclosure_length_attribute_matches_file_size_on_disk():
+    """Report smaller item 3: an unprocessed episode's enclosure reports
+    the retained original's size; a processed one reports the served
+    processed file's size -- both already live on disk locally, so the
+    length attribute is cheap to provide."""
+    slug = 'enclosure-length'
+    podcast = _seed(slug)
+
+    original_path = mf.storage.get_original_path(slug, 's01e01')
+    original_bytes = b'\x00' * 4096
+    original_path.write_bytes(original_bytes)
+
+    processed_path = mf.storage.get_episode_path(slug, 's01e02', version=3)
+    processed_bytes = b'\x01' * 9000
+    processed_path.write_bytes(processed_bytes)
+
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    assert f'length="{len(original_bytes)}"' in xml
+    assert f'length="{len(processed_bytes)}"' in xml
+
+
+def test_enclosure_length_omitted_when_file_missing():
+    slug = 'enclosure-length-missing'
+    podcast = _seed(slug)
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    # Neither fixture episode's audio file exists on disk in this test --
+    # the enclosure tags must still render, just without a length attribute.
+    assert 'length="' not in xml

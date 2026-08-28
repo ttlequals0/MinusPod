@@ -29,10 +29,10 @@ from config import MIN_PRESERVED_CHAPTERS
 from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
-from local_import import build_import_plan, get_import_status, start_commit
+from local_import import build_import_plan, get_import_status, plan_hash, start_commit
 from processing_queue import ProcessingQueue
 from storage import _detect_image_mime
-from utils.audio import get_audio_duration
+from utils.audio import extract_embedded_artwork, get_audio_duration
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
 from utils.validation import is_dangerous_slug, is_valid_episode_id
@@ -151,9 +151,25 @@ def _validate_p20_item(value):
     return cleaned, None
 
 
-def _build_episode_updates(data):
+# Fields a single/bulk PATCH may set. Bulk entries additionally carry
+# 'episodeId' (the routing key, not an update field) -- callers pass that
+# through allowed_extra_keys rather than folding it in here, so this set
+# stays the same list _build_episode_updates below actually understands.
+_EPISODE_PATCH_KEYS = frozenset({'title', 'description', 'season', 'episode',
+                                 'publishedAt', 'p20'})
+
+
+def _build_episode_updates(data, *, allowed_extra_keys=frozenset()):
     """Validate the shared PATCH fields (single + bulk). Returns
-    (db_kwargs, error)."""
+    (db_kwargs, error).
+
+    Fail-closed on an unrecognized key -- a typo like 'publishedat' 400s
+    naming the key instead of silently no-oping, matching the import
+    sidecar's own fail-closed unknown-key behavior (validate_sidecar)."""
+    unknown = set(data) - _EPISODE_PATCH_KEYS - allowed_extra_keys
+    if unknown:
+        return None, f"unknown field(s): {', '.join(sorted(unknown))}"
+
     updates = {}
     if 'title' in data:
         val = data['title']
@@ -200,9 +216,10 @@ def upload_local_episode(slug):
 
     Derives episode_id = s{season:02d}e{episode:02d}; season defaults to 1,
     episode defaults to 1 + the highest existing episode_number in that
-    season. Never overwrites an existing id (409). Sidecar/embedded artwork
-    extraction arrives via the import path (Task 10) -- when no artwork
-    field is supplied here, episode artwork is simply left absent.
+    season. Never overwrites an existing id (409). No title -> defaults to
+    'Episode {n}', matching the import path's fallback. When no artwork
+    field is supplied, embedded cover art is extracted from the audio file
+    the same way the import path's _commit_entry does.
 
     No dedicated rate limit here (unlike the other mutating routes): a 1 GB
     audio upload already self-limits request throughput far below anything
@@ -259,6 +276,9 @@ def upload_local_episode(slug):
     if not is_valid_episode_id(episode_id):
         return error_response('season/episode out of range', 400)
 
+    if not title:
+        title = f'Episode {episode_number}'
+
     if db.get_episode(slug, episode_id):
         return error_response(f'Episode {episode_id} already exists', 409)
 
@@ -302,6 +322,11 @@ def upload_local_episode(slug):
             episode_number=episode_number,
             season_number=season,
             original_duration=duration,
+            # The retained original IS the audio just moved into place above
+            # -- without this, hasOriginalAudio stays false and the
+            # /original.mp3 route 404s until a processing run happens to
+            # write this column itself (main_app/processing.py).
+            original_file=f'{episode_id}-original.mp3',
         )
 
         chapters = probe_chapters(str(final_path))
@@ -320,6 +345,16 @@ def upload_local_episode(slug):
             # be dropped by the episode-artwork LRU cache trim.
             storage.save_episode_artwork(slug, episode_id, artwork_bytes,
                                          artwork_content_type, evict=False)
+        else:
+            # No artwork field supplied: fall back to whatever cover art is
+            # embedded in the audio itself, exactly like the import path's
+            # _commit_entry -- otherwise an upload never gets a cover unless
+            # the caller happens to also POST one separately.
+            embedded = extract_embedded_artwork(str(final_path))
+            if embedded:
+                image_data, mime = embedded
+                storage.save_episode_artwork(slug, episode_id, image_data, mime,
+                                             evict=False)
 
         queued = False
         if total_before >= 1 and db.is_auto_process_enabled_for_podcast(slug, podcast=podcast):
@@ -419,7 +454,7 @@ def bulk_patch_local_episodes(slug):
         seen_ids.add(episode_id)
         if not db.get_episode(slug, episode_id):
             return error_response(f'entry {i}: episode {episode_id} not found', 404)
-        updates, ferr = _build_episode_updates(entry)
+        updates, ferr = _build_episode_updates(entry, allowed_extra_keys={'episodeId'})
         if ferr:
             return error_response(f'entry {i} ({episode_id}): {ferr}', 400)
         planned.append((episode_id, updates))
@@ -727,7 +762,22 @@ def commit_import(slug):
     plan = build_import_plan(slug, sources, existing_ids,
                              overwrite=overwrite, now_iso=utc_now_iso())
     if plan['planHash'] != client_hash:
+        # Disambiguate the two ways a hash can go stale: the flag folds
+        # into plan_hash (see its docstring), so a client-echoed hash that
+        # matches what THIS scan would have produced with the opposite
+        # overwrite value means nothing on disk changed -- the checkbox
+        # was just flipped after the scan -- and the operator needs a
+        # different fix (re-scan, not re-check files) than a real content
+        # change would call for.
+        if plan_hash(sources, not overwrite) == client_hash:
+            return error_response(
+                'overwrite setting changed since scan; re-run scan', 409)
         return error_response('files changed since scan; re-run scan', 409)
+
+    if plan.get('batchErrors'):
+        return error_response(
+            '; '.join(plan['batchErrors']), 400,
+            details={'batchErrors': plan['batchErrors']})
 
     started, message = start_commit(slug, plan, db=db, storage=storage)
     if not started:
@@ -742,12 +792,13 @@ def commit_import(slug):
 def import_status(slug):
     """Passthrough of local_import.get_import_status for the UI's poll."""
     db = get_database()
+    storage = get_storage()
 
     podcast, err = _require_local_feed(db, slug)
     if err:
         return err
 
-    return json_response(get_import_status(slug), 200)
+    return json_response(get_import_status(slug, storage), 200)
 
 
 # ---------- DELETE /feeds/<slug>/import/staging ----------
@@ -784,7 +835,7 @@ def clear_import_staging(slug):
     if err:
         return err
 
-    if get_import_status(slug).get('state') == 'running':
+    if get_import_status(slug, storage).get('state') == 'running':
         return error_response('cannot clear staging while an import is running', 409)
 
     staging_dir = storage.import_staging_dir(slug, create=False)

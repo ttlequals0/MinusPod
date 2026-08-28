@@ -139,6 +139,27 @@ def _safe_int_or_escaped(value) -> str:
         return rss_parser._escape_xml(str(value))
 
 
+def _enclosure_length_attr(slug: str, ep: dict, storage_, version) -> str:
+    """`` length="N"`` (bytes, leading space included) for the enclosure
+    tag, or '' when the size can't be determined.
+
+    Processed episodes report the size of the served processed file;
+    unprocessed ones report the retained original -- both already live on
+    disk locally for a local feed, so declaring the byte count costs one
+    stat() and some clients want it. Missing file / stat failure omits the
+    attribute rather than erroring the whole feed render.
+    """
+    try:
+        if ep.get('status') == 'processed':
+            path = storage_.get_episode_path(slug, ep['episode_id'], version=version)
+        else:
+            path = storage_.get_original_path(slug, ep['episode_id'])
+        size = path.stat().st_size
+    except OSError:
+        return ''
+    return f' length="{size}"'
+
+
 def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
                                storage_, feed_auth_key: str | None) -> None:
     ep_id = ep['episode_id']
@@ -163,7 +184,8 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
     version = ep.get('processed_version') or None
     enclosure_url = episode_public_url(base, slug, ep_id, version=version,
                                        key=feed_auth_key)
-    lines.append(f'  <enclosure url="{enclosure_url}" type="audio/mpeg" />')
+    length_attr = _enclosure_length_attr(slug, ep, storage_, version)
+    lines.append(f'  <enclosure url="{enclosure_url}" type="audio/mpeg"{length_attr} />')
 
     duration = ep.get('new_duration') or ep.get('original_duration')
     if duration:

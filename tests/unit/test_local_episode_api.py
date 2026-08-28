@@ -79,12 +79,19 @@ def subscribed_feed(app_client):
 
 @pytest.fixture
 def local_feed(app_client):
-    from api import get_database
+    from api import get_database, get_storage
     db = get_database()
+    storage = get_storage()
     slug = 'local-episode-api-local'
+    # The slug (and its on-disk artwork/audio) is reused across every test
+    # in this module -- clear anything a previous test left behind so a
+    # cached cover from one test can't bleed into another's "no artwork"
+    # assertion.
+    storage.cleanup_podcast_dir(slug)
     db.create_podcast(slug, f'local://{slug}', 'Local Test', feed_type='local')
     yield {'slug': slug, 'db': db}
     db.delete_podcast(slug)
+    storage.cleanup_podcast_dir(slug)
 
 
 @pytest.fixture(scope='session')
@@ -120,6 +127,31 @@ def chaptered_mp3_bytes(tmp_path_factory):
         ['ffmpeg', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono:d=1',
          '-i', str(meta), '-map_metadata', '1', '-map_chapters', '1',
          '-shortest', '-q:a', '9', str(mp3_path)],
+        check=True, capture_output=True, timeout=30,
+    )
+    return mp3_path.read_bytes()
+
+
+@pytest.fixture(scope='session')
+def artwork_embedded_mp3_bytes(tmp_path_factory):
+    """An mp3 with an embedded (ID3 APIC) cover image, generated once per
+    session -- mirrors chaptered_mp3_bytes's ffmpeg fixture pattern above."""
+    if shutil.which('ffmpeg') is None:
+        pytest.skip('ffmpeg not available')
+    tmp_dir = tmp_path_factory.mktemp('artwork_audio')
+    cover_path = tmp_dir / 'cover.jpg'
+    subprocess.run(
+        ['ffmpeg', '-y', '-f', 'lavfi', '-i', 'color=c=red:s=16x16',
+         '-frames:v', '1', str(cover_path)],
+        check=True, capture_output=True, timeout=30,
+    )
+    mp3_path = tmp_dir / 'with_cover.mp3'
+    subprocess.run(
+        ['ffmpeg', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono:d=1',
+         '-i', str(cover_path), '-map', '0:a', '-map', '1:v',
+         '-c:a', 'libmp3lame', '-q:a', '9', '-c:v', 'copy',
+         '-id3v2_version', '3', '-disposition:v', 'attached_pic',
+         str(mp3_path)],
         check=True, capture_output=True, timeout=30,
     )
     return mp3_path.read_bytes()
@@ -173,6 +205,50 @@ def test_upload_happy_path_into_empty_feed(app_client, local_feed, real_mp3_byte
     storage = get_storage()
     original_path = storage.get_original_path(slug, 's01e01')
     assert original_path.exists()
+
+
+@requires_ffmpeg
+def test_upload_sets_original_file_and_serves_original_audio(app_client, local_feed, real_mp3_bytes):
+    """Report bug 1: original_file must be set on upload so hasOriginalAudio
+    is true and GET .../original.mp3 200s -- not left null until the first
+    processing run happens to write the column."""
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={'audio': (io.BytesIO(real_mp3_bytes), 'ep.mp3')},
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 201
+    episode_id = resp.get_json()['episodeId']
+
+    detail = app_client.get(f'/api/v1/feeds/{slug}/episodes/{episode_id}')
+    assert detail.get_json()['hasOriginalAudio'] is True
+
+    original_resp = app_client.get(
+        f'/api/v1/feeds/{slug}/episodes/{episode_id}/original.mp3')
+    assert original_resp.status_code == 200
+
+
+@requires_ffmpeg
+def test_upload_defaults_title_when_missing(app_client, local_feed, real_mp3_bytes):
+    """Report bug 4: no title falls back to 'Episode {n}', matching the
+    import path's fallback -- not an empty <title></title>."""
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={'audio': (io.BytesIO(real_mp3_bytes), 'ep.mp3')},
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 201
+    assert resp.get_json()['title'] == 'Episode 1'
 
 
 @requires_ffmpeg
@@ -278,6 +354,28 @@ def test_upload_persists_embedded_chapters(app_client, local_feed, chaptered_mp3
     chapters = json.loads(episode['chapters_json'])
     assert chapters['version'] == '1.2.0'
     assert [c['title'] for c in chapters['chapters']] == ['One', 'Two']
+
+
+@requires_ffmpeg
+def test_upload_extracts_embedded_artwork_when_none_supplied(
+        app_client, local_feed, artwork_embedded_mp3_bytes):
+    """Report bug 5: with no 'artwork' field, upload_local_episode falls
+    back to the audio's own embedded cover art, the same way the import
+    path's _commit_entry already does."""
+    from api import get_storage
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={'audio': (io.BytesIO(artwork_embedded_mp3_bytes), 'ep.mp3')},
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 201
+    episode_id = resp.get_json()['episodeId']
+    assert get_storage().has_episode_artwork(slug, episode_id)
 
 
 @requires_ffmpeg
@@ -414,6 +512,27 @@ def test_patch_single_episode_p20_unknown_tag_400(app_client, local_feed):
     assert resp.status_code == 400
 
 
+def test_patch_single_episode_unknown_key_400_names_key(app_client, local_feed):
+    """Report smaller item 2: an unknown PATCH key must fail closed (400
+    naming the key), matching the JSON sidecar's fail-closed behavior --
+    not a silent 200 no-op that hides a typo like 'publishedat'."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01', published_at='2020-01-01T00:00:00Z')
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(
+        f'/api/v1/feeds/{slug}/episodes/s01e01',
+        json={'publishedat': '2026-01-01T00:00:00Z'},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+    assert 'publishedat' in resp.get_json()['error']
+    # No silent no-op: nothing changed.
+    assert db.get_episode(slug, 's01e01')['published_at'] == '2020-01-01T00:00:00Z'
+
+
 def test_patch_single_episode_not_found_404(app_client, local_feed):
     slug = local_feed['slug']
     _authed(app_client)
@@ -506,6 +625,23 @@ def test_bulk_patch_atomicity_one_invalid_entry_applies_none(app_client, local_f
     # even though it was validated and ordered before the invalid one.
     assert db.get_episode(slug, 's01e01')['title'] == 'Original One'
     assert db.get_episode(slug, 's01e02')['title'] == 'Original Two'
+
+
+def test_bulk_patch_unknown_key_400_names_key(app_client, local_feed):
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01', title='Original')
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(
+        f'/api/v1/feeds/{slug}/episodes',
+        json=[{'episodeId': 's01e01', 'titel': 'Typo'}],
+        headers=headers,
+    )
+    assert resp.status_code == 400
+    assert 'titel' in resp.get_json()['error']
+    assert db.get_episode(slug, 's01e01')['title'] == 'Original'
 
 
 def test_bulk_patch_max_500_exceeded_400(app_client, local_feed):
@@ -659,6 +795,48 @@ def test_episode_artwork_upload_happy_path(app_client, local_feed):
 
     from api import get_storage
     assert get_storage().has_episode_artwork(slug, 's01e01')
+
+
+def test_list_and_detail_artwork_url_falls_back_to_local_route(app_client, local_feed):
+    """Report bug 6: a local episode's artwork_url column is never
+    populated (there's no upstream RSS item image to source it from), so
+    both the list and detail serializers must fall back to the public
+    local artwork route when a cover is actually cached -- not leave
+    artworkUrl null."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01')
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    upload_resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes/s01e01/artwork',
+        data={'file': (io.BytesIO(_PNG_BYTES), 'cover.png')},
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert upload_resp.status_code == 200
+
+    expected = f'/episodes/{slug}/s01e01/artwork'
+
+    list_resp = app_client.get(f'/api/v1/feeds/{slug}/episodes')
+    list_item = next(e for e in list_resp.get_json()['episodes'] if e['episodeId'] == 's01e01')
+    assert list_item['artworkUrl'] == expected
+
+    detail_resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/s01e01')
+    assert detail_resp.get_json()['artworkUrl'] == expected
+
+
+def test_artwork_url_stays_null_without_a_cached_cover(app_client, local_feed):
+    """No artwork uploaded at all -> artworkUrl stays null, same as before
+    -- the fallback only fires when storage actually has a cached cover."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01')
+    _authed(app_client)
+
+    detail_resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/s01e01')
+    assert detail_resp.get_json()['artworkUrl'] is None
 
 
 # -- All five endpoints 400 on a subscribed feed --

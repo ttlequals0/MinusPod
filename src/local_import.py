@@ -18,6 +18,7 @@ mirrors ``database.episodes.delete_episode_rows``'s pattern).
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import logging
@@ -31,9 +32,10 @@ from config import MIN_PRESERVED_CHAPTERS
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
 from storage import _detect_image_mime
+from utils.atomic_json import write_json_atomic
 from utils.audio import extract_embedded_artwork, get_audio_duration
 from utils.time import utc_now_iso
-from utils.validation import is_valid_episode_id
+from utils.validation import is_dangerous_slug, is_valid_episode_id
 
 logger = logging.getLogger(__name__)
 
@@ -159,10 +161,13 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
     """entries sorted ascending by (season, episode); each has
     'published_at' (explicit ISO str or None). Fills gaps in place.
     Rules: explicit dates must be strictly increasing in entry order, else
-    return an error string naming both offending episode_ids (hard error).
-    The final entry, if unset, anchors at now_iso. Leading run before the
-    first anchor: step back SYNTH_STEP per entry. Between two anchors:
-    space evenly across the interval. Returns None on success."""
+    return an error string naming both offending episode_ids (hard error)
+    -- and mark exactly those two entries (``entries[a]['_batch_error'] =
+    True``) so a caller can attribute the error to the offending pair
+    instead of the whole batch. The final entry, if unset, anchors at
+    now_iso. Leading run before the first anchor: step back SYNTH_STEP per
+    entry. Between two anchors: space evenly across the interval. Returns
+    None on success."""
     if not entries:
         return None
 
@@ -186,6 +191,8 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
     # "unequal lengths" strict=True guards against can never fire here.
     for a, b in zip(anchors, anchors[1:], strict=False):
         if parsed[b] <= parsed[a]:
+            entries[a]['_batch_error'] = True
+            entries[b]['_batch_error'] = True
             return (f"publish dates out of order: {entries[a]['episode_id']} "
                      f"must be before {entries[b]['episode_id']}")
 
@@ -260,7 +267,16 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
                   'bytes','mtimeNs', 'warnings': [], 'errors': [],
                   'replacesExisting': bool}],
      'rejected': [{'file', 'reason'}],
+     'batchErrors': [msg, ...],
      'totals': {'importable': N, 'rejected': N, 'errors': N, 'bytes': N}}
+
+    batchErrors holds errors that apply to the whole batch rather than one
+    entry -- currently just an out-of-order explicit-date pair (see
+    synthesize_published_at). The two offending entries also get the same
+    message appended to their own ``errors`` (so they render as errored
+    rows); every other entry stays clean (``errors: []``) even though the
+    batch as a whole cannot commit -- commit must check batchErrors
+    explicitly rather than relying on every entry's errors being non-empty.
 
     replacesExisting is true whenever the entry's episodeId already exists
     in the feed, regardless of overwrite -- it's a collision marker, not an
@@ -422,9 +438,17 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     # non-empty.
     clean = [c for c in candidates if not c['errors']]
     synth_err = synthesize_published_at(clean, now_iso)
+    batch_errors: list[str] = []
     if synth_err:
+        batch_errors.append(synth_err)
         for c in clean:
-            c['errors'].append(synth_err)
+            # Only the pair synthesize_published_at flagged gets the error
+            # on its own entry -- every other clean candidate is unrelated
+            # and must not be stamped with an error naming two ids it has
+            # nothing to do with. The batch as a whole still can't commit
+            # (see batchErrors above); that gate is enforced separately.
+            if c.pop('_batch_error', False):
+                c['errors'].append(synth_err)
             if c['published_at'] is None:
                 c['published_at'] = now_iso
 
@@ -467,6 +491,7 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
         'planHash': plan_hash(sources, overwrite),
         'entries': entries,
         'rejected': rejected,
+        'batchErrors': batch_errors,
         'totals': {
             'importable': importable,
             'rejected': len(rejected),
@@ -485,13 +510,109 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
 # concurrent write elsewhere on the volume).
 _FREE_SPACE_MARGIN = 1.1
 
-# Registry: one job entry per feed slug, guarded by _import_lock. Mirrors
-# main_app/routes.py's _bg_refresh_inflight/_bg_refresh_lock pattern
-# (routes.py:83-103), but keeps richer per-slug state (progress + report)
-# rather than a bare "in flight" set, since get_import_status needs to read
-# it back after the job finishes -- not just while it runs.
-_import_jobs: dict[str, dict] = {}
-_import_lock = threading.Lock()
+# Cross-worker job registry: gunicorn runs multiple worker processes, each
+# with its own Python heap, so an in-memory dict (the previous design) is
+# only visible to whichever worker happened to run the commit -- a status
+# poll landing on a different worker sees no job at all, and worse, the
+# "one import per feed at a time" guard reading the same per-process dict
+# lets two different workers both start a commit for the same feed and race
+# on the same staging files.
+#
+# Replaced with per-feed state on disk under
+# ``<data_dir>/.import-jobs/<slug>.json`` (read/written by every worker) plus
+# a per-feed flock lockfile (``<slug>.lock``) held for the duration of the
+# commit thread as the running-guard -- same fcntl.flock cross-process
+# mechanism and stale-lock probe idiom as processing_queue.py's
+# ProcessingQueue, just one lock per feed slug instead of one global lock.
+
+def _jobs_dir(storage) -> Path:
+    d = storage.data_dir / '.import-jobs'
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _job_state_path(storage, slug: str) -> Path:
+    return _jobs_dir(storage) / f'{slug}.json'
+
+
+def _job_lock_path(storage, slug: str) -> Path:
+    return _jobs_dir(storage) / f'{slug}.lock'
+
+
+def _read_job_state(storage, slug: str) -> dict | None:
+    path = _job_state_path(storage, slug)
+    try:
+        if path.exists():
+            content = path.read_text()
+            if content.strip():
+                return json.loads(content)
+    except (OSError, ValueError) as e:
+        logger.debug(f"[{slug}] could not read import job state: {e}")
+    return None
+
+
+def _write_job_state(storage, slug: str, state: dict) -> None:
+    if not write_json_atomic(_job_state_path(storage, slug), state):
+        logger.warning(f"[{slug}] could not write import job state")
+
+
+def _clear_job_state(storage, slug: str) -> None:
+    try:
+        _job_state_path(storage, slug).unlink()
+    except OSError:
+        pass
+
+
+def _try_acquire_import_lock(storage, slug: str):
+    """Non-blocking exclusive acquire of the per-feed import lock.
+
+    Returns the open file object (lock held -- caller must eventually pass
+    it to ``_release_import_lock``) on success, or ``None`` when another
+    holder (any process, including this one via a different open file
+    description) already has it.
+    """
+    fh = open(_job_lock_path(storage, slug), 'w')
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        fh.close()
+        return None
+    except OSError:
+        fh.close()
+        raise
+    return fh
+
+
+def _release_import_lock(fh) -> None:
+    try:
+        fcntl.flock(fh, fcntl.LOCK_UN)
+    except OSError as e:
+        logger.warning(f"Error releasing import lock: {e}")
+    finally:
+        fh.close()
+
+
+def _lock_is_held(storage, slug: str) -> bool:
+    """Non-blocking probe: is ANY process currently holding this feed's
+    import lock? Mirrors ProcessingQueue._clear_stale_state's orphan probe
+    -- opening a separate file description to try-acquire the same lock
+    file does not disturb a real holder's lock (flock locks are scoped to
+    the open file description that set them, not the process or fd
+    number), so this is safe to call while a commit may be in flight."""
+    lock_path = _job_lock_path(storage, slug)
+    if not lock_path.exists():
+        return False
+    try:
+        with open(lock_path, 'w') as probe_fd:
+            try:
+                fcntl.flock(probe_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(probe_fd, fcntl.LOCK_UN)
+                return False  # acquired it -> nobody was holding it
+            except BlockingIOError:
+                return True  # someone holds it right now
+    except OSError as e:
+        logger.debug(f"[{slug}] could not probe import lock: {e}")
+        return False
 
 
 def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
@@ -501,40 +622,51 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
     Refuses to start (returning ``(False, reason)`` without registering
     anything) when: the plan was built for a different slug (a stale plan
     object reused against the wrong feed), another import is already
-    running for this feed, or the destination volume does not have at
-    least ``_FREE_SPACE_MARGIN`` times the plan's importable bytes free.
-    Otherwise registers the job as running, captures whether the feed
-    already had episodes (for the initial-import auto-process rule -- see
+    running for this feed (the per-feed flock is already held -- by this
+    worker or any other), or the destination volume does not have at least
+    ``_FREE_SPACE_MARGIN`` times the plan's importable bytes free. Otherwise
+    writes the job state as running, captures whether the feed already had
+    episodes (for the initial-import auto-process rule -- see
     ``_commit_entries``) BEFORE spawning the thread so a race with the
     thread's own inserts cannot flip it, and returns ``(True, 'started')``.
+
+    The flock is acquired here and held by the spawned thread for the
+    duration of the commit (passed through as an open file object); the
+    thread releases it in ``_run_commit``'s ``finally``.
     """
     if plan.get('slug') != slug:
         return False, 'plan slug mismatch'
+    if is_dangerous_slug(slug):
+        return False, 'invalid slug'
 
-    with _import_lock:
-        job = _import_jobs.get(slug)
-        if job is not None and job['state'] == 'running':
-            return False, 'import already running'
+    lock_fh = _try_acquire_import_lock(storage, slug)
+    if lock_fh is None:
+        return False, 'import already running'
 
+    try:
         total_bytes = plan.get('totals', {}).get('bytes', 0)
         free_bytes = shutil.disk_usage(storage.data_dir).free
         if free_bytes <= total_bytes * _FREE_SPACE_MARGIN:
+            _release_import_lock(lock_fh)
             return False, 'insufficient free disk space'
 
         _, existing_count = db.get_episodes(slug, status='all', limit=1)
         had_episodes = existing_count > 0
 
-        _import_jobs[slug] = {
+        _write_job_state(storage, slug, {
             'state': 'running',
             'processed': 0,
             'total': len(plan.get('entries', [])),
             'startedAt': utc_now_iso(),
             'report': None,
-        }
+        })
+    except BaseException:
+        _release_import_lock(lock_fh)
+        raise
 
     thread = threading.Thread(
         target=_run_commit,
-        args=(slug, plan, db, storage, had_episodes),
+        args=(slug, plan, db, storage, had_episodes, lock_fh),
         daemon=True,
     )
     try:
@@ -543,54 +675,75 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
         # thread.start() failing (e.g. the OS refuses a new thread) must not
         # leave a phantom 'running' job that can never finish and blocks
         # every future start_commit for this feed.
-        with _import_lock:
-            _import_jobs.pop(slug, None)
+        _clear_job_state(storage, slug)
+        _release_import_lock(lock_fh)
         raise
     return True, 'started'
 
 
-def get_import_status(slug: str) -> dict:
+def get_import_status(slug: str, storage=None) -> dict:
     """{'state': 'idle'|'running'|'done'|'error', 'processed': n,
     'total': n, 'startedAt': iso|None, 'report': {...} when done/error}.
 
-    A slug with no job ever started reads as idle -- there is nothing to
-    distinguish "never ran" from "finished long ago and was forgotten"
-    here, but nothing in this module ever drops a completed entry either,
-    so in practice idle only shows before the first commit.
+    Reads straight off the per-feed state file -- no in-process registry
+    backs this, so a fresh worker (or a fresh module import) that never
+    called ``start_commit`` itself sees exactly what a worker that did
+    would see. A slug with no state file ever written reads as idle.
+
+    Self-heals a state file stuck on 'running' whose lock nobody actually
+    holds (a worker that crashed mid-commit, e.g. OOM-killed, leaves the
+    lock released by the OS but the state file never flipped to a terminal
+    state): reports 'error' with an 'import interrupted' report instead of
+    claiming the import is still going forever, and persists that
+    correction so subsequent reads don't have to re-derive it.
     """
-    with _import_lock:
-        job = _import_jobs.get(slug)
-        if job is None:
-            return {'state': 'idle', 'processed': 0, 'total': 0, 'startedAt': None}
-        status = {
-            'state': job['state'],
-            'processed': job['processed'],
-            'total': job['total'],
-            'startedAt': job['startedAt'],
-        }
-        if job['state'] in ('done', 'error'):
-            status['report'] = job['report']
-        return status
+    if storage is None:
+        from storage import Storage
+        storage = Storage()
+    if is_dangerous_slug(slug):
+        return {'state': 'idle', 'processed': 0, 'total': 0, 'startedAt': None}
+
+    job = _read_job_state(storage, slug)
+    if job is None:
+        return {'state': 'idle', 'processed': 0, 'total': 0, 'startedAt': None}
+
+    if job.get('state') == 'running' and not _lock_is_held(storage, slug):
+        job = dict(job)
+        job['state'] = 'error'
+        job['report'] = {'committed': [], 'skipped': [], 'failed': [], 'queued': [],
+                         'error': 'import interrupted'}
+        _write_job_state(storage, slug, job)
+
+    status = {
+        'state': job['state'],
+        'processed': job.get('processed', 0),
+        'total': job.get('total', 0),
+        'startedAt': job.get('startedAt'),
+    }
+    if job['state'] in ('done', 'error'):
+        status['report'] = job.get('report')
+    return status
 
 
-def _bump_processed(slug: str) -> None:
-    with _import_lock:
-        job = _import_jobs.get(slug)
-        if job is not None:
-            job['processed'] += 1
+def _bump_processed(slug: str, storage) -> None:
+    job = _read_job_state(storage, slug)
+    if job is not None:
+        job['processed'] = job.get('processed', 0) + 1
+        _write_job_state(storage, slug, job)
 
 
-def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool) -> None:
+def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh) -> None:
     """Background-thread entry point: run the batch, then flip the job to
     'done' (with its report) or -- only on an exception escaping the whole
-    batch, not a per-file failure -- 'error'.
+    batch, not a per-file failure -- 'error'. Always releases the per-feed
+    import lock this thread was handed by ``start_commit``.
 
     ``report`` is built here and handed to ``_commit_entries`` to mutate in
     place, so that even if something outside the per-entry loop raises (or
     the whole call is interrupted -- caught as ``BaseException`` so the
-    ``finally`` below always leaves the registry in a terminal state rather
-    than stuck 'running' forever), every outcome recorded up to that point
-    is still visible in the stored report alongside the 'error' key.
+    ``finally`` below always leaves the job state in a terminal state
+    rather than stuck 'running' forever), every outcome recorded up to that
+    point is still visible in the stored report alongside the 'error' key.
     """
     report: dict = {'committed': [], 'skipped': [], 'failed': [], 'queued': []}
     error: BaseException | None = None
@@ -600,15 +753,17 @@ def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool) -> None:
         logger.exception(f"[{slug}] import commit crashed")
         error = exc
     finally:
-        with _import_lock:
-            job = _import_jobs.get(slug)
-            if job is not None:
-                if error is not None:
-                    job['state'] = 'error'
-                    job['report'] = {**report, 'error': str(error)}
-                else:
-                    job['state'] = 'done'
-                    job['report'] = report
+        try:
+            job = _read_job_state(storage, slug) or {}
+            if error is not None:
+                job['state'] = 'error'
+                job['report'] = {**report, 'error': str(error)}
+            else:
+                job['state'] = 'done'
+                job['report'] = report
+            _write_job_state(storage, slug, job)
+        finally:
+            _release_import_lock(lock_fh)
 
 
 def _clear_queue_row(db, slug: str, episode_id: str) -> None:
@@ -628,7 +783,7 @@ def _clear_queue_row(db, slug: str, episode_id: str) -> None:
 
 
 def _commit_entry(slug: str, entry: dict, db, storage,
-                  staging_dir: Path, overwrite: bool) -> tuple[str, object]:
+                  overwrite: bool) -> tuple[str, object]:
     """Commit one plan entry. Returns ('ok', result_dict) or
     ('error', message) -- never raises for an ordinary per-file problem, so
     the caller's loop can always move on to the next entry.
@@ -720,6 +875,10 @@ def _commit_entry(slug: str, entry: dict, db, storage,
         original_duration=duration,
         processed_version=0,
         p20_item_json=None,
+        # The retained original IS the audio just moved into place above --
+        # without this, hasOriginalAudio stays false and the /original.mp3
+        # route 404s until a processing run happens to write this column.
+        original_file=f'{episode_id}-original.mp3',
     )
 
     chapters = probe_chapters(str(final_path))
@@ -763,22 +922,25 @@ def _commit_entry(slug: str, entry: dict, db, storage,
             storage.save_episode_artwork(slug, episode_id, image_data, mime,
                                          evict=False)
 
-    # Staging cleanup: the audio file is already gone (moved above). Any
+    # Sidecar cleanup: the audio file is already gone (moved above). Any
     # OTHER file this entry references (sidecar json / description / cover)
-    # that also lives in staging is deleted too -- staging is ephemeral and
-    # MinusPod-managed. Checked per-file against its OWN resolved parent
-    # (not just "did the audio come from staging") so a sidecar in staging
-    # is cleaned up even for an import-dir-sourced audio file. The
-    # user-managed import dir's sidecars are left untouched regardless.
+    # is deleted too, whether it came from staging or the user-managed
+    # import directory -- a successfully committed entry's sidecars are
+    # consumed on commit regardless of source (operator ruling: only a
+    # rejected/errored entry's sidecars are left for the operator to fix).
+    # This only runs after a successful commit, so a rejected entry's files
+    # are never touched here. A removal failure is logged and otherwise
+    # non-fatal: the audio already moved, so the commit itself must not be
+    # undone over a leftover sidecar file.
     for path_str in (description_path_str, artwork_path_str, entry.get('sidecarPath')):
         if not path_str:
             continue
         path = Path(path_str)
-        if path.parent == staging_dir and path.exists():
+        if path.exists():
             try:
                 path.unlink()
-            except OSError:
-                pass
+            except OSError as e:
+                logger.warning(f"[{slug}:{episode_id}] could not remove sidecar {path}: {e}")
 
     return 'ok', {
         'episodeId': episode_id,
@@ -821,12 +983,11 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                 'episodeId': episode_id, 'audioFile': audio_file,
                 'errors': entry['errors'],
             })
-            _bump_processed(slug)
+            _bump_processed(slug, storage)
             continue
 
         try:
-            status, result = _commit_entry(slug, entry, db, storage,
-                                           staging_dir, overwrite)
+            status, result = _commit_entry(slug, entry, db, storage, overwrite)
         except Exception as exc:
             # Per-file failure must never abort the batch -- an unexpected
             # exception (disk-full mid-move, a DB error) is caught here the
@@ -845,39 +1006,56 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
             report['failed'].append({
                 'episodeId': episode_id, 'audioFile': audio_file, 'error': result,
             })
-        _bump_processed(slug)
+        _bump_processed(slug, storage)
 
-    podcast = db.get_podcast_by_slug(slug)
-    # Initial-import rule: an empty feed's very first batch never
-    # auto-queues (there is nothing to compare "fresh" against and a
-    # first-ever archive import is a bulk backfill, not new content), so
-    # had_episodes -- captured before this batch's rows were inserted --
-    # gates queueing regardless of what the feed looks like now.
-    if (had_episodes and committed_internal and podcast is not None
-            and db.is_auto_process_enabled_for_podcast(slug, podcast=podcast)):
-        apply_fresh_boost = db.get_setting_bool('process_new_episodes_first', True)
-        feed_priority = podcast.get('queue_priority')
-        for item in committed_internal:
-            priority = compute_queue_priority(
-                feed_priority, item['publishedAt'], manual=False,
-                apply_fresh_boost=apply_fresh_boost)
-            queue_id = db.queue_episode_for_processing(
-                slug, item['episodeId'], f"local://{item['episodeId']}",
-                item['title'], item['publishedAt'], item['description'],
-                priority=priority)
-            if queue_id is not None:
-                report['queued'].append(item['episodeId'])
+    try:
+        podcast = db.get_podcast_by_slug(slug)
+        # Initial-import rule: an empty feed's very first batch never
+        # auto-queues (there is nothing to compare "fresh" against and a
+        # first-ever archive import is a bulk backfill, not new content), so
+        # had_episodes -- captured before this batch's rows were inserted --
+        # gates queueing regardless of what the feed looks like now.
+        if (had_episodes and committed_internal and podcast is not None
+                and db.is_auto_process_enabled_for_podcast(slug, podcast=podcast)):
+            apply_fresh_boost = db.get_setting_bool('process_new_episodes_first', True)
+            feed_priority = podcast.get('queue_priority')
+            for item in committed_internal:
+                priority = compute_queue_priority(
+                    feed_priority, item['publishedAt'], manual=False,
+                    apply_fresh_boost=apply_fresh_boost)
+                queue_id = db.queue_episode_for_processing(
+                    slug, item['episodeId'], f"local://{item['episodeId']}",
+                    item['title'], item['publishedAt'], item['description'],
+                    priority=priority)
+                if queue_id is not None:
+                    report['queued'].append(item['episodeId'])
 
-    # Local import inside main_app; imported lazily like api/local_episodes.py's
-    # _rebuild -- local_feed_builder pulls in main_app at module level, which
-    # imports the api package (and this module) before it finishes
-    # initializing, so a module-level import here would be circular.
-    from local_feed_builder import rebuild_local_feed
-    rebuild_local_feed(slug)
-
-    if staging_dir.exists():
-        try:
-            if not any(staging_dir.iterdir()):
+        # Local import inside main_app; imported lazily like
+        # api/local_episodes.py's _rebuild -- local_feed_builder pulls in
+        # main_app at module level, which imports the api package (and this
+        # module) before it finishes initializing, so a module-level import
+        # here would be circular.
+        from local_feed_builder import rebuild_local_feed
+        rebuild_local_feed(slug)
+    finally:
+        # Staging is MinusPod-managed: once a commit finishes -- clean or
+        # with per-entry failures, and even if the queueing/rebuild step
+        # above raised -- sweep whatever is left (rejected files, skipped
+        # entries' sidecars, anything staged but never scanned into this
+        # plan) and remove the directory itself. Per-entry removal (not a
+        # single rmtree of the whole dir) mirrors clear_import_staging: a
+        # busy bind-mounted staging dir can refuse to remove ITSELF while
+        # still allowing its contents to go one at a time.
+        if staging_dir.exists():
+            for child in staging_dir.iterdir():
+                try:
+                    if child.is_dir():
+                        shutil.rmtree(child, ignore_errors=True)
+                    else:
+                        child.unlink()
+                except OSError:
+                    logger.warning(f"[{slug}] could not remove leftover staged file {child}")
+            try:
                 staging_dir.rmdir()
-        except OSError:
-            pass
+            except OSError:
+                pass

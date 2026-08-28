@@ -1,10 +1,12 @@
 """Tests for the commit half of local_import.py: staging/import-dir moves,
-embedded artwork extraction, and the background job registry (Task 10).
+embedded artwork extraction, and the cross-worker (file + flock backed) job
+state (Task 10, and the field-test cross-worker fix).
 
 Mirrors test_local_episode_api.py's ffmpeg fixture pattern (real tiny mp3s,
 skip via requires_ffmpeg) and thread_fakes.SyncThread for deterministic
 synchronous execution of the background commit worker.
 """
+import json
 import os
 import shutil
 import subprocess
@@ -76,13 +78,6 @@ def local_feed(db_storage):
     return slug
 
 
-@pytest.fixture(autouse=True)
-def _reset_import_jobs():
-    local_import._import_jobs.clear()
-    yield
-    local_import._import_jobs.clear()
-
-
 @pytest.fixture(scope='session')
 def real_mp3_bytes(tmp_path_factory):
     """A small, structurally valid mp3 -- generated once per test session,
@@ -113,7 +108,7 @@ def _committed_ids(report):
 
 
 # ---------------------------------------------------------------------------
-# Pure (no ffmpeg) coverage: registry shape, staging/source dir paths,
+# Pure (no ffmpeg) coverage: job state shape, staging/source dir paths,
 # free-space refusal, concurrent-start refusal, slug mismatch, thread-start
 # failure.
 # ---------------------------------------------------------------------------
@@ -157,10 +152,13 @@ def test_free_space_refusal(db_storage, local_feed, monkeypatch):
     started, reason = local_import.start_commit(slug, plan, db=db, storage=storage)
     assert started is False
     assert reason == 'insufficient free disk space'
-    assert local_import.get_import_status(slug)['state'] == 'idle'
+    assert local_import.get_import_status(slug, storage)['state'] == 'idle'
 
 
 def test_concurrent_start_commit_refused(db_storage, local_feed):
+    """Two start_commits racing for the same feed: the second's flock
+    acquire fails while the first (simulated here by holding the lock
+    directly) is still in flight -- exactly one wins."""
     db, storage = db_storage
     slug = local_feed
     plan = {
@@ -169,14 +167,14 @@ def test_concurrent_start_commit_refused(db_storage, local_feed):
         'totals': {'importable': 0, 'rejected': 0, 'errors': 0, 'bytes': 0},
     }
 
-    local_import._import_jobs[slug] = {
-        'state': 'running', 'processed': 0, 'total': 0,
-        'startedAt': NOW_ISO, 'report': None,
-    }
-
-    started, reason = local_import.start_commit(slug, plan, db=db, storage=storage)
-    assert started is False
-    assert reason == 'import already running'
+    lock_fh = local_import._try_acquire_import_lock(storage, slug)
+    assert lock_fh is not None
+    try:
+        started, reason = local_import.start_commit(slug, plan, db=db, storage=storage)
+        assert started is False
+        assert reason == 'import already running'
+    finally:
+        local_import._release_import_lock(lock_fh)
 
 
 def test_start_commit_refuses_plan_slug_mismatch(db_storage, local_feed):
@@ -191,7 +189,7 @@ def test_start_commit_refuses_plan_slug_mismatch(db_storage, local_feed):
     started, reason = local_import.start_commit(slug, plan, db=db, storage=storage)
     assert started is False
     assert reason == 'plan slug mismatch'
-    assert local_import.get_import_status(slug)['state'] == 'idle'
+    assert local_import.get_import_status(slug, storage)['state'] == 'idle'
 
 
 def test_start_commit_clears_registry_when_thread_start_fails(db_storage, local_feed):
@@ -216,7 +214,63 @@ def test_start_commit_clears_registry_when_thread_start_fails(db_storage, local_
 
     # No phantom 'running' job left behind that would block every future
     # start_commit for this feed.
-    assert local_import.get_import_status(slug)['state'] == 'idle'
+    assert local_import.get_import_status(slug, storage)['state'] == 'idle'
+    # And the lock itself was released too -- not just the state file --
+    # otherwise a future start_commit would be refused forever even though
+    # status reads idle.
+    lock_fh = local_import._try_acquire_import_lock(storage, slug)
+    assert lock_fh is not None
+    local_import._release_import_lock(lock_fh)
+
+
+def test_get_import_status_reads_directly_from_file_no_registry(db_storage, local_feed):
+    """Status must be readable straight from the state file -- there is no
+    in-process registry backing it, so a job state written by hand (as a
+    stand-in for "some other worker process wrote this") is visible exactly
+    as if start_commit itself had run in this process."""
+    db, storage = db_storage
+    slug = local_feed
+
+    jobs_dir = storage.data_dir / '.import-jobs'
+    jobs_dir.mkdir(parents=True, exist_ok=True)
+    report = {'committed': [{'episodeId': 's01e01', 'audioFile': 'a.mp3', 'warnings': []}],
+              'skipped': [], 'failed': [], 'queued': []}
+    (jobs_dir / f'{slug}.json').write_text(json.dumps({
+        'state': 'done', 'processed': 1, 'total': 1,
+        'startedAt': NOW_ISO, 'report': report,
+    }))
+
+    status = local_import.get_import_status(slug, storage)
+    assert status['state'] == 'done'
+    assert status['processed'] == 1
+    assert status['total'] == 1
+    assert status['report'] == report
+
+
+def test_stale_running_state_with_free_lock_reports_interrupted(db_storage, local_feed):
+    """A worker that crashed mid-commit (e.g. OOM-killed) leaves the state
+    file stuck on 'running' but the OS releases its flock -- get_import_status
+    must self-heal that into 'error' rather than claiming the import is
+    still going forever."""
+    db, storage = db_storage
+    slug = local_feed
+
+    jobs_dir = storage.data_dir / '.import-jobs'
+    jobs_dir.mkdir(parents=True, exist_ok=True)
+    (jobs_dir / f'{slug}.json').write_text(json.dumps({
+        'state': 'running', 'processed': 1, 'total': 3,
+        'startedAt': NOW_ISO, 'report': None,
+    }))
+    # No lock held for this slug -- the orphaned-state case.
+
+    status = local_import.get_import_status(slug, storage)
+    assert status['state'] == 'error'
+    assert status['report']['error'] == 'import interrupted'
+
+    # Self-healed: a second read (or a future start_commit) doesn't need to
+    # re-derive it.
+    status2 = local_import.get_import_status(slug, storage)
+    assert status2['state'] == 'error'
 
 
 # ---------------------------------------------------------------------------
@@ -252,7 +306,7 @@ def test_commit_three_entries_into_empty_feed(db_storage, local_feed, real_mp3_b
     assert started is True
     assert reason == 'started'
 
-    status = local_import.get_import_status(slug)
+    status = local_import.get_import_status(slug, storage)
     assert status['state'] == 'done'
     assert status['processed'] == 3
     assert status['total'] == 3
@@ -272,6 +326,10 @@ def test_commit_three_entries_into_empty_feed(db_storage, local_feed, real_mp3_b
         assert episode['status'] == 'discovered'
         original_path = storage.get_original_path(slug, episode_id)
         assert original_path.exists()
+        # Report bug 1: original_file must be set on commit so
+        # hasOriginalAudio is true immediately, not just after the first
+        # processing run happens to write the column.
+        assert episode['original_file'] == f'{episode_id}-original.mp3'
 
     # The import-dir audio was consumed by the move.
     for name in names:
@@ -292,11 +350,10 @@ def test_second_commit_into_nonempty_feed_with_auto_process_queues(
                               overwrite=False, now_iso=NOW_ISO)
     started1, _reason1, _mock1 = _commit_synchronously(slug, plan1, db, storage)
     assert started1 is True
-    status1 = local_import.get_import_status(slug)
+    status1 = local_import.get_import_status(slug, storage)
     assert _committed_ids(status1['report']) == ['s01e01']
     assert status1['report']['queued'] == []
 
-    local_import._import_jobs.pop(slug, None)
 
     second_audio = src_dir / 'S01E02 - Two.mp3'
     second_audio.write_bytes(real_mp3_bytes)
@@ -305,7 +362,7 @@ def test_second_commit_into_nonempty_feed_with_auto_process_queues(
     started2, _reason2, _mock2 = _commit_synchronously(slug, plan2, db, storage)
     assert started2 is True
 
-    status2 = local_import.get_import_status(slug)
+    status2 = local_import.get_import_status(slug, storage)
     report2 = status2['report']
     assert _committed_ids(report2) == ['s01e02']
     assert report2['queued'] == ['s01e02']
@@ -334,7 +391,7 @@ def test_changed_file_after_scan_produces_per_file_error_and_imports_rest(
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
     assert started is True
 
-    status = local_import.get_import_status(slug)
+    status = local_import.get_import_status(slug, storage)
     report = status['report']
     assert _committed_ids(report) == ['s01e01']
     assert len(report['failed']) == 1
@@ -376,7 +433,7 @@ def test_mtime_only_change_after_scan_produces_per_file_error(
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
     assert started is True
 
-    report = local_import.get_import_status(slug)['report']
+    report = local_import.get_import_status(slug, storage)['report']
     assert report['committed'] == []
     assert report['failed'][0]['error'] == 'file changed since scan'
     assert db.get_episode(slug, 's01e01') is None
@@ -414,7 +471,6 @@ def test_overwrite_clears_processing_columns_and_artwork(
     storage.save_episode_artwork(slug, 's01e01', JPEG_BYTES, 'image/jpeg', evict=False)
     assert storage.has_episode_artwork(slug, 's01e01')
 
-    local_import._import_jobs.pop(slug, None)
 
     audio2 = src_dir / 'S01E01 - Pilot.mp3'
     audio2.write_bytes(real_mp3_bytes)
@@ -424,7 +480,7 @@ def test_overwrite_clears_processing_columns_and_artwork(
 
     started2, _r2, _m2 = _commit_synchronously(slug, plan2, db, storage)
     assert started2 is True
-    report2 = local_import.get_import_status(slug)['report']
+    report2 = local_import.get_import_status(slug, storage)['report']
     assert report2['failed'] == []
     assert _committed_ids(report2) == ['s01e01']
 
@@ -470,7 +526,7 @@ def test_overwrite_false_refuses_when_episode_created_after_plan(
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
     assert started is True
 
-    report = local_import.get_import_status(slug)['report']
+    report = local_import.get_import_status(slug, storage)['report']
     assert report['committed'] == []
     assert len(report['failed']) == 1
     assert report['failed'][0]['episodeId'] == 's01e01'
@@ -499,7 +555,6 @@ def test_overwrite_skips_when_episode_is_processing(
     assert started1 is True
 
     db.upsert_episode(slug, 's01e01', status='processing')
-    local_import._import_jobs.pop(slug, None)
 
     audio2 = src_dir / 'S01E01 - Pilot.mp3'
     audio2.write_bytes(real_mp3_bytes)
@@ -509,7 +564,7 @@ def test_overwrite_skips_when_episode_is_processing(
     started2, _r2, _m2 = _commit_synchronously(slug, plan2, db, storage)
     assert started2 is True
 
-    report2 = local_import.get_import_status(slug)['report']
+    report2 = local_import.get_import_status(slug, storage)['report']
     assert report2['committed'] == []
     assert report2['failed'][0]['error'] == 'episode is processing'
     assert db.get_episode(slug, 's01e01')['status'] == 'processing'
@@ -530,13 +585,12 @@ def test_overwrite_resets_episode_details(db_storage, local_feed, real_mp3_bytes
                               overwrite=False, now_iso=NOW_ISO)
     started1, _r1, _m1 = _commit_synchronously(slug, plan1, db, storage)
     assert started1 is True
-    assert _committed_ids(local_import.get_import_status(slug)['report']) == ['s01e01']
+    assert _committed_ids(local_import.get_import_status(slug, storage)['report']) == ['s01e01']
 
     # Simulate prior processing output that a full reset must clear.
     storage.save_transcript(slug, 's01e01', 'a previous transcript')
     assert storage.get_transcript(slug, 's01e01') == 'a previous transcript'
 
-    local_import._import_jobs.pop(slug, None)
 
     audio2 = src_dir / 'S01E01 - Pilot.mp3'
     audio2.write_bytes(real_mp3_bytes)
@@ -547,7 +601,7 @@ def test_overwrite_resets_episode_details(db_storage, local_feed, real_mp3_bytes
     started2, _r2, _m2 = _commit_synchronously(slug, plan2, db, storage)
     assert started2 is True
 
-    status2 = local_import.get_import_status(slug)
+    status2 = local_import.get_import_status(slug, storage)
     assert _committed_ids(status2['report']) == ['s01e01']
     assert status2['report']['failed'] == []
     assert storage.get_transcript(slug, 's01e01') is None
@@ -582,14 +636,18 @@ def test_commit_uses_plan_resolved_path_not_basename_lookup(
 
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
     assert started is True
-    assert local_import.get_import_status(slug)['report']['failed'] == []
+    assert local_import.get_import_status(slug, storage)['report']['failed'] == []
 
     committed_path = storage.get_original_path(slug, 's01e01')
+    # The wrong (staging) bytes were never used as the source -- the plan's
+    # own resolved import_dir path won.
     assert committed_path.read_bytes() == import_bytes
 
-    # The staging file (irrelevant to this plan) is untouched.
-    assert (staging_dir / name).exists()
-    assert (staging_dir / name).read_bytes() == staging_bytes
+    # The staging file was irrelevant to THIS plan, but a finished commit
+    # sweeps the whole staging directory regardless (operator ruling,
+    # Fix 11) -- it does not survive just because this plan never
+    # referenced it.
+    assert not staging_dir.exists()
 
 
 @requires_ffmpeg
@@ -613,7 +671,7 @@ def test_staged_audio_commits_and_cleans_up_staging(db_storage, local_feed, real
 
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
     assert started is True
-    report = local_import.get_import_status(slug)['report']
+    report = local_import.get_import_status(slug, storage)['report']
     assert report['failed'] == []
     assert _committed_ids(report) == ['s01e01']
 
@@ -630,9 +688,10 @@ def test_staged_audio_commits_and_cleans_up_staging(db_storage, local_feed, real
 
 
 @requires_ffmpeg
-def test_import_dir_sidecars_survive_commit(db_storage, local_feed, real_mp3_bytes):
-    """The user-managed import dir's sidecars are left untouched -- only
-    the audio (moved) is consumed."""
+def test_import_dir_sidecars_consumed_on_successful_commit(db_storage, local_feed, real_mp3_bytes):
+    """Operator ruling: a successfully committed entry's sidecars are
+    consumed regardless of source -- the user-managed import dir is no
+    longer special-cased to leave them behind."""
     db, storage = db_storage
     slug = local_feed
     src_dir = storage.import_source_dir(slug)
@@ -650,11 +709,71 @@ def test_import_dir_sidecars_survive_commit(db_storage, local_feed, real_mp3_byt
 
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
     assert started is True
-    assert local_import.get_import_status(slug)['report']['failed'] == []
+    assert local_import.get_import_status(slug, storage)['report']['failed'] == []
 
     assert not (src_dir / f'{name}.mp3').exists()
-    assert (src_dir / f'{name}.txt').exists()
-    assert (src_dir / f'{name}.jpg').exists()
+    assert not (src_dir / f'{name}.txt').exists()
+    assert not (src_dir / f'{name}.jpg').exists()
+
+
+def test_import_dir_sidecars_of_rejected_entry_survive_commit(
+        db_storage, local_feed, real_mp3_bytes):
+    """A rejected/errored entry is never committed, so its import-dir
+    sidecars must be left in place for the operator to fix and re-scan --
+    only a SUCCESSFULLY committed entry's sidecars get consumed."""
+    db, storage = db_storage
+    slug = local_feed
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+
+    # Bad naming scheme -> rejected outright (no episode id), sidecar has no
+    # matching audio it can be committed under.
+    (src_dir / 'not-a-valid-name.mp3').write_bytes(real_mp3_bytes)
+    (src_dir / 'not-a-valid-name.txt').write_text('desc', encoding='utf-8')
+
+    sources = [src_dir / 'not-a-valid-name.mp3', src_dir / 'not-a-valid-name.txt']
+    plan = build_import_plan(slug, sources, existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+    assert plan['totals']['importable'] == 0
+
+    started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
+    assert started is True
+
+    # Rejected before ever reaching _commit_entry: nothing moved, nothing
+    # deleted.
+    assert (src_dir / 'not-a-valid-name.mp3').exists()
+    assert (src_dir / 'not-a-valid-name.txt').exists()
+
+
+@requires_ffmpeg
+def test_staging_swept_after_commit_even_with_rejected_files_present(
+        db_storage, local_feed, real_mp3_bytes):
+    """Operator ruling: a finished commit clears everything left in
+    staging, rejected files and skipped entries included, and removes the
+    directory itself -- not just the entries that were part of this plan."""
+    db, storage = db_storage
+    slug = local_feed
+    staging_dir = storage.import_staging_dir(slug, create=True)
+
+    good_name = 'S01E01 - Pilot'
+    (staging_dir / f'{good_name}.mp3').write_bytes(real_mp3_bytes)
+    # A rejected file (bad naming scheme) that will still be sitting in
+    # staging when the commit finishes.
+    (staging_dir / 'stray-file.wav').write_bytes(b'\x00' * 16)
+
+    sources = [staging_dir / f'{good_name}.mp3', staging_dir / 'stray-file.wav']
+    plan = build_import_plan(slug, sources, existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+    assert plan['totals']['rejected'] == 1
+
+    started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
+    assert started is True
+    report = local_import.get_import_status(slug, storage)['report']
+    assert _committed_ids(report) == ['s01e01']
+
+    # Everything is gone -- the committed audio (moved) AND the rejected
+    # leftover -- and so is the directory itself.
+    assert not staging_dir.exists()
 
 
 @requires_ffmpeg
@@ -676,7 +795,7 @@ def test_invalid_sidecar_artwork_falls_back_to_embedded_with_warning(
 
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
     assert started is True
-    report = local_import.get_import_status(slug)['report']
+    report = local_import.get_import_status(slug, storage)['report']
     assert report['failed'] == []
     assert len(report['committed']) == 1
     warnings = report['committed'][0]['warnings']
@@ -705,7 +824,7 @@ def test_error_state_report_still_exposes_outcomes_before_crash(
         slug, plan, db, storage, rebuild_side_effect=RuntimeError('boom'))
     assert started is True
 
-    status = local_import.get_import_status(slug)
+    status = local_import.get_import_status(slug, storage)
     assert status['state'] == 'error'
     report = status['report']
     assert report['error'] == 'boom'

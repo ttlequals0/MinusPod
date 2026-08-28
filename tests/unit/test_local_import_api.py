@@ -333,7 +333,74 @@ def test_commit_overwrite_mismatch_from_scan_409s(app_client, local_feed):
     )
 
     assert resp.status_code == 409
-    assert 're-run scan' in resp.get_json()['error']
+    # Disambiguated from a real content change: the recomputed hash with
+    # overwrite flipped matches what the client echoed, so nothing on disk
+    # actually changed -- the checkbox did.
+    assert resp.get_json()['error'] == 'overwrite setting changed since scan; re-run scan'
+
+
+def test_commit_files_changed_after_scan_409s_with_files_changed_message(app_client, local_feed):
+    """A real content change (not a flipped overwrite checkbox) must 409
+    with the 'files changed' message -- recomputing the hash with the
+    flipped overwrite flag does NOT match the client-echoed hash here, so
+    the two 409 causes stay distinguishable."""
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    _upload(app_client, slug, [('s01e01.mp3', b'audio-bytes')])
+    scan_resp = app_client.post(
+        f'/api/v1/feeds/{slug}/import/scan',
+        json={'source': 'staging', 'overwrite': False},
+        headers=headers,
+    )
+    plan_hash = scan_resp.get_json()['planHash']
+
+    # Re-upload the same filename with different content: a genuine change,
+    # unrelated to overwrite.
+    _upload(app_client, slug, [('s01e01.mp3', b'different-audio-bytes-now')])
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/import/commit',
+        json={'planHash': plan_hash, 'source': 'staging', 'overwrite': False},
+        headers=headers,
+    )
+
+    assert resp.status_code == 409
+    assert resp.get_json()['error'] == 'files changed since scan; re-run scan'
+
+
+def test_commit_400_when_batch_errors_present(app_client, local_feed):
+    """An out-of-order explicit-date pair blocks commit entirely, even
+    though the planHash matches and other entries in the plan are clean."""
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    _upload(app_client, slug, [
+        ('s01e01.mp3', b'audio-bytes-1'),
+        ('s01e01.json', b'{"published_at": "2026-02-01T00:00:00Z"}'),
+        ('s01e02.mp3', b'audio-bytes-2'),
+        ('s01e02.json', b'{"published_at": "2026-01-01T00:00:00Z"}'),
+    ])
+    scan_resp = app_client.post(
+        f'/api/v1/feeds/{slug}/import/scan',
+        json={'source': 'staging'},
+        headers=headers,
+    )
+    scan_body = scan_resp.get_json()
+    assert scan_body['batchErrors']
+    plan_hash = scan_body['planHash']
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/import/commit',
+        json={'planHash': plan_hash, 'source': 'staging', 'overwrite': False},
+        headers=headers,
+    )
+
+    assert resp.status_code == 400
+    assert 'publish dates out of order' in resp.get_json()['error']
+    assert resp.get_json()['details']['batchErrors'] == scan_body['batchErrors']
 
 
 def test_commit_starts_job_with_server_side_plan(app_client, local_feed):
@@ -434,6 +501,7 @@ def test_status_passthrough(app_client, local_feed):
 
 
 def test_status_reflects_running_job(app_client, local_feed):
+    from api import get_storage
     slug = local_feed['slug']
     _authed(app_client)
 
@@ -443,7 +511,7 @@ def test_status_reflects_running_job(app_client, local_feed):
 
     assert resp.status_code == 200
     assert resp.get_json() == fake_status
-    mock_status.assert_called_once_with(slug)
+    mock_status.assert_called_once_with(slug, get_storage())
 
 
 def test_status_400_on_subscribed_feed(app_client, subscribed_feed):
