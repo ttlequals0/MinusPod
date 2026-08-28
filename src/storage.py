@@ -211,6 +211,35 @@ class Storage:
             raise PathContainmentError(f"refusing dangerous slug {slug!r}")
         return _safe_join_under(self.podcasts_dir, slug)
 
+    def import_staging_dir(self, slug: str, create: bool = False) -> Path:
+        """Per-feed staging directory for an in-progress archive-import
+        commit (``<data>/import-staging/<slug>/``, local-feeds #625 Task 10).
+
+        Browser-uploaded batch files land here ahead of the commit engine's
+        move into the podcast's episode storage. The commit engine removes
+        each file's staging entry as it commits and deletes the directory
+        once empty, so a stale staging dir signals an interrupted import.
+        """
+        if is_dangerous_slug(slug):
+            raise PathContainmentError(f"refusing dangerous slug {slug!r}")
+        path = _safe_join_under(self.data_dir, 'import-staging', slug)
+        if create:
+            path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def import_source_dir(self, slug: str) -> Path:
+        """The user-managed archive-import directory for a feed
+        (``<data>/import/<slug>/``, local-feeds #625 Task 10).
+
+        Never created here: an operator populates it directly on the shared
+        filesystem, so its absence just means nothing has been dropped in
+        yet. The commit engine moves each committed entry's audio out of
+        it but leaves sidecar files (json/txt/artwork) untouched.
+        """
+        if is_dangerous_slug(slug):
+            raise PathContainmentError(f"refusing dangerous slug {slug!r}")
+        return _safe_join_under(self.data_dir, 'import', slug)
+
     def load_data_json(self, slug: str) -> dict[str, Any]:
         """Load episode data for a podcast from SQLite."""
         # Ensure directory exists

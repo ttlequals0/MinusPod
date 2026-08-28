@@ -1,24 +1,41 @@
 """Local (archive-import) feed import service.
 
-This module has two halves. The top half (this file, for now) is pure
-planning: parsing the ``sNNeNN`` naming scheme, validating sidecar JSON,
-synthesizing missing publish dates, and building a dry-run import plan --
-no DB, no storage, no threads. The commit engine (staging, moves, embedded
-artwork extraction, background job registry) is added below this section
-in a later task; the planning half must stand alone.
+This module has two halves. The top half is pure planning: parsing the
+``sNNeNN`` naming scheme, validating sidecar JSON, synthesizing missing
+publish dates, and building a dry-run import plan -- no DB, no storage, no
+threads. The bottom half (this section) is the commit engine: it consumes a
+plan built by the top half, moves files out of staging/the user-managed
+import directory into permanent episode storage, extracts embedded
+artwork, and runs the whole batch on a background thread tracked in a
+module-level job registry.
 
-Stdlib only (``re``, ``json``, ``hashlib``, ``datetime``, ``pathlib``), plus
-``utils.validation.is_valid_episode_id`` for a sanity assert on minted ids.
+Stdlib only (``re``, ``json``, ``hashlib``, ``datetime``, ``pathlib``,
+``shutil``, ``threading``) for the planning half and job registry, plus
+``utils.validation.is_valid_episode_id`` for a sanity assert on minted ids
+and the handful of DB/storage/audio helpers the commit half calls through
+their public interfaces (no direct SQL beyond the one queue-row delete that
+mirrors ``database.episodes.delete_episode_rows``'s pattern).
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
+import shutil
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from config import MIN_PRESERVED_CHAPTERS
+from database.queue import compute_queue_priority
+from embedded_chapters import probe_chapters
+from storage import _detect_image_mime
+from utils.audio import extract_embedded_artwork, get_audio_duration
+from utils.time import utc_now_iso
 from utils.validation import is_valid_episode_id
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Planning half -- pure functions only, see module docstring.
@@ -370,4 +387,356 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
             'errors': errored,
             'bytes': total_bytes,
         },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Commit half -- staging/import-dir moves, embedded artwork, background job.
+# ---------------------------------------------------------------------------
+
+# Free-space margin required over the plan's total importable bytes before a
+# commit is allowed to start (headroom for filesystem overhead and any
+# concurrent write elsewhere on the volume).
+_FREE_SPACE_MARGIN = 1.1
+
+# Registry: one job entry per feed slug, guarded by _import_lock. Mirrors
+# main_app/routes.py's _bg_refresh_inflight/_bg_refresh_lock pattern
+# (routes.py:83-103), but keeps richer per-slug state (progress + report)
+# rather than a bare "in flight" set, since get_import_status needs to read
+# it back after the job finishes -- not just while it runs.
+_import_jobs: dict[str, dict] = {}
+_import_lock = threading.Lock()
+
+
+def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
+    """Start committing ``plan`` (built by ``build_import_plan``) for
+    ``slug`` on a background daemon thread.
+
+    Refuses to start (returning ``(False, reason)`` without registering
+    anything) when: another import is already running for this feed, or
+    the destination volume does not have at least ``_FREE_SPACE_MARGIN``
+    times the plan's importable bytes free. Otherwise registers the job as
+    running, captures whether the feed already had episodes (for the
+    initial-import auto-process rule -- see ``_commit_entries``) BEFORE
+    spawning the thread so a race with the thread's own inserts cannot
+    flip it, and returns ``(True, 'started')``.
+    """
+    with _import_lock:
+        job = _import_jobs.get(slug)
+        if job is not None and job['state'] == 'running':
+            return False, 'import already running'
+
+        total_bytes = plan.get('totals', {}).get('bytes', 0)
+        free_bytes = shutil.disk_usage(storage.data_dir).free
+        if free_bytes <= total_bytes * _FREE_SPACE_MARGIN:
+            return False, 'insufficient free disk space'
+
+        _, existing_count = db.get_episodes(slug, status='all', limit=1)
+        had_episodes = existing_count > 0
+
+        _import_jobs[slug] = {
+            'state': 'running',
+            'processed': 0,
+            'total': len(plan.get('entries', [])),
+            'startedAt': utc_now_iso(),
+            'report': None,
+        }
+
+    thread = threading.Thread(
+        target=_run_commit,
+        args=(slug, plan, db, storage, had_episodes),
+        daemon=True,
+    )
+    thread.start()
+    return True, 'started'
+
+
+def get_import_status(slug: str) -> dict:
+    """{'state': 'idle'|'running'|'done'|'error', 'processed': n,
+    'total': n, 'startedAt': iso|None, 'report': {...} when done/error}.
+
+    A slug with no job ever started reads as idle -- there is nothing to
+    distinguish "never ran" from "finished long ago and was forgotten"
+    here, but nothing in this module ever drops a completed entry either,
+    so in practice idle only shows before the first commit.
+    """
+    with _import_lock:
+        job = _import_jobs.get(slug)
+        if job is None:
+            return {'state': 'idle', 'processed': 0, 'total': 0, 'startedAt': None}
+        status = {
+            'state': job['state'],
+            'processed': job['processed'],
+            'total': job['total'],
+            'startedAt': job['startedAt'],
+        }
+        if job['state'] in ('done', 'error'):
+            status['report'] = job['report']
+        return status
+
+
+def _bump_processed(slug: str) -> None:
+    with _import_lock:
+        job = _import_jobs.get(slug)
+        if job is not None:
+            job['processed'] += 1
+
+
+def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool) -> None:
+    """Background-thread entry point: run the batch, then flip the job to
+    'done' (with its report) or -- only on an unexpected exception escaping
+    the whole batch, not a per-file failure -- 'error'."""
+    try:
+        report = _commit_entries(slug, plan, db, storage, had_episodes)
+        with _import_lock:
+            job = _import_jobs.get(slug)
+            if job is not None:
+                job['state'] = 'done'
+                job['report'] = report
+    except Exception as exc:
+        logger.exception(f"[{slug}] import commit crashed")
+        with _import_lock:
+            job = _import_jobs.get(slug)
+            if job is not None:
+                job['state'] = 'error'
+                job['report'] = {'error': str(exc)}
+
+
+def _resolve_source_files(storage, slug: str) -> tuple[dict[str, Path], Path]:
+    """filename -> Path across the user-managed import dir and the staging
+    dir, staging winning on a name collision (it is the more recent write --
+    a browser upload of the same filename after a manual drop). Also
+    returns the staging dir path so callers can tell which files came from
+    it (those get deleted post-commit; import-dir sidecars are left alone).
+    """
+    files: dict[str, Path] = {}
+    import_dir = storage.import_source_dir(slug)
+    if import_dir.exists():
+        for path in import_dir.iterdir():
+            if path.is_file():
+                files[path.name] = path
+
+    staging_dir = storage.import_staging_dir(slug)
+    if staging_dir.exists():
+        for path in staging_dir.iterdir():
+            if path.is_file():
+                files[path.name] = path
+
+    return files, staging_dir
+
+
+def _clear_queue_row(db, slug: str, episode_id: str) -> None:
+    """Drop any auto_process_queue row for this episode before an overwrite
+    reset (same SQL pattern as database.episodes.delete_episode_rows), so a
+    stale queued/processing row from the previous import cannot resurrect
+    against the freshly re-imported file."""
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return
+    conn = db.get_connection()
+    conn.execute(
+        "DELETE FROM auto_process_queue WHERE podcast_id = ? AND episode_id = ?",
+        (podcast['id'], episode_id),
+    )
+    conn.commit()
+
+
+def _commit_entry(slug: str, entry: dict, db, storage,
+                  source_files: dict[str, Path], staging_dir: Path) -> tuple[str, object]:
+    """Commit one plan entry. Returns ('ok', result_dict) or
+    ('error', message) -- never raises for an ordinary per-file problem, so
+    the caller's loop can always move on to the next entry."""
+    episode_id = entry['episodeId']
+
+    audio_path = source_files.get(entry['audioFile'])
+    if audio_path is None:
+        return 'error', 'source audio file no longer present'
+    try:
+        current_size = audio_path.stat().st_size
+    except OSError:
+        return 'error', 'source audio file no longer present'
+    if current_size != entry['bytes']:
+        return 'error', 'file changed since scan'
+
+    duration = get_audio_duration(str(audio_path))
+    if duration is None:
+        return 'error', 'not playable audio'
+
+    is_overwrite = db.get_episode(slug, episode_id) is not None
+    if is_overwrite:
+        # Full reset (spec): wipe the previous file/details/ad-data/queue
+        # row before the new audio lands, then reuse upsert_episode below --
+        # the episodes row itself is never dropped and re-inserted.
+        storage.cleanup_episode_files(slug, episode_id)
+        db.clear_episode_details(slug, episode_id)
+        db.clear_episode_ad_data(slug, episode_id)
+        _clear_queue_row(db, slug, episode_id)
+
+    final_path = storage.get_original_path(slug, episode_id)
+    shutil.move(str(audio_path), str(final_path))
+
+    description = None
+    description_name = entry.get('descriptionFile')
+    if description_name:
+        description_path = source_files.get(description_name)
+        if description_path is not None and description_path.exists():
+            try:
+                description = description_path.read_text(
+                    encoding='utf-8', errors='replace')
+            except OSError:
+                description = None
+
+    # Insert/update the row before any chapters/artwork side effects --
+    # save_chapters_json and save_episode_artwork's DB write both no-op
+    # silently when the episode row is not there yet (Task 8 pattern).
+    db.upsert_episode(
+        slug, episode_id,
+        original_url=f'local://{episode_id}',
+        status='discovered',
+        title=entry['title'],
+        description=description,
+        published_at=entry['publishedAt'],
+        episode_number=entry['episode'],
+        season_number=entry['season'],
+        original_duration=duration,
+        p20_item_json=None,
+    )
+
+    chapters = probe_chapters(str(final_path))
+    if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
+        storage.save_chapters_json(slug, episode_id, {
+            'version': '1.2.0',
+            'chapters': [
+                {'startTime': int(ch['start']), 'title': ch.get('title') or ''}
+                for ch in chapters
+            ],
+        })
+
+    artwork_name = entry.get('artworkFile')
+    if artwork_name:
+        artwork_path = source_files.get(artwork_name)
+        if artwork_path is not None and artwork_path.exists():
+            try:
+                raw = artwork_path.read_bytes()
+            except OSError:
+                raw = None
+            if raw:
+                mime = _detect_image_mime(raw)
+                if mime in ('image/jpeg', 'image/png'):
+                    storage.save_episode_artwork(slug, episode_id, raw, mime,
+                                                 evict=False)
+    else:
+        embedded = extract_embedded_artwork(str(final_path))
+        if embedded:
+            image_data, mime = embedded
+            storage.save_episode_artwork(slug, episode_id, image_data, mime,
+                                         evict=False)
+
+    # Staging cleanup: the audio file is already gone (moved above). Any
+    # OTHER file this entry references (sidecar json / description / cover)
+    # that also lives in staging is deleted too -- staging is ephemeral and
+    # MinusPod-managed. Checked per-file against its OWN parent (not just
+    # "did the audio come from staging") so a sidecar in staging is cleaned
+    # up even for an import-dir-sourced audio file. The user-managed import
+    # dir's sidecars are left untouched regardless (only the audio there
+    # was consumed by the move).
+    for name in (description_name, artwork_name, entry.get('sidecarFile')):
+        if not name:
+            continue
+        sidecar_path = source_files.get(name)
+        if (sidecar_path is not None and sidecar_path.parent == staging_dir
+                and sidecar_path.exists()):
+            try:
+                sidecar_path.unlink()
+            except OSError:
+                pass
+
+    return 'ok', {
+        'episodeId': episode_id,
+        'title': entry['title'],
+        'publishedAt': entry['publishedAt'],
+        'description': description,
+    }
+
+
+def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool) -> dict:
+    """Commit every entry in ``plan['entries']`` (idempotent -- a per-file
+    failure is recorded and the batch continues), then queue newly
+    imported episodes for auto-process when applicable, rebuild the served
+    RSS once, and clean up an emptied staging dir. Returns the report
+    stored against this job in ``_import_jobs``."""
+    entries = plan.get('entries', [])
+    source_files, staging_dir = _resolve_source_files(storage, slug)
+
+    committed: list[dict] = []
+    skipped: list[dict] = []
+    failed: list[dict] = []
+
+    for entry in entries:
+        episode_id = entry['episodeId']
+        # Any entry the planning half already flagged as non-committable
+        # (duplicate id, existing-id collision without overwrite, invalid
+        # sidecar, out-of-order publish dates) is skipped outright.
+        if entry.get('errors'):
+            skipped.append({'episodeId': episode_id, 'errors': entry['errors']})
+            _bump_processed(slug)
+            continue
+
+        try:
+            status, result = _commit_entry(slug, entry, db, storage,
+                                           source_files, staging_dir)
+        except Exception as exc:
+            # Per-file failure must never abort the batch -- an unexpected
+            # exception (disk-full mid-move, a DB error) is caught here the
+            # same as the ordinary error paths _commit_entry returns, so
+            # every remaining entry still gets a chance to commit.
+            logger.exception(f"[{slug}:{episode_id}] import commit entry crashed")
+            status, result = 'error', str(exc)
+        if status == 'ok':
+            committed.append(result)
+        else:
+            failed.append({'episodeId': episode_id, 'error': result})
+        _bump_processed(slug)
+
+    queued: list[str] = []
+    podcast = db.get_podcast_by_slug(slug)
+    # Initial-import rule: an empty feed's very first batch never
+    # auto-queues (there is nothing to compare "fresh" against and a
+    # first-ever archive import is a bulk backfill, not new content), so
+    # had_episodes -- captured before this batch's rows were inserted --
+    # gates queueing regardless of what the feed looks like now.
+    if (had_episodes and committed and podcast is not None
+            and db.is_auto_process_enabled_for_podcast(slug, podcast=podcast)):
+        apply_fresh_boost = db.get_setting_bool('process_new_episodes_first', True)
+        feed_priority = podcast.get('queue_priority')
+        for item in committed:
+            priority = compute_queue_priority(
+                feed_priority, item['publishedAt'], manual=False,
+                apply_fresh_boost=apply_fresh_boost)
+            queue_id = db.queue_episode_for_processing(
+                slug, item['episodeId'], f"local://{item['episodeId']}",
+                item['title'], item['publishedAt'], item['description'],
+                priority=priority)
+            if queue_id is not None:
+                queued.append(item['episodeId'])
+
+    # Local import inside main_app; imported lazily like api/local_episodes.py's
+    # _rebuild -- local_feed_builder pulls in main_app at module level, which
+    # imports the api package (and this module) before it finishes
+    # initializing, so a module-level import here would be circular.
+    from local_feed_builder import rebuild_local_feed
+    rebuild_local_feed(slug)
+
+    if staging_dir.exists():
+        try:
+            if not any(staging_dir.iterdir()):
+                staging_dir.rmdir()
+        except OSError:
+            pass
+
+    return {
+        'committed': [item['episodeId'] for item in committed],
+        'skipped': skipped,
+        'failed': failed,
+        'queued': queued,
     }

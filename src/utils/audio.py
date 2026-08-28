@@ -6,9 +6,12 @@ Provides shared audio file operations used across multiple modules.
 import logging
 import os
 import subprocess
+import tempfile
+from pathlib import Path
 from typing import ClassVar
 
 from config import FFPROBE_TIMEOUT
+from storage import _detect_image_mime
 from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger(__name__)
@@ -68,6 +71,47 @@ def get_audio_duration(audio_path: str) -> float | None:
     except Exception as e:
         logger.warning(f"Duration query failed for {audio_path}: {e}")
     return None
+
+
+def extract_embedded_artwork(audio_path: str) -> tuple[bytes, str] | None:
+    """First embedded picture stream as (bytes, 'image/jpeg'|'image/png').
+
+    Stream-copies the video (picture) stream to a single frame via ffmpeg
+    (``-an -codec:v copy -frames:v 1``) rather than decoding, so this works
+    for any embedded cover regardless of its original codec. Returns None
+    when the file has no embedded picture, ffmpeg fails, the output is not
+    a JPEG/PNG (magic-number checked, mirroring the upload validation path
+    in storage.py), or the probe times out.
+    """
+    fd, out_path = tempfile.mkstemp(suffix='.img')
+    os.close(fd)
+    try:
+        cmd = [
+            'ffmpeg', '-y', '-i', audio_path,
+            '-an', '-codec:v', 'copy', '-frames:v', '1',
+            '-f', 'image2', out_path,
+        ]
+        result = tracked_run(cmd, capture_output=True, timeout=FFPROBE_TIMEOUT)
+        if result.returncode != 0:
+            return None
+        data = Path(out_path).read_bytes()
+        if not data:
+            return None
+        mime = _detect_image_mime(data)
+        if mime not in ('image/jpeg', 'image/png'):
+            return None
+        return data, mime
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Embedded artwork extraction timeout for {audio_path}")
+        return None
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.warning(f"Embedded artwork extraction failed for {audio_path}: {e}")
+        return None
+    finally:
+        try:
+            os.unlink(out_path)
+        except FileNotFoundError:
+            pass
 
 
 class AudioMetadata:
