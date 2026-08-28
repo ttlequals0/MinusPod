@@ -14,6 +14,7 @@ from config import (
 from database.episodes import normalize_published_at
 from database.podcasts import is_local_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
+from local_feed_builder import rebuild_local_feed
 from utils.http import safe_url_for_log
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -139,6 +140,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                Use this when the RSS cache was deleted and needs regeneration.
                Also bypasses the refresh-attempt throttle.
     """
+    podcast = db.get_podcast_by_slug(slug)
+    if is_local_feed(podcast):
+        return rebuild_local_feed(slug, podcast)
+
     if not force and _refresh_coalesce.get(slug) is not None:
         refresh_logger.debug(f"[{slug}] Skipping refresh (recent attempt within coalesce window)")
         return None
@@ -548,6 +553,8 @@ def rebuild_served_rss(slug, podcast=None):
     trigger processing or touch episode rows/stats. Returns True on success.
     """
     podcast = podcast or db.get_podcast_by_slug(slug)
+    if is_local_feed(podcast):
+        return rebuild_local_feed(slug, podcast)
     if not podcast or not podcast.get('source_url'):
         return False
     try:

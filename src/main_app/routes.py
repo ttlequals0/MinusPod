@@ -66,6 +66,7 @@ PUBLIC_FEED_ENDPOINTS = frozenset({
     'serve_episode',
     'serve_transcript_vtt',
     'serve_chapters_json',
+    'serve_episode_artwork',
     'serve_opml',
     'serve_minuspod_cover',
     'favicon',
@@ -607,6 +608,27 @@ def register_routes(app):
         # podcast players; the wildcard Access-Control-Allow-Origin
         # is intentional. No credentials travel with the request.
         response = Response(json.dumps(chapters), mimetype='application/json+chapters')
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
+
+    @app.route('/episodes/<slug>/<episode_id>/artwork')
+    @validate_slug_and_episode_params
+    @require_feed_key
+    @log_request_detailed
+    def serve_episode_artwork(slug, episode_id):
+        """Serve a cached per-episode cover art (local feeds; issue #617).
+
+        Never fetches on demand -- the cache is populated out of band. 404
+        when nothing is cached, same as the transcript/chapters routes.
+        """
+        result = storage.get_episode_artwork(slug, episode_id)
+        if not result:
+            feed_logger.info(f"[{slug}:{episode_id}] Episode artwork not found")
+            abort(404)
+        image_data, content_type = result
+        response = Response(image_data, mimetype=content_type)
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Content-Security-Policy'] = "default-src 'none'"
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response
 
