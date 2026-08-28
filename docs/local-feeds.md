@@ -81,6 +81,18 @@ services:
 
 A bind mount from a different filesystem does make the commit a copy rather than a rename, so a very large archive imports faster if you copy it into `./data/import/<slug>/` first.
 
+You can also mount one parent folder holding a subfolder per feed, and every local feed finds its own directory:
+
+```yaml
+services:
+  minuspod:
+    volumes:
+      - ./data:/app/data
+      - /mnt/data/import:/app/data/import
+```
+
+Here `/mnt/data/import/slug1/` serves the feed with slug `slug1`, `/mnt/data/import/slug2/` serves `slug2`, and so on. Folder names must match feed slugs exactly. Remember that a committed import moves the audio out of these folders: after the import, the mp3s live in MinusPod's storage, not your archive folder. Keep a separate copy if the mounted folder is not meant to be consumed, and never mount it read-only.
+
 Either way, files must follow the naming scheme below before MinusPod will touch them.
 
 #### Naming scheme
