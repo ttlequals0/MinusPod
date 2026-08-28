@@ -374,8 +374,41 @@ def test_upload_extracts_embedded_artwork_when_none_supplied(
         content_type='multipart/form-data',
     )
     assert resp.status_code == 201
-    episode_id = resp.get_json()['episodeId']
+    body = resp.get_json()
+    episode_id = body['episodeId']
     assert get_storage().has_episode_artwork(slug, episode_id)
+    # The 201 body itself must already carry the fallback artwork route --
+    # not just a follow-up GET. See test_upload_201_body_carries_artwork_url
+    # below for the root cause (missing slug/is_local/storage kwargs).
+    assert body['artworkUrl'] == f'/api/v1/feeds/{slug}/episodes/{episode_id}/artwork'
+
+
+@requires_ffmpeg
+def test_upload_201_body_carries_artwork_url_for_explicit_artwork(app_client, local_feed, real_mp3_bytes):
+    """The 201 body must reflect artwork uploaded in the same request, not
+    only an artworkUrl a follow-up GET would show. Root cause: the response
+    was serialized via _episode_base_json(episode) with no slug/is_local/
+    storage kwargs, so the local-artwork fallback (_local_artwork_fallback_
+    url) never ran for this call regardless of save order -- artwork was
+    already saved before serialization; the serializer just never looked
+    for it."""
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={
+            'audio': (io.BytesIO(real_mp3_bytes), 'ep.mp3'),
+            'artwork': (io.BytesIO(_PNG_BYTES), 'cover.png'),
+        },
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 201
+    body = resp.get_json()
+    episode_id = body['episodeId']
+    assert body['artworkUrl'] == f'/api/v1/feeds/{slug}/episodes/{episode_id}/artwork'
 
 
 @requires_ffmpeg
@@ -476,6 +509,34 @@ def test_patch_single_episode_happy_path(app_client, local_feed):
     assert episode['episode_number'] == 5
     assert episode['episode_id'] == 's01e01'
     assert episode['published_at'] == '2026-02-01T12:00:00Z'
+
+
+def test_patch_single_episode_response_carries_artwork_url(app_client, local_feed):
+    """Same _episode_base_json kwargs bug as the upload 201 body: the PATCH
+    response used to always report artworkUrl null, even for an episode
+    with a cached cover, because it never passed slug/is_local/storage
+    either."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01')
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    artwork_resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes/s01e01/artwork',
+        data={'file': (io.BytesIO(_PNG_BYTES), 'cover.png')},
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert artwork_resp.status_code == 200
+
+    resp = app_client.patch(
+        f'/api/v1/feeds/{slug}/episodes/s01e01',
+        json={'title': 'Renamed'},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()['artworkUrl'] == f'/api/v1/feeds/{slug}/episodes/s01e01/artwork'
 
 
 def test_patch_single_episode_p20_person_location(app_client, local_feed):

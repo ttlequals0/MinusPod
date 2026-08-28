@@ -218,15 +218,21 @@ class Storage:
         Browser-uploaded batch files land here ahead of the commit engine's
         move into the podcast's episode storage. A commit whose scan/commit
         request source included staging ('staging' or 'both') sweeps this
-        directory clean -- committed audio, consumed sidecars, rejected
-        files, and anything else left in it -- and removes the directory
-        itself once the commit finishes, whether or not every entry
-        actually committed. A commit scanned/run with source='directory'
-        never touches this directory at all, even if it has stale content.
-        Outside a commit, a stale staging dir just means an upload/scan
-        happened and nothing has committed yet; `DELETE
+        directory once it finishes, whether or not every entry actually
+        committed -- but not indiscriminately: a committed entry's audio is
+        already moved and its sidecars already deleted by that point, a
+        file the plan rejected outright (bad naming, empty, a stray .part)
+        is removed by the sweep, but a skipped or errored entry's audio and
+        sidecars (typically a bad sidecar next to an otherwise-good mp3)
+        are left in place so fixing the sidecar and rescanning doesn't also
+        mean re-uploading the audio. The directory itself is only removed
+        once nothing preserved remains in it. A commit scanned/run with
+        source='directory' never touches this directory at all, even if it
+        has stale content. Outside a commit, a stale staging dir just means
+        an upload/scan happened and nothing has committed yet; `DELETE
         /feeds/{slug}/import/staging` (local_import.py) clears it on
-        demand.
+        demand, and the next "Choose files" selection clears it
+        automatically before uploading.
         """
         if is_dangerous_slug(slug):
             raise PathContainmentError(f"refusing dangerous slug {slug!r}")

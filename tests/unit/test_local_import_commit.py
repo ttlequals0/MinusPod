@@ -929,11 +929,14 @@ def test_import_dir_sidecars_of_rejected_entry_survive_commit(
 @requires_ffmpeg
 def test_staging_swept_after_commit_even_with_rejected_files_present(
         db_storage, local_feed, real_mp3_bytes):
-    """Operator ruling: a finished commit clears everything left in
-    staging, rejected files and skipped entries included, and removes the
-    directory itself -- not just the entries that were part of this plan.
-    Only when the plan's source actually included staging (Fix: scoped
-    sweep) -- explicit source='staging' here pins that."""
+    """A finished commit removes a file the plan REJECTED outright (bad
+    naming scheme here) even though it was never part of any entry, and
+    removes the now-empty directory itself -- not just the entries that
+    were part of this plan. Only when the plan's source actually included
+    staging (Fix: scoped sweep) -- explicit source='staging' here pins
+    that. (A skipped/errored ENTRY's own files are a different case, spared
+    by the sweep -- see test_sweep_spares_skipped_and_errored_entry_files
+    below.)"""
     db, storage = db_storage
     slug = local_feed
     staging_dir = storage.import_staging_dir(slug, create=True)
@@ -957,6 +960,72 @@ def test_staging_swept_after_commit_even_with_rejected_files_present(
     # Everything is gone -- the committed audio (moved) AND the rejected
     # leftover -- and so is the directory itself.
     assert not staging_dir.exists()
+
+
+@requires_ffmpeg
+def test_sweep_spares_skipped_and_errored_entry_files(
+        db_storage, local_feed, real_mp3_bytes):
+    """Item 4 fix: the post-commit sweep used to remove EVERYTHING left in
+    staging, including a skipped or errored entry's own audio and sidecars
+    -- so fixing a bad sidecar meant re-uploading a perfectly good mp3 too.
+    Now the sweep only removes a committed entry's leftovers (already
+    consumed by _commit_entry) and files the plan rejected outright; a
+    skipped or errored entry's files are left for the operator to fix and
+    rescan."""
+    db, storage = db_storage
+    slug = local_feed
+    staging_dir = storage.import_staging_dir(slug, create=True)
+
+    good_name = 'S01E01 - Pilot'
+    (staging_dir / f'{good_name}.mp3').write_bytes(real_mp3_bytes)
+
+    # Skipped: valid audio, but the JSON sidecar next to it doesn't parse --
+    # build_import_plan flags this entry with an error, so it's never
+    # committed.
+    skip_name = 'S01E02 - Bad Sidecar'
+    (staging_dir / f'{skip_name}.mp3').write_bytes(real_mp3_bytes)
+    (staging_dir / f'{skip_name}.json').write_text('not json', encoding='utf-8')
+
+    # Errored at commit time: passes the scan cleanly, but its bytes change
+    # before commit runs, so _commit_entry's TOCTOU guard rejects it.
+    err_name = 'S01E03 - Changes After Scan'
+    (staging_dir / f'{err_name}.mp3').write_bytes(real_mp3_bytes)
+
+    # Rejected outright: never becomes a plan entry at all.
+    (staging_dir / 'stray-file.wav').write_bytes(b'\x00' * 16)
+
+    sources = [
+        staging_dir / f'{good_name}.mp3',
+        staging_dir / f'{skip_name}.mp3', staging_dir / f'{skip_name}.json',
+        staging_dir / f'{err_name}.mp3',
+        staging_dir / 'stray-file.wav',
+    ]
+    plan = build_import_plan(slug, sources, existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO, source='staging')
+
+    skip_entry = next(e for e in plan['entries'] if e['episodeId'] == 's01e02')
+    assert skip_entry['errors']
+
+    (staging_dir / f'{err_name}.mp3').write_bytes(real_mp3_bytes + b'\x00' * 8)
+
+    started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
+    assert started is True
+    report = local_import.get_import_status(slug, storage)['report']
+    assert _committed_ids(report) == ['s01e01']
+    assert [s['episodeId'] for s in report['skipped']] == ['s01e02']
+    assert [f['episodeId'] for f in report['failed']] == ['s01e03']
+
+    # Committed entry: audio moved, nothing left in staging for it.
+    assert not (staging_dir / f'{good_name}.mp3').exists()
+    # Skipped entry: audio AND the bad sidecar both survive.
+    assert (staging_dir / f'{skip_name}.mp3').exists()
+    assert (staging_dir / f'{skip_name}.json').exists()
+    # Errored-at-commit entry: audio survives too.
+    assert (staging_dir / f'{err_name}.mp3').exists()
+    # A file the plan rejected outright is still swept.
+    assert not (staging_dir / 'stray-file.wav').exists()
+    # Something preserved remains, so the directory itself stays.
+    assert staging_dir.exists()
 
 
 @requires_ffmpeg

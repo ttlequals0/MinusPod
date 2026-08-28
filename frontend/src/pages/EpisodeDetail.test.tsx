@@ -1109,6 +1109,41 @@ describe('Local feed episode metadata: season/episode seed from the API payload'
   });
 });
 
+// ---- Original-audio player for unprocessed local episodes: the admin
+// route (original.mp3) works since 2.93.2, but the detail page showed no
+// player until a run completed. ----
+describe('Original audio player for unprocessed local episodes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders a player sourced from the original-audio route for a discovered local episode', async () => {
+    const ep = makeEpisode({
+      status: 'discovered', processedAt: null, hasOriginalAudio: true, pendingReviewMarkers: [],
+    });
+    renderLocalDetail(ep);
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+
+    const players = document.querySelectorAll('audio');
+    const originalPlayer = Array.from(players).find(
+      (el) => el.getAttribute('src') === '/api/v1/feeds/test-feed/episodes/ep-1/original.mp3',
+    );
+    expect(originalPlayer).toBeDefined();
+    expect(screen.getByText(/ad removal hasn't run yet/i)).toBeDefined();
+  });
+
+  it('renders no player for a discovered episode on a subscribed (non-local) feed', async () => {
+    const ep = makeEpisode({
+      status: 'discovered', processedAt: null, hasOriginalAudio: true, pendingReviewMarkers: [],
+    });
+    renderDetail(ep);
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+
+    expect(document.querySelector('audio[src*="original.mp3"]')).toBeNull();
+    expect(screen.queryByText(/ad removal hasn't run yet/i)).toBeNull();
+  });
+});
+
 describe('Process vs Reprocess label (single episode)', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();

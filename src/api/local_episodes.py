@@ -373,7 +373,13 @@ def upload_local_episode(slug):
             tmp_path.unlink()
 
     episode = db.get_episode(slug, episode_id)
-    response = _episode_base_json(episode)
+    # slug/is_local/storage are required for the local-artwork fallback
+    # (_local_artwork_fallback_url): omitting them (as this call used to)
+    # left artworkUrl null in this 201 body even when artwork was just
+    # saved above -- storage.has_episode_artwork is never consulted without
+    # them, regardless of upload order. An immediate GET (list/detail, both
+    # of which pass these) would then show the artwork the 201 body missed.
+    response = _episode_base_json(episode, slug=slug, is_local=True, storage=storage)
     response['episodeNumber'] = episode.get('episode_number')
     response['seasonNumber'] = episode.get('season_number')
     response['queued'] = queued
@@ -392,6 +398,7 @@ def patch_local_episode(slug, episode_id):
     time) is never renamed.
     """
     db = get_database()
+    storage = get_storage()
 
     podcast, err = _require_local_feed(db, slug)
     if err:
@@ -414,7 +421,10 @@ def patch_local_episode(slug, episode_id):
     _rebuild(slug, podcast=podcast)
 
     updated = db.get_episode(slug, episode_id)
-    response = _episode_base_json(updated)
+    # Same slug/is_local/storage fix as the POST 201 body above -- without
+    # them the local-artwork fallback never runs and this response always
+    # shows artworkUrl null, even for an episode with a cached cover.
+    response = _episode_base_json(updated, slug=slug, is_local=True, storage=storage)
     response['episodeNumber'] = updated.get('episode_number')
     response['seasonNumber'] = updated.get('season_number')
     return json_response(response, 200)

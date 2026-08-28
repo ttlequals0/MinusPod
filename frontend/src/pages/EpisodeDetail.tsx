@@ -810,6 +810,22 @@ function EpisodeDetail() {
           </div>
         )}
 
+        {/* Local feeds retain the uploaded original even before processing
+            runs (hasOriginalAudio since 2.93.2). Let the operator preview it
+            from the detail page instead of only via the ad editor. Gated to
+            local feeds and non-completed status so the processed-episode
+            player above stays the only player once a run has finished. */}
+        {episode.status !== 'completed' && feed?.feedType === 'local' && episode.hasOriginalAudio && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <audio controls className="w-full" src={markerAudioUrl}>
+              Your browser does not support the audio element.
+            </audio>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Original audio; ad removal hasn&apos;t run yet.
+            </p>
+          </div>
+        )}
+
         {episode.description && (
           <RichText
             html={episode.description}

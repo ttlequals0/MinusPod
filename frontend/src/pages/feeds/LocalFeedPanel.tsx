@@ -365,51 +365,39 @@ function LocalFeedPanel({ feed, slug }: Props) {
   // report shows regardless of a stale dismissal, with no effect needed to
   // reset anything.
   const [dismissedRunStartedAt, setDismissedRunStartedAt] = useState<string | null>(null);
-  // Filenames actually staged by the run that produced the current plan
-  // (only set for an upload-and-scan run, never a directory scan; empty
-  // for one). Compared against the plan entries' own audio+sidecar
-  // filenames so the panel can tell when staging holds files this batch
-  // didn't just upload -- left over from an earlier, canceled attempt --
-  // and surface that instead of leaving it invisible. A plain entry-count
-  // (or upload-file-count) comparison would over/under-count whenever an
-  // entry brings sidecars along (each counted file, but one entry).
-  const [uploadedFileNames, setUploadedFileNames] = useState<string[]>([]);
-
-  const clearStagingMutation = useMutation({
-    mutationFn: () => clearImportStaging(slug),
-    onError: (e) => setImportError(getErrorMessage(e, 'Could not clear staged files')),
-  });
-
   // Cancel: non-destructive. It only drops the reviewed plan/report from
   // THIS client -- the staged files themselves are untouched. Destructive
-  // staging cleanup only ever happens via the explicit "Clear staged
-  // files" button below (with its own confirm) or the server's own
-  // post-commit sweep.
+  // staging cleanup happens on the next "Choose files" selection (which
+  // clears staging before it uploads) or via the server's own post-commit
+  // sweep.
   const handleCancelPlan = () => {
     setPlan(null);
-    setUploadedFileNames([]);
-  };
-
-  const handleClearStaging = () => {
-    if (!window.confirm('Clear all files staged for this feed? This cannot be undone.')) return;
-    setPlan(null);
-    setUploadedFileNames([]);
-    clearStagingMutation.mutate();
   };
 
   const uploadAndScanMutation = useMutation({
     mutationFn: async ({ files, overwrite }: { files: File[]; overwrite: boolean }) => {
+      // Each selection stands alone: clear whatever's already staged before
+      // uploading the newly picked files, so the resulting plan reflects
+      // exactly this selection instead of accumulating files left behind by
+      // an earlier canceled or interrupted attempt.
+      try {
+        await clearImportStaging(slug);
+      } catch (e) {
+        const message = getErrorMessage(e, '');
+        // An empty/missing staging dir isn't a real problem; only surface
+        // something the operator actually needs to act on (e.g. a 409
+        // because another import is already running).
+        if (!/404|not found/i.test(message)) throw e;
+      }
       // Sequential, one file per request, rather than one multipart request
       // for the whole batch: the only way to surface "x of y" progress, and
       // it lets one bad file fail without losing the rest of the batch.
-      const staged: string[] = [];
       const rejected: ImportRejectedFile[] = [];
       for (let i = 0; i < files.length; i++) {
         setUploadProgress({ current: i + 1, total: files.length });
         const file = files[i];
         try {
           const result = await importUpload(slug, [file]);
-          staged.push(...result.staged);
           rejected.push(...result.rejected);
         } catch (e) {
           rejected.push({ file: file.name, reason: getErrorMessage(e, 'Upload failed') });
@@ -420,16 +408,14 @@ function LocalFeedPanel({ feed, slug }: Props) {
       // failure right after must not wipe them out from under the
       // operator along with the (unrelated) scan error.
       setUploadRejected(rejected);
-      const scanned = await importScan(slug, { source: 'staging', overwrite });
-      return { scanned, staged };
+      return importScan(slug, { source: 'staging', overwrite });
     },
     // Clear a stale error from a previous failed attempt as soon as a new
     // one starts, rather than leaving it displayed under the new state.
-    onMutate: () => { setImportError(null); setUploadProgress(null); setUploadedFileNames([]); },
-    onSuccess: ({ scanned, staged }) => {
+    onMutate: () => { setImportError(null); setUploadProgress(null); },
+    onSuccess: (scanned) => {
       setPlan(scanned);
       setImportSource('staging');
-      setUploadedFileNames(staged);
     },
     onError: (e) => setImportError(getErrorMessage(e, 'Upload failed')),
     onSettled: () => setUploadProgress(null),
@@ -437,10 +423,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
   const scanDirectoryMutation = useMutation({
     mutationFn: (overwrite: boolean) => importScan(slug, { source: 'directory', overwrite }),
-    // Not an upload-and-scan run -- no "just uploaded" files to compare the
-    // plan against, so the "staged earlier" note only ever applies to a
-    // staging scan.
-    onMutate: () => { setImportError(null); setUploadedFileNames([]); },
+    onMutate: () => { setImportError(null); },
     onSuccess: (scanned) => {
       setUploadRejected([]);
       setPlan(scanned);
@@ -462,36 +445,6 @@ function LocalFeedPanel({ feed, slug }: Props) {
     },
     onError: (e) => setImportError(getErrorMessage(e, 'Import failed')),
   });
-
-  // Every filename the current plan actually accounts for in staging:
-  // each entry's audio/sidecar files, PLUS scan-rejected strays (a file
-  // that failed the naming scheme etc. is still a real file sitting in
-  // staging, not just a JSON blip). Staging scans only -- a directory scan
-  // has no "just uploaded" batch to compare against.
-  const planStagingFileNames = (): string[] => {
-    if (!plan || importSource !== 'staging') return [];
-    const names: string[] = [];
-    for (const entry of plan.entries) {
-      names.push(entry.audioFile);
-      if (entry.descriptionFile) names.push(entry.descriptionFile);
-      if (entry.artworkFile) names.push(entry.artworkFile);
-      if (entry.sidecarFile) names.push(entry.sidecarFile);
-    }
-    for (const r of plan.rejected) names.push(r.file);
-    return names;
-  };
-
-  // Files the plan references that this batch did NOT just upload -- left
-  // over from an earlier attempt that got canceled (or crashed) before it
-  // ever committed, since staging is only ever cleared by a commit or an
-  // explicit clear. A file rejected by THIS batch's own scan is still in
-  // uploadedFileNames (it staged fine, scan just rejected it afterward),
-  // so it's correctly excluded here rather than misread as a leftover.
-  // Comparing actual filenames (not a raw entry count vs. a raw
-  // uploaded-file count) avoids both over- and under-counting whenever an
-  // entry brings sidecars along.
-  const leftoverFileNames = planStagingFileNames().filter((f) => !uploadedFileNames.includes(f));
-  const stagedBeyondBatch = leftoverFileNames.length > 0;
 
   const handleImportFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -781,19 +734,6 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 totals={plan.totals}
                 batchErrors={plan.batchErrors ?? []}
               />
-              {stagedBeyondBatch && (
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
-                  <span>Includes {leftoverFileNames.length} file{leftoverFileNames.length === 1 ? '' : 's'} left over from an earlier attempt.</span>
-                  <button
-                    type="button"
-                    onClick={handleClearStaging}
-                    disabled={clearStagingMutation.isPending}
-                    className={`shrink-0 text-xs font-medium text-foreground hover:underline disabled:opacity-50 ${focusRing}`}
-                  >
-                    Clear staged files
-                  </button>
-                </div>
-              )}
               <div className="flex gap-2 mt-3">
                 <button
                   type="button"

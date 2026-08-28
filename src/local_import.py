@@ -1068,6 +1068,33 @@ def _commit_entry(slug: str, entry: dict, db, storage,
     }
 
 
+def _staging_leftover_name(path_str: str | None, staging_dir: Path) -> str | None:
+    """The basename of ``path_str`` when it names a file directly inside
+    ``staging_dir``, else None.
+
+    Used to build the sweep's preserve-list from a skipped/errored entry's
+    resolved ``*Path`` fields: those can point into either staging or the
+    user-managed import directory (source='both'), and the sweep below only
+    ever touches staging, so a directory-sourced path must never end up in
+    the preserve set (it was never going to be swept anyway, but matching
+    only by basename could otherwise misfire on a same-named staging file).
+    """
+    if not path_str:
+        return None
+    path = Path(path_str)
+    return path.name if path.parent == staging_dir else None
+
+
+def _preserve_entry_files(entry: dict, staging_dir: Path, preserved: set[str]) -> None:
+    """Add a skipped/errored entry's audio + sidecar staging filenames to
+    ``preserved`` so the post-commit sweep leaves them for the operator to
+    fix and rescan, rather than deleting them alongside true rejects."""
+    for key in ('audioPath', 'descriptionPath', 'artworkPath', 'sidecarPath'):
+        name = _staging_leftover_name(entry.get(key), staging_dir)
+        if name:
+            preserved.add(name)
+
+
 def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                     report: dict) -> None:
     """Commit every entry in ``plan['entries']`` into ``report`` in place
@@ -1090,6 +1117,11 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
     # below; the report's own 'committed' list only exposes episodeId/
     # audioFile/warnings (see the docstring on the outer report shape).
     committed_internal: list[dict] = []
+    # Staging filenames belonging to an entry that ended in skip or error --
+    # a fixable problem (bad sidecar JSON, a stale collision, etc.), not junk.
+    # The sweep in the finally block below leaves these alone so fixing the
+    # sidecar and rescanning doesn't also require re-uploading the audio.
+    preserved_leftovers: set[str] = set()
 
     for entry in entries:
         episode_id = entry['episodeId']
@@ -1103,6 +1135,7 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                 'episodeId': episode_id, 'audioFile': audio_file,
                 'errors': entry['errors'],
             })
+            _preserve_entry_files(entry, staging_dir, preserved_leftovers)
             _bump_processed(slug, storage)
             continue
 
@@ -1126,6 +1159,10 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
             report['failed'].append({
                 'episodeId': episode_id, 'audioFile': audio_file, 'error': result,
             })
+            # _commit_entry never returns 'error' after moving the audio
+            # (every error return in it happens before shutil.move), so the
+            # audio is still sitting at its original staging path here.
+            _preserve_entry_files(entry, staging_dir, preserved_leftovers)
         _bump_processed(slug, storage)
 
     try:
@@ -1160,12 +1197,24 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
     finally:
         # Staging is MinusPod-managed: once a commit finishes -- clean or
         # with per-entry failures, and even if the queueing/rebuild step
-        # above raised -- sweep whatever is left (rejected files, skipped
-        # entries' sidecars, anything staged but never scanned into this
-        # plan) and remove the directory itself. Per-entry removal (not a
-        # single rmtree of the whole dir) mirrors clear_import_staging: a
-        # busy bind-mounted staging dir can refuse to remove ITSELF while
-        # still allowing its contents to go one at a time.
+        # above raised -- sweep what's left. Committed entries' own
+        # leftovers are already gone (_commit_entry moves the audio and
+        # deletes its sidecars on success), so what's actually here is: (1)
+        # files the plan rejected outright -- a name that never matched the
+        # sNNeNN scheme, an empty file, a stray .part -- which this sweep
+        # removes, and (2) a skipped or errored entry's audio + sidecars,
+        # which it leaves in place (preserved_leftovers, built above) so an
+        # operator can fix the problem (typically a bad sidecar) and rescan
+        # without re-uploading the audio too. The directory itself is only
+        # removed once every non-preserved file is gone; a preserved
+        # leftover keeps it (and gets swept for real on the next commit, or
+        # replaced outright by the next "Choose files" selection, which
+        # clears staging before it uploads).
+        #
+        # Per-entry removal (not a single rmtree of the whole dir) mirrors
+        # clear_import_staging: a busy bind-mounted staging dir can refuse
+        # to remove ITSELF while still allowing its contents to go one at a
+        # time.
         #
         # Scoped to source in ('staging', 'both'): a plan scanned/committed
         # with source='directory' never looked at staging at all, so it
@@ -1173,7 +1222,11 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
         # SEPARATE directory-sourced commit must not have their in-progress
         # staging batch wiped out from under them.
         if source in ('staging', 'both') and staging_dir.exists():
+            all_removed = True
             for child in staging_dir.iterdir():
+                if child.name in preserved_leftovers:
+                    all_removed = False
+                    continue
                 try:
                     if child.is_dir():
                         shutil.rmtree(child, ignore_errors=True)
@@ -1181,7 +1234,9 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                         child.unlink()
                 except OSError:
                     logger.warning(f"[{slug}] could not remove leftover staged file {child}")
-            try:
-                staging_dir.rmdir()
-            except OSError:
-                pass
+                    all_removed = False
+            if all_removed:
+                try:
+                    staging_dir.rmdir()
+                except OSError:
+                    pass
