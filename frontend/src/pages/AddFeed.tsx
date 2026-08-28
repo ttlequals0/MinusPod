@@ -165,8 +165,12 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
         />
       </div>
 
+      {/* No id: Checkbox's id prop is only for when an ancestor already
+          labels the box (renders a <span> then, no click-forwarding). No
+          such ancestor here, so id would make the box visually present but
+          unclickable by mouse -- the same bug LocalFeedPanel.tsx's identical
+          checkbox had (#625 Task 13 review). */}
       <Checkbox
-        id="localExplicit"
         checked={explicit}
         onChange={setExplicit}
         label="Explicit content"

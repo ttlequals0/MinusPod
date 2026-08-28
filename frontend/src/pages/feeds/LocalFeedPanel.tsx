@@ -16,7 +16,6 @@ import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { fromDatetimeLocalInput } from '../../utils/format';
-import { feedArtworkSrc } from '../../utils/artworkUrl';
 
 // Podcasting 2.0 channel-level scalar tags (design spec section 6, mirrored
 // from src/api/feeds.py's _P20_MEDIUM_VALUES / _P20_LOCKED_VALUES).
@@ -39,11 +38,15 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
   // ---- Metadata edit ----
   const [title, setTitle] = useState(feed.title);
+  const [description, setDescription] = useState(feed.description ?? '');
   const [author, setAuthor] = useState(feed.author ?? '');
   const [explicit, setExplicit] = useState(feed.explicit ?? false);
   const [categoriesInput, setCategoriesInput] = useState((feed.categories ?? []).join(', '));
   const [medium, setMedium] = useState((feed.p20?.medium as string) ?? 'podcast');
-  const [locked, setLocked] = useState((feed.p20?.locked as string) ?? '');
+  // 'yes' fallback: a local feed's p20.locked is always set at creation
+  // (see api/feeds.py's add_local_feed), so an empty value here only ever
+  // happens on a backend that predates local feeds.
+  const [locked, setLocked] = useState((feed.p20?.locked as string) ?? 'yes');
   const [lockedOwner, setLockedOwner] = useState((feed.p20?.locked_owner as string) ?? '');
   const [metaSaved, setMetaSaved] = useState(false);
 
@@ -52,11 +55,12 @@ function LocalFeedPanel({ feed, slug }: Props) {
   // FeedSettingsPanel uses for its per-field inputs.
   useSyncFromQuery(feed, (f) => {
     setTitle(f.title);
+    setDescription(f.description ?? '');
     setAuthor(f.author ?? '');
     setExplicit(f.explicit ?? false);
     setCategoriesInput((f.categories ?? []).join(', '));
     setMedium((f.p20?.medium as string) ?? 'podcast');
-    setLocked((f.p20?.locked as string) ?? '');
+    setLocked((f.p20?.locked as string) ?? 'yes');
     setLockedOwner((f.p20?.locked_owner as string) ?? '');
   });
 
@@ -73,36 +77,25 @@ function LocalFeedPanel({ feed, slug }: Props) {
     mutationFn: (file: File) => uploadFeedArtwork(slug, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
-      queryClient.invalidateQueries({ queryKey: ['local-feed-artwork-check', slug] });
-    },
-  });
-
-  // feed.artworkUrl is not a reliable "has artwork" signal: the backend
-  // always fills it with either the publisher's cover or this feed's own
-  // artwork proxy path, even when nothing has been uploaded yet (the proxy
-  // 404s in that case). A HEAD probe of that same URL is the only way to
-  // tell. GET/HEAD are CSRF-safe, so this is a plain fetch, not apiRequest
-  // (which assumes a JSON body).
-  const artworkCheckQuery = useQuery({
-    queryKey: ['local-feed-artwork-check', slug],
-    queryFn: async () => {
-      const res = await fetch(feedArtworkSrc(slug, feed.artworkUrl), { method: 'HEAD' });
-      return res.ok;
     },
   });
 
   const handleSaveMetadata = (e: React.FormEvent) => {
     e.preventDefault();
     const categories = categoriesInput.split(',').map((c) => c.trim()).filter(Boolean);
-    const p20: Record<string, unknown> = { medium };
-    if (locked) p20.locked = locked;
-    if (lockedOwner.trim()) p20.locked_owner = lockedOwner.trim();
+    // locked_owner always sent, even blank: '' is the backend's delete
+    // sentinel for clearing a previously-set owner (_validate_p20_scalar),
+    // so omitting the key here would leave a cleared owner un-cleared.
     metaMutation.mutate({
       title: title.trim(),
-      author: author.trim() || undefined,
+      description: description.trim(),
+      // null (not undefined) so a blanked field actually clears server-side
+      // -- undefined drops the key from the JSON body, and the backend only
+      // clears a field it sees explicitly set to null.
+      author: author.trim() || null,
       explicit,
-      categories: categories.length ? categories : undefined,
-      p20,
+      categories: categories.length ? categories : null,
+      p20: { medium, locked, locked_owner: lockedOwner.trim() },
     });
   };
 
@@ -122,22 +115,24 @@ function LocalFeedPanel({ feed, slug }: Props) {
       const scanned = await importScan(slug, { source: 'staging' });
       return { uploaded, scanned };
     },
+    // Clear a stale error from a previous failed attempt as soon as a new
+    // one starts, rather than leaving it displayed under the new state.
+    onMutate: () => setImportError(null),
     onSuccess: ({ uploaded, scanned }) => {
       setUploadRejected(uploaded.rejected);
       setPlan(scanned);
       setImportSource('staging');
-      setImportError(null);
     },
     onError: (e) => setImportError(getErrorMessage(e, 'Upload failed')),
   });
 
   const scanDirectoryMutation = useMutation({
     mutationFn: () => importScan(slug, { source: 'directory' }),
+    onMutate: () => setImportError(null),
     onSuccess: (scanned) => {
       setUploadRejected([]);
       setPlan(scanned);
       setImportSource('directory');
-      setImportError(null);
     },
     onError: (e) => setImportError(getErrorMessage(e, 'Scan failed')),
   });
@@ -165,6 +160,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
     refetchInterval: (query) => (query.state.data?.state === 'running' ? 2000 : false),
   });
   const importState = statusQuery.data?.state;
+  const importRunning = importState === 'running';
 
   // A batch that just finished changes the episode list and the feed's
   // episode count; refetch both once (not on every poll tick).
@@ -184,7 +180,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
         storageKey={`local-feed-${slug}`}
         onToggle={setPanelOpen}
       >
-        {artworkCheckQuery.data === false && (
+        {feed.hasArtwork === false && (
           <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
             No artwork uploaded. Podcast apps may reject this feed.
           </div>
@@ -200,6 +196,16 @@ function LocalFeedPanel({ feed, slug }: Props) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
+              className={fieldCls}
+            />
+          </div>
+          <div>
+            <label htmlFor={`local-description-${slug}`} className="block text-sm font-medium text-foreground mb-2">Description</label>
+            <textarea
+              id={`local-description-${slug}`}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
               className={fieldCls}
             />
           </div>
@@ -250,7 +256,6 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 onChange={(e) => setLocked(e.target.value)}
                 className={`w-full ${selectBase}`}
               >
-                <option value="">Not set</option>
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
               </select>
@@ -329,7 +334,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
             <button
               type="button"
               onClick={() => importFileInputRef.current?.click()}
-              disabled={uploadAndScanMutation.isPending}
+              disabled={uploadAndScanMutation.isPending || importRunning}
               className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
             >
               {uploadAndScanMutation.isPending ? 'Uploading...' : 'Choose files'}
@@ -337,7 +342,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
             <button
               type="button"
               onClick={() => scanDirectoryMutation.mutate()}
-              disabled={scanDirectoryMutation.isPending}
+              disabled={scanDirectoryMutation.isPending || importRunning}
               title="Scan the server-side import directory instead of uploading"
               className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
             >
@@ -347,20 +352,18 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
           {importError && <p className="text-sm text-destructive mb-3">{importError}</p>}
 
-          {uploadRejected.length > 0 && !plan && (
-            <p className="mb-3 text-sm text-warning">
-              {uploadRejected.length} file(s) rejected on upload: {uploadRejected.map((r) => r.file).join(', ')}
-            </p>
-          )}
-
           {plan && (
             <div className="mb-4">
-              <ImportPreviewTable entries={plan.entries} rejected={plan.rejected} totals={plan.totals} />
+              <ImportPreviewTable
+                entries={plan.entries}
+                rejected={[...uploadRejected, ...plan.rejected]}
+                totals={plan.totals}
+              />
               <div className="flex gap-2 mt-3">
                 <button
                   type="button"
                   onClick={() => commitMutation.mutate()}
-                  disabled={commitMutation.isPending || plan.totals.importable === 0}
+                  disabled={commitMutation.isPending || plan.totals.importable === 0 || importRunning}
                   className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}
                 >
                   {commitMutation.isPending

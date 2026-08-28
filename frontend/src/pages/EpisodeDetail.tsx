@@ -104,9 +104,11 @@ function OpenEditorButton({ onClick, testId }: { onClick: () => void; testId: st
 
 // Local episode ids are minted as sNNeNN (2-3 digit season, 2-4 digit
 // episode), from upload_local_episode's `f's{season:02d}e{episode_number:02d}'`
-// (the same scheme local_import.py's _TOKEN_RE parses). Neither the episode
-// list nor detail endpoint returns season/episode numbers on their own, so
-// the edit form recovers them from the id it already has.
+// (the same scheme local_import.py's _TOKEN_RE parses). The detail endpoint
+// now echoes seasonNumber/episodeNumber directly (they're the authoritative
+// values -- the id is minted once at upload and never renamed, so it can go
+// stale relative to them after an edit); parsing the id is only a fallback
+// for a backend response that omits those fields.
 const LOCAL_EPISODE_ID_RE = /^s(\d{2,3})e(\d{2,4})$/i;
 
 function parseLocalEpisodeId(id: string): { season: number; episode: number } | null {
@@ -124,8 +126,10 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(episode.title);
   const [description, setDescription] = useState(episode.description ?? '');
-  const [season, setSeason] = useState(() => String(parseLocalEpisodeId(episode.id)?.season ?? ''));
-  const [episodeNum, setEpisodeNum] = useState(() => String(parseLocalEpisodeId(episode.id)?.episode ?? ''));
+  const [season, setSeason] = useState(() =>
+    String(episode.seasonNumber ?? parseLocalEpisodeId(episode.id)?.season ?? ''));
+  const [episodeNum, setEpisodeNum] = useState(() =>
+    String(episode.episodeNumber ?? parseLocalEpisodeId(episode.id)?.episode ?? ''));
   const [publishedAt, setPublishedAt] = useState(toDatetimeLocalInput(episode.published));
   const [saved, setSaved] = useState(false);
 
@@ -137,8 +141,8 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
     const parsed = parseLocalEpisodeId(ep.id);
     setTitle(ep.title);
     setDescription(ep.description ?? '');
-    setSeason(String(parsed?.season ?? ''));
-    setEpisodeNum(String(parsed?.episode ?? ''));
+    setSeason(String(ep.seasonNumber ?? parsed?.season ?? ''));
+    setEpisodeNum(String(ep.episodeNumber ?? parsed?.episode ?? ''));
     setPublishedAt(toDatetimeLocalInput(ep.published));
   });
 

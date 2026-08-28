@@ -31,11 +31,15 @@ export interface Feed {
   feedType?: 'subscribed' | 'local';
   description?: string;
   artworkUrl?: string;
+  // Explicit "do we hold an uploaded file" signal (artworkUrl is never
+  // falsy: it falls back to the artwork proxy path even with nothing
+  // uploaded, so it cannot answer this by itself).
+  hasArtwork?: boolean;
   // Local-feed metadata (author/explicit/categories are also editable on
   // subscribed feeds' upstream-derived values, but only local feeds accept
   // them via PATCH).
   author?: string;
-  explicit?: boolean;
+  explicit?: boolean | null;
   categories?: string[];
   // Podcasting 2.0 channel-level tags (funding/person/license/location/txt,
   // medium, locked, locked_owner). Local feeds only; shape mirrors the
@@ -198,6 +202,12 @@ export interface DaiDifferential {
 
 export interface EpisodeDetail extends Episode {
   description?: string;
+  // Local feeds only; absent on a subscribed feed's episodes. The
+  // authoritative source for a local episode's season/episode -- an id
+  // like s01e01 is minted once at upload and never renamed, so it can go
+  // stale relative to these once season/episode is edited.
+  seasonNumber?: number;
+  episodeNumber?: number;
   originalUrl?: string;
   processedUrl?: string;
   hasOriginalAudio?: boolean;

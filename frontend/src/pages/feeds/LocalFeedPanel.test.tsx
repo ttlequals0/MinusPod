@@ -4,11 +4,14 @@
  * Covers:
  *   - Renders for a local feed (title, Add episode button, Bulk import section).
  *   - A scanned import plan renders matched entries (via ImportPreviewTable)
- *     plus rejected files from the upload step.
+ *     plus rejected files from BOTH the upload step and the scan's own
+ *     rejected list.
  *   - Confirming the scanned plan posts importCommit with the planHash the
  *     scan returned.
- *   - The artwork warning row shows when the feed has no artworkUrl, and is
- *     absent when it does.
+ *   - The artwork warning row shows when feed.hasArtwork is false, and is
+ *     absent when it's true.
+ *   - Saving metadata sends null (not omitted) for a blanked author/
+ *     categories, and always sends p20.locked_owner so a blank one clears.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -112,11 +115,6 @@ describe('LocalFeedPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockImportStatus.mockResolvedValue(IDLE_STATUS);
-    // The artwork-missing warning HEADs the feed's own artwork URL directly
-    // (feed.artworkUrl is always a URL, present or not -- see the query's
-    // comment in LocalFeedPanel.tsx) rather than going through apiRequest.
-    // Default to "has artwork" (ok: true); individual tests override this.
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
   });
 
   it('renders for a local feed', async () => {
@@ -154,7 +152,13 @@ describe('LocalFeedPanel', () => {
 
     // Rejected file surfaced from the scan plan's own rejected list.
     expect(screen.getByText('stray.wav')).toBeDefined();
-    expect(screen.getByText(/not a supported audio format/)).toBeDefined();
+    expect(screen.getAllByText(/not a supported audio format/).length).toBeGreaterThan(0);
+
+    // Rejected file from the upload step must ALSO stay visible now that a
+    // plan has rendered -- it used to only show while `!plan`, which never
+    // held true once uploadAndScanMutation's onSuccess set both uploadRejected
+    // and plan in the same tick.
+    expect(screen.getByText('bad.flac')).toBeDefined();
   });
 
   it('posts the scanned planHash when the plan is confirmed', async () => {
@@ -177,15 +181,37 @@ describe('LocalFeedPanel', () => {
     }));
   });
 
-  it('shows a warning when the feed has no artwork', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
-    renderPanel(makeFeed());
-    expect(await screen.findByText(/No artwork uploaded/)).toBeDefined();
+  it('shows a warning when the feed has no artwork', () => {
+    renderPanel(makeFeed({ hasArtwork: false }));
+    expect(screen.getByText(/No artwork uploaded/)).toBeDefined();
   });
 
-  it('hides the artwork warning once the feed has artwork', async () => {
-    renderPanel(makeFeed({ artworkUrl: 'https://example.com/art.jpg' }));
-    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+  it('hides the artwork warning once the feed has artwork', () => {
+    renderPanel(makeFeed({ hasArtwork: true }));
     expect(screen.queryByText(/No artwork uploaded/)).toBeNull();
+  });
+
+  it('sends null for a blanked author/categories and always sends p20.locked_owner on save', async () => {
+    const user = userEvent.setup();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+    renderPanel(makeFeed({
+      author: 'Archive Curator',
+      categories: ['History'],
+      p20: { medium: 'podcast', locked: 'yes', locked_owner: 'owner@example.com' },
+    }));
+
+    // Blank every clearable field, then save: sending `undefined` here would
+    // drop the key from the JSON body and the backend would leave the old
+    // value untouched (#625 Task 13 review finding 2).
+    await user.clear(screen.getByLabelText('Author'));
+    await user.clear(screen.getByLabelText('Categories'));
+    await user.clear(screen.getByLabelText('Locked owner email'));
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalled());
+    const payload = mockUpdateFeed.mock.calls[0][1];
+    expect(payload.author).toBeNull();
+    expect(payload.categories).toBeNull();
+    expect(payload.p20.locked_owner).toBe('');
   });
 });

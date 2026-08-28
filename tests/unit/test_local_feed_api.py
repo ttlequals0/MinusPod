@@ -186,6 +186,75 @@ def test_patch_local_only_fields_on_local_feed_rebuilds_rss(app_client, local_fe
     assert json.loads(podcast['categories']) == ['Comedy', 'News']
 
 
+def test_patch_author_categories_clear_via_null(app_client, local_feed):
+    """{"author": null, "categories": null} must clear both fields (not
+    leave the previous value untouched) -- the frontend must send an actual
+    null, not omit the key, for this to fire (#625 Task 13 review finding 2)."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'author': 'Archive Curator',
+        'categories': ['History', 'Arts'],
+    }, headers=headers)
+    before = db.get_podcast_by_slug(slug)
+    assert before['author'] == 'Archive Curator'
+    assert json.loads(before['categories']) == ['History', 'Arts']
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'author': None,
+        'categories': None,
+    }, headers=headers)
+    assert resp.status_code == 200
+
+    after = db.get_podcast_by_slug(slug)
+    assert after['author'] is None
+    assert after['categories'] is None
+
+
+def test_get_feed_detail_echoes_local_metadata(app_client, local_feed):
+    """GET /feeds/<slug> must carry back author/explicit/categories/p20 after
+    they're set via PATCH -- locks the _podcast_base_json serializer fix
+    from 9d4ace57 (previously write-only: the PATCH persisted correctly but
+    no response, including a subsequent GET, ever echoed these fields back,
+    so a client reseeding its edit form from the refetched feed silently
+    reverted to blank/default)."""
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'author': 'Archive Curator',
+        'explicit': True,
+        'categories': ['History', 'Arts'],
+        'p20': {'medium': 'audiobook', 'locked': 'no', 'locked_owner': 'owner@example.com'},
+    }, headers=headers)
+
+    resp = app_client.get(f'/api/v1/feeds/{slug}')
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body['author'] == 'Archive Curator'
+    assert body['explicit'] is True
+    assert body['categories'] == ['History', 'Arts']
+    assert body['p20']['medium'] == 'audiobook'
+    assert body['p20']['locked'] == 'no'
+    assert body['p20']['locked_owner'] == 'owner@example.com'
+
+
+def test_get_feed_detail_carries_has_artwork(app_client, local_feed):
+    """hasArtwork is an explicit boolean signal, unlike artworkUrl (which is
+    never falsy -- it falls back to the artwork proxy path even with
+    nothing uploaded)."""
+    slug = local_feed['slug']
+    _authed(app_client)
+
+    resp = app_client.get(f'/api/v1/feeds/{slug}')
+    assert resp.status_code == 200
+    assert resp.get_json()['hasArtwork'] is False
+
+
 def test_patch_author_on_subscribed_feed_400(app_client, subscribed_feed):
     slug = subscribed_feed['slug']
     _authed(app_client)

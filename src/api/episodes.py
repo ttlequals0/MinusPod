@@ -384,6 +384,14 @@ def get_episode(slug, episode_id):
 
     return json_response({
         **base,
+        # Local-feed season/episode numbers (absent/None on a subscribed
+        # feed's episodes). upload_local_episode/patch_local_episode already
+        # echo these back; this GET handler had not, so EpisodeDetail.tsx's
+        # edit form fell back to parsing them out of the episode id -- stale
+        # the moment a season/episode edit changed the DB value without
+        # renaming the id (#625 Task 13 review).
+        'episodeNumber': episode.get('episode_number'),
+        'seasonNumber': episode.get('season_number'),
         'originalUrl': episode['original_url'],
         'processedUrl': _processed_url(slug, episode_id,
                                        episode.get('processed_version') or 0,

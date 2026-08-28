@@ -815,6 +815,12 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         # URL, but only over https: an http:// image inside an https page is
         # blocked by the browser and renders as a placeholder.
         'artworkUrl': _feed_artwork_url(podcast),
+        # Explicit "do we hold a file" signal: artworkUrl above is never
+        # falsy (it falls back to the artwork proxy path even with nothing
+        # uploaded), so a client checking "has this feed got artwork" had no
+        # reliable field to read and resorted to a HEAD probe of the proxy
+        # URL (#625 Task 13 review).
+        'hasArtwork': get_storage().has_artwork(podcast['slug']),
         'episodeCount': podcast.get('episode_count', 0),
         'processedCount': podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),

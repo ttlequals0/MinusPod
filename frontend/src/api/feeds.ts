@@ -262,9 +262,13 @@ export interface UpdateFeedPayload {
   sourceUrl?: string;
   // Local feeds only: the backend rejects these on a subscribed feed.
   title?: string;
-  author?: string;
+  description?: string;
+  // null clears the stored value (the backend distinguishes "clear" from
+  // "field omitted"; sending undefined here drops the key from the JSON
+  // body entirely and the old value survives untouched).
+  author?: string | null;
   explicit?: boolean;
-  categories?: string[];
+  categories?: string[] | null;
   p20?: Record<string, unknown>;
   networkId?: string;
   daiPlatform?: string;

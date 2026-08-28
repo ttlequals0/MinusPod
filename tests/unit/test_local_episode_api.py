@@ -427,6 +427,38 @@ def test_patch_single_episode_not_found_404(app_client, local_feed):
     assert resp.status_code == 404
 
 
+# -- GET /feeds/<slug>/episodes/<episode_id> (detail) --
+
+def test_get_episode_detail_includes_season_and_episode_numbers(app_client, local_feed):
+    """The detail GET (api/episodes.py's get_episode) must echo season/
+    episode numbers, matching what upload/PATCH already return -- without
+    this, EpisodeDetail.tsx's edit form falls back to parsing them out of
+    the episode id, which is stale after any season/episode edit (the id is
+    minted once at upload and never renamed) (#625 Task 13 review finding 1).
+    """
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01', season_number=1, episode_number=1)
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    # Edit season/episode without touching the id (episode_id is never
+    # renamed by a PATCH -- see test_patch_single_episode_happy_path).
+    resp = app_client.patch(
+        f'/api/v1/feeds/{slug}/episodes/s01e01',
+        json={'season': 2, 'episode': 5},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/s01e01')
+    assert resp.status_code == 200
+    body = resp.get_json()
+    # Parsing the id itself would (wrongly) read season=1/episode=1.
+    assert body['seasonNumber'] == 2
+    assert body['episodeNumber'] == 5
+
+
 # -- PATCH /feeds/<slug>/episodes (bulk edit) --
 
 def test_bulk_patch_happy_path(app_client, local_feed):
