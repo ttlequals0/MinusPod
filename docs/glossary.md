@@ -52,6 +52,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Differential hold** - An uncorroborated cross-fetch differential candidate: the two fetches measurably differ, but no other stage, overlap, or matched audio cue backs it as an ad. Held for review rather than cut, unless it is shorter than the differential hold-minimum-length setting, in which case it is dropped instead. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
 
+**Dry-run import plan** - The preview a bulk archive-import scan returns before anything is written: every file matched to an episode, every rejected file with a reason, and the publish date each episode would get. Committing re-checks the same files and refuses if anything changed underneath the plan. [Local Feeds > Scan, then commit](local-feeds.md#scan-then-commit)
+
 ## E
 
 **Episode statuses** - *Discovered* (seen in the feed, not processed), *Pending* (queued), *Processing* (running now), *Completed* (processed and in your feed), *Failed* (will retry), *Permanently failed* (out of retries), *Deferred* (waiting on an offline endpoint). [How It Works > Processing Queue](how-it-works.md#processing-queue)
@@ -68,11 +70,17 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Held for Review** - An ad that detection wanted to cut but a per-feed guard (max ad duration, cue-gated approval, a reviewer contradiction, or a verification conflict) stopped. The audio stays intact until you approve or dismiss it. [Web Interface > Held for Review](web-interface.md#held-for-review)
 
+## I
+
+**Import directory** - The user-managed folder for a local feed's archive import, `<data>/import/<slug>/`. You place audio and sidecar files there yourself; MinusPod only moves each file's audio out on commit and never deletes a sidecar it did not put there. [Local Feeds > Bulk import](local-feeds.md#bulk-import)
+
 ## K
 
 **Keep action** - A per-category segment action that leaves a detected span in the audio untouched. A kept marker bypasses validator hold rules and reviewer boundary checks, is dropped instead of re-flagged if pass-2 verification finds it again, and never creates a correction or false-positive text, though it still teaches the pattern learner its category. [How It Works > Segment Categories](how-it-works.md#segment-categories)
 
 ## L
+
+**Local feed** - A podcast feed MinusPod builds and serves from your own audio files, with no upstream RSS feed behind it. Episodes still run through the same ad-removal pipeline; MinusPod is the publisher rather than a proxy. [Local Feeds](local-feeds.md)
 
 **Low ad yield** - The amber episode badge shown when a run removed far less ad time than the feed's recent average. Usually a lightly-filled DAI download, occasionally a missed ad worth a look. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
@@ -116,6 +124,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Seed sponsors** - Four toggles, one per LLM pass (detection, verification, reviewer, resurrect), that control whether that pass is handed the known-sponsor list. All on by default; turning one off lets that pass judge each candidate without a prior nudge from sponsors seen before. [Configuration > Seed sponsors](configuration.md#seed-sponsors)
 
+**Sidecar file** - An optional file next to an archive-import audio file, sharing its exact basename: a `.txt` description, a `.jpg`/`.jpeg`/`.png` cover, or a `.json` file overriding title, description, publish date, season, and episode. A JSON sidecar overrides everything else, including the filename's sNNeNN token. [Local Feeds > JSON sidecar](local-feeds.md#json-sidecar)
+
 **Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep), set per feed or globally on the **Segment actions** card and defaulting to remove until changed. Intro, outro, and recap are only detected on feeds where show-segments detection resolves to on (a per-feed Inherit/On/Off choice, falling back to the global default); the other four categories are always detected. A defined pattern's match always cuts regardless of the resolved action. [How It Works > Segment Categories](how-it-works.md#segment-categories)
   - Sponsor - Paid ads, including dynamically inserted ones
   - Cross-promo - Promos for other shows and the network
@@ -129,7 +139,13 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Sliding windows** - Long transcripts are fed to the LLM in overlapping chunks so nothing is missed at chunk edges; the Windows column in Processing stats counts these. [How It Works > Sliding Window Processing](how-it-works.md#sliding-window-processing)
 
+**sNNeNN naming token** - The `s01e01`-style prefix a local feed's archive-import files must start with to be matched: case-insensitive, zero-padded to at least 2 digits for both season and episode. Mints the episode's id and is what sidecar files are matched against. [Local Feeds > Naming scheme](local-feeds.md#naming-scheme)
+
 **Sponsor** - The advertiser behind a detection. Sponsors accumulate history per feed, which gets fed back into detection as a hint. [Web Interface > Sponsors and Normalizations](web-interface.md#sponsors-and-normalizations)
+
+**Staging area** - The per-feed holding folder for a local feed's uploaded archive-import batch, `<data>/import-staging/<slug>/`. Unlike the import directory, MinusPod fully manages it: it is populated by the upload endpoint and cleared out as the import commits. [Local Feeds > Bulk import](local-feeds.md#bulk-import)
+
+**Synthesized publish date** - The publish date MinusPod assigns a local-feed episode when none was given explicitly: episodes are sorted by season and episode, the newest anchors at import time, and earlier ones step back a day each (or space evenly between two explicit dates). [Local Feeds > Publish dates](local-feeds.md#publish-dates)
 
 ## T
 

@@ -22,6 +22,13 @@ modes" below), and Podping listening is an opt-in, instance-wide
 toggle (see "Podping" below). Everything else in this document is
 automatic for every feed MinusPod serves.
 
+This document is about that proxy case: a feed MinusPod re-serves on
+someone else's behalf. A [local feed](local-feeds.md) is different.
+MinusPod is the publisher there, not a proxy, so there is no upstream
+tag to pass through, strip, or regenerate against. See
+[Local Feeds > Podcasting 2.0 fields](local-feeds.md#podcasting-20-fields)
+for what a local feed emits instead.
+
 ## The rule
 
 Every Podcast Namespace tag falls into one of four buckets:

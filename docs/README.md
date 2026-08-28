@@ -15,6 +15,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Whisper / Transcription](transcription.md) - GPU compute types, whisper.cpp, Groq, OpenAI Whisper, language, timeouts
 - [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) - offload Whisper to an Intel GPU via OpenVINO Model Server
 - [Finding Feeds & Usage](feeds-and-usage.md) - podcast search, finding RSS feeds, Audiobookshelf
+- [Local Feeds](local-feeds.md) - build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema
 - [API & Webhooks](api-and-webhooks.md) - REST endpoints, webhook events, payload templates, signing
 - [Security, Storage & Custom Assets](security-and-storage.md) - remote access, login lockout, backups, custom ad markers
 - [Podcasting 2.0](podcasting-2.0.md) - what MinusPod emits, regenerates, and deliberately strips from the Podcast Namespace, and why

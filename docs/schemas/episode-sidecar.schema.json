@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ttlequals0/MinusPod/docs/schemas/episode-sidecar.schema.json",
+  "title": "MinusPod episode sidecar",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "title": {"type": "string", "minLength": 1, "maxLength": 500},
+    "description": {"type": "string"},
+    "published_at": {"type": "string", "format": "date-time"},
+    "season": {"type": "integer", "minimum": 0},
+    "episode": {"type": "integer", "minimum": 1}
+  }
+}

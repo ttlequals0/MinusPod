@@ -11,6 +11,20 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- Local feeds: build a podcast feed from your own audio files, with no
+  upstream RSS behind it. `POST /api/v1/feeds` with `feedType: "local"`
+  creates one; episodes go in via single upload or bulk archive import
+  (a strict `sNNeNN` naming scheme, optional JSON sidecar metadata, a
+  dry-run preview before anything is written, and synthesized publish
+  dates when none is given). Every episode runs through the same
+  ad-removal, transcript, and chapter pipeline as a subscribed feed's.
+  Podcasting 2.0 channel and episode metadata (funding, person, license,
+  location, medium, locked) is editable per feed. The scheduled retention
+  sweep never touches a local feed's originals, since they are the only
+  copy. See [docs/local-feeds.md](docs/local-feeds.md).
+
 ## [2.92.1] - 2026-08-27
 
 ### Added

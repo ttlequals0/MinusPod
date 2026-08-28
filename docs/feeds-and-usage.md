@@ -20,6 +20,10 @@ You can also find RSS feeds manually:
    - Spreaker: `https://www.spreaker.com/show/{id}/episodes/feed`
    - Omny: Check page source for `omnycontent.com` URLs
 
+### No RSS feed at all
+
+If a show never had an RSS feed to begin with, such as your own recordings or an archive of downloaded episodes, see [Local Feeds](local-feeds.md) for building a feed from your own audio files instead of finding one to subscribe to.
+
 ## Usage
 
 Add your modified feed URL to any podcast app:

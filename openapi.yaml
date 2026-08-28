@@ -59,6 +59,10 @@ tags:
     description: Full-text search across all content
   - name: AudioCueTemplates
     description: Per-podcast learned audio-cue (ding/stinger) templates (#350)
+  - name: LocalFeeds
+    description: >-
+      Local (archive-import) feeds: no upstream RSS, episode upload and
+      edits, and bulk directory/upload import (#625)
 
 paths:
   /auth/status:
@@ -230,7 +234,14 @@ paths:
       tags:
         - Feeds
       summary: Add a new feed
-      description: Add a new podcast feed by providing the source RSS URL
+      description: >-
+        Add a new podcast feed. Two shapes: a subscribed feed (default),
+        which requires sourceUrl and fetches/parses it before saving; or a
+        local (archive-import) feed, set with feedType: "local", which
+        takes no sourceUrl and no upstream is ever fetched: metadata comes
+        entirely from the request body. The local branch still validates
+        slug (or derives one from title) but skips URL/SSRF validation
+        since there is no URL.
       operationId: addFeed
       requestBody:
         required: true
@@ -238,18 +249,51 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - sourceUrl
               properties:
                 sourceUrl:
                   type: string
                   format: uri
-                  description: URL of the source RSS feed
+                  description: >-
+                    URL of the source RSS feed. Required unless feedType is
+                    "local".
                   example: https://feeds.example.com/podcast.xml
                 slug:
                   type: string
-                  description: Optional custom slug (auto-generated if not provided)
+                  description: Optional custom slug (auto-generated if not provided). Immutable once the feed is created.
                   example: my-podcast
+                feedType:
+                  type: string
+                  enum: [subscribed, local]
+                  default: subscribed
+                  description: >-
+                    "local" creates an archive-import feed with no upstream
+                    RSS: title is required, sourceUrl is ignored, and no
+                    fetch happens. Omit or "subscribed" for a normal feed.
+                title:
+                  type: string
+                  description: Feed title. Required and editable when feedType is "local"; ignored for a subscribed feed, which takes its title from the upstream RSS on refresh.
+                description:
+                  type: string
+                  description: Feed description. Local feeds only; ignored for a subscribed feed.
+                author:
+                  type:
+                    - string
+                    - 'null'
+                  description: itunes:author. Local feeds only.
+                explicit:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: itunes:explicit. Local feeds only; null means unset.
+                categories:
+                  type:
+                    - array
+                    - 'null'
+                  items:
+                    type: string
+                  description: itunes:category list. Local feeds only; null clears.
+                p20:
+                  $ref: '#/components/schemas/LocalFeedP20'
                 maxEpisodes:
                   type: integer
                   minimum: 10
@@ -798,6 +842,40 @@ paths:
                     - boolean
                     - 'null'
                   description: When true, the served RSS uses MinusPod episode ids as item GUIDs instead of passing upstream GUIDs through (issue 598). Switching it on a feed with subscribers makes podcast apps treat every episode as new once. Null and false both mean upstream GUIDs. New feeds are created with true.
+                title:
+                  type: string
+                  description: >-
+                    Local feeds only (issue #625 Task 6); 400 on a
+                    subscribed feed, whose title is RSS-managed and would
+                    be overwritten on the next refresh anyway; use
+                    titleOverride there instead. Must be non-empty.
+                author:
+                  type:
+                    - string
+                    - 'null'
+                  description: itunes:author. Local feeds only; 400 on a subscribed feed.
+                explicit:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: itunes:explicit. Local feeds only; 400 on a subscribed feed. Null clears.
+                categories:
+                  type:
+                    - array
+                    - 'null'
+                  items:
+                    type: string
+                  description: itunes:category list. Local feeds only; 400 on a subscribed feed. Null clears.
+                p20:
+                  allOf:
+                    - $ref: '#/components/schemas/LocalFeedP20'
+                  description: >-
+                    Local feeds only; 400 on a subscribed feed. Merged onto
+                    the feed's existing stored p20 object, so an unspecified
+                    tag is left untouched, except sending the literal
+                    JSON null, which clears the five list tags and any
+                    stored locked_owner in one shot (see LocalFeedP20).
+                    guid can never be set here.
       responses:
         '200':
           description: Feed updated successfully
@@ -976,6 +1054,54 @@ paths:
                 format: binary
         '404':
           $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - LocalFeeds
+      summary: Upload cover art for a local feed
+      description: >-
+        Local feeds only (400 on a subscribed feed, whose artwork comes
+        from the upstream RSS on refresh). JPEG or PNG, detected from the
+        file bytes rather than the client-supplied content type. Bound by
+        the app's default 10 MB request cap. A response under 1400x1400
+        still succeeds but carries a warning field, since podcast
+        directories generally expect at least that.
+      operationId: uploadFeedArtwork
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Artwork uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  artworkUrl:
+                    type: string
+                  warning:
+                    type: string
+                    description: Present when the image is smaller than 1400x1400 in either dimension.
+        '400':
+          description: Not a local feed, missing file, or not a JPEG/PNG image
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /feeds/{slug}/ad-distribution:
     get:
@@ -1065,6 +1191,133 @@ paths:
                     type: integer
         '404':
           $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - LocalFeeds
+      summary: Upload a single episode into a local feed
+      description: >-
+        Local feeds only. episode_id is minted as s{season:02d}e{episode:02d};
+        season defaults to 1, episode defaults to one past the highest
+        existing episode number in that season. 409 if that id already
+        exists; use the bulk import commit with overwrite for that.
+        Widened request cap: audio up to 1 GB, streamed to a temp file on
+        the same volume as the episode's final storage path, not buffered
+        fully in memory.
+      operationId: uploadLocalEpisode
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: .mp3 only, up to 1 GB.
+                season:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                episode:
+                  type: integer
+                  minimum: 1
+                  description: Defaults to one past the highest existing episode number in this season.
+                title:
+                  type: string
+                description:
+                  type: string
+                publishedAt:
+                  type: string
+                  format: date-time
+                  description: ISO 8601, timezone required. Defaults to the upload time.
+                artwork:
+                  type: string
+                  format: binary
+                  description: Optional episode cover, JPEG or PNG, up to 10 MB.
+      responses:
+        '201':
+          description: Episode created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/EpisodeDetail'
+                  - type: object
+                    properties:
+                      episodeNumber: { type: integer }
+                      seasonNumber: { type: integer }
+                      queued:
+                        type: boolean
+                        description: Whether this upload was queued for auto-process (only possible when the feed already had at least one episode before this upload).
+        '400':
+          description: Not a local feed, no audio field, wrong extension, or unplayable audio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: An episode with this season/episode already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags:
+        - LocalFeeds
+      summary: Bulk-edit local episodes
+      description: >-
+        Local feeds only. Every entry is validated before any are applied
+        (atomic): one invalid entry 400s the whole request with nothing
+        written. Up to 500 entries per request. RSS is regenerated once
+        at the end, not per entry.
+      operationId: bulkPatchLocalEpisodes
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 500
+              items:
+                allOf:
+                  - type: object
+                    required: [episodeId]
+                    properties:
+                      episodeId:
+                        type: string
+                        description: sNNeNN local episode id.
+                  - $ref: '#/components/schemas/LocalEpisodeEditFields'
+      responses:
+        '200':
+          description: Episodes updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+        '400':
+          description: Not a local feed, not a list, empty, over 500 entries, duplicate episodeId, or an invalid field on any entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Feed not found, or an entry names an episodeId that does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /feeds/{slug}/episodes/{episode_id}:
     get:
@@ -1085,6 +1338,83 @@ paths:
                 $ref: '#/components/schemas/EpisodeDetail'
         '404':
           $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - LocalFeeds
+      summary: Edit a local episode
+      description: >-
+        Local feeds only. season/episode change only the display
+        season_number/episode_number columns; the episode_id minted at
+        upload time never changes.
+      operationId: patchLocalEpisode
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocalEpisodeEditFields'
+      responses:
+        '200':
+          description: Episode updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/EpisodeDetail'
+                  - type: object
+                    properties:
+                      episodeNumber: { type: integer }
+                      seasonNumber: { type: integer }
+        '400':
+          description: Not a local feed, or an invalid field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - LocalFeeds
+      summary: Delete a local episode
+      description: >-
+        Local feeds only. Hard-deletes the row and its files. Unlike a
+        subscribed feed's episode delete, there is no upstream to
+        rediscover it from, so it is not reset to 'discovered' for a
+        future refresh to pick back up.
+      operationId: deleteLocalEpisode
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      responses:
+        '200':
+          description: Episode deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                  episodeId:
+                    type: string
+        '400':
+          description: Not a local feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Episode is currently processing; cancel it first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /feeds/{slug}/episodes/{episode_id}/artwork:
     get:
@@ -1118,6 +1448,46 @@ paths:
           description: No episode cover available; redirects to the feed cover
         '400':
           $ref: '#/components/responses/BadRequest'
+    post:
+      tags:
+        - LocalFeeds
+      summary: Upload cover art for a single local episode
+      description: Local feeds only. JPEG or PNG, up to 10 MB, detected from the file bytes.
+      operationId: uploadLocalEpisodeArtwork
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Artwork uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  episodeId:
+                    type: string
+        '400':
+          description: Not a local feed, missing file, too large, or not a JPEG/PNG image
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /feeds/{slug}/episodes/{episode_id}/transcript:
     get:
@@ -5642,6 +6012,184 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /feeds/{slug}/import/upload:
+    post:
+      tags:
+        - LocalFeeds
+      summary: Stage archive-import files ahead of scan/commit
+      description: >-
+        Local feeds only. Multipart, repeated field "files", saved under
+        each file's original basename into the feed's staging area
+        (<data>/import-staging/<slug>/) so the sNNeNN naming scheme can be
+        parsed by a later scan. A basename that is empty, a dotfile, over
+        255 UTF-8 bytes, or contains a path separator/".."/NUL is rejected
+        per-file rather than failing the whole request. Widened request
+        cap: up to 1 GB total, same as the single-episode upload.
+      operationId: uploadImportFiles
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Files staged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  staged:
+                    type: array
+                    items:
+                      type: string
+                    description: Basenames successfully staged.
+                  rejected:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        file:
+                          type: string
+                        reason:
+                          type: string
+        '400':
+          description: Not a local feed, or no files field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/import/scan:
+    post:
+      tags:
+        - LocalFeeds
+      summary: Dry-run a bulk archive import
+      description: >-
+        Local feeds only. Scans the staging area and/or the user-managed
+        import directory (<data>/import/<slug>/), applies the sNNeNN
+        naming scheme and any JSON sidecars, synthesizes publish dates for
+        entries that don't have one, and returns the plan the UI renders
+        for review. Nothing is written to disk or the database by this
+        call.
+      operationId: scanImport
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocalImportRequest'
+      responses:
+        '200':
+          description: Dry-run plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocalImportPlan'
+        '400':
+          description: Not a local feed, or an invalid source/overwrite value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/import/commit:
+    post:
+      tags:
+        - LocalFeeds
+      summary: Commit a previously scanned import plan
+      description: >-
+        Local feeds only. Re-scans the same source(s) server-side and
+        compares the result's hash against the client-echoed planHash;
+        a mismatch means a file changed since the scan and 409s rather
+        than committing a stale plan. Starts a background job (one import
+        per feed at a time; a second commit while one is running also
+        409s) and returns immediately; poll import/status for progress.
+        An empty feed's very first commit never queues anything for
+        auto-process regardless of settings; a later commit into a
+        non-empty feed does, skipping the publish-date recency check.
+      operationId: commitImport
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - type: object
+                  required: [planHash]
+                  properties:
+                    planHash:
+                      type: string
+                      description: The planHash returned by the most recent import/scan call for this feed and source/overwrite combination.
+                - $ref: '#/components/schemas/LocalImportRequest'
+      responses:
+        '202':
+          description: Import started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Not a local feed, missing planHash, or an invalid source/overwrite value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: planHash is stale (files changed since scan), an import is already running for this feed, or there is not enough free disk space for the plan's importable bytes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /feeds/{slug}/import/status:
+    get:
+      tags:
+        - LocalFeeds
+      summary: Poll a local feed's background import job
+      description: Local feeds only. A slug with no import ever started reads as idle.
+      operationId: getImportStatus
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      responses:
+        '200':
+          description: Import status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocalImportStatus'
+        '400':
+          description: Not a local feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /system/queue:
     get:
       tags:
@@ -8043,19 +8591,124 @@ components:
                 type: number
                 description: Confidence boost applied to cuts in this zone
 
+    LocalFeedP20:
+      type:
+        - object
+        - 'null'
+      description: >-
+        Podcasting 2.0 channel-level extras for a local feed. Sending null
+        clears the five list tags (funding/person/license/location/txt) and
+        any stored locked_owner, but leaves guid/medium/locked alone. guid
+        is minted once at feed creation from the feed URL and can never be
+        set through this field, at create or PATCH.
+      properties:
+        funding:
+          type: array
+          items:
+            type: object
+            required: [url]
+            properties:
+              text: { type: string }
+              url: { type: string, format: uri }
+        person:
+          type: array
+          items:
+            type: object
+            required: [text]
+            properties:
+              text: { type: string, description: Person's name }
+              role: { type: string }
+              group: { type: string }
+              img: { type: string, format: uri }
+              href: { type: string, format: uri }
+        license:
+          type: array
+          items:
+            type: object
+            properties:
+              text: { type: string }
+              url: { type: string, format: uri }
+        location:
+          type: array
+          items:
+            type: object
+            properties:
+              text: { type: string }
+              geo: { type: string, description: 'geo: URI, e.g. geo:41.0,-71.0' }
+              osm: { type: string, description: OpenStreetMap feature id }
+        txt:
+          type: array
+          items:
+            type: object
+            properties:
+              text: { type: string }
+              purpose: { type: string }
+        medium:
+          type: string
+          enum: [podcast, music, video, film, audiobook, newsletter, blog]
+          default: podcast
+        locked:
+          type: string
+          enum: ['yes', 'no']
+          default: 'yes'
+        locked_owner:
+          type:
+            - string
+            - 'null'
+          description: Contact email for podcast:locked. Blank or null clears the stored owner.
+        guid:
+          type: string
+          readOnly: true
+          description: podcast:guid, a UUIDv5 minted from the feed URL at creation. Read-only; rejected with 400 if sent on a write.
+
+    LocalEpisodeP20:
+      type:
+        - object
+        - 'null'
+      description: Podcasting 2.0 item-level extras for a local feed episode. Sending null clears both tags.
+      properties:
+        person:
+          type: array
+          items:
+            type: object
+            required: [text]
+            properties:
+              text: { type: string }
+              role: { type: string }
+              group: { type: string }
+              img: { type: string, format: uri }
+              href: { type: string, format: uri }
+        location:
+          type: array
+          items:
+            type: object
+            properties:
+              text: { type: string }
+              geo: { type: string }
+              osm: { type: string }
+
     Feed:
       type: object
       properties:
         slug:
           type: string
           description: URL-safe identifier for the feed
+        feedType:
+          type: string
+          enum: [subscribed, local]
+          description: >-
+            "subscribed" (default) mirrors an upstream RSS feed; "local" is
+            an archive-import feed MinusPod builds and serves itself, with
+            no upstream. Several fields and actions (refresh, Podping,
+            differential fetch, sourceUrl) are meaningless for a local
+            feed; see the Local Feeds guide.
         title:
           type: string
-          description: Podcast title from RSS feed
+          description: Podcast title. Mirrors the upstream RSS <title> for a subscribed feed (overwritten on refresh); user-set and PATCHable for a local feed.
         sourceUrl:
           type: string
           format: uri
-          description: Original RSS feed URL
+          description: Original RSS feed URL. For a local feed this is the internal local://<slug> sentinel, never a real URL; never surfaced as the feed's subscribe URL.
         feedUrl:
           type: string
           format: uri
@@ -8065,6 +8718,28 @@ components:
             - string
             - 'null'
           description: URL to cached artwork image
+        hasArtwork:
+          type: boolean
+          description: Whether MinusPod currently holds an artwork file for this feed, regardless of what artworkUrl falls back to when it does not (issue #625 Task 13). The reliable "has art been uploaded/cached" signal; artworkUrl is never falsy on its own.
+        author:
+          type:
+            - string
+            - 'null'
+          description: itunes:author. Local feeds only; always null for a subscribed feed (taken from the upstream RSS at render time, not stored per-feed).
+        explicit:
+          type:
+            - boolean
+            - 'null'
+          description: itunes:explicit. Local feeds only; null means unset.
+        categories:
+          type:
+            - array
+            - 'null'
+          items:
+            type: string
+          description: itunes:category list. Local feeds only; null when unset.
+        p20:
+          $ref: '#/components/schemas/LocalFeedP20'
         episodeCount:
           type: integer
           description: Total number of episodes
@@ -8582,6 +9257,201 @@ components:
                   type: number
                 sampleSize:
                   type: integer
+
+    LocalEpisodeEditFields:
+      type: object
+      description: Shared editable fields for a local episode, used by both the single-episode PATCH and each entry of the bulk PATCH.
+      properties:
+        title:
+          type:
+            - string
+            - 'null'
+        description:
+          type:
+            - string
+            - 'null'
+        season:
+          type: integer
+          minimum: 1
+          description: Changes only the display season_number; the episode_id minted at upload/import time never changes.
+        episode:
+          type: integer
+          minimum: 1
+          description: Changes only the display episode_number; the episode_id minted at upload/import time never changes.
+        publishedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: ISO 8601, timezone required. Sending null clears the stored publish date.
+        p20:
+          $ref: '#/components/schemas/LocalEpisodeP20'
+
+    LocalImportRequest:
+      type: object
+      description: Shared body for import/scan and import/commit.
+      properties:
+        source:
+          type: string
+          enum: [staging, directory, both]
+          default: both
+          description: 'Which source(s) to scan: the upload staging area, the user-managed import directory, or both.'
+        overwrite:
+          type: boolean
+          default: false
+          description: 'When true, a file whose sNNeNN id matches an existing episode replaces it (full reset: new audio and metadata, prior transcripts/chapters/processing state discarded) instead of erroring as a collision.'
+
+    LocalImportEntry:
+      type: object
+      description: One matched file in an import plan.
+      properties:
+        episodeId:
+          type: string
+          description: sNNeNN id, from the filename token or a sidecar override.
+        season:
+          type: integer
+        episode:
+          type: integer
+        title:
+          type: string
+        audioFile:
+          type: string
+          description: Basename of the matched audio file.
+        descriptionFile:
+          type:
+            - string
+            - 'null'
+        artworkFile:
+          type:
+            - string
+            - 'null'
+        sidecarFile:
+          type:
+            - string
+            - 'null'
+          description: Basename of the matched .json sidecar, if any.
+        publishedAt:
+          type: string
+          format: date-time
+        publishedAtSource:
+          type: string
+          enum: [explicit, synthesized]
+          description: "explicit: from a sidecar or already-set value. synthesized: filled in from episode order (see the Local Feeds guide's Publish dates section)."
+        bytes:
+          type: integer
+          description: Audio file size at scan time; commit re-checks this and mtimeNs against the live file and errors the entry if either changed (TOCTOU guard).
+        mtimeNs:
+          type: integer
+        warnings:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
+          description: Non-empty means this entry will not be committed (e.g. duplicate id in the batch, collision with an existing episode without overwrite, invalid sidecar, out-of-order explicit date).
+
+    LocalImportPlan:
+      type: object
+      description: >-
+        The dry-run result from import/scan, and the shape import/commit
+        re-derives server-side to check against the client-echoed
+        planHash. Entries carrying server filesystem paths are stripped
+        from the client-facing response; only basenames are exposed.
+      properties:
+        slug:
+          type: string
+        overwrite:
+          type: boolean
+        planHash:
+          type: string
+          description: sha256 over the sorted (name, size, mtime) of every scanned source file. Echo this back to import/commit; a mismatch there means the source directory changed since this scan.
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LocalImportEntry'
+        rejected:
+          type: array
+          items:
+            type: object
+            properties:
+              file:
+                type: string
+              reason:
+                type: string
+          description: Files that did not match the naming scheme at all (or are hidden/incomplete/empty/a non-mp3 audio format), never imported.
+        totals:
+          type: object
+          properties:
+            importable:
+              type: integer
+            rejected:
+              type: integer
+            errors:
+              type: integer
+            bytes:
+              type: integer
+
+    LocalImportStatus:
+      type: object
+      description: Background progress/result of the most recent import/commit for a feed.
+      properties:
+        state:
+          type: string
+          enum: [idle, running, done, error]
+          description: idle means no import has ever been started for this feed (or the server has restarted since).
+        processed:
+          type: integer
+        total:
+          type: integer
+        startedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        report:
+          type:
+            - object
+            - 'null'
+          description: Present once state is done or error.
+          properties:
+            committed:
+              type: array
+              items:
+                type: object
+                properties:
+                  episodeId: { type: string }
+                  audioFile: { type: string }
+                  warnings:
+                    type: array
+                    items: { type: string }
+            skipped:
+              type: array
+              items:
+                type: object
+                properties:
+                  episodeId: { type: string }
+                  audioFile: { type: string }
+                  errors:
+                    type: array
+                    items: { type: string }
+            failed:
+              type: array
+              items:
+                type: object
+                properties:
+                  episodeId: { type: string }
+                  audioFile: { type: string }
+                  error: { type: string }
+            queued:
+              type: array
+              items:
+                type: string
+              description: episodeIds queued for auto-process (only possible when the feed already had episodes before this commit).
+            error:
+              type: string
+              description: Present only when state is error, meaning an exception escaped the whole batch rather than a per-file failure (those land in failed above).
 
     EpisodeProcessingRun:
       type: object

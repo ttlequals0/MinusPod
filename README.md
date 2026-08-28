@@ -33,6 +33,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - Podcasting 2.0: regenerated transcripts and chapters, AI-content disclosure, value-for-value tags passed through
 - Optional Podping listener refreshes a feed within seconds of the host announcing a new episode, on top of scheduled polling
 - OPML import/export, and an optional cover-art badge that marks the re-feed
+- Local feeds: build a feed from your own audio files instead of an upstream RSS feed, with single or bulk episode upload, a dry-run import preview, and the same ad-removal pipeline as a subscribed feed
 
 **Interface and ops**
 - Web UI with a waveform ad editor, plus feed, episode, pattern, sponsor, history, and stats views
@@ -102,6 +103,7 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 | [Whisper / Transcription](docs/transcription.md) | GPU compute types, whisper.cpp, Groq, OpenAI Whisper, timeouts |
 | [Intel GPU Transcription (OpenVINO)](docs/transcription-openvino.md) | Offload Whisper to an Intel GPU via the OpenVINO Model Server |
 | [Finding Feeds & Usage](docs/feeds-and-usage.md) | Podcast search, finding RSS feeds, Audiobookshelf |
+| [Local Feeds](docs/local-feeds.md) | Build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema |
 | [API & Webhooks](docs/api-and-webhooks.md) | REST endpoints, webhook events, payload templates |
 | [Security, Storage & Custom Assets](docs/security-and-storage.md) | Remote access, login lockout, backups, custom markers |
 | [Podcasting 2.0](docs/podcasting-2.0.md) | What MinusPod emits, regenerates, and deliberately strips from the Podcast Namespace, and why |
