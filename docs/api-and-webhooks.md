@@ -8,13 +8,14 @@
 
 REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full specification: [`openapi.yaml`](../openapi.yaml).
 
-Write requests (`POST`, `PUT`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it for you; an external client has to read that cookie and echo it back on each write.
+Write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it for you; an external client has to read that cookie and echo it back on each write.
 
 Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
 - `GET /api/v1/health/live` - Liveness probe (process up); always 200, safe for frequent polling
 - `GET /api/v1/feeds` - List all feeds
 - `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap, `onlyExposeProcessedEpisodes` to hide unprocessed episodes from the served feed, `retentionDaysOverride` for a per-feed retention window or archive, `keepOriginalAudioOverride` for the pre-cut original audio)
+- `PATCH /api/v1/feeds/{slug}` - Update a feed's settings: `queuePriority` (`high`/`normal`/`low`, restamps the feed's already-queued pending episodes immediately), `retentionDaysOverride`, `keepOriginalAudioOverride`, `maxEpisodes`, `onlyExposeProcessedEpisodes`, `processingMode`, `chaptersMode`, title blacklist, and the other per-feed overrides listed in the OpenAPI spec
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
 - `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs)
 - `POST /api/v1/feeds/refresh-artwork` - Re-render every feed's cover art (used after toggling the cover-art badge or swapping the badge asset)
