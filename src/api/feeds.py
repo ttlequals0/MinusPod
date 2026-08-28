@@ -1831,7 +1831,7 @@ def get_artwork(slug):
 
 
 @api.route('/feeds/<slug>/artwork', methods=['POST'])
-@limiter.limit("10 per minute")
+@limiter.limit("60 per minute")
 @log_request
 def upload_feed_artwork(slug):
     """Upload cover art for a local feed (Task 6).

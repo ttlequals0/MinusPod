@@ -105,6 +105,27 @@ def test_eviction_drops_the_least_recently_served_covers(storage, monkeypatch):
     assert surviving == {ids[0], 'dddddddddddd'}
 
 
+def test_evict_false_preserves_older_covers_over_the_cap(storage, monkeypatch):
+    """Local-feed episode artwork (#625 Task 8) is the only copy of that
+    cover -- there is no upstream URL to re-download it from -- so
+    save_episode_artwork(..., evict=False) must skip the LRU trim
+    entirely, even when the directory is left far over the cap."""
+    blob = b'\xff\xd8\xff\xe0' + b'\x00' * 96  # 100 bytes each
+
+    monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', 10_000)
+    ids = ['aaaaaaaaaaaa', 'bbbbbbbbbbbb']
+    for ep in ids:
+        storage._save_episode_artwork(SLUG, ep, blob, 'image/jpeg')
+
+    art_dir = storage._episode_artwork_dir(SLUG)
+    monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', 50)
+    result = storage.save_episode_artwork(SLUG, 'cccccccccccc', blob, 'image/jpeg', evict=False)
+
+    assert result is True
+    surviving = {p.stem for p in art_dir.glob('*.jpg')}
+    assert surviving == {ids[0], ids[1], 'cccccccccccc'}
+
+
 def test_cache_stays_under_the_cap(storage, monkeypatch):
     monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', 250)
     blob = b'\xff\xd8\xff\xe0' + b'\x00' * 96

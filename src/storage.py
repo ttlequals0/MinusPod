@@ -730,17 +730,28 @@ class Storage:
             return False
 
     def save_episode_artwork(self, slug: str, episode_id: str,
-                             image_data: bytes, content_type: str) -> bool:
+                             image_data: bytes, content_type: str,
+                             evict: bool = True) -> bool:
         """Public wrapper around ``_save_episode_artwork`` for API-driven
         uploads (local feeds' single-episode artwork upload, #625 Task 8).
         ``content_type`` must already be validated (e.g. via
-        ``_detect_image_mime``) -- this method does not re-check it."""
-        return self._save_episode_artwork(slug, episode_id, image_data, content_type)
+        ``_detect_image_mime``) -- this method does not re-check it.
+
+        ``evict=False`` skips the LRU cache trim. Local-feed episode
+        artwork is the only copy of that cover (there is no upstream URL
+        to re-download it from later), so it must never be evicted; a
+        subscribed feed's downloaded cover is a re-fetchable cache and is
+        safe to trim under the size cap (the default).
+        """
+        return self._save_episode_artwork(slug, episode_id, image_data,
+                                          content_type, evict=evict)
 
     def _save_episode_artwork(self, slug: str, episode_id: str,
-                              image_data: bytes, content_type: str) -> bool:
+                              image_data: bytes, content_type: str,
+                              evict: bool = True) -> bool:
         """Write one episode cover, replacing any stale extension, then trim
-        the feed's cache back under EPISODE_ARTWORK_CACHE_BYTES."""
+        the feed's cache back under EPISODE_ARTWORK_CACHE_BYTES (unless
+        ``evict=False`` -- see ``save_episode_artwork``)."""
         art_dir = self._episode_artwork_dir(slug, create=True)
         if art_dir is None:
             return False
@@ -759,7 +770,8 @@ class Storage:
             if old_path.exists() and old_path != artwork_path:
                 old_path.unlink()
 
-        self._evict_episode_artwork(art_dir)
+        if evict:
+            self._evict_episode_artwork(art_dir)
         return True
 
     def _evict_episode_artwork(self, art_dir: Path) -> int:

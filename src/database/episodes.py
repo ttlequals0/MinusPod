@@ -1177,8 +1177,14 @@ class EpisodeMixin:
 
         Unlike delete_episodes, this drops the row entirely -- appropriate
         for local (imported-archive) feeds, which have no upstream RSS to
-        re-discover the episode from on a future refresh. Returns the
-        number of rows deleted.
+        re-discover the episode from on a future refresh. Also drops any
+        auto_process_queue row for these ids: leaving one behind would let
+        the background queue processor resurrect a deleted episode (it
+        reads original_url/title/etc. off the queue row, not the episodes
+        table), and the queue table's UNIQUE(podcast_id, episode_id) +
+        ON CONFLICT DO NOTHING on enqueue would silently swallow a future
+        re-upload of the same id. Returns the number of episode rows
+        deleted.
         """
         conn = self.get_connection()
         podcast = self.get_podcast_by_slug(slug)
@@ -1190,9 +1196,14 @@ class EpisodeMixin:
             storage.remove_episode_artwork(slug, episode_id)
 
         placeholders = ','.join('?' for _ in episode_ids)
+        params = [podcast['id']] + list(episode_ids)
+        conn.execute(
+            f"DELETE FROM auto_process_queue WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
+            params
+        )
         cursor = conn.execute(
             f"DELETE FROM episodes WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
-            [podcast['id']] + list(episode_ids)
+            params
         )
         conn.commit()
         return cursor.rowcount

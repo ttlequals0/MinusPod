@@ -22,13 +22,14 @@ from pathlib import Path
 from flask import request
 
 from api import (api, limiter, log_request, json_response, error_response,
-                 get_database, get_storage)
+                 get_database, get_storage, get_status_service)
 from api.episodes import _episode_base_json
 from api.feeds import _validate_p20_items, _p20_tag_attrs
 from config import MIN_PRESERVED_CHAPTERS
 from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
+from processing_queue import ProcessingQueue
 from storage import _detect_image_mime
 from utils.audio import get_audio_duration
 from utils.constants import EpisodeStatus
@@ -38,6 +39,13 @@ from utils.validation import is_valid_episode_id
 logger = logging.getLogger('podcast.api')
 
 MAX_BULK_EPISODES = 500
+
+# Cap on the in-memory artwork read (upload/PATCH artwork fields). The
+# single-episode-upload route's request cap is widened to 1 GB for the
+# audio field (see api/__init__.py's _widen_upload_cap), so an unbounded
+# .stream.read() on the co-located artwork field would let a client force
+# up to that much into memory just for the image part.
+MAX_EPISODE_ARTWORK_BYTES = 10 * 1024 * 1024
 
 # Episode-level (p20_item_json) tags. Channel-level p20 (podcasts.p20_channel_json,
 # see api/feeds.py's _validate_p20) additionally supports funding/license/txt,
@@ -99,6 +107,15 @@ def _parse_published_at(value):
     if parsed.tzinfo is None:
         return None, 'publishedAt must include a timezone'
     return parsed.astimezone(timezone.utc).strftime(ISO_FORMAT), None
+
+
+def _read_capped(file_storage, max_bytes):
+    """Read at most ``max_bytes + 1`` bytes from a Werkzeug FileStorage
+    stream -- never buffers more than that regardless of how large the
+    underlying request is. Returns (data, too_large); when too_large is
+    True, ``data`` must be discarded rather than persisted."""
+    data = file_storage.stream.read(max_bytes + 1)
+    return data, len(data) > max_bytes
 
 
 def _next_episode_number(db, podcast_id, season_number):
@@ -176,7 +193,6 @@ def _build_episode_updates(data):
 # ========== POST /feeds/<slug>/episodes (single audio upload) ==========
 
 @api.route('/feeds/<slug>/episodes', methods=['POST'])
-@limiter.limit("10 per minute")
 @log_request
 def upload_local_episode(slug):
     """Upload a single episode's audio into a local feed.
@@ -186,6 +202,10 @@ def upload_local_episode(slug):
     season. Never overwrites an existing id (409). Sidecar/embedded artwork
     extraction arrives via the import path (Task 10) -- when no artwork
     field is supplied here, episode artwork is simply left absent.
+
+    No dedicated rate limit here (unlike the other mutating routes): a 1 GB
+    audio upload already self-limits request throughput far below anything
+    a per-minute counter would add.
     """
     db = get_database()
     storage = get_storage()
@@ -223,7 +243,10 @@ def upload_local_episode(slug):
     artwork_content_type = None
     artwork_upload = request.files.get('artwork')
     if artwork_upload is not None and artwork_upload.filename:
-        raw = artwork_upload.stream.read()
+        raw, too_large = _read_capped(artwork_upload, MAX_EPISODE_ARTWORK_BYTES)
+        if too_large:
+            return error_response(
+                f'artwork must be {MAX_EPISODE_ARTWORK_BYTES // (1024 * 1024)} MB or smaller', 400)
         artwork_content_type = _detect_image_mime(raw)
         if artwork_content_type not in ('image/jpeg', 'image/png'):
             return error_response('artwork must be a JPEG or PNG image', 400)
@@ -240,7 +263,13 @@ def upload_local_episode(slug):
 
     _, total_before = db.get_episodes(slug, status='all', limit=1)
 
-    tmp_fd, tmp_name = tempfile.mkstemp(suffix='.mp3')
+    # get_original_path -> get_podcast_dir already creates the episodes/
+    # subdirectory. The tempfile is created in that SAME directory so the
+    # later shutil.move is a same-filesystem rename rather than a
+    # cross-device copy -- doubling disk usage and I/O time on a 1 GB
+    # upload if DATA_DIR and the system tmp dir are on different mounts.
+    final_path = storage.get_original_path(slug, episode_id)
+    tmp_fd, tmp_name = tempfile.mkstemp(suffix='.mp3', dir=str(final_path.parent))
     os.close(tmp_fd)
     tmp_path = Path(tmp_name)
     try:
@@ -250,11 +279,29 @@ def upload_local_episode(slug):
         if duration is None:
             return error_response('not playable audio', 400)
 
-        # get_original_path -> get_podcast_dir already creates the
-        # episodes/ subdirectory, so no separate mkdir is needed here.
-        final_path = storage.get_original_path(slug, episode_id)
         shutil.move(str(tmp_path), str(final_path))
         tmp_path = None  # ownership transferred; nothing left to clean up
+
+        published_at = published_at or utc_now_iso()
+
+        # Insert the row immediately after the move. This narrows the
+        # window where the audio file is on disk with no corresponding DB
+        # row, and -- more importantly -- the chapters/artwork writes
+        # below need the row to already exist: save_chapters_json goes
+        # through save_episode_details, which raises ValueError (silently
+        # swallowed to a warning by the storage layer) when the episode
+        # isn't in the episodes table yet.
+        db.upsert_episode(
+            slug, episode_id,
+            title=title,
+            description=description,
+            status=EpisodeStatus.DISCOVERED.value,
+            original_url=f'local://{episode_id}',
+            published_at=published_at,
+            episode_number=episode_number,
+            season_number=season,
+            original_duration=duration,
+        )
 
         chapters = probe_chapters(str(final_path))
         if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
@@ -267,21 +314,11 @@ def upload_local_episode(slug):
             })
 
         if artwork_bytes:
-            storage.save_episode_artwork(slug, episode_id, artwork_bytes, artwork_content_type)
-
-        published_at = published_at or utc_now_iso()
-
-        db.upsert_episode(
-            slug, episode_id,
-            title=title,
-            description=description,
-            status=EpisodeStatus.DISCOVERED.value,
-            original_url=f'local://{episode_id}',
-            published_at=published_at,
-            episode_number=episode_number,
-            season_number=season,
-            original_duration=duration,
-        )
+            # evict=False: this is the only copy of this cover (no
+            # upstream URL to re-download it from later), so it must never
+            # be dropped by the episode-artwork LRU cache trim.
+            storage.save_episode_artwork(slug, episode_id, artwork_bytes,
+                                         artwork_content_type, evict=False)
 
         queued = False
         if total_before >= 1 and db.is_auto_process_enabled_for_podcast(slug, podcast=podcast):
@@ -417,7 +454,20 @@ def delete_local_episode(slug, episode_id):
     if not episode:
         return error_response('Episode not found', 404)
 
+    # A worker actively processing this episode is reading/writing its
+    # files right now; deleting out from under it would race the worker
+    # and leave it referencing a gone row/file.
+    if ProcessingQueue().is_processing(slug, episode_id):
+        return error_response('episode is processing; cancel it first', 409)
+
     deleted = db.delete_episode_rows(slug, [episode_id], storage)
+
+    # delete_episode_rows already drops the auto_process_queue row; also
+    # drop it from the live display queue (a separate, in-memory/JSON
+    # status store) so a still-queued-but-not-yet-claimed entry doesn't
+    # linger in the UI for a row that no longer exists.
+    get_status_service().remove_queued_episode(slug, episode_id)
+
     _rebuild(slug, podcast=podcast)
     return json_response({'deleted': deleted, 'episodeId': episode_id}, 200)
 
@@ -425,7 +475,7 @@ def delete_local_episode(slug, episode_id):
 # ========== POST /feeds/<slug>/episodes/<episode_id>/artwork ==========
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/artwork', methods=['POST'])
-@limiter.limit("10 per minute")
+@limiter.limit("60 per minute")
 @log_request
 def upload_local_episode_artwork(slug, episode_id):
     """Upload cover art for a single local episode."""
@@ -444,7 +494,10 @@ def upload_local_episode_artwork(slug, episode_id):
     if upload is None:
         return error_response('an image file is required (multipart field "file")', 400)
 
-    raw = upload.stream.read()
+    raw, too_large = _read_capped(upload, MAX_EPISODE_ARTWORK_BYTES)
+    if too_large:
+        return error_response(
+            f'artwork must be {MAX_EPISODE_ARTWORK_BYTES // (1024 * 1024)} MB or smaller', 400)
     if not raw:
         return error_response('empty file', 400)
 
@@ -452,7 +505,9 @@ def upload_local_episode_artwork(slug, episode_id):
     if content_type not in ('image/jpeg', 'image/png'):
         return error_response('artwork must be a JPEG or PNG image', 400)
 
-    if not storage.save_episode_artwork(slug, episode_id, raw, content_type):
+    # evict=False: the only copy of this cover -- see upload_local_episode's
+    # identical note.
+    if not storage.save_episode_artwork(slug, episode_id, raw, content_type, evict=False):
         return error_response('Failed to save artwork', 500)
 
     _rebuild(slug, podcast=podcast)

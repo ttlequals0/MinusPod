@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -97,6 +98,29 @@ def real_mp3_bytes(tmp_path_factory):
         ['ffmpeg', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono',
          '-t', '1', '-q:a', '9', str(mp3_path)],
         check=True, capture_output=True,
+    )
+    return mp3_path.read_bytes()
+
+
+@pytest.fixture(scope='session')
+def chaptered_mp3_bytes(tmp_path_factory):
+    """An mp3 with two embedded ID3v2 chapters (ffmetadata -> -map_chapters),
+    generated once per session -- mirrors
+    test_embedded_chapters.py::TestProbeChaptersIntegration's fixture build."""
+    if shutil.which('ffmpeg') is None:
+        pytest.skip('ffmpeg not available')
+    tmp_dir = tmp_path_factory.mktemp('chaptered_audio')
+    meta = tmp_dir / 'chap.ffmeta'
+    meta.write_text(
+        ";FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=500\ntitle=One\n"
+        "[CHAPTER]\nTIMEBASE=1/1000\nSTART=500\nEND=1000\ntitle=Two\n"
+    )
+    mp3_path = tmp_dir / 'chaptered.mp3'
+    subprocess.run(
+        ['ffmpeg', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono:d=1',
+         '-i', str(meta), '-map_metadata', '1', '-map_chapters', '1',
+         '-shortest', '-q:a', '9', str(mp3_path)],
+        check=True, capture_output=True, timeout=30,
     )
     return mp3_path.read_bytes()
 
@@ -227,6 +251,101 @@ def test_upload_missing_audio_field_400(app_client, local_feed):
         content_type='multipart/form-data',
     )
     assert resp.status_code == 400
+
+
+@requires_ffmpeg
+def test_upload_persists_embedded_chapters(app_client, local_feed, chaptered_mp3_bytes):
+    """Critical fix: chapters must be stored even though upsert_episode
+    used to run AFTER save_chapters_json (which needs the episode row to
+    already exist -- save_episode_details raises ValueError otherwise,
+    silently swallowed to a warning by the storage layer)."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={'audio': (io.BytesIO(chaptered_mp3_bytes), 'chaptered.mp3')},
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 201
+    episode_id = resp.get_json()['episodeId']
+
+    episode = db.get_episode(slug, episode_id)
+    assert episode['chapters_json'] is not None
+    chapters = json.loads(episode['chapters_json'])
+    assert chapters['version'] == '1.2.0'
+    assert [c['title'] for c in chapters['chapters']] == ['One', 'Two']
+
+
+@requires_ffmpeg
+def test_upload_tempfile_created_in_same_dir_as_final_path(app_client, local_feed, real_mp3_bytes):
+    """The tmp file must live next to the final original-audio path so the
+    move is a same-filesystem rename, not a cross-device copy (relevant
+    once the upload route's request cap is widened to 1 GB)."""
+    from api import get_storage
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    storage = get_storage()
+    expected_final_path = storage.get_original_path(slug, 's01e01')
+    expected_dir = expected_final_path.parent
+
+    # patch('...shutil.move') patches the single shared `shutil` module
+    # object, so this also intercepts storage.save_rss's own shutil.move
+    # (invoked via rebuild_local_feed at the end of the request) -- record
+    # every call and pick out the one that produced the audio file rather
+    # than assuming the audio move is the only (or the last) call.
+    real_move = shutil.move
+    calls = []
+
+    def _spy_move(src, dst, *a, **kw):
+        calls.append((str(Path(src).parent), str(dst)))
+        return real_move(src, dst, *a, **kw)
+
+    with patch('api.local_episodes.shutil.move', side_effect=_spy_move):
+        resp = app_client.post(
+            f'/api/v1/feeds/{slug}/episodes',
+            data={'audio': (io.BytesIO(real_mp3_bytes), 'ep.mp3')},
+            headers=headers,
+            content_type='multipart/form-data',
+        )
+    assert resp.status_code == 201
+
+    audio_calls = [src_parent for src_parent, dst in calls if dst == str(expected_final_path)]
+    assert audio_calls == [str(expected_dir)]
+
+
+def test_upload_artwork_field_capped_before_full_read(app_client, local_feed, monkeypatch):
+    """A malicious/oversized artwork part must 400 without ever buffering
+    more than the cap, even though the route's overall request cap is
+    widened to 1 GB for the audio field."""
+    import api.local_episodes as local_episodes_mod
+    monkeypatch.setattr(local_episodes_mod, 'MAX_EPISODE_ARTWORK_BYTES', 100)
+
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    oversized = b'\x89PNG\r\n\x1a\n' + b'\x00' * 200  # > 100-byte test cap
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={
+            'audio': (io.BytesIO(b'not-real-audio-bytes'), 'ep.mp3'),
+            'artwork': (io.BytesIO(oversized), 'cover.png'),
+        },
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 400
+    assert 'smaller' in resp.get_json()['error']
+
+    # Bailed out before any DB row was written.
+    from api import get_database
+    assert get_database().get_episode(slug, 's01e01') is None
 
 
 # -- PATCH /feeds/<slug>/episodes/<episode_id> (single edit) --
@@ -400,6 +519,86 @@ def test_delete_not_found_404(app_client, local_feed):
 
     resp = app_client.delete(f'/api/v1/feeds/{slug}/episodes/s09e09', headers=headers)
     assert resp.status_code == 404
+
+
+def test_delete_409_when_episode_is_processing(app_client, local_feed):
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01')
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    with patch('api.local_episodes.ProcessingQueue') as mock_pq_cls:
+        mock_pq_cls.return_value.is_processing.return_value = True
+        resp = app_client.delete(f'/api/v1/feeds/{slug}/episodes/s01e01', headers=headers)
+
+    assert resp.status_code == 409
+    # Nothing was touched: the row (and its files, if any) must survive.
+    assert db.get_episode(slug, 's01e01') is not None
+
+
+@requires_ffmpeg
+def test_delete_removes_queue_row_and_reupload_queues_again(app_client, local_feed, real_mp3_bytes):
+    """Important fix: delete_episode_rows must also drop the
+    auto_process_queue row. Left behind, it (a) lets the background queue
+    processor resurrect a deleted episode and (b) silently blocks a future
+    re-upload of the same id from queuing at all, since the queue table's
+    UNIQUE(podcast_id, episode_id) + ON CONFLICT DO NOTHING no-ops the
+    insert against the stale row."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01')  # feed non-empty -> next upload queues
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    def _queue_row_count(episode_id):
+        podcast = db.get_podcast_by_slug(slug)
+        conn = db.get_connection()
+        cur = conn.execute(
+            "SELECT COUNT(*) FROM auto_process_queue WHERE podcast_id = ? AND episode_id = ?",
+            (podcast['id'], episode_id),
+        )
+        return cur.fetchone()[0]
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={'audio': (io.BytesIO(real_mp3_bytes), 'ep2.mp3')},
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 201
+    assert resp.get_json()['episodeId'] == 's01e02'
+    assert resp.get_json()['queued'] is True
+    assert _queue_row_count('s01e02') == 1
+
+    del_resp = app_client.delete(f'/api/v1/feeds/{slug}/episodes/s01e02', headers=headers)
+    assert del_resp.status_code == 200
+    assert _queue_row_count('s01e02') == 0
+
+    resp2 = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={'audio': (io.BytesIO(real_mp3_bytes), 'ep2b.mp3'), 'episode': '2'},
+        headers=headers,
+        content_type='multipart/form-data',
+    )
+    assert resp2.status_code == 201
+    assert resp2.get_json()['queued'] is True
+    assert _queue_row_count('s01e02') == 1
+
+
+def test_delete_removes_from_status_service_display_queue(app_client, local_feed):
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01')
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    with patch('api.local_episodes.get_status_service') as mock_get_status:
+        mock_status = mock_get_status.return_value
+        resp = app_client.delete(f'/api/v1/feeds/{slug}/episodes/s01e01', headers=headers)
+
+    assert resp.status_code == 200
+    mock_status.remove_queued_episode.assert_called_once_with(slug, 's01e01')
 
 
 # -- POST /feeds/<slug>/episodes/<episode_id>/artwork --
