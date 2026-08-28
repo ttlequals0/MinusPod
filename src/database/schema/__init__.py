@@ -254,6 +254,8 @@ class SchemaMixin:
             # Provenance of the current reprocess_requested_at stamp: 'jit'
             # for a play request, NULL for a person or an automatic rerun.
             ('reprocess_source', 'TEXT'),
+            ('season_number', 'INTEGER'),
+            ('p20_item_json', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
@@ -382,6 +384,13 @@ class SchemaMixin:
             # Per-feed pre-cut original audio override; NULL = follow the
             # global keep_original_audio setting, 0 = off, 1 = on.
             ('keep_original_audio_override', 'INTEGER'),
+            # Local feeds: 'subscribed' (upstream RSS) or 'local' (imported
+            # archive with no upstream). Immutable after creation.
+            ('feed_type', "TEXT NOT NULL DEFAULT 'subscribed'"),
+            ('p20_channel_json', 'TEXT'),
+            ('author', 'TEXT'),
+            ('explicit', 'INTEGER'),
+            ('categories', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

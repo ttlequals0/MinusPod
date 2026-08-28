@@ -53,6 +53,11 @@ def effective_keep_original(override, global_keep: bool) -> bool:
     return bool(override) if override is not None else bool(global_keep)
 
 
+def is_local_feed(podcast: dict | None) -> bool:
+    """True when the row is a local (imported-archive) feed."""
+    return bool(podcast) and podcast.get('feed_type') == 'local'
+
+
 class PodcastMixin:
     """Podcast management methods."""
 
@@ -203,16 +208,18 @@ class PodcastMixin:
         val = row['cue_template_score_override']
         return float(val) if val is not None else None
 
-    def create_podcast(self, slug: str, source_url: str, title: str = None) -> int:
+    def create_podcast(self, slug: str, source_url: str, title: str = None,
+                        feed_type: str = 'subscribed') -> int:
         """Create a new podcast. Returns podcast ID.
 
         New feeds get own_episode_guids=1 (#598); existing rows stay NULL.
+        feed_type is immutable after creation (not in update_podcast's whitelist).
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            """INSERT INTO podcasts (slug, source_url, title, own_episode_guids)
-               VALUES (?, ?, ?, 1)""",
-            (slug, source_url, title)
+            """INSERT INTO podcasts (slug, source_url, title, own_episode_guids, feed_type)
+               VALUES (?, ?, ?, 1, ?)""",
+            (slug, source_url, title, feed_type)
         )
         conn.commit()
         return cursor.lastrowid
@@ -251,6 +258,7 @@ class PodcastMixin:
                 'queue_priority', 'title_skip_patterns', 'title_skip_action',
                 'low_ad_yield_action', 'episode_logs',
                 'retention_days_override', 'keep_original_audio_override',
+                'p20_channel_json', 'author', 'explicit', 'categories',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)

@@ -97,6 +97,13 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     only_expose_processed_episodes INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',
     user_tags TEXT NOT NULL DEFAULT '[]',
+    -- Local feeds: 'subscribed' (upstream RSS) or 'local' (imported
+    -- archive with no upstream). Immutable after creation.
+    feed_type TEXT NOT NULL DEFAULT 'subscribed',
+    p20_channel_json TEXT,
+    author TEXT,
+    explicit INTEGER,
+    categories TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 )"""
@@ -143,6 +150,8 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     -- (issue #560 follow-up). Auto mode fetches it when the embedded chapter
     -- probe comes up short. NULL when the feed does not publish the tag.
     upstream_chapters_url TEXT,
+    season_number INTEGER,
+    p20_item_json TEXT,
     tags TEXT NOT NULL DEFAULT '[]',
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

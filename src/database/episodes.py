@@ -236,7 +236,8 @@ class EpisodeMixin:
                                'reprocess_mode', 'reprocess_requested_at', 'retry_count',
                                'published_at', 'episode_number',
                                'deferred_at', 'deferred_service', 'detection_degraded',
-                               'low_yield_rerun_at', 'reprocess_source'):
+                               'low_yield_rerun_at', 'reprocess_source',
+                               'season_number', 'p20_item_json'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -262,8 +263,9 @@ class EpisodeMixin:
                     new_duration, ads_removed, ads_removed_firstpass, ads_removed_secondpass,
                     error_message, ad_detection_status, artwork_url, episode_number,
                     retry_count, published_at, deferred_at, deferred_service,
-                    reprocess_requested_at, reprocess_source)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    reprocess_requested_at, reprocess_source,
+                    season_number, p20_item_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     podcast_id,
                     episode_id,
@@ -287,7 +289,9 @@ class EpisodeMixin:
                     kwargs.get('deferred_at'),
                     kwargs.get('deferred_service'),
                     kwargs.get('reprocess_requested_at'),
-                    kwargs.get('reprocess_source')
+                    kwargs.get('reprocess_source'),
+                    kwargs.get('season_number'),
+                    kwargs.get('p20_item_json'),
                 )
             )
             db_id = cursor.lastrowid
