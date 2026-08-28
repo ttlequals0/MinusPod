@@ -10,9 +10,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FeedDetail from './FeedDetail';
 import type { Feed } from '../api/types';
 
+const mockNavigate = vi.fn();
+let mockLocationState: { notice?: string } | null = null;
+
 vi.mock('react-router', () => ({
   useParams: () => ({ slug: 'test-feed' }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({ pathname: '/feeds/test-feed', state: mockLocationState }),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -72,6 +76,7 @@ function renderFeedDetail(feed: Feed) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockLocationState = null;
 });
 
 describe('FeedDetail: podping metadata line', () => {
@@ -136,5 +141,25 @@ describe('FeedDetail: local feed visibility matrix', () => {
     });
     expect(screen.queryByText('Local')).toBeNull();
     expect(screen.getByTitle('Refresh feed')).toBeDefined();
+  });
+});
+
+describe('FeedDetail: notice from router state', () => {
+  it('surfaces a notice left in router state (e.g. from AddFeed local mode) as a toast', async () => {
+    mockLocationState = { notice: 'Feed created. Artwork upload failed. Retry from the feed page.' };
+    renderFeedDetail(makeFeed());
+    await waitFor(() => {
+      expect(screen.getByText('Feed created. Artwork upload failed. Retry from the feed page.')).toBeDefined();
+    });
+    // Consumed once: history state is cleared so a refresh/back doesn't replay it.
+    expect(mockNavigate).toHaveBeenCalledWith('/feeds/test-feed', { replace: true, state: null });
+  });
+
+  it('shows no toast when router state carries no notice', async () => {
+    renderFeedDetail(makeFeed());
+    await waitFor(() => {
+      expect(screen.getByText('Test Feed')).toBeDefined();
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

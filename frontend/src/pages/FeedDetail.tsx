@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
-import { useParams, Link, useNavigate } from 'react-router';
+import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
@@ -71,6 +71,7 @@ function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
@@ -92,6 +93,21 @@ function FeedDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkActionResult | null>(null);
+
+  // AddFeed's local-feed create flow passes a notice through router state
+  // (e.g. an artwork upload failure or size warning) since it can't set
+  // component state on a page it's about to unmount from. Surface it once
+  // through the same toast, then drop it from history so back/refresh don't
+  // replay it.
+  useEffect(() => {
+    const notice = (location.state as { notice?: string } | null)?.notice;
+    if (notice) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActionError(notice);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const { data: feed, isLoading: feedLoading, error: feedError } = useQuery({
     queryKey: ['feed', slug],

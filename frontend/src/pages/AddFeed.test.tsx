@@ -131,14 +131,11 @@ describe('AddFeed: local feed form', () => {
 
     await waitFor(() => {
       expect(mockAddLocalFeed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'My Archive Show',
-          slug: 'my-archive-show',
-        }),
+        expect.objectContaining({ title: 'My Archive Show' }),
       );
     });
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/feeds/my-archive-show');
+      expect(mockNavigate).toHaveBeenCalledWith('/feeds/my-archive-show', undefined);
     });
     expect(mockUploadFeedArtwork).not.toHaveBeenCalled();
   });
@@ -151,6 +148,110 @@ describe('AddFeed: local feed form', () => {
 
     await waitFor(() => {
       expect(screen.getByText('title is required')).toBeDefined();
+    });
+  });
+
+  it('leaves the slug for the server to derive when the slug field was never edited by hand', async () => {
+    mockAddLocalFeed.mockResolvedValue({
+      slug: 'my-archive-show', feedType: 'local', feedUrl: 'https://x/my-archive-show.xml', message: 'created',
+    });
+    const user = await openLocalMode();
+    // Typing only in Title auto-fills the Slug preview, but the field was
+    // never edited directly -- the submitted payload must omit slug so the
+    // server's own slugify rules produce the canonical value.
+    await user.type(screen.getByLabelText('Title'), 'My Archive Show');
+    await user.click(screen.getByRole('button', { name: 'Create feed' }));
+
+    await waitFor(() => {
+      expect(mockAddLocalFeed).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: undefined }),
+      );
+    });
+  });
+
+  it('sends the user-edited slug once the slug field has been touched', async () => {
+    mockAddLocalFeed.mockResolvedValue({
+      slug: 'custom-slug', feedType: 'local', feedUrl: 'https://x/custom-slug.xml', message: 'created',
+    });
+    const user = await openLocalMode();
+    await user.type(screen.getByLabelText('Title'), 'My Archive Show');
+    const slugInput = screen.getByLabelText('Slug');
+    await user.clear(slugInput);
+    await user.type(slugInput, 'custom-slug');
+    await user.click(screen.getByRole('button', { name: 'Create feed' }));
+
+    await waitFor(() => {
+      expect(mockAddLocalFeed).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: 'custom-slug' }),
+      );
+    });
+  });
+});
+
+describe('AddFeed: artwork upload after create', () => {
+  async function openLocalModeWithArtwork() {
+    const user = userEvent.setup();
+    renderAddFeed();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Podcast RSS Feed URL')).toBeDefined();
+    });
+    await user.click(screen.getByRole('button', { name: 'Create local feed' }));
+    await user.type(screen.getByLabelText('Title'), 'My Archive Show');
+    const file = new File(['data'], 'cover.jpg', { type: 'image/jpeg' });
+    await user.upload(screen.getByLabelText('Artwork'), file);
+    return user;
+  }
+
+  it('still navigates when the artwork upload fails, with a non-blocking notice', async () => {
+    mockAddLocalFeed.mockResolvedValue({
+      slug: 'my-archive-show', feedType: 'local', feedUrl: 'https://x/my-archive-show.xml', message: 'created',
+    });
+    mockUploadFeedArtwork.mockRejectedValue(new Error('413 Payload Too Large'));
+
+    const user = await openLocalModeWithArtwork();
+    await user.click(screen.getByRole('button', { name: 'Create feed' }));
+
+    await waitFor(() => {
+      expect(mockUploadFeedArtwork).toHaveBeenCalledWith('my-archive-show', expect.any(File));
+    });
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/feeds/my-archive-show', {
+        state: { notice: 'Feed created. Artwork upload failed. Retry from the feed page.' },
+      });
+    });
+  });
+
+  it('passes the backend artwork warning through as a navigation notice', async () => {
+    mockAddLocalFeed.mockResolvedValue({
+      slug: 'my-archive-show', feedType: 'local', feedUrl: 'https://x/my-archive-show.xml', message: 'created',
+    });
+    mockUploadFeedArtwork.mockResolvedValue({
+      message: 'ok',
+      artworkUrl: '/artwork/my-archive-show.jpg',
+      warning: 'Image is smaller than the recommended 1400x1400.',
+    });
+
+    const user = await openLocalModeWithArtwork();
+    await user.click(screen.getByRole('button', { name: 'Create feed' }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/feeds/my-archive-show', {
+        state: { notice: 'Feed created. Image is smaller than the recommended 1400x1400.' },
+      });
+    });
+  });
+
+  it('navigates with no notice when the artwork upload succeeds cleanly', async () => {
+    mockAddLocalFeed.mockResolvedValue({
+      slug: 'my-archive-show', feedType: 'local', feedUrl: 'https://x/my-archive-show.xml', message: 'created',
+    });
+    mockUploadFeedArtwork.mockResolvedValue({ message: 'ok', artworkUrl: '/artwork/my-archive-show.jpg' });
+
+    const user = await openLocalModeWithArtwork();
+    await user.click(screen.getByRole('button', { name: 'Create feed' }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/feeds/my-archive-show', undefined);
     });
   });
 });

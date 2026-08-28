@@ -17,6 +17,7 @@ const mockNavigate = vi.fn();
 vi.mock('react-router', () => ({
   useParams: () => ({ slug: 'test-feed' }),
   useNavigate: () => mockNavigate,
+  useLocation: () => ({ pathname: '/feeds/test-feed', state: null }),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),

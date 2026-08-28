@@ -44,6 +44,11 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
   const [explicit, setExplicit] = useState(false);
   const [categoriesInput, setCategoriesInput] = useState('');
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
+  // Set inside mutationFn when the create succeeds but the artwork upload
+  // (a separate, non-fatal step) failed or came back with a warning; read by
+  // onSuccess to attach a notice to the navigation, never to the create's
+  // own error path.
+  const artworkNoticeRef = useRef<string | null>(null);
 
   const handleTitleChange = (value: string) => {
     setTitle(value);
@@ -57,26 +62,41 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      artworkNoticeRef.current = null;
       const categories = categoriesInput
         .split(',')
         .map((c) => c.trim())
         .filter(Boolean);
+      // slug is sent only when the user edited it by hand; otherwise the
+      // server derives it from the title so the canonical slugify rules
+      // (not this preview) decide the final value.
       const feed = await addLocalFeed({
         title: title.trim(),
-        slug: slug || undefined,
+        slug: slugTouched ? (slug || undefined) : undefined,
         description: description.trim() || undefined,
         author: author.trim() || undefined,
         explicit,
         categories: categories.length ? categories : undefined,
       });
+      // A failed or flagged artwork upload never fails feed creation: the
+      // feed already exists, so the mutation must still resolve and the
+      // caller must still navigate there.
       if (artworkFile) {
-        await uploadFeedArtwork(feed.slug, artworkFile);
+        try {
+          const result = await uploadFeedArtwork(feed.slug, artworkFile);
+          if (result.warning) {
+            artworkNoticeRef.current = `Feed created. ${result.warning}`;
+          }
+        } catch {
+          artworkNoticeRef.current = 'Feed created. Artwork upload failed. Retry from the feed page.';
+        }
       }
       return feed;
     },
     onSuccess: (feed) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
-      navigate(`/feeds/${feed.slug}`);
+      const notice = artworkNoticeRef.current;
+      navigate(`/feeds/${feed.slug}`, notice ? { state: { notice } } : undefined);
     },
   });
 
