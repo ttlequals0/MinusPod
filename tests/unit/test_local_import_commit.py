@@ -624,6 +624,104 @@ def test_overwrite_resets_episode_details(db_storage, local_feed, real_mp3_bytes
 
 
 @requires_ffmpeg
+def test_overwrite_replaces_wide_id_row_instead_of_duplicating(
+        db_storage, local_feed, real_mp3_bytes):
+    """(Review round 3) A pre-fix wide-spelled row (s01e0006, imported
+    before ac2d1eb3's id canonicalization) must be REPLACED by an overwrite
+    commit of the same logical episode, not left behind alongside a second
+    row created under the canonical id (s01e06) -- the operator's live
+    scenario."""
+    db, storage = db_storage
+    slug = local_feed
+
+    # Pre-seed a wide id row with a real file on disk, as if imported
+    # before id canonicalization existed.
+    wide_id = 's01e0006'
+    db.upsert_episode(
+        slug, wide_id, original_url=f'local://{wide_id}',
+        status='discovered', title='Old Wide Import',
+        season_number=1, episode_number=6,
+        published_at=NOW_ISO, original_duration=1.0,
+    )
+    wide_original_path = storage.get_original_path(slug, wide_id)
+    wide_original_path.write_bytes(real_mp3_bytes)
+    assert wide_original_path.exists()
+
+    # Scan the same logical episode (mints canonical id s01e06) for a fresh
+    # import, with overwrite on.
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    audio = src_dir / 'S01E06 - Pilot.mp3'
+    audio.write_bytes(real_mp3_bytes)
+    plan = build_import_plan(slug, [audio], existing_ids={wide_id},
+                             overwrite=True, now_iso=NOW_ISO_2)
+    entry = plan['entries'][0]
+    assert entry['episodeId'] == 's01e06'
+    assert entry['replacesExisting'] is True
+    assert entry['replacesExistingId'] == wide_id
+    assert entry['errors'] == []
+
+    started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
+    assert started is True
+    report = local_import.get_import_status(slug, storage)['report']
+    assert report['failed'] == []
+    assert _committed_ids(report) == ['s01e06']
+
+    # Exactly one row survives, under the canonical id -- not two.
+    assert db.get_episode(slug, wide_id) is None
+    assert db.get_episode(slug, 's01e06') is not None
+    _, total = db.get_episodes(slug, status='all', limit=100)
+    assert total == 1
+
+    # The wide row's original file is gone; the canonical one exists.
+    assert not wide_original_path.exists()
+    assert storage.get_original_path(slug, 's01e06').exists()
+
+
+@requires_ffmpeg
+def test_wide_id_collision_without_overwrite_still_errors(
+        db_storage, local_feed, real_mp3_bytes):
+    """Without overwrite, a wide-id collision is still a plain collision
+    error, exactly as a same-spelled collision would be -- nothing on disk
+    or in the database is touched."""
+    db, storage = db_storage
+    slug = local_feed
+
+    wide_id = 's01e0006'
+    db.upsert_episode(
+        slug, wide_id, original_url=f'local://{wide_id}',
+        status='discovered', title='Old Wide Import',
+        season_number=1, episode_number=6,
+        published_at=NOW_ISO, original_duration=1.0,
+    )
+    wide_original_path = storage.get_original_path(slug, wide_id)
+    wide_original_path.write_bytes(real_mp3_bytes)
+
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    audio = src_dir / 'S01E06 - Pilot.mp3'
+    audio.write_bytes(real_mp3_bytes)
+    plan = build_import_plan(slug, [audio], existing_ids={wide_id},
+                             overwrite=False, now_iso=NOW_ISO_2)
+    entry = plan['entries'][0]
+    assert entry['replacesExisting'] is True
+    assert entry['replacesExistingId'] == wide_id
+    assert entry['errors'] == ['episode s01e06 already exists']
+
+    started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
+    assert started is True
+    report = local_import.get_import_status(slug, storage)['report']
+    # Skipped at the plan level (errors non-empty) -- never reaches
+    # _commit_entry at all.
+    assert report['committed'] == []
+    assert any(s['episodeId'] == 's01e06' for s in report['skipped'])
+
+    assert db.get_episode(slug, wide_id) is not None
+    assert wide_original_path.exists()
+    assert audio.exists()
+
+
+@requires_ffmpeg
 def test_commit_uses_plan_resolved_path_not_basename_lookup(
         db_storage, local_feed, real_mp3_bytes):
     """Important fix: a same-named file sitting in the OTHER scanned

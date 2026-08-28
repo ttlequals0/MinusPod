@@ -545,6 +545,14 @@ export interface ImportPlanEntry {
   // overwrite off the collision itself becomes an error; with overwrite on
   // it doesn't, and this entry cleanly overwrites the existing episode.
   replacesExisting: boolean;
+  // The actual existing row's episode id when replacesExisting is true,
+  // else null. Usually identical to episodeId; can differ for a row
+  // imported before episode ids were canonicalized to minimal
+  // zero-padded width (e.g. 's01e0006' for what this entry mints as
+  // 's01e06'). Server-only bookkeeping for commit -- not currently
+  // surfaced anywhere in this UI. Optional so existing fixtures/tests
+  // that predate this field keep compiling unchanged.
+  replacesExistingId?: string | null;
 }
 
 export interface ImportPlan {

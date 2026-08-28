@@ -285,7 +285,7 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
                   'artworkFile','artworkPath','sidecarFile','sidecarPath',
                   'publishedAt','publishedAtSource': 'explicit'|'synthesized',
                   'bytes','mtimeNs', 'warnings': [], 'errors': [],
-                  'replacesExisting': bool}],
+                  'replacesExisting': bool, 'replacesExistingId': str | None}],
      'rejected': [{'file', 'reason'}],
      'batchErrors': [msg, ...],
      'totals': {'importable': N, 'rejected': N, 'errors': N, 'bytes': N}}
@@ -314,14 +314,29 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     actually replace" wants entries where replacesExisting is true AND
     errors is empty.
 
+    replacesExistingId is the ACTUAL existing row's episode_id when
+    replacesExisting is true, else None -- normally identical to episodeId,
+    but for a row imported before ac2d1eb3's id canonicalization it can be
+    the row's original wide-spelled id (e.g. 's01e0006' for a candidate
+    that mints 's01e06'). The commit engine needs this: an overwrite has to
+    replace THAT row, not leave it behind under its old id while inserting
+    a second row under the canonical one.
+
     The *Path keys (audioPath/descriptionPath/artworkPath/sidecarPath) and
     mtimeNs exist for the commit engine: it reads a file by its exact
     resolved path from here rather than re-resolving a bare filename
     against the staging/import directories, and re-stats bytes+mtimeNs
     against the live file as a TOCTOU guard before committing it."""
     # Canonicalize once up front so every membership test below compares
-    # like with like -- see _canonical_episode_id.
-    existing_ids = {_canonical_episode_id(eid) for eid in existing_ids}
+    # like with like -- see _canonical_episode_id. Keeps the mapping back
+    # to the ORIGINAL (possibly pre-fix wide-spelled) id too: the commit
+    # engine needs to know which actual row a canonical-id collision
+    # resolves to, since an overwrite has to replace THAT row rather than
+    # leave it behind while inserting a second one under the canonical id.
+    existing_by_canonical: dict[str, str] = {}
+    for eid in existing_ids:
+        existing_by_canonical.setdefault(_canonical_episode_id(eid), eid)
+    existing_ids = set(existing_by_canonical.keys())
 
     rejected: list[dict] = []
     groups: dict[str, list[Path]] = {}
@@ -452,6 +467,9 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     # colliding id only turns into an error when overwrite is off.
     for c in candidates:
         c['replaces_existing'] = c['episode_id'] in existing_ids
+        c['replaces_existing_id'] = (
+            existing_by_canonical.get(c['episode_id']) if c['replaces_existing'] else None
+        )
         if c['replaces_existing'] and not overwrite:
             c['errors'].append(f'episode {c["episode_id"]} already exists')
 
@@ -511,6 +529,7 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
             'warnings': c['warnings'],
             'errors': c['errors'],
             'replacesExisting': c['replaces_existing'],
+            'replacesExistingId': c['replaces_existing_id'],
         })
 
     importable = sum(1 for e in entries if not e['errors'])
@@ -875,7 +894,16 @@ def _commit_entry(slug: str, entry: dict, db, storage,
     if duration is None:
         return 'error', 'not playable audio'
 
-    existing = db.get_episode(slug, episode_id)
+    # The plan's own matched-collision id, when it found one at scan time
+    # (see build_import_plan's replacesExistingId) -- normally identical to
+    # episode_id, but for a row imported before ac2d1eb3's id
+    # canonicalization it can be that row's original wide-spelled id (e.g.
+    # 's01e0006' for a candidate that mints 's01e06'). Falls back to
+    # episode_id itself so the race-condition case (a row created under the
+    # canonical id AFTER the plan was scanned, so the plan never saw it) is
+    # still caught below exactly as before.
+    existing_id = entry.get('replacesExistingId') or episode_id
+    existing = db.get_episode(slug, existing_id)
     if existing is not None:
         # Authorization, not just existence: a plan built with
         # overwrite=False never clobbers, even if the episode was created
@@ -885,20 +913,31 @@ def _commit_entry(slug: str, entry: dict, db, storage,
         if existing.get('status') == 'processing':
             return 'error', 'episode is processing'
 
-        # Full reset (spec): wipe files, cached artwork, DB processing
-        # state, episode_details, and any stale queue row before the new
-        # audio lands, then reuse upsert_episode below -- the episodes row
-        # itself is never dropped and re-inserted.
-        # batch_reset_episodes_to_discovered nulls processed_file/
-        # processed_at/original_duration/new_duration/ads_removed*/
-        # error_message/ad_detection_status but NOT processed_version, so
-        # the upsert below explicitly zeroes that too.
-        storage.cleanup_episode_files(slug, episode_id)
-        storage.remove_episode_artwork(slug, episode_id)
-        db.clear_episode_details(slug, episode_id)
-        db.clear_episode_ad_data(slug, episode_id)
-        db.batch_reset_episodes_to_discovered(slug, [episode_id])
-        _clear_queue_row(db, slug, episode_id)
+        if existing_id != episode_id:
+            # Wide-spelled pre-fix row: overwrite means REPLACING it, not
+            # leaving it (and its files) behind under its old id while a
+            # second row gets inserted under the canonical one.
+            # delete_episode_rows removes its files, cached artwork, queue
+            # row, and the row itself (episode_details cascades via FK ON
+            # DELETE CASCADE) -- the canonical id becomes the one true id
+            # for this episode from here on; upsert_episode below inserts
+            # fresh under it since no row exists there yet.
+            db.delete_episode_rows(slug, [existing_id], storage)
+        else:
+            # Full reset (spec): wipe files, cached artwork, DB processing
+            # state, episode_details, and any stale queue row before the
+            # new audio lands, then reuse upsert_episode below -- the
+            # episodes row itself is never dropped and re-inserted.
+            # batch_reset_episodes_to_discovered nulls processed_file/
+            # processed_at/original_duration/new_duration/ads_removed*/
+            # error_message/ad_detection_status but NOT processed_version,
+            # so the upsert below explicitly zeroes that too.
+            storage.cleanup_episode_files(slug, episode_id)
+            storage.remove_episode_artwork(slug, episode_id)
+            db.clear_episode_details(slug, episode_id)
+            db.clear_episode_ad_data(slug, episode_id)
+            db.batch_reset_episodes_to_discovered(slug, [episode_id])
+            _clear_queue_row(db, slug, episode_id)
 
     final_path = storage.get_original_path(slug, episode_id)
     shutil.move(str(audio_path), str(final_path))

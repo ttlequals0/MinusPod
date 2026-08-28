@@ -418,6 +418,10 @@ def test_build_import_plan_wide_existing_id_collides_with_canonical_rescan(tmp_p
                               overwrite=False, now_iso=NOW_ISO)
     assert plan['entries'][0]['episodeId'] == 's01e06'
     assert plan['entries'][0]['replacesExisting'] is True
+    # replacesExistingId carries the ROW's actual (wide) id, not the
+    # canonical one the candidate itself minted -- the commit engine needs
+    # this to know which row to replace rather than duplicate.
+    assert plan['entries'][0]['replacesExistingId'] == 's01e0006'
     assert plan['entries'][0]['errors']
     assert plan['totals']['importable'] == 0
 
@@ -425,8 +429,27 @@ def test_build_import_plan_wide_existing_id_collides_with_canonical_rescan(tmp_p
     plan2 = build_import_plan('myshow', [audio2], existing_ids={'s01e0006'},
                                overwrite=True, now_iso=NOW_ISO)
     assert plan2['entries'][0]['replacesExisting'] is True
+    assert plan2['entries'][0]['replacesExistingId'] == 's01e0006'
     assert plan2['entries'][0]['errors'] == []
     assert plan2['totals']['importable'] == 1
+
+
+def test_build_import_plan_replaces_existing_id_matches_episode_id_when_no_mismatch(tmp_path):
+    """The common case: no pre-fix wide id involved, so
+    replacesExistingId is just the same canonical id as episodeId."""
+    audio = _write(tmp_path / 'S01E01 - Pilot.mp3')
+    plan = build_import_plan('myshow', [audio], existing_ids={'s01e01'},
+                              overwrite=True, now_iso=NOW_ISO)
+    assert plan['entries'][0]['episodeId'] == 's01e01'
+    assert plan['entries'][0]['replacesExistingId'] == 's01e01'
+
+
+def test_build_import_plan_replaces_existing_id_none_when_no_collision(tmp_path):
+    audio = _write(tmp_path / 'S01E01 - Pilot.mp3')
+    plan = build_import_plan('myshow', [audio], existing_ids=set(),
+                              overwrite=False, now_iso=NOW_ISO)
+    assert plan['entries'][0]['replacesExisting'] is False
+    assert plan['entries'][0]['replacesExistingId'] is None
 
 
 def test_build_import_plan_replaces_existing_false_when_no_collision(tmp_path):
