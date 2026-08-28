@@ -71,6 +71,8 @@ vi.mock('../utils/confidence', () => ({
 const mockSubmitCorrection = vi.fn();
 const mockReprocessEpisode = vi.fn();
 const mockRegenerateChapters = vi.fn();
+const mockUpdateLocalEpisode = vi.fn();
+const mockUploadLocalEpisodeArtwork = vi.fn();
 
 vi.mock('../api/feeds', () => ({
   getEpisode: vi.fn(),
@@ -80,6 +82,8 @@ vi.mock('../api/feeds', () => ({
   regenerateChapters: (...args: unknown[]) => mockRegenerateChapters(...args),
   episodeOriginalUrl: (slug: string, episodeId: string) =>
     `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`,
+  updateLocalEpisode: (...args: unknown[]) => mockUpdateLocalEpisode(...args),
+  uploadLocalEpisodeArtwork: (...args: unknown[]) => mockUploadLocalEpisodeArtwork(...args),
 }));
 
 vi.mock('../api/patterns', () => ({
@@ -1036,5 +1040,67 @@ describe('Regenerate Chapters: progress and result feedback', () => {
     expect(menuItem).toHaveProperty('disabled', true);
 
     resolveRegenerate();
+  });
+});
+
+// ---- Local feed episode metadata: season/episode seed from the API
+// payload, not from parsing the episode id (#625 Task 13 review finding 1)
+// ----
+
+// Local-feed episode edit is only rendered when the parent feed is local;
+// renderDetail's shared getFeed stub omits feedType, so this describe block
+// needs its own render helper that supplies one.
+function renderLocalDetail(ep: EpisodeDetailType) {
+  const client = makeClient();
+  (getEpisode as ReturnType<typeof vi.fn>).mockResolvedValue(ep);
+  (getFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+    slug: 'test-feed', title: 'Feed', artworkUrl: null, feedType: 'local',
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <EpisodeDetail />
+    </QueryClientProvider>,
+  );
+}
+
+describe('Local feed episode metadata: season/episode seed from the API payload', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('seeds Season/Episode from seasonNumber/episodeNumber (not the id), and a title-only save posts those seeded values', async () => {
+    const user = userEvent.setup();
+    // id parses to season=1/episode=1; the payload says season=2/episode=7.
+    // Before the fix, get_episode never echoed seasonNumber/episodeNumber,
+    // so the form fell back to parsing the id and would show 1/1 here.
+    const ep = makeEpisode({
+      id: 's01e01',
+      seasonNumber: 2,
+      episodeNumber: 7,
+      pendingReviewMarkers: [],
+    });
+    mockUpdateLocalEpisode.mockResolvedValue(ep);
+    renderLocalDetail(ep);
+
+    await screen.findByText('Edit metadata');
+
+    const seasonInput = await screen.findByLabelText('Season') as HTMLInputElement;
+    const episodeInput = screen.getByLabelText('Episode') as HTMLInputElement;
+    expect(seasonInput.value).toBe('2');
+    expect(episodeInput.value).toBe('7');
+
+    // Title-only edit: season/episode inputs are left untouched.
+    const titleInput = screen.getByLabelText('Title') as HTMLInputElement;
+    await user.clear(titleInput);
+    await user.type(titleInput, 'Renamed Episode');
+
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    await waitFor(() => expect(mockUpdateLocalEpisode).toHaveBeenCalledTimes(1));
+    const [, , payload] = mockUpdateLocalEpisode.mock.calls[0] as [string, string, { season?: number; episode?: number; title?: string }];
+    // Must echo the payload-seeded values (2/7), not the id-parsed ones (1/1).
+    expect(payload.season).toBe(2);
+    expect(payload.episode).toBe(7);
+    expect(payload.title).toBe('Renamed Episode');
   });
 });
