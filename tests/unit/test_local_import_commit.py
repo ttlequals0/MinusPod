@@ -722,6 +722,71 @@ def test_wide_id_collision_without_overwrite_still_errors(
 
 
 @requires_ffmpeg
+def test_overwrite_with_both_wide_and_canonical_rows_resets_canonical_deterministically(
+        db_storage, local_feed, real_mp3_bytes):
+    """(Review round 4) Both spellings present for the same episode --
+    s01e0006 AND s01e06 -- is an inconsistent state that shouldn't happen,
+    but an overwrite commit must still behave deterministically: it resets
+    the canonical-spelled row (s01e06) in place (details cleared) and
+    leaves the wide-spelled row (s01e0006) untouched. Cleaning up that
+    leftover stays a manual/operator step (the docs already point at
+    deleting the duplicate)."""
+    db, storage = db_storage
+    slug = local_feed
+
+    wide_id = 's01e0006'
+    db.upsert_episode(
+        slug, wide_id, original_url=f'local://{wide_id}',
+        status='discovered', title='Old Wide Import',
+        season_number=1, episode_number=6,
+        published_at=NOW_ISO, original_duration=1.0,
+    )
+    wide_original_path = storage.get_original_path(slug, wide_id)
+    wide_original_path.write_bytes(real_mp3_bytes)
+
+    canonical_id = 's01e06'
+    db.upsert_episode(
+        slug, canonical_id, original_url=f'local://{canonical_id}',
+        status='discovered', title='Canonical Import',
+        season_number=1, episode_number=6,
+        published_at=NOW_ISO, original_duration=1.0,
+    )
+    storage.save_transcript(slug, canonical_id, 'a previous transcript')
+    assert storage.get_transcript(slug, canonical_id) == 'a previous transcript'
+
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    audio = src_dir / 'S01E06 - Pilot.mp3'
+    audio.write_bytes(real_mp3_bytes)
+    plan = build_import_plan(
+        slug, [audio], existing_ids={wide_id, canonical_id},
+        overwrite=True, now_iso=NOW_ISO_2)
+    entry = plan['entries'][0]
+    assert entry['episodeId'] == canonical_id
+    # Exact-spelled match wins deterministically over the wide one.
+    assert entry['replacesExistingId'] == canonical_id
+    assert entry['errors'] == []
+
+    started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
+    assert started is True
+    report = local_import.get_import_status(slug, storage)['report']
+    assert report['failed'] == []
+    assert _committed_ids(report) == [canonical_id]
+
+    # In-place reset of the canonical row: details cleared, row still there.
+    assert db.get_episode(slug, canonical_id) is not None
+    assert storage.get_transcript(slug, canonical_id) is None
+    assert storage.get_original_path(slug, canonical_id).exists()
+
+    # The wide row is untouched -- leftover cleanup is a manual step.
+    assert db.get_episode(slug, wide_id) is not None
+    assert wide_original_path.exists()
+
+    _, total = db.get_episodes(slug, status='all', limit=100)
+    assert total == 2
+
+
+@requires_ffmpeg
 def test_commit_uses_plan_resolved_path_not_basename_lookup(
         db_storage, local_feed, real_mp3_bytes):
     """Important fix: a same-named file sitting in the OTHER scanned

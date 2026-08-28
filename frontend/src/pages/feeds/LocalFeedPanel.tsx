@@ -463,9 +463,11 @@ function LocalFeedPanel({ feed, slug }: Props) {
     onError: (e) => setImportError(getErrorMessage(e, 'Import failed')),
   });
 
-  // Every audio/sidecar filename the current plan's entries actually
-  // reference (staging scans only -- a directory scan has no "just
-  // uploaded" batch to compare against).
+  // Every filename the current plan actually accounts for in staging:
+  // each entry's audio/sidecar files, PLUS scan-rejected strays (a file
+  // that failed the naming scheme etc. is still a real file sitting in
+  // staging, not just a JSON blip). Staging scans only -- a directory scan
+  // has no "just uploaded" batch to compare against.
   const planStagingFileNames = (): string[] => {
     if (!plan || importSource !== 'staging') return [];
     const names: string[] = [];
@@ -475,15 +477,19 @@ function LocalFeedPanel({ feed, slug }: Props) {
       if (entry.artworkFile) names.push(entry.artworkFile);
       if (entry.sidecarFile) names.push(entry.sidecarFile);
     }
+    for (const r of plan.rejected) names.push(r.file);
     return names;
   };
 
   // Files the plan references that this batch did NOT just upload -- left
   // over from an earlier attempt that got canceled (or crashed) before it
   // ever committed, since staging is only ever cleared by a commit or an
-  // explicit clear. Comparing actual filenames (not a raw entry count vs.
-  // a raw uploaded-file count) avoids both over- and under-counting
-  // whenever an entry brings sidecars along.
+  // explicit clear. A file rejected by THIS batch's own scan is still in
+  // uploadedFileNames (it staged fine, scan just rejected it afterward),
+  // so it's correctly excluded here rather than misread as a leftover.
+  // Comparing actual filenames (not a raw entry count vs. a raw
+  // uploaded-file count) avoids both over- and under-counting whenever an
+  // entry brings sidecars along.
   const leftoverFileNames = planStagingFileNames().filter((f) => !uploadedFileNames.includes(f));
   const stagedBeyondBatch = leftoverFileNames.length > 0;
 

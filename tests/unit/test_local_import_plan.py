@@ -452,6 +452,23 @@ def test_build_import_plan_replaces_existing_id_none_when_no_collision(tmp_path)
     assert plan['entries'][0]['replacesExistingId'] is None
 
 
+def test_build_import_plan_prefers_exact_spelled_id_when_both_exist(tmp_path):
+    """(Review round 4) An inconsistent DB state -- both the wide-spelled
+    row (s01e0006) and its canonical-spelled sibling (s01e06) present for
+    the same episode -- must resolve replacesExistingId to the
+    exact-spelled match deterministically, not whichever one a set's
+    iteration order happens to visit first. The exact match is the safer
+    of the two to pick blind: it sends the commit engine down the in-place
+    reset path instead of delete-and-reinsert."""
+    audio = _write(tmp_path / 'S01E06 - Pilot.mp3')
+    for _ in range(5):  # set iteration order can vary by hash seed; repeat
+        plan = build_import_plan(
+            'myshow', [audio], existing_ids={'s01e0006', 's01e06'},
+            overwrite=True, now_iso=NOW_ISO)
+        assert plan['entries'][0]['episodeId'] == 's01e06'
+        assert plan['entries'][0]['replacesExistingId'] == 's01e06'
+
+
 def test_build_import_plan_replaces_existing_false_when_no_collision(tmp_path):
     audio = _write(tmp_path / 'S01E01 - Pilot.mp3')
     plan = build_import_plan('myshow', [audio], existing_ids=set(),

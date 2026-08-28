@@ -804,6 +804,9 @@ describe('LocalFeedPanel', () => {
         { ...makePlan().entries[0], episodeId: 's01e01', audioFile: 'a.mp3', descriptionFile: null },
         { ...makePlan().entries[0], episodeId: 's01e02', audioFile: 'b.mp3', descriptionFile: null },
       ],
+      // No stray rejects here -- covered separately by the
+      // rejected-stray-file leftover tests below.
+      rejected: [],
     });
     mockImportScan.mockResolvedValue(twoEntryPlan);
     renderPanel(makeFeed());
@@ -851,6 +854,9 @@ describe('LocalFeedPanel', () => {
       entries: [
         { ...makePlan().entries[0], audioFile: 'a.mp3', descriptionFile: null },
       ],
+      // No stray rejects either -- makePlan()'s default 'stray.wav' would
+      // otherwise register as a leftover under the folded-in-rejects check.
+      rejected: [],
     });
     mockImportScan.mockResolvedValue(matchingPlan);
     renderPanel(makeFeed());
@@ -858,6 +864,52 @@ describe('LocalFeedPanel', () => {
     const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
     await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
     await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    expect(screen.queryByText(/left over from an earlier attempt/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Clear staged files' })).toBeNull();
+  });
+
+  it('surfaces the leftover note for a rejected stray file left over from an earlier attempt', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    const planWithStrayReject = makePlan({
+      entries: [
+        { ...makePlan().entries[0], episodeId: 's01e01', audioFile: 'a.mp3', descriptionFile: null },
+      ],
+      // 'earlier-stray.wav' was never part of this batch's upload -- a
+      // scan-rejected file left in staging from an earlier attempt.
+      rejected: [{ file: 'earlier-stray.wav', reason: 'not a supported audio format (only .mp3 is imported)' }],
+    });
+    mockImportScan.mockResolvedValue(planWithStrayReject);
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    expect(screen.getByText('Includes 1 file left over from an earlier attempt.')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Clear staged files' })).toBeDefined();
+  });
+
+  it('does not flag a rejected file as leftover when it was rejected as part of this same upload batch', async () => {
+    // Filename kept .mp3 (unlike a real "wrong extension" rejection) so
+    // the browser's own accept-attribute filtering on the file input can
+    // never intercept the upload -- the rejection modeled here is a
+    // scan-time one (e.g. an empty file), which is a real 'rejected'
+    // reason a valid-extension file can still get.
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['empty.mp3'], rejected: [] });
+    const planWithSameBatchReject = makePlan({
+      entries: [],
+      rejected: [{ file: 'empty.mp3', reason: 'empty file (0 bytes)' }],
+      totals: { importable: 0, rejected: 1, errors: 0, bytes: 0 },
+    });
+    mockImportScan.mockResolvedValue(planWithSameBatchReject);
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File([], 'empty.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(screen.getByText('empty.mp3')).toBeDefined());
 
     expect(screen.queryByText(/left over from an earlier attempt/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Clear staged files' })).toBeNull();

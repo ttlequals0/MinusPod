@@ -333,9 +333,21 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     # engine needs to know which actual row a canonical-id collision
     # resolves to, since an overwrite has to replace THAT row rather than
     # leave it behind while inserting a second one under the canonical id.
+    #
+    # existing_ids is a set (iteration order not guaranteed), so if BOTH a
+    # wide-spelled row (s01e0006) and its canonical-spelled sibling
+    # (s01e06) exist for the same episode -- an inconsistent state that
+    # shouldn't happen but isn't impossible after a partial manual cleanup
+    # -- a plain setdefault would pick whichever one iteration happened to
+    # see first, nondeterministically. Preferring the exact-spelled match
+    # (canon == eid) makes the in-place reset path (same id) win
+    # deterministically over the delete-and-reinsert path whenever both
+    # exist, which is the safer of the two outcomes to pick blind.
     existing_by_canonical: dict[str, str] = {}
     for eid in existing_ids:
-        existing_by_canonical.setdefault(_canonical_episode_id(eid), eid)
+        canon = _canonical_episode_id(eid)
+        if canon == eid or canon not in existing_by_canonical:
+            existing_by_canonical[canon] = eid
     existing_ids = set(existing_by_canonical.keys())
 
     rejected: list[dict] = []
@@ -675,12 +687,16 @@ def _lock_is_held(storage, slug: str) -> bool:
     -- opening a separate file description to try-acquire the same lock
     file does not disturb a real holder's lock (flock locks are scoped to
     the open file description that set them, not the process or fd
-    number), so this is safe to call while a commit may be in flight."""
+    number), so this is safe to call while a commit may be in flight.
+    Opened 'a' (append), not 'w': 'w' truncates the file on open alone,
+    before flock is even attempted -- harmless for the lock file's
+    (unused) content, but needless churn on a file another process may be
+    actively holding a lock on. 'a' opens without truncating."""
     lock_path = _job_lock_path(storage, slug)
     if not lock_path.exists():
         return False
     try:
-        with open(lock_path, 'w') as probe_fd:
+        with open(lock_path, 'a') as probe_fd:
             try:
                 fcntl.flock(probe_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 fcntl.flock(probe_fd, fcntl.LOCK_UN)
