@@ -25,6 +25,7 @@ _route_logger = logging.getLogger(__name__)
 # obvious abuse, not to gate legitimate slugs.
 SLUG_RE: Final = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$")
 EPISODE_ID_RE: Final = re.compile(r"^[a-f0-9]{12}$")
+LOCAL_EPISODE_ID_RE: Final = re.compile(r"^s\d{2,3}e\d{2,4}$")
 
 RESERVED_SLUGS: Final = frozenset(
     {
@@ -61,10 +62,11 @@ def is_valid_slug(value: str) -> bool:
 
 
 def is_valid_episode_id(value: str) -> bool:
-    # Real episode IDs are 12-char MD5 hex prefixes; the shape is load-bearing.
+    # Subscribed feeds mint 12-char MD5 hex prefixes; local feeds mint
+    # sNNeNN ids. Both shapes are load-bearing for path containment.
     if not isinstance(value, str):
         return False
-    return bool(EPISODE_ID_RE.match(value))
+    return bool(EPISODE_ID_RE.match(value) or LOCAL_EPISODE_ID_RE.match(value))
 
 
 def is_dangerous_slug(value: str) -> bool:
