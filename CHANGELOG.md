@@ -9,6 +9,37 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.93.2] - 2026-08-28
+
+### Fixed
+
+- Import status and the one-import-per-feed guard now work across gunicorn
+  workers: job state lives in a file with a per-feed lock, so polling no
+  longer flips to idle or returns another session's report, and two commits
+  can't race the same staging files. A worker crash mid-import surfaces as
+  "import interrupted" instead of running forever.
+- The original-audio route and the ad editor now reach a local episode's
+  retained original (the original-file marker was never set on import or
+  upload).
+- One out-of-order date pair no longer stamps its error on every clean file
+  in a batch; the pair carries the error and the plan reports it once as a
+  batch-level problem that blocks the commit.
+- Overwrite re-imports of an episode first imported under a wide id (like
+  s01e0006) now replace that episode instead of creating a duplicate, and
+  the choice of which row to reset is deterministic.
+- Import commits consume sidecar files along with the audio, from the
+  import directory as well as staging, and a finished staging import sweeps
+  its leftovers. Directory-source commits never touch staging, uploads are
+  refused while an import is running, and deleting the feed clears its
+  import state files.
+- Single uploads: untitled episodes get an "Episode N" title instead of an
+  empty tag, embedded cover art is extracted like the import path does, and
+  episode artwork shows up in the episode JSON.
+- Episode edits reject unknown fields instead of silently ignoring typos;
+  the overwrite-mismatch error names the actual cause; enclosures carry a
+  length attribute; the import panel's Cancel no longer deletes staged
+  files (the Clear staged files button, with a confirmation, does).
+
 ## [2.93.1] - 2026-08-28
 
 ### Added
