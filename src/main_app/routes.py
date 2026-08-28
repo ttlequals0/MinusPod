@@ -434,10 +434,6 @@ def register_routes(app):
             feed_logger.info(f"[{slug}] Feed not found for episode {episode_id} (no refresh-on-miss)")
             abort(404)
 
-        # Fetched once and reused below (HEAD branch, title-blacklist guard)
-        # rather than re-querying per branch.
-        podcast = db.get_podcast_by_slug(slug)
-
         # Check episode status
         episode = db.get_episode(slug, episode_id)
         status = episode['status'] if episode else None
@@ -513,6 +509,12 @@ def register_routes(app):
                 status=503,
                 headers={'Retry-After': '30'}
             )
+
+        # Fetched once and reused below (HEAD branch, title-blacklist guard)
+        # rather than re-querying per branch. Deliberately placed after the
+        # PROCESSED fast-return above: that branch is the hottest path in
+        # the app and must not pay for a podcast row it never uses.
+        podcast = db.get_podcast_by_slug(slug)
 
         # HEAD requests should not trigger processing - proxy upstream headers
         if request.method == 'HEAD' and status != EpisodeStatus.PROCESSED:
