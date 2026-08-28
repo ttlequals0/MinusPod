@@ -36,7 +36,7 @@ Multipart, field `file`, JPEG or PNG. If the image is under 1400x1400 the respon
 
 ## Editing feed metadata
 
-`PATCH /api/v1/feeds/{slug}` accepts `title`, `author`, `explicit`, `categories`, `description`, and `p20` on local feeds. These same fields 400 on a subscribed feed, since a refresh would just overwrite them from the upstream RSS. See [Podcasting 2.0 fields](#podcasting-20-fields) below for `p20`.
+`PATCH /api/v1/feeds/{slug}` accepts `title`, `author`, `explicit`, `categories`, and `p20` on local feeds; these 400 on a subscribed feed, since a refresh would just overwrite them from the upstream RSS. `description` is a plain per-feed field editable on any feed, local or subscribed. See [Podcasting 2.0 fields](#podcasting-20-fields) below for `p20`.
 
 ## Adding episodes
 
@@ -112,7 +112,7 @@ A formal JSON Schema for this file is published at [`docs/schemas/episode-sideca
 
 If you don't set `published_at` (sidecar or per-episode edit), MinusPod synthesizes one from episode order: sorted by (season, episode), the newest episode in the batch anchors at import time and each earlier one steps back a day. An explicit date anywhere in the batch also anchors the schedule, and MinusPod spaces the episodes between anchors evenly rather than always stepping by exactly a day.
 
-Explicit dates that land out of order relative to the (season, episode) sort are a hard error: the dry-run report names the conflicting files, and the batch can't commit until you fix the sidecars.
+Explicit dates that land out of order relative to the (season, episode) sort are a hard error: the dry-run report names the conflicting episode ids, and the batch can't commit until you fix the sidecars.
 
 #### Duplicates and existing episodes
 
@@ -149,6 +149,16 @@ Either way, with auto-process off (or an episode that didn't get queued), the ep
 
 Until an episode is processed, its enclosure URL is unversioned, which triggers just-in-time processing the first time a player requests it, the same behavior as an unprocessed episode on a subscribed feed.
 
+## Episode artwork in the served feed
+
+An episode with its own uploaded or extracted cover gets an `<itunes:image>` in the served RSS item pointing at:
+
+```
+GET /episodes/{slug}/{episodeId}/artwork
+```
+
+This is a public, feed-key-gated route (same key as the RSS feed and audio enclosures when authenticated feeds is on), not part of the `/api/v1` management API. It serves the stored cover bytes and never fetches anything on demand; 404 if the episode has no cached cover. It's separate from the feed-level cover art, which is served at `/{slug}/cover-minuspod.jpg`. See [API & Webhooks](api-and-webhooks.md) for the rest of the public, non-API serving routes.
+
 ## Podcasting 2.0 fields
 
 Local feeds carry a pragmatic subset of the Podcast Namespace, set through the `p20` object on the feed (`PATCH /api/v1/feeds/{slug}`) and on individual episodes (`PATCH /api/v1/feeds/{slug}/episodes/{episodeId}`).
@@ -161,13 +171,11 @@ Out of scope for now: value-for-value splits, `liveItem`, `podroll`, and Podping
 
 ## What doesn't apply to local feeds
 
-Because there's no upstream feed, the following don't apply to a local feed: RSS refresh (`POST /api/v1/feeds/{slug}/refresh` returns 400, "Local feed has no upstream to refresh"), Podping, and the cross-fetch differential. The processing pipeline itself (detection mode, cue templates, chapters mode, segment actions, queue priority, retention overrides, the episode title skip list) works exactly as it does on a subscribed feed.
+Because there's no upstream feed, the following don't apply to a local feed: RSS refresh (`POST /api/v1/feeds/{slug}/refresh` returns 400, "Local feed has no upstream to refresh"), Podping, the cross-fetch differential, and the episode title skip list (there's no upstream original to redirect a blacklisted title to, so a local episode processes normally regardless of its title). The rest of the processing pipeline (detection mode, cue templates, chapters mode, segment actions, queue priority, retention overrides) works exactly as it does on a subscribed feed.
 
 ## Retention, backups, and originals
 
-The pre-cut original audio is the *only* copy of a local episode; there's no upstream to re-download it from. The scheduled retention sweep (global or per-feed window, and the keep-original-audio setting) never touches a local feed's originals: local feeds are excluded from that sweep entirely, no matter what the window is set to.
-
-The one exception is the operator-triggered "Clear all processed audio" action (`POST /api/v1/system/cleanup`), which resets every feed's processed episodes regardless of their retention window. It still honors a feed set to Archive (`retentionDaysOverride: 0`), but a local feed that isn't archived is not otherwise exempt from this specific action the way it is from the scheduled sweep. If you keep local feeds and use this action, set them to Archive first, or avoid it.
+The pre-cut original audio is the *only* copy of a local episode; there's no upstream to re-download it from. Local feeds are fully exempt from retention and cleanup: neither the scheduled sweep (global or per-feed window, and the keep-original-audio setting) nor the operator-triggered "Clear all processed audio" action (`POST /api/v1/system/cleanup`) ever deletes a local feed's original or processed audio, regardless of the retention window.
 
 If you back up MinusPod, make sure your backup covers `<data>/podcasts/<slug>/` for local feeds. The database backup alone does not include audio.
 

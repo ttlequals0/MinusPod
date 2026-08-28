@@ -434,6 +434,10 @@ def register_routes(app):
             feed_logger.info(f"[{slug}] Feed not found for episode {episode_id} (no refresh-on-miss)")
             abort(404)
 
+        # Fetched once and reused below (HEAD branch, title-blacklist guard)
+        # rather than re-querying per branch.
+        podcast = db.get_podcast_by_slug(slug)
+
         # Check episode status
         episode = db.get_episode(slug, episode_id)
         status = episode['status'] if episode else None
@@ -514,7 +518,7 @@ def register_routes(app):
         if request.method == 'HEAD' and status != EpisodeStatus.PROCESSED:
             ep_data, _ = _routes._lookup_episode(slug, episode_id, feed_map, episode_row=episode)
             if ep_data:
-                if is_local_feed(db.get_podcast_by_slug(slug)):
+                if is_local_feed(podcast):
                     return _routes._head_local(slug, episode_id)
                 return _routes._head_upstream(slug, episode_id, ep_data['url'])
             abort(404)
@@ -531,10 +535,14 @@ def register_routes(app):
         episode_artwork_url = ep_data.get('artwork_url')
 
         # Title blacklist: serve the upstream audio untouched, never process.
-        title_skip_patterns = db.get_podcast_title_skip_patterns(slug)
-        if title_matches_skip_patterns(episode_title, title_skip_patterns):
-            feed_logger.info(f"[{slug}:{episode_id}] Title-blacklisted, serving original: {episode_title}")
-            return redirect(original_url, code=302)
+        # Local feeds have no upstream to redirect to -- original_url is the
+        # unreachable local:// sentinel -- so the blacklist never applies to
+        # them; a matching title on a local episode just processes normally.
+        if not is_local_feed(podcast):
+            title_skip_patterns = db.get_podcast_title_skip_patterns(slug)
+            if title_matches_skip_patterns(episode_title, title_skip_patterns):
+                feed_logger.info(f"[{slug}:{episode_id}] Title-blacklisted, serving original: {episode_title}")
+                return redirect(original_url, code=302)
 
         # A crawler gets the origin audio rather than a processing run it will
         # never collect. Placed after the title blacklist so that rule wins.

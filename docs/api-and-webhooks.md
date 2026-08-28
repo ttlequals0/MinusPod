@@ -80,6 +80,14 @@ Key endpoints:
 - `GET/PUT /api/v1/settings/notifications/email` - Email notification settings
 - `POST /api/v1/settings/notifications/email/test` - Send a test email
 
+### Public feed-domain routes
+
+A handful of routes live on the feed domain itself, outside `/api/v1`, and are not part of the OpenAPI spec: the served RSS feed at `/{slug}`, episode audio at `/episodes/{slug}/{episodeId}.mp3`, transcripts and chapters (`.vtt`, `/chapters.json`), feed cover art at `/{slug}/cover-minuspod.jpg`, and:
+
+- `GET /episodes/{slug}/{episodeId}/artwork` - Serve a cached per-episode cover. Local-feed episodes get one whenever an upload, import, or embedded-artwork extraction cached one; 404 if nothing is cached (never fetches on demand). This is the URL a local feed's per-item `<itunes:image>` points at.
+
+All of these are gated by the feed auth key the same way as the RSS feed itself when Authenticated feeds is on; see [Security > Authenticated feeds](security-and-storage.md#authenticated-feeds-optional).
+
 ## Notifications
 
 MinusPod can notify you when episodes complete processing, permanently fail, or when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure both in **Settings > Notifications** in the web UI, or via the REST API.

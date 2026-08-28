@@ -8209,7 +8209,9 @@ components:
       name: episode_id
       in: path
       required: true
-      description: Episode identifier (MD5 hash)
+      description: >-
+        Episode identifier: a 12-character MD5-hex string for a subscribed
+        feed's episode, or an sNNeNN id (e.g. s01e05) for a local feed's.
       schema:
         type: string
         example: abc123def456

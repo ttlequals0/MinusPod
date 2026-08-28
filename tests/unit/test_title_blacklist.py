@@ -135,6 +135,38 @@ class TestOnDemandServeGate:
         assert resp.headers['Location'] == 'https://example.com/ep.mp3'
         mock_start.assert_not_called()
 
+    LOCAL_EP = 's01e01'
+    LOCAL_LOOKUP = ({'id': LOCAL_EP, 'url': 'local://s01e01', 'title': 'Blacklisted Episode',
+                     'description': 'desc', 'artwork_url': None,
+                     'published': '2026-07-22T04:12:25Z'}, 'Example Local Podcast')
+
+    @patch('main_app.processing.start_background_processing')
+    @patch('main_app.routes._lookup_episode', return_value=LOCAL_LOOKUP)
+    @patch('main_app.routes.status_service')
+    @patch('main_app.routes.db')
+    @patch('main_app.routes.get_feed_map',
+           return_value={SLUG: {'in': 'local://example-podcast', 'out': SLUG}})
+    def test_local_feed_matching_title_does_not_redirect(
+            self, _feed_map, mock_db, _status, _lookup, mock_start, client):
+        """A local episode's original_url is the unreachable local:// sentinel,
+        so a title-blacklist match must never 302 to it (#625 review): the
+        blacklist is skipped entirely for local feeds and the episode
+        processes normally instead."""
+        mock_db.get_episode.return_value = {
+            'episode_id': self.LOCAL_EP, 'status': 'discovered',
+            'original_url': 'local://s01e01',
+        }
+        mock_db.get_podcast_by_slug.return_value = {
+            'feed_type': 'local', 'title_skip_patterns': json.dumps(['Blacklisted*']),
+        }
+        mock_db.get_podcast_title_skip_patterns.return_value = json.dumps(['Blacklisted*'])
+        mock_start.return_value = (True, None)
+
+        resp = client.get(f'/episodes/{self.SLUG}/{self.LOCAL_EP}.mp3')
+
+        assert resp.status_code != 302
+        mock_start.assert_called_once()
+
 
 class TestClaimGateTitleBlacklist:
     def _run(self, reprocess_requested_at, start_return=(False, 'busy')):

@@ -21,9 +21,9 @@ release notes.
   dates when none is given). Every episode runs through the same
   ad-removal, transcript, and chapter pipeline as a subscribed feed's.
   Podcasting 2.0 channel and episode metadata (funding, person, license,
-  location, medium, locked) is editable per feed. The scheduled retention
-  sweep never touches a local feed's originals, since they are the only
-  copy. See [docs/local-feeds.md](docs/local-feeds.md).
+  location, medium, locked) is editable per feed. Local feeds are fully
+  exempt from retention and cleanup, since their audio is the only copy.
+  See [docs/local-feeds.md](docs/local-feeds.md).
 
 ## [2.92.1] - 2026-08-27
 
