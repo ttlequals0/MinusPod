@@ -742,6 +742,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 entries={plan.entries}
                 rejected={[...uploadRejected, ...plan.rejected]}
                 totals={plan.totals}
+                batchErrors={plan.batchErrors}
               />
               {stagedBeyondBatch && (
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
@@ -760,7 +761,12 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 <button
                   type="button"
                   onClick={() => commitMutation.mutate()}
-                  disabled={commitMutation.isPending || plan.totals.importable === 0 || importRunning}
+                  disabled={
+                    commitMutation.isPending
+                    || plan.totals.importable === 0
+                    || plan.batchErrors.length > 0
+                    || importRunning
+                  }
                   className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}
                 >
                   {commitMutation.isPending ? 'Starting...' : commitButtonLabel(plan)}

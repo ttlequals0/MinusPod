@@ -553,6 +553,10 @@ export interface ImportPlan {
   planHash: string;
   entries: ImportPlanEntry[];
   rejected: ImportRejectedFile[];
+  // Batch-level errors (currently just an out-of-order explicit publish-date
+  // pair) that block commit even when individual entries show no errors of
+  // their own -- see local_import.build_import_plan's docstring.
+  batchErrors: string[];
   totals: { importable: number; rejected: number; errors: number; bytes: number };
 }
 

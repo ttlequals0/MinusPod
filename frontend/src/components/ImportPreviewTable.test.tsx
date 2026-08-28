@@ -88,4 +88,27 @@ describe('ImportPreviewTable', () => {
 
     expect(screen.getAllByText('error').length).toBeGreaterThan(0);
   });
+
+  it('renders a batchErrors banner above the table', () => {
+    const entry = makeEntry();
+    render(
+      <ImportPreviewTable
+        entries={[entry]}
+        rejected={[]}
+        totals={EMPTY_TOTALS}
+        batchErrors={['publish dates out of order: s01e02 must be before s01e01']}
+      />,
+    );
+
+    expect(
+      screen.getByText('publish dates out of order: s01e02 must be before s01e01'),
+    ).toBeDefined();
+    expect(screen.getByRole('alert')).toBeDefined();
+  });
+
+  it('renders no banner when batchErrors is empty or omitted', () => {
+    const entry = makeEntry();
+    render(<ImportPreviewTable entries={[entry]} rejected={[]} totals={EMPTY_TOTALS} batchErrors={[]} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

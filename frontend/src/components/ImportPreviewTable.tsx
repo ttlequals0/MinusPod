@@ -7,6 +7,11 @@ interface Props {
   entries: ImportPlanEntry[];
   rejected: ImportRejectedFile[];
   totals: { importable: number; rejected: number; errors: number; bytes: number };
+  // Batch-level errors (e.g. an out-of-order explicit publish-date pair)
+  // that block commit for the whole plan, independent of any individual
+  // entry's own errors. Optional so existing callers/tests that don't pass
+  // it keep working unchanged.
+  batchErrors?: string[];
 }
 
 type RowStatus = 'ok' | 'warning' | 'error';
@@ -147,9 +152,20 @@ const COLUMNS: Column[] = [
   { label: 'Status', render: (e) => <StatusBadge entry={e} /> },
 ];
 
-function ImportPreviewTable({ entries, rejected, totals }: Props) {
+function ImportPreviewTable({ entries, rejected, totals, batchErrors }: Props) {
   return (
     <div>
+      {batchErrors && batchErrors.length > 0 && (
+        <div
+          role="alert"
+          className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          {batchErrors.map((message) => (
+            <p key={message}>{message}</p>
+          ))}
+        </div>
+      )}
+
       <table className="hidden sm:table w-full text-sm">
         <thead>
           <tr className="border-b border-border">

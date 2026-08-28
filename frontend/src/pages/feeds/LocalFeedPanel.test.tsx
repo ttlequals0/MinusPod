@@ -115,6 +115,7 @@ function makePlan(overrides: Partial<ImportPlan> = {}): ImportPlan {
       },
     ],
     rejected: [{ file: 'stray.wav', reason: 'not a supported audio format (only .mp3 is imported)' }],
+    batchErrors: [],
     totals: { importable: 1, rejected: 1, errors: 0, bytes: 1024 },
     ...overrides,
   };
@@ -203,6 +204,28 @@ describe('LocalFeedPanel', () => {
       source: 'staging',
       overwrite: false,
     }));
+  });
+
+  it('shows a batchErrors banner and disables commit when the plan has a batch-level error', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    mockImportScan.mockResolvedValue(makePlan({
+      batchErrors: ['publish dates out of order: s01e02 must be before s01e01'],
+    }));
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    expect(
+      screen.getByText('publish dates out of order: s01e02 must be before s01e01'),
+    ).toBeDefined();
+
+    const confirmButton = screen.getByRole('button', { name: /Import 1 episode/ }) as HTMLButtonElement;
+    expect(confirmButton.disabled).toBe(true);
+    await user.click(confirmButton);
+    expect(mockImportCommit).not.toHaveBeenCalled();
   });
 
   it('shows a warning when the feed has no artwork', () => {
