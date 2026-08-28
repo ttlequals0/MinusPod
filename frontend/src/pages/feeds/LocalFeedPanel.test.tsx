@@ -15,9 +15,17 @@
  *   - Podcasting 2.0 list tag editors (funding/person/license/location/txt/
  *     podroll): rows seed from feed.p20, an added+filled row is sent in the
  *     PATCH payload, removing the last row of a tag sends [], a funding row
- *     without a url (or a podroll row without a feed GUID) blocks save with
- *     an inline message instead of a request, and the scalar p20 keys still
- *     ride along in the payload.
+ *     without a url (or a podroll row without a feed GUID, or a license/
+ *     location/text row without a name/value) blocks save with an inline
+ *     message instead of a request, and the scalar p20 keys still ride
+ *     along in the payload.
+ *   - Podroll's medium field renders as a select (parity with the channel
+ *     medium select) and itemGuid rides along in the payload; a malformed
+ *     feedGuid or more than 50 rows blocks save with its own inline message.
+ *   - The "Podcasting 2.0 tags" section (CollapsibleSection.test.tsx covers
+ *     its real collapse/forceOpen mechanics; this file's stub always renders
+ *     children) forces open via the forceOpen prop when a validation error
+ *     is set, and the error itself renders outside the section entirely.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -29,13 +37,18 @@ import type { ImportPlan, ImportUploadResult, ImportStatus } from '../../api/fee
 
 // CollapsibleSection defaults closed; render children unconditionally so the
 // panel's contents are queryable without simulating a click first (mirrors
-// FeedSettingsPanel.test.tsx's unwrap pattern).
+// FeedSettingsPanel.test.tsx's unwrap pattern). Real collapse/forceOpen
+// mechanics (does forceOpen actually reveal clipped content) are covered by
+// CollapsibleSection.test.tsx against the real component, not this stub --
+// this mock surfaces the forceOpen prop it was passed as a data attribute
+// purely so a test here can assert LocalFeedPanel wires it correctly,
+// without claiming that proves visibility on its own.
 vi.mock('../../components/CollapsibleSection', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../components/CollapsibleSection')>();
   return {
     useCollapsibleOpen: actual.useCollapsibleOpen,
-    default: ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
-      <div>
+    default: ({ title, subtitle, children, forceOpen }: { title: string; subtitle?: string; children: React.ReactNode; forceOpen?: boolean }) => (
+      <div data-force-open={forceOpen ? 'true' : 'false'}>
         <h2>{title}</h2>
         {subtitle && <p>{subtitle}</p>}
         {children}
@@ -345,5 +358,131 @@ describe('LocalFeedPanel', () => {
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalled());
     const payload = mockUpdateFeed.mock.calls[0][1];
     expect(payload.p20.podroll).toEqual([]);
+  });
+
+  it('forces the "Podcasting 2.0 tags" section open when a validation error blocks save, with the error itself outside the section', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
+
+    const sectionDiv = () => screen.getByRole('heading', { name: 'Podcasting 2.0 tags' }).closest('div')!;
+    expect(sectionDiv().getAttribute('data-force-open')).toBe('false');
+
+    await user.click(screen.getByRole('button', { name: '+ Add show' }));
+    await user.type(screen.getByLabelText('Feed URL'), 'https://example.com/feed.xml');
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    const error = await screen.findByText('Every podroll row needs a feed GUID.');
+    expect(sectionDiv().getAttribute('data-force-open')).toBe('true');
+    expect(sectionDiv().contains(error)).toBe(false);
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('renders podroll medium as a select and includes itemGuid in the saved payload', async () => {
+    const user = userEvent.setup();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+    renderPanel(makeFeed({
+      p20: {
+        medium: 'podcast',
+        locked: 'yes',
+        locked_owner: '',
+        podroll: [{ feedGuid: '29cdca4a-32d8-56ba-b48b-09a011c5daa9', itemGuid: 'item-guid-1', medium: 'music' }],
+      },
+    }));
+
+    // Distinguishes the row's medium <select> from the channel-level one
+    // (also labeled "Medium") by its selected value, which only the
+    // podroll row has.
+    expect(screen.getByDisplayValue('music').tagName).toBe('SELECT');
+
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalled());
+    const payload = mockUpdateFeed.mock.calls[0][1];
+    expect(payload.p20.podroll).toEqual([
+      { feedGuid: '29cdca4a-32d8-56ba-b48b-09a011c5daa9', itemGuid: 'item-guid-1', medium: 'music' },
+    ]);
+  });
+
+  it('sends a changed podroll medium selection in the saved payload', async () => {
+    const user = userEvent.setup();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+    renderPanel(makeFeed({
+      p20: {
+        medium: 'podcast',
+        locked: 'yes',
+        locked_owner: '',
+        podroll: [{ feedGuid: '29cdca4a-32d8-56ba-b48b-09a011c5daa9' }],
+      },
+    }));
+
+    // [0] is the channel-level medium select; the podroll row's is the last.
+    const mediumSelects = screen.getAllByLabelText('Medium');
+    await user.selectOptions(mediumSelects[mediumSelects.length - 1], 'audiobook');
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalled());
+    const payload = mockUpdateFeed.mock.calls[0][1];
+    expect(payload.p20.podroll).toEqual([
+      { feedGuid: '29cdca4a-32d8-56ba-b48b-09a011c5daa9', medium: 'audiobook' },
+    ]);
+  });
+
+  it('blocks save with an inline message when a podroll feedGuid is not a valid UUID', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
+
+    await user.click(screen.getByRole('button', { name: '+ Add show' }));
+    await user.type(screen.getByLabelText('Feed GUID'), 'not-a-uuid');
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    expect(await screen.findByText('Every podroll feed GUID must be a valid UUID.')).toBeDefined();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('blocks save with an inline message when podroll has more than 50 rows', async () => {
+    const user = userEvent.setup();
+    const podroll = Array.from({ length: 51 }, () => ({ feedGuid: '29cdca4a-32d8-56ba-b48b-09a011c5daa9' }));
+    renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '', podroll } }));
+
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    expect(await screen.findByText('Podroll can have at most 50 shows.')).toBeDefined();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('blocks save with an inline message when a license row has no name', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
+
+    await user.click(screen.getByRole('button', { name: '+ Add license' }));
+    await user.type(screen.getByLabelText('URL'), 'https://creativecommons.org/licenses/by/4.0/');
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    expect(await screen.findByText('Every license row needs a name.')).toBeDefined();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('blocks save with an inline message when a location row has no name', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
+
+    await user.click(screen.getByRole('button', { name: '+ Add location' }));
+    await user.type(screen.getByLabelText('Geo'), 'geo:45.5,-122.6');
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    expect(await screen.findByText('Every location row needs a name.')).toBeDefined();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('blocks save with an inline message when a text row has no value', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
+
+    await user.click(screen.getByRole('button', { name: '+ Add text' }));
+    await user.type(screen.getByLabelText('Purpose'), 'verify');
+    await user.click(screen.getByRole('button', { name: /Save metadata/ }));
+
+    expect(await screen.findByText('Every text row needs a value.')).toBeDefined();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
   });
 });

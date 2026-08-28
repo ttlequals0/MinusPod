@@ -672,15 +672,23 @@ def _validate_p20_podroll(items):
         if feed_url is not None:
             if not isinstance(feed_url, str):
                 return None, f'p20.podroll[{i}].feedUrl must be a string'
-            if feed_url and not _P20_URL_RE.match(feed_url):
-                return None, f'p20.podroll[{i}].feedUrl must start with http:// or https://'
-            cleaned_item['feedUrl'] = feed_url
+            feed_url = feed_url.strip()
+            # Empty-after-strip is treated as "not sent" (dropped, not
+            # stored) rather than an error -- matches feedGuid/itemGuid's
+            # own whitespace handling and keeps a blank optional field from
+            # leaving an empty string in the served feed's remoteItem.
+            if feed_url:
+                if not _P20_URL_RE.match(feed_url):
+                    return None, f'p20.podroll[{i}].feedUrl must start with http:// or https://'
+                cleaned_item['feedUrl'] = feed_url
 
         item_guid = item.get('itemGuid')
         if item_guid is not None:
             if not isinstance(item_guid, str):
                 return None, f'p20.podroll[{i}].itemGuid must be a string'
-            cleaned_item['itemGuid'] = item_guid
+            item_guid = item_guid.strip()
+            if item_guid:
+                cleaned_item['itemGuid'] = item_guid
 
         medium = item.get('medium')
         if medium is not None:

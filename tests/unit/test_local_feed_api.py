@@ -829,6 +829,42 @@ def test_validate_p20_podroll_drops_unknown_keys():
     assert cleaned == {'podroll': [{'feedGuid': _PODROLL_GUID}]}
 
 
+def test_validate_p20_podroll_strips_feed_url_and_item_guid():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'podroll': [{
+        'feedGuid': _PODROLL_GUID,
+        'feedUrl': '  https://example.com/feed.xml  ',
+        'itemGuid': '  item-1  ',
+    }]})
+    assert err is None
+    assert cleaned == {'podroll': [{
+        'feedGuid': _PODROLL_GUID,
+        'feedUrl': 'https://example.com/feed.xml',
+        'itemGuid': 'item-1',
+    }]}
+
+
+def test_validate_p20_podroll_empty_feed_url_after_strip_is_dropped_not_error():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'podroll': [{
+        'feedGuid': _PODROLL_GUID, 'feedUrl': '   ',
+    }]})
+    assert err is None
+    assert cleaned == {'podroll': [{'feedGuid': _PODROLL_GUID}]}
+
+
+def test_validate_p20_podroll_empty_item_guid_after_strip_is_dropped_not_error():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'podroll': [{
+        'feedGuid': _PODROLL_GUID, 'itemGuid': '   ',
+    }]})
+    assert err is None
+    assert cleaned == {'podroll': [{'feedGuid': _PODROLL_GUID}]}
+
+
 # -- PATCH /feeds/<slug> p20.podroll --
 
 def test_patch_p20_podroll_round_trips(app_client, local_feed):

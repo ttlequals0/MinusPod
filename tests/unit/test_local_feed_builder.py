@@ -201,6 +201,35 @@ def test_podroll_absent_when_key_missing():
     assert '<podcast:podroll>' not in xml
 
 
+def test_podroll_filters_non_dict_and_feed_guid_less_entries():
+    """A stored podroll list can carry garbage (a non-dict entry, a dict
+    missing feedGuid) if it was written by something other than the
+    validated PATCH path; the builder's filter must skip those and still
+    render the one valid entry rather than erroring or dropping everything."""
+    slug = 'podroll-filter'
+    _seed(slug)
+    mf.db.update_podcast(slug, p20_channel_json=json.dumps({
+        'guid': CHANNEL_GUID,
+        'locked': 'yes',
+        'medium': 'podcast',
+        'podroll': [
+            'not-a-dict',
+            {'feedUrl': 'https://example.com/no-guid.xml'},
+            {'feedGuid': '29cdca4a-32d8-56ba-b48b-09a011c5daa9'},
+        ],
+    }))
+    podcast = mf.db.get_podcast_by_slug(slug)
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    assert xml.count('<podcast:remoteItem') == 1
+    assert '<podcast:remoteItem feedGuid="29cdca4a-32d8-56ba-b48b-09a011c5daa9" />' in xml
+    assert 'no-guid.xml' not in xml
+
+    parsed = feedparser.parse(xml)
+    assert parsed.bozo == 0
+
+
 def test_rebuild_local_feed_persists_and_reads_back():
     slug = 'roundtrip'
     podcast = _seed(slug)

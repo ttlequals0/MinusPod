@@ -21,6 +21,13 @@ import { fromDatetimeLocalInput } from '../../utils/format';
 // from src/api/feeds.py's _P20_MEDIUM_VALUES / _P20_LOCKED_VALUES).
 const P20_MEDIUM_OPTIONS = ['podcast', 'music', 'video', 'film', 'audiobook', 'newsletter', 'blog'] as const;
 
+// Mirrors api/feeds.py's _P20_FEED_GUID_RE exactly (standard 8-4-4-4-12 hex
+// UUID, case insensitive) so a malformed podroll feedGuid is caught here
+// instead of round-tripping to the API for a 400.
+const P20_FEED_GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Mirrors api/feeds.py's _P20_PODROLL_MAX.
+const P20_PODROLL_MAX_ROWS = 50;
+
 const fieldCls = 'w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
 const fileInputCls = `block w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:text-sm ${btnSecondary} file:transition-colors ${focusRing}`;
 
@@ -37,6 +44,10 @@ interface P20FieldDef {
   key: string;
   label: string;
   placeholder: string;
+  // When set, the field renders as a <select> over these values (plus a
+  // blank "not set" option) instead of a free-text input -- e.g. podroll's
+  // per-row medium, kept in parity with the channel-level medium select.
+  options?: readonly string[];
 }
 
 interface P20TagDef {
@@ -51,6 +62,17 @@ interface P20TagDef {
   // caught before the request instead of surfacing a 400.
   requiredKey?: string;
   requiredError?: string;
+  // Extra shape check beyond presence -- only podroll's feedGuid needs one
+  // (must look like a UUID). Only checked when the field has a value, so it
+  // never duplicates a requiredKey miss on the same row.
+  patternKey?: string;
+  pattern?: RegExp;
+  patternError?: string;
+  // Caps the row count client-side, mirroring the backend's own cap
+  // (_validate_p20_podroll's 50-entry limit) so it surfaces here instead of
+  // as a 400 after the request round-trips.
+  maxRows?: number;
+  maxRowsError?: string;
 }
 
 const P20_TAG_DEFS: P20TagDef[] = [
@@ -90,6 +112,8 @@ const P20_TAG_DEFS: P20TagDef[] = [
       { key: 'text', label: 'License name', placeholder: 'CC BY-NC-ND 4.0' },
       { key: 'url', label: 'URL', placeholder: 'https://...' },
     ],
+    requiredKey: 'text',
+    requiredError: 'Every license row needs a name.',
   },
   {
     tag: 'location',
@@ -101,6 +125,8 @@ const P20_TAG_DEFS: P20TagDef[] = [
       { key: 'geo', label: 'Geo', placeholder: 'geo:45.5,-122.6' },
       { key: 'osm', label: 'OpenStreetMap ID', placeholder: 'R123456' },
     ],
+    requiredKey: 'text',
+    requiredError: 'Every location row needs a name.',
   },
   {
     tag: 'txt',
@@ -111,6 +137,8 @@ const P20_TAG_DEFS: P20TagDef[] = [
       { key: 'text', label: 'Text', placeholder: 'Free text' },
       { key: 'purpose', label: 'Purpose', placeholder: 'verify' },
     ],
+    requiredKey: 'text',
+    requiredError: 'Every text row needs a value.',
   },
   {
     tag: 'podroll',
@@ -120,10 +148,16 @@ const P20_TAG_DEFS: P20TagDef[] = [
     fields: [
       { key: 'feedGuid', label: 'Feed GUID', placeholder: '29cdca4a-32d8-56ba-b48b-09a011c5daa9' },
       { key: 'feedUrl', label: 'Feed URL', placeholder: 'https://...' },
-      { key: 'medium', label: 'Medium', placeholder: 'podcast' },
+      { key: 'itemGuid', label: 'Item GUID', placeholder: 'Optional' },
+      { key: 'medium', label: 'Medium', placeholder: 'podcast', options: P20_MEDIUM_OPTIONS },
     ],
     requiredKey: 'feedGuid',
     requiredError: 'Every podroll row needs a feed GUID.',
+    patternKey: 'feedGuid',
+    pattern: P20_FEED_GUID_RE,
+    patternError: 'Every podroll feed GUID must be a valid UUID.',
+    maxRows: P20_PODROLL_MAX_ROWS,
+    maxRowsError: `Podroll can have at most ${P20_PODROLL_MAX_ROWS} shows.`,
   },
 ];
 
@@ -246,10 +280,10 @@ function LocalFeedPanel({ feed, slug }: Props) {
     e.preventDefault();
     const categories = categoriesInput.split(',').map((c) => c.trim()).filter(Boolean);
 
-    // Clean every tag's rows and check the two hard requirements client-side
-    // (funding needs a url, person needs a name) before this ever reaches
-    // the API -- mirrors api/feeds.py's _validate_p20_items so a bad row is
-    // caught here instead of surfacing as a 400.
+    // Clean every tag's rows and check each def's client-side requirements
+    // (presence, shape, row count) before this ever reaches the API --
+    // mirrors api/feeds.py's _validate_p20_items / _validate_p20_podroll so
+    // a bad row is caught here instead of surfacing as a 400.
     const cleanedTags: Record<string, P20Row[]> = {};
     const tagErrors: string[] = [];
     for (const def of P20_TAG_DEFS) {
@@ -257,6 +291,13 @@ function LocalFeedPanel({ feed, slug }: Props) {
       cleanedTags[def.tag] = rows;
       if (def.requiredKey && rows.some((row) => !row[def.requiredKey!])) {
         tagErrors.push(def.requiredError!);
+      }
+      if (def.patternKey && def.pattern
+        && rows.some((row) => row[def.patternKey!] && !def.pattern!.test(row[def.patternKey!]))) {
+        tagErrors.push(def.patternError!);
+      }
+      if (def.maxRows && rows.length > def.maxRows) {
+        tagErrors.push(def.maxRowsError!);
       }
     }
     if (tagErrors.length > 0) {
@@ -482,6 +523,10 @@ function LocalFeedPanel({ feed, slug }: Props) {
             subtitle="Funding, people, license, location, text, and podroll tags for apps that support them."
             defaultOpen={false}
             storageKey={`local-p20-${slug}`}
+            // Forces the section open when a bad row blocks save, so the
+            // error below is never left unreadable behind a collapsed,
+            // overflow-hidden section (a silent-looking no-op on Save).
+            forceOpen={!!p20ValidationError}
           >
             <div className="divide-y divide-border">
               {P20_TAG_DEFS.map((def) => (
@@ -495,11 +540,14 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 />
               ))}
             </div>
-            {p20ValidationError && (
-              <p className="mt-3 text-sm text-destructive">{p20ValidationError}</p>
-            )}
           </CollapsibleSection>
 
+          {/* Rendered outside the collapsible section (which defaults
+              closed) so a validation error is always visible, regardless
+              of the section's open state, right alongside the save error. */}
+          {p20ValidationError && (
+            <p className="text-sm text-destructive">{p20ValidationError}</p>
+          )}
           {metaMutation.isError && (
             <p className="text-sm text-destructive">{getErrorMessage(metaMutation.error, 'Could not save')}</p>
           )}
@@ -674,15 +722,28 @@ function P20TagEditor({ slug, def, rows, onChange, disabled }: P20TagEditorProps
                       <label htmlFor={inputId} className="block text-xs text-muted-foreground mb-1">
                         {field.label}
                       </label>
-                      <input
-                        id={inputId}
-                        type="text"
-                        value={row[field.key] ?? ''}
-                        onChange={(e) => updateField(idx, field.key, e.target.value)}
-                        placeholder={field.placeholder}
-                        disabled={disabled}
-                        className={fieldCls}
-                      />
+                      {field.options ? (
+                        <select
+                          id={inputId}
+                          value={row[field.key] ?? ''}
+                          onChange={(e) => updateField(idx, field.key, e.target.value)}
+                          disabled={disabled}
+                          className={`w-full ${selectBase}`}
+                        >
+                          <option value="">Not set</option>
+                          {field.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          id={inputId}
+                          type="text"
+                          value={row[field.key] ?? ''}
+                          onChange={(e) => updateField(idx, field.key, e.target.value)}
+                          placeholder={field.placeholder}
+                          disabled={disabled}
+                          className={fieldCls}
+                        />
+                      )}
                     </div>
                   );
                 })}

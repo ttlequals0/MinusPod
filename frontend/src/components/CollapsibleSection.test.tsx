@@ -135,3 +135,47 @@ describe('CollapsibleSection bulk expand/collapse', () => {
     expect(JSON.parse(localStorage.getItem('test-section-5') ?? 'null')).toBe(true);
   });
 });
+
+// Exercises the real component (not the always-open stub LocalFeedPanel.test.tsx
+// mocks CollapsibleSection with) -- that stub is why a validation message
+// nested inside a defaultOpen=false section was never actually caught as
+// invisible: the mock ignores open state entirely and renders children
+// unconditionally. These tests assert the real collapse/forceOpen behavior.
+describe('CollapsibleSection forceOpen', () => {
+  it('mounts content when forceOpen is true even though the section defaults closed and was never clicked', () => {
+    render(
+      <CollapsibleSection title="Force Test" storageKey="force-test" defaultOpen={false} unmountWhenClosed forceOpen>
+        <div>forced content</div>
+      </CollapsibleSection>,
+    );
+
+    expect(screen.getByText('forced content')).toBeTruthy();
+  });
+
+  it('stays closed without forceOpen, proving the previous test is not a false positive', () => {
+    render(
+      <CollapsibleSection title="Force Test Control" storageKey="force-test-control" defaultOpen={false} unmountWhenClosed>
+        <div>forced content</div>
+      </CollapsibleSection>,
+    );
+
+    expect(screen.queryByText('forced content')).toBeNull();
+  });
+
+  it('does not persist forceOpen to storage, and hides content again once it clears', () => {
+    const { rerender } = render(
+      <CollapsibleSection title="Force Test 2" storageKey="force-test-2" defaultOpen={false} unmountWhenClosed forceOpen>
+        <div>forced content</div>
+      </CollapsibleSection>,
+    );
+    expect(screen.getByText('forced content')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('force-test-2') ?? 'null')).toBe(false);
+
+    rerender(
+      <CollapsibleSection title="Force Test 2" storageKey="force-test-2" defaultOpen={false} unmountWhenClosed forceOpen={false}>
+        <div>forced content</div>
+      </CollapsibleSection>,
+    );
+    expect(screen.queryByText('forced content')).toBeNull();
+  });
+});

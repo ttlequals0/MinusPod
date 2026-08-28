@@ -33,6 +33,13 @@ interface CollapsibleSectionProps {
   // (e.g. recharts ResponsiveContainer logs width(-1)/height(-1)). Default
   // false keeps children mounted while collapsed, preserving their state.
   unmountWhenClosed?: boolean;
+  // Expands the section regardless of its persisted/clicked isOpen state,
+  // without writing that expansion to storage -- for a host that needs a
+  // section visible on demand (e.g. a validation error inside it) but must
+  // not clobber the user's own collapsed/expanded preference. Does not
+  // affect the toggle click handler, which still flips the underlying
+  // isOpen the section will return to once forceOpen clears.
+  forceOpen?: boolean;
 }
 
 function CollapsibleSection({
@@ -44,13 +51,15 @@ function CollapsibleSection({
   storageKey,
   onToggle,
   unmountWhenClosed = false,
+  forceOpen = false,
 }: CollapsibleSectionProps) {
   const resolvedKey = storageKey || `settings-section-${title.toLowerCase().replace(/\s+/g, '-')}`;
 
   const [isOpen, setIsOpen] = useLocalStorageState<boolean>(resolvedKey, defaultOpen);
+  const openState = isOpen || forceOpen;
 
   const contentRef = useRef<HTMLDivElement>(null);
-  const [maxHeight, setMaxHeight] = useState<string>(isOpen ? 'none' : '0px');
+  const [maxHeight, setMaxHeight] = useState<string>(openState ? 'none' : '0px');
 
   // Settings search: the Settings page publishes the set of matching section
   // keys via context (null = no search); data-search-key on the card lets its
@@ -59,7 +68,7 @@ function CollapsibleSection({
   const searching = matchKeys !== null;
   const matchesSearch = searching && matchKeys.has(resolvedKey);
   const hiddenBySearch = searching && !matchesSearch;
-  const expanded = searching ? matchesSearch : isOpen;
+  const expanded = searching ? matchesSearch : openState;
   let contentMaxHeight = maxHeight;
   if (searching) contentMaxHeight = matchesSearch ? 'none' : '0px';
 
@@ -84,7 +93,7 @@ function CollapsibleSection({
   }, [bulkSignal?.seq]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (openState) {
       const el = contentRef.current;
       if (el) {
         setMaxHeight(`${el.scrollHeight}px`);
@@ -101,7 +110,7 @@ function CollapsibleSection({
         });
       }
     }
-  }, [isOpen]);
+  }, [openState]);
 
   // Intentionally no dependency array: re-measures content height after every
   // render so dynamic child changes (e.g. conditional content, async loads)
@@ -111,7 +120,7 @@ function CollapsibleSection({
     // Skip while a search is active: a non-matching section is display:none, so
     // scrollHeight reads 0 and would clobber the stored height, collapsing the
     // section for a frame when the search clears.
-    if (!searching && isOpen && maxHeight !== 'none') {
+    if (!searching && openState && maxHeight !== 'none') {
       const el = contentRef.current;
       if (el) {
         setMaxHeight(`${el.scrollHeight}px`);
@@ -175,7 +184,7 @@ function CollapsibleSection({
         className={`overflow-hidden ${!searching && maxHeight !== 'none' && maxHeight !== '0px' ? 'transition-[max-height] duration-300 ease-in-out' : ''}`}
       >
         <div className="px-4 pb-4 sm:px-6 sm:pb-6">
-          {(!unmountWhenClosed || isOpen || matchesSearch) && children}
+          {(!unmountWhenClosed || openState || matchesSearch) && children}
         </div>
       </div>
     </div>
