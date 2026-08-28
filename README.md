@@ -37,7 +37,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 **Interface and ops**
 - Web UI with a waveform ad editor, plus feed, episode, pattern, sponsor, history, and stats views
 - Stats and cost analytics: ads cut, time saved, token usage and spend
-- Retention controls, encrypted backups, webhooks, and a full REST API with OpenAPI
+- Retention controls (global or per feed, including a never-delete archive mode), encrypted backups, webhooks, and a full REST API with OpenAPI
 - Single shared-password auth; runs behind a reverse proxy or Cloudflare tunnel
 
 ## How it works
