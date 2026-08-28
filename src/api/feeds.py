@@ -42,7 +42,9 @@ from positional_prior import compute_ad_distribution
 # rss_parser.RSSParser take effect at call time.
 import rss_parser
 import run_log
+from storage import _detect_image_mime
 from utils.constants import EpisodeStatus
+from utils.feed_guid import compute_feed_guid
 from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
@@ -498,6 +500,104 @@ def _slug_from_url_path(source_url: str) -> str | None:
         return None
     return candidate
 
+
+# Local feed p20_channel_json validation (Task 6). Tag -> allowed attr keys,
+# taken directly from local_feed_builder's own whitelist (module docstring)
+# so this can never invent a shape the builder doesn't already render.
+# Built lazily (not a module-level import) -- local_feed_builder pulls in
+# main_app at its own module level, and api/feeds.py can be imported before
+# main_app exists (e.g. `from api.settings import ...` in isolation), which
+# would otherwise be a circular import.
+def _p20_tag_attrs() -> dict:
+    import local_feed_builder
+    return {
+        'funding': local_feed_builder._FUNDING_ATTRS,
+        'person': local_feed_builder._PERSON_ATTRS,
+        'license': local_feed_builder._LICENSE_ATTRS,
+        'location': local_feed_builder._LOCATION_ATTRS,
+        'txt': local_feed_builder._TXT_ATTRS,
+    }
+
+
+_P20_URL_ATTRS = ('url', 'href')
+_P20_URL_RE = re.compile(r'^https?://', re.IGNORECASE)
+
+
+def _validate_p20_items(tag, items, allowed_attrs):
+    """Validate one podcast:{tag} item list against the
+    ``{'text': str, <attr>: str}`` shape build_local_feed_xml expects
+    (local_feed_builder.py module docstring). Returns (cleaned_items, error).
+    """
+    if not isinstance(items, list):
+        return None, f'p20.{tag} must be a list'
+    cleaned = []
+    for i, item in enumerate(items):
+        if not isinstance(item, dict):
+            return None, f'p20.{tag}[{i}] must be an object'
+        cleaned_item = {}
+        text = item.get('text')
+        if text is not None:
+            if not isinstance(text, str):
+                return None, f'p20.{tag}[{i}].text must be a string'
+            cleaned_item['text'] = text
+        for attr in allowed_attrs:
+            if attr not in item:
+                continue
+            val = item[attr]
+            if not isinstance(val, str):
+                return None, f'p20.{tag}[{i}].{attr} must be a string'
+            if attr in _P20_URL_ATTRS and val and not _P20_URL_RE.match(val):
+                return None, f'p20.{tag}[{i}].{attr} must start with http:// or https://'
+            cleaned_item[attr] = val
+        if tag == 'funding' and not cleaned_item.get('url'):
+            return None, f'p20.funding[{i}] requires a url'
+        if tag == 'person' and not cleaned_item.get('text'):
+            return None, f'p20.person[{i}] requires a name (text)'
+        cleaned.append(cleaned_item)
+    return cleaned, None
+
+
+def _validate_p20(value):
+    """Validate a client-supplied p20 channel-extras object.
+
+    Returns (cleaned_dict, error). None/absent clears to {}. Only the five
+    list-tag keys the builder renders (funding/person/license/location/txt)
+    are accepted -- the minted scalar keys (guid/medium/locked) are never
+    client-settable through this field.
+    """
+    if value is None:
+        return {}, None
+    if not isinstance(value, dict):
+        return None, 'p20 must be an object'
+    tag_attrs = _p20_tag_attrs()
+    cleaned = {}
+    for tag, items in value.items():
+        if tag not in tag_attrs:
+            return None, f"p20: unknown tag '{tag}'"
+        cleaned_items, err = _validate_p20_items(tag, items, tag_attrs[tag])
+        if err:
+            return None, err
+        cleaned[tag] = cleaned_items
+    return cleaned, None
+
+
+# PATCH fields that only make sense on a local feed (no upstream RSS to
+# derive title/author/explicit/categories/p20 extras from).
+_LOCAL_ONLY_FIELDS = ('title', 'author', 'explicit', 'categories', 'p20')
+
+
+def _validate_local_categories(value):
+    """Validate a local feed's categories list.
+
+    Returns (json_str_or_None, error). None clears categories (stored NULL).
+    """
+    if value is None:
+        return None, None
+    if not isinstance(value, list) or not all(isinstance(c, str) for c in value):
+        return None, 'categories must be an array of strings or null'
+    return json.dumps(value), None
+
+
 logger = logging.getLogger('podcast.api')
 
 
@@ -513,6 +613,7 @@ def _podcast_base_json(podcast, feed_url) -> dict:
     """Fields shared by the feed list, detail, and PATCH responses."""
     return {
         'slug': podcast['slug'],
+        'feedType': podcast.get('feed_type', 'subscribed'),
         'title': podcast['title'] or podcast['slug'],
         'titleOverride': podcast.get('title_override'),
         'detectionMode': podcast.get('detection_mode'),
@@ -636,6 +737,101 @@ def list_feeds():
     })
 
 
+def _add_local_feed(data, db):
+    """Create a local (imported-archive) feed: no upstream URL, no fetch --
+    metadata comes entirely from the request body. Task 6 branch of add_feed,
+    kept separate to keep the subscribed-feed path readable.
+    """
+    title = data.get('title')
+    if not isinstance(title, str) or not title.strip():
+        return error_response('title is required', 400)
+    title = title.strip()
+
+    slug = (data.get('slug') or '').strip() or make_slug(title)
+    if not slug:
+        return error_response(
+            "Could not derive a slug from the title. Provide a 'slug' in the request.",
+            400,
+        )
+    if not is_valid_slug(slug):
+        return error_response(
+            f'Invalid slug "{slug}": use lowercase letters, digits and hyphens '
+            '(max 200 chars), not a reserved word.',
+            400,
+        )
+
+    existing = db.get_podcast_by_slug(slug)
+    if existing:
+        return error_response(f'Feed with slug "{slug}" already exists', 409)
+
+    p20_val, p20_err = _validate_p20(data.get('p20'))
+    if p20_err:
+        return error_response(p20_err, 400)
+
+    author = data.get('author')
+    if author is not None and not isinstance(author, str):
+        return error_response('author must be a string', 400)
+
+    explicit_val = None
+    if 'explicit' in data:
+        explicit_val, explicit_err = _normalize_cue_bool_override(data['explicit'], 'explicit')
+        if explicit_err:
+            return error_response(explicit_err, 400)
+
+    categories_val = None
+    if 'categories' in data:
+        categories_val, cat_err = _validate_local_categories(data['categories'])
+        if cat_err:
+            return error_response(cat_err, 400)
+
+    description = data.get('description')
+    if description is not None and not isinstance(description, str):
+        return error_response('description must be a string', 400)
+
+    try:
+        db.create_podcast(slug, f'local://{slug}', title, feed_type='local')
+
+        feed_url = _public_feed_url(slug, get_feed_auth_key(db))
+        # Minted once here and never regenerated -- see compute_feed_guid's
+        # docstring on why the algorithm/normalization must never change
+        # once a feed's guid is in the wild. Minted keys always win the
+        # merge: a client cannot smuggle its own guid/medium/locked in via
+        # p20 (_validate_p20 only accepts the five list-tag keys anyway).
+        minted = {
+            'guid': compute_feed_guid(feed_url),
+            'medium': 'podcast',
+            'locked': 'yes',
+        }
+        channel_json = {**p20_val, **minted}
+        db.update_podcast(slug, p20_channel_json=json.dumps(channel_json))
+
+        if author is not None:
+            db.update_podcast(slug, author=author)
+        if 'explicit' in data:
+            db.update_podcast(slug, explicit=explicit_val)
+        if categories_val is not None:
+            db.update_podcast(slug, categories=categories_val)
+        if description is not None:
+            db.update_podcast(slug, description=description)
+
+        from main_app.feeds import invalidate_feed_cache
+        invalidate_feed_cache()
+
+        from local_feed_builder import rebuild_local_feed
+        rebuild_local_feed(slug)
+
+        logger.info(f"Created new local feed: {slug}")
+        return json_response({
+            'slug': slug,
+            'feedType': 'local',
+            'feedUrl': feed_url,
+            'message': 'Local feed created successfully',
+        }, 201)
+    except Exception:
+        logger.exception("Failed to add local feed")
+        return error_response('Failed to add local feed', 500)
+
+
 @api.route('/feeds', methods=['POST'])
 @limiter.limit("3 per minute")
 @log_request
@@ -646,6 +842,9 @@ def add_feed():
     feeds POST limit is tuned for interactive use.
     """
     data = request.get_json()
+
+    if data and data.get('feedType') == 'local':
+        return _add_local_feed(data, get_database())
 
     if not data or 'sourceUrl' not in data:
         logger.warning("Missing sourceUrl in POST /feeds request")
@@ -1032,6 +1231,54 @@ def update_feed(slug):
         if api_field in data:
             updates[db_field] = data[api_field]
 
+    # Local-only metadata fields (Task 6): title/author/explicit/categories/p20
+    # are only meaningful for a local feed (no upstream RSS to derive them
+    # from), so a subscribed feed 400s rather than silently accepting a value
+    # a refresh would immediately overwrite or ignore.
+    for field in _LOCAL_ONLY_FIELDS:
+        if field in data and not is_local_feed(podcast):
+            return error_response(
+                f'field {field} is only editable on local feeds', 400)
+
+    if 'title' in data:
+        title_val = data['title']
+        if not isinstance(title_val, str) or not title_val.strip():
+            return error_response('title must be a non-empty string', 400)
+        updates['title'] = title_val.strip()
+
+    if 'author' in data:
+        author_val = data['author']
+        if author_val is not None and not isinstance(author_val, str):
+            return error_response('author must be a string', 400)
+        updates['author'] = author_val
+
+    if 'explicit' in data:
+        explicit_val, explicit_err = _normalize_cue_bool_override(data['explicit'], 'explicit')
+        if explicit_err:
+            return error_response(explicit_err, 400)
+        updates['explicit'] = explicit_val
+
+    if 'categories' in data:
+        categories_val, categories_err = _validate_local_categories(data['categories'])
+        if categories_err:
+            return error_response(categories_err, 400)
+        updates['categories'] = categories_val
+
+    if 'p20' in data:
+        p20_val, p20_err = _validate_p20(data['p20'])
+        if p20_err:
+            return error_response(p20_err, 400)
+        # Merge onto the existing stored object so an unspecified tag (and
+        # the minted guid/medium/locked scalars, which _validate_p20 never
+        # accepts) survives a partial PATCH.
+        try:
+            existing_channel_json = json.loads(podcast.get('p20_channel_json') or '{}')
+        except (TypeError, ValueError):
+            existing_channel_json = {}
+        if not isinstance(existing_channel_json, dict):
+            existing_channel_json = {}
+        updates['p20_channel_json'] = json.dumps({**existing_channel_json, **p20_val})
+
     # Handle auto-process override specially (can be null, true, or false).
     # None passes through to DB as NULL (clears the override) -- unlike add_feed
     # which guards with `if db_value is not None` since there's nothing to clear yet.
@@ -1226,11 +1473,17 @@ def update_feed(slug):
         # belong to the old host and could false-304 against the new one, and
         # the immediate refresh pulls from the new URL (podcast was re-read
         # above, so it carries the new value).
-        # own_episode_guids rewrites every item <guid> (#598).
+        # own_episode_guids rewrites every item <guid> (#598). title/author/
+        # explicit/categories/p20_channel_json are the local-feed metadata
+        # fields (Task 6) -- refresh_rss_feed already routes a local feed to
+        # rebuild_local_feed instead of an upstream fetch (main_app/feeds.py).
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
                 or 'title_override' in updates or 'source_url' in updates
                 or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
-                or 'title_skip_action' in updates):
+                or 'title_skip_action' in updates
+                or 'title' in updates or 'author' in updates
+                or 'explicit' in updates or 'categories' in updates
+                or 'p20_channel_json' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed
@@ -1479,6 +1732,69 @@ def get_artwork(slug):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Content-Security-Policy'] = "default-src 'none'"
     return response
+
+
+@api.route('/feeds/<slug>/artwork', methods=['POST'])
+@limiter.limit("10 per minute")
+@log_request
+def upload_feed_artwork(slug):
+    """Upload cover art for a local feed (Task 6).
+
+    Subscribed feeds get their artwork from the upstream RSS
+    <itunes:image>/<image> on refresh, so a direct upload here would just be
+    silently clobbered by the next refresh -- local feeds only.
+    """
+    db = get_database()
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('Feed not found', 404)
+    if not is_local_feed(podcast):
+        return error_response('Artwork upload is only available for local feeds', 400)
+
+    upload = request.files.get('file')
+    if upload is None:
+        return error_response('an image file is required (multipart field "file")', 400)
+
+    # Flask's MAX_CONTENT_LENGTH already bounds the whole request; read
+    # whole so the type check below runs against the actual bytes rather
+    # than a client-supplied (and spoofable) Content-Type header.
+    raw = upload.stream.read()
+    if not raw:
+        return error_response('empty file', 400)
+
+    content_type = _detect_image_mime(raw)
+    if content_type not in ('image/jpeg', 'image/png'):
+        return error_response('artwork must be a JPEG or PNG image', 400)
+
+    storage = get_storage()
+    if not storage.save_artwork(slug, raw, content_type):
+        return error_response('Failed to save artwork', 500)
+
+    # Best-effort dimension warning; Pillow is a hard dependency (see
+    # requirements.txt) but a corrupt-past-the-magic-bytes upload must not
+    # turn a saved artwork into a 500.
+    warning = None
+    try:
+        import io
+        from PIL import Image
+        with Image.open(io.BytesIO(raw)) as img:
+            width, height = img.size
+        if width < 1400 or height < 1400:
+            warning = (f'Artwork is {width}x{height}; podcast directories '
+                       'recommend at least 1400x1400')
+    except Exception as e:
+        logger.warning(f"[{slug}] artwork dimension check failed: {e}")
+
+    from local_feed_builder import rebuild_local_feed
+    rebuild_local_feed(slug)
+
+    response = {
+        'message': 'Artwork uploaded',
+        'artworkUrl': _feed_artwork_url(podcast),
+    }
+    if warning:
+        response['warning'] = warning
+    return json_response(response)
 
 
 # ========== Tag endpoints ==========
