@@ -21,7 +21,7 @@ from local_import import (
 PARSE_BASENAME_CASES = [
     ('S01E05 - The Beginning', ('s01e05', 1, 5, 'The Beginning')),
     ('s01e05 - The Beginning', ('s01e05', 1, 5, 'The Beginning')),
-    ('S001E0005 - Title', ('s001e0005', 1, 5, 'Title')),
+    ('S001E0005 - Title', ('s01e05', 1, 5, 'Title')),  # wide token, minimal-width id
     ('S100E01 - Title', ('s100e01', 100, 1, 'Title')),
     ('S01E05', ('s01e05', 1, 5, None)),
     ('s01e05', ('s01e05', 1, 5, None)),
@@ -340,6 +340,39 @@ def test_build_import_plan_duplicate_id_within_batch_errors_both(tmp_path):
     assert entries_by_file['S01E01 - B.mp3']['errors']
     assert plan['totals']['importable'] == 0
     assert plan['totals']['errors'] == 2
+
+
+def test_build_import_plan_wide_token_mints_minimal_width_id(tmp_path):
+    """A wide, hand-zero-padded token (s01e0001) with no sidecar override
+    still mints the minimal-width id (s01e01) -- the filename is free to
+    use any width the naming scheme allows, but the id always normalizes."""
+    audio = _write(tmp_path / 'S01E0001 - Pilot.mp3')
+    plan = build_import_plan('myshow', [audio], existing_ids=set(),
+                              overwrite=False, now_iso=NOW_ISO)
+    entry = plan['entries'][0]
+    assert entry['episodeId'] == 's01e01'
+    assert entry['audioFile'] == 'S01E0001 - Pilot.mp3'
+
+
+def test_build_import_plan_wide_token_and_sidecar_override_collide_as_duplicate(tmp_path):
+    """A wide-token file (s01e0022, no sidecar season/episode) and a
+    narrow-token file whose sidecar overrides to the same numbers (season
+    1, episode 22) must mint the identical id and be caught as a
+    duplicate within the batch -- before the id canonicalization fix these
+    were two different ids (s01e0022 vs s01e22) and neither error fired."""
+    wide = _write(tmp_path / 'S01E0022 - Wide.mp3')
+    narrow = _write(tmp_path / 'S01E01 - Narrow.mp3')
+    _write_text(tmp_path / 'S01E01 - Narrow.json', '{"season": 1, "episode": 22}')
+    plan = build_import_plan(
+        'myshow', [wide, narrow, tmp_path / 'S01E01 - Narrow.json'],
+        existing_ids=set(), overwrite=False, now_iso=NOW_ISO)
+
+    entries_by_file = {e['audioFile']: e for e in plan['entries']}
+    assert entries_by_file['S01E0022 - Wide.mp3']['episodeId'] == 's01e22'
+    assert entries_by_file['S01E01 - Narrow.mp3']['episodeId'] == 's01e22'
+    assert entries_by_file['S01E0022 - Wide.mp3']['errors']
+    assert entries_by_file['S01E01 - Narrow.mp3']['errors']
+    assert plan['totals']['importable'] == 0
 
 
 def test_build_import_plan_collision_with_existing_ids_errors_unless_overwrite(tmp_path):

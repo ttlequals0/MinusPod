@@ -8,7 +8,7 @@ import ImportPreviewTable from '../../components/ImportPreviewTable';
 import { getErrorMessage } from '../../api/client';
 import {
   updateFeed, uploadFeedArtwork, uploadLocalEpisode,
-  importUpload, importScan, importCommit, importStatus,
+  importUpload, importScan, importCommit, importStatus, clearImportStaging,
 } from '../../api/feeds';
 import type { UpdateFeedPayload, ImportPlan, ImportSource, ImportRejectedFile } from '../../api/feeds';
 import type { Feed } from '../../api/types';
@@ -365,6 +365,26 @@ function LocalFeedPanel({ feed, slug }: Props) {
   // report shows regardless of a stale dismissal, with no effect needed to
   // reset anything.
   const [dismissedRunStartedAt, setDismissedRunStartedAt] = useState<string | null>(null);
+  // Count of files uploaded in the run that produced the current plan (only
+  // set for an upload-and-scan run, never a directory scan). Compared
+  // against the plan's own entry count so the panel can tell when staging
+  // holds more than just this batch -- files left over from an earlier,
+  // canceled attempt -- and surface that instead of leaving it invisible.
+  const [uploadBatchCount, setUploadBatchCount] = useState<number | null>(null);
+
+  const clearStagingMutation = useMutation({
+    mutationFn: () => clearImportStaging(slug),
+    onError: (e) => setImportError(getErrorMessage(e, 'Could not clear staged files')),
+  });
+
+  // Shared by the Cancel button and the "staged earlier" note's own button:
+  // both drop the current plan and empty staging server-side, so a canceled
+  // review never leaves its files behind for the next scan to pick up again.
+  const handleClearStaging = () => {
+    setPlan(null);
+    setUploadBatchCount(null);
+    clearStagingMutation.mutate();
+  };
 
   const uploadAndScanMutation = useMutation({
     mutationFn: async ({ files, overwrite }: { files: File[]; overwrite: boolean }) => {
@@ -392,7 +412,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
     },
     // Clear a stale error from a previous failed attempt as soon as a new
     // one starts, rather than leaving it displayed under the new state.
-    onMutate: () => { setImportError(null); setUploadProgress(null); },
+    onMutate: ({ files }) => { setImportError(null); setUploadProgress(null); setUploadBatchCount(files.length); },
     onSuccess: ({ scanned }) => {
       setPlan(scanned);
       setImportSource('staging');
@@ -403,7 +423,10 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
   const scanDirectoryMutation = useMutation({
     mutationFn: (overwrite: boolean) => importScan(slug, { source: 'directory', overwrite }),
-    onMutate: () => setImportError(null),
+    // Not an upload-and-scan run -- no "just uploaded" batch to compare the
+    // plan against, so the "staged earlier" note only ever applies to a
+    // staging scan.
+    onMutate: () => { setImportError(null); setUploadBatchCount(null); },
     onSuccess: (scanned) => {
       setUploadRejected([]);
       setPlan(scanned);
@@ -425,6 +448,13 @@ function LocalFeedPanel({ feed, slug }: Props) {
     },
     onError: (e) => setImportError(getErrorMessage(e, 'Import failed')),
   });
+
+  // True once a staging scan's plan holds more entries than the batch that
+  // was just uploaded -- the leftover came from an earlier attempt that got
+  // canceled (or crashed) before it ever committed, since staging is only
+  // ever cleared by a commit or an explicit clear.
+  const stagedBeyondBatch = !!plan && importSource === 'staging'
+    && uploadBatchCount !== null && plan.entries.length > uploadBatchCount;
 
   const handleImportFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -713,6 +743,19 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 rejected={[...uploadRejected, ...plan.rejected]}
                 totals={plan.totals}
               />
+              {stagedBeyondBatch && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                  <span>Includes {plan.entries.length - (uploadBatchCount ?? 0)} file{plan.entries.length - (uploadBatchCount ?? 0) === 1 ? '' : 's'} left over from an earlier attempt.</span>
+                  <button
+                    type="button"
+                    onClick={handleClearStaging}
+                    disabled={clearStagingMutation.isPending}
+                    className={`shrink-0 text-xs font-medium text-foreground hover:underline disabled:opacity-50 ${focusRing}`}
+                  >
+                    Clear staged files
+                  </button>
+                </div>
+              )}
               <div className="flex gap-2 mt-3">
                 <button
                   type="button"
@@ -724,7 +767,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPlan(null)}
+                  onClick={handleClearStaging}
                   className={`px-4 py-2 rounded-lg ${btnSecondary} ${focusRing}`}
                 >
                   Cancel

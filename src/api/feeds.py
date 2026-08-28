@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import time
 from urllib.parse import urlparse
 
@@ -1719,6 +1720,42 @@ def update_feed(slug):
         return error_response('Failed to update feed', 500)
 
 
+def _best_effort_rmtree(slug: str, path) -> None:
+    """Remove ``path`` and everything under it, tolerating a stubborn entry
+    instead of leaving the whole directory behind because of one.
+
+    Tries a single ``shutil.rmtree`` first (the common case: an ordinary
+    directory on the data volume). If that fails -- most likely a busy
+    bind-mount point that refuses to remove itself while still letting its
+    contents go -- falls back to removing each child individually and logs
+    a warning naming whatever, if anything, was left. A missing path is not
+    an error: nothing was ever staged/dropped there.
+    """
+    if not path.exists():
+        return
+    try:
+        shutil.rmtree(path)
+        return
+    except OSError:
+        pass
+    remaining = []
+    try:
+        children = list(path.iterdir())
+    except OSError:
+        logger.warning(f"[{slug}] could not list {path} to clean it up")
+        return
+    for child in children:
+        try:
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+        except OSError:
+            remaining.append(child.name)
+    if remaining:
+        logger.warning(f"[{slug}] could not remove {path}: left {remaining}")
+
+
 @api.route('/feeds/<slug>', methods=['DELETE'])
 @log_request
 def delete_feed(slug):
@@ -1762,6 +1799,19 @@ def delete_feed(slug):
         # Delete files
         storage.cleanup_podcast_dir(slug)
         run_log.delete_feed_logs(storage.data_dir, slug)
+
+        # A local feed's import staging dir and user-managed import
+        # directory (see local_import.py / storage.import_staging_dir /
+        # storage.import_source_dir) live outside podcasts_dir, so
+        # cleanup_podcast_dir above never touches them -- without this
+        # they'd survive the feed they were staged for. Best-effort: a
+        # busy bind-mount point (the import directory is commonly a host
+        # mount) refusing to remove itself must never fail the delete that
+        # already succeeded in the database; _best_effort_rmtree empties
+        # whatever it can and logs the rest as a warning instead of raising.
+        if is_local_feed(podcast):
+            _best_effort_rmtree(slug, storage.import_staging_dir(slug, create=False))
+            _best_effort_rmtree(slug, storage.import_source_dir(slug))
 
         logger.info(f"Deleted feed: {slug}")
         return json_response({'message': 'Feed deleted', 'slug': slug})

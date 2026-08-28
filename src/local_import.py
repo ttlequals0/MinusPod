@@ -67,7 +67,21 @@ FFMPEG_HINT = ("not a supported audio format (only .mp3 is imported); "
 
 def parse_basename(stem: str) -> tuple[str, int, int, str | None] | None:
     """'S01E05 - The Beginning' -> ('s01e05', 1, 5, 'The Beginning');
-    None when the stem does not match the scheme."""
+    None when the stem does not match the scheme.
+
+    The returned id is canonicalized to minimal zero-padded width
+    (``f's{season:02d}e{episode:02d}'`` -- 2 digits minimum, wider only
+    when the number itself needs it), even though the filename token that
+    produced it may be wider: 's01e0001 - Title' and 's01e01 - Title' both
+    mint id 's01e01'. This is the exact formula build_import_plan already
+    uses to mint an id from a sidecar season/episode override, so a
+    token-derived id and a sidecar-derived id for the same numbers are now
+    always identical -- required for duplicate/collision detection (by id)
+    to actually catch a wide-token file and its sidecar-overridden sibling
+    as the same episode instead of two different ones. Filenames on disk
+    keep accepting any width the naming scheme allows; only the minted id
+    normalizes.
+    """
     match = FILENAME_RE.match(stem)
     if not match:
         return None
@@ -78,7 +92,8 @@ def parse_basename(stem: str) -> tuple[str, int, int, str | None] | None:
         return None
     season = int(token_match.group(1))
     episode = int(token_match.group(2))
-    return (token, season, episode, title)
+    episode_id = f's{season:02d}e{episode:02d}'
+    return (episode_id, season, episode, title)
 
 
 def validate_sidecar(data: object) -> tuple[dict | None, str | None]:

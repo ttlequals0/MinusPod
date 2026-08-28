@@ -64,6 +64,7 @@ const mockImportUpload = vi.fn();
 const mockImportScan = vi.fn();
 const mockImportCommit = vi.fn();
 const mockImportStatus = vi.fn();
+const mockClearImportStaging = vi.fn();
 
 vi.mock('../../api/feeds', () => ({
   updateFeed: (...args: unknown[]) => mockUpdateFeed(...args),
@@ -73,6 +74,7 @@ vi.mock('../../api/feeds', () => ({
   importScan: (...args: unknown[]) => mockImportScan(...args),
   importCommit: (...args: unknown[]) => mockImportCommit(...args),
   importStatus: (...args: unknown[]) => mockImportStatus(...args),
+  clearImportStaging: (...args: unknown[]) => mockClearImportStaging(...args),
 }));
 
 function makeFeed(overrides: Partial<Feed> = {}): Feed {
@@ -135,6 +137,7 @@ describe('LocalFeedPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockImportStatus.mockResolvedValue(IDLE_STATUS);
+    mockClearImportStaging.mockResolvedValue({ message: 'staging cleared' });
   });
 
   it('renders for a local feed', async () => {
@@ -716,5 +719,97 @@ describe('LocalFeedPanel', () => {
       source: 'staging',
       overwrite: true,
     }));
+  });
+
+  // ---- Staging lifecycle (cancel clears staging; leftovers surfaced) ----
+
+  it('clears staging when the plan is canceled', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    mockImportScan.mockResolvedValue(makePlan());
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(mockClearImportStaging).toHaveBeenCalledWith('archive-show'));
+    expect(document.querySelector('table')).toBeNull();
+  });
+
+  it('shows a note and a clear-staged-files button when the scanned plan has more entries than the batch just uploaded', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    // Two entries came back from the scan even though only one file was
+    // just uploaded -- the second one is left over from an earlier,
+    // canceled attempt that staged it and never committed.
+    const twoEntryPlan = makePlan({
+      entries: [
+        { ...makePlan().entries[0], episodeId: 's01e01', audioFile: 'a.mp3' },
+        { ...makePlan().entries[0], episodeId: 's01e02', audioFile: 'b.mp3' },
+      ],
+    });
+    mockImportScan.mockResolvedValue(twoEntryPlan);
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    expect(screen.getByText(/left over from an earlier attempt/)).toBeDefined();
+    await user.click(screen.getByRole('button', { name: 'Clear staged files' }));
+
+    await waitFor(() => expect(mockClearImportStaging).toHaveBeenCalledWith('archive-show'));
+    expect(document.querySelector('table')).toBeNull();
+  });
+
+  it('does not show the leftover-files note when the scan matches exactly what was just uploaded', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    mockImportScan.mockResolvedValue(makePlan());
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    expect(screen.queryByText(/left over from an earlier attempt/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Clear staged files' })).toBeNull();
+  });
+
+  // ---- Auto-refresh after import completes ----
+
+  it('invalidates the episodes and feed queries once the import status flips from running to done', async () => {
+    mockImportStatus.mockResolvedValue({
+      state: 'running', processed: 0, total: 1, startedAt: '2026-01-01T00:00:00Z',
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+    render(
+      <QueryClientProvider client={client}>
+        <LocalFeedPanel feed={makeFeed()} slug="archive-show" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText(/Importing 0 \/ 1/)).toBeDefined());
+    expect(invalidateSpy).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['episodes', 'archive-show'] }));
+
+    // Push the status query straight to 'done' the way the real refetch
+    // would once the background commit finishes -- this is what the
+    // component's useEffect watches for.
+    client.setQueryData(['import-status', 'archive-show'], {
+      state: 'done',
+      processed: 1,
+      total: 1,
+      startedAt: '2026-01-01T00:00:00Z',
+      report: { committed: [{ episodeId: 's01e01' }], skipped: [], failed: [], queued: [] },
+    });
+
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['episodes', 'archive-show'] }));
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['feed', 'archive-show'] });
   });
 });

@@ -452,3 +452,59 @@ def test_status_400_on_subscribed_feed(app_client, subscribed_feed):
 
     resp = app_client.get(f'/api/v1/feeds/{slug}/import/status')
     assert resp.status_code == 400
+
+
+# ---------- clear staging ----------
+
+def test_clear_staging_empties_the_dir(app_client, local_feed):
+    from api import get_storage
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    _upload(app_client, slug, [
+        ('s01e01 - Pilot.mp3', b'audio-bytes'),
+        ('s01e01 - Pilot.json', b'{"title": "Pilot"}'),
+    ])
+    staging_dir = get_storage().import_staging_dir(slug)
+    assert list(staging_dir.iterdir())
+
+    resp = app_client.delete(f'/api/v1/feeds/{slug}/import/staging', headers=headers)
+
+    assert resp.status_code == 200
+    assert list(staging_dir.iterdir()) == []
+
+
+def test_clear_staging_409_while_import_running(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    _upload(app_client, slug, [('s01e01.mp3', b'audio-bytes')])
+
+    fake_status = {'state': 'running', 'processed': 0, 'total': 1, 'startedAt': '2026-08-27T00:00:00Z'}
+    with patch('api.local_episodes.get_import_status', return_value=fake_status):
+        resp = app_client.delete(f'/api/v1/feeds/{slug}/import/staging', headers=headers)
+
+    assert resp.status_code == 409
+
+
+def test_clear_staging_noop_when_dir_absent(app_client, local_feed):
+    """No staging dir at all (nothing ever uploaded) is not an error --
+    there's just nothing to clear."""
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.delete(f'/api/v1/feeds/{slug}/import/staging', headers=headers)
+
+    assert resp.status_code == 200
+
+
+def test_clear_staging_400_on_subscribed_feed(app_client, subscribed_feed):
+    slug = subscribed_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.delete(f'/api/v1/feeds/{slug}/import/staging', headers=headers)
+    assert resp.status_code == 400

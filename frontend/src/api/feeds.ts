@@ -606,3 +606,14 @@ export interface ImportStatus {
 export async function importStatus(slug: string): Promise<ImportStatus> {
   return apiRequest<ImportStatus>(`/feeds/${slug}/import/status`);
 }
+
+// Empties the feed's upload staging directory. Staging accumulates across
+// canceled/abandoned import attempts (every upload lands there and only
+// clears on a successful commit), so this is called both when the operator
+// cancels a reviewed plan and from the "staged earlier" note's own button --
+// 409s server-side while an import is running for this feed.
+export async function clearImportStaging(slug: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/feeds/${slug}/import/staging`, {
+    method: 'DELETE',
+  });
+}

@@ -35,6 +35,29 @@ function StatusBadge({ entry }: { entry: ImportPlanEntry }) {
   );
 }
 
+const REASON_CLASS: Record<'error' | 'warning', string> = {
+  error: 'text-destructive',
+  warning: 'text-warning',
+};
+
+// The status pill alone doesn't say why a row won't import -- a bare
+// "error" badge with the reason only in a hover title leaves the operator
+// guessing (e.g. why a scan is stuck at 0 importable). This renders the
+// first error (or, absent an error, the first warning) as its own line
+// under the title, with the full joined list still available via title on
+// hover -- same fallback pattern StatusBadge already uses.
+function ReasonLine({ entry }: { entry: ImportPlanEntry }) {
+  const tone: 'error' | 'warning' | null =
+    entry.errors.length > 0 ? 'error' : entry.warnings.length > 0 ? 'warning' : null;
+  if (!tone) return null;
+  const list = tone === 'error' ? entry.errors : entry.warnings;
+  return (
+    <span className={`block truncate text-xs ${REASON_CLASS[tone]}`} title={list.join('; ')}>
+      {list[0]}
+    </span>
+  );
+}
+
 const SIDECARS: { key: 'txt' | 'jpg' | 'json'; field: keyof ImportPlanEntry }[] = [
   { key: 'txt', field: 'descriptionFile' },
   { key: 'jpg', field: 'artworkFile' },
@@ -110,7 +133,15 @@ const COLUMNS: Column[] = [
       </span>
     ),
   },
-  { label: 'Title', render: (e) => <span className="block max-w-xs truncate" title={e.title}>{e.title}</span> },
+  {
+    label: 'Title',
+    render: (e) => (
+      <div className="max-w-xs">
+        <span className="block truncate" title={e.title}>{e.title}</span>
+        <ReasonLine entry={e} />
+      </div>
+    ),
+  },
   { label: 'Date', render: (e) => <DateCell entry={e} /> },
   { label: 'Sidecars', render: (e) => <SidecarDots entry={e} /> },
   { label: 'Status', render: (e) => <StatusBadge entry={e} /> },
@@ -152,7 +183,8 @@ function ImportPreviewTable({ entries, rejected, totals }: Props) {
               </span>
               <StatusBadge entry={entry} />
             </div>
-            <p className="truncate mb-2" title={entry.title}>{entry.title}</p>
+            <p className="truncate mb-1" title={entry.title}>{entry.title}</p>
+            <div className="mb-2"><ReasonLine entry={entry} /></div>
             <dl className="space-y-1">
               <div className="flex justify-between gap-3">
                 <dt className="text-muted-foreground shrink-0">Date</dt>

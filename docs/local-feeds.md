@@ -58,8 +58,10 @@ For archives, drop files into the import directory or upload a batch, then run a
 
 **Where files come from**: two places, and you can use either or both in the same import.
 
-- **Staging area** (`<data>/import-staging/<slug>/`): files you `POST` to `/api/v1/feeds/{slug}/import/upload` (multipart, repeated `files` field). MinusPod owns this directory: it moves each file's audio out on commit and deletes anything left over once the import finishes.
+- **Staging area** (`<data>/import-staging/<slug>/`): files you `POST` to `/api/v1/feeds/{slug}/import/upload` (multipart, repeated `files` field). Each committed file's audio moves out during commit, but a canceled or abandoned attempt leaves the rest behind, so the next scan can turn up files from an attempt you never finished. `DELETE /api/v1/feeds/{slug}/import/staging` empties it on demand (409 while an import is running); the UI's Cancel button calls this automatically, and also offers it directly when a scan turns up more files than you just uploaded.
 - **Import directory** (`<data>/import/<slug>/`): files you place there yourself, outside MinusPod. This is for archives already sitting on the same host or a mounted volume. MinusPod only ever moves the audio file out of it on commit; sidecar files (`.txt`, `.json`, artwork) are left exactly where you put them. Point this at the same filesystem as your data directory if you can: the commit is then a same-volume move rather than a copy, which matters for a large archive.
+
+Deleting the feed itself (`DELETE /api/v1/feeds/{slug}`) removes both of these directories along with everything still in them, sidecars included, since neither belongs anywhere once the feed is gone.
 
 With the standard docker-compose setup (`- ./data:/app/data`), the import directory for a feed with slug `my-archive` is `./data/import/my-archive/` on the host, next to the compose file. No extra volume is needed. Copy an archive in and scan:
 

@@ -748,3 +748,54 @@ def import_status(slug):
         return err
 
     return json_response(get_import_status(slug), 200)
+
+
+# ---------- DELETE /feeds/<slug>/import/staging ----------
+
+@api.route('/feeds/<slug>/import/staging', methods=['DELETE'])
+@log_request
+def clear_import_staging(slug):
+    """Empty the feed's upload staging directory.
+
+    Staging accumulates across canceled/abandoned import attempts: every
+    upload lands there and only gets cleared by a successful commit, so a
+    scan after a few canceled tries returns the union of every file ever
+    staged, not just the operator's latest batch. This gives the UI an
+    explicit way to wipe it clean -- called from the plan-clearing Cancel
+    button and from the "Clear staged files" affordance that appears when
+    a scan's plan includes more than what was just uploaded.
+
+    409s while an import is running for this feed: the commit engine reads
+    staged files by their resolved path (build_import_plan's audioPath/
+    etc.), so wiping the directory out from under a live commit would turn
+    in-flight entries into 'source file no longer present' failures
+    instead of leaving the running import alone.
+
+    Removed per-entry rather than via a single rmtree of the whole
+    directory: a busy bind-mount point (e.g. staging mounted from a
+    network share) can refuse to remove ITSELF while still allowing its
+    contents to go one at a time, so a single stubborn entry must not
+    block every other file from being cleared.
+    """
+    db = get_database()
+    storage = get_storage()
+
+    podcast, err = _require_local_feed(db, slug)
+    if err:
+        return err
+
+    if get_import_status(slug).get('state') == 'running':
+        return error_response('cannot clear staging while an import is running', 409)
+
+    staging_dir = storage.import_staging_dir(slug, create=False)
+    if staging_dir.is_dir():
+        for child in staging_dir.iterdir():
+            try:
+                if child.is_dir():
+                    shutil.rmtree(child, ignore_errors=True)
+                else:
+                    child.unlink()
+            except OSError:
+                logger.warning(f"[{slug}] could not remove staged file {child}")
+
+    return json_response({'message': 'staging cleared'}, 200)
