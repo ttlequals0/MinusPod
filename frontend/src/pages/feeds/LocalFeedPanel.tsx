@@ -319,8 +319,14 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
         <div className="pt-4 border-t border-border">
           <h3 className="text-sm font-semibold text-foreground mb-1">Bulk import</h3>
-          <p className="text-sm text-muted-foreground mb-3">
+          <p className="text-sm text-muted-foreground mb-1">
             Upload mp3s named like S01E01.mp3, with optional matching .txt/.jpg/.json sidecar files.
+          </p>
+          <p className="text-sm text-muted-foreground mb-3">
+            For archives already on the server, place files in{' '}
+            <code className="text-xs">import/{slug}</code> inside the MinusPod data
+            directory and use Scan server directory. MinusPod moves the audio in
+            when you commit; sidecar files stay where you put them.
           </p>
           <div className="flex flex-wrap gap-2 mb-3">
             <input

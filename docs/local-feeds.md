@@ -61,6 +61,26 @@ For archives, drop files into the import directory or upload a batch, then run a
 - **Staging area** (`<data>/import-staging/<slug>/`): files you `POST` to `/api/v1/feeds/{slug}/import/upload` (multipart, repeated `files` field). MinusPod owns this directory: it moves each file's audio out on commit and deletes anything left over once the import finishes.
 - **Import directory** (`<data>/import/<slug>/`): files you place there yourself, outside MinusPod. This is for archives already sitting on the same host or a mounted volume. MinusPod only ever moves the audio file out of it on commit; sidecar files (`.txt`, `.json`, artwork) are left exactly where you put them. Point this at the same filesystem as your data directory if you can: the commit is then a same-volume move rather than a copy, which matters for a large archive.
 
+With the standard docker-compose setup (`- ./data:/app/data`), the import directory for a feed with slug `my-archive` is `./data/import/my-archive/` on the host, next to the compose file. No extra volume is needed. Copy an archive in and scan:
+
+```bash
+mkdir -p ./data/import/my-archive
+cp ~/archives/my-show/*.mp3 ./data/import/my-archive/
+# then in the UI: feed page > Local feed > Bulk import > Scan server directory
+```
+
+If the archive lives on another disk, either mount it into the container as its own volume and copy server-side, or add a bind mount directly at the import path so no copy is needed at all:
+
+```yaml
+services:
+  minuspod:
+    volumes:
+      - ./data:/app/data
+      - /mnt/archives/my-show:/app/data/import/my-archive
+```
+
+A bind mount from a different filesystem does make the commit a copy rather than a rename, so a very large archive imports faster if you copy it into `./data/import/<slug>/` first.
+
 Either way, files must follow the naming scheme below before MinusPod will touch them.
 
 #### Naming scheme
