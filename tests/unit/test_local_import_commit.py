@@ -10,7 +10,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from unittest.mock import patch
 
 import pytest

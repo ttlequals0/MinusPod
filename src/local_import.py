@@ -166,7 +166,10 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
 
     anchors = sorted(parsed)
 
-    for a, b in zip(anchors, anchors[1:]):
+    # strict=False: this is the pairwise idiom -- anchors[1:] is always
+    # exactly one element shorter than anchors by construction, so the
+    # "unequal lengths" strict=True guards against can never fire here.
+    for a, b in zip(anchors, anchors[1:], strict=False):
         if parsed[b] <= parsed[a]:
             return (f"publish dates out of order: {entries[a]['episode_id']} "
                      f"must be before {entries[b]['episode_id']}")
@@ -183,7 +186,8 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
         parsed[i] = dt
 
     # Even spacing between consecutive anchors.
-    for a, b in zip(anchors, anchors[1:]):
+    # strict=False: same pairwise idiom as above.
+    for a, b in zip(anchors, anchors[1:], strict=False):
         span = b - a
         if span <= 1:
             continue
@@ -212,11 +216,18 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     """Returns the dry-run plan:
     {'slug', 'overwrite', 'planHash',
      'entries': [{'episodeId','season','episode','title','audioFile',
-                  'descriptionFile','artworkFile','sidecarFile',
+                  'audioPath','descriptionFile','descriptionPath',
+                  'artworkFile','artworkPath','sidecarFile','sidecarPath',
                   'publishedAt','publishedAtSource': 'explicit'|'synthesized',
-                  'bytes', 'warnings': [], 'errors': []}],
+                  'bytes','mtimeNs', 'warnings': [], 'errors': []}],
      'rejected': [{'file', 'reason'}],
-     'totals': {'importable': N, 'rejected': N, 'errors': N, 'bytes': N}}"""
+     'totals': {'importable': N, 'rejected': N, 'errors': N, 'bytes': N}}
+
+    The *Path keys (audioPath/descriptionPath/artworkPath/sidecarPath) and
+    mtimeNs exist for the commit engine: it reads a file by its exact
+    resolved path from here rather than re-resolving a bare filename
+    against the staging/import directories, and re-stats bytes+mtimeNs
+    against the live file as a TOCTOU guard before committing it."""
     rejected: list[dict] = []
     groups: dict[str, list[Path]] = {}
 

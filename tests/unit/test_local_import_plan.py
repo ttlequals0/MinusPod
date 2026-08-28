@@ -1,16 +1,11 @@
 """Tests for the pure planning half of local_import.py: naming parser,
 sidecar validation, date synthesis, and the dry-run plan builder."""
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from local_import import (
-    AUDIO_EXTS,
-    ARTWORK_EXTS,
-    SIDECAR_KEYS,
-    FILENAME_RE,
-    SYNTH_STEP,
     parse_basename,
     validate_sidecar,
     synthesize_published_at,
