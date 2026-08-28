@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import { Modal } from '../../components/Modal';
@@ -12,7 +12,7 @@ import {
 } from '../../api/feeds';
 import type { UpdateFeedPayload, ImportPlan, ImportSource, ImportRejectedFile } from '../../api/feeds';
 import type { Feed } from '../../api/types';
-import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { fromDatetimeLocalInput } from '../../utils/format';
@@ -23,6 +23,127 @@ const P20_MEDIUM_OPTIONS = ['podcast', 'music', 'video', 'film', 'audiobook', 'n
 
 const fieldCls = 'w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
 const fileInputCls = `block w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:text-sm ${btnSecondary} file:transition-colors ${focusRing}`;
+
+// ---- Podcasting 2.0 list tags (funding/person/license/location/txt) ----
+// One row shape (plain string fields) serves all five tags; the field list
+// per tag mirrors local_feed_builder.py's attribute whitelist (_FUNDING_ATTRS
+// etc.) and api/feeds.py's _validate_p20_items, so the UI can never offer an
+// attribute the backend would strip.
+type P20Row = Record<string, string>;
+
+interface P20FieldDef {
+  key: string;
+  label: string;
+  placeholder: string;
+}
+
+interface P20TagDef {
+  tag: 'funding' | 'person' | 'license' | 'location' | 'txt';
+  title: string;
+  hint: string;
+  addLabel: string;
+  fields: P20FieldDef[];
+  // Client-side mirror of the backend's two hard requirements
+  // (_validate_p20_items: funding needs a url, person needs a name/text) so
+  // a bad row is caught before the request instead of surfacing a 400.
+  requiredKey?: string;
+  requiredError?: string;
+}
+
+const P20_TAG_DEFS: P20TagDef[] = [
+  {
+    tag: 'funding',
+    title: 'Funding',
+    hint: 'Links listeners can use to support the show, like Patreon or Ko-fi.',
+    addLabel: '+ Add funding',
+    fields: [
+      { key: 'text', label: 'Label', placeholder: 'Support us on Patreon' },
+      { key: 'url', label: 'URL', placeholder: 'https://...' },
+    ],
+    requiredKey: 'url',
+    requiredError: 'Every funding row needs a URL.',
+  },
+  {
+    tag: 'person',
+    title: 'People',
+    hint: 'Hosts, guests, and other people to credit.',
+    addLabel: '+ Add person',
+    fields: [
+      { key: 'text', label: 'Name', placeholder: 'Jane Doe' },
+      { key: 'role', label: 'Role', placeholder: 'host' },
+      { key: 'group', label: 'Group', placeholder: 'cast' },
+      { key: 'img', label: 'Photo URL', placeholder: 'https://...' },
+      { key: 'href', label: 'Link URL', placeholder: 'https://...' },
+    ],
+    requiredKey: 'text',
+    requiredError: 'Every person row needs a name.',
+  },
+  {
+    tag: 'license',
+    title: 'License',
+    hint: 'The license this show is released under.',
+    addLabel: '+ Add license',
+    fields: [
+      { key: 'text', label: 'License name', placeholder: 'CC BY-NC-ND 4.0' },
+      { key: 'url', label: 'URL', placeholder: 'https://...' },
+    ],
+  },
+  {
+    tag: 'location',
+    title: 'Location',
+    hint: 'Where the show is set or recorded.',
+    addLabel: '+ Add location',
+    fields: [
+      { key: 'text', label: 'Name', placeholder: 'Portland, OR' },
+      { key: 'geo', label: 'Geo', placeholder: 'geo:45.5,-122.6' },
+      { key: 'osm', label: 'OpenStreetMap ID', placeholder: 'R123456' },
+    ],
+  },
+  {
+    tag: 'txt',
+    title: 'Text',
+    hint: "Freeform values for anything the other tags don't cover.",
+    addLabel: '+ Add text',
+    fields: [
+      { key: 'text', label: 'Text', placeholder: 'Free text' },
+      { key: 'purpose', label: 'Purpose', placeholder: 'verify' },
+    ],
+  },
+];
+
+// Reads whatever feed.p20[tag] holds (loosely typed on the wire) into the
+// row shape the editors use. Non-string values are dropped rather than
+// coerced, since a stray non-string attr couldn't have come from this form.
+function normalizeP20Rows(raw: unknown): P20Row[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => {
+    const row: P20Row = {};
+    if (item && typeof item === 'object') {
+      for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
+        if (typeof value === 'string') row[key] = value;
+      }
+    }
+    return row;
+  });
+}
+
+// Trims every field and drops empty ones, then drops any row left with no
+// fields at all -- a row the user added and never filled in is treated as
+// nothing rather than an empty object sent to the API. Also how a tag's
+// rows collapse to [] when every row is removed (send [], never undefined,
+// so the PATCH actually clears the tag).
+function cleanP20Rows(rows: P20Row[]): P20Row[] {
+  return rows
+    .map((row) => {
+      const cleaned: P20Row = {};
+      for (const [key, value] of Object.entries(row)) {
+        const trimmed = value.trim();
+        if (trimmed) cleaned[key] = trimmed;
+      }
+      return cleaned;
+    })
+    .filter((row) => Object.keys(row).length > 0);
+}
 
 interface Props {
   feed: Feed;
@@ -48,7 +169,23 @@ function LocalFeedPanel({ feed, slug }: Props) {
   // happens on a backend that predates local feeds.
   const [locked, setLocked] = useState((feed.p20?.locked as string) ?? 'yes');
   const [lockedOwner, setLockedOwner] = useState((feed.p20?.locked_owner as string) ?? '');
+  const [fundingRows, setFundingRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.funding));
+  const [personRows, setPersonRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.person));
+  const [licenseRows, setLicenseRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.license));
+  const [locationRows, setLocationRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.location));
+  const [txtRows, setTxtRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.txt));
+  const [p20ValidationError, setP20ValidationError] = useState<string | null>(null);
   const [metaSaved, setMetaSaved] = useState(false);
+
+  // Rows/setters per tag, keyed the same way P20_TAG_DEFS is, so the editor
+  // markup below and the save handler can both loop over P20_TAG_DEFS
+  // instead of five near-identical blocks.
+  const p20RowsByTag: Record<string, P20Row[]> = {
+    funding: fundingRows, person: personRows, license: licenseRows, location: locationRows, txt: txtRows,
+  };
+  const p20SettersByTag: Record<string, Dispatch<SetStateAction<P20Row[]>>> = {
+    funding: setFundingRows, person: setPersonRows, license: setLicenseRows, location: setLocationRows, txt: setTxtRows,
+  };
 
   // Reseed the form from the server feed object whenever its identity
   // changes (a successful save or a background refetch), same idiom
@@ -62,6 +199,11 @@ function LocalFeedPanel({ feed, slug }: Props) {
     setMedium((f.p20?.medium as string) ?? 'podcast');
     setLocked((f.p20?.locked as string) ?? 'yes');
     setLockedOwner((f.p20?.locked_owner as string) ?? '');
+    setFundingRows(normalizeP20Rows(f.p20?.funding));
+    setPersonRows(normalizeP20Rows(f.p20?.person));
+    setLicenseRows(normalizeP20Rows(f.p20?.license));
+    setLocationRows(normalizeP20Rows(f.p20?.location));
+    setTxtRows(normalizeP20Rows(f.p20?.txt));
   });
 
   const metaMutation = useMutation({
@@ -83,9 +225,32 @@ function LocalFeedPanel({ feed, slug }: Props) {
   const handleSaveMetadata = (e: React.FormEvent) => {
     e.preventDefault();
     const categories = categoriesInput.split(',').map((c) => c.trim()).filter(Boolean);
+
+    // Clean every tag's rows and check the two hard requirements client-side
+    // (funding needs a url, person needs a name) before this ever reaches
+    // the API -- mirrors api/feeds.py's _validate_p20_items so a bad row is
+    // caught here instead of surfacing as a 400.
+    const cleanedTags: Record<string, P20Row[]> = {};
+    const tagErrors: string[] = [];
+    for (const def of P20_TAG_DEFS) {
+      const rows = cleanP20Rows(p20RowsByTag[def.tag]);
+      cleanedTags[def.tag] = rows;
+      if (def.requiredKey && rows.some((row) => !row[def.requiredKey!])) {
+        tagErrors.push(def.requiredError!);
+      }
+    }
+    if (tagErrors.length > 0) {
+      setP20ValidationError(tagErrors.join(' '));
+      return;
+    }
+    setP20ValidationError(null);
+
     // locked_owner always sent, even blank: '' is the backend's delete
     // sentinel for clearing a previously-set owner (_validate_p20_scalar),
-    // so omitting the key here would leave a cleared owner un-cleared.
+    // so omitting the key here would leave a cleared owner un-cleared. The
+    // five tag arrays are likewise always sent -- an empty array is how a
+    // cleared tag reaches the backend (undefined would drop the key and
+    // leave the old rows untouched).
     metaMutation.mutate({
       title: title.trim(),
       description: description.trim(),
@@ -95,7 +260,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
       author: author.trim() || null,
       explicit,
       categories: categories.length ? categories : null,
-      p20: { medium, locked, locked_owner: lockedOwner.trim() },
+      p20: { medium, locked, locked_owner: lockedOwner.trim(), ...cleanedTags },
     });
   };
 
@@ -291,6 +456,30 @@ function LocalFeedPanel({ feed, slug }: Props) {
               <p className="mt-1 text-sm text-destructive">{getErrorMessage(artworkMutation.error, 'Artwork upload failed')}</p>
             )}
           </div>
+
+          <CollapsibleSection
+            title="Podcasting 2.0 tags"
+            subtitle="Funding, people, license, location, and text tags for apps that support them."
+            defaultOpen={false}
+            storageKey={`local-p20-${slug}`}
+          >
+            <div className="divide-y divide-border">
+              {P20_TAG_DEFS.map((def) => (
+                <P20TagEditor
+                  key={def.tag}
+                  slug={slug}
+                  def={def}
+                  rows={p20RowsByTag[def.tag]}
+                  onChange={p20SettersByTag[def.tag]}
+                  disabled={metaMutation.isPending}
+                />
+              ))}
+            </div>
+            {p20ValidationError && (
+              <p className="mt-3 text-sm text-destructive">{p20ValidationError}</p>
+            )}
+          </CollapsibleSection>
+
           {metaMutation.isError && (
             <p className="text-sm text-destructive">{getErrorMessage(metaMutation.error, 'Could not save')}</p>
           )}
@@ -423,6 +612,82 @@ function LocalFeedPanel({ feed, slug }: Props) {
       {addEpisodeOpen && (
         <AddEpisodeModal slug={slug} onClose={() => setAddEpisodeOpen(false)} />
       )}
+    </div>
+  );
+}
+
+interface P20TagEditorProps {
+  slug: string;
+  def: P20TagDef;
+  rows: P20Row[];
+  onChange: Dispatch<SetStateAction<P20Row[]>>;
+  disabled: boolean;
+}
+
+// One tag's block inside the "Podcasting 2.0 tags" nested collapsible:
+// existing rows (one bordered card per row, a labeled input per field, a
+// Remove button) plus an Add button. Shared across all five tags -- the
+// field list is the only thing that differs between them (P20_TAG_DEFS).
+function P20TagEditor({ slug, def, rows, onChange, disabled }: P20TagEditorProps) {
+  const addRow = () => onChange((prev) => [...prev, {}]);
+  const removeRow = (idx: number) => onChange((prev) => prev.filter((_, i) => i !== idx));
+  const updateField = (idx: number, key: string, value: string) => {
+    onChange((prev) => prev.map((row, i) => (i === idx ? { ...row, [key]: value } : row)));
+  };
+
+  return (
+    <div className="py-3 first:pt-0 last:pb-0">
+      <h4 className="text-sm font-medium text-foreground">{def.title}</h4>
+      <p className="text-xs text-muted-foreground mb-2">{def.hint}</p>
+      {rows.length > 0 && (
+        <div className="space-y-2 mb-2">
+          {rows.map((row, idx) => (
+            // Index key: rows have no natural identity until a field is
+            // filled in, and this list only grows/shrinks from user clicks
+            // right here, never reorders.
+            <div key={idx} className="rounded-md border border-border p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {def.fields.map((field) => {
+                  const inputId = `local-p20-${slug}-${def.tag}-${idx}-${field.key}`;
+                  return (
+                    <div key={field.key}>
+                      <label htmlFor={inputId} className="block text-xs text-muted-foreground mb-1">
+                        {field.label}
+                      </label>
+                      <input
+                        id={inputId}
+                        type="text"
+                        value={row[field.key] ?? ''}
+                        onChange={(e) => updateField(idx, field.key, e.target.value)}
+                        placeholder={field.placeholder}
+                        disabled={disabled}
+                        className={fieldCls}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => removeRow(idx)}
+                disabled={disabled}
+                aria-label={`Remove ${def.title} row ${idx + 1}`}
+                className={`mt-2 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50 ${focusRing}`}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={addRow}
+        disabled={disabled}
+        className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+      >
+        {def.addLabel}
+      </button>
     </div>
   );
 }
