@@ -571,6 +571,22 @@ class Storage:
             art_dir.mkdir(exist_ok=True)
         return art_dir
 
+    def has_episode_artwork(self, slug: str, episode_id: str) -> bool:
+        """True if a cached episode cover exists -- no read, no LRU touch.
+
+        Mirrors has_artwork's existence-only contract at episode scope.
+        Callers that only need a boolean (e.g. deciding whether to emit
+        itunes:image) should use this instead of get_episode_artwork, which
+        reads the full file and bumps its mtime for LRU eviction purposes.
+        """
+        if not is_valid_episode_id(episode_id):
+            return False
+        art_dir = self._episode_artwork_dir(slug)
+        if not art_dir or not art_dir.is_dir():
+            return False
+        return any(_safe_join_under(art_dir, f"{episode_id}{ext}").exists()
+                   for ext, _ in _ARTWORK_EXTENSIONS)
+
     def get_episode_artwork(self, slug: str,
                             episode_id: str) -> tuple[bytes, str] | None:
         """Cached episode cover. Returns (data, content_type) or None.

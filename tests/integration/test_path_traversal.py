@@ -156,15 +156,18 @@ def _png_bytes():
 
 def test_minuspod_cover_serves_badged_jpeg(client):
     """The public /episodes/<slug>/cover-minuspod.jpg route (issue #420) serves
-    the badged cover so podcast apps can fetch it from the feed host. Seed via
-    the exact storage the handler reads (routes_mod.storage) so the test is
-    immune to per-test singleton swaps."""
+    the badged cover when artwork_watermark_enabled is on, so podcast apps can
+    fetch it from the feed host. Seed via the exact storage the handler reads
+    (routes_mod.storage) so the test is immune to per-test singleton swaps."""
     slug = 'cover-ok'
     st = routes_mod.storage
     st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
     st.save_artwork(slug, _png_bytes(), 'image/png', 'https://example.com/a.png')
-
-    response = client.get(f'/episodes/{slug}/cover-minuspod.jpg')
+    st.db.set_setting('artwork_watermark_enabled', 'true')
+    try:
+        response = client.get(f'/episodes/{slug}/cover-minuspod.jpg')
+    finally:
+        st.db.set_setting('artwork_watermark_enabled', 'false')
     assert response.status_code == 200
     assert response.mimetype == 'image/jpeg'
     assert response.headers.get('Access-Control-Allow-Origin') == '*'
@@ -172,14 +175,17 @@ def test_minuspod_cover_serves_badged_jpeg(client):
 
 def test_minuspod_cover_podcast_level_path_serves_badged_jpeg(client):
     """The podcast-level /<slug>/cover-minuspod.jpg route (2.25.2) serves the same
-    badged cover; the feed points its channel image here, and the /episodes/ path
-    stays as a back-compat alias."""
+    badged cover when the watermark setting is on; the feed points its channel
+    image here, and the /episodes/ path stays as a back-compat alias."""
     slug = 'cover-podcast-path'
     st = routes_mod.storage
     st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
     st.save_artwork(slug, _png_bytes(), 'image/png', 'https://example.com/a.png')
-
-    response = client.get(f'/{slug}/cover-minuspod.jpg')
+    st.db.set_setting('artwork_watermark_enabled', 'true')
+    try:
+        response = client.get(f'/{slug}/cover-minuspod.jpg')
+    finally:
+        st.db.set_setting('artwork_watermark_enabled', 'false')
     assert response.status_code == 200
     assert response.mimetype == 'image/jpeg'
     assert response.headers.get('Access-Control-Allow-Origin') == '*'
@@ -193,12 +199,33 @@ def test_minuspod_cover_versioned_path_serves_badged_jpeg(client):
     st = routes_mod.storage
     st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
     st.save_artwork(slug, _png_bytes(), 'image/png', 'https://example.com/a.png')
+    st.db.set_setting('artwork_watermark_enabled', 'true')
+    try:
+        response = client.get(f'/{slug}/cover-minuspod-deadbeef.jpg')
+        assert response.status_code == 200
+        assert response.mimetype == 'image/jpeg'
+        alias = client.get(f'/episodes/{slug}/cover-minuspod-deadbeef.jpg')
+        assert alias.status_code == 200
+    finally:
+        st.db.set_setting('artwork_watermark_enabled', 'false')
 
-    response = client.get(f'/{slug}/cover-minuspod-deadbeef.jpg')
+
+def test_minuspod_cover_serves_plain_cover_when_watermark_off(client):
+    """task-5 review fix #2: with the setting off (the default), the route
+    must fall back to the plain source cover instead of 404ing or badging
+    it -- this is the only public podcast-level artwork route, so a local
+    feed's channel <image> depends on it resolving regardless of the
+    watermark toggle."""
+    slug = 'cover-unbadged'
+    st = routes_mod.storage
+    st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    st.save_artwork(slug, _png_bytes(), 'image/png', 'https://example.com/a.png')
+
+    response = client.get(f'/episodes/{slug}/cover-minuspod.jpg')
+
     assert response.status_code == 200
-    assert response.mimetype == 'image/jpeg'
-    alias = client.get(f'/episodes/{slug}/cover-minuspod-deadbeef.jpg')
-    assert alias.status_code == 200
+    assert response.mimetype == 'image/png'
+    assert response.data == st.get_artwork(slug)[0]
 
 
 def test_minuspod_cover_404_without_art(client):

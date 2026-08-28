@@ -96,6 +96,19 @@ def _channel_artwork_url(slug: str, base: str, feed_auth_key: str | None,
     return f"{base_cover}-{token}.jpg" if token else f"{base_cover}.jpg"
 
 
+def _safe_int_or_escaped(value) -> str:
+    """int(value) when possible, else the XML-escaped string form.
+
+    season_number/episode_number are INTEGER columns, but SQLite's dynamic
+    typing lets a stray non-numeric value slip in; without this, such a
+    value would be written into the tag body raw and could break the XML
+    (the same class of bug as an unescaped pubDate)."""
+    try:
+        return str(int(value))
+    except (TypeError, ValueError):
+        return rss_parser._escape_xml(str(value))
+
+
 def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
                                storage_, feed_auth_key: str | None) -> None:
     ep_id = ep['episode_id']
@@ -108,7 +121,12 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
 
     published_at = ep.get('published_at') or ep.get('created_at')
     if published_at:
-        lines.append(f'  <pubDate>{rss_parser._format_rfc2822(published_at)}</pubDate>')
+        # _format_rfc2822 returns its input verbatim on a parse failure, so
+        # an operator-entered/malformed published_at must still be escaped
+        # here -- otherwise it can land in the tag body unescaped and make
+        # the whole document not-well-formed.
+        pub_date = rss_parser._escape_xml(rss_parser._format_rfc2822(published_at))
+        lines.append(f'  <pubDate>{pub_date}</pubDate>')
 
     # processed_version 0/None -> unversioned enclosure, so first play hits
     # the JIT processing path (episode_paths.episode_version_suffix).
@@ -123,13 +141,17 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
 
     season = ep.get('season_number')
     if season:
-        lines.append(f'  <itunes:season>{season}</itunes:season>')
+        lines.append(f'  <itunes:season>{_safe_int_or_escaped(season)}</itunes:season>')
 
     episode_number = ep.get('episode_number')
     if episode_number:
-        lines.append(f'  <itunes:episode>{episode_number}</itunes:episode>')
+        lines.append(f'  <itunes:episode>{_safe_int_or_escaped(episode_number)}</itunes:episode>')
 
-    if storage_.get_episode_artwork(slug, ep_id):
+    # Existence-only check (no read, no LRU touch) -- get_episode_artwork
+    # would read the full cached image off disk and bump its mtime just to
+    # answer a boolean, corrupting the artwork cache's LRU eviction order
+    # on every render.
+    if storage_.has_episode_artwork(slug, ep_id):
         key_suffix = f"?key={feed_auth_key}" if feed_auth_key else ""
         artwork_url = f"{base}/episodes/{slug}/{ep_id}/artwork{key_suffix}"
         lines.append(f'  <itunes:image href="{rss_parser._escape_xml(artwork_url)}" />')
@@ -154,7 +176,11 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
     title = podcast.get('title') or slug
     channel_link = f"{base}/{slug}"
     description = podcast.get('description') or ''
+    # 'auto' is a Whisper transcription-language pin, not an RSS language
+    # code -- it must never leak into <language>.
     language = podcast.get('language_override') or 'en'
+    if str(language).strip().lower() == 'auto':
+        language = 'en'
 
     lines = []
     lines.append('<?xml version="1.0" encoding="UTF-8"?>')
@@ -219,16 +245,17 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
     return '\n'.join(lines)
 
 
-def _fetch_local_feed_episodes(db_, podcast_id: int) -> list[dict]:
-    """All episodes of a local feed, newest first, regardless of status --
-    unprocessed episodes still need an (unversioned) enclosure so the
-    first play triggers JIT. get_episodes() enforces a limit/offset and a
+def _fetch_local_feed_episodes(db_, podcast_id: int, limit: int) -> list[dict]:
+    """Up to `limit` episodes of a local feed, newest first, regardless of
+    status -- unprocessed episodes still need an (unversioned) enclosure so
+    the first play triggers JIT. get_episodes() enforces an offset and a
     status filter neither of which fits here, hence the direct query."""
     conn = db_.get_connection()
     cursor = conn.execute(
         """SELECT * FROM episodes WHERE podcast_id = ?
-           ORDER BY COALESCE(published_at, created_at) DESC""",
-        (podcast_id,)
+           ORDER BY COALESCE(published_at, created_at) DESC
+           LIMIT ?""",
+        (podcast_id, limit)
     )
     return [dict(row) for row in cursor.fetchall()]
 
@@ -245,7 +272,12 @@ def rebuild_local_feed(slug: str, podcast: dict | None = None) -> bool:
     if not podcast:
         return False
     try:
-        episodes = _fetch_local_feed_episodes(db, podcast['id'])
+        # Same clamp modify_feed's caller applies (feeds.py
+        # _build_and_save_served_rss -> modify_feed's own max(1, min(..,
+        # 500))) so a local feed's served item count is bounded the same
+        # way a subscribed feed's is.
+        feed_cap = max(1, min(db.get_max_episodes_for_podcast(slug, podcast=podcast), 500))
+        episodes = _fetch_local_feed_episodes(db, podcast['id'], feed_cap)
         xml = build_local_feed_xml(podcast, episodes, storage=storage, db=db)
         storage.save_rss(slug, xml)
         db.update_podcast(slug, last_checked_at=utc_now_iso())

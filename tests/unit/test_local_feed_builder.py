@@ -61,9 +61,9 @@ def _seed(slug):
     return mf.db.get_podcast_by_slug(slug)
 
 
-def _render(slug):
+def _render(slug, limit=500):
     podcast = _seed(slug)
-    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'])
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], limit)
     return build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
 
 
@@ -105,7 +105,7 @@ def test_feed_key_appears_on_enclosure_transcript_and_chapters():
     mf.db.set_setting('feed_auth_enabled', 'true')
     mf.db.set_setting('feed_auth_key', KEY)
     try:
-        episodes = _fetch_local_feed_episodes(mf.db, podcast['id'])
+        episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
         xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
     finally:
         _reset_feed_auth()
@@ -143,3 +143,71 @@ def test_rebuild_local_feed_persists_and_reads_back():
     assert parsed.bozo == 0
     assert parsed.feed.title == 'Archive Show'
     assert len(parsed.entries) == 2
+
+
+# --- review fix #1: malformed operator data must not break the XML --------
+
+def test_malformed_published_at_and_season_still_produce_well_formed_xml():
+    slug = 'malformed-fields'
+    podcast = _seed(slug)
+    # _format_rfc2822 returns unparseable input verbatim, and SQLite's
+    # dynamic typing lets a non-numeric string land in an INTEGER column --
+    # both must still come out well-formed and XML-escaped.
+    mf.db.get_connection().execute(
+        "UPDATE episodes SET published_at = ?, season_number = ? "
+        "WHERE episode_id = ?",
+        ('2026-99-99T00:00:00Z<x>', '1<x>', 's01e01'),
+    )
+    mf.db.get_connection().commit()
+
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    parsed = feedparser.parse(xml)
+    assert parsed.bozo == 0
+    assert '<x>' not in xml
+    assert '&lt;x&gt;' in xml
+
+
+# --- review fix #3: rebuild_local_feed applies the per-feed episode cap ---
+
+def test_rebuild_local_feed_applies_max_episodes_cap():
+    slug = 'capped'
+    _seed(slug)
+    mf.db.update_podcast(slug, max_episodes=1)
+    podcast = mf.db.get_podcast_by_slug(slug)
+
+    assert rebuild_local_feed(slug, podcast) is True
+
+    parsed = feedparser.parse(mf.storage.get_rss(slug))
+    assert len(parsed.entries) == 1
+    assert parsed.entries[0].title == 'Ep Two'  # newest kept
+
+
+# --- review fix #5: 'auto' is a Whisper pin, not an RSS language code -----
+
+def test_language_override_auto_renders_as_en():
+    slug = 'lang-auto'
+    podcast = _seed(slug)
+    mf.db.update_podcast(slug, language_override='auto')
+    podcast = mf.db.get_podcast_by_slug(slug)
+
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    assert feedparser.parse(xml).feed.language == 'en'
+
+
+# --- review fix #4: per-episode artwork gate uses the existence check -----
+
+def test_episode_artwork_gate_reflects_cached_cover():
+    slug = 'ep-art'
+    podcast = _seed(slug)
+    jpeg = b'\xff\xd8\xff\xe0' + b'\x00' * 64
+    mf.storage._save_episode_artwork(slug, 's01e02', jpeg, 'image/jpeg')
+
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    assert f'/episodes/{slug}/s01e02/artwork' in xml
+    assert f'/episodes/{slug}/s01e01/artwork' not in xml

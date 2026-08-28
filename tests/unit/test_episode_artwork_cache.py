@@ -124,6 +124,35 @@ def test_traversal_episode_id_never_reaches_the_filesystem(storage):
     assert storage.get_episode_artwork(SLUG, '../../secrets') is None
 
 
+def test_has_episode_artwork_reflects_existence(storage):
+    assert storage.has_episode_artwork(SLUG, EP) is False
+    storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg')
+    assert storage.has_episode_artwork(SLUG, EP) is True
+
+
+def test_has_episode_artwork_does_not_read_or_touch_mtime(storage):
+    # Existence-only check (task-5 review fix #4): must not read the file
+    # or bump its mtime the way get_episode_artwork's LRU touch does.
+    storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg')
+    art_dir = storage._episode_artwork_dir(SLUG)
+    path = art_dir / f'{EP}.jpg'
+    os.utime(path, (1_000, 1_000))
+
+    assert storage.has_episode_artwork(SLUG, EP) is True
+
+    assert path.stat().st_mtime == 1_000
+
+
+def test_has_episode_artwork_rejects_malformed_id(storage):
+    storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg')
+    assert storage.has_episode_artwork(SLUG, '../../secrets') is False
+
+
+def test_has_episode_artwork_on_unknown_feed_creates_no_directory(storage):
+    assert storage.has_episode_artwork('never-seen', EP) is False
+    assert not (storage.podcasts_dir / 'never-seen').exists()
+
+
 def test_cleanup_podcast_dir_refuses_traversal_slug(storage, tmp_path):
     victim = tmp_path / 'victim'
     victim.mkdir()

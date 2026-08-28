@@ -680,8 +680,21 @@ def register_routes(app):
         keeping the URL ending in .jpg (podcast apps reject a query-string token);
         it is ignored for serving, since the current variant always matches the
         current token. The token-less and /episodes/ paths stay as back-compat
-        aliases for apps that cached a previous URL."""
-        result = storage.get_watermarked_artwork(slug)
+        aliases for apps that cached a previous URL.
+
+        Falls back to the plain (unbadged) source cover -- via
+        storage.get_artwork -- when the watermark setting is off or when
+        compositing the badge failed, so a local feed with the setting off
+        serves its real cover here (its channel <image> always points at
+        this route, unlike a subscribed feed which can fall back to the
+        upstream URL instead), and a compositing failure never 404s a feed
+        that does have artwork cached.
+        """
+        result = None
+        if db.get_setting_bool('artwork_watermark_enabled', False):
+            result = storage.get_watermarked_artwork(slug)
+        if not result:
+            result = storage.get_artwork(slug)
         if not result:
             abort(404)
         image_data, content_type = result
