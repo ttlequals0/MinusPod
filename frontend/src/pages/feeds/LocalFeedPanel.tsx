@@ -334,26 +334,58 @@ function LocalFeedPanel({ feed, slug }: Props) {
   const [importSource, setImportSource] = useState<ImportSource>('staging');
   const [uploadRejected, setUploadRejected] = useState<ImportRejectedFile[]>([]);
   const [importError, setImportError] = useState<string | null>(null);
+  // Live checkbox state. Read once per scan (staging or directory) and
+  // folded into the returned ImportPlan's own `overwrite` field -- commit
+  // always replays THAT value (see commitMutation below), never this live
+  // state, so toggling the checkbox after a scan can never desync commit's
+  // overwrite from the one the plan (and its planHash) was built with.
+  const [overwriteExisting, setOverwriteExisting] = useState(false);
+  // "x of y" progress through a sequential per-file upload; null outside an
+  // upload run.
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  // startedAt of the run whose terminal (done/error) report the operator
+  // dismissed via "Clear report", or null if nothing's been dismissed.
+  // Keyed on startedAt (not a plain boolean) so a dismissal is automatically
+  // scoped to its own run: the next run has a different startedAt, so its
+  // report shows regardless of a stale dismissal, with no effect needed to
+  // reset anything.
+  const [dismissedRunStartedAt, setDismissedRunStartedAt] = useState<string | null>(null);
 
   const uploadAndScanMutation = useMutation({
-    mutationFn: async (files: File[]) => {
-      const uploaded = await importUpload(slug, files);
-      const scanned = await importScan(slug, { source: 'staging' });
-      return { uploaded, scanned };
+    mutationFn: async ({ files, overwrite }: { files: File[]; overwrite: boolean }) => {
+      // Sequential, one file per request, rather than one multipart request
+      // for the whole batch: the only way to surface "x of y" progress, and
+      // it lets one bad file fail without losing the rest of the batch.
+      const staged: string[] = [];
+      const rejected: ImportRejectedFile[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ current: i + 1, total: files.length });
+        const file = files[i];
+        try {
+          const result = await importUpload(slug, [file]);
+          staged.push(...result.staged);
+          rejected.push(...result.rejected);
+        } catch (e) {
+          rejected.push({ file: file.name, reason: getErrorMessage(e, 'Upload failed') });
+        }
+      }
+      const scanned = await importScan(slug, { source: 'staging', overwrite });
+      return { staged, rejected, scanned };
     },
     // Clear a stale error from a previous failed attempt as soon as a new
     // one starts, rather than leaving it displayed under the new state.
-    onMutate: () => setImportError(null),
-    onSuccess: ({ uploaded, scanned }) => {
-      setUploadRejected(uploaded.rejected);
+    onMutate: () => { setImportError(null); setUploadProgress(null); },
+    onSuccess: ({ rejected, scanned }) => {
+      setUploadRejected(rejected);
       setPlan(scanned);
       setImportSource('staging');
     },
     onError: (e) => setImportError(getErrorMessage(e, 'Upload failed')),
+    onSettled: () => setUploadProgress(null),
   });
 
   const scanDirectoryMutation = useMutation({
-    mutationFn: () => importScan(slug, { source: 'directory' }),
+    mutationFn: (overwrite: boolean) => importScan(slug, { source: 'directory', overwrite }),
     onMutate: () => setImportError(null),
     onSuccess: (scanned) => {
       setUploadRejected([]);
@@ -364,7 +396,12 @@ function LocalFeedPanel({ feed, slug }: Props) {
   });
 
   const commitMutation = useMutation({
-    mutationFn: () => importCommit(slug, { planHash: plan!.planHash, source: importSource }),
+    // Reuses plan.overwrite (the value scan actually built the plan with),
+    // never the live checkbox -- the backend recomputes the plan from
+    // source+overwrite and 409s if its hash doesn't match planHash, so
+    // sending anything other than the scanned value would desync it the
+    // moment the operator flips the checkbox after scanning.
+    mutationFn: () => importCommit(slug, { planHash: plan!.planHash, source: importSource, overwrite: plan!.overwrite }),
     onSuccess: () => {
       setPlan(null);
       queryClient.invalidateQueries({ queryKey: ['import-status', slug] });
@@ -376,7 +413,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
     const files = Array.from(e.target.files ?? []);
     e.target.value = '';
     if (!files.length) return;
-    uploadAndScanMutation.mutate(files);
+    uploadAndScanMutation.mutate({ files, overwrite: overwriteExisting });
   };
 
   const statusQuery = useQuery({
@@ -585,7 +622,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
             directory and use Scan server directory. MinusPod moves the audio in
             when you commit; sidecar files stay where you put them.
           </p>
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
             <input
               ref={importFileInputRef}
               type="file"
@@ -604,13 +641,30 @@ function LocalFeedPanel({ feed, slug }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => scanDirectoryMutation.mutate()}
+              onClick={() => scanDirectoryMutation.mutate(overwriteExisting)}
               disabled={scanDirectoryMutation.isPending || importRunning}
               title="Scan the server-side import directory instead of uploading"
               className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
             >
               {scanDirectoryMutation.isPending ? 'Scanning...' : 'Scan server directory'}
             </button>
+            {uploadProgress && (
+              <span className="text-sm text-muted-foreground">
+                Uploading {uploadProgress.current} of {uploadProgress.total}...
+              </span>
+            )}
+          </div>
+
+          <div className="mb-3">
+            <Checkbox
+              checked={overwriteExisting}
+              onChange={setOverwriteExisting}
+              disabled={uploadAndScanMutation.isPending || scanDirectoryMutation.isPending || importRunning}
+              label="Replace episodes that already exist"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Off by default. When on, a scan matches existing episode IDs instead of rejecting them, and committing resets those episodes with the new files.
+            </p>
           </div>
 
           {importError && <p className="text-sm text-destructive mb-3">{importError}</p>}
@@ -631,6 +685,8 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 >
                   {commitMutation.isPending
                     ? 'Starting...'
+                    : plan.overwrite
+                    ? `Import and replace ${plan.totals.importable} existing episode${plan.totals.importable === 1 ? '' : 's'}`
                     : `Import ${plan.totals.importable} episode${plan.totals.importable === 1 ? '' : 's'}`}
                 </button>
                 <button
@@ -644,19 +700,40 @@ function LocalFeedPanel({ feed, slug }: Props) {
             </div>
           )}
 
-          {statusQuery.data && statusQuery.data.state !== 'idle' && (
+          {statusQuery.data && statusQuery.data.state !== 'idle'
+            && statusQuery.data.startedAt !== dismissedRunStartedAt && (
             <div className="mt-4 p-3 rounded-lg bg-secondary/50 border border-border">
               {importState === 'running' ? (
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
                   <LoadingSpinner size="sm" inline /> Importing {statusQuery.data.processed} / {statusQuery.data.total}...
                 </p>
               ) : importState === 'error' ? (
-                <p className="text-sm text-destructive">
-                  Import failed: {statusQuery.data.report?.error ?? 'unknown error'}
-                </p>
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm text-destructive">
+                      Import failed: {statusQuery.data.report?.error ?? 'unknown error'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setDismissedRunStartedAt(statusQuery.data!.startedAt)}
+                      className={`shrink-0 text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                    >
+                      Clear report
+                    </button>
+                  </div>
+                </div>
               ) : importState === 'done' && statusQuery.data.report ? (
                 <div className="text-sm">
-                  <p className="font-medium text-foreground mb-1">Import complete</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-medium text-foreground mb-1">Import complete</p>
+                    <button
+                      type="button"
+                      onClick={() => setDismissedRunStartedAt(statusQuery.data!.startedAt)}
+                      className={`shrink-0 text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                    >
+                      Clear report
+                    </button>
+                  </div>
                   <p className="text-muted-foreground">
                     {statusQuery.data.report.committed.length} committed,{' '}
                     {statusQuery.data.report.queued.length} queued for processing,{' '}

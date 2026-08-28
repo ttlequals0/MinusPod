@@ -498,6 +498,13 @@ function EpisodeDetail() {
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
+  // An episode that hasn't gone through the pipeline yet reads "Process",
+  // not "Reprocess" -- discovered/pending are the only statuses that mean
+  // no processing attempt has happened (every other status implies at
+  // least one run already occurred).
+  const neverProcessed = episode.status === 'discovered' || episode.status === 'pending';
+  const reprocessLabel = neverProcessed ? 'Process' : 'Reprocess';
+
   // Detected-Ads header row 2: pass counts and time saved.
   const showPassCounts = episode.adsRemovedFirstPass !== undefined
     && episode.adsRemovedVerification !== undefined
@@ -649,7 +656,9 @@ function EpisodeDetail() {
                   disabled={reprocessMutation.isPending || episode.status === 'processing'}
                   className={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ${focusRing}`}
                 >
-                  {reprocessMutation.isPending ? 'Reprocessing...' : 'Reprocess'}
+                  {reprocessMutation.isPending
+                    ? (neverProcessed ? 'Processing...' : 'Reprocessing...')
+                    : reprocessLabel}
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
@@ -661,7 +670,7 @@ function EpisodeDetail() {
                       className={`w-full px-3 py-2 text-left text-sm hover:bg-accent ${focusRing}`}
                       title="Use learned patterns + AI analysis"
                     >
-                      <div className="font-medium">Reprocess</div>
+                      <div className="font-medium">{reprocessLabel}</div>
                       <div className="text-xs text-muted-foreground">Use patterns + AI</div>
                     </button>
                     <button

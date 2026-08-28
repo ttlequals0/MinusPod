@@ -1104,3 +1104,44 @@ describe('Local feed episode metadata: season/episode seed from the API payload'
     expect(payload.title).toBe('Renamed Episode');
   });
 });
+
+describe('Process vs Reprocess label (single episode)', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+  });
+
+  it('labels the action button "Process" for a never-processed (discovered) episode', async () => {
+    renderDetail(makeEpisode({ status: 'discovered', pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    expect(screen.getByRole('button', { name: 'Process' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Reprocess' })).toBeNull();
+  });
+
+  it('labels the action button "Process" for a never-processed (pending) episode', async () => {
+    renderDetail(makeEpisode({ status: 'pending', pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    expect(screen.getByRole('button', { name: 'Process' })).toBeDefined();
+  });
+
+  it('labels the action button "Reprocess" for an already-processed (completed) episode', async () => {
+    renderDetail(makeEpisode({ status: 'completed', pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    expect(screen.getByRole('button', { name: 'Reprocess' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Process' })).toBeNull();
+  });
+
+  it('labels the action button "Reprocess" for a failed episode (it was processed once)', async () => {
+    renderDetail(makeEpisode({ status: 'failed', pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    expect(screen.getByRole('button', { name: 'Reprocess' })).toBeDefined();
+  });
+
+  it('carries the "Process" label into the dropdown menu\'s first entry for a never-processed episode', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ status: 'discovered', pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    await user.click(screen.getByRole('button', { name: 'Process' }));
+    expect(screen.getAllByText('Process').length).toBeGreaterThanOrEqual(2);
+  });
+});

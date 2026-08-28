@@ -159,7 +159,7 @@ describe('LocalFeedPanel', () => {
     const file = new File(['x'], 'S01E01 - The Beginning.mp3', { type: 'audio/mpeg' });
     await user.upload(fileInput, file);
 
-    await waitFor(() => expect(mockImportScan).toHaveBeenCalledWith('archive-show', { source: 'staging' }));
+    await waitFor(() => expect(mockImportScan).toHaveBeenCalledWith('archive-show', { source: 'staging', overwrite: false }));
 
     // Matched entry from the scan plan, scoped to the desktop table (the
     // sm:hidden mobile card duplicates the same row in jsdom, which has no
@@ -197,6 +197,7 @@ describe('LocalFeedPanel', () => {
     await waitFor(() => expect(mockImportCommit).toHaveBeenCalledWith('archive-show', {
       planHash: 'hash-abc123',
       source: 'staging',
+      overwrite: false,
     }));
   });
 
@@ -484,5 +485,185 @@ describe('LocalFeedPanel', () => {
 
     expect(await screen.findByText('Every text row needs a value.')).toBeDefined();
     expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  // ---- Bulk upload progress (sequential per-file uploads) ----
+
+  it('uploads files one at a time with advancing "x of y" progress, then scans once', async () => {
+    const user = userEvent.setup();
+    mockImportUpload
+      .mockResolvedValueOnce({ staged: ['a.mp3'], rejected: [] })
+      .mockResolvedValueOnce({ staged: ['b.mp3'], rejected: [] })
+      .mockResolvedValueOnce({ staged: ['c.mp3'], rejected: [] });
+    // Held open so the "3 of 3" progress line is observable before the
+    // trailing scan resolves and clears it.
+    let resolveScan: (plan: ImportPlan) => void = () => {};
+    mockImportScan.mockReturnValue(new Promise((resolve) => { resolveScan = resolve; }));
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    const files = [
+      new File(['a'], 'a.mp3', { type: 'audio/mpeg' }),
+      new File(['b'], 'b.mp3', { type: 'audio/mpeg' }),
+      new File(['c'], 'c.mp3', { type: 'audio/mpeg' }),
+    ];
+    await user.upload(fileInput, files);
+
+    // One importUpload call per file, not one call for the whole batch.
+    await waitFor(() => expect(mockImportUpload).toHaveBeenCalledTimes(3));
+    expect(mockImportUpload).toHaveBeenNthCalledWith(1, 'archive-show', [files[0]]);
+    expect(mockImportUpload).toHaveBeenNthCalledWith(2, 'archive-show', [files[1]]);
+    expect(mockImportUpload).toHaveBeenNthCalledWith(3, 'archive-show', [files[2]]);
+
+    await waitFor(() => expect(screen.getByText('Uploading 3 of 3...')).toBeDefined());
+
+    resolveScan(makePlan());
+    await waitFor(() => expect(screen.queryByText(/Uploading \d+ of \d+/)).toBeNull());
+    expect(mockImportScan).toHaveBeenCalledTimes(1);
+    expect(mockImportScan).toHaveBeenCalledWith('archive-show', { source: 'staging', overwrite: false });
+  });
+
+  it('continues the batch when one file fails to upload, landing it in rejected', async () => {
+    const user = userEvent.setup();
+    mockImportUpload
+      .mockResolvedValueOnce({ staged: ['a.mp3'], rejected: [] })
+      .mockRejectedValueOnce(new Error('network blip'))
+      .mockResolvedValueOnce({ staged: ['c.mp3'], rejected: [] });
+    mockImportScan.mockResolvedValue(makePlan());
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    const files = [
+      new File(['a'], 'a.mp3', { type: 'audio/mpeg' }),
+      new File(['b'], 'b.mp3', { type: 'audio/mpeg' }),
+      new File(['c'], 'c.mp3', { type: 'audio/mpeg' }),
+    ];
+    await user.upload(fileInput, files);
+
+    // The failed file didn't stop the third file from uploading, and the
+    // batch still reached the scan step.
+    await waitFor(() => expect(mockImportUpload).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(mockImportScan).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('b.mp3')).toBeDefined();
+    expect(screen.getByText('network blip')).toBeDefined();
+  });
+
+  // ---- Add-episode / bulk-import affordances after a completed import ----
+
+  it('keeps Add episode, Choose files, and Scan server directory enabled once the import status is done', async () => {
+    mockImportStatus.mockResolvedValue({
+      state: 'done',
+      processed: 1,
+      total: 1,
+      startedAt: '2026-01-01T00:00:00Z',
+      report: { committed: [{ episodeId: 's01e01' }], skipped: [], failed: [], queued: [] },
+    });
+    renderPanel(makeFeed());
+
+    await waitFor(() => expect(screen.getByText('Import complete')).toBeDefined());
+
+    expect((screen.getByRole('button', { name: 'Add episode' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Choose files' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Scan server directory' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('dismisses the completed-import report via Clear report', async () => {
+    const user = userEvent.setup();
+    mockImportStatus.mockResolvedValue({
+      state: 'done',
+      processed: 1,
+      total: 1,
+      startedAt: '2026-01-01T00:00:00Z',
+      report: { committed: [{ episodeId: 's01e01' }], skipped: [], failed: [], queued: [] },
+    });
+    renderPanel(makeFeed());
+
+    await waitFor(() => expect(screen.getByText('Import complete')).toBeDefined());
+    await user.click(screen.getByRole('button', { name: 'Clear report' }));
+
+    expect(screen.queryByText('Import complete')).toBeNull();
+  });
+
+  it('dismisses a failed-import report via Clear report', async () => {
+    const user = userEvent.setup();
+    mockImportStatus.mockResolvedValue({
+      state: 'error',
+      processed: 0,
+      total: 1,
+      startedAt: '2026-01-01T00:00:00Z',
+      report: { committed: [], skipped: [], failed: [], queued: [], error: 'disk full' },
+    });
+    renderPanel(makeFeed());
+
+    await waitFor(() => expect(screen.getByText(/Import failed: disk full/)).toBeDefined());
+    await user.click(screen.getByRole('button', { name: 'Clear report' }));
+
+    expect(screen.queryByText(/Import failed/)).toBeNull();
+  });
+
+  // ---- Overwrite toggle ----
+
+  it('threads the checked overwrite state into both the scan call and the commit call', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    mockImportScan.mockResolvedValue(makePlan({ overwrite: true }));
+    mockImportCommit.mockResolvedValue({ message: 'import started' });
+    renderPanel(makeFeed());
+
+    await user.click(screen.getByLabelText('Replace episodes that already exist'));
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+
+    await waitFor(() => expect(mockImportScan).toHaveBeenCalledWith('archive-show', { source: 'staging', overwrite: true }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    // The plan came back with overwrite entries, so the commit button's
+    // copy reflects it.
+    const confirmButton = screen.getByRole('button', { name: /Import and replace 1 existing episode/ });
+    await user.click(confirmButton);
+
+    await waitFor(() => expect(mockImportCommit).toHaveBeenCalledWith('archive-show', {
+      planHash: 'hash-abc123',
+      source: 'staging',
+      overwrite: true,
+    }));
+  });
+
+  it('threads overwrite into the directory scan call too', async () => {
+    const user = userEvent.setup();
+    mockImportScan.mockResolvedValue(makePlan({ overwrite: true }));
+    renderPanel(makeFeed());
+
+    await user.click(screen.getByLabelText('Replace episodes that already exist'));
+    await user.click(screen.getByRole('button', { name: 'Scan server directory' }));
+
+    await waitFor(() => expect(mockImportScan).toHaveBeenCalledWith('archive-show', { source: 'directory', overwrite: true }));
+  });
+
+  it('keeps commit on the scanned overwrite value even if the checkbox is toggled off afterward', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    mockImportScan.mockResolvedValue(makePlan({ overwrite: true }));
+    mockImportCommit.mockResolvedValue({ message: 'import started' });
+    renderPanel(makeFeed());
+
+    await user.click(screen.getByLabelText('Replace episodes that already exist'));
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    // Toggling the checkbox back off after the scan must not change what
+    // commit sends -- it always replays plan.overwrite (the value the
+    // shown plan, and its planHash, were actually built with), not the
+    // live checkbox, so scan and commit can never desync and 409.
+    await user.click(screen.getByLabelText('Replace episodes that already exist'));
+    await user.click(screen.getByRole('button', { name: /Import and replace/ }));
+
+    await waitFor(() => expect(mockImportCommit).toHaveBeenCalledWith('archive-show', {
+      planHash: 'hash-abc123',
+      source: 'staging',
+      overwrite: true,
+    }));
   });
 });
