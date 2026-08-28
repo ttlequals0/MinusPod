@@ -587,6 +587,30 @@ class Storage:
         return any(_safe_join_under(art_dir, f"{episode_id}{ext}").exists()
                    for ext, _ in _ARTWORK_EXTENSIONS)
 
+    def remove_episode_artwork(self, slug: str, episode_id: str) -> bool:
+        """Delete a cached episode cover, if any.
+
+        Used when an episode row is hard-deleted (local feeds, #625 Task 8)
+        so no orphaned cover file survives the row it belonged to. Returns
+        True if a file was removed.
+        """
+        if not is_valid_episode_id(episode_id):
+            return False
+        art_dir = self._episode_artwork_dir(slug)
+        if not art_dir or not art_dir.is_dir():
+            return False
+        removed = False
+        for ext, _ in _ARTWORK_EXTENSIONS:
+            path = _safe_join_under(art_dir, f"{episode_id}{ext}")
+            if path.exists():
+                try:
+                    path.unlink()
+                    removed = True
+                except OSError as exc:
+                    logger.warning(
+                        f"[{slug}:{episode_id}] Failed to delete episode artwork: {exc}")
+        return removed
+
     def get_episode_artwork(self, slug: str,
                             episode_id: str) -> tuple[bytes, str] | None:
         """Cached episode cover. Returns (data, content_type) or None.
@@ -704,6 +728,14 @@ class Storage:
             logger.warning(
                 f"[{slug}:{episode_id}] Failed to download episode artwork: {e}")
             return False
+
+    def save_episode_artwork(self, slug: str, episode_id: str,
+                             image_data: bytes, content_type: str) -> bool:
+        """Public wrapper around ``_save_episode_artwork`` for API-driven
+        uploads (local feeds' single-episode artwork upload, #625 Task 8).
+        ``content_type`` must already be validated (e.g. via
+        ``_detect_image_mime``) -- this method does not re-check it."""
+        return self._save_episode_artwork(slug, episode_id, image_data, content_type)
 
     def _save_episode_artwork(self, slug: str, episode_id: str,
                               image_data: bytes, content_type: str) -> bool:

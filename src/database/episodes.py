@@ -1170,3 +1170,29 @@ class EpisodeMixin:
 
         freed_mb = freed_bytes / (1024 * 1024)
         return len(ids_to_reset), freed_mb
+
+    def delete_episode_rows(self, slug: str, episode_ids: list[str], storage) -> int:
+        """Hard-delete episode rows (local feeds only; subscribed feeds only
+        reset to discovered via delete_episodes). Removes files first.
+
+        Unlike delete_episodes, this drops the row entirely -- appropriate
+        for local (imported-archive) feeds, which have no upstream RSS to
+        re-discover the episode from on a future refresh. Returns the
+        number of rows deleted.
+        """
+        conn = self.get_connection()
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast or not episode_ids:
+            return 0
+
+        for episode_id in episode_ids:
+            storage.cleanup_episode_files(slug, episode_id)
+            storage.remove_episode_artwork(slug, episode_id)
+
+        placeholders = ','.join('?' for _ in episode_ids)
+        cursor = conn.execute(
+            f"DELETE FROM episodes WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
+            [podcast['id']] + list(episode_ids)
+        )
+        conn.commit()
+        return cursor.rowcount

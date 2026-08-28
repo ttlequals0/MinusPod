@@ -142,6 +142,21 @@ def check_auth():
     return None
 
 
+MAX_AUDIO_UPLOAD_BYTES = 1024 ** 3  # 1 GB per file
+
+
+@api.before_request
+def _widen_upload_cap():
+    # Audio uploads exceed the app-wide 10 MB cap; widen just these routes.
+    # Werkzeug spools multipart parts >500 KB to disk, so nothing buffers
+    # fully in memory.
+    p = request.path
+    if request.method == 'POST' and (
+            p.endswith('/import/upload')
+            or (p.startswith('/api/v1/feeds/') and p.endswith('/episodes'))):
+        request.max_content_length = MAX_AUDIO_UPLOAD_BYTES
+
+
 def get_storage():
     """Get storage instance."""
     from storage import Storage
@@ -421,4 +436,4 @@ def _find_similar_pattern(db, pattern_data: dict) -> dict | None:
 # Import all sub-modules to trigger route registration. `status` is aliased so
 # the submodule name does not shadow the `status` parameter of json_response /
 # error_response defined above.
-from api import feeds, episodes, history, settings, system, patterns, sponsors, status as _status_routes, auth, search, podcast_search, stats, providers, tags, cue_templates, cue_detections, detections, podping
+from api import feeds, episodes, local_episodes, history, settings, system, patterns, sponsors, status as _status_routes, auth, search, podcast_search, stats, providers, tags, cue_templates, cue_detections, detections, podping
