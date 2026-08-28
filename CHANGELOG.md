@@ -9,6 +9,34 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.93.1] - 2026-08-28
+
+### Added
+
+- Local episodes play immediately: an episode that has not been processed
+  yet serves its retained original right away, with range support, while
+  ad removal waits its turn in the queue. Before this, podcast apps got
+  a 503 until the queue freed up, which made a fresh archive unlistenable
+  behind a long backlog.
+- Bulk import UI: per-file upload progress ("Uploading 3 of 12"), an
+  overwrite toggle ("Replace episodes that already exist") wired to the
+  scan and commit, an accurate replace count on the commit button, and a
+  dismissible import report. The panel now also names the server import
+  directory path, and the docs cover docker-compose mounts for it,
+  including one parent folder holding a subfolder per feed.
+- Podcasting 2.0 editors for funding, person, license, location, txt,
+  and podroll in the feed panel, so everything the API accepts is
+  editable in the UI.
+
+### Fixed
+
+- Episode buttons say "Process" instead of "Reprocess" when an episode
+  has never been processed.
+- A reprocess window no longer serves the ad-laden original for an
+  episode that already has a processed file on disk.
+- Bulk uploads no longer trip the global API rate limit, and a rejected
+  file list survives a failed scan.
+
 ## [2.93.0] - 2026-08-28
 
 ### Added
