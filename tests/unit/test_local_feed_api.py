@@ -350,10 +350,18 @@ def test_validate_p20_locked_owner_email_shape():
     assert cleaned is None
     assert 'email address' in err
 
-    # blank/whitespace-only clears rather than storing an empty string
+    # blank/whitespace-only is a delete sentinel: the validator keeps the
+    # key with a None value (not omitted) so a merge site can tell "clear
+    # this" apart from "the client never sent locked_owner at all" -- see
+    # _apply_p20_merge, which is what actually turns the sentinel into a
+    # removed key in the stored object.
     cleaned, err = _validate_p20({'locked_owner': '   '})
     assert err is None
-    assert cleaned == {}
+    assert cleaned == {'locked_owner': None}
+
+    cleaned, err = _validate_p20({'locked_owner': None})
+    assert err is None
+    assert cleaned == {'locked_owner': None}
 
 
 # -- PATCH /feeds/<slug> p20 (funding/person round-trip, null clearing,
@@ -418,6 +426,91 @@ def test_patch_p20_per_tag_clear_still_works(app_client, local_feed):
     channel_json = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
     assert channel_json['funding'] == []
     assert channel_json['guid']
+
+
+def _seed_locked_owner(app_client, slug, headers):
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {'locked_owner': 'owner@example.com'},
+    }, headers=headers)
+    assert resp.status_code == 200
+
+
+def test_patch_p20_locked_owner_clear_via_blank_string(app_client, local_feed):
+    """{"p20": {"locked_owner": ""}} must remove the stored key, not store
+    a JSON null under it -- the delete sentinel from _validate_p20_scalar
+    has to survive the merge (_apply_p20_merge), not just the validator."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    _seed_locked_owner(app_client, slug, headers)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'p20': {'locked_owner': ''}}, headers=headers)
+    assert resp.status_code == 200
+
+    channel_json = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert 'locked_owner' not in channel_json
+    assert channel_json['guid']
+    assert channel_json['medium'] == 'podcast'
+    assert channel_json['locked'] == 'yes'
+
+    from api import get_storage
+    assert 'owner=' not in get_storage().get_rss(slug)
+
+
+def test_patch_p20_locked_owner_clear_via_null(app_client, local_feed):
+    """{"p20": {"locked_owner": null}} is the other delete-sentinel input
+    shape (JSON null on the key, not p20 itself null) -- must also remove
+    the key rather than merge a stored null."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    _seed_locked_owner(app_client, slug, headers)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'p20': {'locked_owner': None}}, headers=headers)
+    assert resp.status_code == 200
+
+    channel_json = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert 'locked_owner' not in channel_json
+
+    from api import get_storage
+    assert 'owner=' not in get_storage().get_rss(slug)
+
+
+def test_patch_p20_null_also_clears_locked_owner(app_client, local_feed):
+    """{"p20": null} is the "clear everything operator-editable" shortcut:
+    it must drop locked_owner along with the five list tags, while the
+    minted guid/medium/locked survive untouched."""
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {
+            'locked_owner': 'owner@example.com',
+            'funding': [{'text': 'Support us', 'url': 'https://example.com/donate'}],
+        },
+    }, headers=headers)
+    before = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert before['locked_owner'] == 'owner@example.com'
+    assert before['funding']
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'p20': None}, headers=headers)
+    assert resp.status_code == 200
+
+    after = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert 'locked_owner' not in after
+    assert 'funding' not in after
+    assert after['guid'] == before['guid']
+    assert after['medium'] == before['medium']
+    assert after['locked'] == before['locked']
+
+    from api import get_storage
+    assert 'owner=' not in get_storage().get_rss(slug)
 
 
 def test_patch_p20_medium_and_locked_with_owner(app_client, local_feed):

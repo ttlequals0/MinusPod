@@ -540,8 +540,15 @@ _P20_SCALAR_KEYS = ('medium', 'locked', 'locked_owner')
 def _validate_p20_scalar(key, value):
     """Validate one scalar p20 key. Returns (cleaned_value_or_None, error).
 
-    A cleaned value of None with no error means "omit this key" (e.g. an
-    empty/whitespace-only locked_owner clears rather than stores '').
+    A cleaned value of None with no error is a delete sentinel, not "omit
+    this key": medium/locked always require a valid whitelisted string, so
+    they can never legitimately return None here, but an empty/whitespace-
+    only/null locked_owner means "clear the stored owner". Callers
+    (_validate_p20's merge sites) must keep None in the cleaned dict and
+    strip it from the final stored object rather than dropping the key
+    before it ever reaches the merge -- dropping it here would make it
+    indistinguishable from "the client didn't send this key at all", which
+    is exactly the bug this sentinel exists to avoid.
     """
     if key == 'medium':
         if not isinstance(value, str) or value not in _P20_MEDIUM_VALUES:
@@ -608,6 +615,12 @@ def _validate_p20(value):
     txt) plus the scalar keys medium/locked/locked_owner (design spec
     section 6). 'guid' is minted once at creation and is never
     client-settable through this field, at POST or PATCH.
+
+    A cleaned value of None under 'locked_owner' is a delete sentinel (blank
+    string or explicit null clears the stored owner) -- callers must merge
+    with `_apply_p20_merge` (or otherwise strip None values before
+    persisting) rather than a bare dict-merge, which would silently store a
+    JSON null instead of removing the key.
     """
     if value is None:
         return {}, None
@@ -622,8 +635,10 @@ def _validate_p20(value):
             cleaned_val, err = _validate_p20_scalar(key, val)
             if err:
                 return None, err
-            if cleaned_val is not None:
-                cleaned[key] = cleaned_val
+            # None is the delete sentinel (see _validate_p20_scalar) -- kept
+            # in `cleaned`, not dropped, so the merge sites below can tell
+            # "clear this key" apart from "the client never sent this key".
+            cleaned[key] = cleaned_val
             continue
         if key not in tag_attrs:
             return None, f"p20: unknown tag '{key}'"
@@ -632,6 +647,18 @@ def _validate_p20(value):
             return None, err
         cleaned[key] = cleaned_items
     return cleaned, None
+
+
+def _apply_p20_merge(base: dict, cleaned: dict) -> dict:
+    """Merge a `_validate_p20` result onto a base p20_channel_json dict,
+    resolving delete sentinels (see _validate_p20_scalar / _validate_p20's
+    docstrings). A plain `{**base, **cleaned}` would store a JSON `null`
+    for a key the client cleared instead of removing it -- this drops any
+    key whose merged value is None so the served feed builder never sees a
+    stray null for locked_owner (or any future nullable scalar).
+    """
+    merged = {**base, **cleaned}
+    return {k: v for k, v in merged.items() if v is not None}
 
 
 # PATCH fields that only make sense on a local feed (no upstream RSS to
@@ -854,8 +881,8 @@ def _add_local_feed(data, db):
         # minted defaults"). guid itself is applied last so nothing can
         # ever override it.
         minted_guid = compute_feed_guid(feed_url)
-        channel_json = {'medium': 'podcast', 'locked': 'yes',
-                        **p20_val, 'guid': minted_guid}
+        channel_json = _apply_p20_merge({'medium': 'podcast', 'locked': 'yes'}, p20_val)
+        channel_json['guid'] = minted_guid
         db.update_podcast(slug, p20_channel_json=json.dumps(channel_json))
 
         if author is not None:
@@ -1326,12 +1353,15 @@ def update_feed(slug):
             existing_channel_json = {}
 
         if data['p20'] is None:
-            # p20: null clears the five list tags but preserves the minted
-            # guid and the medium/locked/locked_owner scalars -- a per-tag
-            # clear ({"p20": {"funding": []}}) already worked via the merge
-            # below; this is the "clear everything list-shaped" shortcut.
+            # p20: null clears the five list tags and any operator-supplied
+            # locked_owner, but preserves the minted guid and medium/locked
+            # -- a per-tag clear ({"p20": {"funding": []}}) already works
+            # via the merge below; this is the "clear everything
+            # operator-editable" shortcut. guid/medium/locked are never
+            # touched here since they aren't cleared by this shortcut.
             for tag in _p20_tag_attrs():
                 existing_channel_json.pop(tag, None)
+            existing_channel_json.pop('locked_owner', None)
             updates['p20_channel_json'] = json.dumps(existing_channel_json)
         else:
             p20_val, p20_err = _validate_p20(data['p20'])
@@ -1339,8 +1369,11 @@ def update_feed(slug):
                 return error_response(p20_err, 400)
             # Merge onto the existing stored object so an unspecified tag
             # (and the guid, which _validate_p20 never accepts) survives a
-            # partial PATCH.
-            updates['p20_channel_json'] = json.dumps({**existing_channel_json, **p20_val})
+            # partial PATCH. _apply_p20_merge resolves the locked_owner
+            # delete sentinel (blank/null) into an actual key removal
+            # instead of storing a JSON null.
+            updates['p20_channel_json'] = json.dumps(
+                _apply_p20_merge(existing_channel_json, p20_val))
 
     # Handle auto-process override specially (can be null, true, or false).
     # None passes through to DB as NULL (clears the override) -- unlike add_feed
