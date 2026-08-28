@@ -33,12 +33,19 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           />
         </div>
         <div className="flex-1 p-4 min-w-0">
-          <Link
-            to={`/feeds/${feed.slug}`}
-            className={`text-lg font-semibold text-foreground hover:text-primary truncate block ${focusRing}`}
-          >
-            {feedDisplayTitle(feed)}
-          </Link>
+          <div className="flex items-center gap-2 min-w-0">
+            <Link
+              to={`/feeds/${feed.slug}`}
+              className={`text-lg font-semibold text-foreground hover:text-primary truncate block ${focusRing}`}
+            >
+              {feedDisplayTitle(feed)}
+            </Link>
+            {feed.feedType === 'local' && (
+              <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
+                Local
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
             {feed.episodeCount} episodes
           </p>
@@ -53,7 +60,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
             compact
             className="text-xs mt-1 block"
           />
-          {feed.lastRefreshError && (
+          {feed.feedType !== 'local' && feed.lastRefreshError && (
             <p
               className="text-xs text-warning mt-1"
               title={feed.lastRefreshError}
@@ -67,24 +74,26 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
       <div className="px-4 py-3 bg-secondary/50 border-t border-border rounded-b-lg flex justify-between items-center">
         <CopyButton text={feed.feedUrl} hideLabelOnMobile />
         <div className="flex gap-2">
-          <DropdownMenu
-            triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
-            triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
-            disabled={isRefreshing}
-            title="Refresh feed"
-            items={[
-              {
-                title: 'Refresh',
-                subtitle: 'Check for new episodes',
-                onClick: () => onRefresh(feed.slug),
-              },
-              {
-                title: 'Force refresh',
-                subtitle: 'Bypass cache',
-                onClick: () => onRefresh(feed.slug, { force: true }),
-              },
-            ]}
-          />
+          {feed.feedType !== 'local' && (
+            <DropdownMenu
+              triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
+              triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
+              disabled={isRefreshing}
+              title="Refresh feed"
+              items={[
+                {
+                  title: 'Refresh',
+                  subtitle: 'Check for new episodes',
+                  onClick: () => onRefresh(feed.slug),
+                },
+                {
+                  title: 'Force refresh',
+                  subtitle: 'Bypass cache',
+                  onClick: () => onRefresh(feed.slug, { force: true }),
+                },
+              ]}
+            />
+          )}
           <button
             onClick={() => onDelete(feed.slug)}
             className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} transition-colors ${focusRing}`}

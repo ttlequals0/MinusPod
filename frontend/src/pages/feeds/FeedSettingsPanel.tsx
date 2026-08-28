@@ -447,6 +447,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
   const processingMode = feed.processingMode ?? 'standard';
   const cueOnlyActive = processingMode === 'cue_only';
+  // Local feeds have no upstream RSS: source URL, title-blacklist, GUID
+  // scheme (forced own-IDs), and cross-fetch differential rows are all
+  // upstream-only concerns and stay hidden. Processing-related controls
+  // (auto-process, language, cue tuning, etc.) still apply.
+  const isLocal = feed.feedType === 'local';
 
   return (
     <div className="mb-6">
@@ -577,7 +582,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           )}
 
           {/* Source RSS URL (#484): the feed MinusPod pulls from, not the
-              URL subscribers use. Editable with validate-then-refresh. */}
+              URL subscribers use. Editable with validate-then-refresh.
+              Local feeds have no upstream source. */}
+          {!isLocal && (
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Source feed:</span>
             {isEditingSourceUrl ? (
@@ -636,6 +643,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
             )}
           </div>
+          )}
 
           {/* Auto-Process Control */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
@@ -659,7 +667,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
-          {/* Episode title blacklist: skip episodes whose title matches a glob pattern */}
+          {/* Episode title blacklist: skip episodes whose title matches a glob
+              pattern. Local feeds don't get new upstream episodes to blacklist. */}
+          {!isLocal && (
+          <>
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
               Skip episodes by title:
@@ -763,6 +774,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               <option value="hide">Hide from feed</option>
             </select>
           </div>
+          </>
+          )}
 
           {/* Single preset canonicalizing detectionMode/skipAdDetection/passthroughEnabled;
               those legacy fields stay available for external API callers. */}
@@ -1067,7 +1080,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
-          {/* Hide unprocessed episodes from the served feed */}
+          {/* Hide unprocessed episodes from the served feed. Meaningless for a
+              local feed: nothing is served until it finishes processing. */}
+          {!isLocal && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Hide unprocessed:</span>
             <div className="flex items-center gap-2 flex-wrap">
@@ -1088,8 +1103,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               )}
             </div>
           </div>
+          )}
 
-          {/* Served-feed GUID scheme (#598) */}
+          {/* Served-feed GUID scheme (#598). Local feeds always serve their
+              own episode IDs -- there's no publisher GUID to fall back to. */}
+          {!isLocal && (
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Episode GUIDs:</span>
             <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -1109,6 +1127,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </p>
             </div>
           </div>
+          )}
 
           {/* Feed tags (inline basic row; simple enough not to collapse) */}
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
@@ -1436,7 +1455,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
 
               {/* Cross-fetch differential (Layer 3): auto for DAI-looking feeds,
-                  with explicit per-feed on/off overrides */}
+                  with explicit per-feed on/off overrides. Local feeds have no
+                  upstream audio URL to fetch twice. */}
+              {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cross-fetch diff:</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -1483,6 +1504,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </p>
                 </div>
               </div>
+              )}
             </div>
           </CollapsibleSection>
         </div>

@@ -25,8 +25,22 @@ export interface Feed {
   title: string;
   sourceUrl: string;
   feedUrl: string;
+  // Local (imported-archive) feeds have no upstream RSS: subscribed is the
+  // default for feeds pulled from a source URL. Absent on backends that
+  // predate local feeds, which read as 'subscribed'.
+  feedType?: 'subscribed' | 'local';
   description?: string;
   artworkUrl?: string;
+  // Local-feed metadata (author/explicit/categories are also editable on
+  // subscribed feeds' upstream-derived values, but only local feeds accept
+  // them via PATCH).
+  author?: string;
+  explicit?: boolean;
+  categories?: string[];
+  // Podcasting 2.0 channel-level tags (funding/person/license/location/txt,
+  // medium, locked, locked_owner). Local feeds only; shape mirrors the
+  // backend's p20_channel_json.
+  p20?: Record<string, unknown>;
   episodeCount: number;
   processedCount?: number;
   statusCounts?: EpisodeStatusCounts;

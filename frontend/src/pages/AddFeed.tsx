@@ -1,14 +1,215 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { addFeed, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
+import { addFeed, addLocalFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
 import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
+import Checkbox from '../components/Checkbox';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
 import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS, parseOptionalNumber } from '../components/DraftNumberInput';
 import { focusRing } from '../components/fieldStyles';
+
+type AddFeedMode = 'subscribe' | 'local';
+
+// Mirrors the shape of the backend's make_slug (python-slugify): lowercase,
+// strip diacritics, collapse runs of non-alphanumerics to a single hyphen,
+// trim leading/trailing hyphens, cap at the server's 200-char slug limit.
+// The server re-validates and is the source of truth; this only keeps the
+// preview from surprising the user before they submit.
+function localSlugify(title: string): string {
+  return title
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 200);
+}
+
+interface LocalFeedFormProps {
+  onCancel: () => void;
+}
+
+function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [title, setTitle] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [description, setDescription] = useState('');
+  const [author, setAuthor] = useState('');
+  const [explicit, setExplicit] = useState(false);
+  const [categoriesInput, setCategoriesInput] = useState('');
+  const [artworkFile, setArtworkFile] = useState<File | null>(null);
+
+  const handleTitleChange = (value: string) => {
+    setTitle(value);
+    if (!slugTouched) setSlug(localSlugify(value));
+  };
+
+  const handleSlugChange = (value: string) => {
+    setSlugTouched(true);
+    setSlug(value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+  };
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const categories = categoriesInput
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean);
+      const feed = await addLocalFeed({
+        title: title.trim(),
+        slug: slug || undefined,
+        description: description.trim() || undefined,
+        author: author.trim() || undefined,
+        explicit,
+        categories: categories.length ? categories : undefined,
+      });
+      if (artworkFile) {
+        await uploadFeedArtwork(feed.slug, artworkFile);
+      }
+      return feed;
+    },
+    onSuccess: (feed) => {
+      queryClient.invalidateQueries({ queryKey: ['feeds'] });
+      navigate(`/feeds/${feed.slug}`);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (title.trim()) mutation.mutate();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="localTitle" className="block text-sm font-medium text-foreground mb-2">
+          Title
+        </label>
+        <input
+          type="text"
+          id="localTitle"
+          value={title}
+          onChange={(e) => handleTitleChange(e.target.value)}
+          placeholder="My Archive Show"
+          required
+          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="localSlug" className="block text-sm font-medium text-foreground mb-2">
+          Slug
+        </label>
+        <input
+          type="text"
+          id="localSlug"
+          value={slug}
+          onChange={(e) => handleSlugChange(e.target.value)}
+          placeholder="my-archive-show"
+          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        />
+        <p className="mt-1 text-sm text-muted-foreground">
+          Cannot be changed after creation.
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor="localDescription" className="block text-sm font-medium text-foreground mb-2">
+          Description
+        </label>
+        <textarea
+          id="localDescription"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="localAuthor" className="block text-sm font-medium text-foreground mb-2">
+          Author
+        </label>
+        <input
+          type="text"
+          id="localAuthor"
+          value={author}
+          onChange={(e) => setAuthor(e.target.value)}
+          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        />
+      </div>
+
+      <Checkbox
+        id="localExplicit"
+        checked={explicit}
+        onChange={setExplicit}
+        label="Explicit content"
+      />
+
+      <div>
+        <label htmlFor="localCategories" className="block text-sm font-medium text-foreground mb-2">
+          Categories
+        </label>
+        <input
+          type="text"
+          id="localCategories"
+          value={categoriesInput}
+          onChange={(e) => setCategoriesInput(e.target.value)}
+          placeholder="Technology, Business"
+          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        />
+        <p className="mt-1 text-sm text-muted-foreground">
+          Comma-separated, e.g. Technology, Business
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor="localArtwork" className="block text-sm font-medium text-foreground mb-2">
+          Artwork
+        </label>
+        <input
+          type="file"
+          id="localArtwork"
+          accept="image/jpeg,image/png"
+          onChange={(e) => setArtworkFile(e.target.files?.[0] ?? null)}
+          className={`block w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:text-sm ${btnSecondary} file:transition-colors ${focusRing}`}
+        />
+        <p className="mt-1 text-sm text-warning">
+          Podcast apps require square artwork, at least 1400x1400.
+        </p>
+      </div>
+
+      {mutation.error && (
+        <div className="p-4 rounded-lg bg-destructive/10 text-destructive">
+          {(mutation.error as Error).message}
+        </div>
+      )}
+
+      <div className="flex gap-4">
+        <button
+          type="submit"
+          disabled={mutation.isPending || !title.trim()}
+          className={`flex-1 px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
+        >
+          {mutation.isPending ? 'Creating feed...' : 'Create feed'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className={`px-4 py-2 rounded-lg ${btnSecondary} transition-colors ${focusRing}`}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
 
 // URL validation patterns
 const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/;
@@ -150,6 +351,8 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
 function AddFeed() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const [mode, setMode] = useState<AddFeedMode>('subscribe');
 
   // Input state
   const [inputValue, setInputValue] = useState('');
@@ -295,6 +498,35 @@ function AddFeed() {
     <div className="max-w-xl mx-auto">
       <h1 className="text-2xl font-bold text-foreground mb-6">Add New Feed</h1>
 
+      {/* Mode toggle: subscribed feeds pull from an upstream RSS URL; local
+          feeds have no upstream source and are seeded entirely from this form. */}
+      <div className="flex border border-border rounded overflow-hidden mb-6 w-fit">
+        <button
+          type="button"
+          onClick={() => setMode('subscribe')}
+          aria-pressed={mode === 'subscribe'}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            mode === 'subscribe' ? btnPrimary : btnSecondary
+          } ${focusRing}`}
+        >
+          Subscribe to feed
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('local')}
+          aria-pressed={mode === 'local'}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            mode === 'local' ? btnPrimary : btnSecondary
+          } ${focusRing}`}
+        >
+          Create local feed
+        </button>
+      </div>
+
+      {mode === 'local' && <LocalFeedForm onCancel={() => setMode('subscribe')} />}
+
+      {mode === 'subscribe' && (
+      <>
       {/* No-credentials info banner */}
       {!podcastIndexConfigured && (
         <div className="mb-6 p-4 rounded-lg bg-accent/50 border border-border">
@@ -598,6 +830,8 @@ function AddFeed() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

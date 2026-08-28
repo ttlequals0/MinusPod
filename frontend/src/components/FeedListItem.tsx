@@ -33,12 +33,19 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         />
       </div>
       <div className="flex-1 min-w-0">
-        <Link
-          to={`/feeds/${feed.slug}`}
-          className={`text-sm font-semibold text-foreground hover:text-primary truncate block ${focusRing}`}
-        >
-          {feedDisplayTitle(feed)}
-        </Link>
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            to={`/feeds/${feed.slug}`}
+            className={`text-sm font-semibold text-foreground hover:text-primary truncate block ${focusRing}`}
+          >
+            {feedDisplayTitle(feed)}
+          </Link>
+          {feed.feedType === 'local' && (
+            <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
+              Local
+            </span>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground truncate">
           {feed.episodeCount} episodes
           {feed.lastRefreshed && (
@@ -52,7 +59,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
             compact
             className="ml-2"
           />
-          {feed.lastRefreshError && (
+          {feed.feedType !== 'local' && feed.lastRefreshError && (
             <span
               className="ml-2 text-warning"
               title={feed.lastRefreshError}
@@ -65,41 +72,45 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
       </div>
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <CopyButton text={feed.feedUrl} hideLabelOnMobile />
-        <button
-          onClick={() => onRefresh(feed.slug)}
-          disabled={isRefreshing}
-          className={`sm:hidden inline-flex items-center justify-center h-8 w-8 rounded ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
-          title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
-          aria-label={isRefreshing ? 'Refreshing' : 'Refresh feed'}
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-        </button>
-        <div className="hidden sm:block">
-          <DropdownMenu
-            triggerLabel={
-              <>
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span className="text-xs">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
-              </>
-            }
-            triggerClassName={`inline-flex items-center justify-center gap-1.5 h-8 px-2 rounded ${btnPrimary} disabled:opacity-50 transition-colors`}
-            disabled={isRefreshing}
-            title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
-            chevronClassName="w-3 h-3"
-            items={[
-              {
-                title: 'Refresh',
-                subtitle: 'Check for new episodes',
-                onClick: () => onRefresh(feed.slug),
-              },
-              {
-                title: 'Force refresh',
-                subtitle: 'Bypass cache',
-                onClick: () => onRefresh(feed.slug, { force: true }),
-              },
-            ]}
-          />
-        </div>
+        {feed.feedType !== 'local' && (
+          <>
+            <button
+              onClick={() => onRefresh(feed.slug)}
+              disabled={isRefreshing}
+              className={`sm:hidden inline-flex items-center justify-center h-8 w-8 rounded ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
+              title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
+              aria-label={isRefreshing ? 'Refreshing' : 'Refresh feed'}
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <div className="hidden sm:block">
+              <DropdownMenu
+                triggerLabel={
+                  <>
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    <span className="text-xs">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
+                  </>
+                }
+                triggerClassName={`inline-flex items-center justify-center gap-1.5 h-8 px-2 rounded ${btnPrimary} disabled:opacity-50 transition-colors`}
+                disabled={isRefreshing}
+                title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
+                chevronClassName="w-3 h-3"
+                items={[
+                  {
+                    title: 'Refresh',
+                    subtitle: 'Check for new episodes',
+                    onClick: () => onRefresh(feed.slug),
+                  },
+                  {
+                    title: 'Force refresh',
+                    subtitle: 'Bypass cache',
+                    onClick: () => onRefresh(feed.slug, { force: true }),
+                  },
+                ]}
+              />
+            </div>
+          </>
+        )}
         <button
           onClick={() => onDelete(feed.slug)}
           className={`inline-flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-2 rounded ${btnDestructive} transition-colors ${focusRing}`}

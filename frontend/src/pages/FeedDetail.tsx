@@ -352,6 +352,11 @@ function FeedDetail() {
                 <h1 className="text-2xl font-bold text-foreground min-w-0 break-words">
                   {feedDisplayTitle(feed)}
                 </h1>
+                {feed.feedType === 'local' && (
+                  <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
+                    Local
+                  </span>
+                )}
                 {feed.titleOverride && (
                   <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
                     Custom
@@ -379,7 +384,7 @@ function FeedDetail() {
                 coverage={feed.podpingCoverage}
                 lastPodpingAt={feed.lastPodpingAt}
               />
-              {feed.lastRefreshError && (
+              {feed.feedType !== 'local' && feed.lastRefreshError && (
                 <span
                   className="text-warning"
                   title={feed.lastRefreshError}
@@ -446,26 +451,28 @@ function FeedDetail() {
                 },
               ]}
             />
-            <DropdownMenu
-              triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
-                <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh Feed</span></>
-              )}
-              triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
-              disabled={refreshMutation.isPending}
-              title="Refresh feed"
-              items={[
-                {
-                  title: 'Refresh',
-                  subtitle: 'Check for new episodes',
-                  onClick: () => refreshMutation.mutate(undefined),
-                },
-                {
-                  title: 'Force refresh',
-                  subtitle: 'Bypass cache',
-                  onClick: () => refreshMutation.mutate({ force: true }),
-                },
-              ]}
-            />
+            {feed.feedType !== 'local' && (
+              <DropdownMenu
+                triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
+                  <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh Feed</span></>
+                )}
+                triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
+                disabled={refreshMutation.isPending}
+                title="Refresh feed"
+                items={[
+                  {
+                    title: 'Refresh',
+                    subtitle: 'Check for new episodes',
+                    onClick: () => refreshMutation.mutate(undefined),
+                  },
+                  {
+                    title: 'Force refresh',
+                    subtitle: 'Bypass cache',
+                    onClick: () => refreshMutation.mutate({ force: true }),
+                  },
+                ]}
+              />
+            )}
             {/* Same button and confirm flow as the dashboard's feed cards. */}
             <button
               onClick={handleDeleteFeed}
@@ -778,8 +785,13 @@ function FeedDetail() {
             </div>
           )}
           {deleteConfirm && (
-            <div className="bg-card border border-border rounded-lg p-4 shadow-lg">
+            <div className="bg-card border border-border rounded-lg p-4 shadow-lg max-w-sm">
               <p className="text-sm text-foreground">Click delete again to confirm</p>
+              {feed?.feedType === 'local' && (
+                <p className="text-sm text-warning mt-1">
+                  This is a local feed: the imported originals are the only copy and will be deleted.
+                </p>
+              )}
             </div>
           )}
         </div>

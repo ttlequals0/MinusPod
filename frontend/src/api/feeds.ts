@@ -139,6 +139,47 @@ export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverr
   });
 }
 
+export interface AddLocalFeedPayload {
+  title: string;
+  slug?: string;
+  description?: string;
+  author?: string;
+  explicit?: boolean;
+  categories?: string[];
+}
+
+export interface AddLocalFeedResult {
+  slug: string;
+  feedType: 'local';
+  feedUrl: string;
+  message: string;
+}
+
+export async function addLocalFeed(payload: AddLocalFeedPayload): Promise<AddLocalFeedResult> {
+  return apiRequest<AddLocalFeedResult>('/feeds', {
+    method: 'POST',
+    body: { feedType: 'local', ...payload },
+  });
+}
+
+export interface UploadFeedArtworkResult {
+  message: string;
+  artworkUrl: string;
+  warning?: string;
+}
+
+export async function uploadFeedArtwork(slug: string, file: File): Promise<UploadFeedArtworkResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  // skipRetry: mirrors importOpml -- a retry after a timed-out first attempt
+  // could re-process the same upload twice.
+  return apiRequest<UploadFeedArtworkResult>(`/feeds/${slug}/artwork`, {
+    method: 'POST',
+    body: formData,
+    skipRetry: true,
+  });
+}
+
 export async function deleteFeed(slug: string): Promise<void> {
   await apiRequest(`/feeds/${slug}`, { method: 'DELETE' });
 }
@@ -219,6 +260,12 @@ export async function reprocessEpisode(
 
 export interface UpdateFeedPayload {
   sourceUrl?: string;
+  // Local feeds only: the backend rejects these on a subscribed feed.
+  title?: string;
+  author?: string;
+  explicit?: boolean;
+  categories?: string[];
+  p20?: Record<string, unknown>;
   networkId?: string;
   daiPlatform?: string;
   networkIdOverride?: string | null;

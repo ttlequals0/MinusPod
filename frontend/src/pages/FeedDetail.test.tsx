@@ -118,3 +118,23 @@ describe('FeedDetail: podping metadata line', () => {
     expect(screen.queryByText(/Podping/)).toBeNull();
   });
 });
+
+describe('FeedDetail: local feed visibility matrix', () => {
+  it('hides Refresh Feed and shows the Local badge for a local feed', async () => {
+    renderFeedDetail(makeFeed({ feedType: 'local' }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Feed')).toBeDefined();
+    });
+    expect(screen.getByText('Local')).toBeDefined();
+    expect(screen.queryByTitle('Refresh feed')).toBeNull();
+  });
+
+  it('still shows Refresh Feed and no Local badge for a subscribed feed', async () => {
+    renderFeedDetail(makeFeed({}));
+    await waitFor(() => {
+      expect(screen.getByText('Test Feed')).toBeDefined();
+    });
+    expect(screen.queryByText('Local')).toBeNull();
+    expect(screen.getByTitle('Refresh feed')).toBeDefined();
+  });
+});
