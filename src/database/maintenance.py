@@ -68,9 +68,12 @@ class MaintenanceMixin:
         groups: dict[int, list[str]] = {}
         keep_by_slug: dict[str, bool] = {}
         rows = conn.execute(
-            "SELECT slug, retention_days_override, keep_original_audio_override "
-            "FROM podcasts").fetchall()
+            "SELECT slug, feed_type, retention_days_override, "
+            "keep_original_audio_override FROM podcasts").fetchall()
         for row in rows:
+            if row['feed_type'] == 'local':
+                # Local feeds: the retained original is the only copy; never sweep.
+                continue
             days = effective_retention_days(
                 row['retention_days_override'], global_days)
             groups.setdefault(days, []).append(row['slug'])

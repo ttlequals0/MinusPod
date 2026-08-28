@@ -951,13 +951,19 @@ class Storage:
 
     # ========== Cleanup Methods ==========
 
-    def delete_processed_file(self, slug: str, episode_id: str) -> bool:
-        """Delete the processed audio file(s) and any retained original."""
+    def delete_processed_file(self, slug: str, episode_id: str,
+                               keep_original: bool = False) -> bool:
+        """Delete the processed audio file(s) and any retained original.
+
+        keep_original=True skips the original: local feeds keep it as the
+        only copy (no upstream to re-download).
+        """
         deleted = False
         candidates = list(self.iter_episode_audio_paths(slug, episode_id, ".mp3"))
-        original = self.get_original_path(slug, episode_id, ".mp3")
-        if original and original.exists():
-            candidates.append(original)
+        if not keep_original:
+            original = self.get_original_path(slug, episode_id, ".mp3")
+            if original and original.exists():
+                candidates.append(original)
         for path in candidates:
             if path.exists():
                 path.unlink()

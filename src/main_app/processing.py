@@ -86,6 +86,7 @@ from config import (
     ModelNotConfiguredError,
     coerce_bool_setting,
 )
+from database.podcasts import is_local_feed
 from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
 from upstream_chapters import fetch_upstream_chapters
@@ -271,7 +272,9 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
         db.clear_leaked_transaction(audio_logger, 'episode processing (cancel)')
         audio_logger.info(f"[{slug}:{episode_id}] Cancelled - cleaning up partial files")
         try:
-            storage.delete_processed_file(slug, episode_id)
+            podcast_row = db.get_podcast_by_slug(slug)
+            storage.delete_processed_file(
+                slug, episode_id, keep_original=is_local_feed(podcast_row))
         except Exception as cleanup_err:
             audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up partial file: {cleanup_err}")
         # Reset DB status (before finally releases queue, preventing re-queue race)
