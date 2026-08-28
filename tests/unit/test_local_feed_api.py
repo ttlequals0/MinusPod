@@ -39,6 +39,20 @@ def _csrf_headers(client):
 
 
 @pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Clear in-memory flask-limiter counters before each test (mirrors
+    tests/integration/conftest.py). This module's POST /feeds tests alone
+    exceed add_feed's "3 per minute" limit within a single run without this.
+    """
+    try:
+        from api import limiter
+        limiter.reset()
+    except Exception:
+        pass
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _align_main_app_singletons(app_client):
     """Many test modules across the suite reset Database._instance /
     Storage._instance at import time for isolation (tests/app_bootstrap.py).
@@ -77,9 +91,18 @@ def subscribed_feed(app_client):
 @pytest.fixture
 def local_feed(app_client):
     from api import get_database
+    from utils.feed_guid import compute_feed_guid
     db = get_database()
     slug = 'local-feed-api-local'
     db.create_podcast(slug, f'local://{slug}', 'Local Test', feed_type='local')
+    # Seed the same minted p20_channel_json _add_local_feed produces at
+    # creation, since this fixture bypasses the POST endpoint -- PATCH p20
+    # tests need a real guid already in place to assert it survives.
+    db.update_podcast(slug, p20_channel_json=json.dumps({
+        'guid': compute_feed_guid(f'http://localhost:8000/{slug}'),
+        'medium': 'podcast',
+        'locked': 'yes',
+    }))
     yield {'slug': slug, 'db': db}
     db.delete_podcast(slug)
 
@@ -229,3 +252,236 @@ def test_feed_type_present_in_list_serialization(app_client, subscribed_feed, lo
     feeds_by_slug = {f['slug']: f for f in resp.get_json()['feeds']}
     assert feeds_by_slug[subscribed_feed['slug']]['feedType'] == 'subscribed'
     assert feeds_by_slug[local_feed['slug']]['feedType'] == 'local'
+
+
+# -- _validate_p20 / _validate_p20_items (direct unit coverage) --
+
+def test_validate_p20_funding_person_happy_path():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({
+        'funding': [{'text': 'Support us', 'url': 'https://example.com/donate'}],
+        'person': [{'text': 'Jane Host', 'role': 'host'}],
+    })
+    assert err is None
+    assert cleaned == {
+        'funding': [{'text': 'Support us', 'url': 'https://example.com/donate'}],
+        'person': [{'text': 'Jane Host', 'role': 'host'}],
+    }
+
+
+def test_validate_p20_rejects_non_http_url():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({
+        'funding': [{'text': 'Support us', 'url': 'javascript:alert(1)'}],
+    })
+    assert cleaned is None
+    assert 'http://' in err and 'https://' in err
+
+
+def test_validate_p20_funding_requires_url():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'funding': [{'text': 'Support us'}]})
+    assert cleaned is None
+    assert 'requires a url' in err
+
+
+def test_validate_p20_person_requires_text():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'person': [{'role': 'host'}]})
+    assert cleaned is None
+    assert 'requires a name' in err
+
+
+def test_validate_p20_unknown_tag_rejected():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'soundbite': []})
+    assert cleaned is None
+    assert "unknown tag" in err
+
+
+def test_validate_p20_guid_rejected():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'guid': 'some-guid'})
+    assert cleaned is None
+    assert 'immutable' in err
+
+
+def test_validate_p20_medium_whitelist():
+    from api.feeds import _validate_p20
+
+    for value in ('podcast', 'music', 'video', 'film', 'audiobook',
+                  'newsletter', 'blog'):
+        cleaned, err = _validate_p20({'medium': value})
+        assert err is None
+        assert cleaned == {'medium': value}
+
+    cleaned, err = _validate_p20({'medium': 'spaghetti'})
+    assert cleaned is None
+    assert 'medium must be one of' in err
+
+
+def test_validate_p20_locked_values():
+    from api.feeds import _validate_p20
+
+    for value in ('yes', 'no'):
+        cleaned, err = _validate_p20({'locked': value})
+        assert err is None
+        assert cleaned == {'locked': value}
+
+    cleaned, err = _validate_p20({'locked': 'maybe'})
+    assert cleaned is None
+    assert "must be 'yes' or 'no'" in err
+
+
+def test_validate_p20_locked_owner_email_shape():
+    from api.feeds import _validate_p20
+
+    cleaned, err = _validate_p20({'locked': 'yes', 'locked_owner': 'owner@example.com'})
+    assert err is None
+    assert cleaned == {'locked': 'yes', 'locked_owner': 'owner@example.com'}
+
+    cleaned, err = _validate_p20({'locked_owner': 'not-an-email'})
+    assert cleaned is None
+    assert 'email address' in err
+
+    # blank/whitespace-only clears rather than storing an empty string
+    cleaned, err = _validate_p20({'locked_owner': '   '})
+    assert err is None
+    assert cleaned == {}
+
+
+# -- PATCH /feeds/<slug> p20 (funding/person round-trip, null clearing,
+#    medium/locked/locked_owner) --
+
+def test_patch_p20_funding_person_round_trips(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {
+            'funding': [{'text': 'Support us', 'url': 'https://example.com/donate'}],
+            'person': [{'text': 'Jane Host', 'role': 'host'}],
+        },
+    }, headers=headers)
+    assert resp.status_code == 200
+
+    channel_json = json.loads(local_feed['db'].get_podcast_by_slug(slug)['p20_channel_json'])
+    assert channel_json['funding'] == [{'text': 'Support us', 'url': 'https://example.com/donate'}]
+    assert channel_json['person'] == [{'text': 'Jane Host', 'role': 'host'}]
+    # Minted at creation, must survive an unrelated p20 PATCH.
+    assert channel_json['guid']
+    assert channel_json['medium'] == 'podcast'
+    assert channel_json['locked'] == 'yes'
+
+
+def test_patch_p20_null_clears_tags_preserves_scalars(app_client, local_feed):
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {'funding': [{'text': 'Support us', 'url': 'https://example.com/donate'}]},
+    }, headers=headers)
+    before = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert before['funding']
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'p20': None}, headers=headers)
+    assert resp.status_code == 200
+
+    after = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert 'funding' not in after
+    assert after['guid'] == before['guid']
+    assert after['medium'] == before['medium']
+    assert after['locked'] == before['locked']
+
+
+def test_patch_p20_per_tag_clear_still_works(app_client, local_feed):
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {'funding': [{'text': 'Support us', 'url': 'https://example.com/donate'}]},
+    }, headers=headers)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'p20': {'funding': []}}, headers=headers)
+    assert resp.status_code == 200
+    channel_json = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+    assert channel_json['funding'] == []
+    assert channel_json['guid']
+
+
+def test_patch_p20_medium_and_locked_with_owner(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'p20': {'medium': 'music', 'locked': 'no', 'locked_owner': 'owner@example.com'},
+    }, headers=headers)
+    assert resp.status_code == 200
+
+    channel_json = json.loads(local_feed['db'].get_podcast_by_slug(slug)['p20_channel_json'])
+    assert channel_json['medium'] == 'music'
+    assert channel_json['locked'] == 'no'
+    assert channel_json['locked_owner'] == 'owner@example.com'
+    assert channel_json['guid']
+
+
+def test_patch_p20_invalid_medium_rejected(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'p20': {'medium': 'bogus'}}, headers=headers)
+    assert resp.status_code == 400
+
+
+def test_patch_p20_guid_rejected(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'p20': {'guid': 'hijacked'}}, headers=headers)
+    assert resp.status_code == 400
+
+    channel_json = json.loads(local_feed['db'].get_podcast_by_slug(slug)['p20_channel_json'])
+    assert channel_json['guid'] != 'hijacked'
+
+
+def test_post_local_feed_p20_medium_locked_override_minted_defaults(app_client):
+    from api import get_database
+
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.post('/api/v1/feeds', json={
+        'feedType': 'local',
+        'title': 'Locked Down Show',
+        'p20': {'medium': 'audiobook', 'locked': 'no', 'locked_owner': 'owner@example.com'},
+    }, headers=headers)
+    assert resp.status_code == 201
+    slug = resp.get_json()['slug']
+
+    db = get_database()
+    try:
+        channel_json = json.loads(db.get_podcast_by_slug(slug)['p20_channel_json'])
+        assert channel_json['medium'] == 'audiobook'
+        assert channel_json['locked'] == 'no'
+        assert channel_json['locked_owner'] == 'owner@example.com'
+        # guid is still the minted one -- a client can never set it, even
+        # implicitly by omission changing the merge order.
+        assert channel_json['guid']
+    finally:
+        db.delete_podcast(slug)

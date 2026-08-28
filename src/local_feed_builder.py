@@ -224,7 +224,14 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
         lines.append(f'<podcast:guid>{rss_parser._escape_xml(guid)}</podcast:guid>')
 
     locked = str(channel_json.get('locked') or '').strip().lower()
-    lines.append(f'<podcast:locked>{locked if locked in ("yes", "no") else "yes"}</podcast:locked>')
+    locked = locked if locked in ('yes', 'no') else 'yes'
+    # owner is an optional contact email on the lock, independent of
+    # yes/no (design spec section 6: "locked (default yes, owner email
+    # optional)") -- emitted whenever set, regardless of the locked value.
+    locked_owner = channel_json.get('locked_owner')
+    owner_attr = (f' owner="{rss_parser._escape_xml(str(locked_owner))}"'
+                 if locked_owner else '')
+    lines.append(f'<podcast:locked{owner_attr}>{locked}</podcast:locked>')
 
     medium = channel_json.get('medium') or 'podcast'
     lines.append(f'<podcast:medium>{rss_parser._escape_xml(str(medium))}</podcast:medium>')

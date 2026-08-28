@@ -131,6 +131,28 @@ def test_channel_guid_matches_stored_p20_guid_and_ai_content_present():
     assert '<podcast:txt purpose="ai-content">true</podcast:txt>' in xml
 
 
+def test_locked_owner_renders_as_attribute():
+    slug = 'locked-owner'
+    _seed(slug)
+    mf.db.update_podcast(slug, p20_channel_json=json.dumps({
+        'guid': CHANNEL_GUID,
+        'locked': 'yes',
+        'medium': 'podcast',
+        'locked_owner': 'owner@example.com',
+    }))
+    podcast = mf.db.get_podcast_by_slug(slug)
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    assert '<podcast:locked owner="owner@example.com">yes</podcast:locked>' in xml
+
+
+def test_locked_without_owner_has_no_owner_attribute():
+    xml = _render('locked-no-owner')
+
+    assert '<podcast:locked>yes</podcast:locked>' in xml
+
+
 def test_rebuild_local_feed_persists_and_reads_back():
     slug = 'roundtrip'
     podcast = _seed(slug)

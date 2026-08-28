@@ -522,6 +522,49 @@ def _p20_tag_attrs() -> dict:
 _P20_URL_ATTRS = ('url', 'href')
 _P20_URL_RE = re.compile(r'^https?://', re.IGNORECASE)
 
+# Scalar (non-list-tag) p20 keys, per design spec section 6: medium and
+# locked (with optional owner email) are editable; guid is minted once at
+# creation and is immutable everywhere -- rejected outright rather than
+# silently dropped, so a client relying on a guid write finds out at 400
+# instead of believing it silently took effect.
+_P20_MEDIUM_VALUES = ('podcast', 'music', 'video', 'film', 'audiobook',
+                      'newsletter', 'blog')
+_P20_LOCKED_VALUES = ('yes', 'no')
+_P20_LOCKED_OWNER_MAX = 200
+# Basic shape check, not full RFC 5322 validation -- good enough to catch
+# fat-finger input; podcast:locked's owner attribute is a contact email.
+_P20_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+_P20_SCALAR_KEYS = ('medium', 'locked', 'locked_owner')
+
+
+def _validate_p20_scalar(key, value):
+    """Validate one scalar p20 key. Returns (cleaned_value_or_None, error).
+
+    A cleaned value of None with no error means "omit this key" (e.g. an
+    empty/whitespace-only locked_owner clears rather than stores '').
+    """
+    if key == 'medium':
+        if not isinstance(value, str) or value not in _P20_MEDIUM_VALUES:
+            return None, f"p20.medium must be one of: {', '.join(_P20_MEDIUM_VALUES)}"
+        return value, None
+    if key == 'locked':
+        if not isinstance(value, str) or value not in _P20_LOCKED_VALUES:
+            return None, "p20.locked must be 'yes' or 'no'"
+        return value, None
+    # locked_owner
+    if value is None:
+        return None, None
+    if not isinstance(value, str):
+        return None, 'p20.locked_owner must be a string'
+    owner = value.strip()
+    if not owner:
+        return None, None
+    if len(owner) > _P20_LOCKED_OWNER_MAX:
+        return None, f'p20.locked_owner must be {_P20_LOCKED_OWNER_MAX} characters or fewer'
+    if not _P20_EMAIL_RE.match(owner):
+        return None, 'p20.locked_owner must look like an email address'
+    return owner, None
+
 
 def _validate_p20_items(tag, items, allowed_attrs):
     """Validate one podcast:{tag} item list against the
@@ -560,10 +603,11 @@ def _validate_p20_items(tag, items, allowed_attrs):
 def _validate_p20(value):
     """Validate a client-supplied p20 channel-extras object.
 
-    Returns (cleaned_dict, error). None/absent clears to {}. Only the five
-    list-tag keys the builder renders (funding/person/license/location/txt)
-    are accepted -- the minted scalar keys (guid/medium/locked) are never
-    client-settable through this field.
+    Returns (cleaned_dict, error). None/absent clears to {}. Accepts the
+    five list-tag keys the builder renders (funding/person/license/location/
+    txt) plus the scalar keys medium/locked/locked_owner (design spec
+    section 6). 'guid' is minted once at creation and is never
+    client-settable through this field, at POST or PATCH.
     """
     if value is None:
         return {}, None
@@ -571,13 +615,22 @@ def _validate_p20(value):
         return None, 'p20 must be an object'
     tag_attrs = _p20_tag_attrs()
     cleaned = {}
-    for tag, items in value.items():
-        if tag not in tag_attrs:
-            return None, f"p20: unknown tag '{tag}'"
-        cleaned_items, err = _validate_p20_items(tag, items, tag_attrs[tag])
+    for key, val in value.items():
+        if key == 'guid':
+            return None, 'p20.guid is immutable and cannot be set'
+        if key in _P20_SCALAR_KEYS:
+            cleaned_val, err = _validate_p20_scalar(key, val)
+            if err:
+                return None, err
+            if cleaned_val is not None:
+                cleaned[key] = cleaned_val
+            continue
+        if key not in tag_attrs:
+            return None, f"p20: unknown tag '{key}'"
+        cleaned_items, err = _validate_p20_items(key, val, tag_attrs[key])
         if err:
             return None, err
-        cleaned[tag] = cleaned_items
+        cleaned[key] = cleaned_items
     return cleaned, None
 
 
@@ -792,17 +845,17 @@ def _add_local_feed(data, db):
         db.create_podcast(slug, f'local://{slug}', title, feed_type='local')
 
         feed_url = _public_feed_url(slug, get_feed_auth_key(db))
-        # Minted once here and never regenerated -- see compute_feed_guid's
-        # docstring on why the algorithm/normalization must never change
-        # once a feed's guid is in the wild. Minted keys always win the
-        # merge: a client cannot smuggle its own guid/medium/locked in via
-        # p20 (_validate_p20 only accepts the five list-tag keys anyway).
-        minted = {
-            'guid': compute_feed_guid(feed_url),
-            'medium': 'podcast',
-            'locked': 'yes',
-        }
-        channel_json = {**p20_val, **minted}
+        # guid is minted once here and never regenerated -- see
+        # compute_feed_guid's docstring on why the algorithm/normalization
+        # must never change once a feed's guid is in the wild. medium/locked
+        # default here but a client-supplied p20 (already validated -- guid
+        # is rejected there) is layered on top and wins, per design spec
+        # section 6 ("accept these keys at create too, merged over the
+        # minted defaults"). guid itself is applied last so nothing can
+        # ever override it.
+        minted_guid = compute_feed_guid(feed_url)
+        channel_json = {'medium': 'podcast', 'locked': 'yes',
+                        **p20_val, 'guid': minted_guid}
         db.update_podcast(slug, p20_channel_json=json.dumps(channel_json))
 
         if author is not None:
@@ -1265,19 +1318,29 @@ def update_feed(slug):
         updates['categories'] = categories_val
 
     if 'p20' in data:
-        p20_val, p20_err = _validate_p20(data['p20'])
-        if p20_err:
-            return error_response(p20_err, 400)
-        # Merge onto the existing stored object so an unspecified tag (and
-        # the minted guid/medium/locked scalars, which _validate_p20 never
-        # accepts) survives a partial PATCH.
         try:
             existing_channel_json = json.loads(podcast.get('p20_channel_json') or '{}')
         except (TypeError, ValueError):
             existing_channel_json = {}
         if not isinstance(existing_channel_json, dict):
             existing_channel_json = {}
-        updates['p20_channel_json'] = json.dumps({**existing_channel_json, **p20_val})
+
+        if data['p20'] is None:
+            # p20: null clears the five list tags but preserves the minted
+            # guid and the medium/locked/locked_owner scalars -- a per-tag
+            # clear ({"p20": {"funding": []}}) already worked via the merge
+            # below; this is the "clear everything list-shaped" shortcut.
+            for tag in _p20_tag_attrs():
+                existing_channel_json.pop(tag, None)
+            updates['p20_channel_json'] = json.dumps(existing_channel_json)
+        else:
+            p20_val, p20_err = _validate_p20(data['p20'])
+            if p20_err:
+                return error_response(p20_err, 400)
+            # Merge onto the existing stored object so an unspecified tag
+            # (and the guid, which _validate_p20 never accepts) survives a
+            # partial PATCH.
+            updates['p20_channel_json'] = json.dumps({**existing_channel_json, **p20_val})
 
     # Handle auto-process override specially (can be null, true, or false).
     # None passes through to DB as NULL (clears the override) -- unlike add_feed
