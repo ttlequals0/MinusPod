@@ -377,6 +377,64 @@ def test_build_import_plan_sidecar_title_and_description_and_artwork(tmp_path):
     assert entry['sidecarFile'] == 'S01E01 - Pilot.json'
 
 
+def test_build_import_plan_out_of_order_explicit_anchors_error_all_clean_entries(tmp_path):
+    """Regression: two explicit sidecar dates out of order must error every
+    clean entry in the batch (totals.importable == 0), not silently pass."""
+    a = _write(tmp_path / 'S01E01 - A.mp3')
+    _write_text(tmp_path / 'S01E01 - A.json', '{"published_at": "2026-02-01T00:00:00Z"}')
+    b = _write(tmp_path / 'S01E02 - B.mp3')
+    _write_text(tmp_path / 'S01E02 - B.json', '{"published_at": "2026-01-01T00:00:00Z"}')
+    sources = [a, tmp_path / 'S01E01 - A.json', b, tmp_path / 'S01E02 - B.json']
+    plan = build_import_plan('myshow', sources, existing_ids=set(),
+                              overwrite=False, now_iso=NOW_ISO)
+    assert plan['totals']['importable'] == 0
+    for entry in plan['entries']:
+        assert entry['errors']
+
+
+def test_build_import_plan_future_dated_non_final_anchor_errors_batch(tmp_path):
+    """Regression: a future-dated explicit sidecar on a NON-final entry must
+    still be caught against the implicit now_iso anchor on the final entry,
+    even though the final entry itself has no explicit date."""
+    a = _write(tmp_path / 'S01E01 - A.mp3')
+    b = _write(tmp_path / 'S01E02 - B.mp3')
+    _write_text(tmp_path / 'S01E02 - B.json', '{"published_at": "2030-01-01T00:00:00Z"}')
+    c = _write(tmp_path / 'S01E03 - C.mp3')
+    sources = [a, b, tmp_path / 'S01E02 - B.json', c]
+    plan = build_import_plan('myshow', sources, existing_ids=set(),
+                              overwrite=False, now_iso=NOW_ISO)
+    assert plan['totals']['importable'] == 0
+    for entry in plan['entries']:
+        assert entry['errors']
+
+
+def test_build_import_plan_duplicate_sidecar_date_does_not_backdate_clean_siblings(tmp_path):
+    """Regression: a duplicate (errored, non-committable) entry carrying a
+    bogus far-future sidecar date must not act as a synthesis anchor for its
+    clean siblings."""
+    a = _write(tmp_path / 'S01E01 - A.mp3')
+    b1 = _write(tmp_path / 'S01E02 - B.mp3')
+    _write_text(tmp_path / 'S01E02 - B.json', '{"published_at": "2030-01-01T00:00:00Z"}')
+    b2 = _write(tmp_path / 'S01E02 - C.mp3')  # same sNNeNN token -> duplicate with B
+    d = _write(tmp_path / 'S01E03 - D.mp3')
+    sources = [a, b1, tmp_path / 'S01E02 - B.json', b2, d]
+    plan = build_import_plan('myshow', sources, existing_ids=set(),
+                              overwrite=False, now_iso=NOW_ISO)
+
+    by_audio = {e['audioFile']: e for e in plan['entries']}
+    assert by_audio['S01E02 - B.mp3']['errors']
+    assert by_audio['S01E02 - C.mp3']['errors']
+
+    clean_a = by_audio['S01E01 - A.mp3']
+    clean_d = by_audio['S01E03 - D.mp3']
+    assert clean_a['errors'] == []
+    assert clean_d['errors'] == []
+    # D is the final clean entry -> anchors at now_iso; A leads it by 1 day.
+    # Neither is anywhere near the duplicate's bogus 2030 date.
+    assert clean_d['publishedAt'] == NOW_ISO
+    assert clean_a['publishedAt'] == '2026-08-26T00:00:00Z'
+
+
 def test_build_import_plan_hash_matches_plan_hash_fn(tmp_path):
     audio = _write(tmp_path / 'S01E01 - Pilot.mp3')
     sources = [audio]

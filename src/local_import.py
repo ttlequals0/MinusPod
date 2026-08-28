@@ -134,21 +134,28 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
     if not entries:
         return None
 
+    last = len(entries) - 1
     explicit_idx = [i for i, e in enumerate(entries) if e.get('published_at')]
     parsed = {i: _parse_aware(entries[i]['published_at']) for i in explicit_idx}
 
-    for a, b in zip(explicit_idx, explicit_idx[1:]):
+    # The final entry is always an anchor -- either its own explicit date,
+    # or an implicit now_iso anchor when unset. Compute that anchor (without
+    # writing it back yet) so the strict-increase check below sees the full
+    # anchor chain, including a preceding explicit date that collides with
+    # "now" -- not just pairs of originally-explicit dates.
+    final_forced = entries[last].get('published_at') is None
+    if final_forced:
+        parsed[last] = _parse_aware(now_iso)
+
+    anchors = sorted(parsed)
+
+    for a, b in zip(anchors, anchors[1:]):
         if parsed[b] <= parsed[a]:
             return (f"publish dates out of order: {entries[a]['episode_id']} "
                      f"must be before {entries[b]['episode_id']}")
 
-    last = len(entries) - 1
-    if entries[last].get('published_at') is None:
-        now_dt = _parse_aware(now_iso)
+    if final_forced:
         entries[last]['published_at'] = now_iso
-        parsed[last] = now_dt
-
-    anchors = sorted(parsed)
 
     # Leading run before the first anchor: step back SYNTH_STEP per entry.
     first = anchors[0]
@@ -313,9 +320,18 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     for c in candidates:
         c['_explicit'] = c['published_at'] is not None
 
-    synth_err = synthesize_published_at(candidates, now_iso)
+    # Entries that already carry an error (duplicate id, existing-id
+    # collision, invalid sidecar) are never committed, so they must not act
+    # as date-synthesis anchors -- a bogus sidecar date on a rejected entry
+    # would otherwise backdate its clean siblings -- nor receive a
+    # synthesized value themselves. Synthesis runs over the clean subset
+    # only; an errored entry keeps whatever explicit date it already had
+    # (or None), which the UI/commit engine ignore anyway since errors is
+    # non-empty.
+    clean = [c for c in candidates if not c['errors']]
+    synth_err = synthesize_published_at(clean, now_iso)
     if synth_err:
-        for c in candidates:
+        for c in clean:
             c['errors'].append(synth_err)
             if c['published_at'] is None:
                 c['published_at'] = now_iso
