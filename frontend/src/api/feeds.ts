@@ -421,3 +421,176 @@ export async function bulkEpisodeAction(
     body: { episodeIds, action },
   });
 }
+
+// ========== Local feed episode management (#625 Task 13) ==========
+
+export interface LocalEpisodeUploadResult extends Episode {
+  episodeNumber?: number;
+  seasonNumber?: number;
+  queued: boolean;
+}
+
+// form carries the multipart fields upload_local_episode expects: audio
+// (required file), title, season, episode, publishedAt, description, artwork.
+export async function uploadLocalEpisode(slug: string, form: FormData): Promise<LocalEpisodeUploadResult> {
+  return apiRequest<LocalEpisodeUploadResult>(`/feeds/${slug}/episodes`, {
+    method: 'POST',
+    body: form,
+    // Non-idempotent: a retried multipart upload after a timed-out first
+    // attempt could mint the episode twice under different ids.
+    skipRetry: true,
+  });
+}
+
+export interface LocalEpisodePatch {
+  title?: string | null;
+  description?: string | null;
+  season?: number;
+  episode?: number;
+  publishedAt?: string;
+  p20?: Record<string, unknown> | null;
+}
+
+export async function updateLocalEpisode(
+  slug: string, episodeId: string, payload: LocalEpisodePatch,
+): Promise<Episode> {
+  return apiRequest<Episode>(`/feeds/${slug}/episodes/${episodeId}`, {
+    method: 'PATCH',
+    body: payload,
+  });
+}
+
+export interface BulkLocalEpisodeEdit extends LocalEpisodePatch {
+  episodeId: string;
+}
+
+export async function bulkUpdateLocalEpisodes(
+  slug: string, entries: BulkLocalEpisodeEdit[],
+): Promise<{ updated: number }> {
+  return apiRequest<{ updated: number }>(`/feeds/${slug}/episodes`, {
+    method: 'PATCH',
+    body: entries,
+  });
+}
+
+export async function deleteLocalEpisode(
+  slug: string, episodeId: string,
+): Promise<{ deleted: number; episodeId: string }> {
+  return apiRequest(`/feeds/${slug}/episodes/${episodeId}`, { method: 'DELETE' });
+}
+
+export async function uploadLocalEpisodeArtwork(
+  slug: string, episodeId: string, file: File,
+): Promise<{ message: string; episodeId: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiRequest(`/feeds/${slug}/episodes/${episodeId}/artwork`, {
+    method: 'POST',
+    body: formData,
+    skipRetry: true,
+  });
+}
+
+// ========== Local feed bulk archive import (#625 Task 13) ==========
+
+export interface ImportRejectedFile {
+  file: string;
+  reason: string;
+}
+
+export interface ImportUploadResult {
+  staged: string[];
+  rejected: ImportRejectedFile[];
+}
+
+export async function importUpload(slug: string, files: File[]): Promise<ImportUploadResult> {
+  const formData = new FormData();
+  for (const file of files) formData.append('files', file);
+  // Non-idempotent: a retry after a timed-out attempt could re-save the
+  // same files twice (harmless for content but would double the request
+  // cost of a large batch).
+  return apiRequest<ImportUploadResult>(`/feeds/${slug}/import/upload`, {
+    method: 'POST',
+    body: formData,
+    skipRetry: true,
+  });
+}
+
+export type ImportSource = 'staging' | 'directory' | 'both';
+
+export interface ImportPlanEntry {
+  episodeId: string;
+  season: number;
+  episode: number;
+  title: string;
+  audioFile: string;
+  descriptionFile: string | null;
+  artworkFile: string | null;
+  sidecarFile: string | null;
+  publishedAt: string | null;
+  publishedAtSource: 'explicit' | 'synthesized';
+  bytes: number;
+  mtimeNs: number;
+  warnings: string[];
+  errors: string[];
+}
+
+export interface ImportPlan {
+  slug: string;
+  overwrite: boolean;
+  planHash: string;
+  entries: ImportPlanEntry[];
+  rejected: ImportRejectedFile[];
+  totals: { importable: number; rejected: number; errors: number; bytes: number };
+}
+
+export async function importScan(
+  slug: string, opts: { source: ImportSource; overwrite?: boolean },
+): Promise<ImportPlan> {
+  return apiRequest<ImportPlan>(`/feeds/${slug}/import/scan`, {
+    method: 'POST',
+    body: opts,
+  });
+}
+
+export async function importCommit(
+  slug: string, payload: { planHash: string; source: ImportSource; overwrite?: boolean },
+): Promise<{ message: string }> {
+  // Non-idempotent: starts a background commit job; a retried request could
+  // start it twice (the server does guard concurrent runs with a 409, but a
+  // retry after a lost response would otherwise risk a duplicate start).
+  return apiRequest<{ message: string }>(`/feeds/${slug}/import/commit`, {
+    method: 'POST',
+    body: payload,
+    skipRetry: true,
+  });
+}
+
+export interface ImportReportEntry {
+  episodeId: string;
+  audioFile?: string;
+  warnings?: string[];
+  errors?: string[];
+  error?: string;
+}
+
+export interface ImportReport {
+  committed: ImportReportEntry[];
+  skipped: ImportReportEntry[];
+  failed: ImportReportEntry[];
+  // The commit engine only records the episodeId for a queued entry.
+  queued: string[];
+  error?: string;
+}
+
+export interface ImportStatus {
+  state: 'idle' | 'running' | 'done' | 'error';
+  processed: number;
+  total: number;
+  startedAt: string | null;
+  report?: ImportReport;
+}
+
+export async function importStatus(slug: string): Promise<ImportStatus> {
+  return apiRequest<ImportStatus>(`/feeds/${slug}/import/status`);
+}

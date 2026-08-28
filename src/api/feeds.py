@@ -382,6 +382,35 @@ def _deserialize_title_skip_patterns(raw):
     return parsed if isinstance(parsed, list) else []
 
 
+def _deserialize_categories(raw):
+    """Parse the stored `categories` JSON back for API responses.
+
+    None when unset/unparsable, mirroring _validate_local_categories'
+    write-side contract (null clears categories to NULL, not []).
+    """
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, list) else None
+
+
+def _deserialize_p20_channel(raw):
+    """Parse the stored p20_channel_json back for API responses.
+
+    None when unset/unparsable, mirroring _deserialize_segment_category_actions.
+    """
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 from config import AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN
 
 _CUE_SCORE_MIN = AUDIO_CUE_SCORE_MIN
@@ -696,6 +725,17 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'feedType': podcast.get('feed_type', 'subscribed'),
         'title': podcast['title'] or podcast['slug'],
         'titleOverride': podcast.get('title_override'),
+        # Local-only metadata (_LOCAL_ONLY_FIELDS gates PATCH writes to local
+        # feeds; reading them back is harmless for a subscribed feed, which
+        # simply never has them set). Was write-only before this fix: PATCH
+        # accepted and persisted these, but no response ever echoed them
+        # back, so a client that reseeds its edit form from a refetched feed
+        # (the normal "reflect the saved value" pattern) would see the form
+        # silently revert to blank/default on every save.
+        'author': podcast.get('author'),
+        'explicit': _deserialize_nullable_bool(podcast.get('explicit')),
+        'categories': _deserialize_categories(podcast.get('categories')),
+        'p20': _deserialize_p20_channel(podcast.get('p20_channel_json')),
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),

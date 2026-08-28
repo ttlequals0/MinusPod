@@ -17,6 +17,7 @@ import { Pagination } from '../components/Pagination';
 import PodpingBadge from '../components/PodpingBadge';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
+import LocalFeedPanel from './feeds/LocalFeedPanel';
 import FeedStatsCards from './feeds/FeedStatsCards';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
 import CueTemplatesPanel from './feeds/CueTemplatesPanel';
@@ -507,6 +508,8 @@ function FeedDetail() {
       {slug && <FeedStatsCards feed={feed} slug={slug} />}
 
       {slug && <FeedSettingsPanel feed={feed} slug={slug} />}
+
+      {slug && feed.feedType === 'local' && <LocalFeedPanel feed={feed} slug={slug} />}
 
       {slug && <PodcastAdDistributionPanel slug={slug} />}
 

@@ -42,3 +42,22 @@ export function formatStatsDuration(seconds: number): string {
 export function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`;
 }
+
+// ISO datetime -> the value a <input type="datetime-local"> expects
+// (local time, 'YYYY-MM-DDTHH:mm'). '' for a missing/unparseable value.
+export function toDatetimeLocalInput(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Reverse of toDatetimeLocalInput: a datetime-local input value (read by the
+// Date constructor in the browser's local timezone) to the ISO 8601 UTC
+// string the backend accepts. '' -> undefined (field left blank).
+export function fromDatetimeLocalInput(value: string): string | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
