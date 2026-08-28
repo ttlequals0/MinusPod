@@ -325,7 +325,13 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
         if not title:
             title = f'Episode {episode}'
 
-        audio_stat = audio.stat()
+        try:
+            audio_stat = audio.stat()
+        except OSError:
+            # File vanished between listing and stat (e.g. a concurrent
+            # move/delete) -- same guard as the size-filter loop above and
+            # plan_hash: skip this candidate rather than 500ing the whole scan.
+            continue
         candidates.append({
             'episode_id': episode_id,
             'season': season,

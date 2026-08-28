@@ -1144,10 +1144,14 @@ class EpisodeMixin:
         conn.commit()
         return cursor.rowcount
 
-    def delete_episodes(self, slug: str, episode_ids: list[str], storage) -> tuple[int, float]:
+    def delete_episodes(self, slug: str, episode_ids: list[str], storage,
+                         keep_original: bool = False) -> tuple[int, float]:
         """Delete audio files and reset episodes to 'discovered'.
 
         Does NOT delete DB rows. Does NOT touch processing_history.
+        keep_original=True preserves the retained pre-cut original (local
+        feeds: it is the only copy, no upstream to re-download) and only
+        removes the processed output.
         Returns (count reset, MB freed).
         """
         episodes = self.get_episodes_by_ids(slug, episode_ids)
@@ -1161,7 +1165,13 @@ class EpisodeMixin:
             if not episode or not episode.get('processed_file'):
                 continue
 
-            freed_bytes += storage.cleanup_episode_files(slug, episode_id)
+            if keep_original:
+                for path in storage.iter_episode_audio_paths(slug, episode_id, '.mp3'):
+                    if path.exists():
+                        freed_bytes += path.stat().st_size
+                storage.delete_processed_file(slug, episode_id, keep_original=True)
+            else:
+                freed_bytes += storage.cleanup_episode_files(slug, episode_id)
             ids_to_reset.append(episode_id)
 
         if ids_to_reset:

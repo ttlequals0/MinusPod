@@ -20,6 +20,7 @@ from ad_yield import latest_completed_run, low_ad_yield
 from audio_peaks import compute_peaks, PeaksError
 from audio_processor import get_replacement_duration
 from chapters_generator import ChaptersGenerator
+from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
 from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
@@ -1188,9 +1189,19 @@ def bulk_episode_action(slug):
             eligible_ids.append(episode_id)
         if eligible_ids:
             try:
-                reset, freed = db.delete_episodes(slug, eligible_ids, storage)
+                # Local feeds hold the only copy of their audio (no upstream
+                # to re-download), so the delete action keeps the retained
+                # original -- it enables JIT replay later -- and only wipes
+                # the processed output. The bulk modal's "records/history are
+                # preserved" promise depends on this.
+                local_feed = is_local_feed(podcast)
+                reset, freed = db.delete_episodes(
+                    slug, eligible_ids, storage, keep_original=local_feed)
                 queued += reset
                 freed_mb += freed
+                if local_feed and reset:
+                    from local_feed_builder import rebuild_local_feed
+                    rebuild_local_feed(slug)
             except Exception as e:
                 logger.error(f"Bulk delete error for {slug}: {e}")
                 errors.append('bulk delete failed')

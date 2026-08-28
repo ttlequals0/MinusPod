@@ -81,6 +81,55 @@ def test_local_original_and_processed_survive_force_all(db, tmp_path):
     assert episode['processed_file'] == 's01e01.mp3'
 
 
+def test_delete_episodes_keep_original_preserves_original(db, tmp_path):
+    """The bulk 'delete' action on a local feed must keep the retained
+    original (it is the only copy) and only wipe the processed output,
+    resetting the row to discovered like a normal delete."""
+    from storage import Storage
+    storage = Storage(str(tmp_path))
+    db.create_podcast('arc', 'local://arc', feed_type='local')
+    db.upsert_episode('arc', 's01e01', original_url='local://s01e01',
+                      status='processed', title='old',
+                      processed_file='s01e01.mp3')
+    orig = storage.get_original_path('arc', 's01e01')
+    orig.parent.mkdir(parents=True, exist_ok=True)
+    orig.write_bytes(b'ORIGINAL')
+    processed = storage.get_episode_path('arc', 's01e01')
+    processed.write_bytes(b'PROCESSED')
+
+    count, freed = db.delete_episodes('arc', ['s01e01'], storage, keep_original=True)
+
+    assert count == 1
+    assert orig.exists(), "keep_original=True must never delete the local original"
+    assert not processed.exists(), "processed output must still be removed"
+    episode = db.get_episode('arc', 's01e01')
+    assert episode['status'] == 'discovered'
+    assert freed > 0
+
+
+def test_delete_episodes_default_still_wipes_original(db, tmp_path):
+    """No regression: keep_original defaults to False, matching the
+    pre-existing behavior a subscribed feed's delete action relies on."""
+    from storage import Storage
+    storage = Storage(str(tmp_path))
+    db.create_podcast('show', 'https://example.com/show.xml')
+    db.upsert_episode('show', 'abcdef012345',
+                      original_url='https://example.com/abcdef012345.mp3',
+                      status='processed', title='ep',
+                      processed_file='abcdef012345.mp3')
+    orig = storage.get_original_path('show', 'abcdef012345')
+    orig.parent.mkdir(parents=True, exist_ok=True)
+    orig.write_bytes(b'ORIGINAL')
+    processed = storage.get_episode_path('show', 'abcdef012345')
+    processed.write_bytes(b'PROCESSED')
+
+    count, freed = db.delete_episodes('show', ['abcdef012345'], storage)
+
+    assert count == 1
+    assert not orig.exists()
+    assert not processed.exists()
+
+
 def test_subscribed_feed_still_cleaned_under_force_all(db, tmp_path):
     """No regression: force_all must still wipe a normal (non-local, non-
     archived) feed's processed episodes."""

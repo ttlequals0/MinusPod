@@ -1619,13 +1619,16 @@ def update_feed(slug):
         # explicit/categories/p20_channel_json are the local-feed metadata
         # fields (Task 6) -- refresh_rss_feed already routes a local feed to
         # rebuild_local_feed instead of an upstream fetch (main_app/feeds.py).
+        # description rewrites the channel <description> for both feed types
+        # and was previously missing from this list, so a local feed's served
+        # RSS kept the stale description until the next unrelated refresh.
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
                 or 'title_override' in updates or 'source_url' in updates
                 or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
                 or 'title_skip_action' in updates
                 or 'title' in updates or 'author' in updates
                 or 'explicit' in updates or 'categories' in updates
-                or 'p20_channel_json' in updates):
+                or 'p20_channel_json' in updates or 'description' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed

@@ -186,6 +186,28 @@ def test_patch_local_only_fields_on_local_feed_rebuilds_rss(app_client, local_fe
     assert json.loads(podcast['categories']) == ['Comedy', 'News']
 
 
+def test_patch_description_on_local_feed_rebuilds_rss(app_client, local_feed):
+    """description is not a local-only field (it's editable on any feed),
+    but a local feed's served RSS is rendered entirely from the DB row --
+    it was previously missing from update_feed's rebuild-trigger list, so a
+    description edit never reached the served channel <description> until
+    an unrelated refresh happened to fire."""
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    with patch('main_app.feeds.rebuild_local_feed') as mock_rebuild:
+        resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+            'description': 'New archive description',
+        }, headers=headers)
+
+    assert resp.status_code == 200
+    assert mock_rebuild.called
+
+    podcast = local_feed['db'].get_podcast_by_slug(slug)
+    assert podcast['description'] == 'New archive description'
+
+
 def test_patch_author_categories_clear_via_null(app_client, local_feed):
     """{"author": null, "categories": null} must clear both fields (not
     leave the previous value untouched) -- the frontend must send an actual
@@ -312,6 +334,77 @@ def test_artwork_upload_on_subscribed_feed_400(app_client, subscribed_feed):
 
 
 # -- GET /feeds list serialization --
+
+def test_bulk_delete_local_feed_preserves_original(app_client, local_feed):
+    """POST .../episodes/bulk {action: delete} on a local feed must keep the
+    retained original (it's the only copy -- no upstream to re-download)
+    and only wipe the processed output, then rebuild the served RSS once."""
+    from api import get_storage
+    slug = local_feed['slug']
+    db = local_feed['db']
+    storage = get_storage()
+    episode_id = 's01e01'
+    db.upsert_episode(slug, episode_id, original_url=f'local://{episode_id}',
+                      status='processed', title='Ep 1',
+                      processed_file=f'{episode_id}.mp3')
+    orig = storage.get_original_path(slug, episode_id)
+    orig.parent.mkdir(parents=True, exist_ok=True)
+    orig.write_bytes(b'ORIGINAL')
+    processed = storage.get_episode_path(slug, episode_id)
+    processed.write_bytes(b'PROCESSED')
+
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    with patch('local_feed_builder.rebuild_local_feed') as mock_rebuild:
+        resp = app_client.post(f'/api/v1/feeds/{slug}/episodes/bulk', json={
+            'episodeIds': [episode_id],
+            'action': 'delete',
+        }, headers=headers)
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body['queued'] == 1
+    assert mock_rebuild.called
+
+    assert orig.exists(), "bulk delete must preserve a local feed's retained original"
+    assert not processed.exists(), "processed output must still be removed"
+    episode = db.get_episode(slug, episode_id)
+    assert episode['status'] == 'discovered'
+
+
+def test_bulk_delete_subscribed_feed_unchanged(app_client, subscribed_feed):
+    """No regression: a subscribed feed's bulk delete still wipes everything
+    (including any retained original) and never touches rebuild_local_feed."""
+    from api import get_storage
+    slug = subscribed_feed['slug']
+    db = subscribed_feed['db']
+    storage = get_storage()
+    episode_id = 'abcdef012345'
+    db.upsert_episode(slug, episode_id,
+                      original_url=f'https://example.com/{episode_id}.mp3',
+                      status='processed', title='Ep 1',
+                      processed_file=f'{episode_id}.mp3')
+    orig = storage.get_original_path(slug, episode_id)
+    orig.parent.mkdir(parents=True, exist_ok=True)
+    orig.write_bytes(b'ORIGINAL')
+    processed = storage.get_episode_path(slug, episode_id)
+    processed.write_bytes(b'PROCESSED')
+
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    with patch('local_feed_builder.rebuild_local_feed') as mock_rebuild:
+        resp = app_client.post(f'/api/v1/feeds/{slug}/episodes/bulk', json={
+            'episodeIds': [episode_id],
+            'action': 'delete',
+        }, headers=headers)
+
+    assert resp.status_code == 200
+    assert not orig.exists()
+    assert not processed.exists()
+    mock_rebuild.assert_not_called()
+
 
 def test_feed_type_present_in_list_serialization(app_client, subscribed_feed, local_feed):
     _authed(app_client)

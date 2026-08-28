@@ -43,6 +43,31 @@ def test_unblocked_agent_still_triggers_processing():
     start.assert_called_once()
 
 
+def test_blocked_agent_falls_through_for_local_feed():
+    """A local episode's original_url is the unreachable local:// sentinel
+    (no upstream to redirect to), so the blocked-agent gate must not fire
+    for local feeds -- it falls through to normal JIT handling instead."""
+    slug = 'jit-gate-local-test'
+    db.create_podcast(slug, f'local://{slug}', 'Archive', feed_type='local')
+    _set_blocked('["BadBot"]')
+    local_ep = {'url': f'local://{slug}', 'title': 'Ep 1',
+                'description': '', 'artwork_url': None, 'published': None}
+    feed_map = {slug: {'in': f'local://{slug}', 'out': slug}}
+    try:
+        with patch('main_app.routes.get_feed_map', return_value=feed_map), \
+             patch('main_app.routes._lookup_episode', return_value=(local_ep, 'Archive')), \
+             patch('main_app.processing.start_background_processing',
+                   return_value=(True, None)) as start:
+            with app.test_client() as c:
+                resp = c.get(f'/episodes/{slug}/{EPISODE_ID}.mp3',
+                             headers={'User-Agent': 'BadBot/1.0'})
+        assert resp.status_code == 503
+        assert resp.headers.get('Location') != local_ep['url']
+        start.assert_called_once()
+    finally:
+        db.delete_podcast(slug)
+
+
 def test_empty_list_never_blocks():
     """Default state: an upgrade must change nothing."""
     _set_blocked('[]')

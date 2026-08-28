@@ -548,12 +548,17 @@ def register_routes(app):
 
         # A crawler gets the origin audio rather than a processing run it will
         # never collect. Placed after the title blacklist so that rule wins.
-        blocked_agents = resolve_jit_blocked_user_agents(
-            db.get_setting('jit_blocked_user_agents'))
-        if user_agent_is_jit_blocked(request.headers.get('User-Agent'), blocked_agents):
-            feed_logger.info(
-                f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
-            return redirect(original_url, code=302)
+        # Local feeds have no upstream to redirect to -- original_url is the
+        # unreachable local:// sentinel -- so this guard never applies to
+        # them; a blocked agent hitting a local episode falls through to
+        # normal JIT processing/serving like any other request.
+        if not is_local_feed(podcast):
+            blocked_agents = resolve_jit_blocked_user_agents(
+                db.get_setting('jit_blocked_user_agents'))
+            if user_agent_is_jit_blocked(request.headers.get('User-Agent'), blocked_agents):
+                feed_logger.info(
+                    f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
+                return redirect(original_url, code=302)
 
         # Start background processing (non-blocking)
         started, reason = start_background_processing(

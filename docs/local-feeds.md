@@ -116,7 +116,7 @@ Explicit dates that land out of order relative to the (season, episode) sort are
 
 #### Duplicates and existing episodes
 
-Two files landing on the same episode id within one batch is a per-file error on both. An id that already exists in the feed is also an error, unless you pass `overwrite: true`, in which case a re-import fully replaces that episode: new audio and metadata come in, and the prior transcripts, chapters, and processing history are discarded as the episode goes back to `discovered`. Existing episodes are never silently overwritten without the flag.
+Two files landing on the same episode id within one batch is a per-file error on both. An id that already exists in the feed is also an error, unless you pass `overwrite: true`, in which case a re-import fully replaces that episode: new audio and metadata come in, and the prior transcript, chapters, and ad-detection results are discarded as the episode goes back to `discovered`. Its processing-history and token-usage rows are kept. Existing episodes are never silently overwritten without the flag.
 
 #### Scan, then commit
 

@@ -239,6 +239,31 @@ def test_build_import_plan_basic_matched_entry(tmp_path):
     assert plan['totals']['bytes'] == entry['bytes']
 
 
+def test_build_import_plan_survives_file_vanishing_before_stat(tmp_path, monkeypatch):
+    """A file can vanish between the initial listing pass and the audio.stat()
+    call further down the same scan (e.g. a concurrent move/delete). That
+    must degrade the single candidate, not raise out of build_import_plan."""
+    import pathlib
+    audio = _write(tmp_path / 'S01E01 - Pilot.mp3')
+    real_stat = pathlib.Path.stat
+    calls = {'n': 0}
+
+    def flaky_stat(self, *args, **kwargs):
+        if self == audio:
+            calls['n'] += 1
+            if calls['n'] == 2:
+                raise OSError('vanished mid-scan')
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, 'stat', flaky_stat)
+
+    plan = build_import_plan('myshow', [audio], existing_ids=set(),
+                              overwrite=False, now_iso=NOW_ISO)
+
+    assert plan['entries'] == []
+    assert plan['totals']['importable'] == 0
+
+
 def test_build_import_plan_title_fallback_episode_number(tmp_path):
     audio = _write(tmp_path / 'S02E07.mp3')
     plan = build_import_plan('myshow', [audio], existing_ids=set(),
