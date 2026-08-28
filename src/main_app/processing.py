@@ -648,7 +648,7 @@ def _template_cue_scan(matcher, path):
 
 
 def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_id,
-                            dai_platform=None):
+                            dai_platform=None, podcast=None):
     """Pipeline stage: cross-fetch differential (Layer 3).
 
     Runs when the per-feed flag is on, or -- when the flag is unset -- when
@@ -665,8 +665,12 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
     stamps pass1:differential from the main thread before starting the
     worker, so an abandoned worker (episode failed meanwhile) can never
     stamp a different job.
+
+    `podcast`: the caller's already-fetched podcast row (avoids a redundant
+    per-episode db.get_podcast_by_slug on this worker thread). None is
+    treated as non-local, matching the behavior when no row is available.
     """
-    if is_local_feed(db.get_podcast_by_slug(slug)):
+    if is_local_feed(podcast):
         audio_logger.debug(
             f"[{slug}:{episode_id}] Differential fetch skipped: local feed")
         return None
@@ -4223,7 +4227,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         slug, episode_id, episode_url, audio_path,
                         podcast_settings.get('id') if podcast_settings else None,
                         dai_platform=(podcast_settings.get('dai_platform')
-                                      if podcast_settings else None))
+                                      if podcast_settings else None),
+                        podcast=podcast_settings)
                 except BaseException as e:
                     diff_outcome['error'] = e
 
