@@ -252,6 +252,26 @@ def _head_local(slug, episode_id):
     abort(404)
 
 
+def _local_original_response(slug, episode_id):
+    """200 with the retained original for a local-feed episode that isn't
+    PROCESSED yet, instead of the 503/410 that would otherwise be returned.
+
+    A local feed's only source audio is the original mp3 already sitting on
+    disk; there is no upstream to redirect to and no reason to make a
+    listener's client retry-and-give-up while the single ProcessingQueue
+    slot is busy with someone else's backlog. Returns None (caller falls
+    back to its normal response) when no original is retained.
+    """
+    original_path = storage.get_original_path(slug, episode_id)
+    if not original_path.exists():
+        return None
+    feed_logger.info(
+        f"[{slug}:{episode_id}] serving retained original while processing is pending")
+    response = send_file(original_path, mimetype='audio/mpeg', conditional=True)
+    response.headers['Accept-Ranges'] = 'bytes'
+    return response
+
+
 def register_routes(app):
     """Register all routes on the Flask app."""
     global STATIC_DIR, ROOT_DIR
@@ -461,13 +481,28 @@ def register_routes(app):
                 feed_logger.error(f"[{slug}:{episode_id}] Processed file missing")
                 status = None
 
-        elif status == EpisodeStatus.PERMANENTLY_FAILED:
+        # Fetched once and reused below (status branches, HEAD branch,
+        # title-blacklist guard) rather than re-querying per branch.
+        # Deliberately placed after the PROCESSED fast-return above: that
+        # branch is the hottest path in the app and must not pay for a
+        # podcast row it never uses.
+        podcast = db.get_podcast_by_slug(slug)
+        local_feed = is_local_feed(podcast)
+
+        if status == EpisodeStatus.PERMANENTLY_FAILED:
             ep_key = f"{slug}:{episode_id}"
             if ep_key not in _permanently_failed_warned:
                 _permanently_failed_warned.add(ep_key)
                 feed_logger.warning(f"[{ep_key}] Episode permanently failed, not retrying")
             else:
                 feed_logger.debug(f"[{ep_key}] Episode permanently failed (already warned)")
+            # A local feed always has its original mp3 on disk; a listener
+            # should never be blanked by a permanently-failed ad-removal
+            # pass when the untouched source audio is right there.
+            if local_feed:
+                original_response = _routes._local_original_response(slug, episode_id)
+                if original_response is not None:
+                    return original_response
             return Response(
                 "Episode processing has permanently failed after multiple attempts",
                 status=410  # Gone - resource no longer available
@@ -479,6 +514,10 @@ def register_routes(app):
                 # Mark as permanently failed
                 feed_logger.warning(f"[{slug}:{episode_id}] Max retries ({MAX_EPISODE_RETRIES}) exceeded, marking permanently failed")
                 db.upsert_episode(slug, episode_id, status=EpisodeStatus.PERMANENTLY_FAILED.value)
+                if local_feed:
+                    original_response = _routes._local_original_response(slug, episode_id)
+                    if original_response is not None:
+                        return original_response
                 return Response(
                     "Episode processing has permanently failed after multiple attempts",
                     status=410
@@ -493,6 +532,10 @@ def register_routes(app):
                 if elapsed < cooldown_seconds:
                     wait_remaining = int(cooldown_seconds - elapsed)
                     feed_logger.debug(f"[{slug}:{episode_id}] Failed {elapsed:.0f}s ago, cooldown {cooldown_seconds}s (retry {retry_count})")
+                    if local_feed:
+                        original_response = _routes._local_original_response(slug, episode_id)
+                        if original_response is not None:
+                            return original_response
                     return Response(
                         "Episode processing failed recently, retrying soon",
                         status=503,
@@ -504,23 +547,21 @@ def register_routes(app):
 
         elif status == EpisodeStatus.PROCESSING:
             feed_logger.info(f"[{slug}:{episode_id}] Currently processing")
+            if local_feed:
+                original_response = _routes._local_original_response(slug, episode_id)
+                if original_response is not None:
+                    return original_response
             return Response(
                 "Episode is being processed",
                 status=503,
                 headers={'Retry-After': '30'}
             )
 
-        # Fetched once and reused below (HEAD branch, title-blacklist guard)
-        # rather than re-querying per branch. Deliberately placed after the
-        # PROCESSED fast-return above: that branch is the hottest path in
-        # the app and must not pay for a podcast row it never uses.
-        podcast = db.get_podcast_by_slug(slug)
-
         # HEAD requests should not trigger processing - proxy upstream headers
         if request.method == 'HEAD' and status != EpisodeStatus.PROCESSED:
             ep_data, _ = _routes._lookup_episode(slug, episode_id, feed_map, episode_row=episode)
             if ep_data:
-                if is_local_feed(podcast):
+                if local_feed:
                     return _routes._head_local(slug, episode_id)
                 return _routes._head_upstream(slug, episode_id, ep_data['url'])
             abort(404)
@@ -540,7 +581,7 @@ def register_routes(app):
         # Local feeds have no upstream to redirect to -- original_url is the
         # unreachable local:// sentinel -- so the blacklist never applies to
         # them; a matching title on a local episode just processes normally.
-        if not is_local_feed(podcast):
+        if not local_feed:
             title_skip_patterns = db.get_podcast_title_skip_patterns(slug)
             if title_matches_skip_patterns(episode_title, title_skip_patterns):
                 feed_logger.info(f"[{slug}:{episode_id}] Title-blacklisted, serving original: {episode_title}")
@@ -552,7 +593,7 @@ def register_routes(app):
         # unreachable local:// sentinel -- so this guard never applies to
         # them; a blocked agent hitting a local episode falls through to
         # normal JIT processing/serving like any other request.
-        if not is_local_feed(podcast):
+        if not local_feed:
             blocked_agents = resolve_jit_blocked_user_agents(
                 db.get_setting('jit_blocked_user_agents'))
             if user_agent_is_jit_blocked(request.headers.get('User-Agent'), blocked_agents):
@@ -569,6 +610,10 @@ def register_routes(app):
 
         if started:
             feed_logger.info(f"[{slug}:{episode_id}] Started background processing")
+            if local_feed:
+                original_response = _routes._local_original_response(slug, episode_id)
+                if original_response is not None:
+                    return original_response
             return Response(
                 "Episode processing started, please retry",
                 status=503,
@@ -576,6 +621,10 @@ def register_routes(app):
             )
         elif reason == "already_processing":
             feed_logger.info(f"[{slug}:{episode_id}] Already processing")
+            if local_feed:
+                original_response = _routes._local_original_response(slug, episode_id)
+                if original_response is not None:
+                    return original_response
             return Response(
                 "Episode is being processed",
                 status=503,
@@ -601,6 +650,10 @@ def register_routes(app):
             status_service.queue_episode(slug, episode_id, episode_title, podcast_name)
             queue_position = status_service.get_queue_position(slug, episode_id)
             feed_logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), queued at position {queue_position}")
+            if local_feed:
+                original_response = _routes._local_original_response(slug, episode_id)
+                if original_response is not None:
+                    return original_response
             return Response(
                 json.dumps({
                     'status': 'queued',

@@ -214,3 +214,175 @@ def test_head_local_episode_404s_when_nothing_retained():
             resp = c.head('/episodes/archead2/s01e02.mp3')
 
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------
+# GET serve_episode: unprocessed local episodes serve the retained
+# original instead of blocking on the single ProcessingQueue slot.
+# ---------------------------------------------------------------------
+
+def _make_local_podcast_and_episode(slug, episode_id, status, **episode_kwargs):
+    db.create_podcast(slug, f'local://{slug}', feed_type='local')
+    db.upsert_episode(slug, episode_id, original_url=f'local://{episode_id}',
+                      status=status, title='Ep1', **episode_kwargs)
+
+
+def _write_original(slug, episode_id, data):
+    path = storage.get_original_path(slug, episode_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return path
+
+
+def test_local_discovered_queue_busy_serves_original_and_still_queues():
+    """(1) discovered + original present + queue busy -> 200 original,
+    while the JIT/queue-stamp attempt still happens in the background."""
+    slug, ep = 'locqbusy', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='discovered')
+    _write_original(slug, ep, b'ORIGINAL-BYTES-0123456789')
+
+    with patch('main_app.processing.start_background_processing',
+               return_value=(False, 'queue_busy:other:ep')) as mock_start, \
+         patch('main_app.routes.status_service') as mock_status, \
+         patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        mock_status.get_queue_position.return_value = 1
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'ORIGINAL-BYTES-0123456789'
+    assert resp.headers['Content-Type'] == 'audio/mpeg'
+    mock_start.assert_called_once()
+    mock_status.queue_episode.assert_called_once()
+
+
+def test_local_processing_status_serves_original():
+    """(2) status=processing + original present -> 200 original, no 503."""
+    slug, ep = 'locproc', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='processing')
+    _write_original(slug, ep, b'PROCESSING-BYTES')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'PROCESSING-BYTES'
+
+
+def test_local_failed_within_cooldown_serves_original():
+    """(3) status=failed (fresh, within retry cooldown) + original present
+    -> 200 original instead of the cooldown 503."""
+    slug, ep = 'locfail', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='failed', retry_count=1)
+    _write_original(slug, ep, b'FAILED-BYTES')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'FAILED-BYTES'
+
+
+def test_local_permanently_failed_serves_original():
+    """status=permanently_failed + original present -> 200 original instead
+    of the 410 Gone (explicitly called out by the controller ruling)."""
+    slug, ep = 'locperm', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='permanently_failed')
+    _write_original(slug, ep, b'PERM-FAILED-BYTES')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'PERM-FAILED-BYTES'
+
+
+def test_local_original_missing_falls_back_to_current_behavior():
+    """(4) No retained original -> unchanged current behavior (503 queued
+    response), even though the feed is local."""
+    slug, ep = 'locmissing', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='discovered')
+
+    with patch('main_app.processing.start_background_processing',
+               return_value=(False, 'queue_busy:other:ep')) as mock_start, \
+         patch('main_app.routes.status_service') as mock_status, \
+         patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        mock_status.get_queue_position.return_value = 1
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 503
+    mock_start.assert_called_once()
+
+
+def test_subscribed_feed_queue_busy_still_503():
+    """(5) Regression guard: a subscribed feed's byte-for-byte queue-busy
+    behavior must be untouched by the local-original branch."""
+    slug, ep = 'subqueue', 'a1b2c3d4e5f6'
+    db.create_podcast(slug, 'https://example.com/sub/feed.xml', feed_type='subscribed')
+    db.upsert_episode(slug, ep, original_url='https://example.com/sub/ep9.mp3',
+                      status='discovered', title='Ep9')
+    lookup = ({'id': ep, 'url': 'https://example.com/sub/ep9.mp3', 'title': 'Ep9',
+               'description': None, 'artwork_url': None, 'published': None}, 'Sub Show')
+
+    with patch('main_app.processing.start_background_processing',
+               return_value=(False, 'queue_busy:other:ep')), \
+         patch('main_app.routes._lookup_episode', return_value=lookup), \
+         patch('main_app.routes.status_service') as mock_status, \
+         patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': 'https://example.com/sub/feed.xml',
+                                     'out': f'/{slug}'}}):
+        mock_status.get_queue_position.return_value = 1
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 503
+
+
+def test_local_range_request_on_original_returns_206():
+    """(6) A Range request against the retained original gets a proper
+    206 Partial Content response (conditional=True support)."""
+    slug, ep = 'locrange', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='processing')
+    _write_original(slug, ep, b'0123456789ABCDEFGHIJ')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3',
+                         headers={'Range': 'bytes=0-4'})
+
+    assert resp.status_code == 206
+    assert resp.data == b'01234'
+    assert resp.headers['Content-Range'] == 'bytes 0-4/20'
+
+
+def test_local_processed_serves_processed_file_fast_path_untouched():
+    """(7) PROCESSED status still serves the processed file, not the
+    original -- the hot-path fast return is untouched."""
+    slug, ep = 'locprocessed', 's01e01'
+    # processed_version is only honored on UPDATE, not on the initial
+    # INSERT (see database/episodes.py upsert_episode) -- create discovered
+    # first, then transition to processed.
+    _make_local_podcast_and_episode(slug, ep, status='discovered')
+    db.upsert_episode(slug, ep, status='processed', processed_version=1)
+    _write_original(slug, ep, b'ORIGINAL-SHOULD-NOT-BE-SERVED')
+    processed_path = storage.get_episode_path(slug, ep, version=1)
+    processed_path.parent.mkdir(parents=True, exist_ok=True)
+    processed_path.write_bytes(b'PROCESSED-BYTES')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'PROCESSED-BYTES'
