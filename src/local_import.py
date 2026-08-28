@@ -203,10 +203,23 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
 
 def plan_hash(sources: list[Path]) -> str:
     """sha256 over sorted (name, size, mtime_ns) tuples; commit refuses a
-    stale hash (TOCTOU guard)."""
-    tuples = sorted(
-        (p.name, p.stat().st_size, p.stat().st_mtime_ns) for p in sources
-    )
+    stale hash (TOCTOU guard).
+
+    A source that vanishes between listing and stat (e.g. a running
+    commit's shutil.move racing a concurrent scan) is skipped rather than
+    raising -- same guard as the main plan-building loop below. Dropping
+    it from the hash is the correct outcome anyway: a commit re-scan that
+    no longer sees the file will compute a different hash than the
+    original scan, which is exactly the staleness a caller needs to
+    detect."""
+    tuples = []
+    for p in sources:
+        try:
+            stat_result = p.stat()
+        except OSError:
+            continue
+        tuples.append((p.name, stat_result.st_size, stat_result.st_mtime_ns))
+    tuples.sort()
     payload = json.dumps(tuples, sort_keys=True).encode('utf-8')
     return hashlib.sha256(payload).hexdigest()
 

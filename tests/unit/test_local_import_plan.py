@@ -472,3 +472,25 @@ def test_plan_hash_order_independent(tmp_path):
     a = _write(tmp_path / 'a.mp3')
     b = _write(tmp_path / 'b.mp3')
     assert plan_hash([a, b]) == plan_hash([b, a])
+
+
+def test_plan_hash_skips_vanished_path_without_raising(tmp_path):
+    """A source that vanishes between listing and stat (e.g. a running
+    commit's shutil.move racing a concurrent scan/re-scan) must not raise
+    FileNotFoundError out of stat() -- it's dropped from the hash, same
+    as build_import_plan's main loop already does for the OSError-on-stat
+    case. The resulting hash must differ from the hash computed while the
+    file still existed, over the exact same source list: that's what
+    makes a commit's re-scan correctly detect staleness (409) rather than
+    silently matching a hash that no longer reflects reality."""
+    a = _write(tmp_path / 'a.mp3')
+    b = _write(tmp_path / 'b.mp3')
+    sources = [a, b]
+
+    before = plan_hash(sources)
+
+    b.unlink()  # simulates the commit engine moving b out mid-scan
+
+    after = plan_hash(sources)  # same Path objects; b no longer exists
+
+    assert after != before

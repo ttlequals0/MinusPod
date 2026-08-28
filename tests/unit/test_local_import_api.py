@@ -156,6 +156,29 @@ def test_upload_mixed_valid_and_rejected(app_client, local_feed):
     assert body['rejected'][0]['file'] == '../escape.mp3'
 
 
+def test_upload_rejects_overlong_basename_without_crashing_batch(app_client, local_feed):
+    """A 300-char filename must not OSError (ENAMETOOLONG) the whole
+    request -- it degrades to a per-file rejection alongside the valid
+    file, which still stages normally."""
+    slug = local_feed['slug']
+    _authed(app_client)
+
+    long_name = ('a' * 296) + '.mp3'  # 300 chars, well past the 255-byte cap
+    assert len(long_name) == 300
+
+    resp = _upload(app_client, slug, [
+        ('s01e01.mp3', b'audio'),
+        (long_name, b'bad'),
+    ])
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body['staged'] == ['s01e01.mp3']
+    assert len(body['rejected']) == 1
+    assert body['rejected'][0]['file'] == long_name
+    assert 'too long' in body['rejected'][0]['reason']
+
+
 def test_upload_missing_files_field_400(app_client, local_feed):
     slug = local_feed['slug']
     _authed(app_client)

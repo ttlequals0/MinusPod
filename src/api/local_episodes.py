@@ -525,19 +525,29 @@ _PLAN_INTERNAL_PATH_KEYS = ('audioPath', 'descriptionPath', 'artworkPath', 'side
 
 _IMPORT_SOURCE_CHOICES = ('staging', 'directory', 'both')
 
+# Most filesystems (ext4, xfs, btrfs, ...) cap a single path component at
+# 255 bytes; an over-long name makes the eventual open()/rename() raise
+# ENAMETOOLONG. Checked up front (in UTF-8 bytes, matching how the kernel
+# counts) so it becomes an ordinary per-file rejection rather than the
+# OSError bubbling out of upload.save() below and 500ing the whole batch.
+MAX_IMPORT_BASENAME_BYTES = 255
+
 
 def _reject_reason_for_basename(name):
     """None if ``name`` is safe to use as a staged file's basename, else a
     human-readable rejection reason. Mirrors is_dangerous_slug's traversal
-    checks (.., /, \\, NUL) plus a dotfile/empty-name check -- filenames
-    are far more permissive than slugs (spaces, case, punctuation are all
-    fine), so this doesn't reuse is_valid_slug's strict charset."""
+    checks (.., /, \\, NUL) plus a dotfile/empty-name/length check --
+    filenames are far more permissive than slugs (spaces, case,
+    punctuation are all fine), so this doesn't reuse is_valid_slug's
+    strict charset."""
     if not name:
         return 'empty filename'
     if is_dangerous_slug(name):
         return 'invalid filename'
     if name.startswith('.'):
         return 'hidden file (dotfile)'
+    if len(name.encode('utf-8')) > MAX_IMPORT_BASENAME_BYTES:
+        return f'filename too long (max {MAX_IMPORT_BASENAME_BYTES} bytes)'
     return None
 
 
@@ -630,7 +640,15 @@ def upload_import_files(slug):
             continue
         if staging_dir is None:
             staging_dir = storage.import_staging_dir(slug, create=True)
-        upload.save(str(staging_dir / name))
+        try:
+            upload.save(str(staging_dir / name))
+        except OSError as exc:
+            # Belt-and-suspenders alongside the length check above: any
+            # other filesystem-rejected name (e.g. reserved characters on
+            # a non-POSIX mount) still degrades to a per-file rejection
+            # rather than a 500 for the whole batch.
+            rejected.append({'file': name, 'reason': f'could not save file: {exc}'})
+            continue
         staged.append(name)
 
     return json_response({'staged': staged, 'rejected': rejected}, 200)
