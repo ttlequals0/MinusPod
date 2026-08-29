@@ -814,8 +814,16 @@ function EpisodeDetail() {
             runs (hasOriginalAudio since 2.93.2). Let the operator preview it
             from the detail page instead of only via the ad editor. Gated to
             local feeds and non-completed status so the processed-episode
-            player above stays the only player once a run has finished. */}
-        {episode.status !== 'completed' && feed?.feedType === 'local' && episode.hasOriginalAudio && (
+            player above stays the only player once a run has finished.
+            !processedAt additionally excludes a once-processed episode
+            that's mid-reprocess or failed: status alone cycles back through
+            pending/processing/failed on a reprocess, but processedAt is set
+            once on the first completed run and never cleared afterward (see
+            the neverProcessed comment below), so without this an episode
+            that's already been through the pipeline once would misleadingly
+            show "ad removal hasn't run yet" again. */}
+        {episode.status !== 'completed' && !episode.processedAt
+          && feed?.feedType === 'local' && episode.hasOriginalAudio && (
           <div className="mt-4 pt-4 border-t border-border">
             <audio controls className="w-full" src={markerAudioUrl}>
               Your browser does not support the audio element.

@@ -1142,6 +1142,33 @@ describe('Original audio player for unprocessed local episodes', () => {
     expect(document.querySelector('audio[src*="original.mp3"]')).toBeNull();
     expect(screen.queryByText(/ad removal hasn't run yet/i)).toBeNull();
   });
+
+  it('renders no player for a once-processed local episode that is mid-reprocess (status back to pending, processedAt still set)', async () => {
+    // Regression case: status alone cycles back through pending/processing
+    // on a reprocess, but processedAt is set on the first completed run and
+    // never cleared afterward, so !processedAt is required to keep this
+    // player from misleadingly claiming ad removal "hasn't run yet" on an
+    // episode that already has a real (if stale) processed copy.
+    const ep = makeEpisode({
+      status: 'pending', processedAt: '2025-06-01T00:00:00Z', hasOriginalAudio: true, pendingReviewMarkers: [],
+    });
+    renderLocalDetail(ep);
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+
+    expect(document.querySelector('audio[src*="original.mp3"]')).toBeNull();
+    expect(screen.queryByText(/ad removal hasn't run yet/i)).toBeNull();
+  });
+
+  it('renders no player for a once-processed local episode that failed reprocessing', async () => {
+    const ep = makeEpisode({
+      status: 'failed', processedAt: '2025-06-01T00:00:00Z', hasOriginalAudio: true, pendingReviewMarkers: [],
+    });
+    renderLocalDetail(ep);
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+
+    expect(document.querySelector('audio[src*="original.mp3"]')).toBeNull();
+    expect(screen.queryByText(/ad removal hasn't run yet/i)).toBeNull();
+  });
 });
 
 describe('Process vs Reprocess label (single episode)', () => {

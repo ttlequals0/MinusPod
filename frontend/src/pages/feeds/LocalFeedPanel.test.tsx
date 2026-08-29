@@ -31,6 +31,11 @@
  *     its real collapse/forceOpen mechanics; this file's stub always renders
  *     children) forces open via the forceOpen prop when a validation error
  *     is set, and the error itself renders outside the section entirely.
+ *   - "Rescan staged files" and "Add files to staged set" only appear once
+ *     the shown plan or the last finished run has a skipped/errored entry
+ *     (hidden when clean or before anything's run); both skip the pre-clear
+ *     "Choose files" does, so a fix for a spared entry's bad sidecar can be
+ *     staged and picked up without disturbing anything else already there.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -860,6 +865,107 @@ describe('LocalFeedPanel', () => {
 
     expect(await screen.findByText('cannot clear staging while an import is running')).toBeDefined();
     expect(mockImportUpload).not.toHaveBeenCalled();
+  });
+
+  // ---- Rescan staged files / Add files to staged set (fixable leftovers) ----
+  // Companion to the sweep-spares fix (Item 4): a skipped/errored entry's
+  // files survive the post-commit sweep so the operator can fix and rescan
+  // without re-uploading everything. These two actions are how the UI
+  // reaches that: Rescan re-reads staging without touching it, and Add
+  // files uploads into it without the pre-clear "Choose files" does.
+
+  const DONE_STATUS_WITH_SKIPPED: ImportStatus = {
+    state: 'done',
+    processed: 2,
+    total: 2,
+    startedAt: '2026-01-01T00:00:00Z',
+    report: {
+      committed: [{ episodeId: 's01e01' }],
+      skipped: [{ episodeId: 's01e02', errors: ['invalid sidecar JSON: bad'] }],
+      failed: [],
+      queued: [],
+    },
+  };
+
+  it('hides Rescan/Add-files when the last finished run was clean', async () => {
+    mockImportStatus.mockResolvedValue({
+      state: 'done',
+      processed: 1,
+      total: 1,
+      startedAt: '2026-01-01T00:00:00Z',
+      report: { committed: [{ episodeId: 's01e01' }], skipped: [], failed: [], queued: [] },
+    });
+    renderPanel(makeFeed());
+
+    await waitFor(() => expect(screen.getByText('Import complete')).toBeDefined());
+    expect(screen.queryByRole('button', { name: 'Rescan staged files' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add files to staged set' })).toBeNull();
+  });
+
+  it('hides Rescan/Add-files before any run or scan has happened', async () => {
+    renderPanel(makeFeed());
+    await waitFor(() => expect(mockImportStatus).toHaveBeenCalled());
+
+    expect(screen.queryByRole('button', { name: 'Rescan staged files' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add files to staged set' })).toBeNull();
+  });
+
+  it('shows Rescan/Add-files once the last finished run left a skipped entry behind', async () => {
+    mockImportStatus.mockResolvedValue(DONE_STATUS_WITH_SKIPPED);
+    renderPanel(makeFeed());
+
+    expect(await screen.findByRole('button', { name: 'Rescan staged files' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Add files to staged set' })).toBeDefined();
+  });
+
+  it('shows Rescan/Add-files when the currently shown plan itself has an errored entry', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['a.mp3'], rejected: [] });
+    const planWithError = makePlan({
+      entries: [{ ...makePlan().entries[0], errors: ['invalid sidecar JSON: bad'] }],
+      rejected: [],
+    });
+    mockImportScan.mockResolvedValue(planWithError);
+    renderPanel(makeFeed());
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
+
+    expect(screen.getByRole('button', { name: 'Rescan staged files' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Add files to staged set' })).toBeDefined();
+  });
+
+  it('Rescan scans staging without clearing it first', async () => {
+    const user = userEvent.setup();
+    mockImportStatus.mockResolvedValue(DONE_STATUS_WITH_SKIPPED);
+    mockImportScan.mockResolvedValue(makePlan({ rejected: [] }));
+    renderPanel(makeFeed());
+
+    await user.click(await screen.findByRole('button', { name: 'Rescan staged files' }));
+
+    await waitFor(() => expect(mockImportScan).toHaveBeenCalledWith('archive-show', { source: 'staging', overwrite: false }));
+    expect(mockClearImportStaging).not.toHaveBeenCalled();
+    expect(mockImportUpload).not.toHaveBeenCalled();
+  });
+
+  it('Add files to staged set uploads and scans without clearing staging first', async () => {
+    const user = userEvent.setup();
+    mockImportStatus.mockResolvedValue(DONE_STATUS_WITH_SKIPPED);
+    mockImportUpload.mockResolvedValue({ staged: ['fixed.json'], rejected: [] });
+    mockImportScan.mockResolvedValue(makePlan({ rejected: [] }));
+    renderPanel(makeFeed());
+
+    await screen.findByRole('button', { name: 'Add files to staged set' });
+    // Two hidden multi-file inputs now exist -- Choose files' (rendered
+    // first) and Add files' (rendered inside the fixable-leftovers block).
+    const inputs = document.querySelectorAll('input[type="file"][multiple]');
+    expect(inputs.length).toBe(2);
+    await user.upload(inputs[1] as HTMLInputElement, new File(['x'], 'fixed.json', { type: 'application/json' }));
+
+    await waitFor(() => expect(mockImportUpload).toHaveBeenCalledWith('archive-show', [expect.any(File)]));
+    await waitFor(() => expect(mockImportScan).toHaveBeenCalledWith('archive-show', { source: 'staging', overwrite: false }));
+    expect(mockClearImportStaging).not.toHaveBeenCalled();
   });
 
   // ---- Auto-refresh after import completes ----

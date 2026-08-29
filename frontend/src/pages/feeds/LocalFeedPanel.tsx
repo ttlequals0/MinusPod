@@ -374,6 +374,26 @@ function LocalFeedPanel({ feed, slug }: Props) {
     setPlan(null);
   };
 
+  // Sequential, one file per request, rather than one multipart request for
+  // the whole batch: the only way to surface "x of y" progress, and it lets
+  // one bad file fail without losing the rest of the batch. Shared by
+  // uploadAndScanMutation and addFilesToStagingMutation -- they differ only
+  // in whether staging gets cleared first.
+  const uploadFilesSequentially = async (files: File[]): Promise<ImportRejectedFile[]> => {
+    const rejected: ImportRejectedFile[] = [];
+    for (let i = 0; i < files.length; i++) {
+      setUploadProgress({ current: i + 1, total: files.length });
+      const file = files[i];
+      try {
+        const result = await importUpload(slug, [file]);
+        rejected.push(...result.rejected);
+      } catch (e) {
+        rejected.push({ file: file.name, reason: getErrorMessage(e, 'Upload failed') });
+      }
+    }
+    return rejected;
+  };
+
   const uploadAndScanMutation = useMutation({
     mutationFn: async ({ files, overwrite }: { files: File[]; overwrite: boolean }) => {
       // Each selection stands alone: clear whatever's already staged before
@@ -389,20 +409,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
         // because another import is already running).
         if (!/404|not found/i.test(message)) throw e;
       }
-      // Sequential, one file per request, rather than one multipart request
-      // for the whole batch: the only way to surface "x of y" progress, and
-      // it lets one bad file fail without losing the rest of the batch.
-      const rejected: ImportRejectedFile[] = [];
-      for (let i = 0; i < files.length; i++) {
-        setUploadProgress({ current: i + 1, total: files.length });
-        const file = files[i];
-        try {
-          const result = await importUpload(slug, [file]);
-          rejected.push(...result.rejected);
-        } catch (e) {
-          rejected.push({ file: file.name, reason: getErrorMessage(e, 'Upload failed') });
-        }
-      }
+      const rejected = await uploadFilesSequentially(files);
       // Commit the accumulated rejections now, before the trailing scan --
       // those uploads already happened and are real results; a scan
       // failure right after must not wipe them out from under the
@@ -419,6 +426,39 @@ function LocalFeedPanel({ feed, slug }: Props) {
     },
     onError: (e) => setImportError(getErrorMessage(e, 'Upload failed')),
     onSettled: () => setUploadProgress(null),
+  });
+
+  // Companion to Rescan (below): uploads into staging WITHOUT the pre-clear
+  // uploadAndScanMutation does, so it can add to what a prior commit's sweep
+  // spared -- e.g. a corrected sidecar next to the audio file it left behind
+  // -- instead of wiping that out along with the fresh upload.
+  const addFilesToStagingMutation = useMutation({
+    mutationFn: async ({ files, overwrite }: { files: File[]; overwrite: boolean }) => {
+      const rejected = await uploadFilesSequentially(files);
+      setUploadRejected(rejected);
+      return importScan(slug, { source: 'staging', overwrite });
+    },
+    onMutate: () => { setImportError(null); setUploadProgress(null); },
+    onSuccess: (scanned) => {
+      setPlan(scanned);
+      setImportSource('staging');
+    },
+    onError: (e) => setImportError(getErrorMessage(e, 'Add files failed')),
+    onSettled: () => setUploadProgress(null),
+  });
+
+  // Re-reads whatever is currently staged without uploading or clearing
+  // anything -- how the operator picks up a fix made via
+  // addFilesToStagingMutation (or, for the import directory equivalent, an
+  // in-place edit under source='directory') without starting the batch over.
+  const rescanStagingMutation = useMutation({
+    mutationFn: (overwrite: boolean) => importScan(slug, { source: 'staging', overwrite }),
+    onMutate: () => { setImportError(null); setUploadRejected([]); },
+    onSuccess: (scanned) => {
+      setPlan(scanned);
+      setImportSource('staging');
+    },
+    onError: (e) => setImportError(getErrorMessage(e, 'Rescan failed')),
   });
 
   const scanDirectoryMutation = useMutation({
@@ -453,6 +493,14 @@ function LocalFeedPanel({ feed, slug }: Props) {
     uploadAndScanMutation.mutate({ files, overwrite: overwriteExisting });
   };
 
+  const addFilesInputRef = useRef<HTMLInputElement>(null);
+  const handleAddFilesToStaging = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!files.length) return;
+    addFilesToStagingMutation.mutate({ files, overwrite: overwriteExisting });
+  };
+
   const statusQuery = useQuery({
     queryKey: ['import-status', slug],
     queryFn: () => importStatus(slug),
@@ -470,6 +518,29 @@ function LocalFeedPanel({ feed, slug }: Props) {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     }
   }, [importState, slug, queryClient]);
+
+  // Rescan/Add-files only make sense once there's something in staging that
+  // plausibly needs fixing rather than replacing: an entry in the currently
+  // shown plan that scan already flagged with errors (skipped on commit), or
+  // -- once that plan's been committed and cleared -- the last finished
+  // run's own skipped/failed lists. Either source means the sweep (which
+  // only ever removes a committed entry's leftovers and outright-rejected
+  // junk) plausibly left something behind to fix.
+  const hasFixableLeftovers =
+    (plan?.entries.some((e) => e.errors.length > 0) ?? false)
+    || (statusQuery.data?.report?.skipped.length ?? 0) > 0
+    || (statusQuery.data?.report?.failed.length ?? 0) > 0;
+
+  // Shared busy gate for every staging-touching action below: they all read
+  // or write the same directory, so letting two run at once risks the same
+  // race clear_import_staging's own docstring warns about (a scan or upload
+  // landing mid-sweep).
+  const stagingBusy =
+    uploadAndScanMutation.isPending
+    || addFilesToStagingMutation.isPending
+    || rescanStagingMutation.isPending
+    || scanDirectoryMutation.isPending
+    || importRunning;
 
   return (
     <div className="mb-6">
@@ -671,7 +742,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
             <button
               type="button"
               onClick={() => importFileInputRef.current?.click()}
-              disabled={uploadAndScanMutation.isPending || importRunning}
+              disabled={stagingBusy}
               className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
             >
               {uploadAndScanMutation.isPending ? 'Uploading...' : 'Choose files'}
@@ -679,7 +750,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
             <button
               type="button"
               onClick={() => scanDirectoryMutation.mutate(overwriteExisting)}
-              disabled={scanDirectoryMutation.isPending || importRunning}
+              disabled={stagingBusy}
               title="Scan the server-side import directory instead of uploading"
               className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
             >
@@ -696,13 +767,54 @@ function LocalFeedPanel({ feed, slug }: Props) {
             <Checkbox
               checked={overwriteExisting}
               onChange={setOverwriteExisting}
-              disabled={uploadAndScanMutation.isPending || scanDirectoryMutation.isPending || importRunning}
+              disabled={stagingBusy}
               label="Replace episodes that already exist"
             />
             <p className="mt-1 text-xs text-muted-foreground">
               Off by default. When on, a scan matches existing episode IDs instead of rejecting them, and committing resets those episodes with the new files.
             </p>
           </div>
+
+          {/* Only appears once there's a plausible reason to reach for it:
+              the shown plan (or the last finished run) has a skipped/errored
+              entry, meaning the post-commit sweep left its files in staging
+              on purpose. Rescan picks up an in-place fix (e.g. a corrected
+              sidecar uploaded via "Add files to staged set" below) without
+              touching anything else already staged -- unlike "Choose files"
+              above, which clears staging first. */}
+          {hasFixableLeftovers && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground" data-testid="fixable-leftovers-note">
+              <span>A file from the last run needs fixing before it can import. Neither of these clears what&apos;s already staged.</span>
+              <div className="flex flex-wrap gap-2 sm:ml-auto">
+                <input
+                  ref={addFilesInputRef}
+                  type="file"
+                  multiple
+                  accept=".mp3,.txt,.jpg,.jpeg,.png,.json"
+                  onChange={handleAddFilesToStaging}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => rescanStagingMutation.mutate(overwriteExisting)}
+                  disabled={stagingBusy}
+                  title="Rescan what's already staged, without uploading anything or clearing it first."
+                  className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                >
+                  {rescanStagingMutation.isPending ? 'Rescanning...' : 'Rescan staged files'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addFilesInputRef.current?.click()}
+                  disabled={stagingBusy}
+                  title="Upload more files into what's already staged, without clearing it first (for example, a corrected sidecar for a file the last run left behind)."
+                  className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                >
+                  {addFilesToStagingMutation.isPending ? 'Uploading...' : 'Add files to staged set'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {importError && <p className="text-sm text-destructive mb-3">{importError}</p>}
 

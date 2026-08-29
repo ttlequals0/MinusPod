@@ -18,9 +18,11 @@ release notes.
   longer flips to idle or returns another session's report, and two commits
   can't race the same staging files. A worker crash mid-import surfaces as
   "import interrupted" instead of running forever.
-- The original-audio route and the ad editor now reach a local episode's
-  retained original (the original-file marker was never set on import or
-  upload).
+- The original-audio route, the ad editor, and now the episode detail page
+  itself all reach a local episode's retained original (the original-file
+  marker was never set on import or upload). The detail page now plays it
+  directly for any local episode that hasn't finished a processing run,
+  instead of leaving the operator with nothing to preview.
 - One out-of-order date pair no longer stamps its error on every clean file
   in a batch; the pair carries the error and the plan reports it once as a
   batch-level problem that blocks the commit.
@@ -28,10 +30,12 @@ release notes.
   s01e0006) now replace that episode instead of creating a duplicate, and
   the choice of which row to reset is deterministic.
 - Import commits consume sidecar files along with the audio, from the
-  import directory as well as staging, and a finished staging import sweeps
-  its leftovers. Directory-source commits never touch staging, uploads are
-  refused while an import is running, and deleting the feed clears its
-  import state files.
+  import directory as well as staging. A finished staging import now sweeps
+  only what it committed or rejected outright; a skipped or errored entry's
+  own audio and sidecars stay staged, so fixing the problem (usually a bad
+  sidecar) doesn't mean re-uploading a good mp3. Directory-source commits
+  never touch staging, uploads are refused while an import is running, and
+  deleting the feed clears its import state files.
 - Single uploads: untitled episodes get an "Episode N" title instead of an
   empty tag, embedded cover art is extracted like the import path does, and
   episode artwork shows up in the episode JSON.

@@ -833,12 +833,17 @@ def clear_import_staging(slug):
     """Empty the feed's upload staging directory.
 
     Staging accumulates across canceled/abandoned import attempts: every
-    upload lands there and only gets cleared by a successful commit, so a
-    scan after a few canceled tries returns the union of every file ever
-    staged, not just the operator's latest batch. This gives the UI an
-    explicit way to wipe it clean -- called from the plan-clearing Cancel
-    button and from the "Clear staged files" affordance that appears when
-    a scan's plan includes more than what was just uploaded.
+    upload lands there and only gets cleared by a successful commit (which
+    sweeps committed/rejected files but spares a skipped/errored entry's own
+    files -- see _commit_entries), so a scan after a few canceled tries
+    would otherwise return the union of every file ever staged, not just
+    the operator's latest batch. The UI calls this once, automatically,
+    right before every "Choose files" upload, so each selection stands on
+    its own instead of piling onto whatever was staged before. The UI's own
+    "Add files to staged set" and "Rescan staged files" affordances
+    deliberately skip this call -- they exist specifically to build on or
+    re-read what's already staged (e.g. a corrected sidecar next to an
+    audio file a prior scan spared), not replace it.
 
     409s while an import is running for this feed: the commit engine reads
     staged files by their resolved path (build_import_plan's audioPath/
