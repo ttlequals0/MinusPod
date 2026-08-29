@@ -686,7 +686,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
               {scanDirectoryMutation.isPending ? 'Scanning...' : 'Scan server directory'}
             </button>
             {uploadProgress && (
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground" role="status">
                 Uploading {uploadProgress.current} of {uploadProgress.total}...
               </span>
             )}
@@ -763,7 +763,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
             && statusQuery.data.startedAt !== dismissedRunStartedAt && (
             <div className="mt-4 p-3 rounded-lg bg-secondary/50 border border-border">
               {importState === 'running' ? (
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <p className="text-sm text-muted-foreground flex items-center gap-2" role="status">
                   <LoadingSpinner size="sm" inline /> Importing {statusQuery.data.processed} / {statusQuery.data.total}...
                 </p>
               ) : importState === 'error' ? (
