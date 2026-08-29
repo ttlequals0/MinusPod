@@ -9,6 +9,28 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.93.3] - 2026-08-28
+
+### Added
+
+- Unprocessed local episodes are playable in the admin UI: the episode page
+  gets a player for the retained original, captioned so you know ad removal
+  has not run yet.
+- When an import leaves errored or skipped entries behind, the bulk import
+  section offers "Rescan staged files" and "Add files to staged set", so a
+  bad sidecar can be fixed and rescanned without re-uploading the audio.
+
+### Fixed
+
+- Each new file selection in bulk import replaces the staged set instead of
+  piling on top of earlier attempts, so the preview always shows what you
+  just picked.
+- The post-commit staging sweep keeps files that belong to errored or
+  skipped entries instead of deleting them with the junk.
+- The upload response carries the episode's artwork URL instead of null.
+- Description fields start six rows tall instead of three.
+- Progress text in the import panel is announced to screen readers.
+
 ## [2.93.2] - 2026-08-28
 
 ### Fixed
