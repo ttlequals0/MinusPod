@@ -86,6 +86,37 @@ def _validate_retention_override(value):
     return days, None
 
 
+# Local feeds have no upstream RSS and no 500-item clamp; the ceiling here
+# only exists to bound abuse (an absurd column value costing render time /
+# response size), not to protect a subscriber's app the way the subscribed
+# 10-500 clamp does.
+LOCAL_MAX_EPISODES_CEILING = 10000
+
+
+def _normalize_max_episodes(value, is_local: bool):
+    """Validate a maxEpisodes write. Returns (db_value, error).
+
+    Subscribed feeds keep the pre-existing 10-500 clamp verbatim. Local
+    feeds accept 0 (explicitly uncapped, same as leaving it unset) or any
+    positive int up to LOCAL_MAX_EPISODES_CEILING; a local feed's served
+    item count is otherwise unbounded (local_feed_builder.rebuild_local_feed
+    treats NULL/0 as "serve every episode").
+    """
+    if value is None:
+        return None, None
+    try:
+        n = int(value)
+    except (ValueError, TypeError):
+        return None, 'maxEpisodes must be an integer'
+    if not is_local:
+        return max(10, min(n, 500)), None
+    if n < 0:
+        return None, 'maxEpisodes cannot be negative'
+    if n > LOCAL_MAX_EPISODES_CEILING:
+        return None, f'maxEpisodes cannot exceed {LOCAL_MAX_EPISODES_CEILING}'
+    return n, None
+
+
 def _normalize_language_override(value):
     """Validate the per-feed language override.
 
@@ -988,6 +1019,12 @@ def _add_local_feed(data, db):
     if description is not None and not isinstance(description, str):
         return error_response('description must be a string', 400)
 
+    max_ep_val = None
+    if 'maxEpisodes' in data:
+        max_ep_val, max_ep_err = _normalize_max_episodes(data['maxEpisodes'], True)
+        if max_ep_err:
+            return error_response(max_ep_err, 400)
+
     try:
         db.create_podcast(slug, f'local://{slug}', title, feed_type='local')
 
@@ -1013,6 +1050,8 @@ def _add_local_feed(data, db):
             db.update_podcast(slug, categories=categories_val)
         if description is not None:
             db.update_podcast(slug, description=description)
+        if 'maxEpisodes' in data:
+            db.update_podcast(slug, max_episodes=max_ep_val)
 
         from main_app.feeds import invalidate_feed_cache
         invalidate_feed_cache()
@@ -1623,12 +1662,9 @@ def update_feed(slug):
 
     # Handle maxEpisodes
     if 'maxEpisodes' in data:
-        max_ep = data['maxEpisodes']
-        if max_ep is not None:
-            try:
-                max_ep = max(10, min(int(max_ep), 500))
-            except (ValueError, TypeError):
-                return error_response('maxEpisodes must be an integer', 400)
+        max_ep, max_ep_err = _normalize_max_episodes(data['maxEpisodes'], is_local_feed(podcast))
+        if max_ep_err:
+            return error_response(max_ep_err, 400)
         updates['max_episodes'] = max_ep
 
     if 'onlyExposeProcessedEpisodes' in data:

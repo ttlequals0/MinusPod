@@ -165,6 +165,56 @@ def test_post_local_feed_invalid_slug_400(app_client):
     assert resp.status_code == 400
 
 
+# -- POST /feeds (feedType: local) maxEpisodes --
+
+def test_post_local_feed_max_episodes_zero_accepted(app_client):
+    """0 means uncapped on a local feed -- accepted and stored as-is, not
+    bumped up to the subscribed-feed 10-episode floor."""
+    from api import get_database
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.post('/api/v1/feeds', json={
+        'feedType': 'local',
+        'title': 'Zero Cap Show',
+        'maxEpisodes': 0,
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    slug = resp.get_json()['slug']
+    db = get_database()
+    try:
+        assert db.get_podcast_by_slug(slug)['max_episodes'] == 0
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_post_local_feed_max_episodes_above_ceiling_400(app_client):
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.post('/api/v1/feeds', json={
+        'feedType': 'local',
+        'title': 'Too Big Show',
+        'maxEpisodes': 10001,
+    }, headers=headers)
+
+    assert resp.status_code == 400
+
+
+def test_post_local_feed_max_episodes_negative_400(app_client):
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.post('/api/v1/feeds', json={
+        'feedType': 'local',
+        'title': 'Negative Cap Show',
+        'maxEpisodes': -1,
+    }, headers=headers)
+
+    assert resp.status_code == 400
+
+
 # -- PATCH /feeds/<slug> local-only fields --
 
 def test_patch_local_only_fields_on_local_feed_rebuilds_rss(app_client, local_feed):
@@ -285,6 +335,52 @@ def test_patch_author_on_subscribed_feed_400(app_client, subscribed_feed):
     resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'author': 'Nope'}, headers=headers)
     assert resp.status_code == 400
     assert 'only editable on local feeds' in resp.get_json()['error']
+
+
+# -- PATCH /feeds/<slug> maxEpisodes: local vs subscribed semantics --
+
+def test_patch_max_episodes_zero_on_local_feed_is_uncapped(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    with patch('main_app.feeds.rebuild_local_feed'):
+        resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+            'maxEpisodes': 0,
+        }, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.get_json()['maxEpisodes'] == 0
+    assert local_feed['db'].get_podcast_by_slug(slug)['max_episodes'] == 0
+
+
+def test_patch_max_episodes_above_ceiling_on_local_feed_400(app_client, local_feed):
+    slug = local_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'maxEpisodes': 10001,
+    }, headers=headers)
+    assert resp.status_code == 400
+
+
+def test_patch_max_episodes_zero_on_subscribed_feed_clamped_to_floor(app_client, subscribed_feed):
+    """Subscribed feeds keep the pre-existing 10-500 clamp byte-for-byte: 0
+    does not mean uncapped there, it is bumped to the 10-episode floor same
+    as before this feature existed."""
+    slug = subscribed_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    with patch('main_app.feeds.refresh_rss_feed'):
+        resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
+            'maxEpisodes': 0,
+        }, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.get_json()['maxEpisodes'] == 10
+    assert subscribed_feed['db'].get_podcast_by_slug(slug)['max_episodes'] == 10
 
 
 # -- POST /feeds/<slug>/artwork --

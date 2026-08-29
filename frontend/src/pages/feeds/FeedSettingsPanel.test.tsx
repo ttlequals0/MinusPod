@@ -970,3 +970,54 @@ describe('FeedSettingsPanel retention field commit safety', () => {
       'test-feed', expect.objectContaining({ retentionDaysOverride: 30 })));
   });
 });
+
+describe('FeedSettingsPanel feed cap', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('shows the uncapped hint and a 0-10000 range on a local feed', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ feedType: 'local' }));
+    await user.click(await screen.findByRole('button', { name: '+ Add network' }));
+
+    const cap = screen.getByLabelText('Feed cap') as HTMLInputElement;
+    expect(cap.min).toBe('0');
+    expect(cap.max).toBe('10000');
+    expect(screen.getByText('0 or empty serves every episode.')).toBeDefined();
+  });
+
+  it('sends maxEpisodes: 0 unclamped for a local feed', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ feedType: 'local' }));
+    await user.click(await screen.findByRole('button', { name: '+ Add network' }));
+
+    const cap = screen.getByLabelText('Feed cap');
+    await user.clear(cap);
+    await user.type(cap, '0');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ maxEpisodes: 0 })));
+  });
+
+  it('keeps the 10-500 clamp and no uncapped hint on a subscribed feed', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ feedType: 'subscribed' }));
+    await user.click(await screen.findByRole('button', { name: '+ Add network' }));
+
+    const cap = screen.getByLabelText('Feed cap') as HTMLInputElement;
+    expect(cap.min).toBe('10');
+    expect(cap.max).toBe('500');
+    expect(screen.queryByText('0 or empty serves every episode.')).toBeNull();
+
+    await user.clear(cap);
+    await user.type(cap, '5');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ maxEpisodes: 10 })));
+  });
+});

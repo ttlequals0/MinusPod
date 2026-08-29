@@ -295,10 +295,16 @@ paths:
                 p20:
                   $ref: '#/components/schemas/LocalFeedP20'
                 maxEpisodes:
-                  type: integer
-                  minimum: 10
-                  maximum: 500
-                  description: Per-feed cap. Omit or set null to fall back to the global maxFeedEpisodes setting (default 300).
+                  type:
+                    - integer
+                    - 'null'
+                  description: >-
+                    Per-feed cap on served episode count. Subscribed feeds:
+                    clamped to 10-500; omit or set null to fall back to the
+                    global maxFeedEpisodes setting (default 300). Local
+                    feeds: 0, null, or omitted serves every episode (the
+                    default); a positive value up to 10000 serves only the
+                    newest N.
                 onlyExposeProcessedEpisodes:
                   type:
                     - boolean
@@ -799,9 +805,12 @@ paths:
                   type:
                     - integer
                     - 'null'
-                  minimum: 10
-                  maximum: 500
-                  description: Per-feed cap. Set null to fall back to the global maxFeedEpisodes setting.
+                  description: >-
+                    Per-feed cap on served episode count. Subscribed feeds:
+                    clamped to 10-500; set null to fall back to the global
+                    maxFeedEpisodes setting. Local feeds: 0 or null serves
+                    every episode (the default); a positive value up to
+                    10000 serves only the newest N.
                 onlyExposeProcessedEpisodes:
                   type:
                     - boolean
@@ -9107,9 +9116,11 @@ components:
           type:
             - integer
             - 'null'
-          minimum: 10
-          maximum: 500
-          description: Per-feed cap on episodes served via modified RSS. Null means use the global maxFeedEpisodes setting (default 300).
+          description: >-
+            Per-feed cap on episodes served via the feed's RSS. Subscribed
+            feeds: 10-500; null means use the global maxFeedEpisodes setting
+            (default 300). Local feeds: 0 or null serves every episode (the
+            default); a positive value up to 10000 serves only the newest N.
         onlyExposeProcessedEpisodes:
           type:
             - boolean

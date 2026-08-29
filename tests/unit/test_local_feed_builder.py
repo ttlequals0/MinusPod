@@ -283,6 +283,63 @@ def test_rebuild_local_feed_applies_max_episodes_cap():
     assert parsed.entries[0].title == 'Ep Two'  # newest kept
 
 
+# --- uncapped local feeds serve every episode, no 500-item ceiling --------
+
+def _seed_bulk(slug, count):
+    """`count` bare episodes on a fresh local feed, cheaply -- no p20/vtt/
+    chapters, just enough for build_local_feed_xml to render each one."""
+    mf.db.create_podcast(slug, f'local://{slug}', 'Bulk Show', feed_type='local')
+    for i in range(count):
+        mf.db.upsert_episode(
+            slug, f's01e{i:04d}', original_url=f'local://s01e{i:04d}',
+            title=f'Ep {i}', description='', status='discovered',
+            published_at=f'2020-01-{(i % 28) + 1:02d}T00:00:00Z',
+        )
+    return mf.db.get_podcast_by_slug(slug)
+
+
+def test_rebuild_local_feed_serves_every_episode_when_uncapped():
+    """max_episodes NULL (never set) is the local-feed default: no LIMIT,
+    no 500-item ceiling -- the whole archive is served."""
+    slug = 'uncapped-default'
+    podcast = _seed_bulk(slug, 600)
+
+    assert rebuild_local_feed(slug, podcast) is True
+
+    parsed = feedparser.parse(mf.storage.get_rss(slug))
+    assert parsed.bozo == 0
+    assert len(parsed.entries) == 600
+
+
+def test_rebuild_local_feed_max_episodes_zero_is_also_uncapped():
+    """0 is an explicit uncapped setting, same as leaving the column NULL."""
+    slug = 'uncapped-zero'
+    _seed_bulk(slug, 501)
+    mf.db.update_podcast(slug, max_episodes=0)
+    podcast = mf.db.get_podcast_by_slug(slug)
+
+    assert rebuild_local_feed(slug, podcast) is True
+
+    parsed = feedparser.parse(mf.storage.get_rss(slug))
+    assert parsed.bozo == 0
+    assert len(parsed.entries) == 501
+
+
+def test_rebuild_local_feed_positive_cap_above_500_is_not_clamped():
+    """A local feed's positive cap has no 500-item ceiling -- an operator
+    who sets 600 gets 600, unlike a subscribed feed's clamp."""
+    slug = 'above-500-cap'
+    _seed_bulk(slug, 700)
+    mf.db.update_podcast(slug, max_episodes=600)
+    podcast = mf.db.get_podcast_by_slug(slug)
+
+    assert rebuild_local_feed(slug, podcast) is True
+
+    parsed = feedparser.parse(mf.storage.get_rss(slug))
+    assert parsed.bozo == 0
+    assert len(parsed.entries) == 600
+
+
 # --- review fix #5: 'auto' is a Whisper pin, not an RSS language code -----
 
 def test_language_override_auto_renders_as_en():

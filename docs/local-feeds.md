@@ -187,6 +187,12 @@ Either way, with auto-process off (or an episode that didn't get queued), the ep
 
 Until an episode is processed, its enclosure URL is unversioned, which triggers just-in-time processing the first time a player requests it. Unlike a subscribed feed, where that wait (or a queue backlog, a retry cooldown, a permanent failure) returns a 503 or 410, a local feed serves the retained original right away instead, with range support, so a fresh archive isn't unlistenable behind a long queue. The episode page's own player does the same: while a local episode is unprocessed, it plays the retained original directly, labeled as such.
 
+## Served feed size
+
+Local feeds serve every episode by default: there's no upstream to page against, so the served RSS includes the whole archive. Set `maxEpisodes` (`PATCH /api/v1/feeds/{slug}`) to trim to the newest N instead; 0 or leaving it unset goes back to serving everything. There's no upper limit beyond a 10000-episode ceiling, well above what any archive needs (the same field stays clamped to 10-500 on subscribed feeds, which have an upstream to reconcile against).
+
+A 1000-episode archive runs roughly 1.5-2 MB of XML per request, and current podcast apps handle that fine. A handful of older or resource-constrained ones may not, so if a listener reports their app failing to load the feed, set a cap.
+
 ## Episode artwork in the served feed
 
 An episode with its own uploaded or extracted cover gets an `<itunes:image>` in the served RSS item pointing at:

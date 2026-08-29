@@ -305,18 +305,24 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
     return '\n'.join(lines)
 
 
-def _fetch_local_feed_episodes(db_, podcast_id: int, limit: int) -> list[dict]:
-    """Up to `limit` episodes of a local feed, newest first, regardless of
-    status -- unprocessed episodes still need an (unversioned) enclosure so
-    the first play triggers JIT. get_episodes() enforces an offset and a
-    status filter neither of which fits here, hence the direct query."""
+def _fetch_local_feed_episodes(db_, podcast_id: int, limit: int | None) -> list[dict]:
+    """Episodes of a local feed, newest first, regardless of status --
+    unprocessed episodes still need an (unversioned) enclosure so the first
+    play triggers JIT. get_episodes() enforces an offset and a status filter
+    neither of which fits here, hence the direct query.
+
+    ``limit`` is None or 0 for "every episode" (a local feed's default --
+    there is no upstream to reconcile against, so nothing caps it unless the
+    operator sets one) or a positive int to keep only the newest N.
+    """
     conn = db_.get_connection()
-    cursor = conn.execute(
-        """SELECT * FROM episodes WHERE podcast_id = ?
-           ORDER BY COALESCE(published_at, created_at) DESC
-           LIMIT ?""",
-        (podcast_id, limit)
-    )
+    query = ("SELECT * FROM episodes WHERE podcast_id = ? "
+             "ORDER BY COALESCE(published_at, created_at) DESC")
+    params = [podcast_id]
+    if limit:
+        query += " LIMIT ?"
+        params.append(limit)
+    cursor = conn.execute(query, params)
     return [dict(row) for row in cursor.fetchall()]
 
 
@@ -327,16 +333,22 @@ def rebuild_local_feed(slug: str, podcast: dict | None = None) -> bool:
     save the XML, stamp last_checked_at, invalidate the episode lookup
     cache. Returns False and logs a warning on any exception rather than
     letting it propagate to the refresh scheduler.
+
+    Unlike a subscribed feed, max_episodes is read straight off the row
+    instead of through db.get_max_episodes_for_podcast: that resolver falls
+    back to the global maxFeedEpisodes setting (default 300) when the column
+    is NULL, which is the subscribed-feed default this project is deviating
+    from here. A local feed has no upstream to reconcile against, so NULL/0
+    means "serve every episode" and a positive value is an uncapped-above
+    per-feed trim the operator opted into -- no 500 ceiling, since it is
+    their own archive and their own tradeoff.
     """
     podcast = podcast or db.get_podcast_by_slug(slug)
     if not podcast:
         return False
     try:
-        # Same clamp modify_feed's caller applies (feeds.py
-        # _build_and_save_served_rss -> modify_feed's own max(1, min(..,
-        # 500))) so a local feed's served item count is bounded the same
-        # way a subscribed feed's is.
-        feed_cap = max(1, min(db.get_max_episodes_for_podcast(slug, podcast=podcast), 500))
+        raw_cap = podcast.get('max_episodes')
+        feed_cap = int(raw_cap) if raw_cap else None
         episodes = _fetch_local_feed_episodes(db, podcast['id'], feed_cap)
         xml = build_local_feed_xml(podcast, episodes, storage=storage, db=db)
         storage.save_rss(slug, xml)
