@@ -1522,6 +1522,10 @@ def is_retryable_error(error: Exception) -> bool:
     # provider's per-minute cap, no amount of backoff will help.
     if isinstance(error, StructuralRateLimitError):
         return False
+    # Held 429s (#696) carry their own reset time; retrying them in-process
+    # would burn the pause the hold is meant to give the provider.
+    if isinstance(error, ProviderRateLimitedError):
+        return False
     # Spend/quota exhaustion is terminal until the operator adds credits or
     # raises the limit; no retry can succeed (#491).
     if is_limit_exceeded_error(error):
@@ -1562,6 +1566,10 @@ def is_connectivity_error(error: Exception) -> bool:
     explicitly excluded -- deferring those would hide genuine problems.
     """
     if isinstance(error, StructuralRateLimitError):
+        return False
+    if isinstance(error, ProviderRateLimitedError):
+        # Held 429s (#696) are not endpoint outages: the provider answered,
+        # it is just throttling. The offline queue must not claim them.
         return False
     if (is_rate_limit_error(error) or is_auth_error(error)
             or is_limit_exceeded_error(error) or is_not_found_error(error)):
@@ -1772,6 +1780,22 @@ class LimitExceededError(Exception):
     ``is_retryable_error``.
     """
     pass
+
+
+class ProviderRateLimitedError(Exception):
+    """A 429 carrying a provider-reported reset time, raised into the
+    pipeline while the rate-limit queue hold (#696) is enabled.
+
+    The retry loop returns it as ``call_llm``'s ``last_error`` instead of
+    sleeping the worker thread; the window-failure dict and the episode
+    failure handler use it to defer the episode and pause the queue until
+    the provider's reset time. Excluded from retryable, transient, and
+    connectivity classification so nothing downstream re-drives it.
+    """
+
+    def __init__(self, message: str, retry_after_seconds: float):
+        super().__init__(message)
+        self.retry_after_seconds = float(retry_after_seconds)
 
 
 def extract_error_body(error: Exception) -> Any:

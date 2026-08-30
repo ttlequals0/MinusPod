@@ -21,7 +21,7 @@ from llm_client import (
     is_rate_limit_error, is_limit_exceeded_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
-    StructuralRateLimitError,
+    StructuralRateLimitError, ProviderRateLimitedError,
 )
 from run_log import run_in_worker_thread
 from utils.language import get_pattern_language
@@ -335,14 +335,20 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
     not_found_hint = _model_not_found_hint(last_error, model)
     if not_found_hint:
         parts.append(not_found_hint)
+    # Held 429 (#696): the provider reported a reset time; processing raises
+    # a typed error so the episode defers and the queue pauses until then.
+    rate_limited_hold = isinstance(last_error, ProviderRateLimitedError)
     return {
         "ads": [],
         "status": "failed",
         "error": "".join(parts),
-        "retryable": not not_found_hint and not limit_exceeded,
+        "retryable": not not_found_hint and not limit_exceeded and not rate_limited_hold,
         # Lets processing raise a typed LimitExceededError so the episode
         # fails permanently instead of re-queuing on the 429 string (#491).
         "limit_exceeded": limit_exceeded,
+        "rate_limited_hold": rate_limited_hold,
+        "retry_after_seconds": (
+            getattr(last_error, 'retry_after_seconds', None) if rate_limited_hold else None),
         # Lets the pipeline tell "endpoint down" apart from a bad response so
         # the offline queue (#482) defers only genuine outages. Includes
         # CircuitBreakerOpen, which reaches here as last_error because

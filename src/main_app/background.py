@@ -129,10 +129,12 @@ def background_queue_processor():
     """
     from main_app.processing import start_background_processing
     from offline_queue import offline_queue_tick
+    from rate_limit_hold import is_queue_paused, rate_limit_hold_tick
     from processing_queue import ProcessingQueue
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
     orphan_check_interval = 0  # Counter for orphan check (every 10 iterations)
+    rate_limit_pause_logged = False
     while not shutdown_event.is_set():
         # Guard point for issue #566 (see Database.rollback_open_transaction).
         db.clear_leaked_transaction(refresh_logger, 'queue processor')
@@ -157,6 +159,21 @@ def background_queue_processor():
                 # Offline queue (#482): expire deferred episodes past their
                 # TTL and re-queue the rest once their service is reachable.
                 _run_tick(offline_queue_tick, 'offline_queue_tick')
+
+                # Rate-limit hold (#696): release held episodes once the
+                # provider's reset time has passed; expire past the TTL.
+                _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
+
+            # Rate-limit pause gate: no new claims while a provider reset
+            # window is active (held episodes resume via the tick above).
+            if is_queue_paused(db):
+                if not rate_limit_pause_logged:
+                    refresh_logger.info(
+                        "Queue paused: LLM provider rate limit; waiting for reset")
+                    rate_limit_pause_logged = True
+                shutdown_event.wait(timeout=30)
+                continue
+            rate_limit_pause_logged = False
 
             # Atomically claim the next queued episode (marks it 'processing').
             queued = db.claim_next_queued_episode()

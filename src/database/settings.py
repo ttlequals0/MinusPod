@@ -243,6 +243,13 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='false', seeded=True, resettable=False),
     'offline_queue_ttl_hours': SettingSpec(
         default='48', seeded=True, resettable=False),
+    # Rate-limit queue hold (#696). hold_until is ephemeral runtime state
+    # written by the failure handler and cleared on release; not seeded and
+    # not exposed through the general settings payload.
+    'rate_limit_hold_enabled': SettingSpec(
+        default='false', seeded=True, resettable=False),
+    'rate_limit_hold_ttl_hours': SettingSpec(
+        default='48', seeded=True, resettable=False),
     'processing_soft_timeout_seconds': SettingSpec(
         default='3600', env='PROCESSING_SOFT_TIMEOUT', seeded=True,
         resettable=False),

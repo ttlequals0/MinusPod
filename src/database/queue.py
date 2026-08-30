@@ -564,6 +564,7 @@ class QueueMixin:
                FROM episodes e
                JOIN podcasts p ON e.podcast_id = p.id
                WHERE e.status = 'deferred'
+                 AND (e.deferred_service IS NULL OR e.deferred_service != 'llm_rate_limit')
                  AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
             (ttl_hours,)
         ).fetchall()
@@ -620,6 +621,10 @@ class QueueMixin:
         requeued = 0
         for episode in self.get_deferred_episodes():
             service = episode.get('deferred_service') or 'llm'
+            if service == 'llm_rate_limit':
+                # Rate-limit holds (#696) release only via the hold's own
+                # reset tick; they never wait on a connectivity probe.
+                continue
             if service not in services:
                 continue
             slug = episode['podcast_slug']
@@ -640,5 +645,90 @@ class QueueMixin:
                 "Offline queue: %s reachable again, re-queued %s:%s",
                 service, slug, episode['episode_id'],
             )
+            requeued += 1
+        return requeued
+
+    # -- Rate-limit queue hold (#696) --
+
+    def expire_rate_limit_holds(self, ttl_hours: int) -> list[dict]:
+        """Fail rate-limit-held episodes whose TTL has run out.
+
+        Keyed on deferred_service='llm_rate_limit' so the offline queue's
+        expiry never claims these rows. Same permanently_failed + queue-row
+        close as expire_deferred_episodes.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
+                      p.slug AS podcast_slug, p.title AS podcast_title
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE e.status = 'deferred'
+                 AND e.deferred_service = 'llm_rate_limit'
+                 AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
+            (ttl_hours,)
+        ).fetchall()
+        expired = []
+        for row in rows:
+            row = dict(row)
+            message = (f"Rate-limit hold TTL expired after {ttl_hours} hours: "
+                       f"{row['error_message'] or 'provider rate limit'}")
+            row['error_message'] = message
+            cursor = conn.execute(
+                """UPDATE episodes
+                   SET status = 'permanently_failed',
+                       error_message = ?,
+                       deferred_at = NULL,
+                       deferred_service = NULL,
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE id = ? AND status = 'deferred'""",
+                (message, row['id'])
+            )
+            if cursor.rowcount != 1:
+                # Lost a race with a concurrent user action; its fresh queue
+                # row must not be failed either.
+                continue
+            conn.execute(
+                """UPDATE auto_process_queue
+                   SET status = 'failed',
+                       error_message = ?,
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE podcast_id = ? AND episode_id = ?
+                     AND status != 'completed'""",
+                (message, row['podcast_id'], row['episode_id'])
+            )
+            logger.warning(
+                "Rate-limit hold TTL expired for %s:%s after %dh; marking permanently_failed",
+                row['podcast_slug'], row['episode_id'], ttl_hours,
+            )
+            expired.append(row)
+        conn.commit()
+        return expired
+
+    def requeue_rate_limit_holds(self) -> int:
+        """Release rate-limit-held episodes once the provider reset passed.
+
+        deferred_at is kept like the offline re-drive so the TTL bounds the
+        total held time across repeat holds; success and TTL expiry clear it.
+        """
+        requeued = 0
+        for episode in self.get_deferred_episodes():
+            if (episode.get('deferred_service') or '') != 'llm_rate_limit':
+                continue
+            slug = episode['podcast_slug']
+            if not (episode.get('reprocess_requested_at')
+                    or self.is_auto_process_enabled_for_podcast(slug)):
+                continue
+            self.upsert_episode_for_processing(
+                slug, episode['episode_id'], episode['original_url'],
+                title=episode.get('title'),
+                published_at=episode.get('published_at'),
+                description=episode.get('description'),
+            )
+            self.upsert_episode(
+                slug, episode['episode_id'],
+                status='pending', error_message=None,
+            )
+            logger.info("Rate-limit hold released for %s:%s", slug, episode['episode_id'])
             requeued += 1
         return requeued

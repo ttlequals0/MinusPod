@@ -60,6 +60,10 @@ from offline_queue import (
     get_offline_queue_ttl_hours, is_offline_queue_enabled,
     TTL_HOURS_MIN, TTL_HOURS_MAX,
 )
+from rate_limit_hold import (
+    get_hold_until, get_rate_limit_hold_ttl_hours,
+    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE,
+)
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
@@ -2188,6 +2192,60 @@ def update_offline_queue_settings():
         logger.info(f"Updated offline_queue_ttl_hours to {ttl}")
 
     return json_response(_offline_queue_view(db))
+
+
+def _rate_limit_hold_view(db) -> dict:
+    """Rate-limit hold settings payload shared by GET and PUT (#696)."""
+    held = [e for e in db.get_deferred_episodes()
+            if (e.get('deferred_service') or '') == RATE_LIMIT_DEFERRED_SERVICE]
+    return {
+        'enabled': is_rate_limit_hold_enabled(db),
+        'ttlHours': get_rate_limit_hold_ttl_hours(db),
+        'holdUntil': get_hold_until(db),
+        'holdCount': len(held),
+    }
+
+
+@api.route('/settings/rate-limit-hold', methods=['GET'])
+@log_request
+def get_rate_limit_hold_settings():
+    """Get rate-limit hold configuration (#696)."""
+    return json_response(_rate_limit_hold_view(get_database()))
+
+
+@api.route('/settings/rate-limit-hold', methods=['PUT'])
+@log_request
+def update_rate_limit_hold_settings():
+    """Update rate-limit hold configuration (#696).
+
+    When enabled, a provider 429 carrying a reset time defers the episode
+    and pauses new queue claims until the reset instead of failing the job.
+    ttlHours bounds how long a held episode waits before being marked
+    permanently failed.
+    """
+    data = request.get_json()
+    if not isinstance(data, dict) or not data:
+        return error_response('No data provided', 400)
+
+    db = get_database()
+
+    if 'enabled' in data:
+        if not isinstance(data['enabled'], bool):
+            return error_response('enabled must be a boolean', 400)
+        db.set_setting('rate_limit_hold_enabled',
+                       'true' if data['enabled'] else 'false', is_default=False)
+        logger.info(f"Updated rate_limit_hold_enabled to {data['enabled']}")
+
+    if 'ttlHours' in data:
+        ttl = data['ttlHours']
+        if not isinstance(ttl, int) or isinstance(ttl, bool) \
+                or ttl < TTL_HOURS_MIN or ttl > TTL_HOURS_MAX:
+            return error_response(
+                f'ttlHours must be an integer between {TTL_HOURS_MIN} and {TTL_HOURS_MAX}', 400)
+        db.set_setting('rate_limit_hold_ttl_hours', str(ttl), is_default=False)
+        logger.info(f"Updated rate_limit_hold_ttl_hours to {ttl}")
+
+    return json_response(_rate_limit_hold_view(db))
 
 
 # ========== Update check settings ==========

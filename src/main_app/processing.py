@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 
 import requests
 import requests.exceptions
@@ -98,9 +99,13 @@ from llm_capabilities import (
 from llm_client import (
     is_retryable_error, is_llm_api_error, is_rate_limit_error,
     is_limit_exceeded_error, is_auth_error, LimitExceededError,
+    ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
 )
 from offline_queue import is_offline_queue_enabled
+from rate_limit_hold import (
+    RATE_LIMIT_DEFERRED_SERVICE, is_rate_limit_hold_enabled, record_hold_until,
+)
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
 from text_recurrence import find_recurring_spans
@@ -189,6 +194,13 @@ def is_transient_error(error: Exception) -> bool:
     # credits or raises the limit (#491).
     if is_limit_exceeded_error(error):
         return False
+
+    # Held 429s (#696) are transient throttles: with the hold enabled the
+    # dedicated branch in _handle_processing_failure intercepts them first;
+    # with it disabled they fall through to the legacy rate-limited retry
+    # path (failed, retry_count preserved).
+    if isinstance(error, ProviderRateLimitedError):
+        return True
 
     # Oversized enclosures never shrink on retry; the operator can raise
     # MAX_AUDIO_DOWNLOAD_MB and reprocess (#493).
@@ -806,6 +818,14 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     if ad_detection_status == 'failed':
         error_msg = ad_result.get('error', 'Unknown error')
         audio_logger.error(f"[{slug}:{episode_id}] Ad detection failed: {error_msg}")
+        if ad_result.get('rate_limited_hold'):
+            # Held 429 (#696): typed so the failure handler defers the
+            # episode and pauses the queue until the provider's reset.
+            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
+            raise ProviderRateLimitedError(
+                f"Ad detection failed: {error_msg}",
+                retry_after_seconds=float(ad_result.get('retry_after_seconds') or 0),
+            )
         if ad_result.get('connectivity'):
             # Endpoint unreachable rather than a bad response: typed so the
             # offline queue (#482) can defer instead of failing the episode.
@@ -4006,6 +4026,28 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
 
     status_service.fail_job()
 
+    # Rate-limit hold (#696): a 429 with a provider-reported reset defers
+    # instead of failing and pauses new queue claims until the reset. Runs
+    # before the offline-queue branch: a held 429 is throttling, not an
+    # outage. retry_count untouched; deferred_at stamped once per lifecycle.
+    if isinstance(error, ProviderRateLimitedError) and is_rate_limit_hold_enabled(db):
+        first_deferred_at = (episode_data or {}).get('deferred_at') or utc_now_iso()
+        hold_until = (datetime.now(timezone.utc)
+                      + timedelta(seconds=max(0.0, float(error.retry_after_seconds))))
+        hold_until_iso = hold_until.strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, hold_until_iso)
+        db.upsert_episode(
+            slug, episode_id,
+            status=EpisodeStatus.DEFERRED.value,
+            error_message=f"Paused (LLM rate limit until {hold_until_iso}): {error}",
+            deferred_at=first_deferred_at,
+            deferred_service=RATE_LIMIT_DEFERRED_SERVICE,
+        )
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Rate-limit hold: paused until "
+            f"{hold_until_iso} (provider reset)")
+        return
+
     # Offline queue (#482): endpoint-down failures defer instead of failing.
     # Only typed exceptions qualify -- never string matching -- so genuine
     # errors keep today's retry/permanent path. retry_count is untouched so a
@@ -4035,8 +4077,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     transient = is_transient_error(error)
     current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
 
-    # 429 retries don't burn retry_count (#238).
-    rate_limited = is_rate_limit_error(error)
+    # 429 retries don't burn retry_count (#238). The held-429 type counts
+    # too: with the hold disabled it rides the legacy rate-limited path.
+    rate_limited = is_rate_limit_error(error) or isinstance(error, ProviderRateLimitedError)
 
     # Auth outages are operator-fixable and can outlast any retry ladder, so
     # they must not burn retry_count or trip permanently_failed, regardless

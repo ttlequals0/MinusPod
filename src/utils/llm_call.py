@@ -14,6 +14,7 @@ from llm_client import (
     extract_retry_after,
     get_effective_provider,
     StructuralRateLimitError,
+    ProviderRateLimitedError,
 )
 # webhook_service is lazy-imported at the call sites below (only entered on
 # the alert paths: auth failure, limit exceeded, structural-429). Keeping it
@@ -52,6 +53,16 @@ def _call_once(llm_client, llm_kwargs, model):
 
 def _is_retryable(error) -> bool:
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
+
+
+def _hold_reset_seconds(error) -> float | None:
+    """Reset delay to hold a queue pause on (#696), or None. Lazy import
+    keeps this module's import-time graph free of webhook_service."""
+    try:
+        from rate_limit_hold import hold_reset_seconds
+        return hold_reset_seconds(error)
+    except Exception:
+        return None
 
 
 def _fire_limit_exceeded_webhook(error, model):
@@ -163,6 +174,20 @@ def call_llm(
                 break
             if _is_retryable(e) and attempt < max_retries:
                 if is_rate_limit_error(e):
+                    # Rate-limit hold (#696): when enabled, a provider-reported
+                    # reset breaks the loop with a typed error instead of
+                    # sleeping the single consumer thread. Without a usable
+                    # reset time (or hold disabled) the sleep path is unchanged.
+                    hold_after = _hold_reset_seconds(e)
+                    if hold_after is not None:
+                        last_error = ProviderRateLimitedError(
+                            f"provider rate limit resets in {hold_after:.0f}s: {e}",
+                            retry_after_seconds=hold_after)
+                        logger.warning(
+                            f"[{slug}:{episode_id}] {call_label} rate limit: "
+                            f"holding queue {hold_after:.0f}s until provider reset"
+                        )
+                        break
                     retry_after = extract_retry_after(e)
                     if retry_after is not None:
                         delay = retry_after + random.uniform(0.0, 2.0)
