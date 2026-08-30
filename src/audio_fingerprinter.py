@@ -66,6 +66,29 @@ FALLBACK_SLOW_TIMEOUT = 90
 _POPCOUNT8 = np.array([bin(i).count('1') for i in range(256)], dtype=np.uint16)
 
 
+def _fpcalc_output_or_none(result, warn_prefix: str) -> dict | None:
+    """Parse fpcalc's JSON stdout, or None when unusable.
+
+    A non-zero exit is not by itself a failure: fpcalc (via libavcodec)
+    exits non-zero after recoverable mid-stream decode glitches while still
+    emitting a complete fingerprint (#690), so callers gate on the parsed
+    output, not the exit code. stderr is logged whenever the exit is
+    non-zero; the payload wins when both are present.
+    """
+    stderr = result.stderr.decode(errors='replace').strip() if result.stderr else ''
+    if result.returncode != 0:
+        logger.warning(f"{warn_prefix}: exit {result.returncode}: {stderr[:300]}")
+    try:
+        data = json.loads(result.stdout.decode())
+    except (ValueError, UnicodeDecodeError):
+        if result.returncode == 0:
+            logger.warning(f"{warn_prefix}: unparseable stdout: {stderr[:300]}")
+        return None
+    if not data.get('fingerprint'):
+        return None
+    return data
+
+
 def _popcount32(x):
     """Vectorized population count for a uint32 numpy array."""
     return (_POPCOUNT8[x & 0xFF] + _POPCOUNT8[(x >> 8) & 0xFF]
@@ -496,12 +519,9 @@ class AudioFingerprinter:
                     timeout=FPCALC_TIMEOUT,
                 )
 
-            if result.returncode != 0:
-                logger.warning(f"fpcalc failed: {result.stderr.decode()}")
+            data = _fpcalc_output_or_none(result, 'fpcalc')
+            if data is None:
                 return None
-
-            # Parse JSON output
-            data = json.loads(result.stdout.decode())
 
             return AudioFingerprint(
                 fingerprint=data.get('fingerprint', ''),
@@ -631,15 +651,14 @@ class AudioFingerprinter:
             cmd = [self._fpcalc_path, '-raw', '-json', '-length', '0', audio_path]
             result = tracked_run(cmd, capture_output=True, timeout=timeout)
 
-            if result.returncode != 0:
-                logger.warning(f"Full-file fpcalc failed: {result.stderr.decode()}")
+            data = _fpcalc_output_or_none(result, 'Full-file fpcalc')
+            if data is None:
                 return None
 
-            data = json.loads(result.stdout.decode())
             raw_ints = data.get('fingerprint', [])
             duration = data.get('duration', 0)
 
-            if not raw_ints or not isinstance(raw_ints, list):
+            if not isinstance(raw_ints, list):
                 return None
 
             logger.debug(f"Full-file fingerprint: {len(raw_ints)} ints for {duration:.1f}s")
@@ -685,12 +704,11 @@ class AudioFingerprinter:
             finally:
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
-            if result.returncode != 0:
-                logger.warning(f"span fpcalc failed: {result.stderr.decode()}")
+            data = _fpcalc_output_or_none(result, 'span fpcalc')
+            if data is None:
                 return None
-            data = json.loads(result.stdout.decode())
             raw_ints = data.get('fingerprint', [])
-            if not raw_ints or not isinstance(raw_ints, list):
+            if not isinstance(raw_ints, list):
                 return None
             return (raw_ints, data.get('duration', end_s - start_s))
         except subprocess.CalledProcessError as e:
