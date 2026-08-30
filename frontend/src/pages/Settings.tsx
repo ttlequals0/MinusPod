@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, setQueuePriority, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
 import type { PromptName } from '../api/settings';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
@@ -16,7 +16,7 @@ import DataManagementSection from './settings/DataManagementSection';
 import NotificationsSection from './settings/NotificationsSection';
 import AuthenticatedFeedsSection from './settings/AuthenticatedFeedsSection';
 import SecuritySection from './settings/SecuritySection';
-import ProcessingQueueSection from './settings/ProcessingQueueSection';
+import ProcessingQueueSection, { QUEUE_PAGE_SIZE } from './settings/ProcessingQueueSection';
 import ConfirmResetButton from './settings/ConfirmResetButton';
 import AppearanceSection from './settings/AppearanceSection';
 import PodcastIndexSection from './settings/PodcastIndexSection';
@@ -345,9 +345,16 @@ function Settings() {
     queryFn: getSystemStatus,
   });
 
+  // Page state lives here, not in ProcessingQueueSection: that panel remounts
+  // on idle<->active transitions, which would reset a local useState.
+  const [queuePage, setQueuePage] = useState(1);
   const { data: processingEpisodes } = useQuery({
-    queryKey: ['processing-episodes'],
-    queryFn: getProcessingEpisodes,
+    queryKey: ['processing-episodes', queuePage],
+    queryFn: () => getProcessingEpisodes({
+      queueOffset: (queuePage - 1) * QUEUE_PAGE_SIZE,
+      queueLimit: QUEUE_PAGE_SIZE,
+    }),
+    placeholderData: keepPreviousData,
     refetchInterval: 5000,
   });
 
@@ -422,6 +429,14 @@ function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
       queryClient.invalidateQueries({ queryKey: ['status'] });
+    },
+  });
+
+  const priorityMutation = useMutation({
+    mutationFn: (params: { slug: string; episodeId: string; priority: number }) =>
+      setQueuePriority(params.slug, params.episodeId, params.priority),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
     },
   });
 
@@ -811,6 +826,10 @@ function Settings() {
         cancelingKey={cancelMutation.variables
           ? `${cancelMutation.variables.slug}:${cancelMutation.variables.episodeId}`
           : null}
+        queuePage={queuePage}
+        onQueuePage={setQueuePage}
+        onPriorityChange={(params) => priorityMutation.mutate(params)}
+        priorityIsPending={priorityMutation.isPending}
       />
 
       {/* Settings search: filters the configurable sections below by matching a

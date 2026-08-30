@@ -1,7 +1,7 @@
 /**
- * Tests for the Processing Queue section: the panel now renders the whole
- * pending queue (positions, "show all" past the preview limit, per-row cancel)
- * instead of the active job alone.
+ * Tests for the Processing Queue section: the active job, the paginated
+ * waiting list (offset-aware positions, page controls, per-row priority
+ * stepper), and per-row cancel.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -30,16 +30,36 @@ function queued(position: number, overrides: Partial<ProcessingEpisode> = {}): P
     startedAt: null,
     stage: 'queued',
     queuePosition: position,
+    queueId: position,
+    priority: 0,
     ...overrides,
   };
 }
 
-function renderSection(episodes: ProcessingEpisode[] | undefined, onCancel = vi.fn()) {
+interface RenderOptions {
+  queuePage?: number;
+  onQueuePage?: (page: number) => void;
+  onPriorityChange?: (params: { slug: string; episodeId: string; priority: number }) => void;
+  priorityIsPending?: boolean;
+  cancelIsPending?: boolean;
+  cancelingKey?: string | null;
+}
+
+function renderSection(
+  episodes: ProcessingEpisode[] | undefined,
+  onCancel = vi.fn(),
+  options: RenderOptions = {},
+) {
   render(
     <ProcessingQueueSection
       processingEpisodes={episodes}
       onCancel={onCancel}
-      cancelIsPending={false}
+      cancelIsPending={options.cancelIsPending ?? false}
+      cancelingKey={options.cancelingKey}
+      queuePage={options.queuePage ?? 1}
+      onQueuePage={options.onQueuePage ?? vi.fn()}
+      onPriorityChange={options.onPriorityChange ?? vi.fn()}
+      priorityIsPending={options.priorityIsPending ?? false}
     />
   );
   return onCancel;
@@ -57,7 +77,7 @@ describe('ProcessingQueueSection', () => {
     expect(screen.getByText(/Transcribing/)).toBeTruthy();
   });
 
-  it('lists every queued episode with its position', () => {
+  it('lists queued episodes with their positions', () => {
     renderSection([active(), queued(1), queued(2), queued(3)]);
 
     expect(screen.getByText('Waiting (3)')).toBeTruthy();
@@ -66,29 +86,42 @@ describe('ProcessingQueueSection', () => {
     expect(screen.getByText('3')).toBeTruthy();
   });
 
-  it('counts the whole backlog even when the API caps the rows it returns', async () => {
-    const user = userEvent.setup();
-    const episodes = Array.from({ length: 12 }, (_, i) => queued(i + 1, { queueTotal: 40 }));
+  it('does not paginate a backlog that fits one page', () => {
+    const episodes = Array.from({ length: 12 }, (_, i) => queued(i + 1));
     renderSection(episodes);
-
-    expect(screen.getByText('Waiting (40)')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Show all 12' }));
-    expect(screen.getByText('+28 further back in the queue')).toBeTruthy();
+    expect(screen.queryByText(/Page 1 of/)).toBeNull();
   });
 
-  it('collapses a long queue behind a show-all toggle', async () => {
+  it('paginates a backlog larger than the page size', () => {
+    // A real page-2 response: only that page's rows, with their global positions.
+    const episodes = Array.from({ length: 5 }, (_, i) =>
+      queued(26 + i, { queueTotal: 30 }));
+    renderSection(episodes, vi.fn(), { queuePage: 2 });
+
+    expect(screen.getByText('Waiting (30)')).toBeTruthy();
+    expect(screen.getByText('Queued Episode 30')).toBeTruthy();
+    expect(screen.queryByText('Queued Episode 1')).toBeNull();
+    expect(screen.getByText('Page 2 of 2 (30 total)')).toBeTruthy();
+  });
+
+  it('steps the priority of a DB-backed row', async () => {
     const user = userEvent.setup();
-    const episodes = Array.from({ length: 14 }, (_, i) => queued(i + 1));
-    renderSection(episodes);
+    const onPriorityChange = vi.fn();
+    renderSection([queued(1, { priority: 4, queueId: 9 })], vi.fn(), { onPriorityChange });
 
-    expect(screen.getByText('Queued Episode 10')).toBeTruthy();
-    expect(screen.queryByText('Queued Episode 11')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Increase priority for Queued Episode 1' }));
+    expect(onPriorityChange).toHaveBeenCalledWith({
+      slug: 'pod', episodeId: 'ep-1', priority: 5,
+    });
+    await user.click(screen.getByRole('button', { name: 'Decrease priority for Queued Episode 1' }));
+    expect(onPriorityChange).toHaveBeenLastCalledWith({
+      slug: 'pod', episodeId: 'ep-1', priority: 3,
+    });
+  });
 
-    await user.click(screen.getByRole('button', { name: 'Show all 14' }));
-    expect(screen.getByText('Queued Episode 14')).toBeTruthy();
-
-    await user.click(screen.getByRole('button', { name: 'Show fewer' }));
-    expect(screen.queryByText('Queued Episode 11')).toBeNull();
+  it('shows no stepper for display-queue-only rows', () => {
+    renderSection([queued(1, { queueId: null, priority: null })]);
+    expect(screen.queryByRole('button', { name: /priority for Queued Episode 1/ })).toBeNull();
   });
 
   it('cancels the queued episode whose row was clicked', async () => {
@@ -103,14 +136,10 @@ describe('ProcessingQueueSection', () => {
   });
 
   it('only labels the row being canceled', () => {
-    render(
-      <ProcessingQueueSection
-        processingEpisodes={[queued(1), queued(2)]}
-        onCancel={vi.fn()}
-        cancelIsPending
-        cancelingKey="pod:ep-2"
-      />
-    );
+    renderSection([queued(1), queued(2)], vi.fn(), {
+      cancelIsPending: true,
+      cancelingKey: 'pod:ep-2',
+    });
 
     expect(screen.getAllByRole('button', { name: 'Cancel' })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Canceling...' })).toBeTruthy();

@@ -82,15 +82,33 @@ export interface ProcessingEpisode {
   /** Size of the whole backlog, which can exceed the rows the API returns. */
   queueTotal?: number;
   priority?: number | null;
+  /** Pending auto_process_queue row id; null for display-queue-only entries. */
+  queueId?: number | null;
 }
 
-export async function getProcessingEpisodes(): Promise<ProcessingEpisode[]> {
-  return apiRequest<ProcessingEpisode[]>('/episodes/processing');
+export async function getProcessingEpisodes(params?: {
+  queueOffset?: number;
+  queueLimit?: number;
+}): Promise<ProcessingEpisode[]> {
+  const search = new URLSearchParams();
+  if (params?.queueOffset) search.set('offset', String(params.queueOffset));
+  if (params?.queueLimit) search.set('limit', String(params.queueLimit));
+  const qs = search.toString();
+  return apiRequest<ProcessingEpisode[]>(`/episodes/processing${qs ? `?${qs}` : ''}`);
 }
 
 export async function cancelProcessing(slug: string, episodeId: string): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/feeds/${slug}/episodes/${episodeId}/cancel`, {
     method: 'POST',
+  });
+}
+
+export async function setQueuePriority(
+  slug: string, episodeId: string, priority: number,
+): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/feeds/${slug}/episodes/${episodeId}/queue-priority`, {
+    method: 'POST',
+    body: { priority },
   });
 }
 
