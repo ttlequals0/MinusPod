@@ -253,6 +253,27 @@ export async function updateOfflineQueueSettings(
   });
 }
 
+export interface RateLimitHoldSettings {
+  enabled: boolean;
+  ttlHours: number;
+  /** ISO timestamp until which new queue claims pause, or null when idle. */
+  holdUntil: string | null;
+  holdCount: number;
+}
+
+export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings> {
+  return apiRequest<RateLimitHoldSettings>('/settings/rate-limit-hold');
+}
+
+export async function updateRateLimitHoldSettings(
+  args: Partial<Pick<RateLimitHoldSettings, 'enabled' | 'ttlHours'>>,
+): Promise<RateLimitHoldSettings> {
+  return apiRequest<RateLimitHoldSettings>('/settings/rate-limit-hold', {
+    method: 'PUT',
+    body: args,
+  });
+}
+
 export async function runDatabaseBackupNow(): Promise<DatabaseBackupRunSummary> {
   return apiRequest<DatabaseBackupRunSummary>('/system/db-backup/run', {
     method: 'POST',

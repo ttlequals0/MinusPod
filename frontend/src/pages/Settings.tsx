@@ -49,7 +49,7 @@ import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
 import PositionalPriorSection from './settings/PositionalPriorSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import DatabaseBackupSection from './settings/DatabaseBackupSection';
-import OfflineQueueSection from './settings/OfflineQueueSection';
+import QueueControlSection from './settings/QueueControlSection';
 import { Search, X } from 'lucide-react';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
 import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
@@ -915,20 +915,12 @@ function Settings() {
         onAutoProcessEnabledChange={setAutoProcessEnabled}
         rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
         onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
-        queueManualBoost={queueManualBoost}
-        onQueueManualBoostChange={setQueueManualBoost}
-        queueFreshBoost={queueFreshBoost}
-        onQueueFreshBoostChange={setQueueFreshBoost}
-        queueBulkBoost={queueBulkBoost}
-        onQueueBulkBoostChange={setQueueBulkBoost}
         podpingEnabled={podpingEnabled}
         onPodpingEnabledChange={setPodpingEnabled}
         maxFeedEpisodes={maxFeedEpisodes}
         onMaxFeedEpisodesChange={setMaxFeedEpisodes}
         onlyExposeProcessedDefault={onlyExposeProcessedDefault}
         onOnlyExposeProcessedDefaultChange={setOnlyExposeProcessedDefault}
-        processNewEpisodesFirst={settings?.processNewEpisodesFirst?.value ?? settings?.defaults?.processNewEpisodesFirst ?? true}
-        onProcessNewEpisodesFirstChange={(v) => tunableMutation.mutate({ processNewEpisodesFirst: v })}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
         episodeLogRetentionDays={episodeLogRetentionDays}
@@ -937,6 +929,17 @@ function Settings() {
         onEpisodeLogLevelChange={setEpisodeLogLevel}
         textRecurrenceHints={settings?.textRecurrenceHints?.value ?? settings?.defaults?.textRecurrenceHints ?? false}
         onTextRecurrenceHintsChange={(v) => tunableMutation.mutate({ textRecurrenceHints: v })}
+      />
+
+      <QueueControlSection
+        processNewEpisodesFirst={settings?.processNewEpisodesFirst?.value ?? settings?.defaults?.processNewEpisodesFirst ?? true}
+        onProcessNewEpisodesFirstChange={(v) => tunableMutation.mutate({ processNewEpisodesFirst: v })}
+        queueManualBoost={queueManualBoost}
+        onQueueManualBoostChange={setQueueManualBoost}
+        queueFreshBoost={queueFreshBoost}
+        onQueueFreshBoostChange={setQueueFreshBoost}
+        queueBulkBoost={queueBulkBoost}
+        onQueueBulkBoostChange={setQueueBulkBoost}
       />
 
       <SegmentActionsSection
@@ -1194,8 +1197,6 @@ function Settings() {
         maxRssBytes={maxRssBytes}
         onMaxRssBytesChange={setMaxRssBytes}
       />
-
-      <OfflineQueueSection />
 
       <DatabaseBackupSection />
 
