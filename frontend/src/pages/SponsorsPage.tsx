@@ -1,13 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  getSponsors, deleteSponsor,
-  getNormalizations, deleteNormalization,
-} from '../api/sponsors';
+import { getSponsors, deleteSponsor } from '../api/sponsors';
 import { getTagVocabulary } from '../api/community';
-import { Sponsor, SponsorNormalization } from '../api/types';
+import { Sponsor } from '../api/types';
 import SponsorEditModal from '../components/SponsorEditModal';
-import NormalizationEditModal from '../components/NormalizationEditModal';
 import { ConfirmModal } from '../components/Modal';
 import { TagChips } from '../components/TagChips';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -19,7 +15,6 @@ import Checkbox from '../components/Checkbox';
 import { selectBase } from '../components/fieldStyles';
 import { focusRing } from '../components/fieldStyles';
 
-type Tab = 'sponsors' | 'normalizations';
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
 
 function StatusBadge({ active }: { active: boolean }) {
@@ -38,44 +33,14 @@ function StatusBadge({ active }: { active: boolean }) {
 
 function SponsorsPage() {
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>('sponsors');
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Sponsors</h1>
-        {/* self-start: in the stacked mobile layout this is a flex item and
-            would otherwise stretch full width, trailing an empty border.
-            Scoped to mobile so the sm: row keeps its items-center alignment. */}
-        <div className="inline-flex self-start sm:self-center rounded-lg border border-border overflow-hidden text-sm">
-          <button
-            type="button"
-            onClick={() => setTab('sponsors')}
-            className={`px-4 py-1.5 transition-colors ${
-              tab === 'sponsors'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-card text-muted-foreground hover:bg-accent'
-            } ${focusRing}`}
-          >
-            Sponsors
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('normalizations')}
-            className={`px-4 py-1.5 border-l border-border transition-colors ${
-              tab === 'normalizations'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-card text-muted-foreground hover:bg-accent'
-            } ${focusRing}`}
-          >
-            Normalizations
-          </button>
-        </div>
       </div>
 
-      {tab === 'sponsors'
-        ? <SponsorsSection queryClient={queryClient} />
-        : <NormalizationsSection />}
+      <SponsorsSection queryClient={queryClient} />
     </div>
   );
 }
@@ -290,126 +255,6 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
           <p className="text-xs text-muted-foreground">
             Note: if this name is detected again, or it is part of the seeded list, it can reappear.
           </p>
-        </ConfirmModal>
-      )}
-    </div>
-  );
-}
-
-function NormalizationsSection() {
-  const queryClient = useQueryClient();
-  const [editing, setEditing] = useState<SponsorNormalization | null | undefined>(undefined);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-
-  const { data: norms, isLoading, error } = useQuery({
-    queryKey: ['normalizations'],
-    queryFn: getNormalizations,
-  });
-
-  const del = useMutation({
-    mutationFn: (id: number) => deleteNormalization(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['normalizations'] });
-      setDeleteId(null);
-    },
-  });
-
-  if (isLoading) return <LoadingSpinner className="py-12" />;
-  if (error) return <div className="text-center py-12"><p className="text-destructive">Failed to load normalizations</p></div>;
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-muted-foreground">{norms?.length || 0} rules</div>
-        <button
-          type="button"
-          onClick={() => setEditing(null)}
-          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
-        >
-          + Add Normalization
-        </button>
-      </div>
-
-      {/* Mobile cards */}
-      <div className="sm:hidden space-y-3">
-        {norms?.map((n) => (
-          <div key={n.id} className="bg-card rounded-lg border border-border p-4">
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <span className="text-sm font-mono text-foreground break-all">{n.terms}</span>
-              <span className="shrink-0 px-2 py-0.5 text-xs rounded bg-muted text-muted-foreground">{n.category}</span>
-            </div>
-            <div className="text-sm text-foreground mb-3 break-all">
-              <span className="text-muted-foreground">→ </span>{n.canonical}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setEditing(n)} className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}>Edit</button>
-              <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
-            </div>
-          </div>
-        ))}
-        {norms?.length === 0 && (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">No normalizations</div>
-        )}
-      </div>
-
-      {/* Desktop table */}
-      <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed divide-y divide-border">
-            <colgroup>
-              <col className="w-[34%]" />
-              <col className="w-[30%]" />
-              <col className="w-[14%]" />
-              <col className="w-[22%]" />
-            </colgroup>
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Pattern</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Replacement</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Category</th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {norms?.map((n) => (
-                <tr key={n.id} className="hover:bg-accent/50 transition-colors">
-                  <td className="px-4 py-3 overflow-hidden"><span className="text-sm font-mono text-foreground truncate block">{n.terms}</span></td>
-                  <td className="px-4 py-3 overflow-hidden"><span className="text-sm text-foreground truncate block">{n.canonical}</span></td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="px-2 py-0.5 text-xs rounded bg-muted text-muted-foreground">{n.category}</span>
-                  </td>
-                  <td className="px-2 py-3 whitespace-nowrap text-xs">
-                    <div className="flex gap-1">
-                      <button onClick={() => setEditing(n)} className={`px-2 py-1 rounded ${btnOutline} ${focusRing}`}>Edit</button>
-                      <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {norms?.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No normalizations</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {editing !== undefined && (
-        <NormalizationEditModal
-          normalization={editing}
-          onClose={() => setEditing(undefined)}
-          onSaved={() => setEditing(undefined)}
-        />
-      )}
-
-      {deleteId !== null && (
-        <ConfirmModal
-          title="Delete normalization?"
-          pending={del.isPending}
-          onCancel={() => setDeleteId(null)}
-          onConfirm={() => del.mutate(deleteId)}
-        >
-          <p className="text-muted-foreground">This permanently removes the rule.</p>
         </ConfirmModal>
       )}
     </div>

@@ -39,6 +39,7 @@ import AudioSection from './settings/AudioSection';
 import CoverArtSection from './settings/CoverArtSection';
 import { refreshAllArtwork } from '../api/feeds';
 import AdDetectionSection from './settings/AdDetectionSection';
+import TranscriptNormalizationSection from './settings/TranscriptNormalizationSection';
 import SeedSponsorsSection from './settings/SeedSponsorsSection';
 import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import SegmentActionsSection from './settings/SegmentActionsSection';
@@ -1042,6 +1043,8 @@ function Settings() {
         timeoutsSaveIsSuccess={processingTimeoutsMutation.isSuccess}
         timeoutsError={timeoutsError}
       />
+
+      <TranscriptNormalizationSection />
 
       <AdDetectionSection
         minCutConfidence={minCutConfidence}
