@@ -736,6 +736,35 @@ CATEGORY_REPAIR_JSON_SCHEMA = {
     "required": ["categories"],
 }
 
+# Structured-output schema for detection windows (#694), used only when the
+# provider gate passes (llm_client.supports_json_schema_for_calls). Wrapped
+# under "ads" because json_schema responses must be JSON objects;
+# parse_ads_from_response already unwraps that envelope. All properties are
+# optional so both timestamp and segment-id addressing modes, and every
+# field subset models actually emit, still validate.
+AD_DETECTION_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ads": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "start": {"type": "number"},
+                    "end": {"type": "number"},
+                    "start_id": {"type": "integer"},
+                    "end_id": {"type": "integer"},
+                    "category": {"type": "string"},
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                    "note": {"type": "string"},
+                },
+            },
+        },
+    },
+    "required": ["ads"],
+}
+
 # Small fixed budget: the repair call only ever emits a short JSON array,
 # not full-length ad detection. Not user-tunable; this is an internal call.
 CATEGORY_REPAIR_MAX_TOKENS = 1024

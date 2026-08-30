@@ -21,6 +21,7 @@ from llm_client import (
     is_rate_limit_error, is_limit_exceeded_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
+    supports_json_schema_for_calls,
     StructuralRateLimitError, ProviderRateLimitedError,
 )
 from run_log import run_in_worker_thread
@@ -127,6 +128,7 @@ from .prompts import (
     CATEGORY_REPAIR_SYSTEM_PROMPT,
     CATEGORY_REPAIR_JSON_SCHEMA,
     CATEGORY_REPAIR_MAX_TOKENS,
+    AD_DETECTION_JSON_SCHEMA,
     format_category_repair_prompt,
     parse_category_repair_response,
     SEGMENT_ID_SYSTEM_SECTION,
@@ -971,6 +973,18 @@ class AdDetector:
 
         max_tokens, temperature, reasoning = resolve_stage_tunables(prefix)
 
+        if supports_json_schema_for_calls():
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "ad_detection",
+                    "description": "Ad segments detected in this window.",
+                    "schema": AD_DETECTION_JSON_SCHEMA,
+                },
+            }
+        else:
+            response_format = None
+
         return call_llm_for_window(
             llm_client=self._llm_client,
             model=model,
@@ -985,6 +999,7 @@ class AdDetector:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            response_format=response_format,
         )
 
     def _process_single_window(self, *, window_idx, window, total_windows,
@@ -1424,7 +1439,7 @@ class AdDetector:
 
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
 
-        if supports_json_schema(get_effective_provider()):
+        if supports_json_schema(get_effective_provider()) or supports_json_schema_for_calls():
             response_format = {
                 "type": "json_schema",
                 "json_schema": {

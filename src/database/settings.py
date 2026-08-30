@@ -440,6 +440,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'omit_temperature': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='omitTemperature', payload_kind='bool'),
+    # Operator opt-in (#693): send response_format json_schema to
+    # OpenAI-compatible endpoints after a passing provider-level probe.
+    'llm_json_schema_enabled': SettingSpec(
+        default='false', seeded=True, resettable=False,
+        payload_key='llmJsonSchemaEnabled', payload_kind='bool'),
     'llm_provider': SettingSpec(
         env_backed=True, seeded=True,
         in_ad_reset=True, payload_key='llmProvider',

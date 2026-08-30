@@ -36,7 +36,13 @@ class _FakeRateLimitError(FakeProviderError):
 def _set_hold_enabled(enabled: bool) -> None:
     """Flip the hold toggle and drop the provider settings cache so the
     5s TTL cache cannot serve a stale flag to the next call."""
-    db.set_setting('rate_limit_hold_enabled', 'true' if enabled else 'false')
+    value = 'true' if enabled else 'false'
+    db.set_setting('rate_limit_hold_enabled', value)
+    # llm_client's cached read constructs its own Database(); the bootstrap
+    # pattern can leave that in a different temp dir than main_app.db, so
+    # write the toggle through both.
+    from database import Database
+    Database().set_setting('rate_limit_hold_enabled', value)
     import llm_client
     llm_client.invalidate_provider_cache()
 

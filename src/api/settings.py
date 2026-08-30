@@ -286,6 +286,8 @@ def get_settings():
 
     omit_temperature = coerce_bool_setting(_setting_value(
         settings, 'omit_temperature', registry_default('omit_temperature')))
+    llm_json_schema_enabled = coerce_bool_setting(_setting_value(
+        settings, 'llm_json_schema_enabled', registry_default('llm_json_schema_enabled')))
 
     segment_category_actions = resolve_segment_category_actions_map(
         _setting_value(settings, 'segment_category_actions',
@@ -588,6 +590,7 @@ def get_settings():
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
         'omitTemperature': _sv('omit_temperature', omit_temperature),
+        'llmJsonSchemaEnabled': _sv('llm_json_schema_enabled', llm_json_schema_enabled),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
         'pricingSourceMode': _sv('pricing_source_mode', pricing_source_mode),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
@@ -990,6 +993,16 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['omitTemperature'] else 'false'
         db.set_setting('omit_temperature', value, is_default=False)
         logger.info(f"Updated omit_temperature to: {value}")
+
+    if 'llmJsonSchemaEnabled' in data:
+        value = 'true' if data['llmJsonSchemaEnabled'] else 'false'
+        db.set_setting('llm_json_schema_enabled', value, is_default=False)
+        # Re-probe on the next endpoint verification now that the opt-in
+        # changed; drop the cached probe answer either way.
+        db.clear_setting('llm_json_schema_supported')
+        from llm_client import invalidate_provider_cache
+        invalidate_provider_cache()
+        logger.info(f"Updated llm_json_schema_enabled to: {value}")
     return None
 
 

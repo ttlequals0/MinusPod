@@ -28,6 +28,7 @@ from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from run_log import run_in_worker_thread
 from llm_client import (
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
+    supports_json_schema_for_calls,
     StructuralRateLimitError,
 )
 from utils.llm_call import call_llm, call_llm_for_window
@@ -41,6 +42,30 @@ from utils.text import (
 
 
 Verdict = Literal["confirmed", "adjust", "reject", "resurrect", "failure"]
+
+# Structured-output schema for review calls (#694), used only when the
+# provider gate passes. Wrapped under "ads" so extract_json_ads_array parses
+# the envelope unchanged; item fields mirror the verdict shape the prompt
+# already specifies.
+AD_REVIEW_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ads": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "is_ad": {"type": "boolean"},
+                    "start": {"type": "number"},
+                    "end": {"type": "number"},
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                },
+            },
+        },
+    },
+    "required": ["ads"],
+}
 
 logger = logging.getLogger(__name__)
 
@@ -984,6 +1009,18 @@ class AdReviewer:
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
         max_tokens, temperature, reasoning = resolve_stage_tunables('reviewer')
 
+        if supports_json_schema_for_calls():
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "ad_review",
+                    "description": "Review verdicts for the candidate ad.",
+                    "schema": AD_REVIEW_JSON_SCHEMA,
+                },
+            }
+        else:
+            response_format = None
+
         t0 = time.monotonic()
         response, error = call_llm_for_window(
             llm_client=self._llm_client,
@@ -999,6 +1036,7 @@ class AdReviewer:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            response_format=response_format,
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
 

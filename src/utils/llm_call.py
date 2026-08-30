@@ -245,11 +245,16 @@ def call_llm(
 
 
 def call_llm_for_window(
-    *, window_label: str, **kwargs
+    *, window_label: str, response_format: dict | None = None, **kwargs
 ) -> tuple[object | None, Exception | None]:
-    """Detection-window flavor of ``call_llm``: JSON-object response format."""
+    """Detection-window flavor of ``call_llm``: JSON response format.
+
+    ``response_format`` defaults to json_object; call sites with a defined
+    response schema (#694) pass a json_schema dict when the capability gate
+    passes.
+    """
     return call_llm(
         call_label=window_label,
-        response_format={"type": "json_object"},
+        response_format=response_format or {"type": "json_object"},
         **kwargs,
     )
