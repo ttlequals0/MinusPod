@@ -1,5 +1,6 @@
 """Tests for the ad reviewer."""
 import logging
+import re
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
@@ -346,8 +347,10 @@ def _dillon_segments():
 
 
 def test_user_prompt_candidate_lines_are_timestamped():
-    """Every candidate line carries its segment start/end so the model can
-    quote an exact boundary for any sentence it names."""
+    """Every line (context and candidate) carries its segment start/end so
+    the model can quote an exact boundary for any sentence it names (#695):
+    the system prompt's adjust-boundaries examples derive their answers from
+    timestamped context lines."""
     reviewer = _build_reviewer({'review_prompt': 'review'})
     prompt = reviewer._build_user_prompt(
         ad={'start': 120.0, 'end': 180.0},
@@ -358,8 +361,12 @@ def test_user_prompt_candidate_lines_are_timestamped():
     assert '[120.0s-180.0s] ad sponsor pitch' in prompt
     assert '>>> CANDIDATE AD START [120.0s] >>>' in prompt
     assert '<<< CANDIDATE AD END [180.0s] <<<' in prompt
-    # Context blocks keep the stripped single-anchor form.
-    assert '[60.0s] show content' in prompt
+    # Context blocks are per-segment timestamped like the candidate body.
+    assert '[60.0s-120.0s] before ad' in prompt
+    assert '[180.0s-240.0s] after ad' in prompt
+    assert re.search(r'lines? carry \[start-end\] second timestamps', prompt)
+    # The old stripped single-anchor context form is gone.
+    assert '[60.0s] show content' not in prompt
 
 
 def test_resurrect_prompt_candidate_lines_are_timestamped():

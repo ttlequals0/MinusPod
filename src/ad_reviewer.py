@@ -37,7 +37,6 @@ from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S,
     get_timestamped_transcript_for_range,
-    get_transcript_text_for_range,
 )
 
 
@@ -1391,20 +1390,18 @@ class AdReviewer:
         """
         start = float(ad.get("start", 0.0))
         end = float(ad.get("end", 0.0))
-        before_text = get_transcript_text_for_range(
+        # Per-segment timestamped lines everywhere, context included (#695):
+        # the system prompt's adjust-boundaries examples read exact trim
+        # timestamps out of the context lines, so those lines must carry
+        # their [start-end] anchors too, not just the candidate body.
+        before_text = get_timestamped_transcript_for_range(
             segments, max(0.0, start - 60.0), start
         )
-        # Per-segment timestamped lines so every candidate sentence carries
-        # its boundary: with only the two span-edge anchors the model cannot
-        # emit an exact trim timestamp for a sentence it names (the-tim-dillon-
-        # show a55cb5b8216d trimmed to an interpolated 20.0s when the ad's
-        # final sentence ended at 28.4s). Context blocks stay stripped: they
-        # are boundary-adjacent only and can be long.
         ad_text = get_timestamped_transcript_for_range(segments, start, end)
         if not ad_text:
             fallback = ad.get("end_text", "") or ""
             ad_text = f"[{start:.1f}s-{end:.1f}s] {fallback}" if fallback else ""
-        after_text = get_transcript_text_for_range(segments, end, end + 60.0)
+        after_text = get_timestamped_transcript_for_range(segments, end, end + 60.0)
 
         podcast_name = episode_meta.get("podcast_name", "Unknown")
         episode_title = episode_meta.get("episode_title", "Unknown")
@@ -1457,13 +1454,13 @@ class AdReviewer:
             f"{description_section}\n"
             f"{framing}\n"
             f"{cue_section}"
-            f"Transcript (60s before, the candidate ad, 60s after; candidate "
-            f"lines carry [start-end] second timestamps):\n"
-            f"[{max(0.0, start - 60.0):.1f}s] {before_text}\n"
+            f"Transcript (60s before, the candidate ad, 60s after; all lines "
+            f"carry [start-end] second timestamps):\n"
+            f"{before_text}\n"
             f">>> CANDIDATE AD START [{start:.1f}s] >>>\n"
             f"{ad_text}\n"
             f"<<< CANDIDATE AD END [{end:.1f}s] <<<\n"
-            f"[{end:.1f}s] {after_text}\n"
+            f"{after_text}\n"
         )
 
     def _render_review_prompt(self, max_shift: int, sponsor_block: str) -> str:
