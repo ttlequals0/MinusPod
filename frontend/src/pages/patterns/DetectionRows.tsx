@@ -131,7 +131,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   return (
     <div className={isCard ? 'flex flex-wrap items-center gap-1.5 min-[370px]:gap-2 pt-1' : 'flex items-center gap-1.5'}>
       {d.hasOriginalAudio && (
-        <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
+        <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'match' : 'sm'} />
       )}
       {actions.onApprove && undecided && (
         <button

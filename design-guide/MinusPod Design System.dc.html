@@ -170,6 +170,22 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
       </label>
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">16&times;16, rounded-sm, 2px border; checked = primary fill</span>
     </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <label style="font-size:13px;font-weight:500">Switch</label>
+      <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
+        <span role="switch" aria-checked="true" aria-label="Setting on" tabindex="0" style="position:relative;display:inline-flex;align-items:center;width:36px;height:20px;border-radius:9999px;background:hsl(var(--primary));cursor:pointer">
+          <span style="display:inline-block;width:14px;height:14px;margin-left:20px;border-radius:9999px;background:hsl(var(--primary-foreground))"></span>
+        </span>
+        Instant apply
+      </label>
+      <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
+        <span role="switch" aria-checked="false" aria-label="Setting off" tabindex="0" style="position:relative;display:inline-flex;align-items:center;width:36px;height:20px;border-radius:9999px;background:hsl(var(--secondary));cursor:pointer">
+          <span style="display:inline-block;width:14px;height:14px;margin-left:2px;border-radius:9999px;background:hsl(var(--primary-foreground))"></span>
+        </span>
+        Instant apply
+      </label>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">36&times;20 (h-5 w-9), 14px knob, 2px inset; checked = primary fill; aria-label required; space/enter toggles</span>
+    </div>
     <div style="display:flex;flex-direction:column;gap:6px">
       <label style="font-size:13px;font-weight:500">Inline error</label>
       <div style="padding:12px;border-radius:8px;background:hsl(var(--destructive) / 0.1);color:hsl(var(--destructive));font-size:14px;text-align:center">Invalid password</div>

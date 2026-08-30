@@ -64,6 +64,15 @@ vi.mock('../api/settings', () => ({
   runCleanup: vi.fn(),
   getProcessingEpisodes: vi.fn().mockResolvedValue([]),
   cancelProcessing: vi.fn(),
+  setQueuePriority: vi.fn(),
+  getOfflineQueueSettings: vi.fn().mockResolvedValue({
+    enabled: false, ttlHours: 48, deferredCount: 0,
+  }),
+  updateOfflineQueueSettings: vi.fn(),
+  getRateLimitHoldSettings: vi.fn().mockResolvedValue({
+    enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+  }),
+  updateRateLimitHoldSettings: vi.fn(),
   refreshModels: vi.fn(),
   getRetention: vi.fn().mockResolvedValue({ retentionDays: 30, originalRetentionDays: 30, enabled: true }),
   updateRetention: vi.fn(),
