@@ -210,28 +210,66 @@ class QueueMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_pending_queued_episodes(self, limit: int = _PENDING_QUEUE_LIMIT) -> list[dict]:
+    def get_pending_queued_episodes(self, limit: int = _PENDING_QUEUE_LIMIT,
+                                    offset: int = 0) -> list[dict]:
         """Pending queue rows in dequeue order (same ORDER BY as the claim).
 
         Feeds the Processing Queue panel, which showed only the active job plus
         the display queue and so hid the auto-process backlog entirely. Capped
-        at `limit` rows; each row carries total_pending (the uncapped count,
-        via a window function evaluated before the LIMIT) so a caller can say
-        how much of the backlog it is showing.
+        at `limit` rows with an optional `offset` for pagination; each row
+        carries total_pending (the uncapped count, via a window function
+        evaluated before the LIMIT) so a caller can say how much of the
+        backlog it is showing.
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT q.episode_id, q.title, q.priority, q.created_at,
+            """SELECT q.id as queue_id, q.episode_id, q.title, q.priority, q.created_at,
                       p.slug as podcast_slug, p.title as podcast_title,
                       COUNT(*) OVER () as total_pending
                FROM auto_process_queue q
                JOIN podcasts p ON q.podcast_id = p.id
                WHERE q.status = 'pending'
                ORDER BY q.priority DESC, q.created_at ASC
-               LIMIT ?""",
-            (limit,)
+               LIMIT ? OFFSET ?""",
+            (limit, offset)
         )
         return [dict(row) for row in cursor.fetchall()]
+
+    def set_queue_row_priority(self, slug: str, episode_id: str, priority: int) -> bool:
+        """Set the pending queue row's priority for one episode (#696).
+
+        Direct write: unlike the MAX() monotonic rule in
+        upsert_episode_for_processing, this can raise or lower. Two later
+        writes can still move it: re-enqueueing with a higher computed
+        priority (MAX rule), and restamp_pending_priorities on a feed-level
+        queuePriority change. Documented behavior, not enforced.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """UPDATE auto_process_queue
+               SET priority = ?,
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+               WHERE episode_id = ? AND status = 'pending'
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)""",
+            (int(priority), episode_id, slug)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def get_pending_queue_keys(self) -> set:
+        """(podcast_slug, episode_id) for every pending queue row.
+
+        Lets GET /episodes/processing dedup StatusService's display extras
+        against the whole backlog while paging the rows themselves.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT p.slug as podcast_slug, q.episode_id
+               FROM auto_process_queue q
+               JOIN podcasts p ON q.podcast_id = p.id
+               WHERE q.status = 'pending'"""
+        )
+        return {(r['podcast_slug'], r['episode_id']) for r in cursor.fetchall()}
 
     def claim_next_queued_episode(self) -> dict | None:
         """Atomically claim the next pending episode, marking it 'processing'.

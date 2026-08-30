@@ -102,3 +102,84 @@ def test_active_job_is_not_repeated_in_the_queue(app_client, seeded_feed):
     matching = [e for e in episodes if e['episodeId'] == 'ep-live']
     assert len(matching) == 1
     assert matching[0]['stage'] != 'queued'
+
+
+def test_pagination_returns_offset_aware_positions(app_client, seeded_feed):
+    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
+    for i in range(5):
+        _queue_row(db, podcast_id, f'ep-{i}', minutes_ago=10 - i)
+    _authed(app_client)
+
+    page2 = app_client.get('/api/v1/episodes/processing?offset=2&limit=2').get_json()
+    queued = [e for e in page2 if e['stage'] == 'queued']
+    assert [e['episodeId'] for e in queued] == ['ep-2', 'ep-3']
+    assert [e['queuePosition'] for e in queued] == [3, 4]
+    assert queued[0]['queueTotal'] == 5
+
+
+def test_db_rows_carry_queue_id(app_client, seeded_feed):
+    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
+    _queue_row(db, podcast_id, 'ep-x')
+    _authed(app_client)
+
+    queued = [e for e in app_client.get('/api/v1/episodes/processing').get_json()
+              if e['stage'] == 'queued']
+    assert queued[0]['queueId'] is not None
+
+
+def _csrf(client):
+    with client.session_transaction() as sess:
+        sess['authenticated'] = True
+    client.get('/api/v1/auth/status')
+    cookie = client.get_cookie('minuspod_csrf')
+    return {'X-CSRF-Token': cookie.value} if cookie else {}
+
+
+def test_queue_priority_setter_reorders(app_client, seeded_feed):
+    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
+    _queue_row(db, podcast_id, 'a1b2c3d4e5f6', priority=0, minutes_ago=10)
+    _queue_row(db, podcast_id, 'b2c3d4e5f6a1', priority=0, minutes_ago=1)
+    _authed(app_client)
+
+    slug = seeded_feed['slug']
+    r = app_client.post(f'/api/v1/feeds/{slug}/episodes/b2c3d4e5f6a1/queue-priority',
+                        json={'priority': 10}, headers=_csrf(app_client))
+    assert r.status_code == 200
+
+    queued = [e for e in app_client.get('/api/v1/episodes/processing').get_json()
+              if e['stage'] == 'queued']
+    assert [e['episodeId'] for e in queued] == ['b2c3d4e5f6a1', 'a1b2c3d4e5f6']
+
+    # Lowering works too: the direct write is not monotonic like re-enqueue.
+    r = app_client.post(f'/api/v1/feeds/{slug}/episodes/b2c3d4e5f6a1/queue-priority',
+                        json={'priority': -10}, headers=_csrf(app_client))
+    assert r.status_code == 200
+    queued = [e for e in app_client.get('/api/v1/episodes/processing').get_json()
+              if e['stage'] == 'queued']
+    assert [e['episodeId'] for e in queued] == ['a1b2c3d4e5f6', 'b2c3d4e5f6a1']
+
+
+def test_queue_priority_setter_validation(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    hdr = _csrf(app_client)
+    missing = 'c3d4e5f6a1b2'
+
+    assert app_client.post(f'/api/v1/feeds/{slug}/episodes/{missing}/queue-priority',
+                           json={'priority': 'high'}, headers=hdr).status_code == 400
+    assert app_client.post(f'/api/v1/feeds/{slug}/episodes/{missing}/queue-priority',
+                           json={'priority': True}, headers=hdr).status_code == 400
+    assert app_client.post(f'/api/v1/feeds/{slug}/episodes/{missing}/queue-priority',
+                           json={}, headers=hdr).status_code == 400
+    # No pending row for that episode.
+    assert app_client.post(f'/api/v1/feeds/{slug}/episodes/{missing}/queue-priority',
+                           json={'priority': 5}, headers=hdr).status_code == 404
+    assert app_client.post(f'/api/v1/feeds/no-such-feed/episodes/{missing}/queue-priority',
+                           json={'priority': 5}, headers=hdr).status_code == 404
+
+
+def test_set_queue_row_priority_ignores_non_pending_rows(seeded_feed):
+    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
+    _queue_row(db, podcast_id, 'ep-done', status='completed')
+    assert db.set_queue_row_priority(seeded_feed['slug'], 'ep-done', 10) is False
+    assert db.set_queue_row_priority(seeded_feed['slug'], 'missing', 10) is False
