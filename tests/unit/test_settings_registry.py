@@ -72,6 +72,9 @@ SEED_SNAPSHOT = {
     'max_feed_episodes': '300',
     'min_cut_confidence': '0.80',
     'offline_queue_enabled': 'false',
+    'llm_json_schema_enabled': 'false',
+    'rate_limit_hold_enabled': 'false',
+    'rate_limit_hold_ttl_hours': '48',
     'offline_queue_ttl_hours': '48',
     'omit_temperature': 'false',
     'only_expose_processed_default': 'false',
@@ -426,11 +429,13 @@ class TestGetDefaults:
         # textRecurrenceHints added after that (93 -> 94).
         # adAddressingMode added after that (94 -> 95).
         # queueManualBoost + queueFreshBoost + queueBulkBoost after that (95 -> 98).
+        # llmJsonSchemaEnabled after that (98 -> 99). The rate-limit hold
+        # settings have no payload keys (dedicated endpoint).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 98
+        assert len(payload_keys) == 99
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 
