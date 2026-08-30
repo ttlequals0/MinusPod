@@ -25,11 +25,18 @@ REPROCESS_MODE_NEEDS_TRANSCRIPT = {
     'recut': False,
 }
 
+# 'details' modes re-transcribe, but their clear is deferred to the
+# transcribe stage (immediately before the fresh save) so a crash mid-run
+# leaves the prior transcript and detection data intact (#692). The pipeline
+# passes force_transcription for these modes instead of relying on a
+# pre-cleared row.
+FORCE_TRANSCRIBE_MODES = frozenset({'reprocess', 'full'})
+
 
 def batch_clear_episodes_for_mode(db, slug, episode_ids, mode):
     """Bulk counterpart of clear_episode_for_mode."""
     clear = REPROCESS_MODE_CLEAR[mode]
-    if clear == 'none':
+    if clear == 'none' or mode in FORCE_TRANSCRIBE_MODES:
         return
     if clear == 'ad_data':
         db.batch_clear_episode_ad_data(slug, episode_ids)
@@ -38,9 +45,13 @@ def batch_clear_episodes_for_mode(db, slug, episode_ids, mode):
 
 
 def clear_episode_for_mode(db, slug, episode_id, mode):
-    """Clear cached detection data before a reprocess, per the mode's rule."""
+    """Clear cached detection data before a reprocess, per the mode's rule.
+
+    'details' modes are not cleared here: their wipe happens in the
+    transcribe stage, just before the fresh transcript is saved (#692).
+    """
     clear = REPROCESS_MODE_CLEAR[mode]
-    if clear == 'none':
+    if clear == 'none' or mode in FORCE_TRANSCRIBE_MODES:
         return
     if clear == 'ad_data':
         db.clear_episode_ad_data(slug, episode_id)

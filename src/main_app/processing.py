@@ -111,7 +111,8 @@ from positional_prior import format_prior_hint, load_positional_prior
 from text_recurrence import find_recurring_spans
 import run_log
 from reprocess_modes import (
-    REPROCESS_MODE_NEEDS_TRANSCRIPT, clear_episode_for_mode,
+    REPROCESS_MODE_CLEAR, REPROCESS_MODE_NEEDS_TRANSCRIPT,
+    FORCE_TRANSCRIBE_MODES, clear_episode_for_mode,
 )
 from splice_calibration import compute_splice_calibration
 from transcriber import extract_audio_chunk
@@ -476,11 +477,17 @@ def _next_processed_version(episode_data):
 
 
 def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
-                              skip_transcription=False, podcast=None):
+                              skip_transcription=False, podcast=None,
+                              force_transcription=False):
     """Pipeline stage: Download audio and get/create transcript segments.
 
     ``skip_transcription``: cue_only preset opt-out; goes straight to
     audio acquisition and returns (audio_path, []) without transcribing.
+
+    ``force_transcription``: full/reprocess reruns (#692). Transcribes fresh
+    instead of reusing the saved transcript; the stale details row (old
+    transcript plus detection data) is wiped only once the fresh transcript
+    exists in memory, so a crash cannot lose both.
 
     ``podcast``: the caller's already-fetched podcast row (avoids a
     redundant db.get_podcast_by_slug here), matching the pattern used by
@@ -498,10 +505,14 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
         else:
             audio_path = _download_episode_audio(episode_url)
         audio_logger.info(f"[{slug}:{episode_id}] Transcription skipped (per-feed setting)")
+        if force_transcription:
+            # The rerun will not write a transcript, so the stale row must
+            # go now to keep the pre-existing behavior for this combination.
+            db.clear_episode_details(slug, episode_id)
         return audio_path, []
 
     segments = None
-    transcript_text = storage.get_transcript(slug, episode_id)
+    transcript_text = None if force_transcription else storage.get_transcript(slug, episode_id)
 
     if transcript_text:
         # Prefer the saved whisper segments (with word-level timestamps) over
@@ -594,6 +605,11 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
             language_override)
 
         transcript_text = transcriber.segments_to_text(segments)
+        if force_transcription:
+            # Wipe the stale row (old transcript, markers, write-once
+            # originals) only now that the fresh transcript exists in
+            # memory (#692); the saves below recreate it.
+            db.clear_episode_details(slug, episode_id)
         storage.save_transcript(slug, episode_id, transcript_text)
         storage.save_original_transcript(slug, episode_id, transcript_text)
         storage.save_original_segments(slug, episode_id, segments)
@@ -4258,17 +4274,20 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             upsert_kwargs['published_at'] = episode_published_at
         db.upsert_episode(slug, episode_id, **upsert_kwargs)
 
-        # A policy rerun keeps the episode served until this point, so its
-        # per-mode clear happens here rather than when the rerun was queued.
+        # A policy rerun keeps the episode served until this point; its
+        # ad-data clear happens here rather than when the rerun was queued.
+        # 'details' modes clear later, inside the transcribe stage (#692).
         if (reprocess_mode
-                and (episode_data or {}).get('reprocess_source') == REPROCESS_SOURCE_POLICY):
+                and (episode_data or {}).get('reprocess_source') == REPROCESS_SOURCE_POLICY
+                and REPROCESS_MODE_CLEAR[reprocess_mode] == 'ad_data'):
             clear_episode_for_mode(db, slug, episode_id, reprocess_mode)
 
         # Stage 1: Download and transcribe
         audio_path, segments = _download_and_transcribe(
             slug, episode_id, episode_url, podcast_name,
             skip_transcription=skip_transcription_active,
-            podcast=podcast_settings)
+            podcast=podcast_settings,
+            force_transcription=(reprocess_mode in FORCE_TRANSCRIBE_MODES))
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
