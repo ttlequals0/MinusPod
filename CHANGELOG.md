@@ -9,24 +9,68 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.94.0] - 2026-08-30
 
-### Security
+### Added
 
-- browserslist 4.28.2 to 4.28.8, with its data dependencies
-  (GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g). Both advisories cover every
-  version up to 4.28.6, and they were failing the CI audit gate. Lockfile
-  only; browserslist is a build-time dependency of babel and workbox.
+- Rate-limit queue hold: when the LLM provider answers 429 with a reset
+  time, the episode waits and the queue pauses until the reset instead of
+  burning retries on a throttled provider. Off by default; give-up window
+  configurable in hours (1-720, default 48) in Settings, under AI &
+  Processing > Queue Control. Mirrors the offline queue: held episodes are
+  invisible to its probes and expiry, and the toggle gates only new holds.
+- Per-episode priority control in the Processing Queue panel: rows with a
+  pending queue entry get a -/+ stepper that raises or lowers the row's
+  priority through the new `POST /feeds/{slug}/episodes/{episodeId}/queue-priority`
+  endpoint. Unlike re-enqueueing, the write can lower a priority; a later
+  feed-level queue priority change still restamps the row.
+- The Processing Queue waiting list is paginated (25 rows per page) instead
+  of a capped flat list, so nothing is hidden behind a "+N further back in
+  the queue" note. `GET /episodes/processing` takes offset/limit (default
+  200, cap 1000), reports each row's `queueId`, and positions are
+  offset-aware across pages.
+- Queue Control, a new section in AI & Processing, groups the queue
+  priority boosts (moved out of Global Defaults), the process-new-episodes
+  toggle, the offline queue (moved out of Data & Security), and the
+  rate-limit hold.
+- Transcript Normalization now lives in AI & Processing as its own section,
+  with help text explaining that the rules correct Whisper output for
+  words, phrases, numbers, sponsor names, and URLs. The Sponsors page drops
+  its Normalizations tab.
+- Opt-in JSON schema response format for OpenAI-compatible providers
+  (#693, #694): a provider-level probe runs once after endpoint
+  verification when the toggle in the LLM Provider section is on, and
+  detection, review, and category repair then send a json_schema
+  response_format. Endpoints that do not support it fall back to
+  json_object at request build or on a runtime 400, instead of silently
+  dropping the format hint. Anthropic call sites are unchanged.
 
-## [2.94.0] - 2026-09-01
+### Fixed
 
-### Changed
-
-- Benchmark scorer now canonicalizes predictions and ground truth to
-  per-break spans (gaps under 15 seconds merged) before IoU matching,
-  matching the detection prompt's merge rule. Report regenerated from the
-  stored raw calls; per-model scores shift accordingly and are not
-  comparable to pre-2.94.0 rows.
+- A full or LLM-mode reprocess no longer wipes the episode's transcript
+  and ad markers up front (#692). The clear now happens in the transcribe
+  stage, immediately before the fresh transcript is saved, so an OOM kill
+  or container restart mid-run leaves the prior results intact and the
+  failed state visible, instead of an episode stuck at processing with
+  nothing in it.
+- fpcalc fingerprinting survives recoverable decode hiccups (#690): all
+  three fingerprint call sites parse stdout before honoring the exit code,
+  so an episode with one bad frame no longer loses all cue scanning.
+- The ad reviewer's before/after context segments now carry the same
+  per-segment timestamps as the candidate body (#695), matching the
+  system prompt examples that read exact trim boundaries out of context
+  lines.
+- The play button on ad review cards, the detected-ads rows, and the
+  episode page's held and rejected marker rows sizes to the same height as
+  the Confirm/Not-an-ad buttons beside it, instead of floating smaller.
+- The offline queue toggle uses the slimmer settings switch (h-5 w-9)
+  now documented in the design guide, consistent with every other
+  settings section.
+- 3- and 4-digit queue positions no longer paint over the episode title
+  on mobile: the position column widens and the row gains a gap.
+- The cue-template create endpoint's docstring no longer claims to accept
+  a required `label` (#691); the display label is derived from cueType so
+  the LLM prompt always sees a fixed phrase.
 
 ## [2.93.3] - 2026-08-28
 

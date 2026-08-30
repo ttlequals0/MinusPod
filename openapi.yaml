@@ -2126,6 +2126,60 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /feeds/{slug}/episodes/{episode_id}/queue-priority:
+    post:
+      tags:
+        - Processing
+      summary: Change a queued episode's priority
+      description: >-
+        Direct per-row write on the pending auto_process_queue row (#696).
+        Unlike the monotonic MAX() rule on re-enqueue, this can raise or
+        lower. A later feed-level queuePriority change restamps the row and
+        overwrites this value.
+      operationId: setEpisodeQueuePriority
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [priority]
+              properties:
+                priority:
+                  type: integer
+                  description: New dequeue priority; higher processes sooner.
+      responses:
+        '200':
+          description: Priority updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  episodeId:
+                    type: string
+                  slug:
+                    type: string
+                  priority:
+                    type: integer
+        '400':
+          description: Body is not a JSON object, or priority is not an integer
+        '404':
+          description: Feed not found, or the episode has no pending queue row
+
   /feeds/{slug}/episodes/{episode_id}/cancel:
     post:
       tags:
@@ -2263,9 +2317,28 @@ paths:
       summary: List processing and queued episodes
       description: >-
         Returns the episodes currently processing across all feeds, followed by
-        the full pending queue in dequeue order (priority first, then age).
-        Queued entries carry stage=queued and a 1-based queuePosition.
+        the pending queue in dequeue order (priority first, then age). Queued
+        entries carry stage=queued, a 1-based offset-aware queuePosition, and
+        the pending queue row's queueId. The waiting list is paginated:
+        offset/limit page over the DB-backed rows, with display-only entries
+        trailing after them.
       operationId: listProcessingEpisodes
+      parameters:
+        - name: offset
+          in: query
+          description: Waiting-list rows to skip (0-based). Defaults to 0.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          description: Maximum waiting-list rows to return. Defaults to 200, capped at 1000.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 200
       responses:
         '200':
           description: List of processing episodes
@@ -4556,6 +4629,13 @@ paths:
                     to reject it or anything learned at runtime from a prior rejection. Use
                     ahead of a newly-released model that rejects temperature, without waiting
                     for a failed call or a code change. Off by default.
+                llmJsonSchemaEnabled:
+                  type: boolean
+                  description: |
+                    Opt-in (#693): send response_format json_schema on detection, review, and
+                    category-repair calls to OpenAI-compatible endpoints, after a passing
+                    provider-level probe. Unsupported endpoints fall back to json_object.
+                    Off by default.
                 openaiBaseUrl:
                   type: string
                   description: Base URL for OpenAI-compatible API endpoint (only used when provider is not anthropic)
@@ -5509,6 +5589,80 @@ paths:
                   ttlHours:
                     type: integer
                   deferredCount:
+                    type: integer
+
+  /settings/rate-limit-hold:
+    get:
+      tags:
+        - Settings
+      summary: Get rate-limit hold configuration
+      description: >-
+        Rate-limit queue hold (#696). When enabled, a provider 429 carrying a
+        reset time defers the episode and pauses new queue claims until the
+        reset instead of failing the job.
+      operationId: getRateLimitHoldSettings
+      responses:
+        '200':
+          description: Rate-limit hold settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  ttlHours:
+                    type: integer
+                    minimum: 1
+                    maximum: 720
+                    description: Hours a held episode waits before being marked permanently failed.
+                  holdUntil:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
+                    description: Until when new queue claims pause; null when no hold is active.
+                  holdCount:
+                    type: integer
+                    description: Episodes currently held by the rate-limit hold.
+    put:
+      tags:
+        - Settings
+      summary: Update rate-limit hold configuration
+      operationId: updateRateLimitHoldSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  description: Pause the queue on a provider 429 with a reset time. Off by default.
+                ttlHours:
+                  type: integer
+                  minimum: 1
+                  maximum: 720
+                  description: Hours a held episode waits before being marked permanently failed.
+      responses:
+        '200':
+          description: Rate-limit hold settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  ttlHours:
+                    type: integer
+                  holdUntil:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
+                  holdCount:
                     type: integer
 
   /settings/update-check:
@@ -10770,6 +10924,14 @@ components:
           properties:
             value:
               type: boolean
+        llmJsonSchemaEnabled:
+          type: object
+          description: |
+            Opt-in structured output (#693): json_schema response format for
+            OpenAI-compatible endpoints after a passing provider-level probe. Off by default.
+          properties:
+            value:
+              type: boolean
             isDefault:
               type: boolean
         openaiBaseUrl:
@@ -10924,6 +11086,8 @@ components:
             podpingEnabled:
               type: boolean
             omitTemperature:
+              type: boolean
+            llmJsonSchemaEnabled:
               type: boolean
             segmentCategoryActions:
               type: object
@@ -11098,6 +11262,13 @@ components:
           description: >-
             Dequeue priority of the queue row; null for a display-queue entry
             with no auto-process queue row
+        queueId:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Pending auto_process_queue row id; null for a display-queue entry.
+            Targets the per-row priority change below.
 
     Pattern:
       type: object

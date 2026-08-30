@@ -67,6 +67,13 @@ docker-compose restart
 2. Increase container memory limit
 3. For long episodes (>2 hours), expect 16GB+ RAM usage
 
+A worker the kernel OOM-kills mid-run is recovered automatically at the
+next restart or maintenance pass, and since 2.94.0 a killed full/LLM
+reprocess leaves the episode's previous results intact. Size the
+container for the peak, though: transcription of a long episode holds
+the audio plus the Whisper model in RAM at once, which is where the
+16GB+ figure in point 3 comes from.
+
 ### Claude API errors
 
 - **Rate limited** - Built-in exponential backoff, wait 60s
