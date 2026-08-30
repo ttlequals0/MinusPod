@@ -111,7 +111,7 @@ from positional_prior import format_prior_hint, load_positional_prior
 from text_recurrence import find_recurring_spans
 import run_log
 from reprocess_modes import (
-    REPROCESS_MODE_CLEAR, REPROCESS_MODE_NEEDS_TRANSCRIPT,
+    REPROCESS_MODE_NEEDS_TRANSCRIPT,
     FORCE_TRANSCRIBE_MODES, clear_episode_for_mode,
 )
 from splice_calibration import compute_splice_calibration
@@ -196,10 +196,9 @@ def is_transient_error(error: Exception) -> bool:
     if is_limit_exceeded_error(error):
         return False
 
-    # Held 429s (#696) are transient throttles: with the hold enabled the
-    # dedicated branch in _handle_processing_failure intercepts them first;
-    # with it disabled they fall through to the legacy rate-limited retry
-    # path (failed, retry_count preserved).
+    # Held 429s (#696) are transient throttles: the hold-enabled branch in
+    # _handle_processing_failure intercepts them first; disabled, they fall
+    # through to the legacy rate-limited retry path.
     if isinstance(error, ProviderRateLimitedError):
         return True
 
@@ -4093,9 +4092,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     transient = is_transient_error(error)
     current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
 
-    # 429 retries don't burn retry_count (#238). The held-429 type counts
-    # too: with the hold disabled it rides the legacy rate-limited path.
-    rate_limited = is_rate_limit_error(error) or isinstance(error, ProviderRateLimitedError)
+    # 429 retries don't burn retry_count (#238); the held-429 type counts too,
+    # so with the hold disabled it rides the legacy rate-limited path.
+    rate_limited = is_rate_limit_error(error)
 
     # Auth outages are operator-fixable and can outlast any retry ladder, so
     # they must not burn retry_count or trip permanently_failed, regardless
@@ -4278,8 +4277,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # ad-data clear happens here rather than when the rerun was queued.
         # 'details' modes clear later, inside the transcribe stage (#692).
         if (reprocess_mode
-                and (episode_data or {}).get('reprocess_source') == REPROCESS_SOURCE_POLICY
-                and REPROCESS_MODE_CLEAR[reprocess_mode] == 'ad_data'):
+                and (episode_data or {}).get('reprocess_source') == REPROCESS_SOURCE_POLICY):
             clear_episode_for_mode(db, slug, episode_id, reprocess_mode)
 
         # Stage 1: Download and transcribe

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import type { ProcessingEpisode } from '../../api/settings';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -49,6 +49,11 @@ function ProcessingQueueSection({
   const queueTotal = queued[0]?.queueTotal ?? queued.length;
   const totalPages = Math.max(1, Math.ceil(queueTotal / QUEUE_PAGE_SIZE));
   const page = Math.min(queuePage, totalPages);
+  // The backlog shrinking under a high page would otherwise leave the host
+  // fetching an empty page while the pager shows the clamped one.
+  useEffect(() => {
+    if (page !== queuePage) onQueuePage(page);
+  }, [page, queuePage, onQueuePage]);
 
   // Write synchronously (before key-triggered remount) so the new
   // CollapsibleSection reads it. Tracked in state so we only write on
@@ -75,8 +80,8 @@ function ProcessingQueueSection({
   };
 
   const priorityStepper = (episode: ProcessingEpisode) => {
-    // Display-queue-only entries have no DB row to update.
-    if (episode.queueId == null || episode.priority == null) return null;
+    // Display-queue-only entries carry a null priority: nothing to reorder.
+    if (episode.priority == null) return null;
     const priority = (delta: number) =>
       onPriorityChange({
         slug: episode.slug,

@@ -30,7 +30,6 @@ function queued(position: number, overrides: Partial<ProcessingEpisode> = {}): P
     startedAt: null,
     stage: 'queued',
     queuePosition: position,
-    queueId: position,
     priority: 0,
     ...overrides,
   };
@@ -104,10 +103,10 @@ describe('ProcessingQueueSection', () => {
     expect(screen.getByText('Page 2 of 2 (30 total)')).toBeTruthy();
   });
 
-  it('steps the priority of a DB-backed row', async () => {
+  it('steps the priority of a reorderable row', async () => {
     const user = userEvent.setup();
     const onPriorityChange = vi.fn();
-    renderSection([queued(1, { priority: 4, queueId: 9 })], vi.fn(), { onPriorityChange });
+    renderSection([queued(1, { priority: 4 })], vi.fn(), { onPriorityChange });
 
     await user.click(screen.getByRole('button', { name: 'Increase priority for Queued Episode 1' }));
     expect(onPriorityChange).toHaveBeenCalledWith({
@@ -120,7 +119,7 @@ describe('ProcessingQueueSection', () => {
   });
 
   it('shows no stepper for display-queue-only rows', () => {
-    renderSection([queued(1, { queueId: null, priority: null })]);
+    renderSection([queued(1, { priority: null })]);
     expect(screen.queryByRole('button', { name: /priority for Queued Episode 1/ })).toBeNull();
   });
 

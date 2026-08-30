@@ -16,6 +16,7 @@ from llm_client import (
     StructuralRateLimitError,
     ProviderRateLimitedError,
 )
+from rate_limit_hold import MAX_RESET_SECONDS, is_rate_limit_hold_enabled
 # webhook_service is lazy-imported at the call sites below (only entered on
 # the alert paths: auth failure, limit exceeded, structural-429). Keeping it
 # out of this module's import-time graph lets the offline benchmark in
@@ -24,6 +25,14 @@ from llm_client import (
 from utils.retry import calculate_backoff
 
 logger = logging.getLogger(__name__)
+
+
+def json_schema_format(name: str, schema: dict, description: str | None = None) -> dict:
+    """response_format payload for schema-enforced structured output (#694)."""
+    payload = {"name": name, "schema": schema}
+    if description:
+        payload["description"] = description
+    return {"type": "json_schema", "json_schema": payload}
 
 
 class EmptyCompletionError(Exception):
@@ -53,16 +62,6 @@ def _call_once(llm_client, llm_kwargs, model):
 
 def _is_retryable(error) -> bool:
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
-
-
-def _hold_reset_seconds(error) -> float | None:
-    """Reset delay to hold a queue pause on (#696), or None. Lazy import
-    keeps this module's import-time graph free of webhook_service."""
-    try:
-        from rate_limit_hold import hold_reset_seconds
-        return hold_reset_seconds(error)
-    except Exception:
-        return None
 
 
 def _fire_limit_exceeded_webhook(error, model):
@@ -174,11 +173,11 @@ def call_llm(
                 break
             if _is_retryable(e) and attempt < max_retries:
                 if is_rate_limit_error(e):
-                    # Rate-limit hold (#696): when enabled, a provider-reported
-                    # reset breaks the loop with a typed error instead of
-                    # sleeping the single consumer thread. Without a usable
-                    # reset time (or hold disabled) the sleep path is unchanged.
-                    hold_after = _hold_reset_seconds(e)
+                    # Rate-limit hold (#696): a provider-reported reset breaks
+                    # the loop instead of sleeping the single consumer thread.
+                    hold_after = (
+                        extract_retry_after(e, max_seconds=MAX_RESET_SECONDS)
+                        if is_rate_limit_hold_enabled() else None)
                     if hold_after is not None:
                         last_error = ProviderRateLimitedError(
                             f"provider rate limit resets in {hold_after:.0f}s: {e}",

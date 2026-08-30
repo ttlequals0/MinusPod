@@ -564,6 +564,7 @@ export interface Settings {
   whisperComputeType: SettingValue;
   llmProvider: SettingValue;
   omitTemperature: SettingValueBoolean;
+  llmJsonSchemaEnabled: SettingValueBoolean;
   openaiBaseUrl: SettingValue;
   pricingSourceMode: SettingValue;
   apiKeyConfigured: boolean;
@@ -609,6 +610,7 @@ export interface Settings {
     minCutConfidence: number;
     llmProvider: LlmProvider;
     omitTemperature: boolean;
+    llmJsonSchemaEnabled: boolean;
     openaiBaseUrl: string;
     pricingSourceMode: string;
     openrouterBaseUrl: string;
@@ -799,6 +801,7 @@ export interface UpdateSettingsPayload {
   windowSizeSeconds?: number | null;
   windowOverlapSeconds?: number | null;
   omitTemperature?: boolean;
+  llmJsonSchemaEnabled?: boolean;
 }
 
 export type ReasoningLevel = 'none' | 'low' | 'medium' | 'high';

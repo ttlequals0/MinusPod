@@ -1410,10 +1410,9 @@ def get_processing_episodes():
     db = get_database()
     conn = db.get_connection()
 
-    raw_offset = request.args.get('offset', type=int)
-    raw_limit = request.args.get('limit', type=int)
-    offset = max(0, raw_offset) if raw_offset else 0
-    limit = min(max(raw_limit, 1), _QUEUE_PAGE_MAX_LIMIT) if raw_limit else _QUEUE_PAGE_DEFAULT_LIMIT
+    offset = max(0, request.args.get('offset', 0, type=int))
+    limit = min(max(request.args.get('limit', _QUEUE_PAGE_DEFAULT_LIMIT, type=int), 1),
+                _QUEUE_PAGE_MAX_LIMIT)
 
     cursor = conn.execute("""
         SELECT e.episode_id, e.title, p.slug, p.title as podcast
@@ -1474,19 +1473,19 @@ def get_processing_episodes():
             'startedAt': None,
             'queuedAt': row['created_at'],
             'priority': row['priority'],
-            'queueId': row['queue_id'],
             'stage': 'queued',
         })
 
     # Extras trail the DB backlog at virtual positions pending_total..; dedup
-    # against the full pending key set so an entry cannot repeat across pages.
-    pending_keys = db.get_pending_queue_keys() if status.queued_episodes else set()
-    valid_extras = [q for q in status.queued_episodes
-                    if (q['slug'], q['episode_id']) not in seen
-                    and (q['slug'], q['episode_id']) not in pending_keys]
+    # them against the pending rows so an entry cannot repeat across pages.
+    extras = [q for q in status.queued_episodes
+              if (q['slug'], q['episode_id']) not in seen]
+    pending_keys = (db.get_pending_queue_keys([q['episode_id'] for q in extras])
+                    if extras else set())
+    valid_extras = [q for q in extras
+                    if (q['slug'], q['episode_id']) not in pending_keys]
     start = max(0, offset - pending_total)
-    remaining = limit - len(queued)
-    page_extras = valid_extras[start:start + remaining] if remaining > 0 else []
+    page_extras = valid_extras[start:start + limit - len(queued)]
     for q in page_extras:
         queued.append({
             'episodeId': q['episode_id'],
@@ -1496,7 +1495,6 @@ def get_processing_episodes():
             'startedAt': None,
             'queuedAt': _epoch_to_iso(q.get('queued_at')),
             'priority': None,
-            'queueId': None,
             'stage': 'queued',
         })
 

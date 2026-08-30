@@ -32,20 +32,19 @@ function StatusBadge({ active }: { active: boolean }) {
 }
 
 function SponsorsPage() {
-  const queryClient = useQueryClient();
-
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Sponsors</h1>
       </div>
 
-      <SponsorsSection queryClient={queryClient} />
+      <SponsorsSection />
     </div>
   );
 }
 
-function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+function SponsorsSection() {
+  const queryClient = useQueryClient();
   const [tagFilter, setTagFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);

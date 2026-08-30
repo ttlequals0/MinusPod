@@ -82,8 +82,6 @@ export interface ProcessingEpisode {
   /** Size of the whole backlog, which can exceed the rows the API returns. */
   queueTotal?: number;
   priority?: number | null;
-  /** Pending auto_process_queue row id; null for display-queue-only entries. */
-  queueId?: number | null;
 }
 
 export async function getProcessingEpisodes(params?: {

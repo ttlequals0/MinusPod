@@ -31,7 +31,7 @@ from llm_client import (
     supports_json_schema_for_calls,
     StructuralRateLimitError,
 )
-from utils.llm_call import call_llm, call_llm_for_window
+from utils.llm_call import call_llm, call_llm_for_window, json_schema_format
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import dai_core_bounds, invalidate_tail_provenance
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
@@ -43,10 +43,8 @@ from utils.text import (
 
 Verdict = Literal["confirmed", "adjust", "reject", "resurrect", "failure"]
 
-# Structured-output schema for review calls (#694), used only when the
-# provider gate passes. Wrapped under "ads" so extract_json_ads_array parses
-# the envelope unchanged; item fields mirror the verdict shape the prompt
-# already specifies.
+# Structured-output schema for review calls (#694), gated like detection.
+# Wrapped under "ads" so extract_json_ads_array parses the envelope unchanged.
 AD_REVIEW_JSON_SCHEMA = {
     "type": "object",
     "properties": {
@@ -1010,14 +1008,9 @@ class AdReviewer:
         max_tokens, temperature, reasoning = resolve_stage_tunables('reviewer')
 
         if supports_json_schema_for_calls():
-            response_format = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "ad_review",
-                    "description": "Review verdicts for the candidate ad.",
-                    "schema": AD_REVIEW_JSON_SCHEMA,
-                },
-            }
+            response_format = json_schema_format(
+                'ad_review', AD_REVIEW_JSON_SCHEMA,
+                'Review verdicts for the candidate ad.')
         else:
             response_format = None
 
@@ -1428,10 +1421,8 @@ class AdReviewer:
         """
         start = float(ad.get("start", 0.0))
         end = float(ad.get("end", 0.0))
-        # Per-segment timestamped lines everywhere, context included (#695):
-        # the system prompt's adjust-boundaries examples read exact trim
-        # timestamps out of the context lines, so those lines must carry
-        # their [start-end] anchors too, not just the candidate body.
+        # Per-segment timestamps everywhere, context included (#695): the
+        # system prompt's examples read trim boundaries out of context lines.
         before_text = get_timestamped_transcript_for_range(
             segments, max(0.0, start - 60.0), start
         )

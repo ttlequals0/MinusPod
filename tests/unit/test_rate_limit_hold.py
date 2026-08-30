@@ -245,13 +245,15 @@ class TestExpiryAndRelease:
                           error_message='Paused (LLM rate limit)',
                           deferred_at=deferred_at, deferred_service=service)
 
-    def test_expire_rate_limit_holds_only_holds(self, seeded_episode):
+    def test_expire_with_hold_service_only_holds(self, seeded_episode):
         self._defer('ep-hold-old', '2020-01-01T00:00:00Z')
         self._defer('ep-hold-young', '2999-01-01T00:00:00Z')
         self._defer('ep-offline', '2020-01-01T00:00:00Z', service='llm')
-        expired = db.expire_rate_limit_holds(48)
+        expired = db.expire_deferred_episodes(48, service='llm_rate_limit')
         assert [e['episode_id'] for e in expired] == ['ep-hold-old']
         assert db.get_episode(SLUG, 'ep-hold-old')['status'] == 'permanently_failed'
+        assert 'Rate-limit hold TTL expired after 48 hours' in \
+            db.get_episode(SLUG, 'ep-hold-old')['error_message']
         assert db.get_episode(SLUG, 'ep-hold-young')['status'] == 'deferred'
         assert db.get_episode(SLUG, 'ep-offline')['status'] == 'deferred'
 
@@ -261,11 +263,22 @@ class TestExpiryAndRelease:
         assert [e['episode_id'] for e in expired] == []
         assert db.get_episode(SLUG, 'ep-held')['status'] == 'deferred'
 
-    def test_offline_requeue_never_releases_holds(self, seeded_episode):
-        self._defer('ep-held', '2999-01-01T00:00:00Z')
-        requeued = db.requeue_deferred_episodes({'llm', 'llm_rate_limit'})
-        assert requeued == 0
+    def test_requeue_only_touches_the_services_passed(self, seeded_episode):
+        self._defer('ep-held', '2999-01-01T00:00:00Z', service='llm_rate_limit')
+        self._defer('ep-offline', '2999-01-01T00:00:00Z', service='llm')
+        # Callers pass exactly the set they own: the offline tick's probe
+        # set never contains the hold service.
+        requeued = db.requeue_deferred_episodes({'llm'})
+        assert requeued == 1
         assert db.get_episode(SLUG, 'ep-held')['status'] == 'deferred'
+        assert db.get_episode(SLUG, 'ep-offline')['status'] == 'pending'
+
+    def test_count_deferred_episodes_by_service(self, seeded_episode):
+        self._defer('ep-held', '2999-01-01T00:00:00Z', service='llm_rate_limit')
+        self._defer('ep-offline', '2999-01-01T00:00:00Z', service='llm')
+        assert db.count_deferred_episodes(service='llm_rate_limit') == 1
+        assert db.count_deferred_episodes(service='llm') == 1
+        assert db.count_deferred_episodes() == 2
 
 
 class TestQueuePause:
@@ -330,7 +343,7 @@ class TestTtlClamp:
         db.set_setting('rate_limit_hold_ttl_hours', '0')
         assert get_rate_limit_hold_ttl_hours(db) == 1
         db.set_setting('rate_limit_hold_ttl_hours', 'not-a-number')
-        assert get_rate_limit_hold_ttl_hours() == 48
+        assert get_rate_limit_hold_ttl_hours(db) == 48
         db.set_setting('rate_limit_hold_ttl_hours', '48')
 
     def test_disabled_default(self):

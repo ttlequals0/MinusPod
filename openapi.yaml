@@ -2319,7 +2319,7 @@ paths:
         Returns the episodes currently processing across all feeds, followed by
         the pending queue in dequeue order (priority first, then age). Queued
         entries carry stage=queued, a 1-based offset-aware queuePosition, and
-        the pending queue row's queueId. The waiting list is paginated:
+        The waiting list is paginated:
         offset/limit page over the DB-backed rows, with display-only entries
         trailing after them.
       operationId: listProcessingEpisodes
@@ -11249,7 +11249,7 @@ components:
           description: When the episode was added to the queue (queued entries only)
         queuePosition:
           type: integer
-          description: 1-based position in the pending queue (queued entries only)
+          description: 1-based offset-aware position in the pending queue (queued entries only)
         queueTotal:
           type: integer
           description: >-
@@ -11261,14 +11261,7 @@ components:
             - 'null'
           description: >-
             Dequeue priority of the queue row; null for a display-queue entry
-            with no auto-process queue row
-        queueId:
-          type:
-            - integer
-            - 'null'
-          description: >-
-            Pending auto_process_queue row id; null for a display-queue entry.
-            Targets the per-row priority change below.
+            with no auto-process queue row (its reorder control is disabled)
 
     Pattern:
       type: object

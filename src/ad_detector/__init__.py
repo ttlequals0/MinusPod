@@ -26,7 +26,7 @@ from llm_client import (
 )
 from run_log import run_in_worker_thread
 from utils.language import get_pattern_language
-from utils.llm_call import call_llm, call_llm_for_window
+from utils.llm_call import call_llm, call_llm_for_window, json_schema_format
 from utils.markers import (
     DAI_CORE_SPANS,
     mark_distinct_merge,
@@ -349,8 +349,7 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
         # fails permanently instead of re-queuing on the 429 string (#491).
         "limit_exceeded": limit_exceeded,
         "rate_limited_hold": rate_limited_hold,
-        "retry_after_seconds": (
-            getattr(last_error, 'retry_after_seconds', None) if rate_limited_hold else None),
+        "retry_after_seconds": getattr(last_error, 'retry_after_seconds', None),
         # Lets the pipeline tell "endpoint down" apart from a bad response so
         # the offline queue (#482) defers only genuine outages. Includes
         # CircuitBreakerOpen, which reaches here as last_error because
@@ -974,14 +973,9 @@ class AdDetector:
         max_tokens, temperature, reasoning = resolve_stage_tunables(prefix)
 
         if supports_json_schema_for_calls():
-            response_format = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "ad_detection",
-                    "description": "Ad segments detected in this window.",
-                    "schema": AD_DETECTION_JSON_SCHEMA,
-                },
-            }
+            response_format = json_schema_format(
+                'ad_detection', AD_DETECTION_JSON_SCHEMA,
+                'Ad segments detected in this window.')
         else:
             response_format = None
 
@@ -1440,14 +1434,9 @@ class AdDetector:
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
 
         if supports_json_schema(get_effective_provider()) or supports_json_schema_for_calls():
-            response_format = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "segment_categories",
-                    "description": "Category for each listed segment.",
-                    "schema": CATEGORY_REPAIR_JSON_SCHEMA,
-                },
-            }
+            response_format = json_schema_format(
+                'segment_categories', CATEGORY_REPAIR_JSON_SCHEMA,
+                'Category for each listed segment.')
         else:
             response_format = {"type": "json_object"}
 

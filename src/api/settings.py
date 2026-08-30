@@ -2161,7 +2161,7 @@ def _offline_queue_view(db) -> dict:
     return {
         'enabled': is_offline_queue_enabled(db),
         'ttlHours': get_offline_queue_ttl_hours(db),
-        'deferredCount': db.count_deferred_episodes(),
+        'deferredCount': db.count_deferred_episodes(service='llm'),
     }
 
 
@@ -2183,17 +2183,29 @@ def update_offline_queue_settings():
     marked permanently failed.
     """
     data = request.get_json()
+    db = get_database()
+    error = _apply_toggle_ttl_update(db, data, 'offline_queue')
+    if error:
+        return error
+    logger.info(f"Updated offline_queue_enabled: {_offline_queue_view(db)['enabled']}")
+    return json_response(_offline_queue_view(db))
+
+
+def _apply_toggle_ttl_update(db, data, prefix: str):
+    """Validate and store {enabled, ttlHours} for a deferral feature.
+
+    `prefix` is the settings key stem ('offline_queue', 'rate_limit_hold').
+    Returns an error response on invalid input, else None. Shared by the
+    offline-queue and rate-limit-hold PUT handlers (#482, #696).
+    """
     if not isinstance(data, dict) or not data:
         return error_response('No data provided', 400)
-
-    db = get_database()
 
     if 'enabled' in data:
         if not isinstance(data['enabled'], bool):
             return error_response('enabled must be a boolean', 400)
-        db.set_setting('offline_queue_enabled',
+        db.set_setting(f'{prefix}_enabled',
                        'true' if data['enabled'] else 'false', is_default=False)
-        logger.info(f"Updated offline_queue_enabled to {data['enabled']}")
 
     if 'ttlHours' in data:
         ttl = data['ttlHours']
@@ -2201,21 +2213,17 @@ def update_offline_queue_settings():
                 or ttl < TTL_HOURS_MIN or ttl > TTL_HOURS_MAX:
             return error_response(
                 f'ttlHours must be an integer between {TTL_HOURS_MIN} and {TTL_HOURS_MAX}', 400)
-        db.set_setting('offline_queue_ttl_hours', str(ttl), is_default=False)
-        logger.info(f"Updated offline_queue_ttl_hours to {ttl}")
-
-    return json_response(_offline_queue_view(db))
+        db.set_setting(f'{prefix}_ttl_hours', str(ttl), is_default=False)
+    return None
 
 
 def _rate_limit_hold_view(db) -> dict:
     """Rate-limit hold settings payload shared by GET and PUT (#696)."""
-    held = [e for e in db.get_deferred_episodes()
-            if (e.get('deferred_service') or '') == RATE_LIMIT_DEFERRED_SERVICE]
     return {
         'enabled': is_rate_limit_hold_enabled(db),
         'ttlHours': get_rate_limit_hold_ttl_hours(db),
         'holdUntil': get_hold_until(db),
-        'holdCount': len(held),
+        'holdCount': db.count_deferred_episodes(service=RATE_LIMIT_DEFERRED_SERVICE),
     }
 
 
@@ -2237,27 +2245,11 @@ def update_rate_limit_hold_settings():
     permanently failed.
     """
     data = request.get_json()
-    if not isinstance(data, dict) or not data:
-        return error_response('No data provided', 400)
-
     db = get_database()
-
-    if 'enabled' in data:
-        if not isinstance(data['enabled'], bool):
-            return error_response('enabled must be a boolean', 400)
-        db.set_setting('rate_limit_hold_enabled',
-                       'true' if data['enabled'] else 'false', is_default=False)
-        logger.info(f"Updated rate_limit_hold_enabled to {data['enabled']}")
-
-    if 'ttlHours' in data:
-        ttl = data['ttlHours']
-        if not isinstance(ttl, int) or isinstance(ttl, bool) \
-                or ttl < TTL_HOURS_MIN or ttl > TTL_HOURS_MAX:
-            return error_response(
-                f'ttlHours must be an integer between {TTL_HOURS_MIN} and {TTL_HOURS_MAX}', 400)
-        db.set_setting('rate_limit_hold_ttl_hours', str(ttl), is_default=False)
-        logger.info(f"Updated rate_limit_hold_ttl_hours to {ttl}")
-
+    error = _apply_toggle_ttl_update(db, data, 'rate_limit_hold')
+    if error:
+        return error
+    logger.info(f"Updated rate_limit_hold_enabled: {_rate_limit_hold_view(db)['enabled']}")
     return json_response(_rate_limit_hold_view(db))
 
 

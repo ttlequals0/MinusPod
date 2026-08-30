@@ -27,8 +27,7 @@ release notes.
 - The Processing Queue waiting list is paginated (25 rows per page) instead
   of a capped flat list, so nothing is hidden behind a "+N further back in
   the queue" note. `GET /episodes/processing` takes offset/limit (default
-  200, cap 1000), reports each row's `queueId`, and positions are
-  offset-aware across pages.
+  200, cap 1000) and positions are offset-aware across pages.
 - Queue Control, a new section in AI & Processing, groups the queue
   priority boosts (moved out of Global Defaults), the process-new-episodes
   toggle, the offline queue (moved out of Data & Security), and the

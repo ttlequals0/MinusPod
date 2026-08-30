@@ -736,12 +736,10 @@ CATEGORY_REPAIR_JSON_SCHEMA = {
     "required": ["categories"],
 }
 
-# Structured-output schema for detection windows (#694), used only when the
-# provider gate passes (llm_client.supports_json_schema_for_calls). Wrapped
-# under "ads" because json_schema responses must be JSON objects;
-# parse_ads_from_response already unwraps that envelope. All properties are
-# optional so both timestamp and segment-id addressing modes, and every
-# field subset models actually emit, still validate.
+# Structured-output schema for detection windows (#694), gated by
+# llm_client.supports_json_schema_for_calls. Wrapped under "ads" because a
+# json_schema response must be a JSON object; every property is optional so
+# both addressing modes and partial fields still validate.
 AD_DETECTION_JSON_SCHEMA = {
     "type": "object",
     "properties": {

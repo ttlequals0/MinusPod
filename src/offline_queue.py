@@ -44,15 +44,9 @@ def get_offline_queue_ttl_hours(db) -> int:
     return max(TTL_HOURS_MIN, min(ttl, TTL_HOURS_MAX))
 
 
-def offline_queue_tick(db) -> None:
-    """One maintenance pass: expire by TTL, probe, re-queue."""
-    deferred = db.get_deferred_episodes()
-    if not deferred:
-        # Installs without deferred episodes (including everyone with the
-        # feature off) pay one COUNT-style query and nothing else.
-        return
-
-    expired = db.expire_deferred_episodes(get_offline_queue_ttl_hours(db))
+def notify_expired_episodes(db, expired, label='Offline queue') -> None:
+    """History + webhook for TTL-expired deferrals, matching the
+    permanent-failure audit trail. Shared by every deferral holder."""
     for episode in expired:
         try:
             # Keep the audit trail consistent with every other permanent
@@ -68,7 +62,7 @@ def offline_queue_tick(db) -> None:
             )
         except Exception as hist_err:
             logger.warning(
-                f"Offline queue: history record failed for "
+                f"{label}: history record failed for "
                 f"{episode['podcast_slug']}:{episode['episode_id']}: {hist_err}")
         try:
             fire_event(
@@ -85,8 +79,20 @@ def offline_queue_tick(db) -> None:
             )
         except Exception as wh_err:
             logger.warning(
-                f"Offline queue: webhook fire failed for "
+                f"{label}: webhook fire failed for "
                 f"{episode['podcast_slug']}:{episode['episode_id']}: {wh_err}")
+
+
+def offline_queue_tick(db) -> None:
+    """One maintenance pass: expire by TTL, probe, re-queue."""
+    deferred = db.get_deferred_episodes()
+    if not deferred:
+        # Installs without deferred episodes (including everyone with the
+        # feature off) pay one COUNT-style query and nothing else.
+        return
+
+    expired = db.expire_deferred_episodes(get_offline_queue_ttl_hours(db))
+    notify_expired_episodes(db, expired)
 
     expired_ids = {e['id'] for e in expired}
     waiting_services = {

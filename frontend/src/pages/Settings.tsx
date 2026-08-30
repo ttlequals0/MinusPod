@@ -970,6 +970,8 @@ function Settings() {
         onConnectionTest={testLlmConnection}
         ollamaNumCtx={settings?.stageTunables?.ollamaNumCtx}
         onOllamaNumCtxUpdate={(payload) => tunableMutation.mutate(payload)}
+        llmJsonSchemaEnabled={settings?.llmJsonSchemaEnabled?.value ?? settings?.defaults?.llmJsonSchemaEnabled ?? false}
+        onLlmJsonSchemaEnabledChange={(v) => tunableMutation.mutate({ llmJsonSchemaEnabled: v })}
       />
 
       <AIModelsSection

@@ -117,16 +117,6 @@ def test_pagination_returns_offset_aware_positions(app_client, seeded_feed):
     assert queued[0]['queueTotal'] == 5
 
 
-def test_db_rows_carry_queue_id(app_client, seeded_feed):
-    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
-    _queue_row(db, podcast_id, 'ep-x')
-    _authed(app_client)
-
-    queued = [e for e in app_client.get('/api/v1/episodes/processing').get_json()
-              if e['stage'] == 'queued']
-    assert queued[0]['queueId'] is not None
-
-
 def _csrf(client):
     with client.session_transaction() as sess:
         sess['authenticated'] = True

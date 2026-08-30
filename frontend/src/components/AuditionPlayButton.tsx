@@ -2,11 +2,9 @@ import { Pause, Play } from 'lucide-react';
 import { btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
-// Small play/pause button for auditioning a windowed audio span.
-// Shared by the episode page's held/rejected marker rows, the Ad Review
-// tab's rows, and the split modal. 'sm' is the compact standalone size;
-// 'match' sizes to the design guide's icon-only 32x32 so the button lines
-// up with the Confirm/Not-an-ad text buttons beside it.
+// Play/pause button for auditioning an audio span. 'match' sizes to the
+// design guide's icon-only 32x32 so it lines up with the Confirm/Not-an-ad
+// text buttons beside it; 'sm' is the compact standalone size.
 export function AuditionPlayButton({ playing, onClick, label = 'this ad', size = 'sm' }: {
   playing: boolean;
   onClick: () => void;

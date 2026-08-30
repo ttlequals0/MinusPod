@@ -28,11 +28,8 @@ function TranscriptNormalizationSection() {
   });
 
   return (
-    <CollapsibleSection
-      title="Transcript Normalization"
-      subtitle="Regex rules that rewrite misheard words and sponsor names in Whisper output before ad matching."
-    >
-      <p className="text-sm text-muted-foreground -mt-1 mb-4">
+    <CollapsibleSection title="Transcript Normalization">
+      <p className="text-sm text-muted-foreground mb-4">
         Corrections applied to the transcript before ad detection runs: misheard
         words, recurring phrases, numbers, sponsor names, and URLs. Sponsor
         matching sees the canonical spelling, so a name transcribed three
