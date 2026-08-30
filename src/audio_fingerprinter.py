@@ -69,11 +69,11 @@ _POPCOUNT8 = np.array([bin(i).count('1') for i in range(256)], dtype=np.uint16)
 def _fpcalc_output_or_none(result, warn_prefix: str) -> dict | None:
     """Parse fpcalc's JSON stdout, or None when unusable.
 
-    A non-zero exit is not by itself a failure: fpcalc (via libavcodec)
-    exits non-zero after recoverable mid-stream decode glitches while still
-    emitting a complete fingerprint (#690), so callers gate on the parsed
-    output, not the exit code. stderr is logged whenever the exit is
-    non-zero; the payload wins when both are present.
+    A non-zero exit is not by itself a failure: on a recoverable mid-stream
+    decode glitch fpcalc stops reading, prints the fingerprint it got (often
+    complete when libav recovers, sometimes a usable prefix), and exits 3
+    (#690). Callers therefore gate on the parsed output, not the exit code;
+    stderr is logged whenever the exit is non-zero either way.
     """
     stderr = result.stderr.decode(errors='replace').strip() if result.stderr else ''
     if result.returncode != 0:

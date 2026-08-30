@@ -256,6 +256,31 @@ class QueueMixin:
         conn.commit()
         return cursor.rowcount > 0
 
+    def count_pending_queued_episodes(self) -> int:
+        """Uncapped pending-row count for the paginated queue view: the
+        window-function total rides on the page's rows, which vanish past
+        the last page."""
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM auto_process_queue WHERE status = 'pending'"
+        ).fetchone()
+        return row['n'] if row else 0
+
+    def has_pending_row_at_or_above(self, priority: int) -> bool:
+        """True when a pending row's priority is >= `priority`.
+
+        The rate-limit pause gate uses this to keep waving through
+        user-initiated rows (which carry the manual boost) instead of
+        parking someone's Play behind a provider backoff window.
+        """
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT 1 FROM auto_process_queue
+               WHERE status = 'pending' AND priority >= ? LIMIT 1""",
+            (priority,)
+        ).fetchone()
+        return row is not None
+
     def get_pending_queue_keys(self, episode_ids: list[str]) -> set:
         """(podcast_slug, episode_id) for pending rows among `episode_ids`.
 
@@ -605,26 +630,39 @@ class QueueMixin:
                                  service: str | None = None) -> list[dict]:
         """Fail deferred episodes whose TTL has run out.
 
-        Service scope follows get_deferred_episodes: None sweeps everything
-        except 'llm_rate_limit' rows (the offline queue never expires those;
-        the rate-limit hold expires its own). Marked permanently_failed (a
-        plain 'failed' would be resurrected by the reset_failed_queue_items
-        retry ladder) with an explicit TTL message; the matching
-        auto_process_queue row is closed the same way. Returns the expired
-        rows so the caller can fire failure webhooks.
+        service=None sweeps every deferral the offline queue owns (llm and
+        whisper) and excludes 'llm_rate_limit' rows, which the rate-limit
+        hold expires by passing service='llm_rate_limit'. Marked
+        permanently_failed (a plain 'failed' would be resurrected by the
+        reset_failed_queue_items retry ladder) with an explicit TTL message;
+        the matching auto_process_queue row is closed the same way. Returns
+        the expired rows so the caller can fire failure webhooks.
         """
         label = 'Rate-limit hold' if service == 'llm_rate_limit' else 'Offline queue'
         conn = self.get_connection()
-        rows = conn.execute(
-            """SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
-                      p.slug AS podcast_slug, p.title AS podcast_title
-               FROM episodes e
-               JOIN podcasts p ON e.podcast_id = p.id
-               WHERE e.status = 'deferred'
-                 AND COALESCE(e.deferred_service, 'llm') = ?
-                 AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
-            (service or 'llm', ttl_hours)
-        ).fetchall()
+        if service is None:
+            rows = conn.execute(
+                """SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
+                          p.slug AS podcast_slug, p.title AS podcast_title
+                   FROM episodes e
+                   JOIN podcasts p ON e.podcast_id = p.id
+                   WHERE e.status = 'deferred'
+                     AND (e.deferred_service IS NULL
+                          OR e.deferred_service != 'llm_rate_limit')
+                     AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
+                (ttl_hours,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
+                          p.slug AS podcast_slug, p.title AS podcast_title
+                   FROM episodes e
+                   JOIN podcasts p ON e.podcast_id = p.id
+                   WHERE e.status = 'deferred'
+                     AND COALESCE(e.deferred_service, 'llm') = ?
+                     AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
+                (service, ttl_hours)
+            ).fetchall()
         expired = []
         for row in rows:
             row = dict(row)

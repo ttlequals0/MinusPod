@@ -64,6 +64,17 @@ def test_put_validation_failures(app_client, _clean_settings, payload):
     assert r.status_code == 400
 
 
+def test_put_enabled_false_clears_the_pause_marker(app_client, _clean_settings):
+    hdr = _csrf(app_client)
+    db = _clean_settings
+    db.set_setting('rate_limit_hold_until', '2999-01-01T00:00:00Z')
+    r = app_client.put('/api/v1/settings/rate-limit-hold',
+                       json={'enabled': False}, headers=hdr)
+    assert r.status_code == 200
+    assert r.get_json()['holdUntil'] is None
+    assert db.get_setting('rate_limit_hold_until') is None
+
+
 def test_put_partial_update_keeps_other_field(app_client, _clean_settings):
     hdr = _csrf(app_client)
     app_client.put('/api/v1/settings/rate-limit-hold',

@@ -29,7 +29,7 @@ from run_log import run_in_worker_thread
 from llm_client import (
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
     supports_json_schema_for_calls,
-    StructuralRateLimitError,
+    ProviderRateLimitedError, StructuralRateLimitError,
 )
 from utils.llm_call import call_llm, call_llm_for_window, json_schema_format
 from utils.llm_response import extract_json_ads_array, extract_json_object
@@ -739,6 +739,8 @@ class AdReviewer:
                 accepted_ads, resurrection_eligible, segments,
                 episode_meta, pass_num, pass_model,
             )
+        except ProviderRateLimitedError:
+            raise
         except Exception as e:
             logger.error(
                 f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
@@ -1034,6 +1036,9 @@ class AdReviewer:
         latency_ms = int((time.monotonic() - t0) * 1000)
 
         if response is None:
+            if isinstance(error, ProviderRateLimitedError):
+                # A held 429 must defer the episode, not skip the review.
+                raise error
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} "
                 f"@ {original_start:.1f}s failed: {error}. Falling through "

@@ -11,8 +11,10 @@ offline-queue tick, releases held episodes once the reset has passed and
 expires holds past the TTL; the deferred-row lifecycle (expiry, requeue,
 failure notifications) is shared with the offline queue.
 
-The toggle gates only NEW holds, mirroring the offline queue: the tick keeps
-running for episodes already held even when the toggle is later disabled.
+While the toggle stays on, the tick keeps running for episodes already
+held even across restarts. Turning the toggle off is the operator escape
+hatch: the settings handler clears the pause marker, and this tick then
+releases every held episode on its next pass.
 """
 import logging
 
@@ -31,6 +33,11 @@ HOLD_UNTIL_KEY = 'rate_limit_hold_until'
 # A provider reset farther out than this is treated as unusable reset info;
 # 24h covers the common per-minute and per-day windows.
 MAX_RESET_SECONDS = 24 * 3600
+# Resets shorter than this keep the existing in-process sleep-retry, so a
+# lone throttled window still recovers instead of failing its episode into
+# the hold; only real backoff windows (past the old retry-after sleep cap)
+# pause the queue.
+MIN_HOLD_RESET_SECONDS = 300
 
 
 def is_rate_limit_hold_enabled(db=None) -> bool:
@@ -102,14 +109,17 @@ def rate_limit_hold_tick(db) -> None:
     from offline_queue import notify_expired_episodes
     notify_expired_episodes(db, expired, label='Rate-limit hold')
 
-    if _is_paused(hold_until):
+    # A failure may have recorded a newer hold while the expiry ran; its
+    # pause must outlive this pass.
+    if _is_paused(get_hold_until(db)):
         return
 
     requeued = db.requeue_deferred_episodes({RATE_LIMIT_DEFERRED_SERVICE})
     if requeued:
         logger.info(f"Rate-limit hold: released {requeued} held episodes after provider reset")
 
-    if hold_until:
-        # Reset time passed; clear the stale marker so the claim gate unblocks.
+    if hold_until and get_hold_until(db) == hold_until:
+        # Reset time passed and nothing re-stamped it; clear the stale
+        # marker so the claim gate unblocks.
         db.clear_setting(HOLD_UNTIL_KEY)
         logger.info("Rate-limit hold: queue pause lifted after provider reset")

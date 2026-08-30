@@ -752,10 +752,15 @@ AD_DETECTION_JSON_SCHEMA = {
                     "end": {"type": "number"},
                     "start_id": {"type": "integer"},
                     "end_id": {"type": "integer"},
+                    # The prompt requires end_text on every segment and the
+                    # sponsor extractors read these names; a schema-enforcing
+                    # decoder would silently strip anything absent here.
+                    "end_text": {"type": "string"},
                     "category": {"type": "string"},
                     "confidence": {"type": "number"},
                     "reason": {"type": "string"},
                     "note": {"type": "string"},
+                    **{name: {"type": "string"} for name in SPONSOR_PRIORITY_FIELDS},
                 },
             },
         },

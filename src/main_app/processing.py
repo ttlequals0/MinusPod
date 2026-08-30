@@ -2658,6 +2658,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
         v_status = verification_result.get('status')
         if v_status in ('no_segments', 'transcription_failed', 'detection_failed'):
+            if verification_result.get('rate_limited_hold'):
+                raise ProviderRateLimitedError(
+                    f"Verification failed: {verification_result.get('error')}",
+                    retry_after_seconds=float(
+                        verification_result.get('retry_after_seconds') or 0))
             v_error = verification_result.get('error')
             detail = f": {v_error}" if v_error else ""
             audio_logger.warning(
@@ -4046,7 +4051,14 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # before the offline-queue branch: a held 429 is throttling, not an
     # outage. retry_count untouched; deferred_at stamped once per lifecycle.
     if isinstance(error, ProviderRateLimitedError) and is_rate_limit_hold_enabled(db):
-        first_deferred_at = (episode_data or {}).get('deferred_at') or utc_now_iso()
+        # Fresh clock unless this row is already in the hold lifecycle: a
+        # deferred_at kept from an earlier offline deferral would pre-age
+        # the hold's TTL clock (requeue keeps deferred_at by design).
+        prior_service = (episode_data or {}).get('deferred_service')
+        if prior_service == RATE_LIMIT_DEFERRED_SERVICE:
+            first_deferred_at = (episode_data or {}).get('deferred_at') or utc_now_iso()
+        else:
+            first_deferred_at = utc_now_iso()
         hold_until = (datetime.now(timezone.utc)
                       + timedelta(seconds=max(0.0, float(error.retry_after_seconds))))
         hold_until_iso = hold_until.strftime('%Y-%m-%dT%H:%M:%SZ')

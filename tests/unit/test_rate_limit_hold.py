@@ -128,6 +128,53 @@ class TestCallLlmHold:
         assert not isinstance(last_error, ProviderRateLimitedError)
         assert calls['n'] > 1
 
+    def test_short_reset_rides_in_process_sleep(self, monkeypatch):
+        """Resets at or below the in-process sleep cap never engage the hold:
+        a lone throttled window recovers instead of failing its episode."""
+        from utils import llm_call
+        from rate_limit_hold import MIN_HOLD_RESET_SECONDS
+        _set_hold_enabled(True)
+        calls = {'n': 0}
+        err = _FakeRateLimitError(response=FakeResponse(
+            headers={'Retry-After': str(MIN_HOLD_RESET_SECONDS - 1)}))
+
+        class _Client:
+            def messages_create(self, **kw):
+                calls['n'] += 1
+                raise err
+
+        sleeps = []
+        monkeypatch.setattr(llm_call.time, 'sleep', lambda s: sleeps.append(s))
+        response, last_error = call_window(_Client(), max_retries=1)
+
+        assert response is None
+        assert not isinstance(last_error, ProviderRateLimitedError)
+        assert calls['n'] > 1
+        assert sleeps
+
+    def test_hold_engages_on_final_attempt(self, monkeypatch):
+        """The hold check runs before the retries-remaining gate: a held 429
+        on the last attempt still breaks with the typed error."""
+        from utils import llm_call
+        _set_hold_enabled(True)
+        calls = {'n': 0}
+        filler = FakeProviderError(message='timeout')
+
+        class _Client:
+            def messages_create(self, **kw):
+                calls['n'] += 1
+                if calls['n'] == 1:
+                    raise filler
+                raise _FakeRateLimitError(
+                    response=FakeResponse(headers={'Retry-After': '600'}))
+
+        monkeypatch.setattr(llm_call.time, 'sleep', lambda s: None)
+        response, last_error = call_window(_Client(), max_retries=1)
+
+        assert response is None
+        assert isinstance(last_error, ProviderRateLimitedError)
+        assert calls['n'] == 2
+
     def test_structural_and_quota_take_precedence_over_hold(self, monkeypatch):
         from utils import llm_call
         from llm_client import StructuralRateLimitError
@@ -262,6 +309,14 @@ class TestExpiryAndRelease:
         expired = db.expire_deferred_episodes(48)
         assert [e['episode_id'] for e in expired] == []
         assert db.get_episode(SLUG, 'ep-held')['status'] == 'deferred'
+
+    def test_offline_expire_covers_whisper_deferrals(self, seeded_episode):
+        """The default sweep must keep covering every non-hold service; a
+        whisper deferral that outlives its TTL still expires."""
+        self._defer('ep-whisper-old', '2020-01-01T00:00:00Z', service='whisper')
+        expired = db.expire_deferred_episodes(48)
+        assert [e['episode_id'] for e in expired] == ['ep-whisper-old']
+        assert db.get_episode(SLUG, 'ep-whisper-old')['status'] == 'permanently_failed'
 
     def test_requeue_only_touches_the_services_passed(self, seeded_episode):
         self._defer('ep-held', '2999-01-01T00:00:00Z', service='llm_rate_limit')

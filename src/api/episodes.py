@@ -1459,7 +1459,8 @@ def get_processing_episodes():
     seen = {(e['slug'], e['episodeId']) for e in episodes}
     queued = []
     pending_rows = db.get_pending_queued_episodes(limit=limit, offset=offset)
-    pending_total = pending_rows[0]['total_pending'] if pending_rows else 0
+    pending_total = (pending_rows[0]['total_pending'] if pending_rows
+                     else db.count_pending_queued_episodes())
     for row in pending_rows:
         key = (row['podcast_slug'], row['episode_id'])
         if key in seen:
@@ -1485,7 +1486,7 @@ def get_processing_episodes():
     valid_extras = [q for q in extras
                     if (q['slug'], q['episode_id']) not in pending_keys]
     start = max(0, offset - pending_total)
-    page_extras = valid_extras[start:start + limit - len(queued)]
+    page_extras = valid_extras[start:start + limit - len(pending_rows)]
     for q in page_extras:
         queued.append({
             'episodeId': q['episode_id'],

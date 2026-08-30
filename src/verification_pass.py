@@ -159,6 +159,8 @@ class VerificationPass:
                 f"[{slug}:{episode_id}] Verification detection failed: {detection_error}")
             return {'ads': [], 'ads_processed': [], 'segments': verification_segments,
                     'status': 'detection_failed', 'error': detection_error,
+                    'rate_limited_hold': verification_result.get('rate_limited_hold', False),
+                    'retry_after_seconds': verification_result.get('retry_after_seconds'),
                     'audio_cue_count': verification_cue_count}
 
         processed_ads = verification_result.get('ads', [])

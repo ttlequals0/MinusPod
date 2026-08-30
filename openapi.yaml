@@ -2318,7 +2318,7 @@ paths:
       description: >-
         Returns the episodes currently processing across all feeds, followed by
         the pending queue in dequeue order (priority first, then age). Queued
-        entries carry stage=queued, a 1-based offset-aware queuePosition, and
+        entries carry stage=queued and a 1-based offset-aware queuePosition.
         The waiting list is paginated:
         offset/limit page over the DB-backed rows, with display-only entries
         trailing after them.

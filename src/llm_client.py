@@ -79,6 +79,10 @@ _JSON_FORMAT_SETTING_KEY = 'llm_json_format_supported'
 # Probe result for response_format json_schema, stored per endpoint like
 # json_format above. The operator opt-in lives in 'llm_json_schema_enabled'.
 _JSON_SCHEMA_SETTING_KEY = 'llm_json_schema_supported'
+# Endpoints whose json_schema probe already ran inconclusively this process:
+# verify uses force_new clients, so without this memo an always-inconclusive
+# endpoint would be probed again on every verification (~5 min cadence).
+_SCHEMA_PROBE_ATTEMPTED: set[str] = set()
 
 _JSON_FORMAT_SYSTEM_INSTRUCTION = (
     "\n\n<output_format>CRITICAL JSON REQUIREMENTS:\n"
@@ -1149,11 +1153,15 @@ class OpenAICompatibleClient(LLMClient):
     def _probe_json_schema_if_enabled(self, model: str) -> None:
         """Run the json_schema probe only when the operator opt-in is on and
         the answer is not already known, so unopted endpoints never see a
-        structured-output request."""
+        structured-output request. One attempt per endpoint per process when
+        the probe stays inconclusive."""
         if self._get_json_schema_supported() is not None:
             return
         if not self._json_schema_opt_in():
             return
+        if self.base_url in _SCHEMA_PROBE_ATTEMPTED:
+            return
+        _SCHEMA_PROBE_ATTEMPTED.add(self.base_url)
         self.probe_json_schema_support(model=model)
 
     def _try_ollama_native_list(self) -> list[LLMModel]:

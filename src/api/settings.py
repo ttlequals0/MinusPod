@@ -62,12 +62,13 @@ from offline_queue import (
 )
 from rate_limit_hold import (
     get_hold_until, get_rate_limit_hold_ttl_hours,
-    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE,
+    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE, HOLD_UNTIL_KEY,
 )
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
     get_llm_client, create_client_for_provider, _JSON_FORMAT_SETTING_KEY,
+    invalidate_provider_cache,
 )
 from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
 from utils.language import LANGUAGE_CODE_RE
@@ -1000,7 +1001,6 @@ def _apply_processing_flags(db, data):
         # Re-probe on the next endpoint verification now that the opt-in
         # changed; drop the cached probe answer either way.
         db.clear_setting('llm_json_schema_supported')
-        from llm_client import invalidate_provider_cache
         invalidate_provider_cache()
         logger.info(f"Updated llm_json_schema_enabled to: {value}")
     return None
@@ -2187,8 +2187,9 @@ def update_offline_queue_settings():
     error = _apply_toggle_ttl_update(db, data, 'offline_queue')
     if error:
         return error
-    logger.info(f"Updated offline_queue_enabled: {_offline_queue_view(db)['enabled']}")
-    return json_response(_offline_queue_view(db))
+    view = _offline_queue_view(db)
+    logger.info(f"Updated offline_queue_enabled: {view['enabled']}")
+    return json_response(view)
 
 
 def _apply_toggle_ttl_update(db, data, prefix: str):
@@ -2249,8 +2250,13 @@ def update_rate_limit_hold_settings():
     error = _apply_toggle_ttl_update(db, data, 'rate_limit_hold')
     if error:
         return error
-    logger.info(f"Updated rate_limit_hold_enabled: {_rate_limit_hold_view(db)['enabled']}")
-    return json_response(_rate_limit_hold_view(db))
+    if data.get('enabled') is False:
+        # Escape hatch: lifting the hold releases the pause and lets the
+        # tick requeue every held episode on its next pass.
+        db.clear_setting(HOLD_UNTIL_KEY)
+    view = _rate_limit_hold_view(db)
+    logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
+    return json_response(view)
 
 
 # ========== Update check settings ==========

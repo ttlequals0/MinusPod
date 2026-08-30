@@ -16,7 +16,9 @@ from llm_client import (
     StructuralRateLimitError,
     ProviderRateLimitedError,
 )
-from rate_limit_hold import MAX_RESET_SECONDS, is_rate_limit_hold_enabled
+from rate_limit_hold import (
+    MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, is_rate_limit_hold_enabled,
+)
 # webhook_service is lazy-imported at the call sites below (only entered on
 # the alert paths: auth failure, limit exceeded, structural-429). Keeping it
 # out of this module's import-time graph lets the offline benchmark in
@@ -171,22 +173,24 @@ def call_llm(
                 # is_retryable_error excludes limit-exceeded errors, so the
                 # post-loop secondary retry pass below also skips them.
                 break
+            # Rate-limit hold (#696): a provider-reported reset longer than
+            # the in-process sleep cap breaks the loop (on any attempt,
+            # including the last) instead of sleeping or falling to the
+            # fail-and-retry ladder. Shorter resets ride the sleep path below
+            # so lone throttled windows still recover in-process.
+            if is_rate_limit_error(e) and is_rate_limit_hold_enabled():
+                hold_after = extract_retry_after(e, max_seconds=MAX_RESET_SECONDS)
+                if hold_after is not None and hold_after > MIN_HOLD_RESET_SECONDS:
+                    last_error = ProviderRateLimitedError(
+                        f"provider rate limit resets in {hold_after:.0f}s: {e}",
+                        retry_after_seconds=hold_after)
+                    logger.warning(
+                        f"[{slug}:{episode_id}] {call_label} rate limit: "
+                        f"holding queue {hold_after:.0f}s until provider reset"
+                    )
+                    break
             if _is_retryable(e) and attempt < max_retries:
                 if is_rate_limit_error(e):
-                    # Rate-limit hold (#696): a provider-reported reset breaks
-                    # the loop instead of sleeping the single consumer thread.
-                    hold_after = (
-                        extract_retry_after(e, max_seconds=MAX_RESET_SECONDS)
-                        if is_rate_limit_hold_enabled() else None)
-                    if hold_after is not None:
-                        last_error = ProviderRateLimitedError(
-                            f"provider rate limit resets in {hold_after:.0f}s: {e}",
-                            retry_after_seconds=hold_after)
-                        logger.warning(
-                            f"[{slug}:{episode_id}] {call_label} rate limit: "
-                            f"holding queue {hold_after:.0f}s until provider reset"
-                        )
-                        break
                     retry_after = extract_retry_after(e)
                     if retry_after is not None:
                         delay = retry_after + random.uniform(0.0, 2.0)

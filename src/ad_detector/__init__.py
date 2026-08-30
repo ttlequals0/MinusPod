@@ -1357,11 +1357,17 @@ class AdDetector:
         )
 
         category_repaired = 0
+        hold_error = None
         addressing = AddressingStats()
         for result in window_results:
             if result.failed:
                 failed_windows += 1
                 last_error = result.last_error
+                # A held 429 in ANY window defers the whole episode (#696):
+                # proceeding with the surviving windows would silently skip
+                # the throttled span from ad coverage.
+                if isinstance(result.last_error, ProviderRateLimitedError):
+                    hold_error = result.last_error
                 continue
             if result.compliant is not None:
                 addressing.windows_judged += 1
@@ -1396,6 +1402,13 @@ class AdDetector:
                 f"[{slug}:{episode_id}] {failed_windows}/{len(windows)} windows "
                 f"failed during {pass_label.lower()}"
             )
+        if hold_error is not None:
+            failure = _windows_failed_response(
+                pass_label.lower(), failed_windows, len(windows),
+                hold_error, model)
+            return ([], all_raw_responses, failed_windows, failure,
+                    0, 0, 0, AddressingStats())
+
         failure_ratio = failed_windows / len(windows) if windows else 0.0
         if failed_windows >= len(windows) or (
                 failure_ratio > _resolve_max_failed_window_ratio()):
