@@ -14,11 +14,17 @@ release notes.
 ### Added
 
 - Rate-limit queue hold: when the LLM provider answers 429 with a reset
-  time, the episode waits and the queue pauses until the reset instead of
-  burning retries on a throttled provider. Off by default; give-up window
-  configurable in hours (1-720, default 48) in Settings, under AI &
-  Processing > Queue Control. Mirrors the offline queue: held episodes are
-  invisible to its probes and expiry, and the toggle gates only new holds.
+  longer than five minutes, the episode waits and the queue pauses until
+  the reset instead of burning retries on a throttled provider; shorter
+  resets keep the existing in-process retry, so a lone throttled window
+  still recovers. Applies to detection, review, and verification: a
+  throttle arriving mid-run defers the episode rather than skipping that
+  span. Off by default; give-up window configurable in hours (1-720,
+  default 48) in Settings, under AI & Processing > Queue Control. A held
+  episode never inherits the clock of an earlier offline deferral, the
+  offline queue's expiry never touches it, and turning the toggle off
+  lifts the pause and releases held episodes (a Play or Reprocess always
+  runs, even mid-pause).
 - Per-episode priority control in the Processing Queue panel: rows with a
   pending queue entry get a -/+ stepper that raises or lowers the row's
   priority through the new `POST /feeds/{slug}/episodes/{episodeId}/queue-priority`

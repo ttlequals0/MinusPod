@@ -5639,7 +5639,7 @@ paths:
               properties:
                 enabled:
                   type: boolean
-                  description: Pause the queue on a provider 429 with a reset time. Off by default.
+                  description: Pause the queue on a provider 429 with a reset time longer than five minutes. Off by default; setting false clears an active pause and releases held episodes.
                 ttlHours:
                   type: integer
                   minimum: 1

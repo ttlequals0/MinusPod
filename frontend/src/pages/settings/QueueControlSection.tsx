@@ -282,10 +282,12 @@ function QueueControlSection({
               loadErrorText: 'Could not load rate-limit hold settings.',
               description: (
                 <>
-                  When the provider answers 429 with a reset time, episodes stop
-                  retrying and wait instead. The queue stays paused until the reset
-                  passes, then processes on its own. Off by default. With it off,
-                  rate limits retry on the normal ladder.
+                  When the provider answers 429 with a reset longer than five
+                  minutes, episodes stop retrying and wait; shorter resets keep
+                  retrying normally. The queue stays paused until the reset
+                  passes, then processes on its own. Off by default. Turning the
+                  toggle off lifts the pause and releases held episodes; Play
+                  and Reprocess always run.
                 </>
               ),
               status: (data) => {
