@@ -3,9 +3,12 @@ import type { ReviewDetection } from '../../api/detections';
 import { episodeOriginalUrl } from '../../api/feeds';
 import type { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../../components/AuditionPlayButton';
-import { cardActionBtn } from '../../components/rowActionStyles';
+import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles';
 import { StageBadge } from '../../components/StageBadge';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
+import {
+  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
+} from '../../utils/segmentCategory';
 import { formatTimestamp, formatDate } from '../../utils/format';
 import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
@@ -102,7 +105,33 @@ export interface DetectionRowActions {
   onDismiss?: (d: ReviewDetection) => void;
   onEdit: (d: ReviewDetection) => void;
   onSplit?: (d: ReviewDetection) => void;
+  // Review is bulk work, so the category is editable inline: it is what
+  // decides whether a span is cut, and reaching it should not need the editor.
+  onCategory?: (d: ReviewDetection, category: SegmentCategory | null) => void;
   busy: boolean;
+}
+
+function CategorySelect({ d, onCategory, busy, className = '' }: {
+  d: ReviewDetection;
+  onCategory: (d: ReviewDetection, category: SegmentCategory | null) => void;
+  busy: boolean;
+  className?: string;
+}) {
+  return (
+    <select
+      aria-label={`Category for ${d.episodeTitle}`}
+      value={(d.category ?? '') as string}
+      disabled={busy}
+      onChange={(e) => onCategory(
+        d, e.target.value === '' ? null : (e.target.value as SegmentCategory))}
+      className={`px-2 py-1 text-xs rounded bg-secondary text-secondary-foreground border border-border disabled:opacity-50 ${focusRing} ${className}`}
+    >
+      <option value="">Uncategorized</option>
+      {SEGMENT_CATEGORIES.map((c) => (
+        <option key={c} value={c}>{SEGMENT_CATEGORY_LABELS[c]}</option>
+      ))}
+    </select>
+  );
 }
 
 // One set of row actions rendered in two densities: compact at the end of
@@ -121,7 +150,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   // Card sizing is shared with the play button beside it so the two stay the
   // same height; max-w-full + overflow-hidden in that recipe keep a
   // pathologically zoomed label from forcing page scroll.
-  const btn = isCard ? cardActionBtn : 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
+  const btn = isCard ? cardActionBtn : tableActionBtn;
   const undecided = d.resolution === 'unresolved';
   // Its category resolves to keep, so confirm/reject would record a verdict
   // the cut can never honor (the endpoint 409s them). Edit is the way
@@ -130,11 +159,14 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
     return (
       <div className={isCard ? 'flex flex-wrap items-center gap-2 pt-1' : 'flex items-center gap-2'}>
         {d.hasOriginalAudio && (
-          <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'sm'} />
+          <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'table'} />
         )}
         <p className="text-xs text-muted-foreground min-w-0">
-          Left in because of its category. Edit to change it.
+          Left in by its category:
         </p>
+        {actions.onCategory && (
+          <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy} />
+        )}
         <button
           type="button"
           onClick={() => actions.onEdit(d)}
@@ -153,7 +185,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   return (
     <div className={isCard ? 'flex flex-wrap items-center gap-1.5 min-[370px]:gap-2 pt-1' : 'flex items-center gap-1.5'}>
       {d.hasOriginalAudio && (
-        <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'sm'} />
+        <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'table'} />
       )}
       {actions.onApprove && undecided && (
         <button
@@ -164,6 +196,10 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
         >
           Confirm ad
         </button>
+      )}
+      {actions.onCategory && (
+        <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
+          className={isCard ? 'order-last w-full min-[370px]:order-none min-[370px]:w-auto' : ''} />
       )}
       {actions.onDismiss && undecided && (
         <button

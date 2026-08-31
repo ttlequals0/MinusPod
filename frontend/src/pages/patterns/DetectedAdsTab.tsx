@@ -114,7 +114,7 @@ export default function DetectedAdsTab() {
   }, [q]);
 
   const {
-    dismiss, adjust, triggerRecut, busy, actionError,
+    dismiss, recategorize, adjust, triggerRecut, busy, actionError,
   } = useDetectionCorrections({
     stopAudition: audition.stop,
     onSettled: () => setEditing(null),
@@ -200,6 +200,7 @@ export default function DetectedAdsTab() {
             actions={{
               // These ads were cut, so rejecting one has to put the audio back.
               onDismiss: (d) => { setNotice(null); dismiss(d); },
+              onCategory: recategorize,
               onEdit: (d) => { setNotice(null); setEditing(d); },
               onSplit: (d) => { setNotice(null); setSplitting(d); },
               busy,

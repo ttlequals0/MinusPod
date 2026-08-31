@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import {
-  getPatterns, getPatternStats, AdPattern,
+  getPatterns, getPatternStats, AdPattern, updatePattern,
   protectPattern, unprotectPattern, PATTERN_SOURCE_COMMUNITY,
 } from '../api/patterns';
 import {
@@ -29,11 +29,18 @@ import { btnOutline } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
 import { selectBase } from '../components/fieldStyles';
 import { focusRing } from '../components/fieldStyles';
+import {
+  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
+} from '../utils/segmentCategory';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
 type SourceFilter = 'all' | 'local' | 'community' | 'imported';
 type PatternsTab = 'patterns' | 'ad-review' | 'detected-ads';
+
+// Shared by the three header actions so none of them reads as the odd one
+// out; whitespace-nowrap keeps the sync stamp on one line.
+const headerBtn = 'px-3 py-1.5 text-sm rounded whitespace-nowrap';
 
 function PatternsPage() {
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
@@ -59,6 +66,15 @@ function PatternsPage() {
   const switchTab = (tab: PatternsTab) => {
     setSearchParams(tab === 'patterns' ? {} : { tab });
   };
+
+  const queryClient = useQueryClient();
+  // A pattern's category decides the segment action for every future match,
+  // so it is editable from the list rather than only inside the detail modal.
+  const categoryMutation = useMutation({
+    mutationFn: ({ id, category }: { id: number; category: SegmentCategory | null }) =>
+      updatePattern(id, { category }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['patterns'] }),
+  });
 
   const { data: patterns, isLoading, error, refetch } = useQuery({
     queryKey: ['patterns', scopeFilter, showInactive, sourceFilter],
@@ -201,23 +217,23 @@ function PatternsPage() {
               <button
                 type="button"
                 onClick={handleSyncNow}
-                className={`px-2 py-1 rounded text-xs ${btnOutline} transition-colors ${focusRing}`}
+                className={`${headerBtn} ${btnOutline} transition-colors ${focusRing}`}
                 title={syncStatus.lastError ? `Last error: ${syncStatus.lastError}` : 'Sync now'}
               >
-                ↻ synced {new Date(syncStatus.lastRun).toLocaleString()}
+                ↻ synced {new Date(syncStatus.lastRun).toLocaleDateString()}
               </button>
             )}
             <button
               type="button"
               onClick={() => setImportOpen(true)}
-              className={`px-3 py-1.5 rounded ${btnOutline} transition-colors ${focusRing}`}
+              className={`${headerBtn} ${btnOutline} transition-colors ${focusRing}`}
             >
               Import
             </button>
             <button
               type="button"
               onClick={() => setExportOpen(true)}
-              className={`px-3 py-1.5 rounded ${btnOutline} transition-colors ${focusRing}`}
+              className={`${headerBtn} ${btnOutline} transition-colors ${focusRing}`}
             >
               Export
             </button>
@@ -493,20 +509,24 @@ function PatternsPage() {
           <table className="w-full table-fixed divide-y divide-border">
             <colgroup>
               <col className="w-[4%]" />
-              <col className="w-[16%]" />
-              <col className="w-[26%]" />
-              <col className="w-[7%]" />
-              <col className="w-[7%]" />
+              <col className="w-[13%]" />
+              <col className="w-[19%]" />
               <col className="w-[11%]" />
-              <col className="w-[11%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
               <col className="w-[7%]" />
-              <col className="w-[11%]" />
+              <col className="w-[10%]" />
             </colgroup>
             <thead className="bg-muted/50">
               <tr>
                 <SortHeader field="id" label="ID" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="scope" label="Scope" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="sponsor" label="Sponsor" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Category
+                </th>
                 <SortHeader field="confirmation_count" label="Confirmed" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="false_positive_count" label="False Pos." className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="created_at" label="Created" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
@@ -560,6 +580,26 @@ function PatternsPage() {
                       </div>
                     )}
                   </td>
+                  {/* Stops the row click: the select is its own control, not
+                      a way into the detail modal. */}
+                  <td className="px-2 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      aria-label={`Category for pattern ${pattern.id}`}
+                      value={pattern.category ?? ''}
+                      disabled={categoryMutation.isPending}
+                      onChange={(e) => categoryMutation.mutate({
+                        id: pattern.id,
+                        category: e.target.value === ''
+                          ? null : (e.target.value as SegmentCategory),
+                      })}
+                      className={`px-2 py-1 text-xs rounded bg-secondary text-secondary-foreground border border-border disabled:opacity-50 ${focusRing}`}
+                    >
+                      <option value="">Uncategorized</option>
+                      {SEGMENT_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>{SEGMENT_CATEGORY_LABELS[c]}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-2 py-3 whitespace-nowrap">
                     <span className="text-sm text-success font-medium">
                       {pattern.confirmation_count}
@@ -598,7 +638,7 @@ function PatternsPage() {
               ))}
               {paginatedPatterns?.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                     No patterns found
                   </td>
                 </tr>

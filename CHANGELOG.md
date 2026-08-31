@@ -9,6 +9,35 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.94.1] - 2026-08-30
+
+### Fixed
+
+- Switches were squashed on phones. A control with a width class is still a
+  flex item, so a long label beside one steals its width once the row stops
+  fitting: at 360px a switch next to a two-line label lost a third of its
+  width. The row only overflows on narrow screens, which is why every desktop
+  review passed it. The switch now holds its size, and the design guide
+  records the rule for every fixed-size control in a flex row.
+- The queue pager wrapped onto two lines on a phone. It now stays on one,
+  showing first, current, and last below the small breakpoint.
+- Import, Export, and the community sync stamp on the Ad Patterns header were
+  three different sizes. They share one recipe now, and the stamp shows a date
+  instead of a full timestamp that wrapped to three lines.
+- The play button on a detection table row was 33px against 30px neighbours.
+  Both come from one shared recipe now, as the card and marker rows already
+  did.
+- Saving on a detection whose category resolves to keep returned a 409. The
+  modal offered Save and Not an ad on a marker the corrections endpoint will
+  always refuse; it now shows the category picker as the way through and says
+  so.
+
+### Added
+
+- Set a detection's category from the Ad Review and Detected Ads rows, and a
+  pattern's category from the Ad Patterns table, without opening the editor.
+  Review is bulk work, and the category is what decides whether a span is cut.
+
 ## [2.94.0] - 2026-08-30
 
 ### Added

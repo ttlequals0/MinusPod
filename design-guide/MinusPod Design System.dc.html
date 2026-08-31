@@ -186,6 +186,13 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
       </label>
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">36&times;20 (h-5 w-9), 14px knob, 2px inset; checked = primary fill; aria-label required; space/enter toggles</span>
     </div>
+    <div style="display:flex;flex-direction:column;gap:10px;grid-column:1/-1">
+      <label style="font-size:13px;font-weight:500">Fixed-size controls inside a flex row</label>
+      <div style="padding:12px;border-radius:8px;background:hsl(var(--destructive) / 0.1);font-size:12px;color:hsl(var(--foreground));text-wrap:pretty">
+        <b>A width class does not defend itself.</b> A control sized with <span style="font-family:ui-monospace,monospace">w-9</span> next to a long label is still a flex item with <span style="font-family:ui-monospace,monospace">flex-shrink:1</span>. Once the row cannot fit, the browser takes the width back: at 360px a switch beside a two-line label lost <b>a third of its width</b>. Give every fixed-size control in a flex row <span style="font-family:ui-monospace,monospace">shrink-0</span>.
+      </div>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground));text-wrap:pretty">This is why it kept coming back: the row only overflows at narrow widths, so the control looks right in desktop review and deforms on a phone. Check fixed-size controls at 360px, not just at the breakpoint you designed them in. Applies to the switch, icon buttons, badges, and the position column in a queue row.</span>
+    </div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <label style="font-size:13px;font-weight:500">Icon button in a row of text buttons</label>
       <div style="display:flex;align-items:center;gap:8px">

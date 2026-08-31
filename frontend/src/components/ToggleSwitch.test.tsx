@@ -5,6 +5,19 @@ import userEvent from '@testing-library/user-event';
 import ToggleSwitch from './ToggleSwitch';
 
 describe('ToggleSwitch', () => {
+  it('keeps its width beside a long label', () => {
+    // A flex item with a width class still shrinks when the row overflows,
+    // which only happens at narrow widths. That deformed every switch in the
+    // app on mobile while looking correct on desktop.
+    render(
+      <label className="flex items-center gap-3">
+        <ToggleSwitch checked onChange={() => {}} ariaLabel="Toggle" />
+        <span>Queue episodes while the LLM or Whisper endpoint is down</span>
+      </label>,
+    );
+    expect(screen.getByRole('switch').className).toContain('shrink-0');
+  });
+
   it('uses the slim design-system track and knob', () => {
     render(<ToggleSwitch checked={false} onChange={() => {}} ariaLabel="Toggle" />);
     const toggle = screen.getByRole('switch', { name: 'Toggle' });

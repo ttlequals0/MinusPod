@@ -51,6 +51,8 @@ export interface AdReviewItem {
   correctedBounds: { start: number; end: number } | null;
   // Null when the detector left it uncategorized (resolves as Sponsor).
   category?: SegmentCategory | null;
+  // 'keep' when the feed's category action leaves this span in the audio.
+  actionApplied?: string | null;
 }
 
 export interface AdReviewSubmit {
@@ -738,6 +740,10 @@ function AdReviewModal({
   // With Confirm hidden (Detected Ads), an unmoved-boundary save would emit
   // a plain confirm the host discards, so the button and C shortcut go inert.
   const confirmInert = hideConfirm && !boundariesMoved;
+  // A keep marker's fate is decided by its category, and the corrections
+  // endpoint refuses a verdict on one. Offering Save and Not an ad here only
+  // produced a 409, so the category picker is the action instead.
+  const keptByCategory = item.actionApplied === 'keep';
 
   const handleConfirm = () => {
     if (confirmInert) return;
@@ -1455,11 +1461,13 @@ function AdReviewModal({
                   Split
                 </button>
                 <div className="text-xs text-muted-foreground">
-                  {boundariesMoved
-                    ? 'Confirm will save adjusted boundaries.'
-                    : hideConfirm
-                      ? 'This ad is already cut. Move a boundary to save an adjustment.'
-                      : 'Confirm will record this ad as-detected.'}
+                  {keptByCategory
+                    ? 'Left in by its category. Change it above to cut this span.'
+                    : boundariesMoved
+                      ? 'Confirm will save adjusted boundaries.'
+                      : hideConfirm
+                        ? 'This ad is already cut. Move a boundary to save an adjustment.'
+                        : 'Confirm will record this ad as-detected.'}
                 </div>
               </div>
               {/* Equal-width buttons across viewports. Short labels
@@ -1472,22 +1480,26 @@ function AdReviewModal({
                   <span className="sm:hidden">Skip</span>
                   <span className="hidden sm:inline">{hasNext ? 'Skip & Next' : 'Skip'}</span>
                 </button>
-                <button type="button" onClick={handleReject}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
-                  title="Mark as not an ad (R)">
-                  <span className="sm:hidden">Not an ad</span>
-                  <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
-                </button>
-                <button type="button" onClick={handleConfirm}
-                  disabled={boundaryError !== null || confirmInert}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
-                  title={boundaryError
-                    ?? (confirmInert
-                      ? 'Already cut. Move a boundary to save an adjustment.'
-                      : 'Save changes (C)')}>
-                  <span className="sm:hidden">Save</span>
-                  <span className="hidden sm:inline">{hasNext ? 'Save & Next' : 'Save'}</span>
-                </button>
+                {!keptByCategory && (
+                  <button type="button" onClick={handleReject}
+                    className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
+                    title="Mark as not an ad (R)">
+                    <span className="sm:hidden">Not an ad</span>
+                    <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
+                  </button>
+                )}
+                {!keptByCategory && (
+                  <button type="button" onClick={handleConfirm}
+                    disabled={boundaryError !== null || confirmInert}
+                    className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
+                    title={boundaryError
+                      ?? (confirmInert
+                        ? 'Already cut. Move a boundary to save an adjustment.'
+                        : 'Save changes (C)')}>
+                    <span className="sm:hidden">Save</span>
+                    <span className="hidden sm:inline">{hasNext ? 'Save & Next' : 'Save'}</span>
+                  </button>
+                )}
               </div>
             </>
           )}

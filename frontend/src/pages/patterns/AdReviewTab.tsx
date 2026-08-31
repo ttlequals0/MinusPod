@@ -161,6 +161,7 @@ export default function AdReviewTab() {
               onApprove: approve,
               onDismiss: dismiss,
               onEdit: setEditing,
+              onCategory: recategorize,
               busy,
             }}
           />
@@ -183,6 +184,7 @@ export default function AdReviewTab() {
             patternId: editing.patternId,
             correctedBounds: null,
             category: editing.category as AdReviewItem['category'],
+            actionApplied: editing.actionApplied,
           } satisfies AdReviewItem}
           episodeDuration={editing.episodeDuration ?? 0}
           hasOriginal={editing.hasOriginalAudio}

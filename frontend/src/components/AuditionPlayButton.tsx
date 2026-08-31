@@ -1,7 +1,7 @@
 import { Pause, Play } from 'lucide-react';
 import { btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
-import { cardActionIcon, rowActionIcon } from './rowActionStyles';
+import { cardActionIcon, rowActionIcon, tableActionIcon } from './rowActionStyles';
 
 // 'row' and 'card' take the height of the action buttons beside them, from
 // the same source those buttons use, so the play button lines up at every
@@ -10,6 +10,7 @@ const SIZES = {
   sm: 'p-1.5',
   row: rowActionIcon,
   card: cardActionIcon,
+  table: tableActionIcon,
 } as const;
 
 export function AuditionPlayButton({ playing, onClick, label = 'this ad', size = 'sm' }: {

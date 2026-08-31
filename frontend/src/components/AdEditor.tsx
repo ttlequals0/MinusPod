@@ -16,6 +16,7 @@ export interface DetectedAd {
   scope?: PatternScope;
   network_id?: string;
   category?: string | null;
+  action_applied?: string | null;
 }
 
 export interface AdCorrection {
@@ -135,6 +136,7 @@ export function AdEditor({
         patternId: ad.pattern_id ?? null,
         correctedBounds: null,
         category: (ad.category ?? null) as AdReviewItem['category'],
+        actionApplied: ad.action_applied ?? null,
       };
 
   if (!internalCreateMode && detectedAds.length === 0) {
