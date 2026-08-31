@@ -199,3 +199,42 @@ def test_split_piece_is_still_bounded(db):
         sponsor='BetterHelp', scope='podcast', podcast_id='some-show',
         episode_id='abc')
     assert created == []
+
+
+# The opening read names its advertiser. A labeled brand that first appears
+# only in the back half means the span opens with someone else's read.
+MISATTRIBUTED = (
+    "Squarespace gives you everything you need to build a beautiful website. "
+    "Go to squarespace.com/podcast today for a free trial of the platform. "
+    "It really is that easy to get a professional site of your very own. "
+    "Whether a portfolio or a store, the templates cover all of it for you. "
+    "BetterHelp matches you with a licensed therapist within a day. "
+    "Visit betterhelp.com/show for ten percent off with BetterHelp."
+)
+
+MID_SPAN_BRAND = (
+    "I recently inherited responsibility for a server with a failing drive. "
+    "The previous admin had given up on it and the data seemed to be gone. "
+    "BetterHelp is not that kind of rescue, but the shape is the same. "
+    "BetterHelp matches you with a licensed therapist within a day of asking."
+)
+
+
+def test_brand_only_in_back_half_is_rejected(db):
+    matcher = TextPatternMatcher(db=db)
+    pid = matcher.create_pattern_from_ad(
+        segments=_segments(MISATTRIBUTED, 0.0, 60.0), start=0.0, end=60.0,
+        sponsor='BetterHelp', scope='podcast', podcast_id='some-show',
+        episode_id='abc')
+    assert pid is None
+
+
+def test_brand_first_named_mid_span_still_learns(db):
+    """A testimonial-shaped read names the brand partway in; that must not
+    re-trip the placement rejection the alias fix removed."""
+    matcher = TextPatternMatcher(db=db)
+    pid = matcher.create_pattern_from_ad(
+        segments=_segments(MID_SPAN_BRAND, 0.0, 60.0), start=0.0, end=60.0,
+        sponsor='BetterHelp', scope='podcast', podcast_id='some-show',
+        episode_id='abc')
+    assert pid is not None

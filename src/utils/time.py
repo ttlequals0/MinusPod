@@ -14,6 +14,13 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime(ISO_FORMAT)
 
 
+def epoch_to_iso(ts) -> str | None:
+    """Epoch seconds as an ISO 8601 UTC string; None for falsy input."""
+    if not ts:
+        return None
+    return datetime.fromtimestamp(ts, timezone.utc).strftime(ISO_FORMAT)
+
+
 def utc_now() -> datetime:
     """Return the current time as a timezone-aware UTC datetime."""
     return datetime.now(timezone.utc)

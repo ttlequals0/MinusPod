@@ -56,7 +56,6 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
     },
     onSuccess: () => {
       onSettled?.();
-      queryClient.invalidateQueries({ queryKey: ['detections'] });
       // The server stamps the episode when a decision needs new audio; the
       // Apply button cuts them in one pass per episode.
       queryClient.invalidateQueries({ queryKey: ['pending-recuts'] });
@@ -66,6 +65,11 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
       // Surface what the server said: some refusals are permanent, and
       // "try again" would send the reader in circles.
       setActionError(getErrorMessage(error, 'Failed to save correction.'));
+    },
+    // On success the rows changed server-side; on error recategorize's
+    // optimistic patch must be replaced with what the server actually holds.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['detections'] });
     },
   });
 

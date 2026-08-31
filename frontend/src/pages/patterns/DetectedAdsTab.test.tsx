@@ -224,6 +224,28 @@ describe('DetectedAdsTab', () => {
     expect(typeof reviewModalProps.current?.onSplitSaved).toBe('function');
   });
 
+  it('hands the modal the category and applied action', async () => {
+    // Without these the modal cannot enter kept-by-category mode and shows
+    // the wrong current category.
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({ category: 'outro', actionApplied: 'keep' })],
+      total: 1, page: 1, totalPages: 1, limit: 20,
+      counts: {
+        total: 1, needsReview: 0, pending: 0, rejected: 0,
+        accepted: 1, confirmed: 0, dismissed: 0,
+      },
+      cutSummary: SUMMARY,
+    });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+    await waitFor(() => expect(reviewModalProps.current).not.toBeNull());
+    const item = reviewModalProps.current?.item as Record<string, unknown>;
+    expect(item.category).toBe('outro');
+    expect(item.actionApplied).toBe('keep');
+  });
+
   it('shows a beeped marker as beeped rather than as a plain cut', async () => {
     mockGetDetections.mockResolvedValue({
       detections: [detection({ actionApplied: 'beep' })],

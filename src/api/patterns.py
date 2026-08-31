@@ -1193,7 +1193,10 @@ def _correction_changes_audio(db, slug, correction_type, marker, data) -> bool:
     if correction_type == 'create':
         return True
     if marker is None:
-        return False
+        # Client bounds can trail a recut or reprocess past the match
+        # tolerance. With no marker to compare against, stamp: an unneeded
+        # recut is idempotent, a skipped one silently drops the decision.
+        return correction_type in ('confirm', 'reject', 'adjust', 'split')
     was_cut = bool(marker.get('was_cut'))
     if correction_type == 'confirm':
         return not was_cut

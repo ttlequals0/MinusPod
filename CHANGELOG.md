@@ -51,6 +51,47 @@ release notes.
   and bulk actions, none of which had an error handler at all.
 - Two selects in the feed page's episode filter could not wrap and ran off the
   side of a 320px screen.
+- A correction whose bounds no longer matched a stored marker (a recut or
+  reprocess can shift markers past the 0.5s match tolerance while the list is
+  open) recorded the decision but never stamped the episode, so an adjust or
+  reject silently never reached the audio. An unmatched correction now stamps;
+  an unneeded recut is idempotent, a skipped one loses the edit.
+- A decision recorded while its episode was mid-run was cleared when the run
+  finished, though the run's cut list never saw it. Completion now clears only
+  stamps from before the run started, and a decision landing on a processing
+  episode stamps with a fresh time instead of keeping the old one.
+- The Detected Ads tab's editor never learned the marker's category or applied
+  action, so a kept segment's editor still offered "Not an ad" (a guaranteed
+  409) and showed the wrong category. The keep guard covered Ad Review only.
+- The C and R keyboard shortcuts skipped the kept-by-category guard: the
+  buttons were hidden but the keys still submitted the refused verdict.
+- Apply recuts overwrote the mode of an episode already queued for a full or
+  llm rerun, downgrading the requested rerun to a recut of stale detections.
+  Queued and processing episodes are skipped; their own run applies the
+  decisions and clears the stamp.
+- One user-requested episode lifted the rate-limit pause for the whole queue,
+  and claims go by priority, so every backlog row ahead of it burned one call
+  into the throttled provider. While paused, only user-requested rows are
+  claimed.
+- A full or reprocess retry re-ran Whisper on every attempt after a transient
+  failure. A retry now reuses the transcript an earlier attempt of the same
+  request saved, when the retained original guarantees the audio is the same
+  file the transcript came from.
+- The Apply recuts button read "Recutting" and stayed disabled when a new
+  decision arrived while a batch ran, and could stick that way. The server
+  now reports each row's state (`recutReady`, `inFlight` on
+  `GET /episodes/pending-recuts`) and the bar renders from that: rows being
+  rebuilt, rows a fresh apply would queue, and rows missing what a recut
+  needs, which wait for a full reprocess. An episode left 'pending' by a
+  cleared queue counts as applyable, since no run of its own is coming.
+- A category change the server refused kept showing the new category in the
+  list until an unrelated refetch put the truth back.
+- Learning could store a span whose opening read belonged to a different
+  advertiser: the labeled brand only had to appear twice anywhere. It must now
+  first appear in the front 60 percent of the read.
+- Two workers recording response-format probe answers in the same window could
+  drop one model's answer; the read-merge-write now runs in one immediate
+  transaction.
 
 ### Added
 

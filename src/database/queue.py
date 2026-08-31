@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from config import DEFER_SERVICE_LLM
-from utils.time import ISO_FORMAT, utc_now
+from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -299,6 +299,8 @@ class QueueMixin:
         rather than inferring intent from a priority number: a stored priority
         is base + boosts, so it cannot tell a manual request from a high-
         priority feed, and a manual boost of 0 would match every row.
+        Same user-intent predicate as claim_next_queued_episode's filter;
+        change them together or paused claims deadlock against this gate.
         """
         conn = self.get_connection()
         row = conn.execute(
@@ -330,8 +332,14 @@ class QueueMixin:
         )
         return {(r['podcast_slug'], r['episode_id']) for r in cursor.fetchall()}
 
-    def claim_next_queued_episode(self) -> dict | None:
+    def claim_next_queued_episode(self, user_requested_only: bool = False) -> dict | None:
         """Atomically claim the next pending episode, marking it 'processing'.
+
+        ``user_requested_only`` claims only rows whose episode carries the
+        user-intent mark (reprocess_requested_at); the rate-limit pause uses
+        it so a Play or Reprocess runs mid-hold without the rest of the
+        backlog being fired into a throttled provider. Same predicate as
+        has_user_requested_pending_row; change them together.
 
         Closes the SELECT-then-mark gap in get_next_queued_episode: the
         conditional ``UPDATE ... WHERE status='pending'`` plus the rowcount
@@ -347,8 +355,14 @@ class QueueMixin:
                    FROM auto_process_queue q
                    JOIN podcasts p ON q.podcast_id = p.id
                    WHERE q.status = 'pending'
+                     AND (? = 0 OR EXISTS (
+                         SELECT 1 FROM episodes e
+                         WHERE e.podcast_id = q.podcast_id
+                           AND e.episode_id = q.episode_id
+                           AND e.reprocess_requested_at IS NOT NULL))
                    ORDER BY q.priority DESC, q.created_at ASC
-                   LIMIT 1"""
+                   LIMIT 1""",
+                (1 if user_requested_only else 0,)
             ).fetchone()
             if row is None:
                 return None
@@ -631,24 +645,37 @@ class QueueMixin:
 
         Idempotent and first-write-wins: the stamp marks when the episode
         first went stale, so several edits over an afternoon still recut once.
+        On an episode mid-run the stamp is bumped to now instead, so the
+        run's completion (which clears only stamps older than its own start)
+        cannot swallow a decision its cut list never saw.
         """
+        now = utc_now_iso()
         conn = self.get_connection()
         conn.execute(
-            """UPDATE episodes SET pending_recut_at = COALESCE(pending_recut_at, ?)
+            """UPDATE episodes
+               SET pending_recut_at = CASE WHEN status = 'processing'
+                                           THEN ?
+                                           ELSE COALESCE(pending_recut_at, ?) END
                WHERE episode_id = ?
                  AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)""",
-            (utc_now().strftime(ISO_FORMAT), episode_id, slug)
+            (now, now, episode_id, slug)
         )
         conn.commit()
 
-    def clear_episode_pending_recut(self, slug: str, episode_id: str) -> None:
-        """Drop the stamp once a recut has applied the decisions."""
+    def clear_episode_pending_recut(self, slug: str, episode_id: str,
+                                    before: str | None = None) -> None:
+        """Drop the stamp once a recut has applied the decisions.
+
+        `before` clears only a stamp at or before that time, so a completed
+        run cannot swallow a decision recorded after it started.
+        """
         conn = self.get_connection()
         conn.execute(
             """UPDATE episodes SET pending_recut_at = NULL
                WHERE episode_id = ?
-                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)""",
-            (episode_id, slug)
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                 AND (? IS NULL OR pending_recut_at <= ?)""",
+            (episode_id, slug, before, before)
         )
         conn.commit()
 
@@ -660,12 +687,27 @@ class QueueMixin:
         pending recuts without touching the rest of the queue.
         """
         conn = self.get_connection()
+        # has_segments/has_markers mirror the recut preconditions cheaply
+        # (string tests, not JSON parses: this backs a polled endpoint and
+        # segments run to hundreds of KB): segments must be a non-empty list,
+        # markers only present ('[]' recuts fine, restoring the original).
+        # has_queue_row separates an episode whose own run is coming from one
+        # left 'pending' by a cleared queue, which nothing will run.
         cursor = conn.execute(
             """SELECT e.episode_id, e.title, e.status, e.original_url,
                       e.pending_recut_at, p.slug AS podcast_slug,
-                      p.title AS podcast_title
+                      p.title AS podcast_title,
+                      d.original_segments_json IS NOT NULL
+                          AND d.original_segments_json != '[]' AS has_segments,
+                      d.ad_markers_json IS NOT NULL AS has_markers,
+                      EXISTS (SELECT 1 FROM auto_process_queue q
+                              WHERE q.podcast_id = e.podcast_id
+                                AND q.episode_id = e.episode_id
+                                AND q.status IN ('pending', 'processing'))
+                          AS has_queue_row
                FROM episodes e
                JOIN podcasts p ON e.podcast_id = p.id
+               LEFT JOIN episode_details d ON d.episode_id = e.id
                WHERE e.pending_recut_at IS NOT NULL
                  AND (? IS NULL OR p.slug = ?)
                ORDER BY e.pending_recut_at ASC

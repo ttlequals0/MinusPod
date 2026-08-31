@@ -710,6 +710,23 @@ class EpisodeMixin:
         ).fetchone()
         return row['dai_differential_json'] if row else None
 
+    def get_transcribed_details_created_at(self, slug: str, episode_id: str) -> str | None:
+        """created_at of the details row, when it holds a transcript.
+
+        A forced re-transcription deletes and recreates the row, so a row
+        newer than the reprocess request carries that request's transcript
+        and a retry may reuse it instead of transcribing again.
+        """
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            return None
+        row = self.get_connection().execute(
+            """SELECT created_at FROM episode_details
+               WHERE episode_id = ? AND transcript_text IS NOT NULL""",
+            (db_episode_id,)
+        ).fetchone()
+        return row['created_at'] if row else None
+
     def clear_episode_details(self, slug: str, episode_id: str):
         """Clear transcript and ad markers for an episode."""
         conn = self.get_connection()

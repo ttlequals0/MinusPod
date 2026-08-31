@@ -129,7 +129,8 @@ def background_queue_processor():
     """
     from main_app.processing import start_background_processing
     from offline_queue import offline_queue_tick
-    from rate_limit_hold import rate_limit_hold_tick, should_pause_claims
+    from rate_limit_hold import (
+        is_queue_paused, rate_limit_hold_tick)
     from processing_queue import ProcessingQueue
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
@@ -166,7 +167,8 @@ def background_queue_processor():
 
             # Rate-limit pause gate (#696); held episodes resume via the tick
             # above.
-            if should_pause_claims(db):
+            paused = is_queue_paused(db)
+            if paused and not db.has_user_requested_pending_row():
                 if not rate_limit_pause_logged:
                     refresh_logger.info(
                         "Queue paused: LLM provider rate limit; waiting for reset")
@@ -176,7 +178,11 @@ def background_queue_processor():
             rate_limit_pause_logged = False
 
             # Atomically claim the next queued episode (marks it 'processing').
-            queued = db.claim_next_queued_episode()
+            # Mid-pause only user-requested rows are claimed: the gate above
+            # waves them through, and letting the whole backlog claim by
+            # priority would burn one throttled call per row ahead of them.
+            queued = db.claim_next_queued_episode(
+                user_requested_only=paused)
 
             if queued:
                 queue_id = queued['id']

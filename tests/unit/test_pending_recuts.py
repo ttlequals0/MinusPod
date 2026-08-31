@@ -180,3 +180,96 @@ class TestApplyEndpoint:
         r = client.post('/api/v1/episodes/pending-recuts/apply',
                         data='"a string"', content_type='application/json')
         assert r.status_code == 200
+
+
+class TestUnmatchedMarkerStillStamps:
+    """Client bounds can trail a recut past the 0.5s match tolerance; the
+    decision still has to reach the audio."""
+
+    def test_reject_with_drifted_bounds_stamps(self, client, seeded):
+        r = _correct(client, {'type': 'reject',
+                              'original_ad': {'start': CUT_AD['start'] + 2.0,
+                                              'end': CUT_AD['end'] + 2.0}})
+        assert r.status_code == 200
+        assert _pending(seeded) == 1
+
+    def test_adjust_with_drifted_bounds_stamps(self, client, seeded):
+        r = _correct(client, {'type': 'adjust',
+                              'original_ad': {'start': CUT_AD['start'] + 2.0,
+                                              'end': CUT_AD['end'] + 2.0},
+                              'adjusted_start': 305.0, 'adjusted_end': 355.0})
+        assert r.status_code == 200
+        assert _pending(seeded) == 1
+
+
+class TestMidRunDecisions:
+    """A run only cuts what it loaded; a decision landing mid-run must
+    survive the run's completion."""
+
+    OLD = '2020-01-01T00:00:00Z'
+
+    def _backdate(self, db):
+        conn = db.get_connection()
+        conn.execute("UPDATE episodes SET pending_recut_at = ? WHERE episode_id = ?",
+                     (self.OLD, EPISODE_ID))
+        conn.commit()
+
+    def test_processing_episode_gets_a_fresh_stamp(self, seeded):
+        seeded.upsert_episode(slug=SLUG, episode_id=EPISODE_ID, status='processing')
+        self._backdate(seeded)
+        seeded.mark_episode_pending_recut(SLUG, EPISODE_ID)
+        assert seeded.get_episodes_pending_recut()[0]['pending_recut_at'] > self.OLD
+
+    def test_idle_episode_keeps_first_write_wins(self, seeded):
+        self._backdate(seeded)
+        seeded.mark_episode_pending_recut(SLUG, EPISODE_ID)
+        assert seeded.get_episodes_pending_recut()[0]['pending_recut_at'] == self.OLD
+
+    def test_clear_before_keeps_a_newer_stamp(self, seeded):
+        seeded.mark_episode_pending_recut(SLUG, EPISODE_ID)
+        seeded.clear_episode_pending_recut(SLUG, EPISODE_ID, before=self.OLD)
+        assert _pending(seeded) == 1
+        seeded.clear_episode_pending_recut(SLUG, EPISODE_ID,
+                                           before='2099-01-01T00:00:00Z')
+        assert _pending(seeded) == 0
+
+
+class TestApplySkipsQueuedRuns:
+    def _queue_row(self, db):
+        db.queue_episode_for_processing(SLUG, EPISODE_ID,
+                                        'https://example.com/ep.mp3')
+
+    def test_apply_keeps_a_queued_reruns_mode(self, client, seeded):
+        """Upserting recut over a queued full run would silently downgrade
+        the rerun the user asked for."""
+        _correct(client, {'type': 'reject', 'original_ad': _original(CUT_AD)})
+        seeded.upsert_episode(slug=SLUG, episode_id=EPISODE_ID,
+                              status='pending', reprocess_mode='full')
+        self._queue_row(seeded)
+        body = client.post('/api/v1/episodes/pending-recuts/apply').get_json()
+        assert body == {'queued': 0, 'skipped': 1}
+        assert seeded.get_episode(SLUG, EPISODE_ID)['reprocess_mode'] == 'full'
+        assert _pending(seeded) == 1
+
+    def test_stranded_pending_episode_is_not_skipped_for_status(self, client, seeded):
+        """'pending' with no queue row (a cleared queue) has no run coming;
+        only the recut preconditions may skip it, not its status."""
+        _correct(client, {'type': 'reject', 'original_ad': _original(CUT_AD)})
+        seeded.upsert_episode(slug=SLUG, episode_id=EPISODE_ID, status='pending')
+        listed = client.get('/api/v1/episodes/pending-recuts').get_json()
+        assert listed['episodes'][0]['inFlight'] is False
+
+    def test_get_reports_queued_rows_in_flight(self, client, seeded):
+        _correct(client, {'type': 'reject', 'original_ad': _original(CUT_AD)})
+        seeded.upsert_episode(slug=SLUG, episode_id=EPISODE_ID, status='pending')
+        self._queue_row(seeded)
+        body = client.get('/api/v1/episodes/pending-recuts').get_json()
+        assert body['episodes'][0]['inFlight'] is True
+        assert body['episodes'][0]['recutReady'] is False
+
+    def test_get_reports_recut_readiness(self, client, seeded):
+        """No retained original or saved segments here, so the row says a
+        recut cannot rebuild it."""
+        _correct(client, {'type': 'reject', 'original_ad': _original(CUT_AD)})
+        body = client.get('/api/v1/episodes/pending-recuts').get_json()
+        assert body['episodes'][0]['recutReady'] is False

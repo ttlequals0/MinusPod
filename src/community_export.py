@@ -153,6 +153,16 @@ def count_brand_occurrences(text: str, sponsor_row: dict | None) -> int:
     return max((text_lower.count(c) for c in candidates), default=0)
 
 
+def first_brand_occurrence(text: str, sponsor_row: dict | None) -> int | None:
+    """Earliest offset of any brand variant in `text`, or None when absent."""
+    if not text:
+        return None
+    candidates = brand_match_candidates(sponsor_row)
+    lowered = text.lower()
+    hits = [p for p in (lowered.find(c) for c in candidates) if p >= 0]
+    return min(hits) if hits else None
+
+
 def get_sponsor_row_or_stub(db, sponsor):
     """Return the known-sponsor row for `sponsor`, or a name-only stub
     ({'name': sponsor, 'aliases': '[]'}) when there is no DB or no stored

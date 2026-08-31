@@ -119,18 +119,24 @@ def _format_flag_for(setting_key: str, model: str | None) -> bool | None:
 def _record_format_flag(setting_key: str, model: str, supported: bool) -> None:
     """Persist one model's answer, merging onto the stored map.
 
-    Reads straight from the DB rather than the settings TTL cache: two probes
-    inside one cache window would otherwise both merge onto the same stale
-    copy and the first answer would be lost.
+    The read-merge-write runs in one immediate transaction, so two workers
+    probing different models in the same window serialize instead of the
+    second write dropping the first model's answer.
     """
-    try:
-        from database import Database
-        db = Database()
-        flags = _parse_format_flags(db.get_setting(setting_key))
+    def merge(stored):
+        flags = _parse_format_flags(stored)
         flags.pop(_WILDCARD_MODEL, None)  # a legacy answer is now per model
         flags[model] = supported
-        db.set_setting(setting_key, json.dumps(flags, sort_keys=True), is_default=False)
-        _provider_cache.set(setting_key, db.get_setting(setting_key))
+        return json.dumps(flags, sort_keys=True)
+
+    try:
+        from database import Database
+        # The lock spans the merge so two threads' cache writes land in
+        # commit order; without it the older merge could overwrite the newer
+        # one in the process cache for a full TTL.
+        with _provider_cache_lock:
+            merged = Database().merge_setting(setting_key, merge)
+            _provider_cache.set(setting_key, merged)
     except Exception as e:
         logger.warning(f"Could not persist {setting_key}: {e}")
 

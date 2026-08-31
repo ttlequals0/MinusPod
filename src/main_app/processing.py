@@ -37,7 +37,7 @@ from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import clip_dai_core_spans, invalidate_tail_provenance
 from utils.time import (
-    adjust_timestamp, ISO_FORMAT, merge_cut_spans, overlap_ratio,
+    adjust_timestamp, epoch_to_iso, ISO_FORMAT, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
@@ -473,6 +473,29 @@ def _next_processed_version(episode_data):
     is_reprocess = (previous_version > 0
                     or bool((episode_data or {}).get('reprocess_requested_at')))
     return previous_version + 1 if is_reprocess else 0
+
+
+def _forced_transcription_already_done(slug, episode_id, requested_at) -> bool:
+    """True when an earlier attempt of this same reprocess saved a transcript.
+
+    The forced clear deletes and recreates the details row, so a row newer
+    than the reprocess request holds this request's transcript, not the stale
+    pre-request one, and a retry after a transient failure may reuse it.
+    """
+    if not requested_at:
+        return False
+    # Reuse only when the retry will read the same audio file the transcript
+    # came from. Without a retained original it re-downloads, and on a DAI
+    # feed the fresh file's ad inlays shift, so reused timestamps cut content.
+    if not storage.get_original_path(slug, episode_id).exists():
+        return False
+    transcribed_at = db.get_transcribed_details_created_at(slug, episode_id)
+    if transcribed_at and transcribed_at > requested_at:
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Reusing transcript from an earlier "
+            f"attempt of this reprocess (saved {transcribed_at})")
+        return True
+    return False
 
 
 def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
@@ -3174,11 +3197,14 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
 
 def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
-                            processed_version, detection_degraded=None):
+                            processed_version, detection_degraded=None,
+                            run_started_iso=None):
     """Upsert the processed episode row and update related DB state.
 
     ``detection_degraded``: the sanitized reason string when this run
     degraded, else None to clear a flag left by an earlier failure.
+    ``run_started_iso``: when the run began; only pending-recut stamps from
+    before then are cleared, so a decision recorded mid-run survives.
     """
     original_final = storage.get_original_path(slug, episode_id)
     original_file_rel = f"episodes/{episode_id}-original.mp3" if original_final.exists() else None
@@ -3201,13 +3227,15 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         reprocess_requested_at=None,
         deferred_at=None,
         deferred_service=None,
-        # Any completed run cuts from the current markers, so whatever review
-        # decisions were waiting are now in the audio.
-        pending_recut_at=None,
         # A clean run clears a degraded flag from an earlier failure; a
         # degraded run re-stamps its own reason so this unconditional
         # write does not clobber the flag detection just set.
         detection_degraded=detection_degraded)
+
+    # A completed run cuts from the markers it loaded, so only decisions
+    # waiting when it started are now in the audio; a stamp from mid-run
+    # stays for the next apply.
+    db.clear_episode_pending_recut(slug, episode_id, before=run_started_iso)
 
     try:
         removed = storage.cleanup_stale_audio_versions(
@@ -3522,7 +3550,8 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
     _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
                             processed_version,
-                            detection_degraded=(run_stats or {}).get('detection_degraded'))
+                            detection_degraded=(run_stats or {}).get('detection_degraded'),
+                            run_started_iso=epoch_to_iso(start_time))
     _refresh_rss_for_slug(slug, episode_id)
 
     processing_time = time.time() - start_time
@@ -4295,12 +4324,19 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 and (episode_data or {}).get('reprocess_source') == REPROCESS_SOURCE_POLICY):
             clear_episode_for_mode(db, slug, episode_id, reprocess_mode)
 
-        # Stage 1: Download and transcribe
+        # Stage 1: Download and transcribe. A retry of a full/reprocess run
+        # reuses the transcript an earlier attempt of the same request saved,
+        # instead of paying the Whisper run again.
+        force_transcription = (
+            reprocess_mode in FORCE_TRANSCRIBE_MODES
+            and not _forced_transcription_already_done(
+                slug, episode_id,
+                (episode_data or {}).get('reprocess_requested_at')))
         audio_path, segments = _download_and_transcribe(
             slug, episode_id, episode_url, podcast_name,
             skip_transcription=skip_transcription_active,
             podcast=podcast_settings,
-            force_transcription=(reprocess_mode in FORCE_TRANSCRIBE_MODES))
+            force_transcription=force_transcription)
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).

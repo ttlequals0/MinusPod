@@ -766,9 +766,8 @@ class SettingsMixin:
             }
         return settings
 
-    def set_setting(self, key: str, value: str, is_default: bool = False):
-        """Set a setting value."""
-        conn = self.get_connection()
+    @staticmethod
+    def _upsert_setting(conn, key: str, value: str, is_default: bool):
         conn.execute(
             """INSERT INTO settings (key, value, is_default, updated_at)
                VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
@@ -778,7 +777,26 @@ class SettingsMixin:
                  updated_at = excluded.updated_at""",
             (key, value, 1 if is_default else 0)
         )
+
+    def set_setting(self, key: str, value: str, is_default: bool = False):
+        """Set a setting value."""
+        conn = self.get_connection()
+        self._upsert_setting(conn, key, value, is_default)
         conn.commit()
+
+    def merge_setting(self, key: str, merge_fn) -> str:
+        """Rewrite a setting as merge_fn(stored_value_or_None) -> new value.
+
+        Read and write share one immediate transaction, so two workers
+        merging concurrently serialize instead of the second dropping the
+        first's change. Returns the stored value.
+        """
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+            merged = merge_fn(row['value'] if row else None)
+            self._upsert_setting(conn, key, merged, is_default=False)
+        return merged
 
     def clear_setting(self, key: str):
         """Delete a setting row outright so it reads as unset."""

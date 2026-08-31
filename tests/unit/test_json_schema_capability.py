@@ -282,3 +282,26 @@ class TestCallLlmForWindowFormat:
         rf = {"type": "json_schema", "json_schema": {"name": "x"}}
         call_llm_for_window(window_label='w', response_format=rf, llm_client=object())
         assert captured['response_format'] is rf
+
+
+class TestRecordFormatFlagMerge:
+    """Each probe answer merges onto the stored per-model map; recording one
+    model must not drop another's answer."""
+
+    def test_two_models_both_survive(self):
+        from llm_client import _record_format_flag
+        key = 'test_format_flag_merge'
+        _db().clear_setting(key)
+        _record_format_flag(key, 'model-a', True)
+        _record_format_flag(key, 'model-b', False)
+        stored = json.loads(_db().get_setting(key))
+        assert stored == {'model-a': True, 'model-b': False}
+        _db().clear_setting(key)
+
+    def test_legacy_wildcard_is_replaced(self):
+        from llm_client import _record_format_flag
+        key = 'test_format_flag_wildcard'
+        _db().set_setting(key, 'true', is_default=False)
+        _record_format_flag(key, 'model-a', False)
+        assert json.loads(_db().get_setting(key)) == {'model-a': False}
+        _db().clear_setting(key)

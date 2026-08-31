@@ -165,3 +165,16 @@ describe('AdReviewModal create mode category', () => {
     );
   });
 });
+
+describe('AdReviewModal kept-by-category hotkeys', () => {
+  it('mutes C and R on a keep marker; the buttons are hidden but keys are not', async () => {
+    const { onSubmit } = renderModal({
+      item: { ...ITEM, category: 'outro', actionApplied: 'keep' },
+    });
+    const user = userEvent.setup();
+    await user.keyboard('r');
+    await user.keyboard('c');
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Not an ad/ })).toBeNull();
+  });
+});

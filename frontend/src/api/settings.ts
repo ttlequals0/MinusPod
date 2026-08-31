@@ -101,6 +101,11 @@ export interface PendingRecut {
   title: string;
   podcast: string;
   pendingSince: string;
+  /** An apply would queue this row now: its recut inputs exist and no run
+      of its own is queued or underway. */
+  recutReady: boolean;
+  /** The episode's own queued or running pass will apply the decisions. */
+  inFlight: boolean;
 }
 
 /** Episodes holding review decisions that are not in the audio yet.

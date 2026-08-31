@@ -750,7 +750,8 @@ function AdReviewModal({
   const keptByCategory = item.actionApplied === 'keep';
 
   const handleConfirm = () => {
-    if (confirmInert) return;
+    // Guards the C shortcut too; the buttons are hidden but the key is not.
+    if (confirmInert || keptByCategory) return;
     onSubmit(
       boundariesMoved
         ? {
@@ -764,6 +765,7 @@ function AdReviewModal({
   };
 
   const handleReject = () => {
+    if (keptByCategory) return;
     onSubmit({ kind: 'reject' });
   };
 

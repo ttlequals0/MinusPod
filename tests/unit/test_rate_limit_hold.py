@@ -488,3 +488,40 @@ class TestTtlClamp:
 
     def test_disabled_default(self):
         assert is_rate_limit_hold_enabled(db) is False
+
+
+class TestPausedClaims:
+    """Mid-pause the processor claims only user-requested rows, so a Play
+    runs without the backlog being fired into a throttled provider."""
+
+    def _pending(self, episode_id, user_requested=False, priority=0):
+        db.upsert_episode(SLUG, episode_id, title=episode_id,
+                          original_url='https://example.com/e.mp3',
+                          reprocess_requested_at='2026-01-01T00:00:00Z'
+                          if user_requested else None)
+        podcast = db.get_podcast_by_slug(SLUG)
+        conn = db.get_connection()
+        conn.execute(
+            """INSERT INTO auto_process_queue
+               (podcast_id, episode_id, original_url, title, status, priority)
+               VALUES (?, ?, ?, ?, 'pending', ?)""",
+            (podcast['id'], episode_id, 'https://example.com/e.mp3', 'E', priority))
+        conn.commit()
+
+    def setup_method(self):
+        db.get_connection().execute("DELETE FROM auto_process_queue")
+        db.get_connection().commit()
+
+    teardown_method = setup_method
+
+    def test_claims_only_the_user_requested_row(self, seeded_episode):
+        self._pending('ep-backlog', priority=500)
+        self._pending('ep-play', user_requested=True, priority=0)
+        claimed = db.claim_next_queued_episode(user_requested_only=True)
+        assert claimed['episode_id'] == 'ep-play'
+        assert db.claim_next_queued_episode(user_requested_only=True) is None
+
+    def test_unfiltered_claim_still_goes_by_priority(self, seeded_episode):
+        self._pending('ep-backlog', priority=500)
+        self._pending('ep-play', user_requested=True, priority=0)
+        assert db.claim_next_queued_episode()['episode_id'] == 'ep-backlog'

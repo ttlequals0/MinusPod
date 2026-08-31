@@ -2281,6 +2281,19 @@ paths:
                         pendingSince:
                           type: string
                           description: When the episode first went stale.
+                        recutReady:
+                          type: boolean
+                          description: >-
+                            An apply would queue this row now. False when the
+                            retained original audio, saved segments, or
+                            markers are missing (the decision then waits for
+                            a full reprocess) or while the episode's own run
+                            is queued or underway.
+                        inFlight:
+                          type: boolean
+                          description: >-
+                            The episode's own queued or running pass will
+                            apply the decisions itself.
 
   /episodes/pending-recuts/apply:
     post:
@@ -2290,8 +2303,9 @@ paths:
       description: >-
         Queues one recut per pending episode, using the same recut path and
         preconditions as the per-feed segment re-render. An episode missing
-        its retained original audio is skipped and keeps its stamp, so its
-        decisions are not lost.
+        its retained original audio, or whose own run is queued or underway
+        (that run applies the decisions), is skipped and keeps its stamp, so
+        its decisions are not lost.
       operationId: applyPendingRecuts
       requestBody:
         required: false

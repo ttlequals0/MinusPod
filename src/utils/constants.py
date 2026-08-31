@@ -189,6 +189,11 @@ LEARNING_MAX_PATTERN_DURATION = 120
 # without a bound one undetected transition would store a pattern of any length.
 LEARNING_SPLIT_DURATION_FACTOR = 2
 
+# How far into a span the labeled brand must first appear. A read names its
+# advertiser early; a brand that only turns up in the back half usually means
+# the opening read belongs to someone else and the label is misattributed.
+LEARNING_BRAND_ONSET_FRACTION = 0.6
+
 # Structural fields in LLM ad response objects that never contain sponsor info.
 # Everything NOT in this set is a candidate for dynamic field scanning.
 STRUCTURAL_FIELDS = frozenset({

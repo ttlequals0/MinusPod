@@ -16,12 +16,15 @@ from config import (
     FUZZY_MATCH_THRESHOLD as FUZZY_THRESHOLD,
     SEGMENT_CATEGORIES,
 )
-from community_export import count_brand_occurrences, brand_match_candidates, get_sponsor_row_or_stub
+from community_export import (
+    count_brand_occurrences, brand_match_candidates, first_brand_occurrence,
+    get_sponsor_row_or_stub)
 from utils.text import extract_text_from_segments, timed_spans_from_segments
 from sponsor_normalize import get_or_create_known_sponsor
 from utils.constants import (
     canonical_sponsor,
     INVALID_SPONSOR_VALUES,
+    LEARNING_BRAND_ONSET_FRACTION,
     LEARNING_MAX_PATTERN_DURATION,
     LEARNING_MIN_PATTERN_DURATION,
     LEARNING_SPLIT_DURATION_FACTOR,
@@ -1465,6 +1468,17 @@ class TextPatternMatcher:
                     f"Skipping pattern creation: sponsor '{sponsor}' (with aliases) "
                     f"appears only {occurrences}x in ad_text (need >=2) - likely "
                     f"a host name-drop or verification-pass false positive"
+                )
+                return None
+            # A read names its advertiser early. A brand first appearing in
+            # the back half usually means the span opens with a different
+            # advertiser's read and the label is misattributed.
+            onset = first_brand_occurrence(ad_text, sponsor_row)
+            if onset is not None and onset > len(ad_text) * LEARNING_BRAND_ONSET_FRACTION:
+                logger.warning(
+                    f"Skipping pattern creation: sponsor '{sponsor}' first appears "
+                    f"{onset} of {len(ad_text)} chars in - the opening read "
+                    f"likely belongs to a different advertiser"
                 )
                 return None
 

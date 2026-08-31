@@ -2,7 +2,6 @@
 import json
 import logging
 import re
-from datetime import datetime, timezone
 
 from flask import Response, redirect, request, send_file, abort, url_for
 
@@ -38,7 +37,7 @@ from utils.episode_paths import episode_public_url
 from utils.text import (
     extract_timed_spans_in_range, parse_transcript_segments,
 )
-from utils.time import ISO_FORMAT, utc_now_iso
+from utils.time import epoch_to_iso, utc_now_iso
 
 logger = logging.getLogger('podcast.api')
 
@@ -1390,14 +1389,6 @@ def retry_ad_detection(slug, episode_id):
 
 # ========== Processing Queue Endpoints ==========
 
-def _epoch_to_iso(ts):
-    """Epoch seconds (StatusService's display queue) as an ISO string, so every
-    queuedAt in the response has the same shape as the DB's created_at."""
-    if not ts:
-        return None
-    return datetime.fromtimestamp(ts, timezone.utc).strftime(ISO_FORMAT)
-
-
 @api.route('/episodes/processing', methods=['GET'])
 @log_request
 def get_processing_episodes():
@@ -1504,7 +1495,7 @@ def get_processing_episodes():
             'title': q.get('title') or 'Unknown',
             'podcast': q.get('podcast_name') or q['slug'],
             'startedAt': None,
-            'queuedAt': _epoch_to_iso(q.get('queued_at')),
+            'queuedAt': epoch_to_iso(q.get('queued_at')),
             'priority': None,
             'stage': 'queued',
         })
@@ -1639,6 +1630,20 @@ def set_episode_queue_priority(slug, episode_id):
     })
 
 
+def _recut_handled_by_own_run(row) -> bool:
+    """Whether a pending-recut row's episode has its own run coming.
+
+    Such a run reads the recorded decisions itself, and upserting a recut
+    over it would downgrade a queued full/llm rerun. An episode left
+    'pending' with no queue row (a cleared queue) has no run coming, so a
+    recut is the only path for its decisions. Shared by the apply loop and
+    the readiness flags so the button never counts rows apply would skip.
+    """
+    return bool(
+        row['status'] == EpisodeStatus.PROCESSING.value
+        or (row['status'] == EpisodeStatus.PENDING.value and row['has_queue_row']))
+
+
 @api.route('/episodes/pending-recuts', methods=['GET'])
 @log_request
 def get_pending_recuts():
@@ -1650,15 +1655,30 @@ def get_pending_recuts():
     db = get_database()
     slug = request.args.get('slug') or None
     episodes = db.get_episodes_pending_recut(slug=slug)
-    return json_response({
-        'count': len(episodes),
-        'episodes': [{
+    storage = get_storage()
+
+    def entry(e):
+        running = _recut_handled_by_own_run(e)
+        # Mirrors _check_recut_preconditions, so the UI can say which rows
+        # an apply will rebuild now, which are mid-run, and which wait for
+        # a full reprocess.
+        data_ok = bool(
+            e['has_segments'] and e['has_markers']
+            and storage.get_original_path(
+                e['podcast_slug'], e['episode_id']).exists())
+        return {
             'slug': e['podcast_slug'],
             'episodeId': e['episode_id'],
             'title': e['title'],
             'podcast': e['podcast_title'],
             'pendingSince': e['pending_recut_at'],
-        } for e in episodes],
+            'recutReady': data_ok and not running,
+            'inFlight': running,
+        }
+
+    return json_response({
+        'count': len(episodes),
+        'episodes': [entry(e) for e in episodes],
     })
 
 
@@ -1685,7 +1705,7 @@ def apply_pending_recuts():
         if not episode or not podcast:
             skipped += 1
             continue
-        if episode.get('status') == EpisodeStatus.PROCESSING.value:
+        if _recut_handled_by_own_run(row):
             skipped += 1
             continue
         if _check_recut_preconditions(db, slug, episode_id, episode) is not None:

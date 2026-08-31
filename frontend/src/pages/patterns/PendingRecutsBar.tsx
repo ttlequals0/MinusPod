@@ -17,7 +17,6 @@ export function PendingRecutsBar({ slug }: PendingRecutsBarProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
-  const [queuedCount, setQueuedCount] = useState(0);
 
   const { data } = useQuery({
     // Scoped and global bars must not share a cache entry.
@@ -32,43 +31,60 @@ export function PendingRecutsBar({ slug }: PendingRecutsBarProps) {
     mutationFn: () => applyPendingRecuts(slug),
     onSuccess: ({ queued, skipped }) => {
       setError(null);
-      // Queued episodes keep their stamp until the recut lands, so without
-      // this the button still reads as unpressed and invites a second run.
-      setQueuedCount(queued);
       // Skipped episodes keep their decisions and stay listed, so say so
       // rather than leaving a button that looks like it did nothing.
       setResult(
         queued === 0
-          ? `Nothing could be recut. ${skipped} ${skipped === 1 ? 'episode is' : 'episodes are'} missing the audio or transcript a recut needs. Your decisions are kept.`
+          ? `Nothing could be recut. ${skipped} ${skipped === 1 ? 'episode is' : 'episodes are'} already queued to run or missing what a recut needs. Your decisions are kept.`
           : `Recutting ${queued} ${queued === 1 ? 'episode' : 'episodes'}.${
-            skipped ? ` ${skipped} skipped, missing the audio or transcript a recut needs.` : ''}`,
+            skipped ? ` ${skipped} skipped: already queued to run, or missing what a recut needs.` : ''}`,
       );
       queryClient.invalidateQueries({ queryKey: ['pending-recuts'] });
       queryClient.invalidateQueries({ queryKey: ['detections'] });
     },
     onError: (e: unknown) => {
       setResult(null);
-      setQueuedCount(0);
       setError(getErrorMessage(e, 'Could not start the recuts.'));
     },
   });
 
+  // The server's flags drive the whole bar: a row an apply would queue now
+  // (ready), one whose own run is underway or queued (inFlight), or one
+  // missing what a recut needs (blocked). Applying refetches, so the rows
+  // flip to inFlight on their own and no client-side batch tracking is
+  // needed; a decision arriving mid-batch simply shows as a new ready row.
+  const episodes = data?.episodes ?? [];
   const count = data?.count ?? 0;
-  // A new decision after an apply re-arms the button.
-  const submitted = queuedCount > 0 && count <= queuedCount;
+  const ready = episodes.filter((e) => e.recutReady).length;
+  const inFlight = episodes.filter((e) => e.inFlight).length;
+  const blocked = count - ready - inFlight;
+  const recuttingOnly = ready === 0 && inFlight > 0;
   if (!count) return null;
 
   return (
     <div className="mb-3 rounded-lg border border-border bg-secondary/40 px-3 py-2 flex flex-wrap items-center justify-between gap-3">
       <div className="text-sm text-foreground">
-        {submitted
+        {recuttingOnly
           ? 'Recutting now. This panel clears as each episode finishes.'
           : count === 1
             ? 'Your decisions are saved, but 1 episode still plays its old audio.'
             : `Your decisions are saved, but ${count} episodes still play their old audio.`}
-        {!submitted && (
+        {!recuttingOnly && (
           <span className="block text-xs text-muted-foreground mt-0.5">
             Recutting rebuilds them from the current markers, once per episode.
+          </span>
+        )}
+        {!recuttingOnly && inFlight > 0 && (
+          <span className="block text-xs text-muted-foreground mt-0.5">
+            {inFlight === 1 ? '1 of them is' : `${inFlight} of them are`} being
+            rebuilt right now.
+          </span>
+        )}
+        {blocked > 0 && (
+          <span className="block text-xs text-muted-foreground mt-0.5">
+            {blocked === 1 ? '1 of them is' : `${blocked} of them are`} missing
+            the retained audio or saved transcript a recut needs; those
+            decisions apply on the next full reprocess.
           </span>
         )}
         {result && (
@@ -79,12 +95,12 @@ export function PendingRecutsBar({ slug }: PendingRecutsBarProps) {
       <button
         type="button"
         onClick={() => apply.mutate()}
-        disabled={apply.isPending || submitted}
+        disabled={apply.isPending || ready === 0}
         className={`px-4 py-2 rounded-lg text-sm ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
       >
         {apply.isPending ? 'Starting...'
-          : submitted ? `Recutting ${queuedCount}...`
-            : `Apply recuts (${count})`}
+          : recuttingOnly ? `Recutting ${inFlight}...`
+            : `Apply recuts (${ready})`}
       </button>
     </div>
   );
