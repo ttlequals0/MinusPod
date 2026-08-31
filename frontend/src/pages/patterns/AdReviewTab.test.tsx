@@ -91,7 +91,8 @@ describe('AdReviewTab', () => {
     const row = link.closest('[data-testid="detection-row"]') as HTMLElement;
     expect(within(row).getByText('Feed A')).toBeTruthy();
     expect(within(row).getByText('Not cut')).toBeTruthy();
-    expect(within(row).getByText('Unresolved')).toBeTruthy();
+    // No chip for an undecided row; a recorded decision still gets one.
+    expect(within(row).queryByText('Not reviewed')).toBeNull();
     // The second meta line carries what the old table columns did.
     expect(within(row).getByText(/2026/)).toBeTruthy();
     expect(within(row).getByText(/\(30s\)/)).toBeTruthy();
@@ -156,14 +157,22 @@ describe('AdReviewTab', () => {
     const cards = screen.getByTestId('detections-cards');
     expect(within(cards).getByRole('link', { name: 'Episode One' })).toBeTruthy();
     expect(within(cards).getByText('Acme')).toBeTruthy();
-    // All actions share one line: play | Confirm ad | Not an ad | Edit.
-    // The decision buttons grow but never shrink below their nowrap labels,
-    // so neither can wrap into a taller button than its neighbor.
+    // Cards lay out in two deliberate rows rather than by wrap order: the
+    // verdict pair on top at equal width, adjustments below.
     const confirm = within(cards).getByRole('button', { name: 'Confirm ad' });
+    const notAnAd = within(cards).getByRole('button', { name: 'Not an ad' });
     const edit = within(cards).getByRole('button', { name: 'Edit' });
-    expect(edit.parentElement).toBe(confirm.parentElement);
-    expect(confirm.className).toContain('grow');
-    expect(confirm.className).toContain('whitespace-nowrap');
+    const category = within(cards).getByRole('combobox', { name: /^Category for/ });
+    expect(notAnAd.parentElement).toBe(confirm.parentElement);
+    expect(edit.parentElement).toBe(category.parentElement);
+    expect(edit.parentElement).not.toBe(confirm.parentElement);
+    for (const b of [confirm, notAnAd]) {
+      expect(b.className).toContain('grow');
+      expect(b.className).toContain('basis-0');
+      expect(b.className).toContain('whitespace-nowrap');
+      // The tap-target floor from the design guide.
+      expect(b.className).toContain('min-h-[44px]');
+    }
     expect(edit.className).not.toContain('grow');
   });
 

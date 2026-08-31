@@ -111,7 +111,7 @@ def summarize_detections(items: list[dict]) -> dict:
             counts['confirmed'] += 1
         elif item['resolution'] == 'dismissed':
             counts['dismissed'] += 1
-        elif item['status'] in ('pending', 'rejected'):
+        elif awaits_decision(item):
             counts['needsReview'] += 1
     return counts
 
@@ -146,15 +146,24 @@ def summarize_cut_detections(items: list[dict]) -> dict:
     }
 
 
+def awaits_decision(item: dict) -> bool:
+    """True when a person still has a decision to make about this detection.
+
+    A keep marker is settled by feed policy and the corrections endpoint
+    refuses a verdict on it, so listing it would offer an impossible decision.
+    """
+    return (item['status'] in ('pending', 'rejected')
+            and item['resolution'] == 'unresolved'
+            and item.get('actionApplied') != 'keep')
+
+
 def filter_detections(items: list[dict], status: str = 'needs_review',
                       feed: str | None = None,
                       q: str | None = None,
                       category: str | None = None) -> list[dict]:
     out = items
     if status == 'needs_review':
-        out = [i for i in out
-               if i['status'] in ('pending', 'rejected')
-               and i['resolution'] == 'unresolved']
+        out = [i for i in out if awaits_decision(i)]
     elif status in ('pending', 'rejected', 'accepted'):
         out = [i for i in out if i['status'] == status]
     if category == UNSET_CATEGORY:

@@ -209,7 +209,7 @@ function PatternsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Ad Patterns</h1>
         {activeTab === 'patterns' && (
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground">
               {sortedPatterns?.length || 0} patterns
             </span>
@@ -218,9 +218,14 @@ function PatternsPage() {
                 type="button"
                 onClick={handleSyncNow}
                 className={`${headerBtn} ${btnOutline} transition-colors ${focusRing}`}
-                title={syncStatus.lastError ? `Last error: ${syncStatus.lastError}` : 'Sync now'}
+                title={syncStatus.lastError
+                  ? `Last error: ${syncStatus.lastError}`
+                  : `Last synced ${new Date(syncStatus.lastRun).toLocaleString()}. Sync now.`}
               >
-                ↻ synced {new Date(syncStatus.lastRun).toLocaleDateString()}
+                <span aria-hidden="true">↻</span> synced
+                <span className="hidden sm:inline">
+                  {' '}{new Date(syncStatus.lastRun).toLocaleDateString()}
+                </span>
               </button>
             )}
             <button

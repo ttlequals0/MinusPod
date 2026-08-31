@@ -252,6 +252,8 @@ export default function DetectedAdsTab() {
               adjust(d, s.adjustedStart, s.adjustedEnd, s.sponsor);
             } else if (s.kind === 'reject') {
               dismiss(d);
+            } else if (s.kind === 'recategorize') {
+              recategorize(d, s.category ?? null);
             }
           }}
         />

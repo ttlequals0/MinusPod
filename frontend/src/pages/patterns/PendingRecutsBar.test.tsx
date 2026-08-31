@@ -62,7 +62,7 @@ describe('PendingRecutsBar', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Apply recuts (2)' }));
     expect(
-      await screen.findByText(/Nothing could be recut\. 2 episodes no longer have/),
+      await screen.findByText(/Nothing could be recut\. 2 episodes are missing the audio or transcript/),
     ).toBeTruthy();
   });
 

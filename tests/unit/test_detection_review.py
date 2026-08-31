@@ -27,6 +27,10 @@ REJECTED = {'start': 100.0, 'end': 130.0, 'confidence': 0.4, 'was_cut': False,
             'validation': {'decision': 'REJECT'}}
 HELD = {'start': 200.0, 'end': 230.0, 'confidence': 0.6,
         'held_for_review': True, 'was_cut': False}
+# Left in by the feed's category action. Uncut and undecided like a reject,
+# but no verdict can be recorded against it.
+KEPT = {'start': 300.0, 'end': 330.0, 'confidence': 1.0, 'was_cut': False,
+        'category': 'outro', 'action_applied': 'keep'}
 
 
 class TestFlatten:
@@ -132,6 +136,12 @@ class TestSummarize:
             'accepted': 1, 'confirmed': 0, 'dismissed': 1,
         }
 
+    def test_keeps_are_not_counted_as_needing_review(self):
+        counts = summarize_detections(
+            flatten_detections([_row(markers=[REJECTED, KEPT])], []))
+        assert counts['needsReview'] == 1
+        assert counts['rejected'] == 2
+
     def test_empty(self):
         assert summarize_detections([]) == {
             'total': 0, 'needsReview': 0, 'pending': 0, 'rejected': 0,
@@ -154,6 +164,19 @@ class TestFilter:
             [_row(markers=[REJECTED, HELD])], corrections)
         out = filter_detections(items, status='needs_review')
         assert [i['start'] for i in out] == [200.0]
+
+    def test_needs_review_excludes_category_keeps(self):
+        """A keep is settled by feed policy and the corrections endpoint
+        refuses a verdict on it, so listing it as needing review would offer
+        a decision nobody can make."""
+        items = flatten_detections([_row(markers=[REJECTED, KEPT])], [])
+        out = filter_detections(items, status='needs_review')
+        assert [i['start'] for i in out] == [100.0]
+
+    def test_kept_markers_still_listed_under_their_cut_status(self):
+        items = flatten_detections([_row(markers=[KEPT])], [])
+        assert [i['start'] for i in filter_detections(items, status='all')] == [300.0]
+        assert [i['start'] for i in filter_detections(items, status='rejected')] == [300.0]
 
     def test_single_status_filters(self):
         out = filter_detections(self._items(), status='accepted')

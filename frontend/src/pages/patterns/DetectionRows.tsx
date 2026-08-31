@@ -10,7 +10,7 @@ import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
 } from '../../utils/segmentCategory';
 import { formatTimestamp, formatDate } from '../../utils/format';
-import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { btnOutline, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 
 // "Not cut" = flagged but left in the audio; the bucket covers both
@@ -22,8 +22,10 @@ export const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> =
   pending: ['Pending', 'bg-warning/10 text-warning'],
 };
 
+// STATUS_BADGE says what the audio did; this says what a person decided.
+// Only a recorded decision gets a chip: undecided is the default here.
 export const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> = {
-  unresolved: ['Unresolved', 'bg-secondary text-muted-foreground'],
+  unresolved: ['Not reviewed', 'bg-secondary text-muted-foreground'],
   confirmed: ['Confirmed', 'bg-success/10 text-success'],
   dismissed: ['Not an ad', 'bg-secondary text-muted-foreground'],
 };
@@ -49,6 +51,7 @@ function DetectionStatusBadge({ status }: { status: ReviewDetection['status'] })
 }
 
 function ResolutionBadge({ resolution }: { resolution: ReviewDetection['resolution'] }) {
+  if (resolution === 'unresolved') return null;
   const [label, cls] = RESOLUTION_BADGE[resolution];
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
 }
@@ -117,6 +120,8 @@ function CategorySelect({ d, onCategory, busy, className = '' }: {
   busy: boolean;
   className?: string;
 }) {
+  // The pick shows immediately because the mutation patches the cached list;
+  // no local copy to drift out of sync.
   return (
     <select
       aria-label={`Category for ${d.episodeTitle}`}
@@ -124,7 +129,7 @@ function CategorySelect({ d, onCategory, busy, className = '' }: {
       disabled={busy}
       onChange={(e) => onCategory(
         d, e.target.value === '' ? null : (e.target.value as SegmentCategory))}
-      className={`px-2 py-1 text-xs rounded bg-secondary text-secondary-foreground border border-border disabled:opacity-50 ${focusRing} ${className}`}
+      className={`rounded bg-secondary text-secondary-foreground border border-border disabled:opacity-50 ${focusRing} ${className}`}
     >
       <option value="">Uncategorized</option>
       {SEGMENT_CATEGORIES.map((c) => (
@@ -156,34 +161,44 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   // the cut can never honor (the endpoint 409s them). Edit is the way
   // through: the modal's category picker changes this span's fate.
   if (d.actionApplied === 'keep') {
-    return (
-      <div className={isCard ? 'flex flex-wrap items-center gap-2 pt-1' : 'flex items-center gap-2'}>
+    const kept = (
+      <>
         {d.hasOriginalAudio && (
           <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'table'} />
         )}
-        <p className="text-xs text-muted-foreground min-w-0">
-          Left in by its category:
-        </p>
+        <p className="text-xs text-muted-foreground min-w-0">Left in by its category</p>
+      </>
+    );
+    const adjust = (
+      <>
         {actions.onCategory && (
-          <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy} />
+          <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
+            className={isCard ? `${btn} grow min-w-0` : 'px-2 py-1 text-xs'} />
         )}
         <button
           type="button"
           onClick={() => actions.onEdit(d)}
           disabled={actions.busy}
-          className={`${btn} ${isCard ? 'ml-auto ' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
+          className={`${btn} ${isCard ? '' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
         >
           Edit
         </button>
+      </>
+    );
+    if (!isCard) {
+      return <div className="flex items-center gap-2">{kept}{adjust}</div>;
+    }
+    return (
+      <div className="flex flex-col gap-2 pt-1">
+        <div className="flex items-center gap-2">{kept}</div>
+        <div className="flex items-center gap-2">{adjust}</div>
       </div>
     );
   }
-  // grow exists to balance the Confirm/Not-an-ad pair on review cards. With
-  // no Confirm (Detected Ads), a lone grow turns Not an ad into a full-width
-  // slab, so the buttons stay content-sized there.
-  const growCls = isCard && actions.onApprove ? 'grow ' : '';
-  return (
-    <div className={isCard ? 'flex flex-wrap items-center gap-1.5 min-[370px]:gap-2 pt-1' : 'flex items-center gap-1.5'}>
+  // Cards use two fixed rows rather than wrap order: verdict pair on top at
+  // equal width (basis-0 grow), category and Edit below. Table rows stay on one.
+  const verdicts = (
+    <>
       {d.hasOriginalAudio && (
         <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'table'} />
       )}
@@ -192,27 +207,32 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           type="button"
           onClick={() => actions.onApprove?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${growCls}${btnPrimary} disabled:opacity-50 ${focusRing}`}
+          className={`${btn} ${isCard ? 'grow basis-0 ' : ''}${btnPrimary} disabled:opacity-50 ${focusRing}`}
         >
           Confirm ad
         </button>
-      )}
-      {actions.onCategory && (
-        <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
-          className={isCard ? 'order-last w-full min-[370px]:order-none min-[370px]:w-auto' : ''} />
       )}
       {actions.onDismiss && undecided && (
         <button
           type="button"
           onClick={() => actions.onDismiss?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${growCls}${btnDestructive} disabled:opacity-50 ${focusRing}`}
+          className={`${btn} ${isCard && actions.onApprove ? 'grow basis-0 ' : ''}${btnSecondary} disabled:opacity-50 ${focusRing}`}
         >
           Not an ad
         </button>
       )}
-      {/* On review cards a fourth button would shrink the grow pair, and the
-          editor's Split covers them; content-sized cards have the room. */}
+    </>
+  );
+
+  const secondary = (
+    <>
+      {actions.onCategory && (
+        <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
+          className={isCard ? `${btn} grow min-w-0` : 'px-2 py-1 text-xs'} />
+      )}
+      {/* On review cards a fourth button would shrink the verdict pair, and
+          the editor's Split covers them; content-sized cards have the room. */}
       {actions.onSplit && (!isCard || !actions.onApprove) && (
         <button
           type="button"
@@ -227,10 +247,22 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
         type="button"
         onClick={() => actions.onEdit(d)}
         disabled={actions.busy}
-        className={`${btn} ${isCard ? 'ml-auto ' : ''}${btnOutline} disabled:opacity-50 ${focusRing}`}
+        className={`${btn} ${isCard ? '' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
       >
         Edit
       </button>
+    </>
+  );
+
+  if (!isCard) {
+    return (
+      <div className="flex items-center gap-1.5">{verdicts}{secondary}</div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1.5 min-[370px]:gap-2 pt-1">
+      <div className="flex items-center gap-1.5 min-[370px]:gap-2">{verdicts}</div>
+      <div className="flex items-center gap-1.5 min-[370px]:gap-2">{secondary}</div>
     </div>
   );
 }

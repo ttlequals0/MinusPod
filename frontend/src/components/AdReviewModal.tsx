@@ -270,6 +270,10 @@ function AdReviewModal({
   const [textTemplateInput, setTextTemplateInput] = useState('');
   const [scopeInput, setScopeInput] = useState<'podcast' | 'global'>('podcast');
   const [categoryInput, setCategoryInput] = useState<SegmentCategory | ''>('');
+  // Review-mode category is held locally so the pick stays on screen; the
+  // prop only catches up when the list refetches.
+  const [reviewCategory, setReviewCategory] = useState<SegmentCategory | ''>(
+    (item.category ?? '') as SegmentCategory | '');
   const [reasonInput, setReasonInput] = useState('');
   // 'audio' uses the waveform + pins, 'text' uses transcript selection.
   // adStart/adEnd are shared across modes so toggling preserves work.
@@ -1392,12 +1396,13 @@ function AdReviewModal({
               Category:
               <select
                 aria-label="Segment category"
-                value={item.category ?? ''}
-                onChange={(e) => onSubmit({
-                  kind: 'recategorize',
-                  category: e.target.value === ''
-                    ? null : (e.target.value as SegmentCategory),
-                })}
+                value={reviewCategory}
+                onChange={(e) => {
+                  const next = e.target.value === ''
+                    ? null : (e.target.value as SegmentCategory);
+                  setReviewCategory(next ?? '');
+                  onSubmit({ kind: 'recategorize', category: next });
+                }}
                 className={selectBase}
               >
                 <option value="">Uncategorized (counts as Sponsor)</option>

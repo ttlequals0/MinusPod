@@ -9,6 +9,39 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.94.2] - 2026-08-31
+
+### Fixed
+
+- The Ad Review queue listed segments that no one could act on. A segment
+  left in by its category is settled by the feed's segment actions, and the
+  corrections endpoint refuses a verdict on one, so "Needs review" was
+  offering a decision nobody could make and the queue could never be emptied.
+  Those segments appear under their cut status instead, and the queue holds
+  what needs a decision.
+- Every row in the queue carried an "Unresolved" badge, which restated the
+  filter and said nothing. Only a recorded decision gets a badge now. The
+  state is called "not reviewed" where it still needs a name, and the badges
+  are explained in the web interface docs.
+- The Ad Patterns header pushed Export off screen on a phone: the row could
+  not wrap, and the sync stamp had grown wider. It wraps now, and the stamp
+  shows the date only where there is room for it.
+- Detection cards lay out in two deliberate rows rather than by wrap order:
+  the verdict pair on top at equal width, category and Edit below. Card
+  actions meet the 44px tap-target floor in both dimensions, up from 36.
+- Changing a category in the Detected ad window did nothing at all on the
+  Detected Ads tab, which ignored that kind of change. On Ad Review it saved
+  but the control snapped back to the old value, because it was bound to a
+  list row that had not refetched yet.
+- The Apply recuts button stayed lit after queueing, as if it had not been
+  pressed. It reports what it started and clears itself as episodes finish.
+- "Not an ad" used the destructive red the design system reserves for deletes
+  and errors. It is neutral secondary now, next to the primary "Confirm ad".
+- Apply recuts blamed missing original audio for every skipped episode. The
+  endpoint returns counts, not reasons, and a skip can equally mean the saved
+  transcript segments are gone. The message names what a recut needs without
+  inventing which piece is missing.
+
 ## [2.94.1] - 2026-08-30
 
 ### Fixed

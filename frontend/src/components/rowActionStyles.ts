@@ -17,9 +17,9 @@ export const tableActionBtn = 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
 export const tableActionIcon =
   'h-[30px] w-[30px] inline-flex items-center justify-center';
 
-/** Review/detection cards: 36px tall, 40px from 370px up. */
+/** Review/detection cards: 44px, the tap-target floor. */
 export const cardActionBtn =
-  'px-2 py-2.5 text-xs min-[370px]:px-2.5 min-[370px]:text-sm rounded'
-  + ' touch-manipulation whitespace-nowrap text-center max-w-full overflow-hidden';
+  'min-h-[44px] px-3 text-sm rounded inline-flex items-center'
+  + ' justify-center touch-manipulation whitespace-nowrap text-center max-w-full';
 export const cardActionIcon =
-  'h-9 w-9 min-[370px]:h-10 min-[370px]:w-10 inline-flex items-center justify-center';
+  'h-11 w-11 shrink-0 inline-flex items-center justify-center';

@@ -123,18 +123,40 @@ The Patterns page has two tabs: Patterns and Ad Review. The Ad Review tab lists 
 
 Each row covers one detected segment: podcast name, episode title (linked to the episode page), publish date, start/end timestamps and duration, sponsor name, confidence score, detection stage, status, and resolution.
 
+#### What the badges mean
+
+A row carries up to three badges, and each answers a different question.
+
+| Badge | Question it answers | Meaning |
+|---|---|---|
+| Accepted | What did the audio do? | The span was cut out of the published file |
+| Not cut | What did the audio do? | The span is still in the file |
+| Pending | What did the audio do? | The episode is still processing |
+| Confirmed | What did you decide? | You said this is an ad |
+| Not an ad | What did you decide? | You said it is not |
+| Kept | Why was it left in? | Its category resolves to keep, so it was never a candidate to cut |
+
+A detection you have not decided on yet gets no second badge. Undecided is the normal state in this list, so a badge on every row would say nothing.
+
+"Not cut" and "Not an ad" read alike but are not the same. "Not cut" is what happened to the audio; a span can be left in because the validator rejected it, because you dismissed it, or because its category is set to keep. "Not an ad" is your recorded judgment.
+
 A Detection Statistics card above the filters shows totals by status and resolution across all podcasts. On phones the list renders as stacked cards instead of a table, with a sort control in the filter bar.
 
-The tab opens with "Needs review" selected. That filter shows detections that are held for review or rejected with no correction yet. Other options are Pending review, Rejected, Accepted, and All. A podcast dropdown narrows the list to one feed. The search box filters by sponsor name or detection reason. The list shows 20 rows per page. Click a column header (Podcast, Published, Confidence) to sort; click again to reverse.
+The tab opens with "Needs review" selected. That filter shows detections still waiting on a decision from you: held for review, or left uncut, with no correction recorded. Other options are Pending review, Rejected, Accepted, and All.
 
-Each row has up to four actions:
+Segments left in by their category are not in "Needs review". Their fate is already settled by the feed's segment actions, and the corrections endpoint refuses a verdict on one, so listing them would offer a decision nobody can make. Change the category to move one, or find them under Rejected and All.
+
+A podcast dropdown narrows the list to one feed. The search box filters by sponsor name or detection reason. The list shows 20 rows per page. Click a column header (Podcast, Published, Confidence) to sort; click again to reverse.
+
+Each row has up to five actions:
 
 - **Play** - auditions the pre-cut audio for that segment in the browser. Only appears when the original is retained (see Settings > Storage & Retention). Click again to pause.
-- **Approve** - records a confirm correction. Triggers an immediate recut if the original audio is present; otherwise the cut applies on the next reprocess.
-- **Dismiss** - records a rejection and leaves the audio unchanged.
+- **Confirm ad** - records a confirm correction and marks the episode for a recut.
+- **Not an ad** - records a rejection.
+- **Category** - sets the segment category, which is what decides whether the span is cut, beeped, or left in. This is the only action on a row left in by its category, and it is how you change that.
 - **Edit** - opens the waveform editor so you can adjust the ad boundaries before deciding.
 
-Approve and Dismiss only appear for unresolved detections; the resolution badge replaces them once a decision is recorded.
+Confirm ad and Not an ad only appear for a detection still awaiting a decision, and never on one left in by its category. Recording a decision does not re-cut the episode on the spot: it marks the episode, and an Apply recuts button above the list rebuilds every waiting episode once. An episode you edit five times is rebuilt once rather than five times.
 
 Corrections go through the same per-episode corrections endpoint used on the episode page, so approve and dismiss decisions feed pattern learning the same way.
 

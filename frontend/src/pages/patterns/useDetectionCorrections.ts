@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { getErrorMessage } from '../../api/client';
-import type { ReviewDetection } from '../../api/detections';
+import type { DetectionListResponse, ReviewDetection } from '../../api/detections';
 import { reprocessEpisode } from '../../api/feeds';
 import { submitCorrection, type PatternCorrection } from '../../api/patterns';
 
@@ -94,10 +94,28 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
 
   // Category drives which segment action applies, so this is how a span the
   // feed is currently keeping gets cut (or the reverse).
-  const recategorize = (d: ReviewDetection, category: string | null) => mutation.mutate({
-    d,
-    correction: { type: 'recategorize', original_ad: originalAdOf(d), category },
-  });
+  // The cached rows are patched up front: without it the select snaps back to
+  // the old value until the next refetch, which reads as "it would not save".
+  const recategorize = (d: ReviewDetection, category: string | null) => {
+    queryClient.setQueriesData<DetectionListResponse>(
+      { queryKey: ['detections'] },
+      (page) => (page?.detections
+        ? {
+          ...page,
+          detections: page.detections.map((row) => (
+            row.feedSlug === d.feedSlug && row.episodeId === d.episodeId
+              && row.start === d.start && row.end === d.end
+              ? { ...row, category }
+              : row
+          )),
+        }
+        : page),
+    );
+    mutation.mutate({
+      d,
+      correction: { type: 'recategorize', original_ad: originalAdOf(d), category },
+    });
+  };
 
   // Bounds are optional to match AdReviewSubmit, whose adjust variant carries
   // them optionally; the correction payload accepts undefined the same way.
