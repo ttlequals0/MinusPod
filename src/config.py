@@ -340,6 +340,15 @@ FEED_REFRESH_FAILURE_ALERT_THRESHOLD = 3
 FEED_REFRESH_FAILURE_COUNT_INTERVAL = 600  # Seconds between counted failures
 
 # ============================================================
+# Deferred-episode services
+# ============================================================
+# episodes.deferred_service names which hold owns a deferred row.
+# NULL reads as DEFER_SERVICE_LLM.
+DEFER_SERVICE_LLM = 'llm'
+DEFER_SERVICE_WHISPER = 'whisper'
+DEFER_SERVICE_RATE_LIMIT = 'llm_rate_limit'
+
+# ============================================================
 # Text Pattern Matching Thresholds
 # ============================================================
 TFIDF_MATCH_THRESHOLD = 0.70         # TF-IDF similarity for content matching

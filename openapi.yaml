@@ -2133,9 +2133,12 @@ paths:
       summary: Change a queued episode's priority
       description: >-
         Direct per-row write on the pending auto_process_queue row (#696).
-        Unlike the monotonic MAX() rule on re-enqueue, this can raise or
-        lower. A later feed-level queuePriority change restamps the row and
-        overwrites this value.
+        Send `priority` for an absolute value or `delta` to nudge the stored
+        one; a delta is applied in SQL so a stepper cannot lose a click to a
+        stale read. Exactly one of the two is required. Unlike the monotonic
+        MAX() rule on re-enqueue, either can raise or lower, and both clamp
+        to [-1000, 1000]. A later feed-level queuePriority change restamps
+        the row and overwrites this value.
       operationId: setEpisodeQueuePriority
       parameters:
         - name: slug
@@ -2154,11 +2157,21 @@ paths:
           application/json:
             schema:
               type: object
-              required: [priority]
+              minProperties: 1
+              maxProperties: 1
               properties:
                 priority:
                   type: integer
+                  minimum: -1000
+                  maximum: 1000
                   description: New dequeue priority; higher processes sooner.
+                delta:
+                  type: integer
+                  minimum: -1000
+                  maximum: 1000
+                  description: >-
+                    Amount to add to the stored priority. Applied server-side,
+                    then clamped to the same bounds.
       responses:
         '200':
           description: Priority updated
@@ -2175,8 +2188,11 @@ paths:
                     type: string
                   priority:
                     type: integer
+                    description: The priority now stored, after clamping.
         '400':
-          description: Body is not a JSON object, or priority is not an integer
+          description: >-
+            Body is not a JSON object, neither or both of priority/delta were
+            given, or the value is not an integer within bounds
         '404':
           description: Feed not found, or the episode has no pending queue row
 
@@ -4632,10 +4648,10 @@ paths:
                 llmJsonSchemaEnabled:
                   type: boolean
                   description: |
-                    Opt-in (#693): send response_format json_schema on detection, review, and
-                    category-repair calls to OpenAI-compatible endpoints, after a passing
-                    provider-level probe. Unsupported endpoints fall back to json_object.
-                    Off by default.
+                    Opt-in (#693): send response_format json_schema on detection, review,
+                    category-repair, and trim-recovery calls to OpenAI-compatible endpoints,
+                    for each model that passes the probe. Support is tracked per model, not
+                    per endpoint; unsupported models fall back to json_object. Off by default.
                 openaiBaseUrl:
                   type: string
                   description: Base URL for OpenAI-compatible API endpoint (only used when provider is not anthropic)
@@ -10928,7 +10944,7 @@ components:
           type: object
           description: |
             Opt-in structured output (#693): json_schema response format for
-            OpenAI-compatible endpoints after a passing provider-level probe. Off by default.
+            OpenAI-compatible endpoints, per model that passes the probe. Off by default.
           properties:
             value:
               type: boolean
@@ -11253,8 +11269,9 @@ components:
         queueTotal:
           type: integer
           description: >-
-            Total pending episodes, which can exceed the number of queued
-            entries returned (the row list is capped)
+            Total pending episodes across the whole backlog, not just the
+            requested page. Stamped on every entry, active ones included, so
+            a page whose queued rows all deduped away still reports it.
         priority:
           type:
             - integer

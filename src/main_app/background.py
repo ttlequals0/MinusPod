@@ -129,8 +129,7 @@ def background_queue_processor():
     """
     from main_app.processing import start_background_processing
     from offline_queue import offline_queue_tick
-    from rate_limit_hold import is_queue_paused, rate_limit_hold_tick
-    from database.queue import resolve_queue_boosts
+    from rate_limit_hold import rate_limit_hold_tick, should_pause_claims
     from processing_queue import ProcessingQueue
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
@@ -165,12 +164,9 @@ def background_queue_processor():
                 # provider's reset time has passed; expire past the TTL.
                 _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
 
-            # Rate-limit pause gate: no new claims while a provider reset
-            # window is active (held episodes resume via the tick above).
-            # User-initiated rows carrying the manual boost still go through,
-            # so a Play never parks behind a provider backoff window.
-            if is_queue_paused(db) and not db.has_pending_row_at_or_above(
-                    resolve_queue_boosts()['queue_manual_boost']):
+            # Rate-limit pause gate (#696); held episodes resume via the tick
+            # above.
+            if should_pause_claims(db):
                 if not rate_limit_pause_logged:
                     refresh_logger.info(
                         "Queue paused: LLM provider rate limit; waiting for reset")

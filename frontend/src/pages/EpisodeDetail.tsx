@@ -32,6 +32,7 @@ import { formatStorage, formatDuration } from './settings/settingsUtils';
 import { formatDate, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
+import { rowActionBtn } from '../components/rowActionStyles';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import EpisodeLogsCard from '../components/EpisodeLogsCard';
@@ -1255,7 +1256,7 @@ function EpisodeDetail() {
                     <div className="flex flex-wrap items-center gap-2">
                       {episode.hasOriginalAudio && (
                         <AuditionPlayButton
-                          size="match"
+                          size="row"
                           playing={heldPlaying}
                           onClick={() => markerAudition.toggle(heldKey, markerAudioUrl, segment.start, segment.end)}
                         />
@@ -1332,7 +1333,7 @@ function EpisodeDetail() {
                         }}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`approve-recut-${index}`}
-                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
+                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
                       >
                         {btnLabel(rowStatus, oneTapRecut ? 'Confirm & Recut' : 'Confirm ad')}
                       </button>
@@ -1352,7 +1353,7 @@ function EpisodeDetail() {
                           disabled={correctionMutation.isPending || reprocessMutation.isPending}
                           data-testid={`approve-trimmed-${index}`}
                           title="Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode"
-                          className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, btnSecondary)} ${focusRing}`}
+                          className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnSecondary)} ${focusRing}`}
                         >
                           {btnLabel(rowStatus,
                             `Confirm trimmed (${formatTimestamp(segment.reviewer_proposed_start)} - ${formatTimestamp(segment.reviewer_proposed_end)})`)}
@@ -1367,7 +1368,7 @@ function EpisodeDetail() {
                         onClick={() => handleCorrection({ type: 'reject', originalAd })}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`dismiss-${index}`}
-                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
+                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                       >
                         {btnLabel(rowStatus, 'Not an ad')}
                       </button>
@@ -1384,7 +1385,7 @@ function EpisodeDetail() {
                 disabled={correctionMutation.isPending || reprocessMutation.isPending
                   || episode.status === 'processing'}
                 data-testid="apply-approved-recut"
-                className={`w-full sm:w-auto px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded ${btnPrimary} disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${focusRing}`}
+                className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
               >
                 {`Apply ${approvedHeldCount} confirmed & recut`}
               </button>
@@ -1410,7 +1411,6 @@ function EpisodeDetail() {
                   <div className="flex flex-wrap items-center gap-2">
                     {episode.hasOriginalAudio && (
                       <AuditionPlayButton
-                        size="match"
                         label="this segment"
                         playing={markerAudition.playingKey === `kept-${segment.start}-${segment.end}`}
                         onClick={() => markerAudition.toggle(
@@ -1465,7 +1465,7 @@ function EpisodeDetail() {
                         <div className="flex flex-wrap items-center gap-2">
                           {episode.hasOriginalAudio && (
                             <AuditionPlayButton
-                              size="match"
+                              size="row"
                               playing={rejectedPlaying}
                               onClick={() => markerAudition.toggle(rejectedKey, markerAudioUrl, segment.start, segment.end)}
                             />
@@ -1526,14 +1526,14 @@ function EpisodeDetail() {
                           <button
                             onClick={() => handleCorrection({ type: 'confirm', originalAd })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
+                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
                           >
                             {btnLabel(rowStatus, 'Confirm ad')}
                           </button>
                           <button
                             onClick={() => handleCorrection({ type: 'reject', originalAd })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
+                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                           >
                             {btnLabel(rowStatus, 'Not an ad')}
                           </button>

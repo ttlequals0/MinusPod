@@ -4,6 +4,7 @@ import random
 import time
 from typing import Union
 
+from llm_capabilities import supports_json_schema
 from llm_client import (
     is_retryable_error,
     is_rate_limit_error,
@@ -15,6 +16,7 @@ from llm_client import (
     get_effective_provider,
     StructuralRateLimitError,
     ProviderRateLimitedError,
+    supports_json_schema_for_calls,
 )
 from rate_limit_hold import (
     MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, is_rate_limit_hold_enabled,
@@ -35,6 +37,21 @@ def json_schema_format(name: str, schema: dict, description: str | None = None) 
     if description:
         payload["description"] = description
     return {"type": "json_schema", "json_schema": payload}
+
+
+def schema_format_for(model, name: str, schema: dict,
+                      description: str | None = None,
+                      allow_provider_schema: bool = False) -> dict:
+    """json_schema response_format when `model` supports it, else json_object.
+
+    ``allow_provider_schema`` additionally accepts a provider with a proven
+    schema path (Anthropic). Only for call sites that send no reasoning
+    budget: see supports_json_schema_for_calls for why the two gates differ.
+    """
+    if supports_json_schema_for_calls(model) or (
+            allow_provider_schema and supports_json_schema(get_effective_provider())):
+        return json_schema_format(name, schema, description)
+    return {"type": "json_object"}
 
 
 class EmptyCompletionError(Exception):
@@ -173,11 +190,9 @@ def call_llm(
                 # is_retryable_error excludes limit-exceeded errors, so the
                 # post-loop secondary retry pass below also skips them.
                 break
-            # Rate-limit hold (#696): a provider-reported reset longer than
-            # the in-process sleep cap breaks the loop (on any attempt,
-            # including the last) instead of sleeping or falling to the
-            # fail-and-retry ladder. Shorter resets ride the sleep path below
-            # so lone throttled windows still recover in-process.
+            # Rate-limit hold (#696): a reset past the in-process sleep cap
+            # breaks the loop on any attempt rather than sleeping. Shorter
+            # resets ride the sleep path below and recover in-process.
             if is_rate_limit_error(e) and is_rate_limit_hold_enabled():
                 hold_after = extract_retry_after(e, max_seconds=MAX_RESET_SECONDS)
                 if hold_after is not None and hold_after > MIN_HOLD_RESET_SECONDS:

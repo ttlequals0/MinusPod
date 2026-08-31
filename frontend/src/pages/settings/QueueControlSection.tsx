@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import CollapsibleSection from '../../components/CollapsibleSection';
+import CollapsibleSection, {
+  useCollapsibleOpen, useSectionVisible,
+} from '../../components/CollapsibleSection';
 import { getErrorMessage } from '../../api/client';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
@@ -14,6 +16,8 @@ import {
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
 import { focusRing } from '../../components/fieldStyles';
+
+const STORAGE_KEY = 'settings-section-queue-control';
 
 interface QueueControlSectionProps {
   processNewEpisodesFirst: boolean;
@@ -42,12 +46,13 @@ interface HoldBlockConfig<T extends { enabled: boolean; ttlHours: number }> {
 // Shared shape of the offline-queue and rate-limit-hold settings: a toggle
 // plus a give-up window, with draft state and an explicit Save (#482, #696).
 function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
-  { config }: { config: HoldBlockConfig<T> }
+  { config, active }: { config: HoldBlockConfig<T>; active: boolean }
 ) {
   const qc = useQueryClient();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: config.queryKey,
     queryFn: config.load,
+    enabled: active,
   });
 
   const [draft, setDraft] = useState<{ enabled?: boolean; ttlHours?: number }>({});
@@ -65,7 +70,7 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
     onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Save failed')),
   });
 
-  if (isLoading) {
+  if (isLoading || !active) {
     return <p className="text-sm text-muted-foreground">Loading...</p>;
   }
   if (isError || !data) {
@@ -114,7 +119,7 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
             fallback={48}
             parse={(s) => parseInt(s, 10)}
             onCommit={(v) => setDraft((d) => ({ ...d, ttlHours: v }))}
-            className="w-20 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
+            className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
           />
           <span className="text-xs text-muted-foreground">hours</span>
         </div>
@@ -156,10 +161,16 @@ function QueueControlSection({
   queueBulkBoost,
   onQueueBulkBoostChange,
 }: QueueControlSectionProps) {
+  // Both hold blocks read their own endpoint, each of which counts deferred
+  // episodes; skip that until the section is on screen.
+  const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);
+  const visible = useSectionVisible(STORAGE_KEY, open);
   return (
     <CollapsibleSection
       title="Queue Control"
       subtitle="How episodes move through the processing queue and when they wait."
+      storageKey={STORAGE_KEY}
+      onToggle={setOpen}
     >
       <div className="space-y-6">
         {/* Process new episodes first: fresh-episode queue boost, saves immediately */}
@@ -243,6 +254,7 @@ function QueueControlSection({
 
         <div className="pt-4 border-t border-border">
           <QueueHoldBlock
+            active={visible}
             config={{
               queryKey: ['offlineQueue'],
               load: getOfflineQueueSettings,
@@ -272,6 +284,7 @@ function QueueControlSection({
 
         <div className="pt-4 border-t border-border">
           <QueueHoldBlock
+            active={visible}
             config={{
               queryKey: ['rateLimitHold'],
               load: getRateLimitHoldSettings,

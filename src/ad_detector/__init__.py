@@ -21,12 +21,11 @@ from llm_client import (
     is_rate_limit_error, is_limit_exceeded_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
-    supports_json_schema_for_calls,
     StructuralRateLimitError, ProviderRateLimitedError,
 )
 from run_log import run_in_worker_thread
 from utils.language import get_pattern_language
-from utils.llm_call import call_llm, call_llm_for_window, json_schema_format
+from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.markers import (
     DAI_CORE_SPANS,
     mark_distinct_merge,
@@ -74,7 +73,7 @@ from config import (
 from ad_detector.cue_boundary_snap import _cue_role
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
-from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2, supports_json_schema
+from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
 from text_pattern_matcher import is_defined_pattern
 from text_recurrence import format_recurrence_hint
@@ -972,13 +971,6 @@ class AdDetector:
 
         max_tokens, temperature, reasoning = resolve_stage_tunables(prefix)
 
-        if supports_json_schema_for_calls():
-            response_format = json_schema_format(
-                'ad_detection', AD_DETECTION_JSON_SCHEMA,
-                'Ad segments detected in this window.')
-        else:
-            response_format = None
-
         return call_llm_for_window(
             llm_client=self._llm_client,
             model=model,
@@ -993,7 +985,9 @@ class AdDetector:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
-            response_format=response_format,
+            response_format=schema_format_for(
+                model, 'ad_detection', AD_DETECTION_JSON_SCHEMA,
+                'Ad segments detected in this window.'),
         )
 
     def _process_single_window(self, *, window_idx, window, total_windows,
@@ -1446,13 +1440,6 @@ class AdDetector:
 
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
 
-        if supports_json_schema(get_effective_provider()) or supports_json_schema_for_calls():
-            response_format = json_schema_format(
-                'segment_categories', CATEGORY_REPAIR_JSON_SCHEMA,
-                'Category for each listed segment.')
-        else:
-            response_format = {"type": "json_object"}
-
         response, error = call_llm(
             llm_client=self._llm_client,
             model=model,
@@ -1464,7 +1451,10 @@ class AdDetector:
             slug=slug,
             episode_id=episode_id,
             call_label=f"{window_label} category repair",
-            response_format=response_format,
+            response_format=schema_format_for(
+                model, 'segment_categories', CATEGORY_REPAIR_JSON_SCHEMA,
+                'Category for each listed segment.',
+                allow_provider_schema=True),
         )
         if response is None:
             logger.warning(

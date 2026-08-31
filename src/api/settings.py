@@ -67,8 +67,9 @@ from rate_limit_hold import (
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
-    get_llm_client, create_client_for_provider, _JSON_FORMAT_SETTING_KEY,
-    invalidate_provider_cache,
+    get_llm_client, create_client_for_provider,
+    _JSON_FORMAT_SETTING_KEY, _JSON_SCHEMA_SETTING_KEY,
+    invalidate_provider_cache, reset_schema_probe_memo,
 )
 from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
 from utils.language import LANGUAGE_CODE_RE
@@ -855,6 +856,14 @@ def _apply_size_caps(db, data):
         logger.info(f"Updated {db_key} to: {n}")
 
 
+def _clear_format_probes(db) -> None:
+    """Forget every response_format probe answer, stored and in-process."""
+    db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
+    db.clear_setting(_JSON_SCHEMA_SETTING_KEY)
+    reset_schema_probe_memo()
+    invalidate_provider_cache()
+
+
 def _apply_processing_flags(db, data):
     """Persist boolean processing toggles and the maxFeedEpisodes clamp."""
     if 'autoProcessEnabled' in data:
@@ -999,9 +1008,8 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['llmJsonSchemaEnabled'] else 'false'
         db.set_setting('llm_json_schema_enabled', value, is_default=False)
         # Re-probe on the next endpoint verification now that the opt-in
-        # changed; drop the cached probe answer either way.
-        db.clear_setting('llm_json_schema_supported')
-        invalidate_provider_cache()
+        # changed.
+        _clear_format_probes(db)
         logger.info(f"Updated llm_json_schema_enabled to: {value}")
     return None
 
@@ -1296,8 +1304,10 @@ def _apply_provider_fields(db, data):
         provider_changed = True
 
     if provider_changed:
-        # Clear cached json_format probe so the new endpoint gets re-probed
-        db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
+        # Clear the cached probe answers so the new endpoint gets re-probed:
+        # a stored false against a model name the new endpoint also serves
+        # would otherwise pin it to the fallback format forever.
+        _clear_format_probes(db)
         client = get_llm_client(force_new=True)
         if hasattr(client, 'probe_json_format_support'):
             client.probe_json_format_support()
@@ -1853,7 +1863,7 @@ def reset_ad_detection_settings():
 
     for key in AD_RESET_SETTING_KEYS:
         db.reset_setting(key)
-    db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
+    _clear_format_probes(db)
 
     # Recreate LLM client with reset settings
     client = get_llm_client(force_new=True)
@@ -2161,7 +2171,8 @@ def _offline_queue_view(db) -> dict:
     return {
         'enabled': is_offline_queue_enabled(db),
         'ttlHours': get_offline_queue_ttl_hours(db),
-        'deferredCount': db.count_deferred_episodes(service='llm'),
+        'deferredCount': db.count_deferred_episodes(
+            exclude_service=RATE_LIMIT_DEFERRED_SERVICE),
     }
 
 

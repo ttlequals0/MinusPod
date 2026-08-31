@@ -47,7 +47,8 @@ vi.mock('./settings/AudioCueDetectionSection', () => ({ default: () => null }));
 vi.mock('./settings/PositionalPriorSection', () => ({ default: () => null }));
 vi.mock('./settings/CommunityPatternsSection', () => ({ default: () => null }));
 vi.mock('./settings/DatabaseBackupSection', () => ({ default: () => null }));
-vi.mock('./settings/OfflineQueueSection', () => ({ default: () => null }));
+vi.mock('./settings/QueueControlSection', () => ({ default: () => null }));
+vi.mock('./settings/TranscriptNormalizationSection', () => ({ default: () => null }));
 
 const mockGetSettings = vi.fn();
 const mockResetPrompt = vi.fn();

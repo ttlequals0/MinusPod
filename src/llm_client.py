@@ -76,13 +76,63 @@ io_logger = logging.getLogger('podcast.llm_io')
 # Shared JSON format instruction injected into the system prompt when the
 # endpoint does not support response_format: {"type": "json_object"} natively.
 _JSON_FORMAT_SETTING_KEY = 'llm_json_format_supported'
-# Probe result for response_format json_schema, stored per endpoint like
-# json_format above. The operator opt-in lives in 'llm_json_schema_enabled'.
 _JSON_SCHEMA_SETTING_KEY = 'llm_json_schema_supported'
-# Endpoints whose json_schema probe already ran inconclusively this process:
+# (base_url, model) pairs whose probe already ran inconclusively this process:
 # verify uses force_new clients, so without this memo an always-inconclusive
 # endpoint would be probed again on every verification (~5 min cadence).
-_SCHEMA_PROBE_ATTEMPTED: set[str] = set()
+_SCHEMA_PROBE_ATTEMPTED: set[tuple[str, str]] = set()
+
+# Both probe results are a JSON {model: bool} map, keyed by model rather than
+# endpoint (#693): one URL can serve models that differ, and one model's 400
+# must not downgrade the rest. A legacy bare bool answers for all until
+# re-probed.
+_WILDCARD_MODEL = '*'
+_PROBE_SETTING_KEYS = {
+    'json_object': _JSON_FORMAT_SETTING_KEY,
+    'json_schema': _JSON_SCHEMA_SETTING_KEY,
+}
+
+
+def _parse_format_flags(raw) -> dict:
+    """Parse a stored support map; a legacy bare bool answers for all models."""
+    if not raw:
+        return {}
+    if raw in ('true', 'false'):
+        return {_WILDCARD_MODEL: raw == 'true'}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _format_flag_for(setting_key: str, model: str | None) -> bool | None:
+    """Probed support for `model` under `setting_key`: True, False, or None."""
+    flags = _parse_format_flags(_get_cached_setting(setting_key))
+    if model in flags:
+        return bool(flags[model])
+    if _WILDCARD_MODEL in flags:
+        return bool(flags[_WILDCARD_MODEL])
+    return None
+
+
+def _record_format_flag(setting_key: str, model: str, supported: bool) -> None:
+    """Persist one model's answer, merging onto the stored map.
+
+    Reads straight from the DB rather than the settings TTL cache: two probes
+    inside one cache window would otherwise both merge onto the same stale
+    copy and the first answer would be lost.
+    """
+    try:
+        from database import Database
+        db = Database()
+        flags = _parse_format_flags(db.get_setting(setting_key))
+        flags.pop(_WILDCARD_MODEL, None)  # a legacy answer is now per model
+        flags[model] = supported
+        db.set_setting(setting_key, json.dumps(flags, sort_keys=True), is_default=False)
+        _provider_cache.set(setting_key, db.get_setting(setting_key))
+    except Exception as e:
+        logger.warning(f"Could not persist {setting_key}: {e}")
 
 _JSON_FORMAT_SYSTEM_INSTRUCTION = (
     "\n\n<output_format>CRITICAL JSON REQUIREMENTS:\n"
@@ -251,19 +301,20 @@ def _omit_temperature_override() -> bool:
     return coerce_bool_setting(_get_cached_setting('omit_temperature'))
 
 
-def supports_json_schema_for_calls() -> bool:
+def supports_json_schema_for_calls(model: str | None = None) -> bool:
     """Structured-output gate for OpenAI-compatible endpoints (#693/#694).
 
-    True when the active provider is OpenAI-compatible, the operator opted
-    in (llmJsonSchemaEnabled), and the provider-level probe passed
-    (llm_json_schema_supported). Anthropic call sites keep their existing
-    per-site behavior; other providers are False.
+    Deliberately narrower than llm_capabilities.supports_json_schema, which
+    answers for Anthropic: a json_schema request on the Anthropic path forces
+    a tool_choice call, and Anthropic rejects that alongside the extended
+    thinking a configured reasoning budget turns on. Only the category-repair
+    site, which sends no reasoning budget, ORs the two. Do not merge them.
     """
     if get_effective_provider() != PROVIDER_OPENAI_COMPATIBLE:
         return False
     if not coerce_bool_setting(_get_cached_setting('llm_json_schema_enabled')):
         return False
-    return _get_cached_setting(_JSON_SCHEMA_SETTING_KEY) == 'true'
+    return _format_flag_for(_JSON_SCHEMA_SETTING_KEY, model) is True
 
 
 def get_effective_base_url() -> str:
@@ -272,6 +323,12 @@ def get_effective_base_url() -> str:
     if db_val:
         return db_val
     return os.environ.get('OPENAI_BASE_URL', DEFAULT_OPENAI_BASE_URL)
+
+
+def reset_schema_probe_memo() -> None:
+    """Forget this process's inconclusive json_schema probes so the next
+    endpoint verification retries them (#693)."""
+    _SCHEMA_PROBE_ATTEMPTED.clear()
 
 
 def invalidate_provider_cache() -> None:
@@ -762,11 +819,12 @@ class OpenAICompatibleClient(LLMClient):
         # Cache which token parameter each model accepts: "max_completion_tokens" or "max_tokens"
         # Per-instance to avoid cross-contamination between clients with different base_urls
         self._token_param_cache: dict[str, str] = {}
-        # Whether endpoint supports response_format: {"type": "json_object"}.
-        # None = not yet probed. Persisted to DB across restarts.
-        self._json_format_supported: bool | None = None
-        # Same, for {"type": "json_schema"} structured outputs (#693).
-        self._json_schema_supported: bool | None = None
+        # Probed response_format support, {setting key: {model: bool}}.
+        # A model absent from a map has not been probed. Persisted to DB.
+        self._format_support: dict[str, dict[str, bool]] = {
+            _JSON_FORMAT_SETTING_KEY: {},
+            _JSON_SCHEMA_SETTING_KEY: {},
+        }
 
     def _ensure_client(self):
         """Lazy initialize the OpenAI client."""
@@ -850,11 +908,14 @@ class OpenAICompatibleClient(LLMClient):
                 kw["temperature"] = tmp
             if response_format:
                 rf = response_format
-                if rf.get('type') == 'json_schema' and self._get_json_schema_supported() is False:
-                    # Endpoint never proved schema support; downgrade rather
-                    # than send bare, which would drop the format hint (#693).
+                if (rf.get('type') == 'json_schema'
+                        and self._get_json_schema_supported(model) is False):
+                    # This model rejected schemas before; downgrade rather than
+                    # send bare, which would drop the format hint (#693). An
+                    # unprobed model still tries, then learns from the 400.
                     rf = {"type": "json_object"}
-                if rf.get('type') == 'json_object' and self._get_json_format_supported() is False:
+                if (rf.get('type') == 'json_object'
+                        and self._get_json_format_supported(model) is False):
                     if '<output_format>' not in system:
                         all_messages[0] = {**all_messages[0], "content": system + _JSON_FORMAT_SYSTEM_INSTRUCTION}
                         logger.debug("Endpoint lacks json_object support; using prompt injection fallback")
@@ -876,24 +937,23 @@ class OpenAICompatibleClient(LLMClient):
                 # kw may have been mutated in place by the token-param fallback above;
                 # only treat this as a JSON-mode rejection, not an unrelated 400.
                 rf_type = (kw.get('response_format') or {}).get('type')
-                flag = (self._get_json_schema_supported() if rf_type == 'json_schema'
-                        else self._get_json_format_supported())
-                if rf_type and flag is not True and _rejects_json_mode(str(e)):
-                    kind = 'json_schema' if rf_type == 'json_schema' else 'json_object'
-                    setattr(self, self._FORMAT_PROBES[kind][0], False)
-                    self._persist_format_flag(kind)
+                setting_key = _PROBE_SETTING_KEYS.get(rf_type)
+                flag = self._get_format_support(setting_key, model) if setting_key else None
+                if setting_key and flag is not True and _rejects_json_mode(str(e)):
+                    self._record_format_support(setting_key, model, False)
                     logger.warning(
-                        "Endpoint rejected response_format at runtime; "
-                        "retrying once with the fallback format")
+                        f"Model {model} rejected response_format {rf_type} at "
+                        "runtime; retrying once with the fallback format")
                     kw2 = _build_kwargs(tok, tmp, reasoning)
                     return self._client.chat.completions.create(**kw2)
                 if rf_type == 'json_object' and flag is None:
-                    # Unrecognized 400 wording on an unprobed endpoint: try the
+                    # Unrecognized 400 wording on an unprobed model: try the
                     # fallback speculatively, only persist if it actually fixes it.
                     logger.warning(
                         "Unrecognized 400 with response_format set on unprobed "
-                        "endpoint; speculatively retrying with prompt-injection fallback")
-                    self._json_format_supported = False
+                        "model; speculatively retrying with prompt-injection fallback")
+                    cache = self._format_support[_JSON_FORMAT_SETTING_KEY]
+                    cache[model] = False
                     kw2 = _build_kwargs(tok, tmp, reasoning)
                     try:
                         response = self._client.chat.completions.create(**kw2)
@@ -901,9 +961,9 @@ class OpenAICompatibleClient(LLMClient):
                         # Any retry failure (not just another 400) means the
                         # speculative fallback is unconfirmed; revert and
                         # surface the original error, not the retry's.
-                        self._json_format_supported = None
+                        cache.pop(model, None)
                         raise e from None
-                    self._persist_format_flag('json_object')
+                    self._record_format_support(_JSON_FORMAT_SETTING_KEY, model, False)
                     return response
                 raise
 
@@ -1008,87 +1068,65 @@ class OpenAICompatibleClient(LLMClient):
             models = list(response.data) if response.data else []
             logger.info(f"LLM endpoint verified: {safe_url_for_log(self.base_url, keep_path=True)} ({len(models)} models available)")
             # Probe json_object support if not already known
-            if self._get_json_format_supported() is None:
-                self.probe_json_format_support(model=models[0].id)
-            self._probe_json_schema_if_enabled(model=models[0].id)
+            if models:
+                if self._get_json_format_supported(models[0].id) is None:
+                    self.probe_json_format_support(model=models[0].id)
+                self._probe_json_schema_if_enabled(fallback_model=models[0].id)
             return True
         except Exception as e:
             logger.warning(f"OpenAI-compatible model list failed: {safe_url_for_log(self.base_url, keep_path=True)} - {e}")
             native = self._try_ollama_native_list()
             if native:
                 logger.info(f"LLM endpoint verified via Ollama native API ({len(native)} models)")
-                if self._get_json_format_supported() is None:
+                if self._get_json_format_supported(native[0].id) is None:
                     self.probe_json_format_support(model=native[0].id)
-                self._probe_json_schema_if_enabled(model=native[0].id)
+                self._probe_json_schema_if_enabled(fallback_model=native[0].id)
                 return True
             logger.error(f"LLM endpoint verification failed: {safe_url_for_log(self.base_url, keep_path=True)} - {e}")
             return False
 
-    # Structured-output probe state, per format kind: (instance attr, DB
-    # setting key, log noun). json_object support gates the raw passthrough;
-    # json_schema support (#693) gates the operator-opt-in structured path.
-    _FORMAT_PROBES = {
-        'json_object': ('_json_format_supported', _JSON_FORMAT_SETTING_KEY, 'json_object'),
-        'json_schema': ('_json_schema_supported', _JSON_SCHEMA_SETTING_KEY, 'json_schema'),
-    }
+    def _get_format_support(self, setting_key: str, model: str) -> bool | None:
+        """Probed support for one model under `setting_key`: True, False, or
+        None (never probed). Instance cache first, then the stored map."""
+        cache = self._format_support[setting_key]
+        if model in cache:
+            return cache[model]
+        flag = _format_flag_for(setting_key, model)
+        if flag is not None:
+            cache[model] = flag
+        return flag
 
-    def _json_schema_opt_in(self) -> bool:
-        return coerce_bool_setting(_get_cached_setting('llm_json_schema_enabled'))
+    def _record_format_support(self, setting_key: str, model: str,
+                               supported: bool) -> None:
+        """Store one model's answer, in the instance cache and the DB."""
+        self._format_support[setting_key][model] = supported
+        _record_format_flag(setting_key, model, supported)
 
-    def _get_format_flag(self, kind: str) -> bool | None:
-        """Probed support for a response_format kind: True, False, or None
-        (unknown). Instance cache first, then DB."""
-        attr, setting_key, _ = self._FORMAT_PROBES[kind]
-        cached = getattr(self, attr)
-        if cached is not None:
-            return cached
-        db_val = _get_cached_setting(setting_key)
-        if db_val == 'true':
-            setattr(self, attr, True)
-        elif db_val == 'false':
-            setattr(self, attr, False)
-        return getattr(self, attr)
+    def _get_json_format_supported(self, model: str) -> bool | None:
+        """json_object support for one model."""
+        return self._get_format_support(_JSON_FORMAT_SETTING_KEY, model)
 
-    def _get_json_format_supported(self) -> bool | None:
-        """Endpoint support for response_format json_object."""
-        return self._get_format_flag('json_object')
-
-    def _get_json_schema_supported(self) -> bool | None:
-        """Endpoint support for json_schema response_format (#693)."""
-        return self._get_format_flag('json_schema')
-
-    def _persist_format_flag(self, kind: str) -> None:
-        """Persist a probed flag to DB so we don't re-probe after restart."""
-        _, setting_key, _ = self._FORMAT_PROBES[kind]
-        value = getattr(self, self._FORMAT_PROBES[kind][0])
-        try:
-            from database import Database
-            Database().set_setting(
-                setting_key,
-                'true' if value else 'false',
-                is_default=False,
-            )
-        except Exception as e:
-            logger.warning(f"Could not persist {kind} probe result: {e}")
+    def _get_json_schema_supported(self, model: str) -> bool | None:
+        """json_schema support for one model (#693)."""
+        return self._get_format_support(_JSON_SCHEMA_SETTING_KEY, model)
 
     def probe_json_format_support(self, model: str | None = None) -> bool | None:
-        """Send a minimal completion to test json_object response_format support."""
+        """Send a minimal completion to test json_object support for `model`."""
         return self._probe_format_support('json_object', model)
 
     def probe_json_schema_support(self, model: str | None = None) -> bool | None:
-        """Send a minimal completion to test json_schema response_format support.
+        """Send a minimal completion to test json_schema support for `model`.
 
-        Provider-level, like the json_object probe: the result is stored per
-        endpoint, not per model (#693). Only called when the operator opt-in
-        is on, so providers that will reject it are never pestered.
+        Only called when the operator opt-in is on, so endpoints that will
+        reject it are never pestered.
         """
         return self._probe_format_support('json_schema', model)
 
     def _probe_format_support(self, kind: str, model: str | None) -> bool | None:
         """One minimal completion to test a response_format kind's support.
 
-        Returns True (supported), False (the endpoint rejects it), or None
-        (inconclusive; nothing is persisted).
+        Returns True (supported), False (rejected), or None (inconclusive;
+        nothing is persisted).
         """
         self._ensure_client()
 
@@ -1127,42 +1165,53 @@ class OpenAICompatibleClient(LLMClient):
         # the static list / learned memo; see model_omits_temperature().
         if not model_omits_temperature(model, _omit_temperature_override()):
             probe_kwargs["temperature"] = 0.0
-        attr, _, noun = self._FORMAT_PROBES[kind]
+        url = safe_url_for_log(self.base_url, keep_path=True)
+        subject = f"{kind} ({model} at {url})"
         try:
             self._client.chat.completions.create(**probe_kwargs)
-            setattr(self, attr, True)
-            logger.info(f"Endpoint supports response_format {noun} ({safe_url_for_log(self.base_url, keep_path=True)})")
+            supported = True
+            logger.info(f"Endpoint supports response_format {subject}")
         except BadRequestError as e:
-            if _rejects_json_mode(str(e)):
-                setattr(self, attr, False)
-                logger.info(
-                    f"Endpoint does not support response_format {noun} ({safe_url_for_log(self.base_url, keep_path=True)}); "
-                    + ("schema requests will downgrade to json_object" if kind == 'json_schema'
-                       else "will use prompt injection fallback")
-                )
-            else:
-                logger.warning(f"{noun} probe got unexpected 400: {e}")
+            if not _rejects_json_mode(str(e)):
+                logger.warning(f"{kind} probe got unexpected 400: {e}")
                 return None
+            supported = False
+            logger.info(
+                f"Endpoint does not support response_format {subject}; "
+                + ("schema requests will downgrade to json_object"
+                   if kind == 'json_schema' else "will use prompt injection fallback")
+            )
         except Exception as e:
-            logger.warning(f"{noun} probe failed (non-fatal): {e}")
+            logger.warning(f"{kind} probe failed (non-fatal): {e}")
             return None
 
-        self._persist_format_flag(kind)
-        return getattr(self, attr)
+        self._record_format_support(_PROBE_SETTING_KEYS[kind], model, supported)
+        return supported
 
-    def _probe_json_schema_if_enabled(self, model: str) -> None:
-        """Run the json_schema probe only when the operator opt-in is on and
-        the answer is not already known, so unopted endpoints never see a
-        structured-output request. One attempt per endpoint per process when
-        the probe stays inconclusive."""
-        if self._get_json_schema_supported() is not None:
+    def _probe_json_schema_if_enabled(self, fallback_model: str) -> None:
+        """Probe json_schema support for each model the pipeline will use.
+
+        Only runs under the operator opt-in, so unopted endpoints never see a
+        structured-output request. Per model rather than per endpoint (#693):
+        one URL can serve models that differ on schema support. Each
+        (endpoint, model) gets one attempt per process while inconclusive.
+        """
+        if not coerce_bool_setting(_get_cached_setting('llm_json_schema_enabled')):
             return
-        if not self._json_schema_opt_in():
-            return
-        if self.base_url in _SCHEMA_PROBE_ATTEMPTED:
-            return
-        _SCHEMA_PROBE_ATTEMPTED.add(self.base_url)
-        self.probe_json_schema_support(model=model)
+        for model in self._configured_models(fallback_model):
+            if self._get_json_schema_supported(model) is not None:
+                continue
+            key = (self.base_url, model)
+            if key in _SCHEMA_PROBE_ATTEMPTED:
+                continue
+            _SCHEMA_PROBE_ATTEMPTED.add(key)
+            self.probe_json_schema_support(model=model)
+
+    @staticmethod
+    def _configured_models(fallback_model: str) -> list[str]:
+        """Models to probe: every configured stage model, else the listed one."""
+        from llm_capabilities import configured_stage_models
+        return configured_stage_models(_get_cached_setting) or [fallback_model]
 
     def _try_ollama_native_list(self) -> list[LLMModel]:
         """Try Ollama's native /api/tags endpoint as a fallback for model listing.

@@ -13,69 +13,78 @@ release notes.
 
 ### Added
 
-- Rate-limit queue hold: when the LLM provider answers 429 with a reset
-  longer than five minutes, the episode waits and the queue pauses until
-  the reset instead of burning retries on a throttled provider; shorter
+- Rate-limit queue hold. When the LLM provider answers 429 with a reset
+  more than five minutes out, the episode waits and the queue pauses until
+  the reset instead of burning retries on a throttled provider. Shorter
   resets keep the existing in-process retry, so a lone throttled window
-  still recovers. Applies to detection, review, and verification: a
+  still recovers. Detection, review, and verification are all covered: a
   throttle arriving mid-run defers the episode rather than skipping that
-  span. Off by default; give-up window configurable in hours (1-720,
-  default 48) in Settings, under AI & Processing > Queue Control. A held
-  episode never inherits the clock of an earlier offline deferral, the
-  offline queue's expiry never touches it, and turning the toggle off
-  lifts the pause and releases held episodes (a Play or Reprocess always
-  runs, even mid-pause).
-- Per-episode priority control in the Processing Queue panel: rows with a
-  pending queue entry get a -/+ stepper that raises or lowers the row's
-  priority through the new `POST /feeds/{slug}/episodes/{episodeId}/queue-priority`
-  endpoint. Unlike re-enqueueing, the write can lower a priority; a later
-  feed-level queue priority change still restamps the row.
-- The Processing Queue waiting list is paginated (25 rows per page) instead
-  of a capped flat list, so nothing is hidden behind a "+N further back in
-  the queue" note. `GET /episodes/processing` takes offset/limit (default
-  200, cap 1000) and positions are offset-aware across pages.
-- Queue Control, a new section in AI & Processing, groups the queue
+  stage. Off by default, with a give-up window of 1-720 hours (default 48),
+  under Settings > AI & Processing > Queue Control. Play and Reprocess run
+  even mid-pause, and turning the toggle off lifts the pause and releases
+  held episodes. A held episode never inherits the clock of an earlier
+  offline deferral.
+- Per-episode priority control in the Processing Queue panel. Each waiting
+  row gets a priority field with -/+ buttons, backed by
+  `POST /feeds/{slug}/episodes/{episodeId}/queue-priority`. Send `priority`
+  for an exact value or `delta` to nudge the stored one; a delta is added
+  server-side, so a click made against a stale list value still lands.
+  Either can lower a priority, unlike re-enqueueing; a feed-level queue
+  priority change still restamps the row.
+- The Processing Queue waiting list is paginated at 25 rows per page, so
+  nothing hides behind a "+N further back in the queue" note.
+  `GET /episodes/processing` takes offset and limit (default 200, cap
+  1000), and positions stay correct across pages.
+- Queue Control, a new section in AI & Processing. It groups the queue
   priority boosts (moved out of Global Defaults), the process-new-episodes
   toggle, the offline queue (moved out of Data & Security), and the
   rate-limit hold.
-- Transcript Normalization now lives in AI & Processing as its own section,
-  with help text explaining that the rules correct Whisper output for
-  words, phrases, numbers, sponsor names, and URLs. The Sponsors page drops
-  its Normalizations tab.
-- Opt-in JSON schema response format for OpenAI-compatible providers
-  (#693, #694): a provider-level probe runs once after endpoint
-  verification when the toggle in the LLM Provider section is on, and
-  detection, review, and category repair then send a json_schema
-  response_format. Endpoints that do not support it fall back to
-  json_object at request build or on a runtime 400, instead of silently
-  dropping the format hint. Anthropic call sites are unchanged.
+- Transcript Normalization is now its own section in AI & Processing, with
+  help text explaining that the rules correct Whisper output for words,
+  phrases, numbers, sponsor names, and URLs. The Sponsors page drops its
+  Normalizations tab.
+- Opt-in JSON schema response format for OpenAI-compatible providers (#693,
+  #694). Detection, review, category repair, and trim recovery send a
+  json_schema response_format once the toggle in the LLM Provider section
+  is on. Support is probed and remembered per model rather than per
+  endpoint, because one URL can serve models that differ on it; a model
+  that does not support it falls back to json_object at request build or on
+  a runtime 400 instead of losing the format hint. Anthropic call sites are
+  unchanged.
 
 ### Fixed
 
-- A full or LLM-mode reprocess no longer wipes the episode's transcript
-  and ad markers up front (#692). The clear now happens in the transcribe
+- A full or LLM-mode reprocess no longer wipes the episode's transcript and
+  ad markers up front (#692). The clear now happens in the transcribe
   stage, immediately before the fresh transcript is saved, so an OOM kill
-  or container restart mid-run leaves the prior results intact and the
-  failed state visible, instead of an episode stuck at processing with
-  nothing in it.
-- fpcalc fingerprinting survives recoverable decode hiccups (#690): all
+  or container restart mid-run leaves the prior results intact instead of
+  emptying the episode.
+- The ad reviewer's system prompt examples now show the same shape the
+  reviewer actually sends (#695): candidate markers, and a [start-end]
+  stamp on every line including the 60 seconds of context on each side.
+  The model can now read a trim boundary off a context line instead of
+  interpolating one. Installs still on the shipped default get the
+  corrected examples on upgrade; customized prompts are left alone.
+- fpcalc fingerprinting survives recoverable decode hiccups (#690). All
   three fingerprint call sites parse stdout before honoring the exit code,
   so an episode with one bad frame no longer loses all cue scanning.
-- The ad reviewer's before/after context segments now carry the same
-  per-segment timestamps as the candidate body (#695), matching the
-  system prompt examples that read exact trim boundaries out of context
-  lines.
-- The play button on ad review cards, the detected-ads rows, and the
-  episode page's held and rejected marker rows sizes to the same height as
-  the Confirm/Not-an-ad buttons beside it, instead of floating smaller.
-- The offline queue toggle uses the slimmer settings switch (h-5 w-9)
-  now documented in the design guide, consistent with every other
-  settings section.
-- 3- and 4-digit queue positions no longer paint over the episode title
-  on mobile: the position column widens and the row gains a gap.
-- The cue-template create endpoint's docstring no longer claims to accept
-  a required `label` (#691); the display label is derived from cueType so
-  the LLM prompt always sees a fixed phrase.
+- The offline queue's "waiting" count included only LLM deferrals, so a
+  Whisper outage read as zero episodes waiting. It now counts every
+  deferral it owns.
+- A single model rejecting plain JSON mode no longer downgrades every other
+  model on the same OpenAI-compatible endpoint to prompt injection, across
+  restarts. Both response-format answers are now remembered per model.
+- The play button on ad review cards, detected-ads rows, and the episode
+  page's held and rejected marker rows matches the height of the buttons
+  beside it at every breakpoint, instead of sitting short on mobile.
+- The settings toggle is slimmer, matching the switch spec now written down
+  in the design guide.
+- 3- and 4-digit queue positions no longer paint over the episode title on
+  mobile. The position column is wider, and the row stacks its controls
+  below the title on narrow screens.
+- The cue-template create endpoint's docstring no longer claims to accept a
+  required `label` (#691); the display label comes from cueType, so the LLM
+  prompt always sees a fixed phrase.
 
 ## [2.93.3] - 2026-08-28
 

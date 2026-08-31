@@ -4,7 +4,20 @@ from unittest.mock import MagicMock
 from tests.app_bootstrap import bootstrap
 bootstrap('json_mode_probe_test_')
 
-from llm_client import _rejects_json_mode
+import llm_client
+from llm_client import (
+    _rejects_json_mode,
+    _JSON_FORMAT_SETTING_KEY, _JSON_SCHEMA_SETTING_KEY,
+)
+
+
+def _clear_probe_state():
+    """Drop persisted per-model probe answers between tests."""
+    from database import Database
+    db = Database()
+    for key in (_JSON_FORMAT_SETTING_KEY, _JSON_SCHEMA_SETTING_KEY):
+        db.clear_setting(key)
+    llm_client.invalidate_provider_cache()
 
 
 def test_novita_wording_detected():
@@ -53,6 +66,11 @@ def _mock_response(text="ok"):
 
 
 class TestRuntimeJsonModeFallback:
+    def setup_method(self):
+        _clear_probe_state()
+
+    teardown_method = setup_method
+
     def test_retries_once_and_disables_response_format(self):
         client = _make_client()
         client._token_param_cache['test-model'] = 'max_completion_tokens'
@@ -67,7 +85,7 @@ class TestRuntimeJsonModeFallback:
         )
 
         assert result.content == "recovered"
-        assert client._json_format_supported is False
+        assert client._get_json_format_supported('test-model') is False
         assert client._client.chat.completions.create.call_count == 2
         second_kwargs = client._client.chat.completions.create.call_args_list[1][1]
         assert 'response_format' not in second_kwargs
@@ -82,7 +100,7 @@ class TestRuntimeJsonModeFallback:
         client._token_param_cache['test-model'] = 'max_completion_tokens'
         error = _bad_request_error("400 max_tokens is too large")
         client._client.chat.completions.create.side_effect = [error, error]
-        client._persist_format_flag = MagicMock()
+        client._record_format_support = MagicMock()
 
         try:
             client.messages_create(
@@ -94,8 +112,8 @@ class TestRuntimeJsonModeFallback:
         except Exception as e:
             assert "max_tokens is too large" in str(e)
         assert client._client.chat.completions.create.call_count == 2
-        assert client._json_format_supported is None
-        client._persist_format_flag.assert_not_called()
+        assert client._get_json_format_supported('test-model') is None
+        client._record_format_support.assert_not_called()
 
     def test_unknown_phrasing_unprobed_endpoint_retry_succeeds_persists(self):
         """Unrecognized wording, unprobed endpoint: speculative retry succeeds,
@@ -104,7 +122,7 @@ class TestRuntimeJsonModeFallback:
         client._token_param_cache['test-model'] = 'max_completion_tokens'
         error = _bad_request_error("400 output schema mode is not available for this model")
         client._client.chat.completions.create.side_effect = [error, _mock_response("recovered")]
-        client._persist_format_flag = MagicMock()
+        client._record_format_support = MagicMock()
 
         result = client.messages_create(
             model="test-model", max_tokens=100, system="test system",
@@ -113,8 +131,8 @@ class TestRuntimeJsonModeFallback:
         )
 
         assert result.content == "recovered"
-        assert client._json_format_supported is False
-        client._persist_format_flag.assert_called_once_with('json_object')
+        assert client._get_json_format_supported('test-model') is False
+        client._record_format_support.assert_called_once()
         assert client._client.chat.completions.create.call_count == 2
         second_kwargs = client._client.chat.completions.create.call_args_list[1][1]
         assert 'response_format' not in second_kwargs
@@ -136,7 +154,7 @@ class TestRuntimeJsonModeFallback:
             body={"error": {"message": "Rate limit reached"}},
         )
         client._client.chat.completions.create.side_effect = [original_error, rate_limit_error]
-        client._persist_format_flag = MagicMock()
+        client._record_format_support = MagicMock()
 
         try:
             client.messages_create(
@@ -150,8 +168,8 @@ class TestRuntimeJsonModeFallback:
         except Exception as e:
             assert "output schema mode is not available" in str(e)
         assert client._client.chat.completions.create.call_count == 2
-        assert client._json_format_supported is None
-        client._persist_format_flag.assert_not_called()
+        assert client._get_json_format_supported('test-model') is None
+        client._record_format_support.assert_not_called()
 
     def test_token_param_fallback_not_shadowed_for_uncached_model(self):
         """Uncached model: a token-param 400 must still reach

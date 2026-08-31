@@ -1471,6 +1471,29 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"Migration failed for audio cue prompt refresh: {e}")
 
+        # Refresh the default review prompt so its examples match the shape
+        # _build_user_prompt actually sends (#695). Same idempotent rule as
+        # the refresh above: stored defaults only, gated on a marker.
+        try:
+            from database import DEFAULT_REVIEW_PROMPT
+            row = conn.execute(
+                "SELECT value, is_default FROM settings WHERE key = 'review_prompt'"
+            ).fetchone()
+            if (row and row['is_default']
+                    and 'CANDIDATE AD START' not in (row['value'] or '')):
+                conn.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'review_prompt'",
+                    (DEFAULT_REVIEW_PROMPT,),
+                )
+                conn.commit()
+                logger.info(
+                    "Migration: Updated default review_prompt examples to the "
+                    "timestamped candidate-marker format (#695)"
+                )
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"Migration failed for review prompt example refresh: {e}")
+
         # Per-feed audio cue templates (#350). User-marked ding/stinger samples
         # used by the template-based cue matcher. The CREATE here keeps the
         # table shape this migration originally shipped with (no

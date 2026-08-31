@@ -28,10 +28,9 @@ from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from run_log import run_in_worker_thread
 from llm_client import (
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
-    supports_json_schema_for_calls,
     ProviderRateLimitedError, StructuralRateLimitError,
 )
-from utils.llm_call import call_llm, call_llm_for_window, json_schema_format
+from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import dai_core_bounds, invalidate_tail_provenance
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
@@ -192,8 +191,18 @@ _TRIM_RECOVERY_SYSTEM_PROMPT = (
     "Return ONLY strict JSON, no explanation, no markdown:\n"
     '{"ad_start": FLOAT_SECONDS, "ad_end": FLOAT_SECONDS}\n'
     "Both values must be numeric seconds inside the original span. If the "
-    "reasoning does not identify a specific ad sub-span, return null instead."
+    "reasoning does not identify a specific ad sub-span, return "
+    '{"ad_start": null, "ad_end": null}.'
 )
+
+# #694: nullable and not required so the no-sub-span answer still validates.
+TRIM_RECOVERY_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ad_start": {"type": ["number", "null"]},
+        "ad_end": {"type": ["number", "null"]},
+    },
+}
 
 
 def reasoning_affirms_ad(reasoning: str | None) -> bool:
@@ -1009,13 +1018,6 @@ class AdReviewer:
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
         max_tokens, temperature, reasoning = resolve_stage_tunables('reviewer')
 
-        if supports_json_schema_for_calls():
-            response_format = json_schema_format(
-                'ad_review', AD_REVIEW_JSON_SCHEMA,
-                'Review verdicts for the candidate ad.')
-        else:
-            response_format = None
-
         t0 = time.monotonic()
         response, error = call_llm_for_window(
             llm_client=self._llm_client,
@@ -1031,7 +1033,9 @@ class AdReviewer:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
-            response_format=response_format,
+            response_format=schema_format_for(
+                model, 'ad_review', AD_REVIEW_JSON_SCHEMA,
+                'Review verdicts for the candidate ad.'),
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
 
@@ -1327,6 +1331,9 @@ class AdReviewer:
                 episode_id=episode_id,
                 call_label=call_label,
                 pass_name=pass_name,
+                response_format=schema_format_for(
+                    model, 'trim_recovery', TRIM_RECOVERY_JSON_SCHEMA,
+                    'Ad sub-span inside the original candidate.'),
             )
         except Exception as e:
             # call_llm never raises by contract; belt-and-braces so a bug

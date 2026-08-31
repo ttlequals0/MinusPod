@@ -563,8 +563,9 @@ class TestCategoryRepairEndToEnd:
 
 
 class TestCategoryRepairStructuredOutputSelection:
-    """response_format selection: json_schema only when llm_capabilities says
-    the provider proved it (Anthropic via tool-use); json_object otherwise,
+    """response_format selection runs through one gate for every provider
+    (supports_json_schema_for_calls): a proven provider path, or an
+    OpenAI-compatible model whose probe passed. json_object otherwise, the
     same fallback every other LLM call in this codebase already uses."""
 
     def _detector_with_fake_client(self, content='[]'):
@@ -578,7 +579,7 @@ class TestCategoryRepairStructuredOutputSelection:
     def test_uses_json_schema_when_provider_supports_it(self):
         detector, fake = self._detector_with_fake_client()
         ads = [_fake_ad(10.0, 40.0)]
-        with patch('ad_detector.supports_json_schema', return_value=True):
+        with patch('utils.llm_call.supports_json_schema', return_value=True):
             detector._repair_window_categories(
                 ads=ads, transcript_excerpt='', model='model',
                 llm_timeout=60, max_retries=1, slug='s', episode_id='e',
@@ -590,7 +591,8 @@ class TestCategoryRepairStructuredOutputSelection:
     def test_falls_back_to_json_object_when_unsupported(self):
         detector, fake = self._detector_with_fake_client()
         ads = [_fake_ad(10.0, 40.0)]
-        with patch('ad_detector.supports_json_schema', return_value=False):
+        with patch('utils.llm_call.supports_json_schema', return_value=False), \
+                patch('utils.llm_call.supports_json_schema_for_calls', return_value=False):
             detector._repair_window_categories(
                 ads=ads, transcript_excerpt='', model='model',
                 llm_timeout=60, max_retries=1, slug='s', episode_id='e',

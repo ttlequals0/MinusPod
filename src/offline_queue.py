@@ -13,6 +13,9 @@ import logging
 
 import llm_client
 import transcriber
+from config import (
+    DEFER_SERVICE_LLM, DEFER_SERVICE_RATE_LIMIT, DEFER_SERVICE_WHISPER,
+)
 from webhook_service import fire_event, EVENT_EPISODE_FAILED
 
 logger = logging.getLogger('podcast.refresh')
@@ -22,9 +25,19 @@ TTL_HOURS_MIN = 1
 TTL_HOURS_MAX = 720
 
 _SERVICE_PROBES = {
-    'llm': lambda: llm_client.check_llm_connectivity(),
-    'whisper': lambda: transcriber.check_whisper_connectivity(),
+    DEFER_SERVICE_LLM: lambda: llm_client.check_llm_connectivity(),
+    DEFER_SERVICE_WHISPER: lambda: transcriber.check_whisper_connectivity(),
 }
+
+
+def deferral_ttl_hours(db, key: str) -> int:
+    """Configured TTL in hours for a deferral feature, clamped to the shared
+    bounds. Used by the offline queue and the rate-limit hold."""
+    try:
+        ttl = int(db.get_setting(key) or TTL_HOURS_DEFAULT)
+    except (TypeError, ValueError):
+        ttl = TTL_HOURS_DEFAULT
+    return max(TTL_HOURS_MIN, min(ttl, TTL_HOURS_MAX))
 
 
 def is_offline_queue_enabled(db) -> bool:
@@ -37,11 +50,7 @@ def is_offline_queue_enabled(db) -> bool:
 
 def get_offline_queue_ttl_hours(db) -> int:
     """Configured TTL in hours, clamped to [1, 720]; default 48."""
-    try:
-        ttl = int(db.get_setting('offline_queue_ttl_hours') or TTL_HOURS_DEFAULT)
-    except (TypeError, ValueError):
-        ttl = TTL_HOURS_DEFAULT
-    return max(TTL_HOURS_MIN, min(ttl, TTL_HOURS_MAX))
+    return deferral_ttl_hours(db, 'offline_queue_ttl_hours')
 
 
 def notify_expired_episodes(db, expired, label='Offline queue') -> None:
@@ -85,18 +94,19 @@ def notify_expired_episodes(db, expired, label='Offline queue') -> None:
 
 def offline_queue_tick(db) -> None:
     """One maintenance pass: expire by TTL, probe, re-queue."""
-    deferred = db.get_deferred_episodes()
+    deferred = db.get_deferred_episodes(exclude_service=DEFER_SERVICE_RATE_LIMIT)
     if not deferred:
         # Installs without deferred episodes (including everyone with the
         # feature off) pay one COUNT-style query and nothing else.
         return
 
-    expired = db.expire_deferred_episodes(get_offline_queue_ttl_hours(db))
+    expired = db.expire_deferred_episodes(
+        get_offline_queue_ttl_hours(db), exclude_service=DEFER_SERVICE_RATE_LIMIT)
     notify_expired_episodes(db, expired)
 
     expired_ids = {e['id'] for e in expired}
     waiting_services = {
-        (e.get('deferred_service') or 'llm')
+        (e.get('deferred_service') or DEFER_SERVICE_LLM)
         for e in deferred if e['id'] not in expired_ids
     }
     reachable = {

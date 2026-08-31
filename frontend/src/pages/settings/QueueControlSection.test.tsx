@@ -3,10 +3,11 @@
  * pieces (process-new-first toggle, priority boosts) and the offline queue /
  * rate-limit hold blocks with their failed-GET guards.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import QueueControlSection from './QueueControlSection';
+import { SettingsSearchContext } from '../../context/SettingsSearchContext';
 import * as settingsApi from '../../api/settings';
 
 vi.mock('../../api/settings', () => ({
@@ -18,7 +19,15 @@ vi.mock('../../api/settings', () => ({
 
 const mocked = vi.mocked(settingsApi);
 
-function renderSection(overrides: Partial<Parameters<typeof QueueControlSection>[0]> = {}) {
+function renderSection(
+  overrides: Partial<Parameters<typeof QueueControlSection>[0]> = {},
+  searchMatches: Set<string> | null = null,
+) {
+  // Both hold-block fetches are gated on the section being on screen, so seed
+  // the persisted open flag the way a user who expanded it before would,
+  // unless the test is exercising the search-reveal path instead.
+  localStorage.setItem('settings-section-queue-control',
+                       searchMatches ? 'false' : 'true');
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const props = {
     processNewEpisodesFirst: true,
@@ -33,13 +42,17 @@ function renderSection(overrides: Partial<Parameters<typeof QueueControlSection>
   };
   const utils = render(
     <QueryClientProvider client={client}>
-      <QueueControlSection {...props} />
+      <SettingsSearchContext.Provider value={searchMatches}>
+        <QueueControlSection {...props} />
+      </SettingsSearchContext.Provider>
     </QueryClientProvider>
   );
   return { ...utils, props };
 }
 
 describe('QueueControlSection', () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it('renders the process-new-first toggle with its current state', () => {
     mocked.getOfflineQueueSettings.mockResolvedValue({
       enabled: false, ttlHours: 48, deferredCount: 0,
@@ -91,5 +104,33 @@ describe('QueueControlSection', () => {
     });
     // The offline form's own TTL field must not render from fallback defaults.
     expect(screen.queryByLabelText('Give up after:', { selector: '#offline-queue-ttl' })).toBeNull();
+  });
+
+  it('loads its settings when a search reveals the collapsed section', async () => {
+    // A search expands a matched section without calling onToggle, so gating
+    // on the persisted open flag alone would strand it on "Loading...".
+    mocked.getOfflineQueueSettings.mockResolvedValue({
+      enabled: true, ttlHours: 12, deferredCount: 0,
+    });
+    mocked.getRateLimitHoldSettings.mockResolvedValue({
+      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+    });
+    renderSection({}, new Set(['settings-section-queue-control']));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Offline queue toggle')).toBeTruthy();
+    });
+    expect(mocked.getOfflineQueueSettings).toHaveBeenCalled();
+  });
+
+  it('does not fetch while collapsed and unmatched', () => {
+    mocked.getOfflineQueueSettings.mockResolvedValue({
+      enabled: false, ttlHours: 48, deferredCount: 0,
+    });
+    mocked.getRateLimitHoldSettings.mockResolvedValue({
+      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+    });
+    renderSection({}, new Set(['settings-section-something-else']));
+    expect(mocked.getOfflineQueueSettings).not.toHaveBeenCalled();
+    expect(mocked.getRateLimitHoldSettings).not.toHaveBeenCalled();
   });
 });

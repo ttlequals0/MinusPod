@@ -7,6 +7,7 @@ rows now included, their dequeue ordering, and the dedupe against the active job
 import os
 import sys
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
@@ -104,6 +105,22 @@ def test_active_job_is_not_repeated_in_the_queue(app_client, seeded_feed):
     assert matching[0]['stage'] != 'queued'
 
 
+def test_queue_total_is_stamped_on_active_entries_too(app_client, seeded_feed):
+    """A page whose queued rows all dedupe away still needs the total, or the
+    panel's pager collapses to one page."""
+    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
+    for i in range(3):
+        _queue_row(db, podcast_id, f'ep-{i}')
+    db.upsert_episode(seeded_feed['slug'], 'ep-active', title='Active',
+                      status='processing',
+                      original_url='https://example.com/a.mp3')
+    _authed(app_client)
+
+    body = app_client.get('/api/v1/episodes/processing').get_json()
+    active = [e for e in body if e['stage'] != 'queued']
+    assert active and all(e['queueTotal'] == 3 for e in active)
+
+
 def test_pagination_returns_offset_aware_positions(app_client, seeded_feed):
     db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
     for i in range(5):
@@ -166,10 +183,58 @@ def test_queue_priority_setter_validation(app_client, seeded_feed):
                            json={'priority': 5}, headers=hdr).status_code == 404
     assert app_client.post(f'/api/v1/feeds/no-such-feed/episodes/{missing}/queue-priority',
                            json={'priority': 5}, headers=hdr).status_code == 404
+    # Exactly one of priority/delta, and both stay inside the clamp range.
+    assert app_client.post(f'/api/v1/feeds/{slug}/episodes/{missing}/queue-priority',
+                           json={'priority': 5, 'delta': 1}, headers=hdr).status_code == 400
+    assert app_client.post(f'/api/v1/feeds/{slug}/episodes/{missing}/queue-priority',
+                           json={'priority': 10 ** 9}, headers=hdr).status_code == 400
+
+
+def test_queue_priority_delta_is_applied_server_side(app_client, seeded_feed):
+    """A stepper sends a delta so a click made against a stale list value is
+    still added to whatever the row currently holds."""
+    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
+    _queue_row(db, podcast_id, 'd4e5f6a1b2c3', priority=0)
+    _authed(app_client)
+    slug, hdr = seeded_feed['slug'], _csrf(app_client)
+    url = f'/api/v1/feeds/{slug}/episodes/d4e5f6a1b2c3/queue-priority'
+
+    assert app_client.post(url, json={'delta': 5}, headers=hdr).get_json()['priority'] == 5
+    assert app_client.post(url, json={'delta': 5}, headers=hdr).get_json()['priority'] == 10
+    assert app_client.post(url, json={'delta': -25}, headers=hdr).get_json()['priority'] == -15
+
+
+def test_queue_priority_clamps_to_bounds(app_client, seeded_feed):
+    from database.queue import QUEUE_PRIORITY_MAX
+    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
+    _queue_row(db, podcast_id, 'e5f6a1b2c3d4', priority=QUEUE_PRIORITY_MAX)
+    _authed(app_client)
+    slug, hdr = seeded_feed['slug'], _csrf(app_client)
+    r = app_client.post(f'/api/v1/feeds/{slug}/episodes/e5f6a1b2c3d4/queue-priority',
+                        json={'delta': 100}, headers=hdr)
+    assert r.get_json()['priority'] == QUEUE_PRIORITY_MAX
+
+
+def test_display_queue_extra_is_not_listed_twice(app_client, seeded_feed):
+    """A display-queue entry repeated by StatusService must not render twice
+    or inflate queueTotal."""
+    from api import get_status_service
+    _authed(app_client)
+    svc = get_status_service()
+    entry = {'slug': seeded_feed['slug'], 'episode_id': 'f6a1b2c3d4e5',
+             'title': 'Extra', 'podcast_name': 'Queue Endpoint Pod', 'queued_at': 0}
+    snapshot = svc.get_status()
+    snapshot.queued_episodes = [entry, dict(entry)]
+    with patch.object(svc, 'get_status', return_value=snapshot):
+        queued = [e for e in app_client.get('/api/v1/episodes/processing').get_json()
+                  if e['stage'] == 'queued']
+    assert [e['episodeId'] for e in queued] == ['f6a1b2c3d4e5']
+    assert queued[0]['queueTotal'] == 1
 
 
 def test_set_queue_row_priority_ignores_non_pending_rows(seeded_feed):
     db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
     _queue_row(db, podcast_id, 'ep-done', status='completed')
-    assert db.set_queue_row_priority(seeded_feed['slug'], 'ep-done', 10) is False
-    assert db.set_queue_row_priority(seeded_feed['slug'], 'missing', 10) is False
+    slug = seeded_feed['slug']
+    assert db.set_queue_row_priority(slug, 'ep-done', priority=10) is None
+    assert db.set_queue_row_priority(slug, 'missing', priority=10) is None

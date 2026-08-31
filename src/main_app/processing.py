@@ -7,7 +7,7 @@ import tempfile
 import threading
 import time
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import requests
 import requests.exceptions
@@ -37,8 +37,8 @@ from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import clip_dai_core_spans, invalidate_tail_provenance
 from utils.time import (
-    adjust_timestamp, merge_cut_spans, overlap_ratio,
-    ranges_overlap, span_inside_any_cut, utc_now_iso,
+    adjust_timestamp, ISO_FORMAT, merge_cut_spans, overlap_ratio,
+    ranges_overlap, span_inside_any_cut, utc_now, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
@@ -833,30 +833,31 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     if ad_detection_status == 'failed':
         error_msg = ad_result.get('error', 'Unknown error')
         audio_logger.error(f"[{slug}:{episode_id}] Ad detection failed: {error_msg}")
+        # Each typed re-raise below marks the stage failed first; the type is
+        # what _handle_processing_failure routes on.
+        typed = None
         if ad_result.get('rate_limited_hold'):
-            # Held 429 (#696): typed so the failure handler defers the
-            # episode and pauses the queue until the provider's reset.
-            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
-            raise ProviderRateLimitedError(
+            # Held 429 (#696): defers the episode and pauses the queue until
+            # the provider's reset.
+            typed = ProviderRateLimitedError(
                 f"Ad detection failed: {error_msg}",
                 retry_after_seconds=float(ad_result.get('retry_after_seconds') or 0),
             )
-        if ad_result.get('connectivity'):
-            # Endpoint unreachable rather than a bad response: typed so the
-            # offline queue (#482) can defer instead of failing the episode.
-            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
-            raise ServiceUnavailableError('llm', f"Ad detection failed: {error_msg}")
-        if ad_result.get('limit_exceeded'):
-            # Typed so the failure handler sees a terminal limit error instead
-            # of re-classifying the stringified 429 text as transient (#491).
-            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
-            raise LimitExceededError(f"Ad detection failed: {error_msg}")
-        if ad_result.get('model_not_configured'):
-            # Typed so is_transient_error sees ModelNotConfiguredError instead of
-            # a bare Exception, which defaults to transient and burns the retry
+        elif ad_result.get('connectivity'):
+            # Endpoint unreachable rather than a bad response, so the offline
+            # queue (#482) can defer instead of failing the episode.
+            typed = ServiceUnavailableError('llm', f"Ad detection failed: {error_msg}")
+        elif ad_result.get('limit_exceeded'):
+            # Terminal limit error, not the stringified 429 text that
+            # re-classifies as transient (#491).
+            typed = LimitExceededError(f"Ad detection failed: {error_msg}")
+        elif ad_result.get('model_not_configured'):
+            # A bare Exception would default to transient and burn the retry
             # ladder. error_msg is already the exact resolver message.
+            typed = ModelNotConfiguredError('claude_model', error_msg)
+        if typed is not None:
             db.upsert_episode(slug, episode_id, ad_detection_status='failed')
-            raise ModelNotConfiguredError('claude_model', error_msg)
+            raise typed
         # Degraded continue: a transient, non-auth failure that still left
         # pattern/cross-fetch markers publishes those instead of failing the
         # episode. Auth-class failures and zero markers still raise.
@@ -4046,10 +4047,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
 
     status_service.fail_job()
 
-    # Rate-limit hold (#696): a 429 with a provider-reported reset defers
-    # instead of failing and pauses new queue claims until the reset. Runs
-    # before the offline-queue branch: a held 429 is throttling, not an
-    # outage. retry_count untouched; deferred_at stamped once per lifecycle.
+    # Rate-limit hold (#696): a 429 with a reset defers instead of failing
+    # and pauses new claims. Runs before the offline-queue branch because a
+    # held 429 is throttling, not an outage. retry_count untouched.
     if isinstance(error, ProviderRateLimitedError) and is_rate_limit_hold_enabled(db):
         # Fresh clock unless this row is already in the hold lifecycle: a
         # deferred_at kept from an earlier offline deferral would pre-age
@@ -4059,9 +4059,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             first_deferred_at = (episode_data or {}).get('deferred_at') or utc_now_iso()
         else:
             first_deferred_at = utc_now_iso()
-        hold_until = (datetime.now(timezone.utc)
-                      + timedelta(seconds=max(0.0, float(error.retry_after_seconds))))
-        hold_until_iso = hold_until.strftime('%Y-%m-%dT%H:%M:%SZ')
+        hold_until = utc_now() + timedelta(
+            seconds=max(0.0, float(error.retry_after_seconds)))
+        hold_until_iso = hold_until.strftime(ISO_FORMAT)
         record_hold_until(db, hold_until_iso)
         db.upsert_episode(
             slug, episode_id,

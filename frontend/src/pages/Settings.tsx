@@ -434,8 +434,9 @@ function Settings() {
   });
 
   const priorityMutation = useMutation({
-    mutationFn: (params: { slug: string; episodeId: string; priority: number }) =>
-      setQueuePriority(params.slug, params.episodeId, params.priority),
+    mutationFn: ({ slug, episodeId, ...change }:
+      { slug: string; episodeId: string; priority?: number; delta?: number }) =>
+      setQueuePriority(slug, episodeId, change),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
     },

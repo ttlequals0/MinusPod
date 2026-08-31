@@ -23,6 +23,7 @@ from rate_limit_hold import (
     is_queue_paused,
     is_rate_limit_hold_enabled,
     rate_limit_hold_tick,
+    should_pause_claims,
 )
 from tests.unit.provider_error_fakes import FakeResponse, FakeProviderError, call_window
 
@@ -296,7 +297,8 @@ class TestExpiryAndRelease:
         self._defer('ep-hold-old', '2020-01-01T00:00:00Z')
         self._defer('ep-hold-young', '2999-01-01T00:00:00Z')
         self._defer('ep-offline', '2020-01-01T00:00:00Z', service='llm')
-        expired = db.expire_deferred_episodes(48, service='llm_rate_limit')
+        expired = db.expire_deferred_episodes(
+            48, service='llm_rate_limit', label='Rate-limit hold')
         assert [e['episode_id'] for e in expired] == ['ep-hold-old']
         assert db.get_episode(SLUG, 'ep-hold-old')['status'] == 'permanently_failed'
         assert 'Rate-limit hold TTL expired after 48 hours' in \
@@ -305,8 +307,11 @@ class TestExpiryAndRelease:
         assert db.get_episode(SLUG, 'ep-offline')['status'] == 'deferred'
 
     def test_offline_expire_skips_rate_limit_holds(self, seeded_episode):
+        """The offline tick passes its own exclusion; the DB layer does not
+        know which service belongs to which feature."""
         self._defer('ep-held', '2020-01-01T00:00:00Z')
-        expired = db.expire_deferred_episodes(48)
+        expired = db.expire_deferred_episodes(
+            48, exclude_service=RATE_LIMIT_DEFERRED_SERVICE)
         assert [e['episode_id'] for e in expired] == []
         assert db.get_episode(SLUG, 'ep-held')['status'] == 'deferred'
 
@@ -335,6 +340,23 @@ class TestExpiryAndRelease:
         assert db.count_deferred_episodes(service='llm') == 1
         assert db.count_deferred_episodes() == 2
 
+    def test_offline_count_covers_whisper_but_not_holds(self, seeded_episode):
+        """The offline queue owns llm and whisper. Counting only 'llm' would
+        under-report a Whisper outage as zero waiting."""
+        self._defer('ep-held', '2999-01-01T00:00:00Z', service='llm_rate_limit')
+        self._defer('ep-llm', '2999-01-01T00:00:00Z', service='llm')
+        self._defer('ep-whisper', '2999-01-01T00:00:00Z', service='whisper')
+        assert db.count_deferred_episodes(
+            exclude_service=RATE_LIMIT_DEFERRED_SERVICE) == 2
+        assert {e['episode_id'] for e in db.get_deferred_episodes(
+            exclude_service=RATE_LIMIT_DEFERRED_SERVICE)} == {'ep-llm', 'ep-whisper'}
+
+    def test_offline_queue_view_reports_whisper_deferrals(self, seeded_episode):
+        from api.settings import _offline_queue_view
+        self._defer('ep-held', '2999-01-01T00:00:00Z', service='llm_rate_limit')
+        self._defer('ep-whisper', '2999-01-01T00:00:00Z', service='whisper')
+        assert _offline_queue_view(db)['deferredCount'] == 1
+
 
 class TestQueuePause:
     def test_paused_while_hold_until_in_future(self):
@@ -349,6 +371,69 @@ class TestQueuePause:
     def test_not_paused_when_unset(self):
         db.set_setting('rate_limit_hold_until', '')
         assert is_queue_paused(db) is False
+
+
+class TestShouldPauseClaims:
+    """The queue processor's whole gate: pause unless a hand-requested row is
+    waiting, so a Play never parks behind a provider backoff window."""
+
+    def _pause(self):
+        future = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime(
+            '%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)
+
+    def _pending(self, episode_id, user_requested=False, priority=0):
+        db.upsert_episode(SLUG, episode_id, title=episode_id,
+                          original_url='https://example.com/e.mp3',
+                          reprocess_requested_at='2026-01-01T00:00:00Z'
+                          if user_requested else None)
+        podcast = db.get_podcast_by_slug(SLUG)
+        conn = db.get_connection()
+        conn.execute(
+            """INSERT INTO auto_process_queue
+               (podcast_id, episode_id, original_url, title, status, priority)
+               VALUES (?, ?, ?, ?, 'pending', ?)""",
+            (podcast['id'], episode_id, 'https://example.com/e.mp3', 'E', priority))
+        conn.commit()
+
+    def setup_method(self):
+        db.set_setting('rate_limit_hold_until', '')
+        db.get_connection().execute("DELETE FROM auto_process_queue")
+        db.get_connection().commit()
+
+    teardown_method = setup_method
+
+    def test_no_pause_without_a_hold(self, seeded_episode):
+        assert should_pause_claims(db) is False
+
+    def test_pauses_while_the_reset_is_ahead(self, seeded_episode):
+        self._pause()
+        assert should_pause_claims(db) is True
+
+    def test_backlog_row_does_not_lift_the_pause(self, seeded_episode):
+        self._pause()
+        self._pending('ep-backlog')
+        assert should_pause_claims(db) is True
+
+    def test_user_requested_row_lifts_the_pause(self, seeded_episode):
+        self._pause()
+        self._pending('ep-play', user_requested=True)
+        assert should_pause_claims(db) is False
+
+    def test_high_priority_backlog_does_not_lift_the_pause(self, seeded_episode):
+        """Intent comes from the episode's own mark, not its priority: a high
+        feed plus boosts must not read as a hand-made request."""
+        self._pause()
+        self._pending('ep-hot', priority=500)
+        assert should_pause_claims(db) is True
+
+    def test_zero_manual_boost_does_not_disable_the_hold(self, seeded_episode):
+        """A manual boost of 0 is allowed by the UI and once made every row
+        look user-requested."""
+        db.set_setting('queue_manual_boost', '0')
+        self._pause()
+        self._pending('ep-backlog')
+        assert should_pause_claims(db) is True
 
 
 class TestTick:

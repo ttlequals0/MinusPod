@@ -25,11 +25,9 @@ REPROCESS_MODE_NEEDS_TRANSCRIPT = {
     'recut': False,
 }
 
-# 'details' modes re-transcribe, but their clear is deferred to the
-# transcribe stage (immediately before the fresh save) so a crash mid-run
-# leaves the prior transcript and detection data intact (#692). The pipeline
-# passes force_transcription for these modes instead of relying on a
-# pre-cleared row.
+# 'details' modes re-transcribe, but their clear waits for the transcribe
+# stage so a crash mid-run leaves the prior data intact (#692). The pipeline
+# passes force_transcription instead of relying on a pre-cleared row.
 FORCE_TRANSCRIBE_MODES = frozenset(
     mode for mode, clear in REPROCESS_MODE_CLEAR.items() if clear == 'details')
 

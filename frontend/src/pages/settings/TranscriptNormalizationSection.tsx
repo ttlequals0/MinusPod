@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import CollapsibleSection from '../../components/CollapsibleSection';
+import CollapsibleSection, {
+  useCollapsibleOpen, useSectionVisible,
+} from '../../components/CollapsibleSection';
 import { getNormalizations, deleteNormalization } from '../../api/sponsors';
 import { SponsorNormalization } from '../../api/types';
 import NormalizationEditModal from '../../components/NormalizationEditModal';
@@ -9,14 +11,21 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 
+const STORAGE_KEY = 'settings-section-transcript-normalization';
+
 function TranscriptNormalizationSection() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<SponsorNormalization | null | undefined>(undefined);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  // The rule list is unbounded, so fetch it only while the section is on
+  // screen rather than on every Settings page load.
+  const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);
+  const visible = useSectionVisible(STORAGE_KEY, open);
 
   const { data: norms, isLoading, error } = useQuery({
     queryKey: ['normalizations'],
     queryFn: getNormalizations,
+    enabled: visible,
   });
 
   const del = useMutation({
@@ -28,14 +37,18 @@ function TranscriptNormalizationSection() {
   });
 
   return (
-    <CollapsibleSection title="Transcript Normalization">
+    <CollapsibleSection
+      title="Transcript Normalization"
+      subtitle="Corrections applied to the transcript before ad detection runs."
+      storageKey={STORAGE_KEY}
+      onToggle={setOpen}
+    >
       <p className="text-sm text-muted-foreground mb-4">
-        Corrections applied to the transcript before ad detection runs: misheard
-        words, recurring phrases, numbers, sponsor names, and URLs. Sponsor
-        matching sees the canonical spelling, so a name transcribed three
-        different ways still matches one pattern.
+        Fixes misheard words, recurring phrases, numbers, sponsor names, and
+        URLs. Sponsor matching sees the canonical spelling, so a name
+        transcribed three different ways still matches one pattern.
       </p>
-      {isLoading ? (
+      {isLoading || !visible ? (
         <LoadingSpinner className="py-12" />
       ) : error ? (
         <div className="text-center py-12"><p className="text-destructive">Failed to load normalizations</p></div>

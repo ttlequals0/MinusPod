@@ -101,13 +101,14 @@ export async function cancelProcessing(slug: string, episodeId: string): Promise
   });
 }
 
+/** Pass `priority` to set an exact value, or `delta` to nudge the stored one. */
 export async function setQueuePriority(
-  slug: string, episodeId: string, priority: number,
-): Promise<{ message: string }> {
-  return apiRequest<{ message: string }>(`/feeds/${slug}/episodes/${episodeId}/queue-priority`, {
-    method: 'POST',
-    body: { priority },
-  });
+  slug: string, episodeId: string, change: { priority?: number; delta?: number },
+): Promise<{ message: string; priority: number }> {
+  return apiRequest<{ message: string; priority: number }>(
+    `/feeds/${slug}/episodes/${episodeId}/queue-priority`,
+    { method: 'POST', body: change },
+  );
 }
 
 export async function getRetention(): Promise<RetentionSettings> {

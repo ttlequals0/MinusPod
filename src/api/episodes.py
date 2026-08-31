@@ -21,7 +21,10 @@ from audio_peaks import compute_peaks, PeaksError
 from audio_processor import get_replacement_duration
 from chapters_generator import ChaptersGenerator
 from database.podcasts import is_local_feed
-from database.queue import compute_queue_priority
+from database.queue import (
+    compute_queue_priority, PENDING_QUEUE_LIMIT,
+    QUEUE_PRIORITY_MAX, QUEUE_PRIORITY_MIN,
+)
 from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
 from processing_queue import ProcessingQueue
@@ -104,7 +107,7 @@ REPROCESS_MODE_SPECS = {
 }
 
 # Waiting-list pagination for GET /episodes/processing (#696).
-_QUEUE_PAGE_DEFAULT_LIMIT = 200
+_QUEUE_PAGE_DEFAULT_LIMIT = PENDING_QUEUE_LIMIT
 _QUEUE_PAGE_MAX_LIMIT = 1000
 
 
@@ -1403,9 +1406,9 @@ def get_processing_episodes():
     Sources: the DB's 'processing' rows plus StatusService.current_job for the
     active job; auto_process_queue pending rows plus StatusService's display
     queue for the backlog. Issue #236. The waiting list is paginated with the
-    `offset`/`limit` query params (limit default 200, cap 1000); rows carry
-    their `queueId` and an offset-aware `queuePosition` so the panel can page
-    through a long backlog and reorder it (#696).
+    `offset`/`limit` query params (limit default 200, cap 1000); rows carry an
+    offset-aware `queuePosition` so the panel can page through a long backlog
+    (#696).
     """
     db = get_database()
     conn = db.get_connection()
@@ -1452,15 +1455,16 @@ def get_processing_episodes():
 
     # Append the waiting queue after the active job(s). The auto_process_queue
     # rows are the real backlog, so they come first and in dequeue order
-    # (priority DESC, created_at ASC, the same ORDER BY the worker claims by),
-    # sliced to the requested page; StatusService's display queue only holds
-    # entries an enqueue path added by hand, so it contributes just the rows
-    # the DB does not already cover, trailing after the DB backlog.
+    # (priority DESC, created_at ASC, the ORDER BY the worker claims by),
+    # sliced to the requested page. StatusService's display queue only holds
+    # hand-enqueued entries, so it trails the DB backlog with the rest.
     seen = {(e['slug'], e['episodeId']) for e in episodes}
     queued = []
     pending_rows = db.get_pending_queued_episodes(limit=limit, offset=offset)
+    # An empty page means either an empty backlog (offset 0) or a page past
+    # its end, and only the latter needs the count query.
     pending_total = (pending_rows[0]['total_pending'] if pending_rows
-                     else db.count_pending_queued_episodes())
+                     else (db.count_pending_queued_episodes() if offset else 0))
     for row in pending_rows:
         key = (row['podcast_slug'], row['episode_id'])
         if key in seen:
@@ -1477,13 +1481,19 @@ def get_processing_episodes():
             'stage': 'queued',
         })
 
-    # Extras trail the DB backlog at virtual positions pending_total..; dedup
-    # them against the pending rows so an entry cannot repeat across pages.
-    extras = [q for q in status.queued_episodes
-              if (q['slug'], q['episode_id']) not in seen]
-    pending_keys = (db.get_pending_queue_keys([q['episode_id'] for q in extras])
-                    if extras else set())
-    valid_extras = [q for q in extras
+    # Extras trail the DB backlog at virtual positions pending_total.., so
+    # they dedup against the whole backlog, not just this page: `seen` covers
+    # the active job and display-queue repeats, get_pending_queue_keys the rest.
+    candidates = []
+    for q in status.queued_episodes:
+        key = (q['slug'], q['episode_id'])
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(q)
+    pending_keys = (db.get_pending_queue_keys([q['episode_id'] for q in candidates])
+                    if candidates else set())
+    valid_extras = [q for q in candidates
                     if (q['slug'], q['episode_id']) not in pending_keys]
     start = max(0, offset - pending_total)
     page_extras = valid_extras[start:start + limit - len(pending_rows)]
@@ -1499,9 +1509,12 @@ def get_processing_episodes():
             'stage': 'queued',
         })
 
-    # queueTotal counts the whole backlog regardless of the page window, so
-    # the panel's "Waiting (N)" does not silently under-report a long queue.
+    # queueTotal is the whole backlog, not the page. Stamped on every entry,
+    # active ones included, so a page whose rows all deduped away still
+    # reports it instead of collapsing the pager to one page.
     queue_total = pending_total + len(valid_extras)
+    for entry in episodes:
+        entry['queueTotal'] = queue_total
     for position, entry in enumerate(queued, start=offset + 1):
         entry['queuePosition'] = position
         entry['queueTotal'] = queue_total
@@ -1590,30 +1603,39 @@ def cancel_episode_processing(slug, episode_id):
 @api.route('/feeds/<slug>/episodes/<episode_id>/queue-priority', methods=['POST'])
 @log_request
 def set_episode_queue_priority(slug, episode_id):
-    """Change a queued episode's priority (#696). Body: {"priority": int}.
+    """Change a queued episode's priority (#696).
 
-    Direct per-row write on the pending queue row; can raise or lower,
-    unlike the monotonic MAX() rule on re-enqueue. A later feed-level
-    queuePriority change restamps the row and overwrites this value.
+    Body: {"priority": int} to set an absolute value, or {"delta": int} to
+    nudge the stored one (applied in SQL, so a stepper cannot lose a click
+    to a stale read). Either way the write can raise or lower, unlike the
+    monotonic MAX() rule on re-enqueue, and a later feed-level queuePriority
+    change restamps the row.
     """
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return error_response('Body must be a JSON object', 400)
-    priority = data.get('priority')
-    if not isinstance(priority, int) or isinstance(priority, bool):
-        return error_response('priority must be an integer', 400)
+    priority, delta = data.get('priority'), data.get('delta')
+    if (priority is None) == (delta is None):
+        return error_response('Provide exactly one of priority or delta', 400)
+    given = priority if delta is None else delta
+    if not isinstance(given, int) or isinstance(given, bool):
+        return error_response('priority and delta must be integers', 400)
+    if not QUEUE_PRIORITY_MIN <= given <= QUEUE_PRIORITY_MAX:
+        return error_response(
+            f'Value must be between {QUEUE_PRIORITY_MIN} and {QUEUE_PRIORITY_MAX}', 400)
 
     db = get_database()
     if not db.get_podcast_by_slug(slug):
         return error_response('Feed not found', 404)
-    if not db.set_queue_row_priority(slug, episode_id, priority):
+    stored = db.set_queue_row_priority(slug, episode_id, priority=priority, delta=delta)
+    if stored is None:
         return error_response('No pending queue row for this episode', 404)
-    logger.info(f"Queue priority set to {priority} for {slug}:{episode_id}")
+    logger.info(f"Queue priority set to {stored} for {slug}:{episode_id}")
     return json_response({
         'message': 'Queue priority updated',
         'episodeId': episode_id,
         'slug': slug,
-        'priority': priority,
+        'priority': stored,
     })
 
 

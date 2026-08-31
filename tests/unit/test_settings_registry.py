@@ -86,7 +86,7 @@ SEED_SNAPSHOT = {
     'retention_period_minutes': '1440',
     'review_max_boundary_shift': '60',
     'review_model': 'same_as_pass',
-    'review_prompt': ('sha256', '39a5e1808bec2b3036231a120e0fb6635f159eb7e1d33b0821dea178f95ce02f'),  # Updated for semantic is_ad schema line
+    'review_prompt': ('sha256', '0a30979273b7dd4f7447c40536383d0bb3a3e3c649b2ec07c4772ea47880035e'),  # Updated for the #695 example format
     'rss_refresh_interval_minutes': '15',
     'queue_manual_boost': '20',
     'queue_fresh_boost': '5',

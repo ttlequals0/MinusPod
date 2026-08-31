@@ -2,6 +2,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
+from config import DEFER_SERVICE_LLM
 from utils.time import ISO_FORMAT, utc_now
 
 logger = logging.getLogger(__name__)
@@ -15,11 +16,25 @@ MANUAL_REQUEST_BOOST = 20
 BULK_REQUEST_BOOST = 0
 FRESH_WINDOW_HOURS = 48
 
+# Bounds for a hand-set row priority (#696). Wide enough to clear a feed's
+# base priority plus every boost, tight enough that a typo cannot park a row
+# beyond anything the queue will ever enqueue.
+QUEUE_PRIORITY_MIN = -1000
+QUEUE_PRIORITY_MAX = 1000
+
 _BOOST_SETTINGS = (
     ('queue_manual_boost', MANUAL_REQUEST_BOOST),
     ('queue_fresh_boost', FRESH_EPISODE_BOOST),
     ('queue_bulk_boost', BULK_REQUEST_BOOST),
 )
+
+
+def _resolve_boost(key: str, fallback: int) -> int:
+    from database import Database
+    try:
+        return int(Database().get_setting(key))
+    except Exception:
+        return fallback
 
 
 def resolve_queue_boosts() -> dict[str, int]:
@@ -28,22 +43,13 @@ def resolve_queue_boosts() -> dict[str, int]:
     Inline import: database.queue is part of the Database mixin family, so a
     module-level Database import would be circular.
     """
-    from database import Database
-    resolved = {}
-    for key, fallback in _BOOST_SETTINGS:
-        try:
-            resolved[key] = int(Database().get_setting(key))
-        except (TypeError, ValueError):
-            resolved[key] = fallback
-        except Exception:
-            resolved[key] = fallback
-    return resolved
+    return {key: _resolve_boost(key, fallback) for key, fallback in _BOOST_SETTINGS}
 
 # Bound on the row-level detail returned by get_queue_status.
 _QUEUE_STATUS_ITEMS_LIMIT = 100
 
 # Bound on the pending rows returned by get_pending_queued_episodes.
-_PENDING_QUEUE_LIMIT = 200
+PENDING_QUEUE_LIMIT = 200
 
 
 def compute_queue_priority(feed_priority, published_at_iso, manual=False,
@@ -210,7 +216,7 @@ class QueueMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_pending_queued_episodes(self, limit: int = _PENDING_QUEUE_LIMIT,
+    def get_pending_queued_episodes(self, limit: int = PENDING_QUEUE_LIMIT,
                                     offset: int = 0) -> list[dict]:
         """Pending queue rows in dequeue order (same ORDER BY as the claim).
 
@@ -235,26 +241,44 @@ class QueueMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def set_queue_row_priority(self, slug: str, episode_id: str, priority: int) -> bool:
-        """Set the pending queue row's priority for one episode (#696).
+    def set_queue_row_priority(self, slug: str, episode_id: str,
+                               priority: int | None = None,
+                               delta: int | None = None) -> int | None:
+        """Set or nudge one pending row's priority; returns the stored value,
+        or None when the episode has no pending row.
 
         Direct write: unlike the MAX() monotonic rule in
-        upsert_episode_for_processing, this can raise or lower. Two later
-        writes can still move it: re-enqueueing with a higher computed
-        priority (MAX rule), and restamp_pending_priorities on a feed-level
-        queuePriority change. Documented behavior, not enforced.
+        upsert_episode_for_processing, this can raise or lower. A delta is
+        applied in SQL so two nudges racing on a stale read cannot cancel
+        each other out. Re-enqueueing (MAX rule) and a feed-level
+        queuePriority change (restamp_pending_priorities) still override it.
         """
+        expr, value = ('?', priority) if delta is None else ('priority + ?', delta)
+        where = ("""WHERE episode_id = ? AND status = 'pending'
+                      AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)""")
         conn = self.get_connection()
         cursor = conn.execute(
-            """UPDATE auto_process_queue
-               SET priority = ?,
-                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-               WHERE episode_id = ? AND status = 'pending'
-                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)""",
-            (int(priority), episode_id, slug)
+            f"""UPDATE auto_process_queue
+                SET priority = MAX(?, MIN(?, {expr})),
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                {where}""",  # noqa: S608
+            (QUEUE_PRIORITY_MIN, QUEUE_PRIORITY_MAX, int(value), episode_id, slug)
         )
+        if not cursor.rowcount:
+            # An UPDATE that matched nothing still opens a transaction; close
+            # it rather than leave one for the #566 leak guard to find.
+            conn.rollback()
+            return None
+        if delta is None:
+            conn.commit()
+            return max(QUEUE_PRIORITY_MIN, min(QUEUE_PRIORITY_MAX, int(value)))
+        # A relative write is the only case whose result we cannot predict.
+        row = conn.execute(
+            f"SELECT priority FROM auto_process_queue {where}",  # noqa: S608
+            (episode_id, slug)
+        ).fetchone()
         conn.commit()
-        return cursor.rowcount > 0
+        return row['priority'] if row else None
 
     def count_pending_queued_episodes(self) -> int:
         """Uncapped pending-row count for the paginated queue view: the
@@ -266,18 +290,24 @@ class QueueMixin:
         ).fetchone()
         return row['n'] if row else 0
 
-    def has_pending_row_at_or_above(self, priority: int) -> bool:
-        """True when a pending row's priority is >= `priority`.
+    def has_user_requested_pending_row(self) -> bool:
+        """True when a pending row's episode carries reprocess_requested_at.
 
-        The rate-limit pause gate uses this to keep waving through
-        user-initiated rows (which carry the manual boost) instead of
-        parking someone's Play behind a provider backoff window.
+        The rate-limit pause gate uses this to wave through work the user
+        asked for by hand instead of parking a Play behind a provider backoff
+        window. Reads the same user-intent mark the auto-process gate does,
+        rather than inferring intent from a priority number: a stored priority
+        is base + boosts, so it cannot tell a manual request from a high-
+        priority feed, and a manual boost of 0 would match every row.
         """
         conn = self.get_connection()
         row = conn.execute(
-            """SELECT 1 FROM auto_process_queue
-               WHERE status = 'pending' AND priority >= ? LIMIT 1""",
-            (priority,)
+            """SELECT 1 FROM auto_process_queue q
+               JOIN episodes e ON e.podcast_id = q.podcast_id
+                                AND e.episode_id = q.episode_id
+               WHERE q.status = 'pending'
+                 AND e.reprocess_requested_at IS NOT NULL
+               LIMIT 1"""
         ).fetchone()
         return row is not None
 
@@ -594,75 +624,78 @@ class QueueMixin:
             logger.info(f"Reset failed queue item for retry: id={row['id']}, episode_id={row['episode_id']}")
         return len(reset_items)
 
-    # -- Offline queue (#482): deferred-episode lifecycle --
+    # Deferred-episode lifecycle: offline queue (#482), rate-limit hold (#696)
 
-    def get_deferred_episodes(self, service: str | None = None) -> list[dict]:
-        """Episodes waiting in the offline queue, oldest deferral first.
+    @staticmethod
+    def _deferred_service_clause(service, exclude_service, col):
+        """WHERE fragment and params selecting one deferred_service, or every
+        service but one. NULL reads as DEFER_SERVICE_LLM."""
+        if service is not None:
+            return f"AND COALESCE({col}, '{DEFER_SERVICE_LLM}') = ?", [service]
+        if exclude_service is not None:
+            return f"AND COALESCE({col}, '{DEFER_SERVICE_LLM}') != ?", [exclude_service]
+        return "", []
 
-        `service` filters on deferred_service (NULL counts as 'llm'); None
-        returns every deferred row regardless of which hold owns it.
+    def get_deferred_episodes(self, service: str | None = None,
+                              exclude_service: str | None = None) -> list[dict]:
+        """Deferred episodes, oldest deferral first.
+
+        Pass `service` for one owner, `exclude_service` for everything but
+        one, neither for every deferred row.
         """
+        clause, params = self._deferred_service_clause(
+            service, exclude_service, 'e.deferred_service')
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT e.*, p.slug AS podcast_slug, p.title AS podcast_title
-               FROM episodes e
-               JOIN podcasts p ON e.podcast_id = p.id
-               WHERE e.status = 'deferred'
-                 AND (COALESCE(e.deferred_service, 'llm') = ? OR ? IS NULL)
-               ORDER BY e.deferred_at ASC""",
-            (service or 'llm', service)
+            f"""SELECT e.*, p.slug AS podcast_slug, p.title AS podcast_title
+                FROM episodes e
+                JOIN podcasts p ON e.podcast_id = p.id
+                WHERE e.status = 'deferred'
+                  {clause}
+                ORDER BY e.deferred_at ASC""",  # noqa: S608
+            params
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def count_deferred_episodes(self, service: str | None = None) -> int:
-        """Number of episodes waiting in the offline queue, optionally
-        filtered to one deferred_service (see get_deferred_episodes)."""
+    def count_deferred_episodes(self, service: str | None = None,
+                                exclude_service: str | None = None) -> int:
+        """Number of deferred episodes; filters as get_deferred_episodes."""
+        clause, params = self._deferred_service_clause(
+            service, exclude_service, 'deferred_service')
         conn = self.get_connection()
         row = conn.execute(
-            """SELECT COUNT(*) AS n FROM episodes
-               WHERE status = 'deferred'
-                 AND (COALESCE(deferred_service, 'llm') = ? OR ? IS NULL)""",
-            (service or 'llm', service)
+            f"""SELECT COUNT(*) AS n FROM episodes
+                WHERE status = 'deferred'
+                  {clause}""",  # noqa: S608
+            params
         ).fetchone()
         return row['n'] if row else 0
 
     def expire_deferred_episodes(self, ttl_hours: int,
-                                 service: str | None = None) -> list[dict]:
-        """Fail deferred episodes whose TTL has run out.
+                                 service: str | None = None,
+                                 exclude_service: str | None = None,
+                                 label: str = 'Offline queue') -> list[dict]:
+        """Fail deferred episodes whose TTL has run out, in the caller's scope.
 
-        service=None sweeps every deferral the offline queue owns (llm and
-        whisper) and excludes 'llm_rate_limit' rows, which the rate-limit
-        hold expires by passing service='llm_rate_limit'. Marked
-        permanently_failed (a plain 'failed' would be resurrected by the
-        reset_failed_queue_items retry ladder) with an explicit TTL message;
-        the matching auto_process_queue row is closed the same way. Returns
-        the expired rows so the caller can fire failure webhooks.
+        Filters as get_deferred_episodes; `label` names the owner in the
+        message and the log. Rows are marked permanently_failed (a plain
+        'failed' would be resurrected by the reset_failed_queue_items retry
+        ladder) and the matching auto_process_queue row is closed the same
+        way. Returns the expired rows so the caller can fire failure webhooks.
         """
-        label = 'Rate-limit hold' if service == 'llm_rate_limit' else 'Offline queue'
+        clause, params = self._deferred_service_clause(
+            service, exclude_service, 'e.deferred_service')
         conn = self.get_connection()
-        if service is None:
-            rows = conn.execute(
-                """SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
-                          p.slug AS podcast_slug, p.title AS podcast_title
-                   FROM episodes e
-                   JOIN podcasts p ON e.podcast_id = p.id
-                   WHERE e.status = 'deferred'
-                     AND (e.deferred_service IS NULL
-                          OR e.deferred_service != 'llm_rate_limit')
-                     AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
-                (ttl_hours,)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
-                          p.slug AS podcast_slug, p.title AS podcast_title
-                   FROM episodes e
-                   JOIN podcasts p ON e.podcast_id = p.id
-                   WHERE e.status = 'deferred'
-                     AND COALESCE(e.deferred_service, 'llm') = ?
-                     AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
-                (service, ttl_hours)
-            ).fetchall()
+        rows = conn.execute(
+            f"""SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
+                       p.slug AS podcast_slug, p.title AS podcast_title
+                FROM episodes e
+                JOIN podcasts p ON e.podcast_id = p.id
+                WHERE e.status = 'deferred'
+                  {clause}
+                  AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",  # noqa: S608
+            params + [ttl_hours]
+        ).fetchall()
         expired = []
         for row in rows:
             row = dict(row)
@@ -710,7 +743,7 @@ class QueueMixin:
 
         Each episode gets its auto_process_queue row upserted to pending (the
         background processor's atomic claim drives it from there).
-        deferred_service NULL is treated as 'llm'. deferred_at is deliberately
+        deferred_service NULL reads as llm. deferred_at is deliberately
         KEPT: it marks the first entry into the offline queue, so the TTL
         keeps ticking across re-drive cycles (success and TTL expiry clear
         it). Episodes on auto-process-disabled feeds without a user-initiated
@@ -719,7 +752,7 @@ class QueueMixin:
         """
         requeued = 0
         for episode in self.get_deferred_episodes():
-            service = episode.get('deferred_service') or 'llm'
+            service = episode.get('deferred_service') or DEFER_SERVICE_LLM
             if service not in services:
                 continue
             slug = episode['podcast_slug']

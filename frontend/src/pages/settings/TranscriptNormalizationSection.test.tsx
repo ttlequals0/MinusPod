@@ -27,6 +27,9 @@ const rule = (id: number): SponsorNormalization => ({
 });
 
 function renderSection() {
+  // The rule fetch is gated on the section being open, so seed the persisted
+  // open flag the way a user who has expanded it before would leave it.
+  localStorage.setItem('settings-section-transcript-normalization', 'true');
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>

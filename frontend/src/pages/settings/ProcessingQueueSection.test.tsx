@@ -38,7 +38,9 @@ function queued(position: number, overrides: Partial<ProcessingEpisode> = {}): P
 interface RenderOptions {
   queuePage?: number;
   onQueuePage?: (page: number) => void;
-  onPriorityChange?: (params: { slug: string; episodeId: string; priority: number }) => void;
+  onPriorityChange?: (
+    params: { slug: string; episodeId: string; priority?: number; delta?: number },
+  ) => void;
   priorityIsPending?: boolean;
   cancelIsPending?: boolean;
   cancelingKey?: string | null;
@@ -103,18 +105,36 @@ describe('ProcessingQueueSection', () => {
     expect(screen.getByText('Page 2 of 2 (30 total)')).toBeTruthy();
   });
 
-  it('steps the priority of a reorderable row', async () => {
+  it('steps the priority of a reorderable row as a server-side delta', async () => {
     const user = userEvent.setup();
     const onPriorityChange = vi.fn();
     renderSection([queued(1, { priority: 4 })], vi.fn(), { onPriorityChange });
 
-    await user.click(screen.getByRole('button', { name: 'Increase priority for Queued Episode 1' }));
+    // Deltas, not priority+n: the list refetches every 5s, so a click made
+    // against a stale value must still land on whatever the row now holds.
+    await user.click(screen.getByRole('button', { name: 'Raise priority for Queued Episode 1' }));
     expect(onPriorityChange).toHaveBeenCalledWith({
-      slug: 'pod', episodeId: 'ep-1', priority: 5,
+      slug: 'pod', episodeId: 'ep-1', delta: 5,
     });
-    await user.click(screen.getByRole('button', { name: 'Decrease priority for Queued Episode 1' }));
+    await user.click(screen.getByRole('button', { name: 'Lower priority for Queued Episode 1' }));
     expect(onPriorityChange).toHaveBeenLastCalledWith({
-      slug: 'pod', episodeId: 'ep-1', priority: 3,
+      slug: 'pod', episodeId: 'ep-1', delta: -5,
+    });
+  });
+
+  it('writes an exact priority typed into the row field', async () => {
+    const user = userEvent.setup();
+    const onPriorityChange = vi.fn();
+    renderSection([queued(1, { priority: 4 })], vi.fn(), { onPriorityChange });
+
+    const field = screen.getByRole('spinbutton', { name: 'Priority for Queued Episode 1' });
+    await user.clear(field);
+    await user.type(field, '40');
+    // commitOn="blur": nothing is written while the user is still typing.
+    expect(onPriorityChange).not.toHaveBeenCalled();
+    await user.tab();
+    expect(onPriorityChange).toHaveBeenCalledWith({
+      slug: 'pod', episodeId: 'ep-1', priority: 40,
     });
   });
 

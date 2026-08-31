@@ -186,6 +186,15 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
       </label>
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">36&times;20 (h-5 w-9), 14px knob, 2px inset; checked = primary fill; aria-label required; space/enter toggles</span>
     </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <label style="font-size:13px;font-weight:500">Icon button in a row of text buttons</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:6px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:12px">&#9654;</span>
+        <span style="padding:10px 12px;border-radius:6px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:14px">Confirm ad</span>
+        <span style="padding:10px 12px;border-radius:6px;background:hsl(var(--destructive));color:hsl(var(--destructive-foreground));font-size:14px">Not an ad</span>
+      </div>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">Take the row&rsquo;s height, not a fixed 32&times;32: the text buttons beside it are responsive, so a fixed square sits short on mobile and tall on desktop. Match the neighbour recipe at each breakpoint (marker rows <span style="font-family:ui-monospace,monospace;font-size:12px">w-10 min-h-[40px] sm:h-7 sm:w-7</span>, review cards <span style="font-family:ui-monospace,monospace;font-size:12px">h-9 w-9 min-[370px]:h-10 min-[370px]:w-10</span>). A standalone icon button with no text buttons beside it stays compact.</span>
+    </div>
     <div style="display:flex;flex-direction:column;gap:6px">
       <label style="font-size:13px;font-weight:500">Inline error</label>
       <div style="padding:12px;border-radius:8px;background:hsl(var(--destructive) / 0.1);color:hsl(var(--destructive));font-size:14px;text-align:center">Invalid password</div>
