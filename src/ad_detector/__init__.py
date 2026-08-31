@@ -129,6 +129,7 @@ from .prompts import (
     CATEGORY_REPAIR_MAX_TOKENS,
     AD_DETECTION_JSON_SCHEMA,
     format_category_repair_prompt,
+    log_assembled_system_prompt,
     parse_category_repair_response,
     SEGMENT_ID_SYSTEM_SECTION,
 )
@@ -1551,7 +1552,7 @@ class AdDetector:
             model = self.get_model()
 
             logger.info(f"[{slug}:{episode_id}] Using model: {model}")
-            logger.debug(f"[{slug}:{episode_id}] System prompt ({len(system_prompt)} chars)")
+            log_assembled_system_prompt(slug, episode_id, system_prompt)
 
             # Prepare description section (shared across windows)
             description_section = ""
@@ -2960,6 +2961,8 @@ class AdDetector:
                        f"for {total_duration/60:.1f}min processed audio")
 
             system_prompt = self.get_verification_prompt()
+            log_assembled_system_prompt(slug, episode_id, system_prompt,
+                                        label="Verification system")
             if addressing_mode == 'segment_ids':
                 system_prompt = f"{system_prompt}{SEGMENT_ID_SYSTEM_SECTION}"
             model = self.get_verification_model()

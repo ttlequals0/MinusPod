@@ -18,6 +18,10 @@ release notes.
   never mentions them (they exist so a key-stripping backend cannot
   discard whichever alias a model volunteers), so for a schema-reading
   model the description is their only context. From review on #696.
+- The detection and verification passes DEBUG-log the fully assembled
+  system prompt, not just its length (#708). Dynamic sections are appended
+  after the stored setting, so the settings UI cannot show what was
+  actually sent; the episode run log is where prompt debugging happens.
 
 ## [2.94.4] - 2026-08-31
 

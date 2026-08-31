@@ -739,6 +739,19 @@ CATEGORY_REPAIR_JSON_SCHEMA = {
 # Detection-window schema (#694). Wrapped under "ads" because a json_schema
 # response must be an object; every property stays optional so both
 # addressing modes and partial fields validate.
+def log_assembled_system_prompt(slug, episode_id, system_prompt, label="System"):
+    """DEBUG-log the final composed system prompt, not just its length.
+
+    Dynamic sections (show segments, segment-id addressing) are appended
+    after the stored setting, so the settings UI cannot show what was
+    actually sent; the episode run log is where prompt debugging happens.
+    """
+    logger.debug(
+        f"[{slug}:{episode_id}] {label} prompt ({len(system_prompt)} chars):\n"
+        f"{system_prompt}"
+    )
+
+
 # Shared by every sponsor alias in the detection schema. The aliases exist so
 # a key-stripping backend cannot discard whichever one a model volunteers.
 SPONSOR_ALIAS_FIELD_DESCRIPTION = (
