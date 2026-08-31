@@ -1648,7 +1648,8 @@ def get_pending_recuts():
     in one pass per episode when the operator applies them.
     """
     db = get_database()
-    episodes = db.get_episodes_pending_recut()
+    slug = request.args.get('slug') or None
+    episodes = db.get_episodes_pending_recut(slug=slug)
     return json_response({
         'count': len(episodes),
         'episodes': [{
@@ -1674,8 +1675,10 @@ def apply_pending_recuts():
     db = get_database()
     from main_app.processing import start_background_processing
 
+    payload = request.get_json(silent=True)
+    scope = (payload.get('slug') or None) if isinstance(payload, dict) else None
     queued, skipped = 0, 0
-    for row in db.get_episodes_pending_recut():
+    for row in db.get_episodes_pending_recut(slug=scope):
         slug, episode_id = row['podcast_slug'], row['episode_id']
         episode = db.get_episode(slug, episode_id)
         podcast = db.get_podcast_by_slug(slug)

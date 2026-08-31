@@ -53,6 +53,8 @@ Settings > Ad Detection has two grouped subsections for tuning how aggressively 
 | Autocut | off (0) | 0.5 - 1.0, or off | When enabled, cuts a standalone catch automatically once it reaches this confidence, instead of holding it for review. Off by default, so catches only ever hold or drop. |
 | Pattern-learning floor | 0.85 | 0.5 - 1.0 | Minimum confidence before a detection can teach the pattern matcher a new sponsor. Applies to ads up to 90 seconds. |
 | Pattern-learning floor, long ads | 0.92 | 0.5 - 1.0 | Same floor for ads longer than 90 seconds. Higher by default, since a long span is costlier to learn wrong. |
+| Learning minimum length | 15s | 1 - 600s | Below this, a detection is usually a fragment or a passing mention rather than an ad, so nothing is learned from it. |
+| Learning maximum length | 120s | 1 - 1800s | A longer detection is split at its ad transitions and each read is learned separately. Raise this for feeds whose ad blocks run long. |
 
 A held standalone catch carries a `verification_miss` hold reason and shows a "Verification catch" chip in the Held for Review section; it gets the same waveform editor and approve/dismiss flow as any other held ad. See [Held for Review](how-it-works.md#held-for-review) and [Verification Pass](how-it-works.md#verification-pass).
 

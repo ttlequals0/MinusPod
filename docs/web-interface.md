@@ -29,7 +29,7 @@ The server includes a web-based management UI at `/ui/`:
 - Bulk actions: select multiple episodes to process, reprocess, run a full analysis, re-detect ads on the existing transcript, or delete (the per-episode Recut Audio mode is not a bulk action)
 - Sort by publish date, episode number, or creation date; paginated (25/50/100/500 per page)
 - Pattern management: view and manage cross-episode ad patterns with sponsor names; the detail modal edits a pattern's sponsor, text template, active state, and segment category; includes an Ad Review tab for triaging detections across all podcasts
-- Review decisions are recorded as you make them, then applied together. The Ad Review and Detected Ads pages show an Apply recuts button that recuts each waiting episode once, however many decisions it collected
+- Review decisions are recorded as you make them, then applied together. The Ad Review and Detected Ads pages show an Apply recuts button that recuts each waiting episode once, however many decisions it collected. A feed's own page has the same button for just that feed's episodes
 - Segment category is editable in place: on an Ad Review or Detected Ads row, in the Detected ad window, and per pattern in the Ad Patterns table. It is what decides whether a span is cut, beeped, or left in
 - Sponsor management: view, add, edit, and remove sponsors, each with its linked-pattern count, created and last-matched dates, and tags
 - Processing history with stats, filtering by podcast, and CSV/JSON export; failed runs show their error reason under the episode title, with the full text on hover
@@ -156,7 +156,7 @@ Each row has up to five actions:
 - **Category** - sets the segment category, which is what decides whether the span is cut, beeped, or left in. This is the only action on a row left in by its category, and it is how you change that.
 - **Edit** - opens the waveform editor so you can adjust the ad boundaries before deciding.
 
-Confirm ad and Not an ad only appear for a detection still awaiting a decision, and never on one left in by its category. Recording a decision does not re-cut the episode on the spot: it marks the episode, and an Apply recuts button above the list rebuilds every waiting episode once. An episode you edit five times is rebuilt once rather than five times.
+Confirm ad and Not an ad only appear for a detection still awaiting a decision, and never on one left in by its category. Recording a decision does not re-cut the episode on the spot: it marks the episode, and an Apply recuts button above the list rebuilds every waiting episode once. An episode you edit five times is rebuilt once rather than five times. The same button appears on a feed page, where it covers only that feed's episodes.
 
 Corrections go through the same per-episode corrections endpoint used on the episode page, so approve and dismiss decisions feed pattern learning the same way.
 

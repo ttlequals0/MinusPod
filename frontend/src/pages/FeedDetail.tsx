@@ -4,6 +4,8 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
+import { getErrorMessage } from '../api/client';
+import { PendingRecutsBar } from './patterns/PendingRecutsBar';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import PrevNextLink from '../components/PrevNextLink';
@@ -152,6 +154,7 @@ function FeedDetail() {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
     },
+    onError: (err) => setActionError(getErrorMessage(err, 'Could not refresh this feed.')),
   });
 
   const deleteMutation = useMutation({
@@ -163,7 +166,7 @@ function FeedDetail() {
     },
     onError: (err) => {
       setDeleteConfirm(false);
-      setActionError((err as Error).message);
+      setActionError(getErrorMessage(err, 'Could not delete this feed.'));
     },
   });
 
@@ -188,6 +191,7 @@ function FeedDetail() {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingTitle(false);
     },
+    onError: (err) => setActionError(getErrorMessage(err, 'Could not save this feed.')),
   });
 
   const reprocessAllMutation = useMutation({
@@ -196,6 +200,10 @@ function FeedDetail() {
       setReprocessResult(result);
       setShowReprocessConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
+    },
+    onError: (err) => {
+      setShowReprocessConfirm(false);
+      setActionError(getErrorMessage(err, 'Could not start reprocessing.'));
     },
   });
 
@@ -208,6 +216,10 @@ function FeedDetail() {
       setShowBulkDeleteConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+    },
+    onError: (err) => {
+      setShowBulkDeleteConfirm(false);
+      setActionError(getErrorMessage(err, 'Could not apply that action.'));
     },
   });
 
@@ -515,12 +527,16 @@ function FeedDetail() {
 
       {slug && <CueTemplatesPanel slug={slug} />}
 
+      {/* Decisions made on this feed's episodes, not yet in the audio. */}
+      {slug && <PendingRecutsBar slug={slug} />}
+
       {/* Episodes header with status filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-xl font-semibold text-foreground">
           Episodes {totalEpisodes > 0 && <span className="text-muted-foreground font-normal text-base">({totalEpisodes})</span>}
         </h2>
-        <div className="flex items-center gap-2">
+        {/* Two selects side by side overflow a 320px screen; let them wrap. */}
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); }}

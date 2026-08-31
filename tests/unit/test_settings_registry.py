@@ -68,6 +68,8 @@ SEED_SNAPSHOT = {
     'keep_original_audio': 'true',
     'learning_min_confidence': '0.85',
     'learning_min_confidence_long': '0.92',
+    'learning_min_pattern_duration': '15',
+    'learning_max_pattern_duration': '120',
     'llm_provider': 'anthropic',
     'max_feed_episodes': '300',
     'min_cut_confidence': '0.80',
@@ -154,6 +156,7 @@ EXPECTED_AD_RESET_KEYS = {
     'verification_miss_hold_min_confidence',
     'verification_miss_autocut_min_confidence',
     'learning_min_confidence', 'learning_min_confidence_long',
+    'learning_min_pattern_duration', 'learning_max_pattern_duration',
     'differential_measured_corr_max', 'differential_hold_min_seconds',
 }
 
@@ -435,7 +438,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 99
+        assert len(payload_keys) == 101
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

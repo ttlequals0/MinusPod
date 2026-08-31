@@ -36,7 +36,7 @@ def detector():
     det.db = MagicMock()
     det.db.get_active_pattern_sponsors = MagicMock(return_value=set())
     det.text_pattern_matcher = MagicMock()
-    det.text_pattern_matcher.create_pattern_from_ad = MagicMock(return_value=None)
+    det.text_pattern_matcher.create_patterns_from_ad = MagicMock(return_value=[])
     det.sponsor_service = MagicMock()
     det.sponsor_service.get_sponsors = MagicMock(return_value=[])
     det.sponsor_service.find_sponsor_in_text = MagicMock(return_value="Xero")
@@ -126,7 +126,7 @@ class TestLearnFromDetectionsConfigurableThreshold:
         ad = _claude_ad(0.6, 60.0)
         ad['sponsor'] = 'Xero'
         detector.learn_from_detections([ad], segments, podcast_id='podA', episode_id='ep1')
-        detector.text_pattern_matcher.create_pattern_from_ad.assert_called_once()
+        detector.text_pattern_matcher.create_patterns_from_ad.assert_called_once()
 
     def test_default_threshold_still_rejects_0_6_confidence_ad(self, detector):
         detector.db.get_setting_float = MagicMock(side_effect=lambda key, default: default)
@@ -137,4 +137,4 @@ class TestLearnFromDetectionsConfigurableThreshold:
         ad = _claude_ad(0.6, 60.0)
         ad['sponsor'] = 'Xero'
         detector.learn_from_detections([ad], segments, podcast_id='podA', episode_id='ep1')
-        detector.text_pattern_matcher.create_pattern_from_ad.assert_not_called()
+        detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()

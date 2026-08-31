@@ -551,6 +551,8 @@ export interface Settings {
   verificationMissAutocutMinConfidence: SettingValueNumber;
   learningMinConfidence: SettingValueNumber;
   learningMinConfidenceLong: SettingValueNumber;
+  learningMinPatternDuration: SettingValueNumber;
+  learningMaxPatternDuration: SettingValueNumber;
   differentialMeasuredCorrMax: SettingValueNumber;
   differentialHoldMinSeconds: SettingValueNumber;
   vttTranscriptsEnabled: SettingValueBoolean;
@@ -662,6 +664,8 @@ export interface Settings {
     verificationMissAutocutMinConfidence: number;
     learningMinConfidence: number;
     learningMinConfidenceLong: number;
+    learningMinPatternDuration: number;
+    learningMaxPatternDuration: number;
     differentialMeasuredCorrMax: number;
     differentialHoldMinSeconds: number;
   };
@@ -754,6 +758,8 @@ export interface UpdateSettingsPayload {
   verificationMissAutocutMinConfidence?: number;
   learningMinConfidence?: number;
   learningMinConfidenceLong?: number;
+  learningMinPatternDuration?: number;
+  learningMaxPatternDuration?: number;
   differentialMeasuredCorrMax?: number;
   differentialHoldMinSeconds?: number;
   vttTranscriptsEnabled?: boolean;

@@ -17,9 +17,16 @@ from config import (
     SEGMENT_CATEGORIES,
 )
 from community_export import count_brand_occurrences, brand_match_candidates, get_sponsor_row_or_stub
-from utils.text import extract_text_from_segments
+from utils.text import extract_text_from_segments, timed_spans_from_segments
 from sponsor_normalize import get_or_create_known_sponsor
-from utils.constants import INVALID_SPONSOR_VALUES
+from utils.constants import (
+    canonical_sponsor,
+    INVALID_SPONSOR_VALUES,
+    LEARNING_MAX_PATTERN_DURATION,
+    LEARNING_MIN_PATTERN_DURATION,
+    LEARNING_SPLIT_DURATION_FACTOR,
+    sanitize_sponsor_label,
+)
 from utils.community_tags import UNIVERSAL_TAG
 from utils.language import get_pattern_language
 from utils.pattern_similarity import similarity, canonicalize_for_dedupe
@@ -1241,6 +1248,88 @@ class TextPatternMatcher:
     # Reuse centralized constant (superset of the old local set)
     INVALID_SPONSORS = INVALID_SPONSOR_VALUES
 
+    def _pattern_duration_bounds(self) -> tuple[int, int]:
+        """Configured [min, max] source-span duration for a learned pattern.
+
+        isinstance rather than int(): a MagicMock db converts to 1 and would
+        cap every span at one second, which several fixtures would hit.
+        """
+        def read(key: str, fallback: int) -> int:
+            value = self.db.get_setting_int(key, fallback) if self.db else None
+            return int(value) if isinstance(value, int) and not isinstance(value, bool) else fallback
+
+        return (read('learning_min_pattern_duration', LEARNING_MIN_PATTERN_DURATION),
+                read('learning_max_pattern_duration', LEARNING_MAX_PATTERN_DURATION))
+
+    def create_patterns_from_ad(
+        self,
+        segments: list[dict],
+        start: float,
+        end: float,
+        sponsor: str = None,
+        scope: str = "podcast",
+        podcast_id: str = None,
+        network_id: str = None,
+        episode_id: str = None,
+        category: str = None,
+    ) -> list[dict]:
+        """Learn from a detected span, splitting it when it holds several ads.
+
+        A span over the ceiling, or with more than one transition phrase, is
+        usually back-to-back reads, and dropping it whole taught nothing. Each
+        piece goes through create_pattern_from_ad, so every gate still runs.
+        Returns one {'id', 'start', 'end'} per pattern, so a caller storing an
+        audio fingerprint can key it to the piece the pattern actually covers.
+        """
+        if not self.db:
+            return []
+
+        def create(piece_start, piece_end, piece_sponsor,
+                   from_split=False, piece_text=None):
+            pattern_id = self.create_pattern_from_ad(
+                segments, piece_start, piece_end, sponsor=piece_sponsor,
+                scope=scope, podcast_id=podcast_id, network_id=network_id,
+                episode_id=episode_id, category=category,
+                from_split=from_split, ad_text=piece_text)
+            return ([{'id': pattern_id, 'start': piece_start, 'end': piece_end}]
+                    if pattern_id else [])
+
+        _, max_duration = self._pattern_duration_bounds()
+        ad_text = self._get_text_around_time(segments, start, end)
+        if (end - start <= max_duration
+                and len(find_transition_offsets(ad_text)) <= 1):
+            return create(start, end, sponsor)
+
+        # Local import: split_planning imports this module for its phrase list.
+        from split_planning import build_split_candidates, build_split_pieces
+
+        spans = timed_spans_from_segments(segments, start, end)
+        times = [c['time'] for c in build_split_candidates(spans, start, end)]
+        if not times:
+            # Nothing to split on; create_pattern_from_ad logs why it declines.
+            return create(start, end, sponsor)
+
+        pieces = build_split_pieces(spans, start, end, times)
+        logger.info(
+            f"Splitting {end - start:.0f}s span into {len(pieces)} pieces "
+            f"for pattern learning"
+        )
+        created = []
+        for index, piece in enumerate(pieces):
+            # No divider sits near the span start, so the caller's sponsor names
+            # the opening read; giving it to a later piece would mislabel it.
+            piece_sponsor = piece['sponsor'] or (sponsor if index == 0 else None)
+            if not piece_sponsor:
+                logger.debug(
+                    f"Split piece {piece['start']:.0f}-{piece['end']:.0f}s has no "
+                    f"sponsor of its own; not learned")
+                continue
+            created.extend(
+                create(piece['start'], piece['end'],
+                       canonical_sponsor(piece_sponsor),
+                       from_split=True, piece_text=piece['text']))
+        return created
+
     def create_pattern_from_ad(
         self,
         segments: list[dict],
@@ -1251,7 +1340,9 @@ class TextPatternMatcher:
         podcast_id: str = None,
         network_id: str = None,
         episode_id: str = None,
-        category: str = None
+        category: str = None,
+        from_split: bool = False,
+        ad_text: str = None
     ) -> int | None:
         """
         Create a new ad pattern from a detected ad segment.
@@ -1284,13 +1375,19 @@ class TextPatternMatcher:
         if sponsor_lower in self.INVALID_SPONSORS:
             logger.warning(f"Rejecting pattern: generic/invalid sponsor '{sponsor}'")
             return None
+        # Segment and show-structure words arrive here as sponsors when the
+        # model has no advertiser to name.
+        if sanitize_sponsor_label(sponsor) is None:
+            logger.warning(
+                f"Rejecting pattern: '{sponsor}' is a segment or structure "
+                f"name, not an advertiser")
+            return None
 
         # Validate ad duration - reject contaminated multi-ad spans on the
-        # upper end, and short spans (< 15 s) on the lower end. Pattern #356
-        # (Patreon, 8 s) is the canonical floor false-positive: real sponsor
-        # reads almost never fit in under 15 seconds.
-        MIN_PATTERN_DURATION = 15  # shortest plausible sponsor read
-        MAX_PATTERN_DURATION = 120  # 2 minutes - longest reasonable single ad read
+        # upper end, and short spans on the lower end. Pattern #356 (Patreon,
+        # 8 s) is the canonical floor false-positive: real sponsor reads almost
+        # never fit in under 15 seconds.
+        MIN_PATTERN_DURATION, MAX_PATTERN_DURATION = self._pattern_duration_bounds()
         duration = end - start
         if duration < MIN_PATTERN_DURATION:
             logger.warning(
@@ -1299,15 +1396,23 @@ class TextPatternMatcher:
                 f"not a sponsor read)"
             )
             return None
-        if duration > MAX_PATTERN_DURATION:
+        # A piece cut at its own ad transitions has passed the contamination
+        # screen, so it may run past the ceiling, but only so far: an undetected
+        # transition would otherwise store a pattern of any length.
+        ceiling = (MAX_PATTERN_DURATION * LEARNING_SPLIT_DURATION_FACTOR
+                   if from_split else MAX_PATTERN_DURATION)
+        if duration > ceiling:
             logger.warning(
                 f"Skipping pattern creation: duration {duration:.0f}s exceeds "
-                f"max {MAX_PATTERN_DURATION}s (likely multi-ad contamination)"
+                f"max {ceiling:.0f}s (likely multi-ad contamination)"
             )
             return None
 
-        # Extract text for the ad segment
-        ad_text = self._get_text_around_time(segments, start, end)
+        # A split piece supplies its own text: build_split_pieces cuts on strict
+        # overlap and this extractor includes a segment that merely touches the
+        # boundary, so re-extracting would pull in the next piece's opening line.
+        if ad_text is None:
+            ad_text = self._get_text_around_time(segments, start, end)
 
         if len(ad_text) < MIN_TEXT_LENGTH:
             logger.debug("Ad text too short for pattern creation")
@@ -1325,10 +1430,10 @@ class TextPatternMatcher:
         intro = _extract_intro_phrase(ad_text)
         outro = _extract_outro_phrase(ad_text)
 
-        # Check for multiple ad transitions (contamination indicator)
-        ad_text_lower = ad_text.lower()
-        transition_count = sum(1 for phrase in AD_TRANSITION_PHRASES
-                               if phrase in ad_text_lower)
+        # Counts positions, not phrase-list entries: "this episode is brought
+        # to you by" contains "brought to you by", so the commonest opener in
+        # podcasting scored 2 and every read using it was rejected.
+        transition_count = len(find_transition_offsets(ad_text))
         if transition_count > 1:
             logger.warning(
                 f"Skipping pattern creation: found {transition_count} ad transitions - "
@@ -1336,15 +1441,9 @@ class TextPatternMatcher:
             )
             return None
 
-        # Validate sponsor appears in intro (if provided)
-        if sponsor and intro:
-            if sponsor.lower() not in intro.lower():
-                logger.warning(
-                    f"Skipping pattern creation: sponsor '{sponsor}' not in intro - "
-                    f"may be contaminated or misattributed"
-                )
-                return None
-
+        # Also covers "never appears at all", which the raw intro substring test
+        # used to catch, less reliably: it missed alternate spellings.
+        #
         # Require the brand to appear at least twice in the ad_text. Real
         # ads repeat the brand (intro + outro at minimum); a single mention
         # is a strong signal of a host name-drop rather than a sponsor

@@ -248,8 +248,8 @@ function EpisodeDetail() {
   const [showEditor, setShowEditor] = useState(false);
   const [createModeRequested, setCreateModeRequested] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  // Transient error toast for a rejected correction submit (e.g. a 409 on a
-  // keep-resolved marker); the backend's own message is shown verbatim.
+  // Transient banner for a rejected correction or reprocess; the backend's
+  // own message is shown verbatim.
   const [correctionError, setCorrectionError] = useState<string | null>(null);
   const [showReprocessMenu, setShowReprocessMenu] = useState(false);
   const [editorSelectedAdIndex, setEditorSelectedAdIndex] = useState(0);
@@ -300,11 +300,12 @@ function EpisodeDetail() {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
       setShowReprocessMenu(false);
     },
-    // A 409 (already processing) or transient failure must not vanish
-    // silently: refetch so status-driven guards reflect reality.
-    onError: () => {
+    // Processing is serialized by a lock, so a stale cached status leaves the
+    // button enabled and the click is refused; showing the 409 stops it just
+    // flickering with nothing to explain it (#707).
+    onError: (error) => {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
-      setSaveStatus('error');
+      setCorrectionError(getErrorMessage(error, 'Could not start reprocessing.'));
     },
   });
 

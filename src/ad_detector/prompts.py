@@ -24,7 +24,7 @@ from utils.constants import (
 from config import (
     LOW_CONFIDENCE, CONFIDENCE_STRING_MAP,
     CONTENT_DURATION_THRESHOLD, LOW_EVIDENCE_WARN_THRESHOLD,
-    get_stage_tunable, SEGMENT_CATEGORIES,
+    get_stage_tunable, SEGMENT_CATEGORIES, repair_segment_category,
 )
 
 logger = logging.getLogger('podcast.claude')
@@ -813,30 +813,15 @@ def _repair_index(value):
 # Spelled-out forms of the exact vocabulary: the model reaches for
 # "self-promotion" as readily as "self_promo". A position word like "pre-roll"
 # or a bare "ad" is still refused.
-_CATEGORY_ALIASES = {
-    'self_promotion': 'self_promo',
-    'selfpromo': 'self_promo',
-    'cross_promotion': 'cross_promo',
-    'crosspromo': 'cross_promo',
-    'sponsorship': 'sponsor',
-}
-
 # Keys a category can arrive under. Only Anthropic enforces the schema, so on
 # every other provider the model names fields freely; the rest of this parser
 # already tolerates that for start, end and sponsor.
 _CATEGORY_KEY_HINTS = ('categor', 'segment_type', 'classification', 'type')
 
 
-def _repair_category(value):
-    """A known category from any field, or None. Spacing, case and hyphens
-    vary between providers ("Cross-Promo"); the vocabulary does not, so only
-    formatting and the spelled-out forms are normalized. A position word like
-    "pre-roll", or a bare "ad", is not a category and stays rejected."""
-    if not isinstance(value, str):
-        return None
-    candidate = value.strip().lower().replace('-', '_').replace(' ', '_')
-    candidate = _CATEGORY_ALIASES.get(candidate, candidate)
-    return candidate if candidate in SEGMENT_CATEGORIES else None
+# Shared with sanitize_sponsor_label, which rejects a category name in the
+# sponsor slot; one vocabulary, one normalizer.
+_repair_category = repair_segment_category
 
 
 def resolve_ad_category(ad: dict):

@@ -652,8 +652,13 @@ class QueueMixin:
         )
         conn.commit()
 
-    def get_episodes_pending_recut(self, limit: int = 1000) -> list[dict]:
-        """Episodes with unapplied review decisions, oldest stamp first."""
+    def get_episodes_pending_recut(self, limit: int = 1000,
+                                   slug: str | None = None) -> list[dict]:
+        """Episodes with unapplied review decisions, oldest stamp first.
+
+        `slug` scopes the result to one feed, so a feed page can apply its own
+        pending recuts without touching the rest of the queue.
+        """
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT e.episode_id, e.title, e.status, e.original_url,
@@ -662,17 +667,33 @@ class QueueMixin:
                FROM episodes e
                JOIN podcasts p ON e.podcast_id = p.id
                WHERE e.pending_recut_at IS NOT NULL
+                 AND (? IS NULL OR p.slug = ?)
                ORDER BY e.pending_recut_at ASC
                LIMIT ?""",
-            (limit,)
+            (slug, slug, limit)
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def count_episodes_pending_recut(self) -> int:
-        """How many episodes are waiting for an apply."""
-        row = self.get_connection().execute(
-            "SELECT COUNT(*) AS n FROM episodes WHERE pending_recut_at IS NOT NULL"
-        ).fetchone()
+    def count_episodes_pending_recut(self, slug: str | None = None) -> int:
+        """How many episodes are waiting for an apply, optionally one feed's.
+
+        The unscoped count stays single-table: joining podcasts would drop an
+        episode whose feed row is missing, changing a number nothing asked to
+        change.
+        """
+        if slug is None:
+            row = self.get_connection().execute(
+                "SELECT COUNT(*) AS n FROM episodes "
+                "WHERE pending_recut_at IS NOT NULL"
+            ).fetchone()
+        else:
+            row = self.get_connection().execute(
+                """SELECT COUNT(*) AS n
+                   FROM episodes e
+                   JOIN podcasts p ON e.podcast_id = p.id
+                   WHERE e.pending_recut_at IS NOT NULL AND p.slug = ?""",
+                (slug,)
+            ).fetchone()
         return row['n'] if row else 0
 
     # Deferred-episode lifecycle: offline queue (#482), rate-limit hold (#696)

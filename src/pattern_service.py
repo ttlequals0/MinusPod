@@ -26,6 +26,7 @@ from utils.constants import (
     LEARNING_MIN_CONFIDENCE,
     LEARNING_MIN_CONFIDENCE_LONG,
     LEARNING_LONG_DURATION_THRESHOLD,
+    sanitize_sponsor_label,
 )
 from utils.text import extract_text_from_segments
 from utils.time import parse_iso_utc
@@ -891,6 +892,13 @@ class PatternService:
                 )
                 continue
 
+            if sanitize_sponsor_label(sponsor) is None:
+                logger.info(
+                    f"[{slug}:{episode_id}] Rejecting verification miss for "
+                    f"'{sponsor}' (segment or structure name, not an advertiser)"
+                )
+                continue
+
             sponsor = canonical_sponsor(sponsor)
 
             try:
@@ -940,7 +948,7 @@ class PatternService:
                         )
                         continue
 
-                pattern_id = matcher.create_pattern_from_ad(
+                pattern_ids = matcher.create_patterns_from_ad(
                     segments=segments,
                     start=ad.get('start', 0),
                     end=ad.get('end', 0),
@@ -950,10 +958,10 @@ class PatternService:
                     episode_id=episode_id,
                     category=ad.get('category'),
                 )
-                if pattern_id:
+                if pattern_ids:
                     logger.info(
-                        f"[{slug}:{episode_id}] Auto-created pattern {pattern_id} "
-                        f"for sponsor '{sponsor}' from verification miss"
+                        f"[{slug}:{episode_id}] Auto-created {len(pattern_ids)} "
+                        f"pattern(s) for sponsor '{sponsor}' from verification miss"
                     )
                 else:
                     logger.info(

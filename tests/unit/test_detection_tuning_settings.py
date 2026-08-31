@@ -50,3 +50,21 @@ class TestDetectionTuningSettings:
     def test_out_of_range_rejected(self, client):
         assert self._put(client, {'learningMinConfidence': 1.5}).status_code == 400
         assert self._put(client, {'differentialHoldMinSeconds': 500}).status_code == 400
+
+    def test_pattern_duration_bounds_roundtrip(self, client):
+        s = client.get('/api/v1/settings').get_json()
+        assert s['learningMinPatternDuration']['value'] == 15
+        assert s['learningMaxPatternDuration']['value'] == 120
+        assert self._put(client, {'learningMinPatternDuration': 20,
+                                  'learningMaxPatternDuration': 300}).status_code == 200
+        s = client.get('/api/v1/settings').get_json()
+        assert s['learningMinPatternDuration']['value'] == 20
+        assert s['learningMaxPatternDuration']['value'] == 300
+
+    def test_pattern_duration_bounds_validated(self, client):
+        assert self._put(client, {'learningMaxPatternDuration': 5000}).status_code == 400
+        assert self._put(client, {'learningMinPatternDuration': 0}).status_code == 400
+        assert self._put(client, {'learningMinPatternDuration': 'x'}).status_code == 400
+        # A floor at or above the ceiling would learn nothing.
+        assert self._put(client, {'learningMinPatternDuration': 300,
+                                  'learningMaxPatternDuration': 120}).status_code == 400

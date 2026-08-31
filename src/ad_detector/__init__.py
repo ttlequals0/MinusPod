@@ -2434,7 +2434,7 @@ class AdDetector:
         Returns True if a pattern was successfully created.
         """
         try:
-            pattern_id = self.text_pattern_matcher.create_pattern_from_ad(
+            pattern_ids = self.text_pattern_matcher.create_patterns_from_ad(
                 segments=segments,
                 start=ad['start'],
                 end=ad['end'],
@@ -2445,23 +2445,28 @@ class AdDetector:
                 category=ad.get('category')
             )
 
-            if pattern_id:
+            if pattern_ids:
                 logger.info(
-                    f"Created pattern {pattern_id} from Claude detection: "
+                    f"Created {len(pattern_ids)} pattern(s) from Claude detection: "
                     f"{ad['start']:.1f}s-{ad['end']:.1f}s, sponsor={sponsor}"
                 )
 
-                # Store audio fingerprint alongside the text pattern
-                if audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
-                    try:
-                        self.audio_fingerprinter.store_fingerprint(
-                            pattern_id=pattern_id,
-                            audio_path=audio_path,
-                            start=ad['start'],
-                            end=ad['end']
-                        )
-                    except Exception as fp_e:
-                        logger.debug(f"Could not store fingerprint for pattern {pattern_id}: {fp_e}")
+                # Each pattern is fingerprinted against its own piece, so a
+                # split span's audio still matches the pattern that covers it.
+                if (audio_path and self.audio_fingerprinter
+                        and self.audio_fingerprinter.is_available()):
+                    for created in pattern_ids:
+                        try:
+                            self.audio_fingerprinter.store_fingerprint(
+                                pattern_id=created['id'],
+                                audio_path=audio_path,
+                                start=created['start'],
+                                end=created['end'],
+                            )
+                        except Exception as fp_e:
+                            logger.debug(
+                                f"Could not store fingerprint for pattern "
+                                f"{created['id']}: {fp_e}")
                 return True
         except Exception as e:
             logger.warning(f"Failed to create pattern from detection: {e}")

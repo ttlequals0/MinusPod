@@ -599,6 +599,12 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'learning_min_confidence_long': SettingSpec(
         default='0.92', seeded=True, in_ad_reset=True,
         payload_key='learningMinConfidenceLong', payload_kind='float'),
+    'learning_min_pattern_duration': SettingSpec(
+        default='15', seeded=True, in_ad_reset=True,
+        payload_key='learningMinPatternDuration', payload_kind='int'),
+    'learning_max_pattern_duration': SettingSpec(
+        default='120', seeded=True, in_ad_reset=True,
+        payload_key='learningMaxPatternDuration', payload_kind='int'),
     'differential_measured_corr_max': SettingSpec(
         default='0.60', seeded=True, in_ad_reset=True,
         payload_key='differentialMeasuredCorrMax', payload_kind='float'),
@@ -735,6 +741,16 @@ class SettingsMixin:
             return default
         try:
             return float(v)
+        except (TypeError, ValueError):
+            return default
+
+    def get_setting_int(self, key: str, default: int = 0) -> int:
+        """Get a setting as int, returning `default` on missing/invalid values."""
+        v = self.get_setting(key)
+        if v is None:
+            return default
+        try:
+            return int(float(v))
         except (TypeError, ValueError):
             return default
 

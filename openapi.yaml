@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.94.2
+  version: 2.94.3
   contact:
     name: MinusPod
   license:
@@ -2248,6 +2248,13 @@ paths:
         episode instead of re-cutting it. An episode collecting several
         decisions is listed once and cut once.
       operationId: getPendingRecuts
+      parameters:
+        - name: slug
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Limit the list to one feed's episodes.
       responses:
         '200':
           description: Pending episodes, oldest stamp first
@@ -2286,6 +2293,18 @@ paths:
         its retained original audio is skipped and keeps its stamp, so its
         decisions are not lost.
       operationId: applyPendingRecuts
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slug:
+                  type: string
+                  description: >-
+                    Recut only this feed's pending episodes. Omit to cover
+                    every feed.
       responses:
         '200':
           description: How many recuts were queued and how many were skipped
@@ -4882,6 +4901,24 @@ paths:
                     Same floor as learningMinConfidence for ads longer than
                     90 seconds (default 0.92).
                   example: 0.92
+                learningMinPatternDuration:
+                  type: integer
+                  minimum: 1
+                  maximum: 600
+                  description: >-
+                    Shortest span, in seconds, that can teach the pattern
+                    matcher. Below this a span is usually a fragment or a host
+                    mention rather than a read (default 15).
+                  example: 15
+                learningMaxPatternDuration:
+                  type: integer
+                  minimum: 1
+                  maximum: 1800
+                  description: >-
+                    Longest span, in seconds, learned as a single pattern.
+                    A longer span is split at its ad transitions and each piece
+                    is learned separately (default 120).
+                  example: 120
                 differentialMeasuredCorrMax:
                   type: number
                   format: float
@@ -10577,6 +10614,22 @@ components:
             value:
               type: number
               format: float
+            isDefault:
+              type: boolean
+        learningMinPatternDuration:
+          type: object
+          description: Shortest span in seconds that can teach the pattern matcher (default 15).
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        learningMaxPatternDuration:
+          type: object
+          description: Longest span in seconds learned as one pattern; longer spans are split (default 120).
+          properties:
+            value:
+              type: integer
             isDefault:
               type: boolean
         differentialMeasuredCorrMax:

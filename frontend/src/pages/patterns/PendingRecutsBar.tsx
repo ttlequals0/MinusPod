@@ -8,22 +8,28 @@ import { useState } from 'react';
 // Review is bulk work: decisions are recorded as they are made and cut in one
 // pass per episode when the operator applies them, so an episode edited five
 // times is re-cut once rather than five times.
-export function PendingRecutsBar() {
+interface PendingRecutsBarProps {
+  /** Scope to one feed. Omitted on the review pages, which cover every feed. */
+  slug?: string;
+}
+
+export function PendingRecutsBar({ slug }: PendingRecutsBarProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
 
   const { data } = useQuery({
-    queryKey: ['pending-recuts'],
-    queryFn: getPendingRecuts,
+    // Scoped and global bars must not share a cache entry.
+    queryKey: ['pending-recuts', slug ?? 'all'],
+    queryFn: () => getPendingRecuts(slug),
     // An episode keeps its stamp until its recut finishes, so poll to clear
     // the bar on its own rather than leaving a queued state on screen.
     refetchInterval: 15000,
   });
 
   const apply = useMutation({
-    mutationFn: applyPendingRecuts,
+    mutationFn: () => applyPendingRecuts(slug),
     onSuccess: ({ queued, skipped }) => {
       setError(null);
       // Queued episodes keep their stamp until the recut lands, so without

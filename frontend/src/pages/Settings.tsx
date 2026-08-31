@@ -262,6 +262,8 @@ function Settings() {
   const [verificationMissAutocutMinConfidence, setVerificationMissAutocutMinConfidence] = useState(0);
   const [learningMinConfidence, setLearningMinConfidence] = useState(0.85);
   const [learningMinConfidenceLong, setLearningMinConfidenceLong] = useState(0.92);
+  const [learningMinPatternDuration, setLearningMinPatternDuration] = useState(15);
+  const [learningMaxPatternDuration, setLearningMaxPatternDuration] = useState(120);
   const [differentialMeasuredCorrMax, setDifferentialMeasuredCorrMax] = useState(0.6);
   const [differentialHoldMinSeconds, setDifferentialHoldMinSeconds] = useState(10);
   // Neutral placeholder (cast); replaced by hydration before the form renders.
@@ -536,6 +538,8 @@ function Settings() {
     { key: 'verificationMissAutocutMinConfidence', kind: 'val', useDefault: true, literal: 0, value: verificationMissAutocutMinConfidence, set: setVerificationMissAutocutMinConfidence },
     { key: 'learningMinConfidence', kind: 'val', useDefault: true, literal: 0.85, value: learningMinConfidence, set: setLearningMinConfidence },
     { key: 'learningMinConfidenceLong', kind: 'val', useDefault: true, literal: 0.92, value: learningMinConfidenceLong, set: setLearningMinConfidenceLong },
+    { key: 'learningMinPatternDuration', kind: 'val', useDefault: true, literal: 15, value: learningMinPatternDuration, set: setLearningMinPatternDuration },
+    { key: 'learningMaxPatternDuration', kind: 'val', useDefault: true, literal: 120, value: learningMaxPatternDuration, set: setLearningMaxPatternDuration },
     { key: 'differentialMeasuredCorrMax', kind: 'val', useDefault: true, literal: 0.6, value: differentialMeasuredCorrMax, set: setDifferentialMeasuredCorrMax },
     { key: 'differentialHoldMinSeconds', kind: 'val', useDefault: true, literal: 10, value: differentialHoldMinSeconds, set: setDifferentialHoldMinSeconds },
     // Audio cue detection (nested `audioCue` state)
@@ -1065,6 +1069,10 @@ function Settings() {
         learningMinConfidence={learningMinConfidence}
         onLearningMinConfidenceChange={setLearningMinConfidence}
         learningMinConfidenceLong={learningMinConfidenceLong}
+        onLearningMinPatternDurationChange={setLearningMinPatternDuration}
+        learningMinPatternDuration={learningMinPatternDuration}
+        onLearningMaxPatternDurationChange={setLearningMaxPatternDuration}
+        learningMaxPatternDuration={learningMaxPatternDuration}
         onLearningMinConfidenceLongChange={setLearningMinConfidenceLong}
         differentialMeasuredCorrMax={differentialMeasuredCorrMax}
         onDifferentialMeasuredCorrMaxChange={setDifferentialMeasuredCorrMax}

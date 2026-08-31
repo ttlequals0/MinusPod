@@ -9,6 +9,56 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.94.3] - 2026-08-31
+
+### Fixed
+
+- Pattern learning threw away most of what it saw on ad-heavy feeds. A span
+  over the duration ceiling was dropped whole, so the reads were cut but never
+  learned and every episode re-detected them from scratch. One feed lost 26
+  spans that way in eight hours, ranging 120 to 442 seconds. A span over the
+  ceiling is now split at its ad transitions, and each piece that names its own
+  advertiser is learned separately. A piece with no sponsor of its own is
+  skipped rather than labelled with the previous read's name. The ceiling and
+  floor are settings rather than literals buried in the function.
+- The most common ad opener in podcasting was rejected as contaminated.
+  "This episode is brought to you by" also contains "brought to you by", and
+  the contamination check counted phrase-list entries rather than positions,
+  so an ordinary single read scored two transitions and was dropped. It counts
+  positions now, which is what the existing helper already did for the manual
+  split path. The contaminated-patterns list had the same miscount, so it
+  flagged clean patterns and then refused the split it recommended.
+- Segment names reached pattern learning as sponsor names. "Outro", "Show" and
+  "Episode" are structure, not advertisers, but no blocklist knew that, so they
+  were stopped three checks later by an unrelated intro test that blamed
+  contamination. The validator written for this case is now called from both
+  learning paths and knows the segment categories.
+- A sponsor had to appear in the ad's opening sentences, matched as a raw
+  substring. Real advertisers stored under one spelling and spoken as another
+  failed it. The name must appear somewhere in the read, matched through the
+  same alias-aware check the next gate already used.
+- The reviewer's prose/number warning fired on context. Its regexes key on
+  boundary words rather than the sentence's subject, so "show content starts at
+  59.7s", given as the reason for an end trim, read as a claim about the ad's
+  start. Four of five warnings in a production sample were that shape. A figure
+  landing on any real boundary is treated as context now.
+- The episode page discarded the reason a reprocess was refused (#707).
+  Processing is serialized by a lock, so an episode is often mid-run and the
+  request returns 409, but the handler set an error state that reached no
+  visible surface. The button flickered and nothing appeared to happen. It
+  now shows what the server said, in the same banner corrections use.
+- The feed page silently swallowed failures from refresh, rename, reprocess-all
+  and bulk actions, none of which had an error handler at all.
+- Two selects in the feed page's episode filter could not wrap and ran off the
+  side of a 320px screen.
+
+### Added
+
+- Apply recuts on a feed's own page, covering that feed's episodes rather than
+  every waiting episode. `GET /episodes/pending-recuts` takes an optional
+  `slug`, and the apply endpoint takes one in its body. There is still one
+  recut queue and each episode is still rebuilt once.
+
 ## [2.94.2] - 2026-08-31
 
 ### Fixed
@@ -35,8 +85,6 @@ release notes.
   list row that had not refetched yet.
 - The Apply recuts button stayed lit after queueing, as if it had not been
   pressed. It reports what it started and clears itself as episodes finish.
-- "Not an ad" used the destructive red the design system reserves for deletes
-  and errors. It is neutral secondary now, next to the primary "Confirm ad".
 - Apply recuts blamed missing original audio for every skipped episode. The
   endpoint returns counts, not reasons, and a skip can equally mean the saved
   transcript segments are gone. The message names what a recut needs without

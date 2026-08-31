@@ -152,3 +152,31 @@ class TestApplyEndpoint:
         body = client.post('/api/v1/episodes/pending-recuts/apply').get_json()
         assert body == {'queued': 0, 'skipped': 1}
         assert _pending(seeded) == 1
+
+    def test_slug_scopes_the_list(self, client, seeded):
+        """A feed page applies only its own episodes."""
+        _correct(client, {'type': 'reject', 'original_ad': _original(CUT_AD)})
+        mine = client.get(f'/api/v1/episodes/pending-recuts?slug={SLUG}').get_json()
+        assert mine['count'] == 1
+        other = client.get(
+            '/api/v1/episodes/pending-recuts?slug=some-other-feed').get_json()
+        assert other['count'] == 0
+        assert other['episodes'] == []
+
+    def test_apply_scoped_to_another_feed_leaves_this_one_stamped(
+            self, client, seeded):
+        """The client sends {slug}; a feed page must not touch other feeds."""
+        _correct(client, {'type': 'reject', 'original_ad': _original(CUT_AD)})
+        body = client.post(
+            '/api/v1/episodes/pending-recuts/apply',
+            data=json.dumps({'slug': 'some-other-feed'}),
+            content_type='application/json').get_json()
+        assert body == {'queued': 0, 'skipped': 0}
+        assert _pending(seeded) == 1
+
+    def test_apply_survives_a_body_that_is_not_an_object(self, client, seeded):
+        """A JSON string reached .get('slug') and raised a 500."""
+        _correct(client, {'type': 'reject', 'original_ad': _original(CUT_AD)})
+        r = client.post('/api/v1/episodes/pending-recuts/apply',
+                        data='"a string"', content_type='application/json')
+        assert r.status_code == 200

@@ -8,6 +8,7 @@ import re
 from enum import Enum
 
 
+
 class EpisodeStatus(str, Enum):
     """Episode lifecycle statuses.
 
@@ -130,7 +131,8 @@ def sanitize_sponsor_label(text, show_name: str | None = None) -> str | None:
     is_sponsor_reasoning_rationale, is a bare segment name (Claude
     sometimes echoes the show-segment title into the sponsor slot for one ad
     read, e.g. 'Xbox segment' instead of the actual advertiser -- matched by
-    a trailing "segment" word, case-insensitive), or names the show itself.
+    a trailing "segment" word, case-insensitive), is a bare segment category
+    name ('Outro', 'Recap'), or names the show itself.
     Otherwise returns `text` unchanged. Used by
     ad_detector._merge_detection_results to keep junk sponsor labels out of
     merged markers.
@@ -140,6 +142,12 @@ def sanitize_sponsor_label(text, show_name: str | None = None) -> str | None:
     if is_sponsor_reasoning_rationale(text):
         return None
     if re.search(r'\bsegment$', str(text).strip(), re.I):
+        return None
+    # Imported lazily: this module is a leaf that most of src imports, and
+    # config is the heavier one. A module-scope import here would make any
+    # future utils import in config a cycle.
+    from config import repair_segment_category
+    if repair_segment_category(text) or str(text).strip().lower() in SEGMENT_STRUCTURE_WORDS:
         return None
     if names_the_show(text, show_name):
         return None
@@ -169,6 +177,17 @@ def names_the_show(text, show_name: str | None) -> bool:
 LEARNING_MIN_CONFIDENCE = 0.85
 LEARNING_MIN_CONFIDENCE_LONG = 0.92
 LEARNING_LONG_DURATION_THRESHOLD = 90.0
+
+# Duration window a learned pattern's source span must fall in. Over the
+# ceiling the span usually holds several ads, so it is split before it is
+# dropped.
+LEARNING_MIN_PATTERN_DURATION = 15
+LEARNING_MAX_PATTERN_DURATION = 120
+
+# How far past the ceiling a piece cut at its own ad transitions may run. The
+# ceiling screens for contamination, which a cut piece has already passed, but
+# without a bound one undetected transition would store a pattern of any length.
+LEARNING_SPLIT_DURATION_FACTOR = 2
 
 # Structural fields in LLM ad response objects that never contain sponsor info.
 # Everything NOT in this set is a candidate for dynamic field scanning.
@@ -505,6 +524,13 @@ NON_BRAND_WORDS = frozenset({
     'brand', 'tagline', 'product', 'pitch', 'marketing', 'copy',
     'complete', 'partial', 'full', 'brief', 'short', 'long',
     'message', 'insert', 'mid', 'roll', 'pre', 'post',
+})
+
+# Sponsor-slot junk the model reaches for when it has no advertiser to name.
+# Separate from NON_BRAND_WORDS, which also drives keyword extraction where
+# dropping these would cost real matches.
+SEGMENT_STRUCTURE_WORDS = frozenset({
+    'show', 'episode', 'podcast', 'segment', 'section', 'chapter',
 })
 
 # Vocabulary the model reaches for when describing an ad's shape or evidence,

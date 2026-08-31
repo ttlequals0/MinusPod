@@ -212,16 +212,18 @@ def get_contaminated_patterns():
     Returns patterns containing multiple ad transition phrases, indicating
     they may contain merged multi-sponsor ads that should be split.
     """
-    from text_pattern_matcher import AD_TRANSITION_PHRASES
+    from text_pattern_matcher import find_transition_offsets
 
     db = get_database()
     patterns = db.get_ad_patterns(active_only=True)
     contaminated = []
 
     for pattern in patterns:
-        text = (pattern.get('text_template') or '').lower()
-        # Count ad transition phrases
-        transition_count = sum(1 for phrase in AD_TRANSITION_PHRASES if phrase in text)
+        text = pattern.get('text_template') or ''
+        # Positions, not phrase-list entries: nested phrases scored a clean
+        # pattern as contaminated, and the split it then recommended returned
+        # "nothing to split", so the list never emptied.
+        transition_count = len(find_transition_offsets(text))
 
         if transition_count > 1:
             contaminated.append({

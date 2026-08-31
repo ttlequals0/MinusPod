@@ -10,7 +10,7 @@ import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
 } from '../../utils/segmentCategory';
 import { formatTimestamp, formatDate } from '../../utils/format';
-import { btnOutline, btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 
 // "Not cut" = flagged but left in the audio; the bucket covers both
@@ -217,7 +217,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           type="button"
           onClick={() => actions.onDismiss?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${isCard && actions.onApprove ? 'grow basis-0 ' : ''}${btnSecondary} disabled:opacity-50 ${focusRing}`}
+          className={`${btn} ${isCard && actions.onApprove ? 'grow basis-0 ' : ''}${btnDestructive} disabled:opacity-50 ${focusRing}`}
         >
           Not an ad
         </button>

@@ -103,18 +103,23 @@ export interface PendingRecut {
   pendingSince: string;
 }
 
-/** Episodes holding review decisions that are not in the audio yet. */
-export async function getPendingRecuts(): Promise<{
+/** Episodes holding review decisions that are not in the audio yet.
+ *  `slug` scopes the list to one feed. */
+export async function getPendingRecuts(slug?: string): Promise<{
   count: number; episodes: PendingRecut[];
 }> {
-  return apiRequest('/episodes/pending-recuts');
+  const query = slug ? `?slug=${encodeURIComponent(slug)}` : '';
+  return apiRequest(`/episodes/pending-recuts${query}`);
 }
 
-/** Recut every pending episode once. */
-export async function applyPendingRecuts(): Promise<{
+/** Recut every pending episode once, or one feed's when `slug` is given. */
+export async function applyPendingRecuts(slug?: string): Promise<{
   queued: number; skipped: number;
 }> {
-  return apiRequest('/episodes/pending-recuts/apply', { method: 'POST' });
+  return apiRequest('/episodes/pending-recuts/apply', {
+    method: 'POST',
+    body: slug ? { slug } : {},
+  });
 }
 
 export async function cancelProcessing(slug: string, episodeId: string): Promise<{ message: string }> {

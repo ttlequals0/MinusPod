@@ -7,6 +7,8 @@ for ONE ad read; other holds carried reasoning prose as sponsors.
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector import AdDetector
@@ -143,3 +145,24 @@ class TestMergeOverlappingAcceptedDuplicates:
     def test_empty_list_unchanged(self):
         det = self._det()
         assert det._merge_overlapping_accepted_duplicates([]) == []
+
+
+class TestSegmentAndStructureNames:
+    """Production shape: the model puts a segment label in the sponsor slot.
+
+    These reached pattern creation and were stopped only incidentally by the
+    intro check, which then blamed contamination.
+    """
+
+    @pytest.mark.parametrize('label', [
+        'Outro', 'outro', 'Intro', 'Recap', 'Self Promo', 'Cross Promo',
+        'Show', 'Episode', 'Podcast', 'Interaction',
+    ])
+    def test_rejects_segment_and_structure_names(self, label):
+        assert sanitize_sponsor_label(label) is None
+
+    @pytest.mark.parametrize('brand', [
+        'BetterHelp', 'GRC', 'SpinRite', 'State Farm', 'Squarespace',
+    ])
+    def test_keeps_real_advertisers(self, brand):
+        assert sanitize_sponsor_label(brand) == brand

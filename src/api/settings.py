@@ -416,6 +416,10 @@ def get_settings():
         except (ValueError, TypeError):
             return default
 
+    learning_min_pattern_duration = _db_int(
+        'learning_min_pattern_duration', registry_get_default('learning_min_pattern_duration'))
+    learning_max_pattern_duration = _db_int(
+        'learning_max_pattern_duration', registry_get_default('learning_max_pattern_duration'))
     whisper_api_timeout_seconds = _db_int(
         'whisper_api_timeout_seconds', registry_get_default('whisper_api_timeout_seconds'))
     transcribe_max_chunk_seconds = _db_int(
@@ -646,6 +650,8 @@ def get_settings():
             'verification_miss_autocut_min_confidence', verification_miss_autocut_min_confidence),
         'learningMinConfidence': _sv('learning_min_confidence', learning_min_confidence),
         'learningMinConfidenceLong': _sv('learning_min_confidence_long', learning_min_confidence_long),
+        'learningMinPatternDuration': _sv('learning_min_pattern_duration', learning_min_pattern_duration),
+        'learningMaxPatternDuration': _sv('learning_max_pattern_duration', learning_max_pattern_duration),
         'differentialMeasuredCorrMax': _sv('differential_measured_corr_max', differential_measured_corr_max),
         'differentialHoldMinSeconds': _sv('differential_hold_min_seconds', differential_hold_min_seconds),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
@@ -1588,9 +1594,9 @@ def _apply_audio_cue_fields(db, data):
 
 
 def _apply_detection_tuning_fields(db, data):
-    """Persist the six detection-tuning tunables (2.76.0): verification-miss
-    hold/autocut confidence, learning confidence floors, and differential
-    correlation/hold thresholds.
+    """Persist the detection-tuning tunables (2.76.0): verification-miss
+    hold/autocut confidence, learning confidence floors and length bounds, and
+    differential correlation/hold thresholds.
 
     Validates every field (ranges and the autocut disable-or-range special
     case) BEFORE writing anything, so an invalid field cannot leave a
@@ -1627,6 +1633,37 @@ def _apply_detection_tuning_fields(db, data):
         if not math.isfinite(value) or value < lo or value > hi:
             return json_response({'error': f'{field_name} must be between {lo} and {hi}'}, 400)
         writes.append((db_key, str(value)))
+
+    # Separate from the float loop above because these are read back through
+    # _db_int, whose bare int() rejects a stored "20.0" and silently falls back
+    # to the default.
+    bounds = {}
+    for field_name, db_key, lo, hi in (
+        ('learningMinPatternDuration', 'learning_min_pattern_duration', 1, 600),
+        ('learningMaxPatternDuration', 'learning_max_pattern_duration', 1, 1800),
+    ):
+        if field_name not in data:
+            continue
+        try:
+            seconds = int(data[field_name])
+        except (TypeError, ValueError):
+            return json_response({'error': f'{field_name} must be an integer'}, 400)
+        if seconds < lo or seconds > hi:
+            return json_response({'error': f'{field_name} must be between {lo} and {hi}'}, 400)
+        bounds[db_key] = seconds
+        writes.append((db_key, str(seconds)))
+
+    if bounds:
+        def bound(key):
+            return bounds.get(key) or db.get_setting_int(
+                key, int(registry_get_default(key)))
+
+        low = bound('learning_min_pattern_duration')
+        high = bound('learning_max_pattern_duration')
+        if low >= high:
+            return json_response(
+                {'error': 'learningMinPatternDuration must be below '
+                          'learningMaxPatternDuration'}, 400)
 
     for db_key, str_value in writes:
         db.set_setting(db_key, str_value, is_default=False)

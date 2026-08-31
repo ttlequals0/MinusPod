@@ -372,6 +372,8 @@ def _warn_prose_boundary_mismatch(
     start: float,
     end: float,
     *,
+    original_start: float | None = None,
+    original_end: float | None = None,
     slug: str | None,
     episode_id: str | None,
 ) -> None:
@@ -379,6 +381,10 @@ def _warn_prose_boundary_mismatch(
     number (the-tim-dillon-show a55cb5b8216d: reasoning named the ad's final
     sentence near 28.4s while the emitted end was 20.0s). Observability only:
     auto-arbitrating between two model numbers would be guesswork.
+
+    The regexes key on boundary words, not the sentence's subject, so "show
+    content starts at 59.7s" given as the reason for an end trim read as a
+    claim about the ad. A figure landing on any real boundary is context.
     """
     if not reasoning:
         return
@@ -388,14 +394,16 @@ def _warn_prose_boundary_mismatch(
     ):
         for match in regex.finditer(reasoning):
             figure = float(match.group(1))
-            if abs(figure - boundary) > _PROSE_BOUNDARY_WARN_GAP_S:
-                logger.warning(
-                    f"[{slug}:{episode_id}] Reviewer adjust prose/number "
-                    f"mismatch: reasoning names {side} {figure:.1f}s but "
-                    f"emitted {side} is {boundary:.1f}s "
-                    f"(reasoning: {reasoning[:120]!r})"
-                )
-                return
+            if any(b is not None and abs(figure - b) <= _PROSE_BOUNDARY_WARN_GAP_S
+                   for b in (start, end, original_start, original_end)):
+                continue
+            logger.warning(
+                f"[{slug}:{episode_id}] Reviewer adjust prose/number "
+                f"mismatch: reasoning names {side} {figure:.1f}s but "
+                f"emitted {side} is {boundary:.1f}s "
+                f"(reasoning: {reasoning[:120]!r})"
+            )
+            return
 
 
 def _first_num(d: dict, keys: tuple, default: float) -> float:
@@ -1168,6 +1176,7 @@ class AdReviewer:
         if verdict == "adjust":
             _warn_prose_boundary_mismatch(
                 reason, clamped_start, clamped_end,
+                original_start=original_start, original_end=original_end,
                 slug=slug, episode_id=episode_id,
             )
             updated = _adjusted_ad_copy(
