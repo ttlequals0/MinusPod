@@ -305,3 +305,16 @@ class TestRecordFormatFlagMerge:
         _record_format_flag(key, 'model-a', False)
         assert json.loads(_db().get_setting(key)) == {'model-a': False}
         _db().clear_setting(key)
+
+
+class TestDetectionSchemaCategoryEnum:
+    def test_enum_matches_the_prompt_vocabulary(self):
+        """The enum derives from SEGMENT_CATEGORIES so schema and prompt cannot drift."""
+        from ad_detector.prompts import AD_DETECTION_JSON_SCHEMA
+        from config import SEGMENT_CATEGORIES
+
+        category = AD_DETECTION_JSON_SCHEMA['properties']['ads']['items'][
+            'properties']['category']
+        assert category['enum'] == list(SEGMENT_CATEGORIES)
+        # Items stay optional so both addressing modes validate.
+        assert 'required' not in AD_DETECTION_JSON_SCHEMA['properties']['ads']['items']

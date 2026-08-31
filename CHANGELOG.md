@@ -9,6 +9,21 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.94.4] - 2026-08-31
+
+### Changed
+
+- The detection window schema constrains `category` to the seven segment
+  categories the prompt mandates, the same way the category-repair schema
+  already does. Derived from `SEGMENT_CATEGORIES`, spelled as a plain
+  `enum` for backend portability, with everything else left optional so
+  both addressing modes still validate. From review on #696; the reviewed
+  proposal's four-value list would have forbidden intro, outro, and recap
+  labels on an enforcing backend.
+- anthropic 1.0.0 to 1.2.0 and openai 3.3.1 to 3.6.0 (#699, #706, taking
+  the current release rather than the one the bump was opened against).
+  No call-site changes needed; pip-audit is clean on the new pins.
+
 ## [2.94.3] - 2026-08-31
 
 ### Fixed

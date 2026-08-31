@@ -755,7 +755,9 @@ AD_DETECTION_JSON_SCHEMA = {
                     # sponsor extractors read these names; a schema-enforcing
                     # decoder would silently strip anything absent here.
                     "end_text": {"type": "string"},
-                    "category": {"type": "string"},
+                    # Same enum as the repair schema above: an enforcing
+                    # decoder cannot emit a synonym the repair map translates.
+                    "category": {"type": "string", "enum": list(SEGMENT_CATEGORIES)},
                     "confidence": {"type": "number"},
                     "reason": {"type": "string"},
                     "note": {"type": "string"},
