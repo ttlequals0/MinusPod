@@ -49,13 +49,17 @@ export interface AdReviewItem {
   detectionStage: string | null;
   patternId: number | null;
   correctedBounds: { start: number; end: number } | null;
+  // Null when the detector left it uncategorized (resolves as Sponsor).
+  category?: SegmentCategory | null;
 }
 
 export interface AdReviewSubmit {
-  kind: 'confirm' | 'reject' | 'adjust';
+  kind: 'confirm' | 'reject' | 'adjust' | 'recategorize';
   adjustedStart?: number;
   adjustedEnd?: number;
   sponsor?: string;
+  // recategorize only; null clears the category back to uncategorized.
+  category?: SegmentCategory | null;
 }
 
 export interface AdCreateSubmit {
@@ -1362,10 +1366,43 @@ function AdReviewModal({
             />
           </div>
         ) : (
+          <div className="px-6 py-2 border-t border-border text-xs text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span>
+              Sponsor: <span className="text-foreground">{item.sponsor}</span>{' '}
+              <button type="button" onClick={() => setShowSponsorPrompt(true)}
+                className={`ml-2 underline transition-colors hover:text-foreground ${focusRing}`}>edit</button>
+            </span>
+          </div>
+        )}
+
+        {/* Category sits outside the sponsor branch above: a span with no
+            sponsor shows the sponsor prompt there, and those are exactly the
+            outro/self-promo reads whose category needs changing. It decides
+            which segment action applies, so it is the lever for a span the
+            feed is currently keeping. */}
+        {mode !== 'create' && (
           <div className="px-6 py-2 border-t border-border text-xs text-muted-foreground">
-            Sponsor: <span className="text-foreground">{item.sponsor}</span>{' '}
-            <button type="button" onClick={() => setShowSponsorPrompt(true)}
-              className={`ml-2 underline transition-colors hover:text-foreground ${focusRing}`}>edit</button>
+            <label className="flex flex-wrap items-center gap-2">
+              Category:
+              <select
+                aria-label="Segment category"
+                value={item.category ?? ''}
+                onChange={(e) => onSubmit({
+                  kind: 'recategorize',
+                  category: e.target.value === ''
+                    ? null : (e.target.value as SegmentCategory),
+                })}
+                className={selectBase}
+              >
+                <option value="">Uncategorized (counts as Sponsor)</option>
+                {SEGMENT_CATEGORIES.map((c) => (
+                  <option key={c} value={c} title={SEGMENT_CATEGORY_DESCRIPTIONS[c]}>
+                    {SEGMENT_CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+              <span>Decides whether this span is cut, beeped, or left in.</span>
+            </label>
           </div>
         )}
 

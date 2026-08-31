@@ -2238,6 +2238,69 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /episodes/pending-recuts:
+    get:
+      tags:
+        - Episodes
+      summary: Episodes with review decisions not yet cut into the audio
+      description: >-
+        Review is bulk work, so a correction that changes the audio stamps its
+        episode instead of re-cutting it. An episode collecting several
+        decisions is listed once and cut once.
+      operationId: getPendingRecuts
+      responses:
+        '200':
+          description: Pending episodes, oldest stamp first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  episodes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        slug:
+                          type: string
+                        episodeId:
+                          type: string
+                        title:
+                          type: string
+                        podcast:
+                          type: string
+                        pendingSince:
+                          type: string
+                          description: When the episode first went stale.
+
+  /episodes/pending-recuts/apply:
+    post:
+      tags:
+        - Episodes
+      summary: Recut every episode holding unapplied review decisions
+      description: >-
+        Queues one recut per pending episode, using the same recut path and
+        preconditions as the per-feed segment re-render. An episode missing
+        its retained original audio is skipped and keeps its stamp, so its
+        decisions are not lost.
+      operationId: applyPendingRecuts
+      responses:
+        '200':
+          description: How many recuts were queued and how many were skipped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queued:
+                    type: integer
+                  skipped:
+                    type: integer
+        '429':
+          description: Rate limited (5 per minute)
+
   /episodes/{slug}/{episode_id}/corrections:
     post:
       tags:
@@ -11380,7 +11443,7 @@ components:
       properties:
         type:
           type: string
-          enum: [confirm, reject, adjust, create, split]
+          enum: [confirm, reject, adjust, create, split, recategorize]
           description: |
             - confirm: Mark detection as correct (creates/updates pattern).
               Optionally pass adjusted_start/adjusted_end to approve a trimmed
@@ -11393,6 +11456,11 @@ components:
               start/end/sponsor/text_template, no original_ad)
             - split: Replace one marker with N single-sponsor markers (see the
               endpoint description)
+            - recategorize: Set this marker's segment category, which decides
+              whether the span is cut, beeped, or left in. Scoped to this
+              episode's marker; a linked pattern keeps its own category. The
+              only type accepted on a marker whose action resolved to keep,
+              since it is how that verdict is changed.
         original_ad:
           type: object
           description: >-

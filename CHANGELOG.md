@@ -43,6 +43,17 @@ release notes.
   help text explaining that the rules correct Whisper output for words,
   phrases, numbers, sponsor names, and URLs. The Sponsors page drops its
   Normalizations tab.
+- A detected ad's category can be changed from the Detected ad window. The
+  category decides whether a span is cut, beeped, or left in, so this is how
+  you cut one the feed is currently keeping. It changes that episode's marker
+  only; a linked pattern keeps its own category, edited in the pattern detail
+  modal.
+- Review decisions no longer re-cut an episode one at a time. Confirming,
+  rejecting, or recategorizing records the decision and marks the episode,
+  and an Apply recuts button on the Ad Review and Detected Ads pages cuts
+  every waiting episode once. An episode edited five times is rebuilt once
+  instead of five times. An episode that no longer has its original audio
+  keeps its decisions, and the button says how many it could not recut.
 - Opt-in JSON schema response format for OpenAI-compatible providers (#693,
   #694). Detection, review, category repair, and trim recovery send a
   json_schema response_format once the toggle in the LLM Provider section
@@ -68,6 +79,13 @@ release notes.
 - fpcalc fingerprinting survives recoverable decode hiccups (#690). All
   three fingerprint call sites parse stdout before honoring the exit code,
   so an episode with one bad frame no longer loses all cue scanning.
+- A detected ad whose category resolves to keep no longer shows Confirm and
+  Not-an-ad buttons that the API always refused with a 409. The row says the
+  span is left in because of its category and offers Edit, which is where
+  the category can now be changed.
+- Correction failures show what the server actually said instead of a fixed
+  "Try again", which sent you in circles on a refusal that would never
+  succeed.
 - The offline queue's "waiting" count included only LLM deferrals, so a
   Whisper outage read as zero episodes waiting. It now counts every
   deferral it owns.

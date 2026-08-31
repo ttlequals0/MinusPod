@@ -194,7 +194,7 @@ describe('AdReviewTab', () => {
 });
 
 describe('AdReviewTab row actions', () => {
-  it('approve submits a confirm correction and triggers recut', async () => {
+  it('approve submits a confirm correction without recutting on the spot', async () => {
     renderTab();
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
@@ -205,19 +205,8 @@ describe('AdReviewTab row actions', () => {
       type: 'confirm',
       original_ad: { start: 100, end: 130 },
     });
-    await waitFor(() =>
-      expect(mockReprocess).toHaveBeenCalledWith('feed-a', 'ep-1', 'recut'));
-  });
-
-  it('approve without original audio skips the recut', async () => {
-    mockGetDetections.mockResolvedValue({
-      detections: [detection({ hasOriginalAudio: false })],
-      total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
-    });
-    renderTab();
-    const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
-    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
+    // Review is bulk work: the server stamps the episode and the Apply bar
+    // cuts it once, so a decision must not start its own recut.
     expect(mockReprocess).not.toHaveBeenCalled();
   });
 
@@ -265,22 +254,8 @@ describe('AdReviewTab row actions', () => {
     renderTab();
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
-    expect(await screen.findByText('Failed to save correction. Try again.')).toBeTruthy();
+    expect(await screen.findByText('boom')).toBeTruthy();
     expect(mockReprocess).not.toHaveBeenCalled();
-    errSpy.mockRestore();
-  });
-
-  it('shows recut-failure banner when correction succeeds but reprocess fails', async () => {
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mockReprocess.mockRejectedValueOnce(new Error('recut boom'));
-    renderTab();
-    const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
-    expect(
-      await screen.findByText(
-        'Saved, but the recut did not start. The change applies on the next reprocess.',
-      ),
-    ).toBeTruthy();
     errSpy.mockRestore();
   });
 });

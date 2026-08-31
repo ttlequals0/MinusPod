@@ -123,6 +123,29 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   // pathologically zoomed label from forcing page scroll.
   const btn = isCard ? cardActionBtn : 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
   const undecided = d.resolution === 'unresolved';
+  // Its category resolves to keep, so confirm/reject would record a verdict
+  // the cut can never honor (the endpoint 409s them). Edit is the way
+  // through: the modal's category picker changes this span's fate.
+  if (d.actionApplied === 'keep') {
+    return (
+      <div className={isCard ? 'flex flex-wrap items-center gap-2 pt-1' : 'flex items-center gap-2'}>
+        {d.hasOriginalAudio && (
+          <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'sm'} />
+        )}
+        <p className="text-xs text-muted-foreground min-w-0">
+          Left in because of its category. Edit to change it.
+        </p>
+        <button
+          type="button"
+          onClick={() => actions.onEdit(d)}
+          disabled={actions.busy}
+          className={`${btn} ${isCard ? 'ml-auto ' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
+        >
+          Edit
+        </button>
+      </div>
+    );
+  }
   // grow exists to balance the Confirm/Not-an-ad pair on review cards. With
   // no Confirm (Detected Ads), a lone grow turns Not an ad into a full-width
   // slab, so the buttons stay content-sized there.

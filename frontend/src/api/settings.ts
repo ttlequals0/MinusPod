@@ -95,6 +95,28 @@ export async function getProcessingEpisodes(params?: {
   return apiRequest<ProcessingEpisode[]>(`/episodes/processing${qs ? `?${qs}` : ''}`);
 }
 
+export interface PendingRecut {
+  slug: string;
+  episodeId: string;
+  title: string;
+  podcast: string;
+  pendingSince: string;
+}
+
+/** Episodes holding review decisions that are not in the audio yet. */
+export async function getPendingRecuts(): Promise<{
+  count: number; episodes: PendingRecut[];
+}> {
+  return apiRequest('/episodes/pending-recuts');
+}
+
+/** Recut every pending episode once. */
+export async function applyPendingRecuts(): Promise<{
+  queued: number; skipped: number;
+}> {
+  return apiRequest('/episodes/pending-recuts/apply', { method: 'POST' });
+}
+
 export async function cancelProcessing(slug: string, episodeId: string): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/feeds/${slug}/episodes/${episodeId}/cancel`, {
     method: 'POST',

@@ -256,6 +256,10 @@ class SchemaMixin:
             ('reprocess_source', 'TEXT'),
             ('season_number', 'INTEGER'),
             ('p20_item_json', 'TEXT'),
+            # Review decisions recorded but not yet cut into the audio. Set
+            # when an audio-affecting correction lands, cleared when a recut
+            # completes, so one episode edited several times recuts once.
+            ('pending_recut_at', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)

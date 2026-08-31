@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { getErrorMessage } from '../../api/client';
 import type { ReviewDetection } from '../../api/detections';
 import { reprocessEpisode } from '../../api/feeds';
 import { submitCorrection, type PatternCorrection } from '../../api/patterns';
@@ -46,7 +47,6 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
     mutationFn: async (args: {
       d: ReviewDetection;
       correction: PatternCorrection;
-      recut: boolean;
     }) => {
       await submitCorrection(args.d.feedSlug, args.d.episodeId, args.correction);
     },
@@ -54,14 +54,18 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
       setActionError(null);
       stopAudition();
     },
-    onSuccess: (_, vars) => {
+    onSuccess: () => {
       onSettled?.();
       queryClient.invalidateQueries({ queryKey: ['detections'] });
-      if (vars.recut) triggerRecut(vars.d);
+      // The server stamps the episode when a decision needs new audio; the
+      // Apply button cuts them in one pass per episode.
+      queryClient.invalidateQueries({ queryKey: ['pending-recuts'] });
     },
     onError: (error) => {
       console.error('Failed to save correction:', error);
-      setActionError('Failed to save correction. Try again.');
+      // Surface what the server said: some refusals are permanent, and
+      // "try again" would send the reader in circles.
+      setActionError(getErrorMessage(error, 'Failed to save correction.'));
     },
   });
 
@@ -79,15 +83,20 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
   const approve = (d: ReviewDetection) => mutation.mutate({
     d,
     correction: { type: 'confirm', original_ad: originalAdOf(d) },
-    recut: d.hasOriginalAudio,
   });
 
   // Rejecting one that was cut has to put the audio back, which also needs the
   // original. Rejecting one that was never cut changes no audio.
-  const dismiss = (d: ReviewDetection, recut: boolean) => mutation.mutate({
+  const dismiss = (d: ReviewDetection) => mutation.mutate({
     d,
     correction: { type: 'reject', original_ad: originalAdOf(d) },
-    recut,
+  });
+
+  // Category drives which segment action applies, so this is how a span the
+  // feed is currently keeping gets cut (or the reverse).
+  const recategorize = (d: ReviewDetection, category: string | null) => mutation.mutate({
+    d,
+    correction: { type: 'recategorize', original_ad: originalAdOf(d), category },
   });
 
   // Bounds are optional to match AdReviewSubmit, whose adjust variant carries
@@ -104,12 +113,12 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
       adjusted_end: adjustedEnd,
       sponsor,
     },
-    recut: false,
   });
 
   return {
     approve,
     dismiss,
+    recategorize,
     adjust,
     triggerRecut,
     busy: mutation.isPending,

@@ -1639,6 +1639,92 @@ def set_episode_queue_priority(slug, episode_id):
     })
 
 
+@api.route('/episodes/pending-recuts', methods=['GET'])
+@log_request
+def get_pending_recuts():
+    """Episodes carrying review decisions that are not in the audio yet.
+
+    Review is bulk work, so decisions are recorded as they are made and cut
+    in one pass per episode when the operator applies them.
+    """
+    db = get_database()
+    episodes = db.get_episodes_pending_recut()
+    return json_response({
+        'count': len(episodes),
+        'episodes': [{
+            'slug': e['podcast_slug'],
+            'episodeId': e['episode_id'],
+            'title': e['title'],
+            'podcast': e['podcast_title'],
+            'pendingSince': e['pending_recut_at'],
+        } for e in episodes],
+    })
+
+
+@api.route('/episodes/pending-recuts/apply', methods=['POST'])
+@limiter.limit("5 per minute")
+@log_request
+def apply_pending_recuts():
+    """Recut every episode holding unapplied review decisions, once each.
+
+    Same recut path and preconditions as the per-feed segment re-render, so
+    there is still one recut queue. An episode failing them is left stamped
+    rather than silently cleared, so its decisions are not lost.
+    """
+    db = get_database()
+    from main_app.processing import start_background_processing
+
+    queued, skipped = 0, 0
+    for row in db.get_episodes_pending_recut():
+        slug, episode_id = row['podcast_slug'], row['episode_id']
+        episode = db.get_episode(slug, episode_id)
+        podcast = db.get_podcast_by_slug(slug)
+        if not episode or not podcast:
+            skipped += 1
+            continue
+        if episode.get('status') == EpisodeStatus.PROCESSING.value:
+            skipped += 1
+            continue
+        if _check_recut_preconditions(db, slug, episode_id, episode) is not None:
+            skipped += 1
+            continue
+        try:
+            db.upsert_episode(
+                slug, episode_id,
+                status=EpisodeStatus.PENDING.value,
+                reprocess_mode='recut',
+                reprocess_requested_at=utc_now_iso(),
+                retry_count=0,
+                error_message=None,
+            )
+            started, _reason = start_background_processing(
+                slug, episode_id, episode.get('original_url'),
+                episode.get('title', 'Unknown'), podcast.get('title', slug),
+                episode.get('description'), None, episode.get('published_at'),
+            )
+            if not started:
+                priority = compute_queue_priority(
+                    podcast.get('queue_priority'), episode.get('published_at'),
+                    manual=True)
+                db.upsert_episode_for_processing(
+                    slug, episode_id, episode.get('original_url'),
+                    episode.get('title', 'Unknown'),
+                    episode.get('published_at'), episode.get('description'),
+                    priority=priority,
+                )
+                get_status_service().queue_episode(
+                    slug, episode_id, episode.get('title', 'Unknown'),
+                    podcast.get('title', slug))
+            queued += 1
+        except Exception:
+            logger.exception(
+                f"[{slug}:{episode_id}] Failed to queue pending-recut apply")
+            skipped += 1
+
+    logger.info(f"Apply pending recuts: {queued} queued, {skipped} skipped")
+    return json_response({'queued': queued, 'skipped': skipped})
+
+
 # ========== Episode Reprocessing Endpoint ==========
 
 @api.route('/episodes/<slug>/<episode_id>/reprocess', methods=['POST'])

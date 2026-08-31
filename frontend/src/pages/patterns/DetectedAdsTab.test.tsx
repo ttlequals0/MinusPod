@@ -137,15 +137,16 @@ describe('DetectedAdsTab', () => {
     expect(screen.queryAllByRole('button', { name: 'Edit' })).not.toHaveLength(0);
   });
 
-  it('rejecting a cut ad triggers a recut so the audio comes back', async () => {
+  it('rejecting a cut ad records the decision without recutting on the spot', async () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
     await user.click(screen.getAllByRole('button', { name: 'Not an ad' })[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalled());
     expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({ type: 'reject' });
-    await waitFor(() => expect(mockReprocess).toHaveBeenCalledWith(
-      'example-podcast', 'a1b2c3d4e5f6', 'recut'));
+    // The server stamps the episode; the Apply bar puts the audio back in one
+    // pass, so several rejects on one episode do not recut it several times.
+    expect(mockReprocess).not.toHaveBeenCalled();
   });
 
   it('sends the selected category', async () => {

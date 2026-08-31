@@ -3201,6 +3201,9 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         reprocess_requested_at=None,
         deferred_at=None,
         deferred_service=None,
+        # Any completed run cuts from the current markers, so whatever review
+        # decisions were waiting are now in the audio.
+        pending_recut_at=None,
         # A clean run clears a degraded flag from an earlier failure; a
         # degraded run re-stamps its own reason so this unconditional
         # write does not clobber the flag detection just set.

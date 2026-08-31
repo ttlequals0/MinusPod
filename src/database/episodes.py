@@ -237,7 +237,8 @@ class EpisodeMixin:
                                'published_at', 'episode_number',
                                'deferred_at', 'deferred_service', 'detection_degraded',
                                'low_yield_rerun_at', 'reprocess_source',
-                               'season_number', 'p20_item_json'):
+                               'season_number', 'p20_item_json',
+                               'pending_recut_at'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':

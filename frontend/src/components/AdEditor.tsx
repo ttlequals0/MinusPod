@@ -15,10 +15,11 @@ export interface DetectedAd {
   detection_stage?: string;
   scope?: PatternScope;
   network_id?: string;
+  category?: string | null;
 }
 
 export interface AdCorrection {
-  type: 'confirm' | 'reject' | 'adjust' | 'create';
+  type: 'confirm' | 'reject' | 'adjust' | 'create' | 'recategorize';
   originalAd?: DetectedAd;
   adjustedStart?: number;
   adjustedEnd?: number;
@@ -133,6 +134,7 @@ export function AdEditor({
         detectionStage: ad.detection_stage ?? null,
         patternId: ad.pattern_id ?? null,
         correctedBounds: null,
+        category: (ad.category ?? null) as AdReviewItem['category'],
       };
 
   if (!internalCreateMode && detectedAds.length === 0) {
@@ -171,6 +173,12 @@ export function AdEditor({
   };
 
   const handleReviewSubmit = (s: AdReviewSubmit) => {
+    if (s.kind === 'recategorize') {
+      // Stays on this ad: the category is a property of the span, not a
+      // verdict on it, so recategorizing is not a review decision.
+      onCorrection({ type: 'recategorize', originalAd: ad, category: s.category });
+      return;
+    }
     if (s.kind === 'confirm') {
       onCorrection({ type: 'confirm', originalAd: ad, sponsor: s.sponsor });
     } else if (s.kind === 'reject') {

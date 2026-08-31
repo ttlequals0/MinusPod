@@ -183,6 +183,8 @@ Resolution order: a per-feed override, if set, wins; otherwise the global defaul
 
 Show-segments detection (whether intro, outro, and recap markers get produced at all) has its own global default alongside the global action map on the **Segment actions** card, off by default, and saves immediately when toggled. A feed inherits that default until it sets its own value: the feed settings page exposes an explicit **Inherit / On / Off** choice (`detectShowSegments` on `PATCH /api/v1/feeds/{slug}`; `null` means inherit) and shows the effective value while inheriting. With detection off, the LLM never produces intro/outro/recap markers for that feed, so those rows of the action map have nothing to act on regardless of how they are set. With it on, intro/outro/recap detection is added to that feed's LLM detection windows; the other four categories are detected regardless of this setting.
 
+A single detection can also be recategorized from the Detected ad window, which changes that episode's marker without touching the linked pattern or the map. Use it when the detector filed a span under the wrong category, rather than changing the action for every span of that category.
+
 Changing an action map only affects episodes processed after the change. To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`), which recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
 
 ### Queue priority

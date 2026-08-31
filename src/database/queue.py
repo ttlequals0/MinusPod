@@ -624,6 +624,57 @@ class QueueMixin:
             logger.info(f"Reset failed queue item for retry: id={row['id']}, episode_id={row['episode_id']}")
         return len(reset_items)
 
+    # Pending recuts: review decisions recorded but not yet cut into audio.
+
+    def mark_episode_pending_recut(self, slug: str, episode_id: str) -> None:
+        """Stamp an episode as having unapplied review decisions.
+
+        Idempotent and first-write-wins: the stamp marks when the episode
+        first went stale, so several edits over an afternoon still recut once.
+        """
+        conn = self.get_connection()
+        conn.execute(
+            """UPDATE episodes SET pending_recut_at = COALESCE(pending_recut_at, ?)
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)""",
+            (utc_now().strftime(ISO_FORMAT), episode_id, slug)
+        )
+        conn.commit()
+
+    def clear_episode_pending_recut(self, slug: str, episode_id: str) -> None:
+        """Drop the stamp once a recut has applied the decisions."""
+        conn = self.get_connection()
+        conn.execute(
+            """UPDATE episodes SET pending_recut_at = NULL
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)""",
+            (episode_id, slug)
+        )
+        conn.commit()
+
+    def get_episodes_pending_recut(self, limit: int = 1000) -> list[dict]:
+        """Episodes with unapplied review decisions, oldest stamp first."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT e.episode_id, e.title, e.status, e.original_url,
+                      e.pending_recut_at, p.slug AS podcast_slug,
+                      p.title AS podcast_title
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE e.pending_recut_at IS NOT NULL
+               ORDER BY e.pending_recut_at ASC
+               LIMIT ?""",
+            (limit,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def count_episodes_pending_recut(self) -> int:
+        """How many episodes are waiting for an apply."""
+        row = self.get_connection().execute(
+            "SELECT COUNT(*) AS n FROM episodes WHERE pending_recut_at IS NOT NULL"
+        ).fetchone()
+        return row['n'] if row else 0
+
     # Deferred-episode lifecycle: offline queue (#482), rate-limit hold (#696)
 
     @staticmethod

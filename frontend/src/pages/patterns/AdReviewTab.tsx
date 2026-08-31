@@ -19,6 +19,7 @@ import {
 } from './DetectionRows';
 import { DetectionFilterBar } from './DetectionFilterBar';
 import { useDetectionCorrections } from './useDetectionCorrections';
+import { PendingRecutsBar } from './PendingRecutsBar';
 import { sortFeeds } from '../../utils/feedSort';
 
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
@@ -52,7 +53,7 @@ export default function AdReviewTab() {
   }, [q]);
 
   const {
-    approve, dismiss, adjust, busy, actionError,
+    approve, dismiss, recategorize, adjust, busy, actionError,
   } = useDetectionCorrections({
     stopAudition: audition.stop,
     onSettled: () => setEditing(null),
@@ -135,6 +136,7 @@ export default function AdReviewTab() {
         }}
       />
 
+      <PendingRecutsBar />
       {actionError && (
         <div className="text-destructive text-sm mb-3">{actionError}</div>
       )}
@@ -157,7 +159,7 @@ export default function AdReviewTab() {
             audition={audition}
             actions={{
               onApprove: approve,
-              onDismiss: (d) => dismiss(d, false),
+              onDismiss: dismiss,
               onEdit: setEditing,
               busy,
             }}
@@ -180,6 +182,7 @@ export default function AdReviewTab() {
             detectionStage: editing.detectionStage,
             patternId: editing.patternId,
             correctedBounds: null,
+            category: editing.category as AdReviewItem['category'],
           } satisfies AdReviewItem}
           episodeDuration={editing.episodeDuration ?? 0}
           hasOriginal={editing.hasOriginalAudio}
@@ -193,8 +196,10 @@ export default function AdReviewTab() {
               adjust(d, s.adjustedStart, s.adjustedEnd, s.sponsor);
             } else if (s.kind === 'confirm') {
               approve(d);
+            } else if (s.kind === 'recategorize') {
+              recategorize(d, s.category ?? null);
             } else {
-              dismiss(d, false);
+              dismiss(d);
             }
           }}
         />

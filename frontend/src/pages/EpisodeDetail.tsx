@@ -347,6 +347,7 @@ function EpisodeDetail() {
         adjusted_start: correction.adjustedStart,
         adjusted_end: correction.adjustedEnd,
         sponsor: correction.sponsor,
+        category: correction.category,
       });
     },
     onMutate: () => {
