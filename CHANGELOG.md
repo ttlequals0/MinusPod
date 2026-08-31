@@ -9,6 +9,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.94.5] - 2026-08-31
+
+### Changed
+
+- The sponsor alias fields in the detection schema carry a shared
+  description saying what they hold and to fill at most one. The prompt
+  never mentions them (they exist so a key-stripping backend cannot
+  discard whichever alias a model volunteers), so for a schema-reading
+  model the description is their only context. From review on #696.
+
 ## [2.94.4] - 2026-08-31
 
 ### Changed

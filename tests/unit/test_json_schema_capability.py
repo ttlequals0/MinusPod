@@ -318,3 +318,13 @@ class TestDetectionSchemaCategoryEnum:
         assert category['enum'] == list(SEGMENT_CATEGORIES)
         # Items stay optional so both addressing modes validate.
         assert 'required' not in AD_DETECTION_JSON_SCHEMA['properties']['ads']['items']
+
+    def test_sponsor_aliases_carry_their_only_context(self):
+        """The prompt never mentions the sponsor aliases, so the schema
+        description is the only guidance a schema-reading model gets."""
+        from ad_detector.prompts import AD_DETECTION_JSON_SCHEMA
+        from utils.constants import SPONSOR_PRIORITY_FIELDS
+
+        props = AD_DETECTION_JSON_SCHEMA['properties']['ads']['items']['properties']
+        for field in SPONSOR_PRIORITY_FIELDS:
+            assert 'at most one' in props[field]['description']

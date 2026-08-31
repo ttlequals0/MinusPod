@@ -739,6 +739,13 @@ CATEGORY_REPAIR_JSON_SCHEMA = {
 # Detection-window schema (#694). Wrapped under "ads" because a json_schema
 # response must be an object; every property stays optional so both
 # addressing modes and partial fields validate.
+# Shared by every sponsor alias in the detection schema. The aliases exist so
+# a key-stripping backend cannot discard whichever one a model volunteers.
+SPONSOR_ALIAS_FIELD_DESCRIPTION = (
+    "The advertiser being promoted, when the segment names one. "
+    "Fill at most one of the sponsor fields; omit them all otherwise."
+)
+
 AD_DETECTION_JSON_SCHEMA = {
     "type": "object",
     "properties": {
@@ -761,7 +768,11 @@ AD_DETECTION_JSON_SCHEMA = {
                     "confidence": {"type": "number"},
                     "reason": {"type": "string"},
                     "note": {"type": "string"},
-                    **{name: {"type": "string"} for name in SPONSOR_PRIORITY_FIELDS},
+                    # The prompt never mentions these, so for a schema-reading
+                    # model this description is their only context.
+                    **{name: {"type": "string",
+                              "description": SPONSOR_ALIAS_FIELD_DESCRIPTION}
+                       for name in SPONSOR_PRIORITY_FIELDS},
                 },
             },
         },
