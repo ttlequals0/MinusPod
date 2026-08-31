@@ -21,7 +21,7 @@
     "react-is": "^19.2.8",
     "react-router": "^8.3.0",
     "recharts": "^3.10.1",
-    "swagger-ui-dist": "^5.32.13",
+    "swagger-ui-dist": "^5.32.14",
     "tailwind-merge": "^3.6.0",
     "wavesurfer.js": "^7.12.11"
   },
