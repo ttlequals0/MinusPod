@@ -781,10 +781,13 @@ AD_DETECTION_JSON_SCHEMA = {
                     "confidence": {"type": "number"},
                     "reason": {"type": "string"},
                     "note": {"type": "string"},
-                    # The prompt never mentions these, so for a schema-reading
-                    # model this description is their only context.
-                    **{name: {"type": "string",
-                              "description": SPONSOR_ALIAS_FIELD_DESCRIPTION}
+                    # Described on the extractor's first-choice field only:
+                    # the model follows the schema here, so repeating it on all
+                    # seven adds tokens and invites the multi-fill it warns off.
+                    **{name: ({"type": "string",
+                               "description": SPONSOR_ALIAS_FIELD_DESCRIPTION}
+                              if name == SPONSOR_PRIORITY_FIELDS[0]
+                              else {"type": "string"})
                        for name in SPONSOR_PRIORITY_FIELDS},
                 },
             },

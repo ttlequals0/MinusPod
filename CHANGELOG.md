@@ -9,6 +9,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.94.6] - 2026-08-31
+
+### Changed
+
+- Only the extractor's first-choice sponsor field carries the alias
+  description now; the other six stay as bare slots. On the schema path the
+  model follows the schema, so seven identical descriptions only added
+  tokens and invited the multi-fill the sentence warns against. The
+  serialized schema drops from 432 tokens to 252. From review on #696.
+
 ## [2.94.5] - 2026-08-31
 
 ### Changed
