@@ -22,8 +22,14 @@ export const ctrlBtn = `px-2 py-1.5 rounded ${ghostBtn} text-sm`;
 // "Set START/END at playhead". Once the waveform is zoomed the pins sit off
 // screen, and on a phone there is no wheel to zoom back out, so these are the
 // only way to place a boundary; 44px keeps them on the tap-target floor.
+// Deliberately not built on ghostBtn: its text-foreground competes with the
+// caller's text-success/text-destructive, and which one wins is down to
+// Tailwind's output order (END rendered grey while START rendered green).
 export const edgeBtn =
-  `flex-1 sm:flex-none min-h-[44px] inline-flex items-center justify-center ${ctrlBtn} whitespace-nowrap`;
+  'flex-1 sm:flex-none min-h-[44px] inline-flex items-center justify-center ' +
+  'whitespace-nowrap px-2 py-1.5 rounded text-sm border border-border bg-card ' +
+  'transition-colors hover:bg-accent hover:border-foreground/30 ' +
+  'disabled:opacity-40 disabled:cursor-not-allowed';
 
 // Amber "play selection" button, matched to the amber selection region/badge.
 // Wider than the ghost icon buttons (px-2) to fit the bracketed [play] glyphs.

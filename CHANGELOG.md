@@ -26,7 +26,10 @@ release notes.
   zoomed-in waveform puts the pins off screen with no wheel to zoom back
   out on a phone, which left no way to set a marker there at all. Mirrors
   the buttons the Mark cue window already had, now sharing one recipe, and
-  both meet the 44px tap-target floor.
+  both meet the 44px tap-target floor. The shared recipe leaves the text
+  colour to the caller: built on the ghost-button base, its `text-foreground`
+  raced the caller's colour and the Mark cue window's END button had been
+  rendering grey instead of red.
 
 ## [2.94.5] - 2026-08-31
 

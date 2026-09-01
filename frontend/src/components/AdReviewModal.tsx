@@ -1332,9 +1332,9 @@ function AdReviewModal({
           </div>
 
           <div className="mt-2 text-xs text-muted-foreground">
-            Set the <span className="text-success font-semibold">START</span> /{' '}
-            <span className="text-destructive font-semibold">END</span> buttons at the playhead,
-            or drag the pins above the waveform.{' '}
+            <span className="text-success font-semibold">Set START</span> /{' '}
+            <span className="text-destructive font-semibold">Set END</span> put a boundary at the
+            playhead; the pins above the waveform drag to the same place.{' '}
             <kbd>Space</kbd> play • <kbd>,</kbd>/<kbd>.</kbd> expand window • mouse-wheel to zoom • <kbd>C</kbd> confirm • <kbd>R</kbd> not an ad • <kbd>S</kbd> skip
           </div>
         </div>
