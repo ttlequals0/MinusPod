@@ -105,13 +105,13 @@ def canonicalize_spans(
     if not spans:
         return []
     ordered = sorted(spans)
-    out = [list(ordered[0])]
+    out = [ordered[0]]
     for s, e in ordered[1:]:
         if s - out[-1][1] < gap:
-            out[-1][1] = max(out[-1][1], e)
+            out[-1] = (out[-1][0], max(out[-1][1], e))
         else:
-            out.append([s, e])
-    return [(s, e) for s, e in out]
+            out.append((s, e))
+    return out
 
 
 def canonicalize_ads(
@@ -142,6 +142,8 @@ def match_predictions(
     *,
     threshold: float,
 ) -> AccuracyResult:
+    # Greedy one-to-one IoU matching on raw spans; the scoring path
+    # canonicalizes both sides first (canonicalize_spans/canonicalize_ads).
     pairs: list[tuple[float, int, int]] = []
     for pi, p in enumerate(predictions):
         for ti, t in enumerate(truths):
