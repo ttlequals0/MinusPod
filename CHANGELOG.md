@@ -9,6 +9,15 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Security
+
+- browserslist 4.28.2 to 4.28.8, with its data dependencies
+  (GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g). Both advisories cover every
+  version up to 4.28.6, and they were failing the CI audit gate. Lockfile
+  only; browserslist is a build-time dependency of babel and workbox.
+
 ## [2.93.3] - 2026-08-28
 
 ### Added
