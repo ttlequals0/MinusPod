@@ -20,7 +20,7 @@ from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S, extract_timed_spans_in_range,
     parse_transcript_segments,
 )
-from text_pattern_matcher import split_template_text, MAX_PATTERN_CHARS
+from text_pattern_matcher import split_template_text, MAX_PATTERN_CHARS, TextPatternMatcher
 
 from flask import Response, request
 
@@ -250,7 +250,6 @@ def split_pattern(pattern_id):
     phrases and create individual single-sponsor patterns. The original pattern
     is disabled after successful split.
     """
-    from text_pattern_matcher import TextPatternMatcher
 
     db = get_database()
     matcher = TextPatternMatcher(db=db)
@@ -935,13 +934,13 @@ def _resolve_or_create_pattern_from_text(
     pattern to link the correction row to; all_ids is every pattern touched
     (created or reused via dedup), in segment order.
 
-    This is the path that bypasses create_pattern_from_ad's guards (duration,
-    char cap, single-transition-phrase check), so contaminated multi-sponsor
-    text used to become one oversized pattern (issue #563). ad_text is now
-    run through split_template_text first: a single segment behaves exactly
-    as before; multiple segments each get their own pattern (deduped and
-    capped like the auto path), and only the sponsor-matched segment (or the
-    first created, if none match) becomes primary.
+    ad_text is run through split_template_text first: multiple segments each
+    get their own pattern (deduped and capped like the auto path), and only
+    the sponsor-matched segment (or the first created, if none match) becomes
+    primary. A single segment goes through create_pattern_from_ad's guards
+    (duration, char cap, transition count, brand placement); this path used
+    to skip them, which is how a confirmed 176s span whose first 87s were
+    show content became a pattern keyed on that content.
 
     `label` is 'confirmed' or 'adjusted', for log messages.
     """
@@ -974,18 +973,27 @@ def _resolve_or_create_pattern_from_text(
     segments = split_template_text(ad_text)
 
     if len(segments) == 1:
-        # Single-segment path is byte-identical to pre-#563 behavior.
-        sponsor_id = get_or_create_known_sponsor(db, sponsor)
-        intro_variants, outro_variants = derive_intro_outro(ad_text)
-        new_pattern_id = db.create_ad_pattern(
+        # Gated exactly like the auto-learning path. Confirming a span that
+        # runs past the ad still records the correction for this episode;
+        # what it must not do is mint a pattern whose template opens on show
+        # content, which then drags the same overshoot onto every future
+        # episode. ad_text is passed so no transcript refetch is needed.
+        new_pattern_id = TextPatternMatcher(db=db).create_pattern_from_ad(
+            segments=[],
+            start=float(original_ad.get('start') or 0),
+            end=float(original_ad.get('end') or 0),
+            sponsor=sponsor,
             scope='podcast',
             podcast_id=podcast_id_str,
-            text_template=ad_text,
-            sponsor_id=sponsor_id,
-            intro_variants=intro_variants,
-            outro_variants=outro_variants,
-            created_from_episode_id=episode_id,
+            episode_id=episode_id,
+            ad_text=ad_text,
         )
+        if not new_pattern_id:
+            logger.info(
+                f"No pattern created for {label} ad in {slug}/{episode_id}: "
+                f"the span did not pass the learning gates (see warning above)"
+            )
+            return None, []
         logger.info(
             f"Created new pattern {new_pattern_id} (sponsor: {sponsor}) from {label} ad in {slug}/{episode_id}"
         )

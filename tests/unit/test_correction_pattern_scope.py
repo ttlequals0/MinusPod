@@ -43,6 +43,10 @@ def _mock_db():
     db.get_transcript_for_timestamps.return_value = TRANSCRIPT_TEXT
     db.get_podcast_by_slug.return_value = {'id': NUMERIC_PODCAST_ID, 'slug': SLUG}
     db.find_pattern_by_text.return_value = None
+    # Real rows, not MagicMocks: pattern creation reads the sponsor row's
+    # name/aliases as strings and scans existing patterns for near-duplicates.
+    db.get_known_sponsor_by_name.return_value = None
+    db.get_ad_patterns.return_value = []
     db.create_ad_pattern.return_value = 1234
     return db
 

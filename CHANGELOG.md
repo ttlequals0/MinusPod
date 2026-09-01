@@ -11,6 +11,23 @@ release notes.
 
 ## [2.94.6] - 2026-08-31
 
+### Fixed
+
+- Confirming an ad no longer mints a pattern the auto-learning path would
+  refuse. The correction path called `create_ad_pattern` directly, skipping
+  every gate: duration, char cap, transition count, sponsor sanitising and
+  brand placement. A confirmed 176s span whose first 87s were show content
+  therefore became a pattern keyed on that content, which then matched the
+  same overshoot on later episodes and invited another confirm. Single-segment
+  confirms now go through `create_pattern_from_ad`; a span that fails a gate
+  still records its correction for that episode, it just does not generalise.
+
+### Added
+
+- Add divider at playhead in the Split ad block window. The existing button
+  drops a divider in the middle of the longest piece, and dragging it from
+  there is unreachable on a zoomed phone waveform.
+
 ### Changed
 
 - Only the extractor's first-choice sponsor field carries the alias
