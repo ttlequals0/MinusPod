@@ -11,22 +11,12 @@ release notes.
 
 ## [Unreleased]
 
-### Changed
+### Security
 
-- The community patterns contributed before segment categories existed now
-  declare `category: "sponsor"` (196 of 197 files). Installs read the category
-  to decide whether a match is cut, beeped, or kept, and to filter which
-  categories they accept on sync. The corpus no longer relies on the
-  unset-means-sponsor fallback.
-- `patterns/CONTRIBUTING.md` documents the `category` field and its vocabulary.
-
-### Fixed
-
-- A community pattern file whose name did not match its sponsor is renamed to
-  the convention the submission validator enforces.
-- The community pattern validation workflow installs the dependencies the
-  validator imports, so it validates submissions instead of crashing on a
-  missing module. A crash now says so rather than reporting a rejected file.
+- browserslist 4.28.2 to 4.28.8, with its data dependencies
+  (GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g). Both advisories cover every
+  version up to 4.28.6, and they were failing the CI audit gate. Lockfile
+  only; browserslist is a build-time dependency of babel and workbox.
 
 ## [2.93.3] - 2026-08-28
 
