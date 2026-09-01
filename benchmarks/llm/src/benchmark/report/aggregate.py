@@ -329,6 +329,8 @@ def _aggregate(
                 a['end'] = _end(ad)
                 norm_ads.append(a)
         flat_ads: list[dict] = parsing.deduplicate_window_ads(norm_ads)
+        # Per-break canonicalization is scoring policy, not a production step:
+        # sub-15s gaps merge so one span means one break on both sides.
         flat_ads = metrics.canonicalize_ads(flat_ads)
         flat_preds: list[tuple[float, float]] = [(_start(ad), _end(ad)) for ad in flat_ads]
 
