@@ -53,7 +53,7 @@ def test_single_sponsor_text_creates_one_pattern_unchanged(temp_db):
 
     primary_id, all_ids = _resolve_or_create_pattern_from_text(
         temp_db, svc, slug, episode_id, SINGLE_SPONSOR_TEXT,
-        {'sponsor': 'Acme'}, label='confirmed',
+        {'sponsor': 'Acme', 'start': 0.0, 'end': 60.0}, label='confirmed',
     )
 
     assert all_ids == [primary_id]
@@ -68,7 +68,7 @@ def test_three_sponsor_text_splits_into_three_patterns_primary_matches_sponsor(t
 
     primary_id, all_ids = _resolve_or_create_pattern_from_text(
         temp_db, svc, slug, episode_id, THREE_SPONSOR_TEXT,
-        {'sponsor': 'Widgetco'}, label='confirmed',
+        {'sponsor': 'Widgetco', 'start': 0.0, 'end': 90.0}, label='confirmed',
     )
 
     assert len(all_ids) == 3
@@ -85,7 +85,7 @@ def test_adjust_path_also_splits(temp_db):
 
     primary_id, all_ids = _resolve_or_create_pattern_from_text(
         temp_db, svc, slug, episode_id, TWO_SPONSOR_TEXT,
-        {'sponsor': 'Acme'}, label='adjusted',
+        {'sponsor': 'Acme', 'start': 0.0, 'end': 60.0}, label='adjusted',
     )
 
     assert len(all_ids) == 2
@@ -124,7 +124,7 @@ def test_dedupe_against_existing_pattern_reused_for_segment(temp_db):
 
     primary_id, all_ids = _resolve_or_create_pattern_from_text(
         temp_db, svc, slug, episode_id, TWO_SPONSOR_TEXT,
-        {'sponsor': 'Acme'}, label='confirmed',
+        {'sponsor': 'Acme', 'start': 0.0, 'end': 60.0}, label='confirmed',
     )
 
     assert existing_id in all_ids
@@ -152,7 +152,7 @@ def test_oversized_segment_is_skipped_with_warning(temp_db, caplog):
     with caplog.at_level(logging.WARNING):
         primary_id, all_ids = _resolve_or_create_pattern_from_text(
             temp_db, svc, slug, episode_id, text,
-            {'sponsor': 'Acme'}, label='confirmed',
+            {'sponsor': 'Acme', 'start': 0.0, 'end': 60.0}, label='confirmed',
         )
 
     assert len(all_ids) == 1
