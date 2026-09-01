@@ -1,5 +1,6 @@
 {
   "scope": "global",
+  "category": "sponsor",
   "text_template": "We want to take a minute to say thank you to our sponsor, CleanMyMac by MacPaw. You know what's funny? Most of us spend a lot of time automating things in our lives. We automate our homes, our backups, our workflows, but somehow we still end up manually babysitting our computers. Why is my storage full? What's taking up all this space? Why does my Mac feel slower than it did a few months ago? That's one of the reasons we like CleanMyMac. It's not about constantly tweaking settings or running maintenance tasks, but it's about having a tool that quietly takes care all the stuff that you would otherwise steal your attention. Whether it's cleaning out old system junk, finding duplicate files, identifying giant files hiding in your cloud storage, or helping reduce background strain. CleanMyMac helps your Mac feeling responsive without turning maintenance into another project. And that's really the value here. Fewer interruptions, fewer distractions, and less time thinking about your computer. Your Mac should help you get things done, not become another thing on your to-do list. Get tidy today. Try seven days free and use our code ASSISTANT for 20% off at clnmy.com slash assistant.",
   "intro_variants": [
     "We want to take a minute to say thank you to our sponsor, CleanMyMac by MacPaw."

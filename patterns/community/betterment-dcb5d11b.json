@@ -1,5 +1,6 @@
 {
   "scope": "global",
+  "category": "sponsor",
   "text_template": "This message comes from Betterment. Betterment's Dan Egan talks about tax loss harvesting. Tax loss harvesting is a tax management strategy. When you have a position that's gone down over time, we intentionally sell out of it to realize a loss, which we then say to the IRS, hey, we lost money. You get to use that to offset your ordinary income every year, decreasing your tax burden. Investing involves risk. Performance not guaranteed. Betterment does not offer tax advice. TLH may not be suitable for all customers. Learn more at betterment.com slash TLH-terms.",
   "intro_variants": [
     "This message comes from Betterment.",

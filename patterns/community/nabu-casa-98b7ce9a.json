@@ -1,5 +1,6 @@
 {
   "scope": "global",
+  "category": "sponsor",
   "text_template": "This podcast is sponsored by Home Business Cloud by Nabu Casa. For a small monthly fee, you'll unlock powerful features like secure effortless access to your system from internet, Anywhere, your choice of voice assistants, offsite backups, and more. It's all configurable in the UI with no YAML needed. It also supports the development of Home Assistant, ESPHome, and other OpenHome Foundation projects. Click the link in the description to learn more.",
   "intro_variants": [
     "This podcast is sponsored by Home Business Cloud by Nabu Casa.",

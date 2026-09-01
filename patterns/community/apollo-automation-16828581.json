@@ -1,5 +1,6 @@
 {
   "scope": "global",
+  "category": "sponsor",
   "text_template": "This episode is also sponsored by our friends at Apollo Automation, makers of open source smart home sensors built for the Home Assistant ecosystem. They're an official Open Home Foundation commercial partner and their devices are built with local control, privacy and reliability in mind. Almost everything they offer is works with Home Assistant and made for ESP Home certified, giving you full control and flexibility right out of the box. And the best part, they build in the open, working directly with the community to create sensors that people actually need. If you're deep into Home Assistant or just getting started, definitely check them out at ApolloAutomation.com.",
   "intro_variants": [
     "This episode is also sponsored by our friends at Apollo Automation, makers of open source smart home sensors built for the Home Assistant ecosystem.",

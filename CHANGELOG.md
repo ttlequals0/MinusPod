@@ -9,6 +9,22 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Changed
+
+- The community patterns contributed before segment categories existed now
+  declare `category: "sponsor"` (196 of 197 files). Installs read the category
+  to decide whether a match is cut, beeped, or kept, and to filter which
+  categories they accept on sync. The corpus no longer relies on the
+  unset-means-sponsor fallback.
+- `patterns/CONTRIBUTING.md` documents the `category` field and its vocabulary.
+
+### Fixed
+
+- A community pattern file whose name did not match its sponsor is renamed to
+  the convention the submission validator enforces.
+
 ## [2.93.3] - 2026-08-28
 
 ### Added
