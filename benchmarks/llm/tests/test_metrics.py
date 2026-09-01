@@ -240,3 +240,42 @@ def test_boundary_bias_cancels_when_misses_are_symmetric():
     err = boundary_error(preds, truths, r.matches)
     assert err.start_mae == 5.0 and err.end_mae == 5.0
     assert err.start_bias == 0.0 and err.end_bias == 0.0
+
+
+def test_canonicalize_spans_merges_under_gap():
+    from benchmark.metrics import canonicalize_spans
+    assert canonicalize_spans([(0.0, 30.0), (40.0, 60.0)]) == [(0.0, 60.0)]
+
+
+def test_canonicalize_spans_exact_gap_does_not_merge():
+    from benchmark.metrics import canonicalize_spans
+    assert canonicalize_spans([(0.0, 30.0), (45.0, 60.0)]) == [
+        (0.0, 30.0), (45.0, 60.0)]
+
+
+def test_canonicalize_spans_sorts_and_handles_containment():
+    from benchmark.metrics import canonicalize_spans
+    assert canonicalize_spans([(40.0, 60.0), (0.0, 30.0)]) == [(0.0, 60.0)]
+    assert canonicalize_spans([(0.0, 60.0), (10.0, 20.0)]) == [(0.0, 60.0)]
+    assert canonicalize_spans([]) == []
+
+
+def test_canonicalize_ads_keeps_max_confidence_and_alignment():
+    from benchmark.metrics import canonicalize_ads
+    ads = [{"start": 0.0, "end": 30.0, "confidence": 0.8, "category": "sponsor"},
+           {"start": 40.0, "end": 60.0, "confidence": 0.95},
+           {"start": 200.0, "end": 230.0, "confidence": None}]
+    out = canonicalize_ads(ads)
+    assert len(out) == 2
+    assert out[0]["start"] == 0.0 and out[0]["end"] == 60.0
+    assert out[0]["confidence"] == 0.95
+    assert out[0]["category"] == "sponsor"
+    assert out[1]["confidence"] is None
+
+
+def test_per_spot_predictions_match_per_break_truth_after_canon():
+    from benchmark.metrics import canonicalize_spans, match_predictions
+    preds = canonicalize_spans([(0.0, 25.0), (30.0, 60.0)])
+    truths = canonicalize_spans([(0.0, 60.0)])
+    r = match_predictions(preds, truths, threshold=0.5)
+    assert r.true_positives == 1 and r.false_negatives == 0

@@ -91,6 +91,51 @@ def iou(a: tuple[float, float], b: tuple[float, float]) -> float:
     return overlap / union if union > 0 else 0.0
 
 
+CANONICAL_GAP_SECONDS = 15.0
+
+
+def canonicalize_spans(
+    spans: list[tuple[float, float]], *, gap: float = CANONICAL_GAP_SECONDS
+) -> list[tuple[float, float]]:
+    """Merge spans separated by less than `gap` seconds.
+
+    One span = one contiguous ad break, the detection prompt's merge rule.
+    Applied to predictions and truths alike before matching.
+    """
+    if not spans:
+        return []
+    ordered = sorted(spans)
+    out = [list(ordered[0])]
+    for s, e in ordered[1:]:
+        if s - out[-1][1] < gap:
+            out[-1][1] = max(out[-1][1], e)
+        else:
+            out.append([s, e])
+    return [(s, e) for s, e in out]
+
+
+def canonicalize_ads(
+    ads: list[dict], *, gap: float = CANONICAL_GAP_SECONDS
+) -> list[dict]:
+    """Dict-level merge on start/end so ads stay aligned with their spans."""
+    if not ads:
+        return []
+    ordered = sorted((dict(a) for a in ads),
+                     key=lambda a: (a["start"], a["end"]))
+    out = [ordered[0]]
+    for a in ordered[1:]:
+        cur = out[-1]
+        if a["start"] - cur["end"] < gap:
+            cur["end"] = max(cur["end"], a["end"])
+            ca, cb = cur.get("confidence"), a.get("confidence")
+            if isinstance(cb, (int, float)) and (
+                    not isinstance(ca, (int, float)) or cb > ca):
+                cur["confidence"] = cb
+        else:
+            out.append(a)
+    return out
+
+
 def match_predictions(
     predictions: list[tuple[float, float]],
     truths: list[tuple[float, float]],

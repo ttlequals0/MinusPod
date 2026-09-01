@@ -329,6 +329,7 @@ def _aggregate(
                 a['end'] = _end(ad)
                 norm_ads.append(a)
         flat_ads: list[dict] = parsing.deduplicate_window_ads(norm_ads)
+        flat_ads = metrics.canonicalize_ads(flat_ads)
         flat_preds: list[tuple[float, float]] = [(_start(ad), _end(ad)) for ad in flat_ads]
 
         stats = me.setdefault((model, ep_id), ModelEpisodeStats(model=model, episode_id=ep_id))
@@ -342,7 +343,8 @@ def _aggregate(
                 if isinstance(conf, (int, float)):
                     calibration[model].append((float(conf), False))
         else:
-            truth_ranges = [(ad.start, ad.end) for ad in ep.truth.ads]
+            truth_ranges = metrics.canonicalize_spans(
+                [(ad.start, ad.end) for ad in ep.truth.ads])
             r = metrics.match_predictions(flat_preds, truth_ranges, threshold=DEFAULT_IOU_THRESHOLD)
             stats.trial_f1s.append(r.f1)
             stats.trial_f05s.append(r.fbeta(0.5))
@@ -366,10 +368,10 @@ def _aggregate(
             # Detection-by-bucket: for each truth ad, was it detected (i.e. matched at IoU>=0.5)?
             duration = float(ep.metadata.duration) if getattr(ep.metadata, "duration", None) else 0.0
             matched_truth_idxs = {m.truth_index for m in r.matches}
-            for ti, ad in enumerate(ep.truth.ads):
+            for ti, (ts, te) in enumerate(truth_ranges):
                 hit = ti in matched_truth_idxs
-                detection_buckets[model]["length"][_length_bucket(ad.end - ad.start)].append(hit)
-                detection_buckets[model]["position"][_position_bucket(ad.start, duration)].append(hit)
+                detection_buckets[model]["length"][_length_bucket(te - ts)].append(hit)
+                detection_buckets[model]["position"][_position_bucket(ts, duration)].append(hit)
         in_cost, out_cost = _recompute_costs(records, pricing_snapshot)
         stats.trial_input_costs.append(in_cost)
         stats.trial_output_costs.append(out_cost)

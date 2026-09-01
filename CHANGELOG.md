@@ -18,6 +18,16 @@ release notes.
   version up to 4.28.6, and they were failing the CI audit gate. Lockfile
   only; browserslist is a build-time dependency of babel and workbox.
 
+## [2.94.0] - 2026-09-01
+
+### Changed
+
+- Benchmark scorer now canonicalizes predictions and ground truth to
+  per-break spans (gaps under 15 seconds merged) before IoU matching,
+  matching the detection prompt's merge rule. Report regenerated from the
+  stored raw calls; per-model scores shift accordingly and are not
+  comparable to pre-2.94.0 rows.
+
 ## [2.93.3] - 2026-08-28
 
 ### Added
