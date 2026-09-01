@@ -24,6 +24,9 @@ release notes.
 
 - A community pattern file whose name did not match its sponsor is renamed to
   the convention the submission validator enforces.
+- The community pattern validation workflow installs the dependencies the
+  validator imports, so it validates submissions instead of crashing on a
+  missing module. A crash now says so rather than reporting a rejected file.
 
 ## [2.93.3] - 2026-08-28
 
