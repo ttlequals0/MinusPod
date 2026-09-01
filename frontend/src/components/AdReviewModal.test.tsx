@@ -178,3 +178,26 @@ describe('AdReviewModal kept-by-category hotkeys', () => {
     expect(screen.queryByRole('button', { name: /Not an ad/ })).toBeNull();
   });
 });
+
+describe('AdReviewModal set-edge-at-playhead buttons', () => {
+  it('offers both edges at a tappable size, since zoomed pins are undraggable on a phone', () => {
+    renderModal();
+    for (const name of [/Set START/, /Set END/]) {
+      const button = screen.getByRole('button', { name }) as HTMLButtonElement;
+      expect(button.className).toContain('min-h-[44px]');
+    }
+  });
+
+  it('keeps the span legal when the playhead sits at the very start', async () => {
+    // Playhead 0 + "Set END" would otherwise collapse start and end onto each
+    // other and hand the user a selection Save refuses.
+    const { onSubmit } = renderModal();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Set END/ }));
+    const start = screen.getByLabelText('Selection start time') as HTMLInputElement;
+    const end = screen.getByLabelText('Selection end time') as HTMLInputElement;
+    expect(start.value).toBe('0:00.0');
+    expect(end.value).toBe('0:01.0');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});

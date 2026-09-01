@@ -15,7 +15,7 @@ import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import TextSelectionPanel from './ad-editor/TextSelectionPanel';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
-import { ghostBtn, primaryBtn } from './ad-editor/controlStyles';
+import { edgeBtn, ghostBtn, primaryBtn } from './ad-editor/controlStyles';
 import {
   formatTime,
   commitTimeInput,
@@ -723,6 +723,25 @@ function AdReviewModal({
     commitTimeInput(endInput, adEnd, episodeDuration ?? Number.POSITIVE_INFINITY,
       setAdEnd, setEndInput, setWindowCenter);
 
+  // Place a boundary at the playhead. Dragging a pin is unreachable on a
+  // phone once zoomed, so this is the only way in. The opposite edge is
+  // pushed just enough to keep the span legal; anything outside the detected
+  // span still surfaces through boundaryError rather than being clamped away.
+  const maxTime = episodeDuration ?? Number.POSITIVE_INFINITY;
+  // The requested edge is held far enough from the episode bounds to leave
+  // room for the other one, so a tap always lands a legal span rather than a
+  // zero-length one the Save button would then refuse.
+  const setStartAtPlayhead = () => {
+    const t = Math.min(Math.max(0, currentTime), maxTime - MIN_AD_DURATION);
+    setAdStart(t);
+    if (adEnd - t < MIN_AD_DURATION) setAdEnd(t + MIN_AD_DURATION);
+  };
+  const setEndAtPlayhead = () => {
+    const t = Math.max(Math.min(currentTime, maxTime), MIN_AD_DURATION);
+    setAdEnd(t);
+    if (t - adStart < MIN_AD_DURATION) setAdStart(t - MIN_AD_DURATION);
+  };
+
   const boundariesMoved =
     Math.abs(adStart - item.start) > 0.05 || Math.abs(adEnd - item.end) > 0.05;
 
@@ -1293,9 +1312,29 @@ function AdReviewModal({
             onPlaySelection={playSelection}
           />
 
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <button
+              type="button"
+              className={`${edgeBtn} text-success ${focusRing}`}
+              onClick={setStartAtPlayhead}
+            >
+              <span className="sm:hidden">Set START</span>
+              <span className="hidden sm:inline">Set START at playhead</span>
+            </button>
+            <button
+              type="button"
+              className={`${edgeBtn} text-destructive ${focusRing}`}
+              onClick={setEndAtPlayhead}
+            >
+              <span className="sm:hidden">Set END</span>
+              <span className="hidden sm:inline">Set END at playhead</span>
+            </button>
+          </div>
+
           <div className="mt-2 text-xs text-muted-foreground">
-            Drag the <span className="text-success font-semibold">START</span> /{' '}
-            <span className="text-destructive font-semibold">END</span> pins above the waveform.{' '}
+            Set the <span className="text-success font-semibold">START</span> /{' '}
+            <span className="text-destructive font-semibold">END</span> buttons at the playhead,
+            or drag the pins above the waveform.{' '}
             <kbd>Space</kbd> play • <kbd>,</kbd>/<kbd>.</kbd> expand window • mouse-wheel to zoom • <kbd>C</kbd> confirm • <kbd>R</kbd> not an ad • <kbd>S</kbd> skip
           </div>
         </div>

@@ -19,6 +19,15 @@ release notes.
   tokens and invited the multi-fill the sentence warns against. The
   serialized schema drops from 432 tokens to 252. From review on #696.
 
+### Added
+
+- Set START and Set END buttons in the Detected ad window place a boundary
+  at the playhead. Dragging a pin was the only way to move one, and a
+  zoomed-in waveform puts the pins off screen with no wheel to zoom back
+  out on a phone, which left no way to set a marker there at all. Mirrors
+  the buttons the Mark cue window already had, now sharing one recipe, and
+  both meet the 44px tap-target floor.
+
 ## [2.94.5] - 2026-08-31
 
 ### Changed
