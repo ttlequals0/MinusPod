@@ -872,17 +872,44 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
         current_ad['detection_stage'] = 'cue_pair'
 
 
+def _gap_only_text(segments: list[dict], gap_start: float, gap_end: float) -> str:
+    """Transcript text lying strictly inside a gap.
+
+    get_transcript_text_for_range is inclusive at both ends, so asking it for
+    the span between two ads also returns the ads' own boundary segments. When
+    both ads name the sponsor that makes "does the gap mention the sponsor?"
+    answer yes for any gap. Segments straddling a boundary are dropped rather
+    than clipped: partial ad text would reintroduce the same contamination,
+    and losing a little gap text only biases toward leaving ads separate.
+    """
+    return ' '.join(
+        seg.get('text', '') for seg in segments
+        if seg.get('start', 0.0) >= gap_start and seg.get('end', 0.0) <= gap_end
+    )
+
+
 def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float = 300.0,
-                           podcast_name: str = None) -> list[dict]:
+                           podcast_name: str = None,
+                           min_content_seconds: float = MIN_CONTENT_BETWEEN_ADS_SECONDS
+                           ) -> list[dict]:
     """Merge ads that mention the same sponsor.
 
     This handles cases where Claude fragments a long ad into multiple pieces
     or mislabels part of an ad as a different sponsor.
 
     Merge logic:
-    - If two ads share a sponsor AND gap < 120s: merge unconditionally (likely same ad break)
-    - If two ads share a sponsor AND gap content mentions sponsor: merge (confirmed same sponsor)
-    - If gap > max_gap: never merge
+    - Sharing a sponsor is necessary but not sufficient. The gap must also be
+      filler: less than ``min_content_seconds`` of speech, the same
+      discriminator merge_ads_across_short_content_gaps uses.
+    - A gap carrying real speech merges only when that speech still mentions
+      the sponsor, which means the read never actually stopped.
+    - If gap > max_gap: never merge.
+
+    A short gap alone used to be enough, on the theory that a nearby mention of
+    the same sponsor belonged to the same break. On shows where the host
+    name-drops a sponsor through the episode that swallowed the show content
+    between the two mentions: two detections of 1.9s and 2.6s, 83s apart,
+    became one 88s span that was 95% conversation.
 
     Args:
         ads: List of detected ad segments (sorted by start time)
@@ -890,6 +917,9 @@ def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float
         max_gap: Maximum gap in seconds to consider for merging (default 5 minutes)
         podcast_name: Show name, used to drop the host's own site from the
             harvested tokens so it cannot look like a shared sponsor
+        min_content_seconds: Speech in the gap at or above this leaves the ads
+            separate unless the gap mentions the sponsor. <= 0 restores the
+            old unconditional short-gap merge.
 
     Returns:
         List of ads with same-sponsor segments merged
@@ -933,6 +963,11 @@ def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float
             if gap_duration > max_gap:
                 break
 
+            # A zero-length detection carries no ad audio, so merging with it
+            # can only push the span end out across the gap.
+            if next_ad['end'] <= next_ad['start']:
+                break
+
             # Find common sponsors
             common_sponsors = current_sponsors & next_sponsors
 
@@ -940,18 +975,32 @@ def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float
                 should_merge = False
                 merge_reason = ""
 
-                # Short gap - merge unconditionally if same sponsor
-                if gap_duration <= SHORT_GAP_THRESHOLD:
+                content_gate = min_content_seconds > 0
+                gap_content = (_content_duration_in_range(segments, gap_start, gap_end)
+                               if content_gate else 0.0)
+
+                if gap_duration <= SHORT_GAP_THRESHOLD and (
+                        not content_gate or gap_content < min_content_seconds):
+                    # Filler gap inside one break: music, silence, a stinger.
                     should_merge = True
-                    merge_reason = f"short gap ({gap_duration:.0f}s)"
+                    merge_reason = (f"short gap ({gap_duration:.0f}s, "
+                                    f"{gap_content:.0f}s content)")
                 else:
-                    # Longer gap - check if gap content mentions the sponsor
-                    gap_text = get_transcript_text_for_range(segments, gap_start, gap_end)
+                    # Real speech in the gap, or a long gap. Merge only when
+                    # that speech is still about the sponsor.
+                    gap_text = _gap_only_text(segments, gap_start, gap_end)
                     gap_sponsors = extract_sponsor_names(gap_text, exclude=own_site)
 
                     if common_sponsors & gap_sponsors:
                         should_merge = True
                         merge_reason = "sponsor in gap"
+                    else:
+                        logger.debug(
+                            f"Not merging same-sponsor ads across "
+                            f"{gap_content:.0f}s of show content: "
+                            f"{current_ad['start']:.1f}s-{current_ad['end']:.1f}s + "
+                            f"{next_ad['start']:.1f}s-{next_ad['end']:.1f}s"
+                        )
 
                 if should_merge:
                     # Safety check: don't merge if result would be too long

@@ -59,6 +59,24 @@ release notes.
 
 ### Fixed
 
+- Same-sponsor merging no longer swallows the show content between two
+  mentions. Two detections naming the same sponsor within two minutes merged
+  on that alone, without checking what sat between them. On shows where the
+  host name-drops a sponsor through the episode that absorbed the
+  conversation: across 45 merges in one sample, 26% of the merged span was
+  gap rather than ad, and a 1.9s and a 2.6s detection 83s apart became one
+  88s span that was 95% talk. The gap must now be filler, measured in speech
+  seconds by the same discriminator `merge_ads_across_short_content_gaps`
+  already used, unless the gap still mentions the sponsor. Both passes read
+  one `min_content_between_ads_seconds` setting.
+- The evidence check that allows merging across a gap read the ads' own
+  boundary segments along with the gap, because the shared transcript-range
+  helper is inclusive at both ends. When both ads named the sponsor, "does
+  the gap mention the sponsor" answered yes for every gap, so the check could
+  not refuse anything. It now reads only segments lying inside the gap.
+- A zero-duration detection is no longer a merge partner. It carries no ad
+  audio, so merging with it only pushed the span end out across the gap; five
+  such merges appear in the same sample.
 - A 403 on the audio availability check now fails the episode immediately
   instead of being retried as a transient CDN error. The check reported every
   refusal and every not-yet-ready file under the same "CDN not ready" text, so

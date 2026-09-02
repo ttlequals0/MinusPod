@@ -242,7 +242,7 @@ class TestMergeSameSponsorAds:
             {'start': 0.0, 'end': 60.0,
              'text': 'brought to you by squarespace, the home of my website, '
                      'dailytech.com, go build one'},
-            {'start': 60.0, 'end': 100.0, 'text': 'back to the conversation'},
+            {'start': 60.0, 'end': 100.0, 'text': ''},
             {'start': 100.0, 'end': 160.0,
              'text': 'apple card, terms at dailytech.com slash card'},
         ]
@@ -259,10 +259,16 @@ class TestMergeSameSponsorAds:
         assert len(merged) == 2
 
     def test_without_the_show_name_the_shared_token_still_merges(self):
-        """Guards the fix itself: same input, no podcast name, one span."""
+        """Guards the own-site fix: same input, no podcast name, one span.
+
+        The gap is untranscribed so the shared token is the only thing
+        deciding the outcome. With speech there the content gate would keep
+        the ads apart whatever the token said, and the pair would prove
+        nothing about own_site.
+        """
         segments = [
             {'start': 0.0, 'end': 60.0, 'text': 'squarespace dailytech.com'},
-            {'start': 60.0, 'end': 100.0, 'text': 'back to the conversation'},
+            {'start': 60.0, 'end': 100.0, 'text': ''},
             {'start': 100.0, 'end': 160.0, 'text': 'apple card dailytech.com'},
         ]
         ads = [

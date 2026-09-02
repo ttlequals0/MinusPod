@@ -1098,13 +1098,16 @@ def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=No
                                                   barriers=all_ads + list(keep_ads or []))
     if all_ads:
         all_ads = snap_early_ads_to_zero(all_ads)
+    min_content = _setting_float(db, 'min_content_between_ads_seconds',
+                                 MIN_CONTENT_BETWEEN_ADS_SECONDS,
+                                 allow_zero=True) if db else MIN_CONTENT_BETWEEN_ADS_SECONDS
     if all_ads and segments:
+        # Same threshold as the filler-gap pass below: one operator setting
+        # decides how much speech makes a gap real show content.
         all_ads = merge_same_sponsor_ads(all_ads, segments,
-                                         podcast_name=podcast_name)
+                                         podcast_name=podcast_name,
+                                         min_content_seconds=min_content)
     if all_ads:
-        min_content = _setting_float(db, 'min_content_between_ads_seconds',
-                                     MIN_CONTENT_BETWEEN_ADS_SECONDS,
-                                     allow_zero=True) if db else MIN_CONTENT_BETWEEN_ADS_SECONDS
         all_ads = merge_ads_across_short_content_gaps(
             all_ads, segments or [],
             min_content_seconds=min_content,

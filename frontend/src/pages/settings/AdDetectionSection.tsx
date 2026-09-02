@@ -126,7 +126,10 @@ function AdDetectionSection({
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <p className="mt-2 text-sm text-muted-foreground">
-            Consecutive ads separated by less than this many seconds of speech content are merged into one cut. Set to 0 to disable.
+            Consecutive ads separated by less than this many seconds of speech
+            are merged into one cut, whether they name the same sponsor or not.
+            Above it they stay separate, so the talking between them is not cut.
+            Set to 0 to disable.
           </p>
         </div>
         <div>
