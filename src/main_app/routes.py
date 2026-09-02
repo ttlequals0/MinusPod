@@ -27,7 +27,7 @@ from config import (
 from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
-from user_agent import feed_user_agent
+from user_agent import download_user_agent
 from utils.constants import EpisodeStatus, REPROCESS_SOURCE_JIT
 from utils.safe_http import URLTrust, safe_head
 from utils.time import parse_iso_datetime, utc_now_iso
@@ -214,7 +214,7 @@ def _head_upstream(slug, episode_id, original_url):
             # Real-world podcast CDNs (Megaphone, Art19, Acast, simplecast)
             # chain 6-8 redirects per asset request.
             max_redirects=HTTP_MAX_REDIRECTS_FEED,
-            headers={'User-Agent': feed_user_agent()},
+            headers={'User-Agent': download_user_agent()},
         )
     except SSRFError as e:
         feed_logger.warning(f"[{slug}:{episode_id}] SSRF blocked in HEAD upstream: {e}")

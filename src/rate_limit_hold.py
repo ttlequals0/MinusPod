@@ -66,14 +66,15 @@ def record_hold_until(db, retry_at_iso: str) -> None:
     db.set_setting(HOLD_UNTIL_KEY, retry_at_iso)
 
 
-def _is_paused(hold_until: str | None) -> bool:
+def hold_is_active(hold_until: str | None) -> bool:
+    """True when `hold_until` is a reset time still in the future."""
     return bool(hold_until and parse_iso_utc(hold_until)
                 and parse_iso_utc(hold_until) > utc_now())
 
 
 def is_queue_paused(db) -> bool:
     """True while a recorded hold's reset time is still in the future."""
-    return _is_paused(get_hold_until(db))
+    return hold_is_active(get_hold_until(db))
 
 
 def should_pause_claims(db) -> bool:
@@ -94,7 +95,7 @@ def rate_limit_hold_tick(db) -> None:
     """
     hold_until = get_hold_until(db)
     held_count = db.count_deferred_episodes(service=RATE_LIMIT_DEFERRED_SERVICE)
-    if not held_count and not _is_paused(hold_until):
+    if not held_count and not hold_is_active(hold_until):
         return
 
     expired = db.expire_deferred_episodes(
@@ -105,7 +106,7 @@ def rate_limit_hold_tick(db) -> None:
 
     # A failure may have recorded a newer hold while the expiry ran; its
     # pause must outlive this pass.
-    if _is_paused(get_hold_until(db)):
+    if hold_is_active(get_hold_until(db)):
         return
 
     requeued = db.requeue_deferred_episodes({RATE_LIMIT_DEFERRED_SERVICE})

@@ -38,8 +38,28 @@ def clean_hold(app_client):
             _hold_cache.clear()
 
     reset()
-    yield {'db': db, 'client': app_client}
+    yield db
     reset()
+
+
+@pytest.fixture
+def deferred_on(clean_hold):
+    """Park one episode on a named service, cleaned up afterwards."""
+    from contextlib import contextmanager
+
+    @contextmanager
+    def park(service, slug='hold-block-feed'):
+        clean_hold.create_podcast(
+            slug, 'https://example.com/feed.xml', title='Hold Block Test')
+        try:
+            clean_hold.upsert_episode(
+                slug, 'ep-1', title='Episode 1', status='deferred',
+                deferred_service=service)
+            yield clean_hold
+        finally:
+            clean_hold.delete_podcast(slug)
+
+    return park
 
 
 def _hold(client):
@@ -53,8 +73,8 @@ def _hold(client):
     return response.get_json()['hold']
 
 
-def test_status_reports_an_empty_hold_when_nothing_is_held(clean_hold):
-    hold = _hold(clean_hold['client'])
+def test_status_reports_an_empty_hold_when_nothing_is_held(clean_hold, app_client):
+    hold = _hold(app_client)
     assert set(hold) == HOLD_KEYS
     assert hold['queuePaused'] is False
     assert hold['holdUntil'] is None
@@ -63,67 +83,50 @@ def test_status_reports_an_empty_hold_when_nothing_is_held(clean_hold):
     assert hold['offlineServices'] == []
 
 
-def test_a_future_reset_time_reports_the_queue_as_paused(clean_hold):
+def test_a_future_reset_time_reports_the_queue_as_paused(clean_hold, app_client):
     from rate_limit_hold import record_hold_until
     from utils.time import utc_now
 
     reset_at = (utc_now() + timedelta(minutes=30)).isoformat()
-    record_hold_until(clean_hold['db'], reset_at)
+    record_hold_until(clean_hold, reset_at)
 
-    hold = _hold(clean_hold['client'])
+    hold = _hold(app_client)
     assert hold['queuePaused'] is True
     assert hold['holdUntil'] == reset_at
 
 
-def test_a_past_reset_time_is_not_a_pause(clean_hold):
+def test_a_past_reset_time_is_not_a_pause(clean_hold, app_client):
     from rate_limit_hold import HOLD_UNTIL_KEY
     from utils.time import utc_now
 
-    clean_hold['db'].set_setting(
+    clean_hold.set_setting(
         HOLD_UNTIL_KEY, (utc_now() - timedelta(minutes=5)).isoformat())
-    assert _hold(clean_hold['client'])['queuePaused'] is False
+    assert _hold(app_client)['queuePaused'] is False
 
 
-def test_offline_services_report_the_last_probe_verdict(clean_hold):
+def test_offline_services_report_the_last_probe_verdict(deferred_on, app_client):
     from config import DEFER_SERVICE_WHISPER
     from offline_queue import _record_probe_state
 
-    db = clean_hold['db']
-    slug = 'hold-block-feed'
-    db.create_podcast(slug, 'https://example.com/feed.xml', title='Hold Block Test')
-    db.upsert_episode(slug, 'ep-1', title='Episode 1', status='deferred',
-                      deferred_service=DEFER_SERVICE_WHISPER)
-    _record_probe_state(db, DEFER_SERVICE_WHISPER, False)
-
-    try:
-        hold = _hold(clean_hold['client'])
+    with deferred_on(DEFER_SERVICE_WHISPER) as db:
+        _record_probe_state(db, DEFER_SERVICE_WHISPER, False)
+        hold = _hold(app_client)
         assert hold['offlineHeld'] == 1
-        assert len(hold['offlineServices']) == 1
-        entry = hold['offlineServices'][0]
-        assert entry['service'] == DEFER_SERVICE_WHISPER
-        assert entry['held'] == 1
-        assert entry['reachable'] is False
-        assert entry['checkedAt']
+        assert hold['offlineServices'] == [{
+            'service': DEFER_SERVICE_WHISPER, 'held': 1, 'reachable': False,
+            'checkedAt': hold['offlineServices'][0]['checkedAt'],
+        }]
+        assert hold['offlineServices'][0]['checkedAt']
         # An offline wait parks specific episodes; it does not pause the queue.
         assert hold['queuePaused'] is False
-    finally:
-        db.delete_podcast(slug)
 
 
-def test_an_unprobed_service_reports_reachable_as_unknown(clean_hold):
+def test_an_unprobed_service_reports_reachable_as_unknown(deferred_on, app_client):
     """None, not False: before the first tick we have not checked, which is
     not the same as having found the service down."""
     from config import DEFER_SERVICE_LLM
 
-    db = clean_hold['db']
-    slug = 'hold-block-unprobed'
-    db.create_podcast(slug, 'https://example.com/feed.xml', title='Unprobed Test')
-    db.upsert_episode(slug, 'ep-1', title='Episode 1', status='deferred',
-                      deferred_service=DEFER_SERVICE_LLM)
-
-    try:
-        entry = _hold(clean_hold['client'])['offlineServices'][0]
+    with deferred_on(DEFER_SERVICE_LLM):
+        entry = _hold(app_client)['offlineServices'][0]
         assert entry['reachable'] is None
         assert entry['checkedAt'] is None
-    finally:
-        db.delete_podcast(slug)

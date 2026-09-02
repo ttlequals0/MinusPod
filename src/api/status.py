@@ -11,9 +11,9 @@ from api import (
     get_database, get_status_service,
 )
 from config import DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER
-from offline_queue import probe_state_keys
+from offline_queue import get_probe_state
 from rate_limit_hold import (
-    RATE_LIMIT_DEFERRED_SERVICE, get_hold_until, is_queue_paused,
+    RATE_LIMIT_DEFERRED_SERVICE, get_hold_until, hold_is_active,
 )
 from utils.ttl_cache import TTLCache
 
@@ -22,12 +22,17 @@ logger = logging.getLogger('podcast.api')
 # Services the offline queue can park an episode on, in display order.
 OFFLINE_SERVICES = (DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER)
 
-# The hold block is broadcast to every SSE subscriber on every status update.
-# Cached so a burst of updates costs one set of queries, not one per frame.
-_HOLD_CACHE_TTL_SECONDS = 3
+# What a caller sees when nothing is held, and when the read fails.
+EMPTY_HOLD = {
+    'queuePaused': False, 'holdUntil': None, 'rateLimitHeld': 0,
+    'offlineHeld': 0, 'offlineServices': [],
+}
+
+# The block is rebuilt per reader, so it is cached. The underlying state only
+# changes on the ~5-minute maintenance tick or a 429, so a short TTL is enough.
+_HOLD_CACHE_TTL_SECONDS = 15
 _hold_cache = TTLCache(ttl_seconds=_HOLD_CACHE_TTL_SECONDS)
 _hold_cache_lock = threading.Lock()
-_HOLD_CACHE_KEY = 'hold'
 
 
 def _offline_service_view(db, service: str) -> dict | None:
@@ -36,15 +41,10 @@ def _offline_service_view(db, service: str) -> dict | None:
     held = db.count_deferred_episodes(service=service)
     if not held:
         return None
-    reachable_key, at_key = probe_state_keys(service)
-    reachable = db.get_setting(reachable_key)
+    reachable, checked_at = get_probe_state(db, service)
     return {
-        'service': service,
-        'held': held,
-        # None until the tick has probed once, which reads as "not yet checked"
-        # rather than as a claim that the service is up.
-        'reachable': None if reachable is None else reachable.strip().lower() == 'true',
-        'checkedAt': db.get_setting(at_key),
+        'service': service, 'held': held,
+        'reachable': reachable, 'checkedAt': checked_at,
     }
 
 
@@ -54,35 +54,38 @@ def _build_hold_block(db) -> dict:
     Reports what the maintenance tick last observed. Nothing here probes a
     service, so an open SSE stream cannot generate outbound traffic.
     """
-    offline = [v for v in (_offline_service_view(db, s) for s in OFFLINE_SERVICES) if v]
+    hold_until = get_hold_until(db)
     return {
-        'queuePaused': is_queue_paused(db),
-        'holdUntil': get_hold_until(db),
+        'queuePaused': hold_is_active(hold_until),
+        'holdUntil': hold_until,
         'rateLimitHeld': db.count_deferred_episodes(
             service=RATE_LIMIT_DEFERRED_SERVICE),
-        'offlineHeld': sum(v['held'] for v in offline),
-        'offlineServices': offline,
+        # Every non-rate-limit deferral, so the total agrees with
+        # /settings/offline-queue even for a service not broken out below.
+        'offlineHeld': db.count_deferred_episodes(
+            exclude_service=RATE_LIMIT_DEFERRED_SERVICE),
+        'offlineServices': [
+            v for v in (_offline_service_view(db, s) for s in OFFLINE_SERVICES) if v
+        ],
     }
 
 
 def hold_block() -> dict:
     """Cached _build_hold_block. Never raises: a status frame must still go out
     when the hold read fails, so the caller sees an empty hold instead."""
+    # The lock spans the rebuild so two readers arriving on the same expiry
+    # boundary do not both run the queries.
     with _hold_cache_lock:
-        cached = _hold_cache.get(_HOLD_CACHE_KEY)
-    if cached is not None:
-        return cached
-    try:
-        block = _build_hold_block(get_database())
-    except Exception as e:
-        logger.warning(f"Could not read queue hold state: {e}")
-        block = {
-            'queuePaused': False, 'holdUntil': None, 'rateLimitHeld': 0,
-            'offlineHeld': 0, 'offlineServices': [],
-        }
-    with _hold_cache_lock:
-        _hold_cache.set(_HOLD_CACHE_KEY, block)
-    return block
+        cached = _hold_cache.get('hold')
+        if cached is not None:
+            return cached
+        try:
+            block = _build_hold_block(get_database())
+        except Exception as e:
+            logger.warning(f"Could not read queue hold state: {e}")
+            block = dict(EMPTY_HOLD)
+        _hold_cache.set('hold', block)
+        return block
 
 
 def status_payload(status=None) -> dict:
@@ -92,8 +95,7 @@ def status_payload(status=None) -> dict:
     hold state is merged here instead, where both the stream and the one-time
     GET pick it up from the same place.
     """
-    status_service = get_status_service()
-    payload = status_service.to_dict(status)
+    payload = get_status_service().to_dict(status)
     payload['hold'] = hold_block()
     return payload
 
@@ -142,8 +144,10 @@ def status_stream():
         update_queue = queue.Queue(maxsize=50)
 
         def on_update(status):
+            # Queue the raw snapshot: this runs on the pipeline's broadcast
+            # thread, which must not block on the hold block's DB reads.
             try:
-                update_queue.put_nowait(status_payload(status))
+                update_queue.put_nowait(status)
             except queue.Full:
                 pass  # Drop update if queue is full
 
@@ -155,7 +159,7 @@ def status_stream():
             while True:
                 try:
                     status = update_queue.get(timeout=15)
-                    yield f"data: {json.dumps(status)}\n\n"
+                    yield f"data: {json.dumps(status_payload(status))}\n\n"
                 except queue.Empty:
                     yield ": keepalive\n\n"
         finally:

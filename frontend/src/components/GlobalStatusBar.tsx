@@ -83,6 +83,13 @@ function formatRelative(iso: string): string | null {
   return `in ${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
+/** When the queue resumes, as one sentence. */
+function resumesText(iso: string | null): string {
+  if (!iso) return 'Resumes once the provider window resets.';
+  const relative = formatRelative(iso);
+  return `Resumes ${formatClock(iso)}${relative ? ` (${relative})` : ''}.`;
+}
+
 /** Short summary for the collapsed bar, or null when nothing is held. */
 function holdSummary(hold: QueueHold | undefined): string | null {
   if (!hold) return null;
@@ -373,18 +380,7 @@ function GlobalStatusBar() {
               <ul className="space-y-1">
                 {hold.queuePaused && (
                   <li className="text-xs text-foreground">
-                    Provider rate limit.{' '}
-                    {hold.holdUntil ? (
-                      <>
-                        Resumes {formatClock(hold.holdUntil)}
-                        {formatRelative(hold.holdUntil)
-                          ? ` (${formatRelative(hold.holdUntil)})`
-                          : ''}
-                        .
-                      </>
-                    ) : (
-                      'Resumes once the provider window resets.'
-                    )}
+                    {`Provider rate limit. ${resumesText(hold.holdUntil)}`}
                     {hold.rateLimitHeld > 0
                       && ` ${countLabel(hold.rateLimitHeld, 'episode')} waiting.`}
                   </li>

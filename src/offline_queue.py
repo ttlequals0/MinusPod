@@ -15,6 +15,7 @@ import llm_client
 import transcriber
 from config import (
     DEFER_SERVICE_LLM, DEFER_SERVICE_RATE_LIMIT, DEFER_SERVICE_WHISPER,
+    coerce_bool_setting,
 )
 from utils.time import utc_now_iso
 from webhook_service import fire_event, EVENT_EPISODE_FAILED
@@ -108,6 +109,14 @@ def _record_probe_state(db, service: str, reachable: bool) -> None:
         db.set_setting(at_key, utc_now_iso(), is_default=False)
     except Exception as e:
         logger.debug(f"Could not record probe state for {service}: {e}")
+
+
+def get_probe_state(db, service: str) -> tuple[bool | None, str | None]:
+    """Last probe verdict and time for `service`. Reachability is None until
+    the tick has probed once, which means "not checked yet", not "up"."""
+    reachable_key, at_key = probe_state_keys(service)
+    raw = db.get_setting(reachable_key)
+    return (None if raw is None else coerce_bool_setting(raw)), db.get_setting(at_key)
 
 
 def offline_queue_tick(db) -> None:

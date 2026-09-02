@@ -115,7 +115,7 @@ from reprocess_modes import (
     FORCE_TRANSCRIBE_MODES, clear_episode_for_mode,
 )
 from splice_calibration import compute_splice_calibration
-from transcriber import extract_audio_chunk
+from transcriber import CDN_REFUSED_PREFIX, extract_audio_chunk
 from utils.constants import (
     CANCELED_ERROR_MESSAGE, EpisodeStatus, PIPELINE_REPROCESS_SOURCES,
     REPROCESS_SOURCE_DEGRADED, REPROCESS_SOURCE_POLICY,
@@ -261,7 +261,7 @@ def is_transient_error(error: Exception) -> bool:
         'authentication', 'unauthorized', 'forbidden',
         '400 ', '401 ', '403 ',
         # A refusal answers the same way on every retry.
-        'cdn refused',
+        CDN_REFUSED_PREFIX.lower(),
         # Local feeds have no upstream to retry against: a missing retained
         # original never recovers on its own, so retrying just burns the
         # full ladder before landing on permanently_failed anyway.

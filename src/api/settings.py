@@ -899,7 +899,7 @@ def _apply_user_agent_fields(db, data):
             db.set_setting(db_key, value, is_default=False)
             logger.info(f"Updated {db_key}")
         else:
-            db.set_setting(db_key, registry_default(db_key), is_default=True)
+            db.reset_setting(db_key)
             logger.info(f"Reset {db_key} to the default")
     if writes:
         invalidate_user_agent_cache()

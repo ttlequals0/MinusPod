@@ -79,6 +79,11 @@ logger = logging.getLogger(__name__)
 # than this is silently truncated to its first 30s.
 WHISPER_CHUNK_SECONDS = 30.0
 
+# check_audio_availability reports failures as prose that main_app.processing's
+# retry classifier matches on. Shared so rewording one cannot silently flip the
+# other's verdict.
+CDN_REFUSED_PREFIX = 'CDN refused'
+
 # Shortest clip worth handing to the pipeline.
 MIN_CLIP_SECONDS = 0.1
 
@@ -1591,7 +1596,7 @@ class Transcriber:
         if response.status_code == 403:
             # Distinct from the 404 below so the retry classifier can treat it
             # as permanent: an access decision does not change on replay.
-            return False, "CDN refused the request (403)"
+            return False, f"{CDN_REFUSED_PREFIX} the request (403)"
         if response.status_code == 404:
             return False, "CDN not ready (404)"
         if response.status_code >= 500:

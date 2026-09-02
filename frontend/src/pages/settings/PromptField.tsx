@@ -1,4 +1,4 @@
-import ConfirmResetButton from './ConfirmResetButton';
+import FieldResetHeader from './FieldResetHeader';
 
 interface PromptFieldProps {
   id: string;
@@ -26,20 +26,12 @@ export default function PromptField({
 }: PromptFieldProps) {
   return (
     <div>
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <label htmlFor={id} className="block text-sm font-medium text-foreground">
-          {label}
-        </label>
-        {onReset && (
-          <ConfirmResetButton
-            label="Reset"
-            onConfirm={onReset}
-            size="compact"
-            disabled={isDefault !== false}
-            title={isDefault !== false ? 'Already the default' : undefined}
-          />
-        )}
-      </div>
+      <FieldResetHeader
+        htmlFor={id}
+        label={label}
+        onReset={onReset}
+        isDefault={isDefault}
+      />
       <textarea
         id={id}
         value={value}

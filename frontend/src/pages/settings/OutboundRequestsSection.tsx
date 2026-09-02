@@ -4,8 +4,8 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import { btnPrimary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
-import ConfirmResetButton from './ConfirmResetButton';
+import { focusRing, inputBase } from '../../components/fieldStyles';
+import FieldResetHeader from './FieldResetHeader';
 import SavedBadge from './SavedBadge';
 
 const STORAGE_KEY = 'settings-section-outbound-requests';
@@ -49,7 +49,7 @@ function OutboundRequestsSection() {
   const stored = (key: FieldKey) => settings?.[key]?.value ?? '';
   const isDefault = (key: FieldKey) => settings?.[key]?.isDefault !== false;
   const current = (key: FieldKey) => draft[key] ?? stored(key);
-  const dirty = FIELDS.some(({ key }) => draft[key] !== undefined && draft[key] !== stored(key));
+  const dirty = FIELDS.some(({ key }) => current(key) !== stored(key));
 
   return (
     <CollapsibleSection
@@ -60,19 +60,13 @@ function OutboundRequestsSection() {
       <div className="space-y-6">
         {FIELDS.map(({ key, label, help }) => (
           <div key={key}>
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <label htmlFor={key} className="block text-sm font-medium text-foreground">
-                {label}
-              </label>
-              <ConfirmResetButton
-                label="Reset"
-                ariaLabel={`Reset ${label} User-Agent`}
-                size="compact"
-                disabled={isDefault(key)}
-                title={isDefault(key) ? 'Already the default' : undefined}
-                onConfirm={() => save.mutate({ [key]: '' })}
-              />
-            </div>
+            <FieldResetHeader
+              htmlFor={key}
+              label={label}
+              isDefault={isDefault(key)}
+              resetAriaLabel={`Reset ${label} User-Agent`}
+              onReset={() => save.mutate({ [key]: '' })}
+            />
             <input
               type="text"
               id={key}
@@ -81,7 +75,7 @@ function OutboundRequestsSection() {
               spellCheck={false}
               autoComplete="off"
               maxLength={512}
-              className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground font-mono text-sm ${focusRing}`}
+              className={`w-full font-mono ${inputBase}`}
             />
             <p className="mt-1 text-sm text-muted-foreground">{help}</p>
           </div>

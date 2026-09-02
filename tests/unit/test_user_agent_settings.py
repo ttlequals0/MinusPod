@@ -20,13 +20,15 @@ from database import Database
 def clean_ua_settings():
     """Each test starts with no stored UA and an empty resolver cache."""
     db = Database()
-    for key in (user_agent.DOWNLOAD_UA_SETTING, user_agent.FEED_UA_SETTING):
-        db.clear_setting(key)
-    user_agent.invalidate_cache()
+
+    def reset():
+        for key in (user_agent.DOWNLOAD_UA_SETTING, user_agent.FEED_UA_SETTING):
+            db.clear_setting(key)
+        user_agent.invalidate_cache()
+
+    reset()
     yield
-    for key in (user_agent.DOWNLOAD_UA_SETTING, user_agent.FEED_UA_SETTING):
-        db.clear_setting(key)
-    user_agent.invalidate_cache()
+    reset()
 
 
 @pytest.mark.parametrize("value, valid", [
