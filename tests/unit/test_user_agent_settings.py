@@ -1,5 +1,8 @@
 """Tests for the configurable outbound User-Agent strings."""
 
+import os
+import pathlib
+
 import pytest
 
 from tests.app_bootstrap import bootstrap
@@ -121,3 +124,17 @@ class TestAudioAvailabilityProbe:
         monkeypatch.setattr('utils.safe_http.safe_head', fake_head)
         _probe().check_audio_availability('https://cdn.example/media.mp3')
         assert sent['User-Agent'] == 'CustomAgent/9.9'
+
+
+def test_module_imports_before_storage():
+    """user_agent must stay a leaf: storage imports it, so importing it first
+    has to work. `utils.ttl_cache` drags utils/__init__ -> utils.audio ->
+    storage and puts it back in the cycle."""
+    import subprocess
+    import sys
+
+    src = str(pathlib.Path(__file__).resolve().parents[2] / 'src')
+    result = subprocess.run(
+        [sys.executable, '-c', 'import user_agent; print(user_agent.feed_user_agent())'],
+        capture_output=True, text=True, env={'PYTHONPATH': src, 'PATH': os.environ['PATH']})
+    assert result.returncode == 0, result.stderr

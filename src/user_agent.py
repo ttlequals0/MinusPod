@@ -1,7 +1,11 @@
 """Outbound User-Agent resolution.
 
-A leaf module on purpose: rss_parser and upstream_chapters hold no database
-handle, and config.py cannot import Database without a cycle.
+A leaf module on purpose: storage, rss_parser and upstream_chapters all import
+it, and config.py cannot import Database without a cycle. It imports nothing
+from the repo but config, deliberately. `utils.ttl_cache` would look like the
+right cache to reuse here, but `utils/__init__` eagerly imports `utils.audio`,
+which imports storage, so reaching for it puts this module back in the cycle
+whenever it is imported before storage.
 
 Two strings because hosts disagree. Bot mitigation on some CDNs refuses
 browser UAs below a rolling version floor, while some feed hosts serve only a
@@ -9,9 +13,9 @@ declared podcast client.
 """
 import logging
 import threading
+import time
 
 from config import APP_USER_AGENT, BROWSER_USER_AGENT, validate_user_agent
-from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger('podcast.audio')
 
@@ -22,17 +26,19 @@ FEED_UA_SETTING = 'feed_user_agent'
 # enough that an operator editing Settings sees the change take hold.
 _CACHE_TTL_SECONDS = 30
 
-_cache = TTLCache(ttl_seconds=_CACHE_TTL_SECONDS)
+# setting key -> (value, monotonic timestamp). Two keys, one TTL.
+_cache: dict[str, tuple[str, float]] = {}
 _cache_lock = threading.Lock()
 
 
 def _resolve(setting_key: str, fallback: str) -> str:
     """Stored UA for `setting_key`, else `fallback`. Never raises: an
     unreadable database must not stop an outbound request."""
+    now = time.monotonic()
     with _cache_lock:
-        cached = _cache.get(setting_key)
-    if cached is not None:
-        return cached
+        entry = _cache.get(setting_key)
+        if entry is not None and (now - entry[1]) < _CACHE_TTL_SECONDS:
+            return entry[0]
 
     value = fallback
     try:
@@ -47,7 +53,7 @@ def _resolve(setting_key: str, fallback: str) -> str:
         logger.debug(f"Could not read {setting_key}, using the default: {e}")
 
     with _cache_lock:
-        _cache.set(setting_key, value)
+        _cache[setting_key] = (value, time.monotonic())
     return value
 
 
