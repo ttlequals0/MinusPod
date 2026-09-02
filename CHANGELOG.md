@@ -70,6 +70,11 @@ release notes.
 
 ### Security
 
+- fast-uri 3.1.5 to 3.1.7 (GHSA-5jgf-p345-68v8, GHSA-f65p-4m7j-42xc,
+  GHSA-fph4-wmhf-6fwf, GHSA-jqff-g426-hqxp). Four advisories covering host
+  confusion and server-side request forgery, published after the last release
+  and failing the CI audit gate. Lockfile only; fast-uri is a build-time
+  transitive dependency of workbox through ajv and never reaches the browser.
 - browserslist 4.28.2 to 4.28.8, with its data dependencies
   (GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g). Both advisories cover every
   version up to 4.28.6, and they were failing the CI audit gate. Lockfile
