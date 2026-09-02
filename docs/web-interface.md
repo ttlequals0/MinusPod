@@ -41,7 +41,7 @@ The server includes a web-based management UI at `/ui/`:
 - Rate-limit hold (Settings > Queue Control): optionally pause the queue while the LLM provider reports a 429 with a reset time, instead of failing episodes, with its own give-up window
 - Processing Queue panel (Settings): the waiting list is paginated, and each row has a priority field with -/+ buttons that can raise or lower its place in the queue
 - Real-time status bar showing processing progress across all pages. It also appears when the queue is holding work with nothing running, naming the provider reset time for a rate-limit pause, or the service that is down for an offline wait
-- Outbound Requests (Settings > Data & Security): the User-Agent MinusPod sends when it fetches feeds, audio, and artwork, editable per string with a Reset back to the default
+- Outbound Requests (Settings > Data & Security): the User-Agent MinusPod sends when it fetches feeds, audio, and artwork, editable per string with a Reset back to the default, plus a toggle for whether download logs include URL query strings
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button
 - Global Defaults group in settings (Auto-Process, Max Feed Episodes, Only Expose Processed) that every feed inherits, with per-feed overrides on each feed's settings page; Queue priority boosts live in the Queue Control group

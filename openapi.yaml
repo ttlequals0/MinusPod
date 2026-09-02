@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.94.7
+  version: 2.94.8
   contact:
     name: MinusPod
   license:
@@ -4668,6 +4668,13 @@ paths:
                   description: >-
                     User-Agent sent when fetching RSS feeds. Printable ASCII on a single
                     line. Send an empty string to restore the default.
+                logDownloadQuery:
+                  type: boolean
+                  description: >-
+                    Include URL query strings in download logs. Off by default: an
+                    enclosure query string regularly carries a signed CDN token or a
+                    listener tracking id, and logs outlive both. The path and redirect
+                    chain are logged either way.
                 feedAuthEnabled:
                   type: boolean
                   description: Require the global feed auth key on all public feed and episode URLs. Enabling generates the key if absent.
@@ -11016,6 +11023,14 @@ components:
               description: User-Agent sent when fetching RSS feeds.
             isDefault:
               type: boolean
+        logDownloadQuery:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether download logs include URL query strings.
+            isDefault:
+              type: boolean
         feedAuthEnabled:
           type: object
           properties:
@@ -11287,6 +11302,8 @@ components:
               type: string
             feedUserAgent:
               type: string
+            logDownloadQuery:
+              type: boolean
             feedAuthEnabled:
               type: boolean
             minCutConfidence:

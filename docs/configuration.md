@@ -399,6 +399,14 @@ Both ship with working defaults and are editable in **Settings > Data & Security
 
 A value must be printable ASCII on a single line, at most 512 characters. Carriage returns and line feeds are rejected, since the value goes straight into a request header. Reset returns a field to its default.
 
+### What the download logs record
+
+Every download and availability check logs the URL it requested, including the path, followed by each redirect hop with its status code and the final URL it landed on. That is usually enough to see which file was asked for and where the host sent it.
+
+Query strings are left out. On a podcast enclosure that is where a signed CDN token or a per-listener tracking id lives, and a log outlives both. The "Log query strings on downloads" toggle in the same settings section adds them when you are debugging a refusal that depends on one. Turn it back off afterwards.
+
+### Diagnosing a refusal
+
 If downloads start failing with `CDN refused the request (403)` while the feed itself still refreshes, the download string is the one to change. Try the User-Agent your own browser sends. A 403 fails the episode on the first attempt rather than working through the retry ladder, because a host refusing the request answers the same way every time. A 404 still retries, since a freshly published episode can 404 briefly while its host provisions the media URL.
 
 ## Scheduled Database Backups

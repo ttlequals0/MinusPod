@@ -11,7 +11,7 @@ release notes.
 
 ## [Unreleased]
 
-## [2.94.7] - 2026-09-02
+## [2.94.8] - 2026-09-02
 
 ### Added
 
@@ -35,6 +35,13 @@ release notes.
   an offline wait. The two stay distinct: a rate-limit hold pauses the whole
   queue, while an offline wait parks only the episodes waiting on that
   service.
+- Download and availability logs record the URL path and the full redirect
+  chain, each hop with its status code and the final URL. Previously they
+  logged the host alone, so ten consecutive failures left no record of what
+  was being fetched or where the host was sending it. Query strings stay out
+  unless `LOG_DOWNLOAD_QUERY` or the matching Settings toggle is on. An
+  enclosure query string regularly carries a signed CDN token or a
+  per-listener tracking id, and a log outlives both.
 - The offline queue now records each reachability probe it already performs.
   The status API can then say which service is down and when it was last
   checked, without probing on the read path.
@@ -43,8 +50,6 @@ release notes.
 
 - The default download User-Agent moves off a Chrome 120 string that hosts
   had begun refusing.
-- A failed audio availability check now logs the host it could not reach.
-  Repeated failures previously left no record of what was being fetched.
 - The community patterns contributed before segment categories existed now
   declare `category: "sponsor"` (196 of 197 files). Installs read the category
   to decide whether a match is cut, beeped, or kept, and to filter which

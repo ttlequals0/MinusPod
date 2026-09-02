@@ -504,6 +504,7 @@ export interface Settings {
   episodeLogLevel: SettingValue;
   downloadUserAgent: SettingValue;
   feedUserAgent: SettingValue;
+  logDownloadQuery: SettingValueBoolean;
   feedAuthEnabled: SettingValueBoolean;
   feedAuthKey: string | null;
   // User agents served original audio instead of triggering JIT processing.
@@ -717,6 +718,7 @@ export interface UpdateSettingsPayload {
   episodeLogLevel?: EpisodeLogLevel;
   downloadUserAgent?: string;
   feedUserAgent?: string;
+  logDownloadQuery?: boolean;
   feedAuthEnabled?: boolean;
   jitBlockedUserAgents?: string[];
   audioBitrate?: string;

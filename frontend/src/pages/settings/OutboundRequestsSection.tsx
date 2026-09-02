@@ -5,6 +5,7 @@ import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import { btnPrimary } from '../../components/buttonStyles';
 import { focusRing, inputBase } from '../../components/fieldStyles';
+import ToggleSwitch from '../../components/ToggleSwitch';
 import FieldResetHeader from './FieldResetHeader';
 import SavedBadge from './SavedBadge';
 
@@ -37,7 +38,8 @@ function OutboundRequestsSection() {
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({
-    mutationFn: (payload: Partial<Record<FieldKey, string>>) => updateSettings(payload),
+    mutationFn: (payload: Partial<Record<FieldKey, string>> & { logDownloadQuery?: boolean }) =>
+      updateSettings(payload),
     onSuccess: (_data, payload) => {
       setError(null);
       // Drop only what was sent: a per-field Reset must not discard an
@@ -52,6 +54,7 @@ function OutboundRequestsSection() {
     onError: (e: unknown) => setError(getErrorMessage(e, 'Save failed')),
   });
 
+  const logQuery = settings?.logDownloadQuery?.value ?? false;
   const stored = (key: FieldKey) => settings?.[key]?.value ?? '';
   const isDefault = (key: FieldKey) => settings?.[key]?.isDefault !== false;
   const current = (key: FieldKey) => draft[key] ?? stored(key);
@@ -86,6 +89,26 @@ function OutboundRequestsSection() {
             <p className="mt-1 text-sm text-muted-foreground">{help}</p>
           </div>
         ))}
+
+        <div className="pt-4 border-t border-border">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={logQuery}
+              onChange={(v) => save.mutate({ logDownloadQuery: v })}
+              ariaLabel="Log download URL query strings"
+            />
+            <span className="text-sm font-medium text-foreground">
+              Log query strings on downloads
+            </span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Download logs always record the URL path and any redirects. Turn
+            this on to include the query string too, which is where a signed
+            CDN token or a listener tracking id usually sits. Useful while
+            debugging a refusal, but those values stay in your logs, so leave
+            it off the rest of the time.
+          </p>
+        </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 

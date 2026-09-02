@@ -1966,6 +1966,14 @@ def _db_setting(key: str):
         return None
 
 
+def log_download_query_enabled() -> bool:
+    """Whether download logs may include URL query strings. Off by default."""
+    raw = _db_setting('log_download_query')
+    if raw is None or str(raw).strip() == '':
+        raw = resolve_env_backed_default('log_download_query')
+    return coerce_bool_setting(raw)
+
+
 def get_env_backed_int(key: str, *, floor: int = None, ceiling: int = None,
                        settings: dict = None) -> int:
     """Resolve an env-backed integer setting: DB value > env seed > fallback.
@@ -2059,6 +2067,9 @@ ENV_BACKED_SETTINGS = (
     ('download_user_agent', 'DOWNLOAD_USER_AGENT', BROWSER_USER_AGENT,
      validate_user_agent),
     ('feed_user_agent', 'FEED_USER_AGENT', APP_USER_AGENT, validate_user_agent),
+    # Off by default: an enclosure query string regularly carries a signed CDN
+    # token or a per-listener tracking id, and logs outlive both.
+    ('log_download_query', 'LOG_DOWNLOAD_QUERY', 'false', _validate_bool_string),
     # Episode run logs (#660): retention 0 turns the subsystem off.
     ('episode_log_retention_days', 'EPISODE_LOG_RETENTION_DAYS',
      str(EPISODE_LOG_RETENTION_DAYS_DEFAULT), _validate_episode_log_retention_days),

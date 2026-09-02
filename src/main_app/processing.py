@@ -42,6 +42,7 @@ from utils.time import (
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
+    log_download_query_enabled,
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
@@ -461,7 +462,9 @@ def _download_episode_audio(episode_url):
         # Without the host the failure is unattributable: the download log
         # line below never runs on this path.
         audio_logger.warning(
-            f"Audio unavailable at {safe_url_for_log(episode_url)}: {cdn_error}")
+            f"Audio unavailable at "
+            f"{safe_url_for_log(episode_url, keep_path=True, keep_query=log_download_query_enabled())}"
+            f": {cdn_error}")
         raise Exception(cdn_error)
     audio_path = transcriber.download_audio(episode_url)
     if not audio_path:

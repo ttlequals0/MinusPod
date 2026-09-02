@@ -510,6 +510,8 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         env_backed=True, payload_key='downloadUserAgent'),
     'feed_user_agent': SettingSpec(
         env_backed=True, payload_key='feedUserAgent'),
+    'log_download_query': SettingSpec(
+        env_backed=True, payload_key='logDownloadQuery', payload_kind='bool'),
     'max_artwork_bytes': SettingSpec(
         env_backed=True, in_ad_reset=True, payload_key='maxArtworkBytes',
         payload_factory=_payload_max_artwork_bytes),

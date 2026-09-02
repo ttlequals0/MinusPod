@@ -24,7 +24,7 @@ from utils.time import format_vtt_timestamp
 from utils.gpu import (clear_gpu_memory, get_available_memory_gb,
                        get_gpu_device_name, get_gpu_memory_info)
 from utils.url import SSRFError
-from utils.http import safe_url_for_log
+from utils.http import redirect_chain_for_log, safe_url_for_log
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
 from utils.safe_http import (
     URLTrust, safe_get, safe_post, stream_to_file_capped,
@@ -58,6 +58,7 @@ from config import (
     WHISPER_API_TIMEOUT_MAX,
     coerce_bool_setting,
     get_env_backed_int, MAX_AUDIO_DOWNLOAD_MB_MIN, MAX_AUDIO_DOWNLOAD_MB_ADVISORY,
+    log_download_query_enabled,
 )
 
 # Suppress ONNX Runtime warnings before importing faster_whisper
@@ -1591,6 +1592,12 @@ class Transcriber:
         except requests.RequestException as e:
             return False, f"CDN check failed: {e}"
 
+        keep_query = log_download_query_enabled()
+        logger.info("Checking audio availability: "
+                    f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}")
+        for line in redirect_chain_for_log(response, keep_query=keep_query):
+            logger.info(line)
+
         if response.status_code == 200:
             return True, None
         if response.status_code == 403:
@@ -1615,8 +1622,10 @@ class Transcriber:
                 cap (default 500MB). Other failures keep the return-None
                 contract.
         """
+        keep_query = log_download_query_enabled()
         try:
-            logger.info(f"Downloading audio from: {safe_url_for_log(url)}")
+            logger.info("Downloading audio from: "
+                        f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}")
             headers = {
                 'User-Agent': download_user_agent(),
                 'Accept': '*/*',
@@ -1630,6 +1639,8 @@ class Transcriber:
                 stream=True,
                 headers=headers,
             )
+            for line in redirect_chain_for_log(response, keep_query=keep_query):
+                logger.info(line)
             response.raise_for_status()
         except SSRFError as e:
             logger.warning(f"SSRF blocked in download_audio: {e}")

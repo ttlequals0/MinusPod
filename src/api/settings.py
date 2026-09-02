@@ -250,6 +250,8 @@ def get_settings():
         settings, 'download_user_agent', registry_default('download_user_agent'))
     feed_user_agent = _setting_value(
         settings, 'feed_user_agent', registry_default('feed_user_agent'))
+    log_download_query = coerce_bool_setting(_setting_value(
+        settings, 'log_download_query', registry_default('log_download_query')))
     feed_auth_enabled = coerce_bool_setting(
         _setting_value(settings, 'feed_auth_enabled',
                        registry_default('feed_auth_enabled')))
@@ -594,6 +596,7 @@ def get_settings():
         'episodeLogLevel': _sv('episode_log_level', episode_log_level),
         'downloadUserAgent': _sv('download_user_agent', download_user_agent),
         'feedUserAgent': _sv('feed_user_agent', feed_user_agent),
+        'logDownloadQuery': _sv('log_download_query', log_download_query),
         'feedAuthEnabled': _sv('feed_auth_enabled', feed_auth_enabled),
         'feedAuthKey': feed_auth_key,
         'opmlModifiedUrl': opml_modified_url,
@@ -894,6 +897,14 @@ def _apply_user_agent_fields(db, data):
                 f'{payload_key} must be printable ASCII on a single line, '
                 f'at most {USER_AGENT_MAX_LENGTH} characters', 400)
         writes.append((db_key, value))
+    if 'logDownloadQuery' in data:
+        if not isinstance(data['logDownloadQuery'], bool):
+            return error_response('logDownloadQuery must be a boolean', 400)
+        db.set_setting('log_download_query',
+                       'true' if data['logDownloadQuery'] else 'false',
+                       is_default=False)
+        logger.info(f"Updated log_download_query: {data['logDownloadQuery']}")
+
     for db_key, value in writes:
         if value:
             db.set_setting(db_key, value, is_default=False)
