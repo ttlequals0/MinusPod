@@ -3759,12 +3759,9 @@ paths:
               schema:
                 type: string
                 description: |
-                  Authenticated stream: `data:` frames with JSON payload:
-                  - processing: boolean
-                  - episode: object with title, slug, episodeId
-                  - stage: current processing stage
-                  - progress: percentage (0-100)
-                  - queue_depth: number of pending episodes
+                  Authenticated stream: `data:` frames carrying the same
+                  JSON as `GET /status` (the `ProcessingStatus` schema),
+                  including the `hold` block.
 
                   Unauthenticated stream: single frame
                   `event: auth-failed\ndata: {}\n\n` then close.
@@ -11617,34 +11614,118 @@ components:
     ProcessingStatus:
       type: object
       properties:
-        processing:
-          type: boolean
-          description: Whether an episode is currently being processed
-        episode:
+        currentJob:
           type:
             - object
             - 'null'
+          description: The episode being processed, or null when nothing is running
           properties:
-            title:
-              type: string
             slug:
               type: string
             episodeId:
               type: string
-          description: Currently processing episode details
-        stage:
+            title:
+              type: string
+            podcastName:
+              type: string
+            stage:
+              type: string
+              description: Current processing stage (e.g. pass1:transcribing)
+            progress:
+              type: number
+              description: Progress percentage (0-100)
+            startedAt:
+              type: number
+              description: Unix timestamp the job started
+            elapsed:
+              type: number
+              description: Seconds since the job started
+        queueLength:
+          type: integer
+          description: Number of episodes waiting to be processed
+        queuedEpisodes:
+          type: array
+          items:
+            type: object
+            properties:
+              slug:
+                type: string
+              episodeId:
+                type: string
+              title:
+                type: string
+              podcastName:
+                type: string
+              queuedAt:
+                type: number
+        feedRefreshes:
+          type: array
+          items:
+            type: object
+            properties:
+              slug:
+                type: string
+              podcastName:
+                type: string
+              newEpisodes:
+                type: integer
+              startedAt:
+                type: number
+        hold:
+          $ref: '#/components/schemas/QueueHold'
+        lastUpdated:
+          type: number
+          description: Unix timestamp of the last status change
+
+    QueueHold:
+      type: object
+      description: |
+        Why the queue is not moving. Reports what the maintenance tick last
+        observed; reading it never probes a service.
+      properties:
+        queuePaused:
+          type: boolean
+          description: |
+            True only while a rate-limit hold is stopping new claims. An
+            offline wait parks specific episodes and leaves the rest of the
+            queue running, so it never sets this.
+        holdUntil:
           type:
             - string
             - 'null'
-          description: Current processing stage (e.g., transcribing, detecting_ads)
-        progress:
-          type:
-            - number
-            - 'null'
-          description: Progress percentage (0-100)
-        queue_depth:
+          format: date-time
+          description: The provider's own rate-limit reset time, or null
+        rateLimitHeld:
           type: integer
-          description: Number of episodes waiting to be processed
+          description: Episodes held by the rate-limit hold
+        offlineHeld:
+          type: integer
+          description: |
+            Every episode deferred on a service other than the rate-limit
+            hold, including any service not broken out in offlineServices.
+        offlineServices:
+          type: array
+          description: Per-service breakdown of offline-queue waits
+          items:
+            type: object
+            properties:
+              service:
+                type: string
+                enum: [llm, whisper]
+              held:
+                type: integer
+              reachable:
+                type:
+                  - boolean
+                  - 'null'
+                description: |
+                  Verdict of the last probe. Null until the tick has probed
+                  once, meaning "not checked yet" rather than "up".
+              checkedAt:
+                type:
+                  - string
+                  - 'null'
+                format: date-time
 
     ProcessingHistoryEntry:
       type: object

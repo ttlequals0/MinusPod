@@ -98,7 +98,7 @@ Key endpoints:
 }
 ```
 
-`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time. An offline wait parks the episodes in `offlineServices` and leaves the rest of the queue running, so it never sets `queuePaused`. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
+`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
 
 ### Public feed-domain routes
 
