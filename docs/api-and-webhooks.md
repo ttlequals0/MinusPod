@@ -88,7 +88,7 @@ Key endpoints:
 {
   "hold": {
     "queuePaused": true,
-    "holdUntil": "2026-01-01T12:30:00+00:00",
+    "holdUntil": "2026-01-01T12:30:00Z",
     "rateLimitHeld": 4,
     "offlineHeld": 2,
     "offlineServices": [

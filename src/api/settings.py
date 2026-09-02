@@ -899,7 +899,11 @@ def _apply_user_agent_fields(db, data):
             db.set_setting(db_key, value, is_default=False)
             logger.info(f"Updated {db_key}")
         else:
-            db.reset_setting(db_key)
+            # clear, not reset_setting: that writes the default resolved right
+            # now into a row, and _resolve prefers a stored row. A later image
+            # bumping the shipped UA past a CDN version floor, or the operator
+            # setting the env var, would then be ignored on this install.
+            db.clear_setting(db_key)
             logger.info(f"Reset {db_key} to the default")
     if writes:
         invalidate_user_agent_cache()

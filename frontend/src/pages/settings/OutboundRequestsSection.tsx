@@ -38,9 +38,15 @@ function OutboundRequestsSection() {
 
   const save = useMutation({
     mutationFn: (payload: Partial<Record<FieldKey, string>>) => updateSettings(payload),
-    onSuccess: () => {
+    onSuccess: (_data, payload) => {
       setError(null);
-      setDraft({});
+      // Drop only what was sent: a per-field Reset must not discard an
+      // unsaved edit sitting in the other field.
+      setDraft((d) => {
+        const next = { ...d };
+        for (const key of Object.keys(payload) as FieldKey[]) delete next[key];
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (e: unknown) => setError(getErrorMessage(e, 'Save failed')),

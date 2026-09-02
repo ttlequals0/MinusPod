@@ -503,7 +503,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_kind='int'),
     'episode_log_level': SettingSpec(
         env_backed=True, payload_key='episodeLogLevel'),
-    # Outbound User-Agent strings (see user_agent.py).
+    # Outbound User-Agent strings (see user_agent.py). Never seeded and
+    # cleared rather than reset, so no row exists unless the operator set one
+    # and _resolve keeps falling through to the env-backed default.
     'download_user_agent': SettingSpec(
         env_backed=True, payload_key='downloadUserAgent'),
     'feed_user_agent': SettingSpec(

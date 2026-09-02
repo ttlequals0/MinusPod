@@ -105,6 +105,30 @@ describe('OutboundRequestsSection', () => {
       .toHaveProperty('disabled', true);
   });
 
+  it('keeps the other field\'s unsaved edit when one field is reset', async () => {
+    mocked.getSettings.mockResolvedValue(makeSettings({
+      downloadUserAgent: { value: 'CustomAgent/9.9', isDefault: false },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any);
+    renderSection();
+    await findLoadedField('Audio, artwork, and chapters', 'CustomAgent/9.9');
+    fireEvent.change(screen.getByLabelText('RSS feeds'), {
+      target: { value: 'MyClient/2.0' },
+    });
+
+    const reset = screen.getByRole('button', {
+      name: 'Reset Audio, artwork, and chapters User-Agent',
+    });
+    fireEvent.click(reset);
+    fireEvent.click(reset);
+
+    await waitFor(() => {
+      expect(mocked.updateSettings).toHaveBeenCalledWith({ downloadUserAgent: '' });
+    });
+    expect((screen.getByLabelText('RSS feeds') as HTMLInputElement).value)
+      .toBe('MyClient/2.0');
+  });
+
   it('surfaces a save failure instead of clearing the draft', async () => {
     mocked.updateSettings.mockRejectedValueOnce(
       new Error('downloadUserAgent must be printable ASCII on a single line'));

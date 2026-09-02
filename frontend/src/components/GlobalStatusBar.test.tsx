@@ -156,6 +156,26 @@ describe('GlobalStatusBar queue holds', () => {
     expect(holdRow('not checked yet')).toBeDefined();
   });
 
+  it('does not call a reachable service unchecked', () => {
+    // A service can hold episodes again between a recovery probe and the next
+    // tick: reachable true with a real checkedAt must not read "not checked".
+    renderBar(makeStatus({
+      hold: emptyHold({
+        offlineHeld: 1,
+        offlineServices: [{
+          service: 'llm', held: 1, reachable: true,
+          checkedAt: new Date().toISOString(),
+        }],
+      }),
+    }));
+    act(() => {
+      screen.getByRole('button', { name: 'Expand status bar' }).click();
+    });
+    const detail = holdRow('LLM provider');
+    expect(detail.textContent).toContain('reachable at last check');
+    expect(detail.textContent).not.toContain('not checked yet');
+  });
+
   it('tolerates a status frame with no hold block', () => {
     const { container } = renderBar(makeStatus());
     expect(container.firstChild).toBeNull();

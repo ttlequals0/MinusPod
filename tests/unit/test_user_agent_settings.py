@@ -75,6 +75,35 @@ def test_invalid_stored_setting_falls_back_to_the_default():
     assert user_agent.download_user_agent() == BROWSER_USER_AGENT
 
 
+def test_reset_leaves_no_row_so_the_env_var_still_wins(monkeypatch):
+    """Reset must clear the row, not freeze the current default into one.
+
+    A stored row wins over the env-backed default in _resolve, so writing the
+    resolved default on reset would pin the string this install first saw and
+    silently ignore both DOWNLOAD_USER_AGENT and a later shipped bump.
+    """
+    db = Database()
+    db.set_setting(user_agent.DOWNLOAD_UA_SETTING, 'CustomAgent/9.9', is_default=False)
+    user_agent.invalidate_cache()
+    assert user_agent.download_user_agent() == 'CustomAgent/9.9'
+
+    from api.settings import _apply_user_agent_fields
+    assert _apply_user_agent_fields(db, {'downloadUserAgent': ''}) is None
+
+    assert db.get_setting(user_agent.DOWNLOAD_UA_SETTING) is None
+    monkeypatch.setenv('DOWNLOAD_USER_AGENT', 'EnvSeeded/2.0')
+    user_agent.invalidate_cache()
+    assert user_agent.download_user_agent() == 'EnvSeeded/2.0'
+
+
+def test_neither_agent_is_seeded():
+    """No row unless the operator sets one, which is what keeps a shipped UA
+    bump and the env var live. Seeding would pin the string at install time."""
+    from database.settings import SETTINGS_REGISTRY
+    for key in (user_agent.DOWNLOAD_UA_SETTING, user_agent.FEED_UA_SETTING):
+        assert SETTINGS_REGISTRY[key].seeded is False
+
+
 def test_default_download_agent_is_a_current_browser_string():
     """The default ages out: hosts that gate on a browser version floor start
     refusing older strings. Guards against silently reverting to a stale one."""

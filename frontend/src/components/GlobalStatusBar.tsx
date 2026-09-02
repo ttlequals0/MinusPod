@@ -388,7 +388,9 @@ function GlobalStatusBar() {
                 {hold.offlineServices.map((svc) => (
                   <li key={svc.service} className="text-xs text-foreground">
                     {serviceLabel(svc.service)}{' '}
-                    {svc.reachable === false ? 'unreachable' : 'not checked yet'}.{' '}
+                    {svc.reachable === false ? 'unreachable'
+                      : svc.reachable === true ? 'reachable at last check'
+                      : 'not checked yet'}.{' '}
                     {countLabel(svc.held, 'episode')} waiting
                     {svc.checkedAt
                       ? `, last checked ${formatClock(svc.checkedAt)}`
