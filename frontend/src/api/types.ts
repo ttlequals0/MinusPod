@@ -502,6 +502,8 @@ export interface Settings {
   lowAdYieldAction: SettingValue;
   episodeLogRetentionDays: SettingValueNumber;
   episodeLogLevel: SettingValue;
+  downloadUserAgent: SettingValue;
+  feedUserAgent: SettingValue;
   feedAuthEnabled: SettingValueBoolean;
   feedAuthKey: string | null;
   // User agents served original audio instead of triggering JIT processing.
@@ -713,6 +715,8 @@ export interface UpdateSettingsPayload {
   lowAdYieldAction?: LowAdYieldAction;
   episodeLogRetentionDays?: number;
   episodeLogLevel?: EpisodeLogLevel;
+  downloadUserAgent?: string;
+  feedUserAgent?: string;
   feedAuthEnabled?: boolean;
   jitBlockedUserAgents?: string[];
   audioBitrate?: string;

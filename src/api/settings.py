@@ -40,6 +40,7 @@ from config import (
     LOW_AD_YIELD_ACTIONS,
     EPISODE_LOG_LEVELS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
+    USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
@@ -56,6 +57,7 @@ from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
     registry_default, registry_get_default,
 )
+from user_agent import invalidate_cache as invalidate_user_agent_cache
 from offline_queue import (
     get_offline_queue_ttl_hours, is_offline_queue_enabled,
     TTL_HOURS_MIN, TTL_HOURS_MAX,
@@ -244,6 +246,10 @@ def get_settings():
         settings=settings)
     episode_log_level = _setting_value(
         settings, 'episode_log_level', registry_default('episode_log_level'))
+    download_user_agent = _setting_value(
+        settings, 'download_user_agent', registry_default('download_user_agent'))
+    feed_user_agent = _setting_value(
+        settings, 'feed_user_agent', registry_default('feed_user_agent'))
     feed_auth_enabled = coerce_bool_setting(
         _setting_value(settings, 'feed_auth_enabled',
                        registry_default('feed_auth_enabled')))
@@ -586,6 +592,8 @@ def get_settings():
         'episodeLogRetentionDays': _sv(
             'episode_log_retention_days', episode_log_retention_days),
         'episodeLogLevel': _sv('episode_log_level', episode_log_level),
+        'downloadUserAgent': _sv('download_user_agent', download_user_agent),
+        'feedUserAgent': _sv('feed_user_agent', feed_user_agent),
         'feedAuthEnabled': _sv('feed_auth_enabled', feed_auth_enabled),
         'feedAuthKey': feed_auth_key,
         'opmlModifiedUrl': opml_modified_url,
@@ -732,6 +740,7 @@ def update_ad_detection_settings():
         _apply_segment_category_actions,
         _apply_community_sync_categories,
         _apply_jit_blocked_user_agents,
+        _apply_user_agent_fields,
     )
     for phase in phases:
         err = phase(db, data)
@@ -860,6 +869,40 @@ def _apply_size_caps(db, data):
     for db_key, n in writes:
         db.set_setting(db_key, str(n), is_default=False)
         logger.info(f"Updated {db_key} to: {n}")
+
+
+def _apply_user_agent_fields(db, data):
+    """Persist the outbound User-Agent strings.
+
+    Validates both before writing either, so a 400 never leaves half the
+    payload persisted. An empty string resets the field to its default.
+    """
+    fields = (
+        ('downloadUserAgent', 'download_user_agent'),
+        ('feedUserAgent', 'feed_user_agent'),
+    )
+    writes = []
+    for payload_key, db_key in fields:
+        if payload_key not in data:
+            continue
+        value = data[payload_key]
+        if not isinstance(value, str):
+            return error_response(f'{payload_key} must be a string', 400)
+        value = value.strip()
+        if value and not validate_user_agent(value):
+            return error_response(
+                f'{payload_key} must be printable ASCII on a single line, '
+                f'at most {USER_AGENT_MAX_LENGTH} characters', 400)
+        writes.append((db_key, value))
+    for db_key, value in writes:
+        if value:
+            db.set_setting(db_key, value, is_default=False)
+            logger.info(f"Updated {db_key}")
+        else:
+            db.set_setting(db_key, registry_default(db_key), is_default=True)
+            logger.info(f"Reset {db_key} to the default")
+    if writes:
+        invalidate_user_agent_cache()
 
 
 def _clear_format_probes(db) -> None:

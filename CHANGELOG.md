@@ -11,8 +11,40 @@ release notes.
 
 ## [Unreleased]
 
+## [2.94.7] - 2026-09-02
+
+### Added
+
+- The two outbound User-Agent strings are now settings, editable in
+  Settings > Data & Security > Outbound Requests and seeded by
+  `DOWNLOAD_USER_AGENT` and `FEED_USER_AGENT`. One covers audio, artwork, and
+  chapters; the other covers RSS. They are separate because hosts disagree.
+  Bot mitigation on some CDNs refuses browser identifiers below a version
+  floor that moves as new browsers ship. Some feed hosts do the reverse and
+  answer only a declared podcast client. Working around a host that starts
+  refusing ours no longer takes a new image. A value must be printable ASCII
+  on a single line, at most 512 characters, so an operator-supplied string
+  cannot inject a header.
+- `GET /api/v1/status` and the SSE status stream carry a `hold` block. It
+  reports whether a rate-limit pause is stopping new claims, the provider's
+  reset time, and how many episodes each hold is keeping. Each offline-queue
+  service also carries the verdict of the last reachability probe.
+- The status bar now appears when the queue is holding work with nothing
+  running, which previously looked identical to an idle queue. It names the
+  provider reset time for a rate-limit pause, and the unreachable service for
+  an offline wait. The two stay distinct: a rate-limit hold pauses the whole
+  queue, while an offline wait parks only the episodes waiting on that
+  service.
+- The offline queue now records each reachability probe it already performs.
+  The status API can then say which service is down and when it was last
+  checked, without probing on the read path.
+
 ### Changed
 
+- The default download User-Agent moves off a Chrome 120 string that hosts
+  had begun refusing.
+- A failed audio availability check now logs the host it could not reach.
+  Repeated failures previously left no record of what was being fetched.
 - The community patterns contributed before segment categories existed now
   declare `category: "sponsor"` (196 of 197 files). Installs read the category
   to decide whether a match is cut, beeped, or kept, and to filter which
@@ -22,6 +54,14 @@ release notes.
 
 ### Fixed
 
+- A 403 on the audio availability check now fails the episode immediately
+  instead of being retried as a transient CDN error. The check reported every
+  refusal and every not-yet-ready file under the same "CDN not ready" text, so
+  the retry classifier could not tell them apart. A refused download worked
+  through the full retry ladder against a host that answers the same way every
+  time. A 403 is now reported as `CDN refused the request (403)` and treated
+  as permanent. A 404 stays transient, since a freshly published episode can
+  404 briefly while its host provisions the media URL.
 - A community pattern file whose name did not match its sponsor is renamed to
   the convention the submission validator enforces.
 - The community pattern validation workflow installs the dependencies the

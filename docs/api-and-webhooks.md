@@ -54,7 +54,7 @@ Key endpoints:
 - `GET /api/v1/stats/dashboard` - Aggregate stats (avg/min/max time saved, ads, cost, tokens) with optional podcast filter
 - `GET /api/v1/stats/by-day` - Episodes processed by day of week
 - `GET /api/v1/stats/by-podcast` - Per-podcast stats (ads, time saved, tokens, cost)
-- `GET /api/v1/status` - Current processing status
+- `GET /api/v1/status` - Current processing status, including a `hold` block describing why the queue is not moving
 - `GET /api/v1/status/stream` - SSE endpoint for real-time status updates
 - `GET /api/v1/system/updates` - Latest stable and edge release info from GitHub Releases, cached 6 hours in-process (`?refresh=true` forces a live fetch, throttled to once per 30 seconds); returns 502 if GitHub is unreachable
 - `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
@@ -79,6 +79,26 @@ Key endpoints:
 - `POST /api/v1/settings/webhooks/validate-template` - Validate and preview a payload template
 - `GET/PUT /api/v1/settings/notifications/email` - Email notification settings
 - `POST /api/v1/settings/notifications/email/test` - Send a test email
+
+### Queue hold state
+
+`GET /api/v1/status` and every frame of `GET /api/v1/status/stream` carry a `hold` block saying why the queue is not moving. It reports what the maintenance tick last observed and never probes a service itself, so polling it costs nothing upstream.
+
+```json
+{
+  "hold": {
+    "queuePaused": true,
+    "holdUntil": "2026-01-01T12:30:00+00:00",
+    "rateLimitHeld": 4,
+    "offlineHeld": 2,
+    "offlineServices": [
+      {"service": "whisper", "held": 2, "reachable": false, "checkedAt": "2026-01-01T11:58:00Z"}
+    ]
+  }
+}
+```
+
+`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time. An offline wait parks the episodes in `offlineServices` and leaves the rest of the queue running, so it never sets `queuePaused`. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
 
 ### Public feed-domain routes
 

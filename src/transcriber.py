@@ -14,6 +14,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from run_log import run_in_worker_thread
+from user_agent import download_user_agent
 from utils.audio import get_audio_duration
 from utils.errors import (
     ServiceUnavailableError, AudioTooLargeError, AudioExtractionError,
@@ -45,7 +46,6 @@ from config import (
     MEMORY_SAFETY_MARGIN,
     WHISPER_MEMORY_PROFILES,
     WHISPER_DEFAULT_PROFILE,
-    BROWSER_USER_AGENT,
     FFMPEG_LONG_TIMEOUT,
     FFMPEG_SHORT_TIMEOUT,
     FFMPEG_CHUNK_TIMEOUT,
@@ -1565,7 +1565,7 @@ class Transcriber:
             Tuple of (available: bool, error_message: str or None)
         """
         from utils.safe_http import safe_head
-        headers = {'User-Agent': BROWSER_USER_AGENT}
+        headers = {'User-Agent': download_user_agent()}
         try:
             response = safe_head(
                 url,
@@ -1588,8 +1588,12 @@ class Transcriber:
 
         if response.status_code == 200:
             return True, None
-        if response.status_code in (404, 403):
-            return False, f"CDN not ready ({response.status_code})"
+        if response.status_code == 403:
+            # Distinct from the 404 below so the retry classifier can treat it
+            # as permanent: an access decision does not change on replay.
+            return False, "CDN refused the request (403)"
+        if response.status_code == 404:
+            return False, "CDN not ready (404)"
         if response.status_code >= 500:
             return False, f"CDN server error ({response.status_code})"
         return True, None
@@ -1609,7 +1613,7 @@ class Transcriber:
         try:
             logger.info(f"Downloading audio from: {safe_url_for_log(url)}")
             headers = {
-                'User-Agent': BROWSER_USER_AGENT,
+                'User-Agent': download_user_agent(),
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }

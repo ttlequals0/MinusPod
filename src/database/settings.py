@@ -503,6 +503,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_kind='int'),
     'episode_log_level': SettingSpec(
         env_backed=True, payload_key='episodeLogLevel'),
+    # Outbound User-Agent strings (see user_agent.py).
+    'download_user_agent': SettingSpec(
+        env_backed=True, payload_key='downloadUserAgent'),
+    'feed_user_agent': SettingSpec(
+        env_backed=True, payload_key='feedUserAgent'),
     'max_artwork_bytes': SettingSpec(
         env_backed=True, in_ad_reset=True, payload_key='maxArtworkBytes',
         payload_factory=_payload_max_artwork_bytes),

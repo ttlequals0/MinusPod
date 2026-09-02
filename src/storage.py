@@ -10,13 +10,14 @@ import tempfile
 import shutil
 
 from config import (
-    BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_FETCH,
+    HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_FETCH,
     count_pending_review,
     get_env_backed_int, MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX,
 )
 from artwork_watermark import (
     composite_watermark, cover_badge_salt, badge_path, normalize_badge_position,
 )
+from user_agent import download_user_agent
 from utils.episode_paths import episode_filename
 from utils.http import safe_url_for_log
 from utils.url import SSRFError
@@ -721,7 +722,7 @@ class Storage:
                         f"{safe_url_for_log(artwork_url)}")
 
             headers = {
-                'User-Agent': BROWSER_USER_AGENT,
+                'User-Agent': download_user_agent(),
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }
@@ -1004,7 +1005,7 @@ class Storage:
             logger.info(f"[{slug}] Downloading artwork from {safe_url_for_log(artwork_url)}")
 
             headers = {
-                'User-Agent': BROWSER_USER_AGENT,
+                'User-Agent': download_user_agent(),
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }

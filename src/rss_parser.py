@@ -11,7 +11,7 @@ import requests
 from urllib.parse import urlparse
 
 from config import (
-    APP_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, MAX_RSS_BYTES_MIN,
+    HTTP_MAX_REDIRECTS_FEED, MAX_RSS_BYTES_MIN,
     get_env_backed_int, title_matches_skip_patterns,
 )
 from defusedxml.common import DefusedXmlException
@@ -23,6 +23,7 @@ from utils.episode_paths import episode_public_url
 from utils.feed_guid import compute_feed_guid
 from utils.time import parse_iso_datetime, parse_timestamp
 from utils.url import SSRFError
+from user_agent import feed_user_agent
 from utils.http import safe_url_for_log
 from utils.safe_http import (
     IncompleteResponseError, ResponseTooLargeError, URLTrust,
@@ -291,7 +292,7 @@ class RSSParser:
 
         try:
             logger.info(f"Fetching RSS feed from: {safe_url_for_log(url)}")
-            # APP_USER_AGENT is required: some feed hosts (e.g.
+            # An explicit feed UA is required: some feed hosts (e.g.
             # feeds.podcastindex.org) reject the default python-requests UA
             # with 403. fetch_feed_conditional already sets it; the
             # initial-fetch path was previously missing it, which made
@@ -302,7 +303,7 @@ class RSSParser:
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
-                headers={'User-Agent': APP_USER_AGENT},
+                headers={'User-Agent': feed_user_agent()},
             )
             try:
                 response.raise_for_status()
@@ -353,7 +354,7 @@ class RSSParser:
                     stream=True,
                     headers={
                         'Accept-Encoding': 'identity',
-                        'User-Agent': APP_USER_AGENT,
+                        'User-Agent': feed_user_agent(),
                     },
                 )
                 response.raise_for_status()
@@ -402,7 +403,7 @@ class RSSParser:
             If feed not modified (304), returns (None, etag, last_modified)
             On error, returns (None, None, None)
         """
-        headers = {'User-Agent': APP_USER_AGENT}
+        headers = {'User-Agent': feed_user_agent()}
         if etag:
             headers['If-None-Match'] = etag
         if last_modified:

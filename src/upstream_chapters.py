@@ -11,7 +11,8 @@ way it preserves embedded chapters.
 import json
 import logging
 
-from config import BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API
+from config import HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API
+from user_agent import download_user_agent
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, read_response_capped, safe_get
 
@@ -52,7 +53,7 @@ def fetch_upstream_chapters(url: str) -> list[dict] | None:
             timeout=HTTP_TIMEOUT_API,
             stream=True,
             headers={
-                'User-Agent': BROWSER_USER_AGENT,
+                'User-Agent': download_user_agent(),
                 'Accept': 'application/json',
             },
         )

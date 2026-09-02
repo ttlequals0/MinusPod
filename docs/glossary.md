@@ -70,6 +70,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Held for Review** - An ad that detection wanted to cut but a per-feed guard (max ad duration, cue-gated approval, a reviewer contradiction, or a verification conflict) stopped. The audio stays intact until you approve or dismiss it. [Web Interface > Held for Review](web-interface.md#held-for-review)
 
+**Hold (queue)** - Any reason the queue is waiting rather than working: a rate-limit pause that stops new claims outright, or an offline-queue wait that parks specific episodes while the rest keep processing. The status bar names which one is in effect, and `GET /api/v1/status` reports it in a `hold` block. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
+
 ## I
 
 **Import directory** - The user-managed folder for a local feed's archive import, `<data>/import/<slug>/`. You place audio and sidecar files there yourself; on a successful commit MinusPod moves the audio out and deletes that episode's sidecars along with it, leaving a rejected or errored file's sidecars in place to fix and re-scan. [Local Feeds > Bulk import](local-feeds.md#bulk-import)
@@ -87,6 +89,12 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 ## N
 
 **Normalization** - A rule that maps sponsor name variants ("betterhelp.com slash pod", "Better Help") onto one sponsor so patterns and history stay tidy. [Web Interface > Sponsors and Normalizations](web-interface.md#sponsors-and-normalizations)
+
+## O
+
+**Offline queue** - An opt-in hold that parks an episode when the LLM provider or Whisper endpoint is unreachable, probes the service every few minutes, and re-queues the episode once it answers. It does not stop the queue: everything not waiting on that service keeps processing. [Configuration > Offline Queue](configuration.md#offline-queue)
+
+**Outbound Requests** - The settings section holding the two User-Agent strings MinusPod sends: one for audio, artwork, and chapters, one for RSS. Editable so a host that starts refusing ours can be worked around without a new release. [Configuration > Outbound Requests](configuration.md#outbound-requests)
 
 ## P
 
@@ -109,6 +117,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Queue priority** - A per-feed High/Normal/Low processing-order preference, with automatic boosts for episodes published in the last 48 hours and for manual reprocesses. [Configuration > Queue priority](configuration.md#queue-priority)
 
 ## R
+
+**Rate-limit hold** - An opt-in hold that parks an episode when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming new work until that time passes. Unlike the offline queue it pauses everything, though anything you ask for by hand still runs. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 
 **Recut** - Re-cutting the retained original audio using the current ad markers, with no download, transcription, or LLM involved. What "Approve & Recut" does. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
 
@@ -156,6 +166,10 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Title blacklist** - A per-feed list of case-insensitive glob patterns (e.g. `Bonus Episode *`) that skip processing for matching episode titles. A per-feed choice serves a skipped episode unmodified or hides it from the feed. Manual reprocess overrides it. [Configuration > Title blacklist](configuration.md#title-blacklist)
 
 **Transcript (VTT)** - The Podcasting 2.0 transcript MinusPod generates for the processed audio, with cut regions accounted for. [Podcasting 2.0](podcasting-2.0.md)
+
+## U
+
+**User-Agent** - The string MinusPod sends to identify itself on an outbound request. There are two, because hosts disagree about what they will answer. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship, while some feed hosts serve only a declared podcast client. Both are editable. [Configuration > Outbound Requests](configuration.md#outbound-requests)
 
 ## V
 

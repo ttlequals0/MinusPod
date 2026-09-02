@@ -386,6 +386,21 @@ Only a reset further out than five minutes triggers a hold. Shorter ones keep th
 
 Held episodes sit under their own service name, so the offline queue's endpoint probes and give-up window never touch them, and a held episode does not inherit the clock of an earlier offline deferral.
 
+## Outbound Requests
+
+MinusPod identifies itself with two User-Agent strings, and hosts treat them differently. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship. A string that worked last year starts drawing a 403 on download, even though the file is there. Other feed hosts do the reverse and answer only a declared podcast client. One string cannot satisfy both, so there are two.
+
+Both ship with working defaults and are editable in **Settings > Data & Security > Outbound Requests**. A host that starts refusing yours is fixed by pasting in a new string rather than by waiting for a release.
+
+| Setting | Default | Sent when |
+|---|---|---|
+| Audio, artwork, and chapters | a current Chrome string | Downloading media, feed artwork, and upstream chapter files. |
+| RSS feeds | `PodcastAdRemover/1.0` | Fetching and validating RSS. |
+
+A value must be printable ASCII on a single line, at most 512 characters. Carriage returns and line feeds are rejected, since the value goes straight into a request header. Reset returns a field to its default.
+
+If downloads start failing with `CDN refused the request (403)` while the feed itself still refreshes, the download string is the one to change. Try the User-Agent your own browser sends. A 403 fails the episode on the first attempt rather than working through the retry ladder, because a host refusing the request answers the same way every time. A 404 still retries, since a freshly published episode can 404 briefly while its host provisions the media URL.
+
 ## Scheduled Database Backups
 
 MinusPod can snapshot its SQLite database to a directory on a cron schedule. The feature is off by default. The "Back up now" button runs a snapshot immediately whether or not the schedule is enabled, and is rate-limited to 6 runs per hour. Configure it in **Settings > Data & Security > Scheduled Backups**.

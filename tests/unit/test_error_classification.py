@@ -18,6 +18,12 @@ from main_app.processing import is_transient_error
     (requests.exceptions.HTTPError('403 Client Error: Forbidden for url: x'), False),
     (requests.exceptions.HTTPError('401 Client Error: Unauthorized'), False),
     (Exception('Invalid audio: unsupported format'), False),
+    # A CDN answering 403 to the availability probe is refusing the request,
+    # not waiting on propagation, so it must not burn the retry ladder.
+    (Exception('CDN refused the request (403)'), False),
+    # The 404 probe result keeps retrying for the provisioning reason above.
+    (Exception('CDN not ready (404)'), True),
+    (Exception('CDN timeout'), True),
     # Local feeds have no upstream: a missing retained original never
     # recovers on retry, so it must not loop through the full retry ladder.
     (Exception('original audio missing'), False),

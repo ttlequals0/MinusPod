@@ -15,6 +15,8 @@ interface ConfirmResetButtonProps {
   // Consequence shown as visible text while armed, for touch users who never
   // see a title tooltip.
   confirmHint?: string;
+  // Accessible name, for pages carrying more than one "Reset" button.
+  ariaLabel?: string;
 }
 
 // Two-click destructive reset (issue #513): the first click arms the button
@@ -23,7 +25,7 @@ interface ConfirmResetButtonProps {
 // secondary-background text.
 function ConfirmResetButton({
   label, isPending = false, onConfirm, size = 'default', disabled = false, title,
-  confirmHint,
+  confirmHint, ariaLabel,
 }: ConfirmResetButtonProps) {
   const [armed, setArmed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,6 +38,7 @@ function ConfirmResetButton({
     <button
       type="button"
       title={title}
+      aria-label={ariaLabel}
       onClick={() => {
         if (armed) {
           if (timer.current) clearTimeout(timer.current);

@@ -434,11 +434,12 @@ class TestGetDefaults:
         # queueManualBoost + queueFreshBoost + queueBulkBoost after that (95 -> 98).
         # llmJsonSchemaEnabled after that (98 -> 99). The rate-limit hold
         # settings have no payload keys (dedicated endpoint).
+        # downloadUserAgent + feedUserAgent after that (101 -> 103).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 101
+        assert len(payload_keys) == 103
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

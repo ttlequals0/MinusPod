@@ -5,7 +5,7 @@ after transcription and diffs the two files. Audio that differs across
 fetches is dynamically inserted by definition; identical audio is content
 or a baked-in ad.
 
-The primary download uses config.BROWSER_USER_AGENT (see
+The primary download uses the configured download UA (see
 transcriber.download_audio); the refetch always presents a different,
 realistic podcast-client string because ad decisioning keys on the request
 fingerprint and UA + natural time spacing is the only variation available.
@@ -18,8 +18,9 @@ import random
 import numpy as np
 
 from audio_analysis.silence_detector import SilenceDetector
-from config import BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED
+from config import HTTP_MAX_REDIRECTS_FEED
 from utils.audio import get_audio_duration
+from user_agent import download_user_agent
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get, stream_to_file_capped
 from utils.subprocess_registry import tracked_run
@@ -455,7 +456,7 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
     order). A scan failure logs and degrades to no cues -- it never fails
     the differential. The refetch file is still deleted here in all cases.
     """
-    ua = pick_refetch_user_agent(BROWSER_USER_AGENT)
+    ua = pick_refetch_user_agent(download_user_agent())
     meta = {'ua': ua, 'size': None, 'duration': None}
     refetch_path = os.path.join(work_dir, 'refetch_audio')
     try:

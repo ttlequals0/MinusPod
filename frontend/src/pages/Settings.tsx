@@ -51,6 +51,7 @@ import PositionalPriorSection from './settings/PositionalPriorSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import DatabaseBackupSection from './settings/DatabaseBackupSection';
 import QueueControlSection from './settings/QueueControlSection';
+import OutboundRequestsSection from './settings/OutboundRequestsSection';
 import { Search, X } from 'lucide-react';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
 import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
@@ -1182,6 +1183,8 @@ function Settings() {
       />
 
       <SettingsGroupHeader title="Data & Security" />
+
+      <OutboundRequestsSection />
 
       <StorageRetentionSection
         keepOriginalAudio={keepOriginalAudio}

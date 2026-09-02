@@ -1401,14 +1401,19 @@ class ModelNotConfiguredError(ValueError):
 # ============================================================
 # User-Agent Strings
 # ============================================================
-# Browser-like UA for downloading audio from CDNs that block bots
+# Fallback defaults only; the live values are settings resolved through
+# user_agent.py. Some CDNs refuse browser UAs below a rolling version floor,
+# so this string ages out and needs bumping here and in the env-var docs.
 BROWSER_USER_AGENT = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
     'AppleWebKit/537.36 (KHTML, like Gecko) '
-    'Chrome/120.0.0.0 Safari/537.36'
+    'Chrome/153.0.0.0 Safari/537.36'
 )
 # Application UA for RSS feeds and API requests
 APP_USER_AGENT = 'PodcastAdRemover/1.0'
+
+# Header-safe bound for an operator-supplied User-Agent.
+USER_AGENT_MAX_LENGTH = 512
 
 
 # ============================================================
@@ -1862,6 +1867,17 @@ def _validate_episode_log_level(value: str) -> bool:
     return value in EPISODE_LOG_LEVELS
 
 
+def validate_user_agent(value: str) -> bool:
+    """Non-empty printable ASCII within the length bound. CR/LF are rejected:
+    this value is operator-supplied and goes straight into a request header."""
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    if not stripped or len(stripped) > USER_AGENT_MAX_LENGTH:
+        return False
+    return all(' ' <= ch <= '~' for ch in stripped)
+
+
 def _validate_badge_position(value: str) -> bool:
     from artwork_watermark import BADGE_POSITIONS  # lazy: keeps Pillow out of config import
     return value in BADGE_POSITIONS
@@ -2039,6 +2055,10 @@ ENV_BACKED_SETTINGS = (
     # Automatic response to a low-ad-yield pipeline run; per-feed overridable.
     ('low_ad_yield_action', 'LOW_AD_YIELD_ACTION', LOW_AD_YIELD_ACTION_NOTHING,
      _validate_low_ad_yield_action),
+    # Two strings because hosts disagree: see user_agent.py.
+    ('download_user_agent', 'DOWNLOAD_USER_AGENT', BROWSER_USER_AGENT,
+     validate_user_agent),
+    ('feed_user_agent', 'FEED_USER_AGENT', APP_USER_AGENT, validate_user_agent),
     # Episode run logs (#660): retention 0 turns the subsystem off.
     ('episode_log_retention_days', 'EPISODE_LOG_RETENTION_DAYS',
      str(EPISODE_LOG_RETENTION_DAYS_DEFAULT), _validate_episode_log_retention_days),

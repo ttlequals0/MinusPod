@@ -123,6 +123,7 @@ from utils.constants import (
 from utils.episode_paths import episode_relative_path
 from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionTimeout
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
+from utils.http import safe_url_for_log
 from utils.language import get_feed_language_override
 from utils.text import (
     parse_transcript_segments,
@@ -245,7 +246,7 @@ def is_transient_error(error: Exception) -> bool:
     if any(pattern in error_msg for pattern in oom_patterns):
         return False
 
-    # CDN errors are transient
+    # CDN errors are transient. A refusal is not, and is matched below.
     transient_patterns = [
         'cdn not ready', 'cdn timeout', 'cdn server error', 'cdn check failed',
     ]
@@ -259,6 +260,8 @@ def is_transient_error(error: Exception) -> bool:
         'invalid audio', 'unsupported format', 'corrupt',
         'authentication', 'unauthorized', 'forbidden',
         '400 ', '401 ', '403 ',
+        # A refusal answers the same way on every retry.
+        'cdn refused',
         # Local feeds have no upstream to retry against: a missing retained
         # original never recovers on its own, so retrying just burns the
         # full ladder before landing on permanently_failed anyway.
@@ -455,7 +458,11 @@ def _download_episode_audio(episode_url):
     audio path; raises on either failure."""
     available, cdn_error = transcriber.check_audio_availability(episode_url)
     if not available:
-        raise Exception(f"CDN not ready: {cdn_error}")
+        # Without the host the failure is unattributable: the download log
+        # line below never runs on this path.
+        audio_logger.warning(
+            f"Audio unavailable at {safe_url_for_log(episode_url)}: {cdn_error}")
+        raise Exception(cdn_error)
     audio_path = transcriber.download_audio(episode_url)
     if not audio_path:
         raise Exception("Failed to download audio")

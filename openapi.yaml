@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.94.6
+  version: 2.94.7
   contact:
     name: MinusPod
   license:
@@ -4659,6 +4659,18 @@ paths:
                   type: string
                   enum: [debug, info]
                   description: Minimum level kept in a run log (issue 660). Defaults to debug.
+                downloadUserAgent:
+                  type: string
+                  maxLength: 512
+                  description: >-
+                    User-Agent sent when fetching audio, artwork, and chapters. Printable
+                    ASCII on a single line. Send an empty string to restore the default.
+                feedUserAgent:
+                  type: string
+                  maxLength: 512
+                  description: >-
+                    User-Agent sent when fetching RSS feeds. Printable ASCII on a single
+                    line. Send an empty string to restore the default.
                 feedAuthEnabled:
                   type: boolean
                   description: Require the global feed auth key on all public feed and episode URLs. Enabling generates the key if absent.
@@ -10991,6 +11003,22 @@ components:
               description: Minimum level kept in a run log (issue 660).
             isDefault:
               type: boolean
+        downloadUserAgent:
+          type: object
+          properties:
+            value:
+              type: string
+              description: User-Agent sent when fetching audio, artwork, and chapters.
+            isDefault:
+              type: boolean
+        feedUserAgent:
+          type: object
+          properties:
+            value:
+              type: string
+              description: User-Agent sent when fetching RSS feeds.
+            isDefault:
+              type: boolean
         feedAuthEnabled:
           type: object
           properties:
@@ -11258,6 +11286,10 @@ components:
             episodeLogLevel:
               type: string
               enum: [debug, info]
+            downloadUserAgent:
+              type: string
+            feedUserAgent:
+              type: string
             feedAuthEnabled:
               type: boolean
             minCutConfidence:
