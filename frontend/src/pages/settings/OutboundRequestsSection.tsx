@@ -17,16 +17,14 @@ const FIELDS: { key: FieldKey; label: string; help: string }[] = [
   {
     key: 'downloadUserAgent',
     label: 'Audio, artwork, and chapters',
-    help: 'Sent as the User-Agent when downloading media. Some hosts refuse '
-      + 'browser identifiers older than a version they consider current, which '
-      + 'shows up as a 403 on download. Pasting a current browser string clears it.',
+    help: 'Sent when downloading media. Some hosts refuse browser identifiers '
+      + 'older than a version they consider current, which reads as a 403.',
   },
   {
     key: 'feedUserAgent',
     label: 'RSS feeds',
-    help: 'Sent as the User-Agent when fetching feeds. Some feed hosts answer '
-      + 'only a declared podcast client and reject browser strings, so keep this '
-      + 'one an honest application identifier.',
+    help: 'Sent when fetching feeds. Some hosts answer only a declared podcast '
+      + 'client, so keep this one an honest application identifier.',
   },
 ];
 
@@ -102,11 +100,8 @@ function OutboundRequestsSection() {
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
-            Download logs always record the URL path and any redirects. Turn
-            this on to include the query string too, which is where a signed
-            CDN token or a listener tracking id usually sits. Useful while
-            debugging a refusal, but those values stay in your logs, so leave
-            it off the rest of the time.
+            Adds the query string to download logs, where a signed CDN token
+            usually sits. Leave it off unless you are debugging a refusal.
           </p>
         </div>
 

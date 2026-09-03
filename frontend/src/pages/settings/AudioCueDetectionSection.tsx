@@ -219,7 +219,9 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                     <span className="text-sm text-muted-foreground">0-0.99</span>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Match score a marked cue must reach to register on another episode. Lower catches more but risks false matches. Applies only to feeds with templates; otherwise the spectral knobs above are used. A cue must reach 0.80 confidence to affect a cut (the model, snap, and pairing floors); a lower value here only surfaces weaker cues in diagnostics.
+                    Match score a marked cue must reach on another episode. Lower catches more
+                    and risks false matches. A cue still needs 0.80 confidence to affect a cut,
+                    so a lower value here only surfaces weaker cues in diagnostics.
                   </p>
                 </div>
 

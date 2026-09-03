@@ -95,3 +95,41 @@ def test_compute_never_raises():
             raise RuntimeError('db down')
     cal = compute_splice_calibration(_BoomDB(), 'some-feed')
     assert cal == cold_start_calibration()
+
+
+class TestFeedWithNoSpliceEvents:
+    """A feed whose history holds no splice events must stay cold_start.
+
+    Promotion used to need only five valid payloads, regardless of what was
+    in them. A host-read archive, where nothing is ever dynamically inserted,
+    accumulated five empty payloads and calibrated. That armed the validator's
+    zero-splice veto against evidence the feed cannot produce, holding every
+    long cut. Cold start corroborates but never vetoes, which is the treatment
+    such a feed needs.
+    """
+
+    def test_five_empty_payloads_stay_cold_start(self):
+        result = build_calibration([_row([]) for _ in range(5)])
+        assert result['status'] == 'cold_start'
+        assert result['episodes_considered'] == 5
+
+    def test_ten_empty_payloads_still_stay_cold_start(self):
+        """More history of nothing is still nothing."""
+        assert build_calibration([_row([]) for _ in range(10)])['status'] == 'cold_start'
+
+    def test_a_single_event_across_the_history_still_calibrates(self):
+        """Deliberately not a rate threshold: any real splice means the
+        detector works on this feed, so the veto has something to find."""
+        rows = [_row([]) for _ in range(4)] + [_row([_event(100.0)])]
+        assert build_calibration(rows)['status'] == 'calibrated'
+
+    def test_a_feed_with_events_is_unaffected(self):
+        rows = [_row([_event(100.0), _event(200.0)]) for _ in range(5)]
+        result = build_calibration(rows)
+        assert result['status'] == 'calibrated'
+        assert result['events_per_hour']
+
+    def test_below_the_episode_gate_is_still_cold_start(self):
+        """The pre-existing gate keeps working; the new check is additive."""
+        rows = [_row([_event(100.0)]) for _ in range(3)]
+        assert build_calibration(rows)['status'] == 'cold_start'

@@ -69,6 +69,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Phase C held-for-review per-feed settings
     max_ad_duration_override REAL,
     max_ad_duration_reject_override REAL,
+    -- Splice-veto override (NULL = inherit the global, 0 = off, 1 = on)
+    splice_veto_enabled INTEGER,
     cue_gated_approval INTEGER DEFAULT 0,
     skip_second_pass INTEGER DEFAULT 0,
     skip_transcription INTEGER,

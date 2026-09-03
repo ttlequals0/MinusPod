@@ -490,6 +490,7 @@ def _normalize_cue_float_override(value, field_name, lo, hi):
 _NULLABLE_BOOL_FIELDS = [
     ('silenceSnapEnabled',       'silence_snap_enabled'),
     ('transitionSnapEnabled',    'transition_snap_enabled'),
+    ('spliceVetoEnabled',        'splice_veto_enabled'),
     ('cueGatedApproval',         'cue_gated_approval'),
     ('differentialFetchEnabled', 'differential_fetch_enabled'),
     ('passthroughEnabled', 'passthrough_enabled'),

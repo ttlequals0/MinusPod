@@ -872,6 +872,43 @@ describe('FeedSettingsPanel run log override', () => {
   });
 });
 
+describe('FeedSettingsPanel splice check override', () => {
+  const SELECT = 'Splice check';
+
+  it('defaults to inheriting the global', () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: SELECT }) as HTMLSelectElement;
+    expect(select.value).toBe('');
+  });
+
+  it('renders an explicit feed override', () => {
+    renderPanel(makeFeed({ spliceVetoEnabled: false }));
+    const select = screen.getByRole('combobox', { name: SELECT }) as HTMLSelectElement;
+    expect(select.value).toBe('false');
+  });
+
+  it('turning the check off for the feed sends false, not null', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: SELECT }), 'false');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { spliceVetoEnabled: false });
+  });
+
+  it('forcing the check on sends true', async () => {
+    renderPanel(makeFeed({ spliceVetoEnabled: false }));
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: SELECT }), 'true');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { spliceVetoEnabled: true });
+  });
+
+  it('choosing the global option clears the override', async () => {
+    renderPanel(makeFeed({ spliceVetoEnabled: true }));
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: SELECT }), '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { spliceVetoEnabled: null });
+  });
+});
+
 describe('FeedSettingsPanel retention overrides', () => {
   beforeEach(() => {
     vi.clearAllMocks();

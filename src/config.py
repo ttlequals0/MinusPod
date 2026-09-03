@@ -1027,6 +1027,17 @@ def resolve_max_ad_duration(db, podcast_id) -> float:
         return MAX_AD_DURATION
 
 
+def resolve_splice_veto_enabled(db, podcast_id, global_default: bool) -> bool:
+    """Whether the zero-splice-evidence veto applies to this feed.
+
+    Per-feed override wins; NULL inherits `global_default`. The escape hatch
+    exists for feeds that structurally cannot produce splice evidence, such as
+    a host-read archive where nothing was ever dynamically inserted.
+    """
+    override = _resolve_override(db, podcast_id, 'splice_veto_enabled', bool, None)
+    return global_default if override is None else override
+
+
 def resolve_max_ad_duration_confirmed(db) -> float:
     """Hard ceiling that even a confirmed sponsor cannot pass. Global only."""
     try:

@@ -290,6 +290,7 @@ export interface UpdateFeedPayload {
   cueSnapLeadOverride?: number | null;
   cueSnapLagOverride?: number | null;
   silenceSnapEnabled?: boolean | null;
+  spliceVetoEnabled?: boolean | null;
   transitionSnapEnabled?: boolean | null;
   maxAdDurationOverride?: number | null;
   maxAdDurationRejectOverride?: number | null;

@@ -254,11 +254,9 @@ function TranscriptionSection({
                   <span className="text-sm text-muted-foreground">seconds to wait per chunk</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  These tune the parallel API path: chunks are extracted with ffmpeg and submitted to the
-                  remote backend concurrently. Chunks are extracted as (max chunk + overlap), so for
-                  Parakeet's 30s ONNX cap set max chunk to 28 AND overlap to 1. A slow backend that
-                  returns 0 segments on larger chunks is hitting the request timeout; raise it, or lower
-                  the chunk size. A proxy in front of the backend may cut the request sooner than this.
+                  Chunk size and overlap for the parallel API path. A chunk is sent as max plus
+                  overlap, so a 30s backend cap means 28 and 1. Zero segments on larger chunks
+                  means the request timed out.
                 </p>
               </div>
             </div>
@@ -278,10 +276,8 @@ function TranscriptionSection({
             </span>
           </label>
           <p className="mt-1 text-sm text-muted-foreground">
-            Upload the preprocessed WAV directly to the Whisper API instead of re-encoding to FLAC first.
-            Only applies when the Whisper backend is set to API. Useful for self-hosted Whisper servers
-            that accept uncompressed audio. Default off so that public OpenAI / OpenRouter endpoints
-            stay under their upload size limits.
+            Uploads the preprocessed WAV instead of re-encoding to FLAC. Applies to the API
+            backend only. Off by default so public endpoints stay under their upload limits.
           </p>
         </div>
 

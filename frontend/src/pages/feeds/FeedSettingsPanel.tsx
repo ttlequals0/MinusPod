@@ -1421,6 +1421,34 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   () => setMaxAdDurRejectInput(s(feed.maxAdDurationRejectOverride)))}
                 description="Past this length an ad has to name a recognized sponsor to be cut; one that does not is held for review. Overrides the global setting for this feed." />
 
+              {/* Splice-veto override. Tri-state so a feed can also be held
+                  to the check when the global is off. */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Splice check:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    value={feed.spliceVetoEnabled === null || feed.spliceVetoEnabled === undefined
+                      ? '' : String(feed.spliceVetoEnabled)}
+                    onChange={(e) => updateMutation.mutate({
+                      spliceVetoEnabled: e.target.value === ''
+                        ? null : e.target.value === 'true',
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Splice check"
+                  >
+                    <option value="">Use global</option>
+                    <option value="true">Hold cuts without splice evidence</option>
+                    <option value="false">Cut without splice evidence</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Long cuts are held unless the audio shows an edit point at their
+                    edges. Turn it off when this feed's ads are correct but keep being
+                    held for no splice evidence.
+                  </p>
+                </div>
+              </div>
+
               {/* Cue-gated approval (Phase C held-for-review) */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cue gating:</span>
@@ -1459,11 +1487,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      The verification pass re-scans the cut audio for ads the first pass
-                      missed, at the cost of a second detection sweep. Turn this on for feeds
-                      where the first pass is already reliable. It roughly halves the
-                      ad-detection LLM spend. Held differential detections that the second
-                      pass would have confirmed then wait for you instead.
+                      Skips the second detection sweep, roughly halving LLM spend. Turn it on
+                      for feeds where the first pass is already reliable.
                     </p>
                   )}
                 </div>
@@ -1515,7 +1540,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     )}
                   </div>
                   <p className="text-xs text-warning">
-                    Downloads a second copy of each new episode with a different client signature and compares them. Audio that differs between fetches was inserted dynamically. Doubles this feed's download count in the publisher's stats. Auto turns this on when the feed looks dynamically ad-served.
+                    Downloads each new episode twice and compares them; audio that differs was
+                    inserted dynamically. Doubles this feed's download count.
                   </p>
                 </div>
               </div>

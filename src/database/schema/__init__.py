@@ -319,6 +319,7 @@ class SchemaMixin:
             # Phase C held-for-review per-feed settings
             ('max_ad_duration_override', 'REAL'),
             ('max_ad_duration_reject_override', 'REAL'),
+            ('splice_veto_enabled', 'INTEGER'),
             ('cue_gated_approval', 'INTEGER DEFAULT 0'),
             ('skip_second_pass', 'INTEGER DEFAULT 0'),
             ('max_episodes', 'INTEGER'),

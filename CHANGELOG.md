@@ -11,7 +11,7 @@ release notes.
 
 ## [Unreleased]
 
-## [2.94.8] - 2026-09-02
+## [2.94.9] - 2026-09-03
 
 ### Added
 
@@ -56,6 +56,35 @@ release notes.
   categories they accept on sync. The corpus no longer relies on the
   unset-means-sponsor fallback.
 - `patterns/CONTRIBUTING.md` documents the `category` field and its vocabulary.
+
+### Changed
+
+- Feed and settings help text is shorter. Several fields explained the
+  mechanism, the tradeoff, and the background where a sentence on what the
+  setting does and when to change it was enough; the detail belongs in the
+  docs. Nine help texts ran past 45 words, now two. The no-password security
+  warning keeps its length on purpose, since spelling out what an unprotected
+  instance exposes is what makes the warning act.
+
+### Fixed
+
+- A feed whose history contains no splice events is no longer promoted to
+  `calibrated`. Promotion needed only five episodes carrying a valid
+  splice_evidence payload, regardless of whether any of them held an event, so
+  a feed that never splices accumulated five empty payloads and calibrated.
+  That armed the validator's zero-splice veto against evidence the feed cannot
+  produce, holding every cut of 60 seconds or more from the detector or a
+  learned pattern. Such a feed now stays cold start, which corroborates but
+  never vetoes, as the rule intended.
+
+### Added
+
+- Splice check is overridable per feed, under Advanced on the feed's settings
+  page and as `spliceVetoEnabled` on the feed API. Null inherits the global,
+  true forces the check on, false lets long cuts through without splice
+  evidence. The calibration fix above only exempts feeds with no splice
+  history at all, so this covers a feed that has some splices but still holds
+  ads it should cut.
 
 ### Fixed
 

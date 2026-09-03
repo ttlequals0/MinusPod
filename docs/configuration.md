@@ -358,6 +358,24 @@ You retain everything locally. Submission is a copy, not a move.
 
 See [`patterns/README.md`](../patterns/README.md) for the technical reference (sync mechanics, file formats, tag vocabulary) and [`patterns/CONTRIBUTING.md`](../patterns/CONTRIBUTING.md) for what happens when you submit a pattern.
 
+### Splice check
+
+A long cut is held for review unless the audio carries evidence of an insertion point near its edges. The idea is that a real ad break leaves a mark. That can be a transition pair, a break stinger, a volume step, a splice event, or a region that differs between two fetches. A multi-minute cut backed only by the model reading a transcript is worth a second look before it removes audio.
+
+The test is whether the ad was joined into the audio, not who reads it. An ad recorded separately and edited in leaves an edit point and passes the check like any other. One spoken straight through in a single take does not. Every long cut on such a feed is then held, however obvious the ad.
+
+Two things keep that in check. The rule applies only once a feed's splice calibration reads `calibrated`, which now needs five episodes of history carrying at least one splice event between them. A feed that has never produced one stays uncalibrated, so this rule never holds its cuts.
+
+The per-feed **Splice check** setting, under Advanced on the feed's settings page, overrides the global either way.
+
+| Setting | Effect |
+|---|---|
+| Use global | Follows the global `splice_veto_enabled` setting, on unless an operator changed it |
+| Hold cuts without splice evidence | Forces the check on for this feed |
+| Cut without splice evidence | Turns it off for this feed, so long cuts are judged on the other validation rules alone |
+
+Turning it off gives up a safety net, so it suits a feed you have already watched cut correctly. Held ads are never lost either way: they stay in the audio and wait on the episode page.
+
 ## Offline Queue
 
 If your LLM or Whisper server only runs part of the day (a desktop PC that hosts Ollama, for example), episodes that arrive while it is off normally retry a few times, trip the circuit breaker, and end up permanently failed until you reprocess them by hand. The offline queue changes that: an episode that fails because the endpoint is unreachable is parked with a "queued (offline)" status instead. Every few minutes MinusPod probes the endpoint, and once it answers again the parked episodes go back into the processing queue on their own.

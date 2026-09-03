@@ -126,10 +126,8 @@ function AdDetectionSection({
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <p className="mt-2 text-sm text-muted-foreground">
-            Consecutive ads separated by less than this many seconds of speech
-            are merged into one cut, whether they name the same sponsor or not.
-            Above it they stay separate, so the talking between them is not cut.
-            Set to 0 to disable.
+            Ads separated by less than this much speech merge into one cut. Above
+            it they stay separate, so the talking between them survives. 0 disables.
           </p>
         </div>
         <div>
@@ -147,7 +145,8 @@ function AdDetectionSection({
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <p className="mt-2 text-sm text-muted-foreground">
-            Past this length an ad has to name a sponsor MinusPod recognizes, in the episode description or in its own audio, or be detected with very high confidence. One that does not is held for review rather than cut, so a long ad break is never dropped without you seeing it. Raise this on shows with long ad blocks.
+            Past this length an ad must name a recognized sponsor or score very high to be
+            cut; anything else is held for review. Raise it on shows with long ad blocks.
           </p>
         </div>
         <div>

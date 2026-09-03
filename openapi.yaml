@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.94.8
+  version: 2.94.9
   contact:
     name: MinusPod
   license:
@@ -744,6 +744,14 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed opt-in for snapping cut boundaries to content-transition cues. Simple flag, not tri-state; null and false both read as off.
+                spliceVetoEnabled:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: >-
+                    Per-feed splice check. Tri-state: null inherits the global
+                    splice_veto_enabled setting, true forces the check on, false lets
+                    long cuts through without splice evidence.
                 maxAdDurationOverride:
                   type:
                     - number
@@ -9353,6 +9361,13 @@ components:
             - boolean
             - 'null'
           description: Per-feed opt-in for snapping cut boundaries to content-transition cues. null and false both read as off.
+        spliceVetoEnabled:
+          type:
+            - boolean
+            - 'null'
+          description: >-
+            Per-feed splice check. null inherits the global setting, true forces the
+            check on, false lets long cuts through without splice evidence.
         maxAdDurationOverride:
           type:
             - number

@@ -85,6 +85,7 @@ from config import (
     resolve_differential_fetch_setting,
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
+    resolve_splice_veto_enabled,
     ModelNotConfiguredError,
     coerce_bool_setting,
 )
@@ -1234,8 +1235,9 @@ def _build_validator(episode_duration, segments, episode_description, *,
     splice_kwargs = {}
     if splice_veto:
         splice_kwargs = {
-            'splice_veto_enabled': db.get_setting_bool('splice_veto_enabled',
-                                                       default=True),
+            'splice_veto_enabled': resolve_splice_veto_enabled(
+                db, podcast_id,
+                db.get_setting_bool('splice_veto_enabled', default=True)),
             'veto_min_cut_seconds': db.get_setting_float('veto_min_cut_seconds',
                                                          VETO_MIN_CUT_SECONDS),
         }
