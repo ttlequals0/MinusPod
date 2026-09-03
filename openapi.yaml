@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.94.10
+  version: 2.94.11
   contact:
     name: MinusPod
   license:
@@ -3466,6 +3466,12 @@ paths:
                 category:
                   type: string
                   description: Sponsor category
+                segment_category:
+                  type:
+                    - string
+                    - 'null'
+                  enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+                  description: Segment category applied to every read naming this sponsor
       responses:
         '201':
           description: Sponsor created
@@ -3528,6 +3534,12 @@ paths:
                     type: string
                 category:
                   type: string
+                segment_category:
+                  type:
+                    - string
+                    - 'null'
+                  enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+                  description: Segment category applied to every read naming this sponsor; null clears it
                 tags:
                   type: array
                   items:
@@ -11845,6 +11857,15 @@ components:
             - string
             - 'null'
           description: Sponsor category
+        segment_category:
+          type:
+            - string
+            - 'null'
+          enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+          description: >-
+            Segment category every read naming this sponsor is filed under,
+            in detection, the pass-1 prompt hint, and learned patterns.
+            Null leaves the detector's own category in place.
         common_ctas:
           type: array
           items:

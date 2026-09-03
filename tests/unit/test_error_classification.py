@@ -21,6 +21,8 @@ from main_app.processing import is_transient_error
     # A CDN answering 403 to the availability probe is refusing the request,
     # not waiting on propagation, so it must not burn the retry ladder.
     (Exception('CDN refused the request (403)'), False),
+    # Both User-Agents drew the 403, so it is a block that lifts, not a floor.
+    (Exception('CDN blocked the request (403) with both User-Agents'), True),
     # The 404 probe result keeps retrying for the provisioning reason above.
     (Exception('CDN not ready (404)'), True),
     (Exception('CDN timeout'), True),

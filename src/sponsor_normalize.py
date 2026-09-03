@@ -4,11 +4,28 @@ All sponsor writes from the rest of the codebase flow through
 `get_or_create_known_sponsor()` so the canonical row in
 `known_sponsors` is the only place sponsor names live.
 """
+import re
 import string
 
 
 _STRIP_CHARS = string.whitespace + '\'"`.,;:!?-'
 _MAX_LENGTH = 100
+
+
+def segment_category_for(label, overrides):
+    """Segment category for a sponsor label: exact name or alias match, else
+    the longest known name appearing in the label as a whole word."""
+    if not label or not overrides:
+        return None
+    key = ' '.join(str(label).split()).lower()
+    if key in overrides:
+        return overrides[key]
+    best = None
+    for name, category in overrides.items():
+        if len(name) >= 3 and re.search(rf'(?<!\w){re.escape(name)}(?!\w)', key):
+            if best is None or len(name) > len(best[0]):
+                best = (name, category)
+    return best[1] if best else None
 
 
 def get_or_create_known_sponsor(db, name):

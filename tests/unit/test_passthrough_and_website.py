@@ -52,7 +52,7 @@ class TestPassthroughEpisode:
         result, transcriber, finalize, move, db, _ = _run_passthrough()
 
         assert result is True
-        transcriber.download_audio.assert_called_once_with('https://example.com/ep1.mp3')
+        transcriber.download_audio.assert_called_once_with('https://example.com/ep1.mp3', user_agent=None)
         transcriber.transcribe_chunked.assert_not_called()
         move.assert_called_once_with('/tmp/pt.mp3', '/data/pt/episodes/ep1.mp3')
         # Assets from any earlier interrupted run must not be served next

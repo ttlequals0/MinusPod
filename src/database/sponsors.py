@@ -36,16 +36,37 @@ class SponsorMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_sponsor_segment_categories(self) -> dict[str, str]:
+        """Lowercased sponsor names and aliases mapped to their segment category."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "SELECT name, aliases, segment_category FROM known_sponsors "
+            "WHERE is_active = 1 AND segment_category IS NOT NULL"
+        )
+        result = {}
+        for row in cursor.fetchall():
+            try:
+                aliases = json.loads(row['aliases'] or '[]')
+            except json.JSONDecodeError:
+                aliases = []
+            for name in [row['name'], *aliases]:
+                if isinstance(name, str) and name.strip():
+                    result[name.strip().lower()] = row['segment_category']
+        return result
+
     def create_known_sponsor(self, name: str, aliases: list[str] = None,
                               category: str = None, common_ctas: list[str] = None,
-                              tags: list[str] = None) -> int:
+                              tags: list[str] = None,
+                              segment_category: str = None) -> int:
         """Create a known sponsor. Returns sponsor ID."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """INSERT INTO known_sponsors (name, aliases, category, common_ctas, tags)
-               VALUES (?, ?, ?, ?, ?)""",
+            """INSERT INTO known_sponsors
+               (name, aliases, category, common_ctas, tags, segment_category)
+               VALUES (?, ?, ?, ?, ?, ?)""",
             (name, json.dumps(aliases or []), category,
-             json.dumps(common_ctas or []), json.dumps(tags or []))
+             json.dumps(common_ctas or []), json.dumps(tags or []),
+             segment_category)
         )
         conn.commit()
         return cursor.lastrowid
@@ -57,7 +78,7 @@ class SponsorMixin:
         fields = []
         values = []
         for key, value in kwargs.items():
-            if key in ('name', 'category', 'is_active'):
+            if key in ('name', 'category', 'segment_category', 'is_active'):
                 fields.append(f"{key} = ?")
                 values.append(value)
             elif key in ('aliases', 'common_ctas', 'tags'):

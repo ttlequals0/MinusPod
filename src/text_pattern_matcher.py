@@ -20,7 +20,7 @@ from community_export import (
     count_brand_occurrences, brand_match_candidates, first_brand_occurrence,
     get_sponsor_row_or_stub)
 from utils.text import extract_text_from_segments, timed_spans_from_segments
-from sponsor_normalize import get_or_create_known_sponsor
+from sponsor_normalize import get_or_create_known_sponsor, segment_category_for
 from utils.constants import (
     canonical_sponsor,
     INVALID_SPONSOR_VALUES,
@@ -416,7 +416,8 @@ class TextPatternMatcher:
                     sponsor_id=p.get('sponsor_id'),
                     source=p.get('source') or 'local',
                     source_language=p.get('source_language'),
-                    category=p.get('category'),
+                    # The sponsor's operator-set category outranks the stored one.
+                    category=p.get('sponsor_segment_category') or p.get('category'),
                     created_by=p.get('created_by'),
                 ))
 
@@ -1511,6 +1512,9 @@ class TextPatternMatcher:
             sponsor_id = (
                 get_or_create_known_sponsor(self.db, sponsor) if sponsor else None
             )
+            # The operator's per-sponsor category outranks the detector's label.
+            category = segment_category_for(
+                sponsor, self.db.get_sponsor_segment_categories()) or category
             pattern_id = self.db.create_ad_pattern(
                 scope=scope,
                 text_template=ad_text,

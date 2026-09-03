@@ -155,6 +155,9 @@ class TestAudioAvailabilityProbe:
         monkeypatch.setattr('utils.safe_http.safe_head', fake_head)
         _probe().check_audio_availability('https://cdn.example/media.mp3')
         assert sent['User-Agent'] == 'CustomAgent/9.9'
+        _probe().check_audio_availability('https://cdn.example/media.mp3',
+                                          user_agent='Other/1.0')
+        assert sent['User-Agent'] == 'Other/1.0'
 
 
 def test_module_imports_before_storage():

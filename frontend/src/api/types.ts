@@ -909,6 +909,7 @@ export interface Sponsor {
   name: string;
   aliases: string[];
   category: string | null;
+  segment_category: SegmentCategory | null;
   common_ctas: string[];
   tags: string[];
   is_active: boolean;

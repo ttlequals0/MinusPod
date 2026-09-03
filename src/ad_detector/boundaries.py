@@ -888,6 +888,32 @@ def _gap_only_text(segments: list[dict], gap_start: float, gap_end: float) -> st
     )
 
 
+# Phrases that mark transcript as ad copy rather than conversation. The
+# generic ones in AD_CONTENT_PROMO_PHRASES ('visit', 'go to', 'check out') are
+# left out on purpose: hosts say those while talking.
+GAP_AD_COPY_PHRASES = ('use code', 'promo code', 'offer code', 'coupon', 'dot com',
+                       'slash', 'percent off', 'free trial')
+GAP_AD_COPY_MIN_SHARE = 0.5
+
+
+def _gap_ad_copy_seconds(segments: list[dict], gap_start: float, gap_end: float,
+                         sponsors: set) -> float:
+    """Speech seconds inside a gap whose text carries an ad indicator."""
+    names = {s.lower() for s in sponsors or ()}
+    total = 0.0
+    for seg in segments:
+        if seg.get('start', 0.0) < gap_start or seg.get('end', 0.0) > gap_end:
+            continue
+        text = (seg.get('text') or '').lower()
+        if not text.strip():
+            continue
+        markers = (*names, *AD_CONTENT_URL_PATTERNS, *AD_CONTENT_PHONE_PATTERNS,
+                   *GAP_AD_COPY_PHRASES)
+        if any(marker in text for marker in markers):
+            total += seg['end'] - seg['start']
+    return total
+
+
 def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float = 300.0,
                            podcast_name: str = None,
                            min_content_seconds: float = MIN_CONTENT_BETWEEN_ADS_SECONDS
@@ -948,6 +974,13 @@ def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float
     while i < len(ads):
         current_ad = ads[i].copy()
         current_sponsors = ad_sponsors[i].copy()
+        # Zero-length detections carry no ad audio: never a merge partner in
+        # either direction, and never a reason to stop comparing the others.
+        if current_ad['end'] <= current_ad['start']:
+            merged.append(current_ad)
+            i += 1
+            continue
+        skipped_empty = []
 
         # Look ahead for ads to merge
         j = i + 1
@@ -955,17 +988,17 @@ def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float
             next_ad = ads[j]
             next_sponsors = ad_sponsors[j]
 
+            if next_ad['end'] <= next_ad['start']:
+                skipped_empty.append(next_ad.copy())
+                j += 1
+                continue
+
             gap_start = current_ad['end']
             gap_end = next_ad['start']
             gap_duration = gap_end - gap_start
 
             # Skip if gap is too large
             if gap_duration > max_gap:
-                break
-
-            # A zero-length detection carries no ad audio, so merging with it
-            # can only push the span end out across the gap.
-            if next_ad['end'] <= next_ad['start']:
                 break
 
             # Find common sponsors
@@ -987,15 +1020,22 @@ def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float
                                     f"{gap_content:.0f}s content)")
                 else:
                     # Real speech in the gap, or a long gap. Merge only when
-                    # that speech is still about the sponsor.
+                    # that speech is still about the sponsor, or reads like ad
+                    # copy: URLs, codes, and offers in at least half of it.
                     gap_text = _gap_only_text(segments, gap_start, gap_end)
                     gap_sponsors = extract_sponsor_names(gap_text, exclude=own_site)
+                    ad_copy = _gap_ad_copy_seconds(segments, gap_start, gap_end,
+                                                   common_sponsors)
 
                     if common_sponsors & gap_sponsors:
                         should_merge = True
                         merge_reason = "sponsor in gap"
+                    elif gap_content > 0 and ad_copy >= GAP_AD_COPY_MIN_SHARE * gap_content:
+                        should_merge = True
+                        merge_reason = (f"ad copy in gap ({ad_copy:.0f}s of "
+                                        f"{gap_content:.0f}s)")
                     else:
-                        logger.debug(
+                        logger.info(
                             f"Not merging same-sponsor ads across "
                             f"{gap_content:.0f}s of show content: "
                             f"{current_ad['start']:.1f}s-{current_ad['end']:.1f}s + "
@@ -1030,6 +1070,9 @@ def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float
             break
 
         merged.append(current_ad)
+        # An empty detection inside the merged span is redundant; one past it
+        # is still its own marker.
+        merged.extend(z for z in skipped_empty if z['start'] > current_ad['end'])
         i = j if j > i + 1 else i + 1
 
     if len(merged) < len(ads):

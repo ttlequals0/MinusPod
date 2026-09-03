@@ -1,6 +1,7 @@
 """SQLite database package for MinusPod."""
 import sqlite3
 import threading
+import time
 import logging
 from pathlib import Path
 
@@ -22,7 +23,72 @@ from database.podping_hosts import PodpingHostMixin
 
 logger = logging.getLogger(__name__)
 
+# Statements that wait this long on the lock, and write transactions held open
+# this long, are logged so a "database is locked" burst names its holder.
+SLOW_SQLITE_SECONDS = 5.0
+
+
+class TracedConnection(sqlite3.Connection):
+    """sqlite3.Connection that logs slow lock waits and long-held write transactions."""
+
+    _tx_started = None
+    _tx_opener = None
+
+    def execute(self, sql, *args):
+        return self._traced(super().execute, sql, *args)
+
+    def executemany(self, sql, *args):
+        return self._traced(super().executemany, sql, *args)
+
+    def _traced(self, run, sql, *args):
+        was_in_tx = self.in_transaction
+        started = time.monotonic()
+        try:
+            return run(sql, *args)
+        finally:
+            self._note_statement(sql, started, was_in_tx)
+
+    def commit(self):
+        self._note_transaction_end('commit')
+        super().commit()
+
+    def rollback(self):
+        self._note_transaction_end('rollback')
+        super().rollback()
+
+    def _note_statement(self, sql, started, was_in_tx):
+        elapsed = time.monotonic() - started
+        if elapsed >= SLOW_SQLITE_SECONDS:
+            logger.warning(
+                "SQLite statement took %.1fs on thread %s: %s",
+                elapsed, threading.current_thread().name, _sql_head(sql))
+        if not self.in_transaction:
+            # Autocommit, or a C-level commit (`with conn:`, executescript) ended it.
+            self._tx_started = self._tx_opener = None
+        elif not was_in_tx:
+            self._tx_started = started
+            self._tx_opener = _sql_head(sql)
+
+    def _note_transaction_end(self, how):
+        if self._tx_started is None:
+            return
+        if not self.in_transaction:
+            self._tx_started = self._tx_opener = None
+            return
+        held = time.monotonic() - self._tx_started
+        if held >= SLOW_SQLITE_SECONDS:
+            logger.warning(
+                "SQLite write transaction held %.1fs before %s on thread %s; opened by: %s",
+                held, how, threading.current_thread().name, self._tx_opener)
+        self._tx_started = None
+        self._tx_opener = None
+
+
+def _sql_head(sql):
+    return truncate(' '.join(str(sql).split()), 120)
+
 from utils.constants import DEFAULT_SYSTEM_PROMPT  # re-exported for backward compat
+from utils.text import truncate
 
 # Verification pass prompt - runs on processed audio to catch missed ads
 DEFAULT_VERIFICATION_PROMPT = """You are reviewing a podcast episode that has ALREADY had advertisements removed. The audio has been processed -- detected ads were cut and replaced with a brief transition tone. Your job is to find anything that was MISSED or only partially removed.
@@ -364,7 +430,8 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
             self._local.connection = sqlite3.connect(
                 str(self.db_path),
                 check_same_thread=False,
-                timeout=30.0
+                timeout=30.0,
+                factory=TracedConnection,
             )
             self._local.connection.row_factory = sqlite3.Row
             self._local.connection.execute("PRAGMA busy_timeout = 30000")

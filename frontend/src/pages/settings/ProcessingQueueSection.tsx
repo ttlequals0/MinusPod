@@ -145,7 +145,7 @@ function ProcessingQueueSection({
               {active.map((episode) => (
                 <div
                   key={episodeKey(episode)}
-                  className="bg-secondary/50 rounded-lg p-4 flex justify-between items-center"
+                  className="bg-secondary/50 rounded-lg p-4 flex justify-between items-center gap-3"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-foreground truncate">{episode.title}</p>

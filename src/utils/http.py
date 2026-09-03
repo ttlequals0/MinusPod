@@ -58,9 +58,14 @@ def redirect_chain_for_log(response, keep_query: bool = False) -> list[str]:
     with one entry per hop.
     """
     lines = []
-    history = getattr(response, 'history', None) or []
+    history = list(getattr(response, 'history', None) or [])
+    # requests resolves relative and scheme-relative Location headers before
+    # following them; the next hop's url is that resolved target.
+    hops = history + [response]
     for i, hop in enumerate(history, start=1):
-        target = hop.headers.get('Location') if getattr(hop, 'headers', None) else None
+        target = getattr(hops[i], 'url', None)
+        if not target and getattr(hop, 'headers', None):
+            target = hop.headers.get('Location')
         lines.append(
             f"  redirect {i} ({getattr(hop, 'status_code', '?')}): "
             + (safe_url_for_log(target, keep_path=True, keep_query=keep_query)

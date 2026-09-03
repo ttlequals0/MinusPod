@@ -24,6 +24,7 @@ from llm_client import (
     StructuralRateLimitError, ProviderRateLimitedError,
 )
 from run_log import run_in_worker_thread
+from sponsor_normalize import segment_category_for
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.markers import (
@@ -927,33 +928,63 @@ class AdDetector:
             return ""
         try:
             patterns = self.db.get_ad_patterns(podcast_id=podcast_slug)
+            sponsor_categories = self.db.get_sponsor_segment_categories()
         except Exception as e:
             logger.warning(f"Could not fetch patterns for hint ({podcast_slug}): {e}")
             return ""
         junk = ('unknown', 'advertisement detected', '')
-        tier1, names = [], set()
+        tier1, tier1_keys, names = [], set(), {}
         for p in patterns:
             sponsor = p.get('sponsor')
-            if not sponsor or sponsor.lower() in junk:
+            key = (sponsor or '').strip().lower()
+            if key in junk:
                 continue
             if is_defined_pattern(p) and len(tier1) < self._HINT_TIER1_CAP:
                 snippet = truncate(p.get('intro_text') or p.get('outro_text') or '', self._HINT_SNIPPET_CHARS)
-                category = p.get('category') or 'sponsor'
+                category = sponsor_categories.get(key) or p.get('category') or 'sponsor'
                 line = f"- {sponsor} ({category} read)."
                 if snippet:
                     line += f' Opens like: "{snippet}"'
                 tier1.append(line)
-            names.add(sponsor)
+                tier1_keys.add(key)
+            names.setdefault(key, sponsor)
         if not names:
             return ""
+        # A sponsor-level category still reaches the prompt when every pattern
+        # naming it is auto-learned, which the tier above leaves nameless.
+        categorized = [
+            f"- {name} ({sponsor_categories[key]} read)."
+            for key, name in sorted(names.items())
+            if key in sponsor_categories and key not in tier1_keys
+        ]
+        leftovers = sorted(name for key, name in names.items() if key not in sponsor_categories)
         parts = []
-        if tier1:
-            parts.append("Known recurring ads on this feed:\n" + "\n".join(tier1))
-        leftovers = sorted(names)
-        parts.append(f"Previously detected sponsors for this podcast: {', '.join(leftovers)}")
+        if tier1 or categorized:
+            parts.append("Known recurring ads on this feed:\n" + "\n".join(tier1 + categorized))
+        if leftovers:
+            parts.append(f"Previously detected sponsors for this podcast: {', '.join(leftovers)}")
         parts.append("Reads for the sponsors above are ads on this feed; "
                      "report them with the stated category.")
         return "\n".join(parts) + "\n"
+
+    def _apply_sponsor_segment_categories(self, ads, slug, episode_id):
+        """Stamp the operator's per-sponsor segment category onto ads naming that sponsor."""
+        if not ads or not self.db:
+            return ads
+        try:
+            overrides = self.db.get_sponsor_segment_categories()
+        except Exception as e:
+            logger.warning(f"[{slug}:{episode_id}] Could not load sponsor categories: {e}")
+            return ads
+        for ad in ads:
+            category = segment_category_for(ad.get('sponsor'), overrides)
+            if category and ad.get('category') != category:
+                logger.info(
+                    f"[{slug}:{episode_id}] Sponsor category: {ad.get('sponsor')} "
+                    f"{ad.get('category') or 'unset'} -> {category} "
+                    f"@ {ad['start']:.1f}s-{ad['end']:.1f}s")
+                ad['category'] = category
+        return ads
 
     def _call_llm_for_window(self, *, model, system_prompt, prompt, llm_timeout,
                               max_retries, slug, episode_id, window_label, pass_name):
@@ -1419,6 +1450,7 @@ class AdDetector:
         category_missing = sum(1 for ad in all_window_ads if 'category' not in ad)
 
         # Deduplicate ads across windows
+        self._apply_sponsor_segment_categories(all_window_ads, slug, episode_id)
         final_ads = deduplicate_window_ads(all_window_ads, action_map=action_map)
         return (final_ads, all_raw_responses, failed_windows, None,
                 category_missing, category_total, category_repaired,

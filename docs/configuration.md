@@ -423,7 +423,7 @@ Query strings are left out. On a podcast enclosure that is where a signed CDN to
 
 ### Diagnosing a refusal
 
-If downloads start failing with `CDN refused the request (403)` while the feed itself still refreshes, the download string is the one to change. Try the User-Agent your own browser sends. A 403 fails the episode on the first attempt rather than working through the retry ladder, because a host refusing the request answers the same way every time. A 404 still retries, since a freshly published episode can 404 briefly while its host provisions the media URL.
+When the availability probe draws a 403, MinusPod probes once more with the feed User-Agent. If that string is accepted, the host is gating on the browser identifier: the episode downloads with the feed string and a warning names both strings, so the download User-Agent is the one to change. Try the User-Agent your own browser sends. If both strings draw a 403, the host is blocking regardless of identifier, which is what bot mitigation and rate limits look like. The episode then retries on the normal ladder as `CDN blocked the request (403) with both User-Agents`. A 404 also retries, since a freshly published episode can 404 briefly while its host provisions the media URL.
 
 ## Scheduled Database Backups
 

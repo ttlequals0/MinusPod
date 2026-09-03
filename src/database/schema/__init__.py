@@ -559,6 +559,9 @@ class SchemaMixin:
         # known_sponsors.tags (2.4.0)
         ks_cols = self._get_table_columns(conn, 'known_sponsors')
         self._add_column_if_missing(conn, 'known_sponsors', 'tags', "TEXT NOT NULL DEFAULT '[]'", ks_cols)
+        # known_sponsors.segment_category (2.94.11): operator-set category
+        # every read naming the sponsor is filed under.
+        self._add_column_if_missing(conn, 'known_sponsors', 'segment_category', 'TEXT', ks_cols)
 
         # podcasts.tags and podcasts.user_tags (2.4.0)
         pod_cols = self._get_table_columns(conn, 'podcasts')

@@ -42,9 +42,11 @@ class TestSafeUrlForLog:
 
 
 class _Hop:
-    def __init__(self, status_code, location):
+    def __init__(self, status_code, location, url=None):
         self.status_code = status_code
         self.headers = {'Location': location} if location else {}
+        if url:
+            self.url = url
 
 
 class _Response:
@@ -74,8 +76,17 @@ class TestRedirectChainForLog:
             redirect_chain_for_log(response, keep_query=True))
 
     def test_a_hop_with_no_location_header_is_marked_unknown(self):
-        response = _Response([_Hop(302, None)], 'https://h/a.mp3')
+        response = _Response([_Hop(302, None)], None)
         assert redirect_chain_for_log(response)[0].endswith('<unknown>')
+
+    def test_a_relative_location_logs_the_resolved_target(self):
+        response = _Response(
+            [_Hop(302, '/media/ep.mp3?token=x'),
+             _Hop(302, '//cdn.example.net/a.mp3', url='https://h/media/ep.mp3?token=x')],
+            'https://cdn.example.net/a.mp3')
+        lines = redirect_chain_for_log(response)
+        assert lines[0] == '  redirect 1 (302): https://h/media/ep.mp3'
+        assert lines[1] == '  redirect 2 (302): https://cdn.example.net/a.mp3'
 
     def test_a_response_without_history_is_tolerated(self):
         """Test doubles and non-requests responses must not raise here."""

@@ -265,6 +265,7 @@ TABLE_DDL['known_sponsors'] = """CREATE TABLE IF NOT EXISTS known_sponsors (
     name TEXT UNIQUE NOT NULL,
     aliases TEXT DEFAULT '[]',
     category TEXT,
+    segment_category TEXT,
     common_ctas TEXT DEFAULT '[]',
     is_active INTEGER DEFAULT 1,
     tags TEXT NOT NULL DEFAULT '[]',

@@ -3,7 +3,7 @@
 Sharing a sponsor used to be enough on its own when two detections sat within
 SHORT_GAP_THRESHOLD of each other. On shows where the host name-drops a
 sponsor through the episode, that merged across the conversation between the
-two mentions. Observed in production: detections of 1.9s and 2.6s, 83s apart,
+two mentions. Two detections of 1.9s and 2.6s, 83s apart,
 became one 88s span that was 95 percent show content.
 
 The gap now has to be filler, measured the same way
@@ -33,7 +33,7 @@ def _seg(start, end, text):
 
 # The sponsor is harvested from the transcript inside each ad's own range, so
 # every fixture gives the two ads segments carrying the URL.
-READ = 'Get it at spinrite.com today'
+READ = 'Get it at acme.com today'
 CHATTER = 'So anyway the listener wrote in about their drive and we talked it over.'
 
 
@@ -59,7 +59,7 @@ class TestGapContentGatesTheMerge:
         assert (merged[0]['start'], merged[0]['end']) == (100, 180)
 
     def test_speech_in_the_gap_keeps_them_separate(self):
-        """The production shape: two brief mentions with the hosts talking in
+        """Two brief mentions with the hosts talking in
         between. Previously merged on sponsor identity alone."""
         ads = [_ad(5447.4, 5449.3, READ), _ad(5532.5, 5535.1, READ)]
         segments = _episode((5447.4, 5449.3), (5532.5, 5535.1), gap_text=CHATTER)
@@ -74,7 +74,7 @@ class TestGapContentGatesTheMerge:
         """A read that keeps going is one ad even across real speech."""
         ads = [_ad(100, 130, READ), _ad(200, 230, READ)]
         segments = _episode((100, 130), (200, 230),
-                            gap_text='and again that is spinrite.com to order')
+                            gap_text='and again that is acme.com to order')
 
         merged = merge_same_sponsor_ads(ads, segments, min_content_seconds=12.0)
 
@@ -102,10 +102,35 @@ class TestGapContentGatesTheMerge:
         assert len(merged) == 1
 
 
+class TestAdCopyInTheGap:
+
+    def test_a_read_split_around_its_own_call_to_action_merges(self):
+        """The middle of one read: URL, code, and offer, but no sponsor name."""
+        ads = [_ad(100, 130, READ), _ad(160, 190, READ)]
+        segments = _episode((100, 130), (160, 190),
+                            gap_text='Use promo code SHOW at checkout, that is '
+                                     'dot com slash show for twenty percent off '
+                                     'your first order and a free trial month')
+
+        merged = merge_same_sponsor_ads(ads, segments, min_content_seconds=12.0)
+
+        assert [(a['start'], a['end']) for a in merged] == [(100, 190)]
+
+    def test_conversation_with_a_stray_generic_phrase_stays_separate(self):
+        ads = [_ad(100, 130, READ), _ad(160, 190, READ)]
+        segments = _episode((100, 130), (160, 190),
+                            gap_text='So anyway, go to the next one, the listener '
+                                     'wrote in about their drive and we talked it over')
+
+        merged = merge_same_sponsor_ads(ads, segments, min_content_seconds=12.0)
+
+        assert len(merged) == 2
+
+
 class TestZeroDurationAds:
 
     def test_a_zero_length_detection_never_extends_a_span(self):
-        """Production case: a 33.8s read and a zero-length detection 71.7s
+        """A 33.8s read and a zero-length detection 71.7s
         later became one 105.5s span. The zero-length ad carries no audio, so
         merging with it can only push the end out across the gap."""
         ads = [_ad(5778.1, 5811.9, READ), _ad(5883.6, 5883.6, READ)]
@@ -127,8 +152,8 @@ class TestZeroDurationAds:
         assert merged[0]['end'] == 130
 
 
-def test_production_case_swallowed_85_seconds():
-    """The 75-percent-gap case from the logs: a 20.7s and a 7.8s detection
+def test_two_short_reads_across_talk_stay_separate():
+    """A 20.7s and a 7.8s detection
     85s apart became one 113.7s span."""
     ads = [_ad(5216.4, 5237.1, READ), _ad(5322.3, 5330.1, READ)]
     segments = _episode((5216.4, 5237.1), (5322.3, 5330.1), gap_text=CHATTER)

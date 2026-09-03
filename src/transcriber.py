@@ -1556,7 +1556,8 @@ class Transcriber:
             if not success:
                 _unlink_quiet(output_path)
 
-    def check_audio_availability(self, url: str, timeout: int = 10) -> tuple:
+    def check_audio_availability(self, url: str, timeout: int = 10,
+                                 user_agent: str = None) -> tuple:
         """Check if audio URL is accessible without downloading.
 
         Performs a HEAD request to verify the CDN has the file ready.
@@ -1566,12 +1567,13 @@ class Transcriber:
         Args:
             url: Audio file URL to check
             timeout: Request timeout in seconds
+            user_agent: Sent instead of the download User-Agent when given
 
         Returns:
             Tuple of (available: bool, error_message: str or None)
         """
         from utils.safe_http import safe_head
-        headers = {'User-Agent': download_user_agent()}
+        headers = {'User-Agent': user_agent or download_user_agent()}
         try:
             response = safe_head(
                 url,
@@ -1610,12 +1612,14 @@ class Transcriber:
             return False, f"CDN server error ({response.status_code})"
         return True, None
 
-    def download_audio(self, url: str, timeout: tuple = (10, 300)) -> str | None:
+    def download_audio(self, url: str, timeout: tuple = (10, 300),
+                       user_agent: str = None) -> str | None:
         """Download audio file from URL.
 
         Args:
             url: Audio file URL
             timeout: (connect_timeout, read_timeout) in seconds
+            user_agent: Sent instead of the download User-Agent when given
 
         Raises:
             AudioTooLargeError: the enclosure exceeds the MAX_AUDIO_DOWNLOAD_MB
@@ -1627,7 +1631,7 @@ class Transcriber:
             logger.info("Downloading audio from: "
                         f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}")
             headers = {
-                'User-Agent': download_user_agent(),
+                'User-Agent': user_agent or download_user_agent(),
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }

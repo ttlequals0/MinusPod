@@ -11,6 +11,66 @@ release notes.
 
 ## [Unreleased]
 
+## [2.94.11] - 2026-09-03
+
+### Added
+
+- A sponsor can carry a segment category (Sponsors page, and
+  `segment_category` on `POST`/`PUT /api/v1/sponsors`). When set, every read
+  naming that sponsor or one of its aliases is filed under it. Detection
+  stamps it on LLM markers before the action-aware merge in both passes.
+  Pattern and fingerprint rows read it in place of their stored category. The
+  pass-1 known-sponsor hint names the sponsor with it, and a learned pattern
+  stores it. Re-categorizing a learned pattern never reached the model,
+  because auto-learned patterns contribute only their name to the hint. The
+  existing sponsor `category` field is unchanged; it holds an industry label.
+- SQLite connections log a statement that waits five seconds or longer on the
+  lock, and a write transaction held open five seconds or longer, with the
+  thread name and the statement that opened it. Two "database is locked"
+  bursts failed a dozen RSS refreshes each after the full 30 s busy timeout,
+  which means one connection held the write lock for over 40 s, and nothing
+  in the logs said which.
+
+### Fixed
+
+- The auto-process poller no longer loses 30 s at every episode handoff. A
+  finished job writes its status before its finally block drops the queue
+  lock, so the next claim landed in that gap, tripped the same-process
+  acquire rejection, and backed off 30 s. The poller now waits for the lock
+  to drop, in half-second steps up to 30 s (the database busy timeout),
+  before claiming the next row.
+- A download 403 is probed once more with the feed User-Agent before it is
+  classified. If that string is accepted, the host is gating on the browser
+  identifier: the episode downloads with the feed string and a warning names
+  both strings, so the operator knows which setting to change. If both draw a
+  403, the block does not depend on the identifier and lifts on its own, so
+  the episode retries on the normal ladder instead of failing permanently on
+  the first attempt. The failure summary line now includes the message, not
+  only the exception class.
+- Same-sponsor merging now also rejoins two detections when the speech
+  between them reads as ad copy: URLs, codes, phone numbers, or offer phrases
+  in at least half of it. A single read the model split around its own call
+  to action stayed split when the middle named no sponsor. Conversation
+  between two name-drops still keeps them apart. The "not merging" decision
+  is logged at INFO so the frequency can be measured.
+- Same-sponsor merging treats a zero-length detection consistently: it is
+  never a merge partner in either direction, and one sitting between two
+  reads no longer stops those reads from being compared. Before, an empty
+  detection as the left-hand ad still merged forward across the gap.
+- Redirect logging on downloads reports where each hop went. A relative
+  `Location` header logged as `<url>` and a scheme-relative one gained a
+  made-up `http://`. The resolved next-hop URL is logged instead.
+- The queue hold block on `/status` no longer queues every status reader
+  behind one database read. While one thread rebuilds it, or when the read
+  fails, callers get the last good block. A locked database used to stall the
+  SSE stream for the busy timeout and then report an empty hold.
+- The active job row in Settings > Processing Queue keeps a gap between the
+  truncated title and its Cancel button. On phones the title ran into the
+  button.
+- The status bar's expanded panel lists rate-limited episodes after the pause
+  has lifted but before the requeue tick, instead of a heading over an empty
+  list.
+
 ## [2.94.10] - 2026-09-03
 
 ### Added

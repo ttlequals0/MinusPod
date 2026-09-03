@@ -96,6 +96,17 @@ describe('GlobalStatusBar queue holds', () => {
     expect(screen.getByText('Queue paused')).toBeDefined();
   });
 
+  it('lists held episodes after the pause lifts, before the requeue tick', () => {
+    renderBar(makeStatus({
+      hold: emptyHold({ queuePaused: false, holdUntil: null, rateLimitHeld: 3 }),
+    }));
+    act(() => {
+      screen.getByRole('button', { name: 'Expand status bar' }).click();
+    });
+    const detail = holdRow('Provider rate limit lifted');
+    expect(detail.textContent).toContain('3 episodes waiting');
+  });
+
   it('names the unreachable service rather than only counting held episodes', () => {
     renderBar(makeStatus({
       hold: emptyHold({

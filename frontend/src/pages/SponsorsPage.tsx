@@ -6,6 +6,7 @@ import { Sponsor } from '../api/types';
 import SponsorEditModal from '../components/SponsorEditModal';
 import { ConfirmModal } from '../components/Modal';
 import { TagChips } from '../components/TagChips';
+import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
@@ -152,6 +153,9 @@ function SponsorsSection() {
             {s.aliases.length > 0 && (
               <div className="text-xs text-muted-foreground mb-1 truncate">{s.aliases.join(', ')}</div>
             )}
+            {s.segment_category && (
+              <div className="mb-2"><SegmentCategoryBadge category={s.segment_category} /></div>
+            )}
             <TagChips tags={s.tags} className="mb-2" />
             <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
               <span>{s.pattern_count} patterns</span>
@@ -206,7 +210,12 @@ function SponsorsSection() {
                   <td className="px-4 py-3 overflow-hidden">
                     <div className="text-xs text-muted-foreground truncate">{s.aliases.join(', ') || '-'}</div>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground truncate">{s.category || '-'}</td>
+                  <td className="px-4 py-3 overflow-hidden">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm text-muted-foreground truncate">{s.category || '-'}</span>
+                      {s.segment_category && <SegmentCategoryBadge category={s.segment_category} />}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 overflow-hidden"><TagChips tags={s.tags} /></td>
                   <td className="px-2 py-3 whitespace-nowrap text-sm text-foreground">{s.pattern_count}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDate(s.created_at)}</td>

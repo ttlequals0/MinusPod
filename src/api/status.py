@@ -33,6 +33,7 @@ EMPTY_HOLD = {
 _HOLD_CACHE_TTL_SECONDS = 15
 _hold_cache = TTLCache(ttl_seconds=_HOLD_CACHE_TTL_SECONDS)
 _hold_cache_lock = threading.Lock()
+_last_hold: dict = {}
 
 
 def _offline_service_view(db, service: str) -> dict | None:
@@ -71,11 +72,15 @@ def _build_hold_block(db) -> dict:
 
 
 def hold_block() -> dict:
-    """Cached _build_hold_block. Never raises: a status frame must still go out
-    when the hold read fails, so the caller sees an empty hold instead."""
-    # The lock spans the rebuild so two readers arriving on the same expiry
-    # boundary do not both run the queries.
-    with _hold_cache_lock:
+    """Cached _build_hold_block. Never raises and never queues: while one
+    thread rebuilds, or when the read fails, callers get the last good block
+    so a locked database cannot stall every status frame in the worker."""
+    cached = _hold_cache.get('hold')
+    if cached is not None:
+        return cached
+    if not _hold_cache_lock.acquire(blocking=False):
+        return _last_hold.get('block') or dict(EMPTY_HOLD)
+    try:
         cached = _hold_cache.get('hold')
         if cached is not None:
             return cached
@@ -83,9 +88,12 @@ def hold_block() -> dict:
             block = _build_hold_block(get_database())
         except Exception as e:
             logger.warning(f"Could not read queue hold state: {e}")
-            block = dict(EMPTY_HOLD)
+            block = _last_hold.get('block') or dict(EMPTY_HOLD)
         _hold_cache.set('hold', block)
+        _last_hold['block'] = block
         return block
+    finally:
+        _hold_cache_lock.release()
 
 
 def status_payload(status=None) -> dict:

@@ -378,9 +378,11 @@ function GlobalStatusBar() {
             <div className="py-2 border-b border-border/30">
               <p className="text-xs font-medium text-warning mb-1">{summary}</p>
               <ul className="space-y-1">
-                {hold.queuePaused && (
+                {(hold.queuePaused || hold.rateLimitHeld > 0) && (
                   <li className="text-xs text-foreground">
-                    {`Provider rate limit. ${resumesText(hold.holdUntil)}`}
+                    {hold.queuePaused
+                      ? `Provider rate limit. ${resumesText(hold.holdUntil)}`
+                      : 'Provider rate limit lifted. Held episodes requeue shortly.'}
                     {hold.rateLimitHeld > 0
                       && ` ${countLabel(hold.rateLimitHeld, 'episode')} waiting.`}
                   </li>

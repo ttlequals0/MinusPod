@@ -269,6 +269,14 @@ def background_queue_processor():
                                 )
                                 break
 
+                        # The job writes its status before its finally block drops
+                        # the lock; wait that gap out so the next claim does not trip
+                        # acquire's same-process rejection and the 30 s backoff.
+                        for _ in range(60):
+                            if shutdown_event.is_set() or not queue.is_processing(slug, episode_id):
+                                break
+                            shutdown_event.wait(timeout=0.5)
+
                         # Check final status
                         episode = db.get_episode(slug, episode_id)
                         if episode and episode['status'] == 'processed':

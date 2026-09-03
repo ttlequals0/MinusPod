@@ -1,5 +1,6 @@
 import { apiRequest } from './client';
 import { Sponsor, SponsorNormalization, NormalizationCategory } from './types';
+import type { SegmentCategory } from '../utils/segmentCategory';
 
 // Sponsor API
 
@@ -13,6 +14,7 @@ export async function addSponsor(sponsor: {
   name: string;
   aliases?: string[];
   category?: string;
+  segment_category?: SegmentCategory | null;
 }): Promise<{ message: string; id: number }> {
   return apiRequest<{ message: string; id: number }>('/sponsors', {
     method: 'POST',
@@ -26,6 +28,7 @@ export async function updateSponsor(
     name?: string;
     aliases?: string[];
     category?: string;
+    segment_category?: SegmentCategory | null;
     is_active?: boolean;
   }
 ): Promise<Sponsor> {

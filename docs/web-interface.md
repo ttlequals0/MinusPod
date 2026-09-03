@@ -60,6 +60,8 @@ Titles are capped at 500 characters and collapsed to one line, so a rename or a 
 
 The Sponsors page lists known sponsors, each with its linked ad-pattern count, created date, last-matched date, and tags. You can add and edit a sponsor's name, aliases, category, and tags, toggle it active or inactive, filter by tag, search by name, and reveal inactive sponsors.
 
+A sponsor can also carry a segment category. When set, every read that names the sponsor is filed under that category, whatever the detector called it. The marker takes it before the per-category action is applied, existing patterns for the sponsor show and match with it, the pass-1 prompt hint states it, and a pattern learned from a cut stores it. Use it for a host's own product that the model keeps labeling as a paid sponsor: set the sponsor to Self-promo once instead of re-categorizing each learned pattern.
+
 Deleting a sponsor is permanent. Ad patterns linked to it are not deleted: their sponsor link is cleared (unlinked) so no pattern data is lost. The confirmation dialog shows how many patterns will be unlinked first.
 
 Name normalizations moved to Settings > AI & Processing > Transcript Normalization: regex rules that rewrite messy or inconsistent sponsor names into one canonical form before matching (for example collapsing `ag 1`, `ag-1`, and `ag one` to `ag1`). The rules correct any misheard Whisper output, sponsor names included.
