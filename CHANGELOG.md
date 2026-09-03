@@ -105,6 +105,13 @@ release notes.
 - The offline queue now records each reachability probe it already performs.
   The status API can then say which service is down and when it was last
   checked, without probing on the read path.
+- Splice check is overridable per feed, under Advanced on the feed's settings
+  page and as `spliceVetoEnabled` on the feed API. Null inherits the global,
+  true forces the check on, false lets long cuts through without splice
+  evidence. A feed whose ads are spoken straight through rather than joined
+  into the audio has no edit point to find, so the check holds every long cut
+  on it however obvious the ad; turning the check off for that feed alone
+  leaves every other feed's behaviour untouched.
 
 ### Changed
 
@@ -116,27 +123,12 @@ release notes.
   categories they accept on sync. The corpus no longer relies on the
   unset-means-sponsor fallback.
 - `patterns/CONTRIBUTING.md` documents the `category` field and its vocabulary.
-
-### Changed
-
 - Feed and settings help text is shorter. Several fields explained the
   mechanism, the tradeoff, and the background where a sentence on what the
   setting does and when to change it was enough; the detail belongs in the
   docs. Nine help texts ran past 45 words, now two. The no-password security
   warning keeps its length on purpose, since spelling out what an unprotected
   instance exposes is what makes the warning act.
-
-### Fixed
-
-### Added
-
-- Splice check is overridable per feed, under Advanced on the feed's settings
-  page and as `spliceVetoEnabled` on the feed API. Null inherits the global,
-  true forces the check on, false lets long cuts through without splice
-  evidence. A feed whose ads are spoken straight through rather than joined
-  into the audio has no edit point to find, so the check holds every long cut
-  on it however obvious the ad; turning the check off for that feed alone
-  leaves every other feed's behaviour untouched.
 
 ### Fixed
 
@@ -166,6 +158,14 @@ release notes.
   time. A 403 is now reported as `CDN refused the request (403)` and treated
   as permanent. A 404 stays transient, since a freshly published episode can
   404 briefly while its host provisions the media URL.
+- Benchmark corpus: two episodes were missing truth spans. One lacked its
+  pre-roll sponsor read (68 seconds); the other had its opening network
+  promo (76 seconds) left rejected, although the same promo is accepted
+  later in the same episode and the reviewer rules count stand-alone
+  promos as ads. Models that detected either span were charged a false
+  positive. Report regenerated from the stored raw calls; F0.5 rises for
+  nearly every model (top score 0.861 to 0.908), the top tier keeps the
+  same 13 members, and docs/llm-providers.md quotes the new figures.
 - A community pattern file whose name did not match its sponsor is renamed to
   the convention the submission validator enforces.
 - The community pattern validation workflow installs the dependencies the
