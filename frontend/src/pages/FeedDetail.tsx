@@ -535,12 +535,13 @@ function FeedDetail() {
         <h2 className="text-xl font-semibold text-foreground">
           Episodes {totalEpisodes > 0 && <span className="text-muted-foreground font-normal text-base">({totalEpisodes})</span>}
         </h2>
-        {/* Two selects side by side overflow a 320px screen; let them wrap. */}
-        <div className="flex flex-wrap items-center gap-2 min-w-0">
+        {/* The pair shares one row and shrinks to fit rather than stacking:
+            wrapping put each select on its own line at ordinary phone widths. */}
+        <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); }}
-            className={`${selectBase}`}
+            className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
           >
             <option value="all">All statuses</option>
             <option value="discovered">Discovered</option>
@@ -560,7 +561,7 @@ function FeedDetail() {
               setPage(1);
               setSelectedIds(new Set());
             }}
-            className={`${selectBase}`}
+            className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
           >
             <option value="published_at:desc">Newest First</option>
             <option value="published_at:asc">Oldest First</option>
