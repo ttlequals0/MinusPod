@@ -50,31 +50,31 @@ def test_tier1_capped_at_12():
 def test_sponsor_category_lists_auto_pattern_with_category():
     hint = _detector_with([{
         'id': 3, 'created_by': 'auto', 'source': 'local',
-        'sponsor': 'SpinRite', 'category': 'sponsor', 'intro_text': 'my drive died'}],
-        sponsor_categories={'spinrite': 'self_promo'},
+        'sponsor': 'Acme', 'category': 'sponsor', 'intro_text': 'my drive died'}],
+        sponsor_categories={'acme': 'self_promo'},
     )._build_known_pattern_hint('example-podcast')
-    assert '- SpinRite (self_promo read).' in hint
+    assert '- Acme (self_promo read).' in hint
     assert 'Previously detected sponsors' not in hint
 
 
 def test_sponsor_category_outranks_defined_pattern_category():
     hint = _detector_with([{
         'id': 4, 'created_by': 'user', 'source': 'local',
-        'sponsor': 'SpinRite', 'category': 'sponsor',
-        'intro_text': 'a listener wrote in about spinrite saving a drive today'}],
-        sponsor_categories={'spinrite': 'self_promo'},
+        'sponsor': 'Acme', 'category': 'sponsor',
+        'intro_text': 'a listener wrote in about acme saving a drive today'}],
+        sponsor_categories={'acme': 'self_promo'},
     )._build_known_pattern_hint('example-podcast')
-    assert hint.count('SpinRite') == 1
-    assert '- SpinRite (self_promo read). Opens like:' in hint
+    assert hint.count('Acme') == 1
+    assert '- Acme (self_promo read). Opens like:' in hint
 
 
 def test_uncategorized_names_stay_in_leftovers():
     hint = _detector_with([
         {'id': 5, 'created_by': 'auto', 'source': 'local', 'sponsor': 'Acme',
          'category': 'sponsor', 'intro_text': 'x'},
-        {'id': 6, 'created_by': 'auto', 'source': 'local', 'sponsor': 'GRC',
+        {'id': 6, 'created_by': 'auto', 'source': 'local', 'sponsor': 'Widgets',
          'category': 'sponsor', 'intro_text': 'y'}],
-        sponsor_categories={'grc': 'self_promo'},
+        sponsor_categories={'widgets': 'self_promo'},
     )._build_known_pattern_hint('example-podcast')
     assert 'Previously detected sponsors for this podcast: Acme' in hint
-    assert '- GRC (self_promo read).' in hint
+    assert '- Widgets (self_promo read).' in hint
