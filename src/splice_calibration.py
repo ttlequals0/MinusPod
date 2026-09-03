@@ -80,14 +80,6 @@ def build_calibration(rows) -> dict:
     if considered < SPLICE_CALIBRATION_MIN_EPISODES or total_hours <= 0:
         return cold_start_calibration(considered)
 
-    # A feed whose whole history holds no splice events is not a feed we have
-    # learned to judge; it is one that never splices. Calibrating it arms the
-    # validator's veto against evidence the feed can never produce, which held
-    # every long cut on host-read archives. Cold start corroborates but never
-    # vetoes, which is the intended treatment here.
-    if not any(durations_by_type.values()):
-        return cold_start_calibration(considered)
-
     rates = {}
     thresholds = {}
     # Floor at 1 so feeds with < 1 hour of history still allow at least one

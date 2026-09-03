@@ -149,7 +149,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Sliding windows** - Long transcripts are fed to the LLM in overlapping chunks so nothing is missed at chunk edges; the Windows column in Processing stats counts these. [How It Works > Sliding Window Processing](how-it-works.md#sliding-window-processing)
 
-**Splice check** - The rule that holds a long cut for review unless the audio shows an edit point near its edges. It applies only to feeds whose history contains real splice events, and each feed can override it. [Configuration > Splice check](configuration.md#splice-check)
+**Splice check** - The rule that holds a long cut for review unless the audio shows an edit point near its edges. Feeds whose ads are never joined into the audio can turn it off on their own settings page. [Configuration > Splice check](configuration.md#splice-check)
 
 **Splice evidence** - A mark in the audio where something was joined: a transition pair, an ad-break cue, a sharp volume step, or a detected splice event. Server-inserted and edited-in ads leave these; an ad spoken straight through in a single take does not. [How It Works > Held for Review](how-it-works.md#held-for-review)
 

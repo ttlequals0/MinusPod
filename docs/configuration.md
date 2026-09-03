@@ -364,9 +364,7 @@ A long cut is held for review unless the audio carries evidence of an insertion 
 
 The test is whether the ad was joined into the audio, not who reads it. An ad recorded separately and edited in leaves an edit point and passes the check like any other. One spoken straight through in a single take does not. Every long cut on such a feed is then held, however obvious the ad.
 
-Two things keep that in check. The rule applies only once a feed's splice calibration reads `calibrated`, which now needs five episodes of history carrying at least one splice event between them. A feed that has never produced one stays uncalibrated, so this rule never holds its cuts.
-
-The per-feed **Splice check** setting, under Advanced on the feed's settings page, overrides the global either way.
+The per-feed **Splice check** setting, under Advanced on the feed's settings page, is the way out. It overrides the global either way, so a feed that can never satisfy the check stops being held by it without changing anything for your other feeds.
 
 | Setting | Effect |
 |---|---|

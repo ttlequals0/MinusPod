@@ -11,7 +11,7 @@ release notes.
 
 ## [Unreleased]
 
-## [2.94.9] - 2026-09-03
+## [2.94.10] - 2026-09-03
 
 ### Added
 
@@ -68,23 +68,15 @@ release notes.
 
 ### Fixed
 
-- A feed whose history contains no splice events is no longer promoted to
-  `calibrated`. Promotion needed only five episodes carrying a valid
-  splice_evidence payload, regardless of whether any of them held an event, so
-  a feed that never splices accumulated five empty payloads and calibrated.
-  That armed the validator's zero-splice veto against evidence the feed cannot
-  produce, holding every cut of 60 seconds or more from the detector or a
-  learned pattern. Such a feed now stays cold start, which corroborates but
-  never vetoes, as the rule intended.
-
 ### Added
 
 - Splice check is overridable per feed, under Advanced on the feed's settings
   page and as `spliceVetoEnabled` on the feed API. Null inherits the global,
   true forces the check on, false lets long cuts through without splice
-  evidence. The calibration fix above only exempts feeds with no splice
-  history at all, so this covers a feed that has some splices but still holds
-  ads it should cut.
+  evidence. A feed whose ads are spoken straight through rather than joined
+  into the audio has no edit point to find, so the check holds every long cut
+  on it however obvious the ad; turning the check off for that feed alone
+  leaves every other feed's behaviour untouched.
 
 ### Fixed
 
