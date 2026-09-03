@@ -6,10 +6,10 @@
 # Lines starting with '#' are ignored. To accept a rejected block,
 # remove the '# ' prefix from its start/end/text lines.
 
-# auto-rejected: no ad signals (brought-to-you-by / .com / promo code)
-# start: 0:00.00
-# end:   1:27.05
-# text:  Acast powers the world's best podcasts. Here's a show that we recommend. What if you laughed all through your commute? Or if you heard the funniest story while at the gym? Well, now you can. I'm Jameeda Jamil, and guests on my new podcast, Wrong Turns, share their most mortifying and hilarious disaster stories. I'm talking people like Mae Martin, Bob the Drag Queen, Katherine Ryan, Jake Johnson, Margaret Cho, Simon Pegg, Penn Badgley, and so many more. So listen wherever you get your podcasts, Wrong Turns, where dignity goes to die. Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com. If you like this podcast, we think you might also like Formative. the award-winning series where New York City middle schoolers interview a wide variety of successful grownups asking bold, thoughtful questions that spark real conversations. Go to your favorite podcast app right now to listen to brand new episodes and an archive of 100 previous episodes of Formative, the podcast where the leaders of today are interviewed by the leaders of tomorrow.
+# Accepted on review: network promo, counted per the stand-alone promo rule.
+start: 0:01.61
+end:   1:17.19
+text:  Acast powers the world's best podcasts. Here's a show that we recommend. What if you laughed all through your commute? Or if you heard the funniest story while at the gym? Well, now you can. I'm Jameeda Jamil, and guests on my new podcast, Wrong Turns, share their most mortifying and hilarious disaster stories. I'm talking people like Mae Martin, Bob the Drag Queen, Katherine Ryan, Jake Johnson, Margaret Cho, Simon Pegg, Penn Badgley, and so many more. So listen wherever you get your podcasts, Wrong Turns, where dignity goes to die. Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com. If you like this podcast, we think you might also like Formative. the award-winning series where New York City middle schoolers interview a wide variety of successful grownups asking bold, thoughtful questions that spark real conversations. Go to your favorite podcast app right now to listen to brand new episodes and an archive of 100 previous episodes of Formative, the podcast where the leaders of today are interviewed by the leaders of tomorrow.
 ---
 start: 25:24.46
 end:   26:42.60

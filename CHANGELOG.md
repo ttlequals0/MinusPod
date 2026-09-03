@@ -22,6 +22,14 @@ release notes.
 
 ### Fixed
 
+- Benchmark corpus: two episodes were missing truth spans. One lacked its
+  pre-roll sponsor read (68 seconds); the other had its opening network
+  promo (76 seconds) left rejected, although the same promo is accepted
+  later in the same episode and the reviewer rules count stand-alone
+  promos as ads. Models that detected either span were charged a false
+  positive. Report regenerated from the stored raw calls; F0.5 rises for
+  nearly every model (top score 0.861 to 0.908), the top tier keeps the
+  same 13 members, and docs/llm-providers.md quotes the new figures.
 - A community pattern file whose name did not match its sponsor is renamed to
   the convention the submission validator enforces.
 - The community pattern validation workflow installs the dependencies the
