@@ -540,6 +540,23 @@ class TestHoldAlerts:
         assert kwargs['ttl_hours'] == get_rate_limit_hold_ttl_hours(db)
         assert db.get_setting('rate_limit_hold_since')
 
+    @patch('main_app.processing.fire_queue_held_event')
+    def test_shorter_reset_under_active_hold_does_not_fire(self, mock_fire, seeded_episode):
+        _set_hold_enabled(True)
+        _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=1800))
+        first_until = db.get_setting('rate_limit_hold_until')
+        _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=900))
+        assert mock_fire.call_count == 1
+        assert db.get_setting('rate_limit_hold_until') == first_until
+
+    @patch('main_app.processing.fire_queue_held_event')
+    def test_longer_reset_extends_hold_and_fires(self, mock_fire, seeded_episode):
+        _set_hold_enabled(True)
+        _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=900))
+        _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=1800))
+        assert mock_fire.call_count == 2
+        assert mock_fire.call_args.kwargs['hold_until'] == db.get_setting('rate_limit_hold_until')
+
     def test_second_hold_keeps_first_hold_since(self, seeded_episode):
         _set_hold_enabled(True)
         _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=900))
@@ -559,3 +576,22 @@ class TestHoldAlerts:
         rate_limit_hold_tick(db)
         mock_fire.assert_called_once_with(held_since=past, requeued=1)
         assert db.get_setting('rate_limit_hold_since') is None
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_tick_fires_resumed_after_settings_cleared_marker(self, mock_fire, seeded_episode):
+        """Disabling the hold in settings drops the marker before the tick
+        runs; the release still resumes the queue."""
+        recent = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.upsert_episode(SLUG, seeded_episode, status='deferred', deferred_at=recent,
+                          deferred_service=RATE_LIMIT_DEFERRED_SERVICE)
+        rate_limit_hold_tick(db)
+        mock_fire.assert_called_once_with(held_since=None, requeued=1)
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_tick_without_release_or_clear_stays_quiet(self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)
+        db.upsert_episode(SLUG, seeded_episode, status='deferred', deferred_at=future,
+                          deferred_service=RATE_LIMIT_DEFERRED_SERVICE)
+        rate_limit_hold_tick(db)
+        mock_fire.assert_not_called()

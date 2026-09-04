@@ -104,7 +104,7 @@ from llm_client import (
     ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
 )
-from offline_queue import is_offline_queue_enabled
+from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
     RATE_LIMIT_DEFERRED_SERVICE, get_rate_limit_hold_ttl_hours,
     is_rate_limit_hold_enabled, record_hold_until,
@@ -4132,22 +4132,25 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         hold_until = utc_now() + timedelta(
             seconds=max(0.0, float(error.retry_after_seconds)))
         hold_until_iso = hold_until.strftime(ISO_FORMAT)
-        record_hold_until(db, hold_until_iso)
+        effective_until = record_hold_until(db, hold_until_iso)
         db.upsert_episode(
             slug, episode_id,
             status=EpisodeStatus.DEFERRED.value,
-            error_message=f"Paused (LLM rate limit until {hold_until_iso}): {error}",
+            error_message=f"Paused (LLM rate limit until {effective_until}): {error}",
             deferred_at=first_deferred_at,
             deferred_service=RATE_LIMIT_DEFERRED_SERVICE,
         )
         audio_logger.warning(
             f"[{slug}:{episode_id}] Rate-limit hold: paused until "
             f"{hold_until_iso} (provider reset)")
-        fire_queue_held_event(
-            hold_until=hold_until_iso,
-            ttl_hours=get_rate_limit_hold_ttl_hours(db),
-            error_message=error, slug=slug, episode_id=episode_id,
-            podcast_name=podcast_name)
+        # A shorter reset under an active hold changes nothing; only a new
+        # or extended hold is worth an alert.
+        if effective_until == hold_until_iso:
+            fire_queue_held_event(
+                hold_until=effective_until,
+                ttl_hours=get_rate_limit_hold_ttl_hours(db),
+                error_message=error, slug=slug, episode_id=episode_id,
+                podcast_name=podcast_name)
         return
 
     # Offline queue (#482): endpoint-down failures defer instead of failing.
@@ -4174,6 +4177,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             f"[{slug}:{episode_id}] Offline queue: deferred until the "
             f"{service} endpoint is reachable again"
         )
+        # Seed the outage verdict so the next tick's True probe reads as a
+        # recovery and fires Service Reachable.
+        record_probe_state(db, service, False)
         fire_service_offline_event(
             service=service, error_message=error, slug=slug,
             episode_id=episode_id, podcast_name=podcast_name)

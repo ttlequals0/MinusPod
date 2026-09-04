@@ -106,10 +106,10 @@ def test_a_past_reset_time_is_not_a_pause(clean_hold, app_client):
 
 def test_offline_services_report_the_last_probe_verdict(deferred_on, app_client):
     from config import DEFER_SERVICE_WHISPER
-    from offline_queue import _record_probe_state
+    from offline_queue import record_probe_state
 
     with deferred_on(DEFER_SERVICE_WHISPER) as db:
-        _record_probe_state(db, DEFER_SERVICE_WHISPER, False)
+        record_probe_state(db, DEFER_SERVICE_WHISPER, False)
         hold = _hold(app_client)
         assert hold['offlineHeld'] == 1
         assert hold['offlineServices'] == [{

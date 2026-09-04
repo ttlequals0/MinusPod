@@ -59,16 +59,18 @@ def get_hold_until(db) -> str | None:
         return None
 
 
-def record_hold_until(db, retry_at_iso: str) -> None:
+def record_hold_until(db, retry_at_iso: str) -> str:
     """Stamp the pause marker, keeping whichever reset is later so a second
-    429 can extend an active pause but never cut it short."""
+    429 can extend an active pause but never cut it short. Returns the
+    effective hold_until; equal to `retry_at_iso` when this call set it."""
     current = get_hold_until(db)
     if current and parse_iso_utc(current) and parse_iso_utc(current) > parse_iso_utc(retry_at_iso):
-        return
+        return current
     # Extending an active pause keeps its start; only a fresh pause stamps it.
     if not hold_is_active(current):
         db.set_setting(HOLD_SINCE_KEY, utc_now_iso())
     db.set_setting(HOLD_UNTIL_KEY, retry_at_iso)
+    return retry_at_iso
 
 
 def clear_hold(db) -> str | None:
@@ -126,9 +128,15 @@ def rate_limit_hold_tick(db) -> None:
     if requeued:
         logger.info(f"Rate-limit hold: released {requeued} held episodes after provider reset")
 
+    held_since = None
+    cleared = False
     if hold_until and get_hold_until(db) == hold_until:
         # Reset time passed and nothing re-stamped it; clear the stale
         # marker so the claim gate unblocks.
         held_since = clear_hold(db)
+        cleared = True
         logger.info("Rate-limit hold: queue pause lifted after provider reset")
+    # The settings-disable path clears the marker itself, so a release with
+    # no marker to clear still counts as a resume.
+    if requeued or cleared:
         fire_queue_resumed_event(held_since=held_since, requeued=requeued)
