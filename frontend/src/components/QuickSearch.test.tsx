@@ -9,6 +9,11 @@ const mockQuickSearch = vi.fn();
 vi.mock('../api/quickSearch', () => ({
   quickSearch: (...a: unknown[]) => mockQuickSearch(...a),
 }));
+const mockNavigate = vi.fn();
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
+}));
 
 function renderPalette(seed = 'ba', onClose = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -49,6 +54,20 @@ describe('QuickSearch', () => {
     expect(screen.getAllByRole('option')[1].getAttribute('aria-selected')).toBe('true');
     await userEvent.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('ignores arrows and Enter with no rows, then selects index 1 once results arrive', async () => {
+    mockQuickSearch.mockResolvedValueOnce({ query: 'ba', feeds: [], episodes: [] });
+    renderPalette();
+    await waitFor(() => screen.getByText('No feed or episode titles match.'));
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    expect(mockNavigate).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByRole('combobox'), 'n');
+    await waitFor(() => screen.getByText('Batteries again'));
+    await userEvent.keyboard('{ArrowDown}');
+    expect(screen.getAllByRole('option')[1].getAttribute('aria-selected')).toBe('true');
+    await userEvent.keyboard('{Enter}');
+    expect(mockNavigate).toHaveBeenCalledWith('/feeds/example-podcast/episodes/a1b2c3d4e5f6');
   });
 
   it('offers a transcript search link', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { quickSearch } from '../api/quickSearch';
@@ -68,16 +68,25 @@ function Palette({ seed, onClose }: Omit<Props, 'open'>) {
     })),
   ], [data, ready]);
 
+  // Clamp: a shorter result set can swap in under a stale index.
+  const current = rows.length ? Math.min(active, rows.length - 1) : 0;
+
   useEffect(() => {
-    const id = rows[active]?.key;
+    const id = rows[current]?.key;
     if (id) document.getElementById(id)?.scrollIntoView?.({ block: 'nearest' });
-  }, [active, rows]);
+  }, [current, rows]);
 
   const go = (row: Row) => { onClose(); navigate(row.to); };
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, rows.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-    else if (e.key === 'Enter' && rows[active]) { e.preventDefault(); go(rows[active]); }
+    if (e.nativeEvent.isComposing) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (rows.length === 0) return;
+      setActive(e.key === 'ArrowDown' ? Math.min(current + 1, rows.length - 1) : Math.max(current - 1, 0));
+    } else if (e.key === 'Enter' && rows[current]) {
+      e.preventDefault();
+      go(rows[current]);
+    }
   };
 
   let lastGroup: Row['group'] | null = null;
@@ -99,7 +108,7 @@ function Palette({ seed, onClose }: Omit<Props, 'open'>) {
             role="combobox"
             aria-expanded={rows.length > 0}
             aria-controls="quick-search-results"
-            aria-activedescendant={rows[active]?.key}
+            aria-activedescendant={rows[current]?.key}
             aria-autocomplete="list"
             autoComplete="off"
             spellCheck={false}
@@ -114,38 +123,40 @@ function Palette({ seed, onClose }: Omit<Props, 'open'>) {
           {rows.map((row, i) => {
             const header = row.group !== lastGroup;
             lastGroup = row.group;
-            return [
-              header && (
-                <li key={row.group} role="presentation" className="px-4 pb-1 pt-2 text-xs font-medium text-muted-foreground">
-                  {row.group}
+            const isActive = i === current;
+            return (
+              <Fragment key={row.key}>
+                {header && (
+                  <li role="presentation" className="px-4 pb-1 pt-2 text-xs font-medium text-muted-foreground">
+                    {row.group}
+                  </li>
+                )}
+                <li
+                  id={row.key}
+                  role="option"
+                  aria-selected={isActive}
+                  onMouseMove={() => setActive(i)}
+                  onClick={() => go(row)}
+                  className={`cursor-pointer border-l-2 px-4 py-2 ${isActive ? 'border-primary bg-accent font-medium text-accent-foreground' : 'border-transparent'}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm">{row.label}</span>
+                    {row.status && (
+                      <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-normal ${EPISODE_STATUS_COLORS[row.status] || 'bg-muted text-muted-foreground'}`}>
+                        {EPISODE_STATUS_LABELS[row.status] || row.status}
+                      </span>
+                    )}
+                  </div>
+                  {row.sub && <div className="truncate text-xs font-normal text-muted-foreground">{row.sub}</div>}
                 </li>
-              ),
-              <li
-                key={row.key}
-                id={row.key}
-                role="option"
-                aria-selected={i === active}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => go(row)}
-                className={`cursor-pointer px-4 py-2 ${i === active ? 'bg-accent text-accent-foreground' : ''}`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-sm">{row.label}</span>
-                  {row.status && (
-                    <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs ${EPISODE_STATUS_COLORS[row.status] || 'bg-muted text-muted-foreground'}`}>
-                      {EPISODE_STATUS_LABELS[row.status] || row.status}
-                    </span>
-                  )}
-                </div>
-                {row.sub && <div className="truncate text-xs text-muted-foreground">{row.sub}</div>}
-              </li>,
-            ];
+              </Fragment>
+            );
           })}
           {!ready && (
-            <li className="px-4 py-3 text-sm text-muted-foreground">Type two or more characters to match feed and episode titles.</li>
+            <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">Type two or more characters to match feed and episode titles.</li>
           )}
           {ready && data && rows.length === 0 && (
-            <li className="px-4 py-3 text-sm text-muted-foreground">No feed or episode titles match.</li>
+            <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">No feed or episode titles match.</li>
           )}
         </ul>
         {ready && (

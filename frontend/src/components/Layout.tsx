@@ -53,6 +53,7 @@ function Layout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchSeed, setSearchSeed] = useState('');
   const openSearch = useCallback((seed: string) => { setSearchSeed(seed); setSearchOpen(true); }, []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
   useQuickSearchHotkey(openSearch);
 
   const handleLogout = async () => {
@@ -197,7 +198,7 @@ function Layout() {
         <UpdateBanner />
         <Outlet />
       </main>
-      <QuickSearch open={searchOpen} seed={searchSeed} onClose={() => setSearchOpen(false)} />
+      <QuickSearch open={searchOpen} seed={searchSeed} onClose={closeSearch} />
     </div>
   );
 }
