@@ -18,7 +18,7 @@ from config import (
     coerce_bool_setting,
 )
 from utils.time import utc_now_iso
-from webhook_service import fire_event, EVENT_EPISODE_FAILED
+from webhook_service import fire_event, fire_service_reachable_event, EVENT_EPISODE_FAILED
 
 logger = logging.getLogger('podcast.refresh')
 
@@ -137,12 +137,19 @@ def offline_queue_tick(db) -> None:
         for e in deferred if e['id'] not in expired_ids
     }
     reachable = set()
+    recovered = set()
     for service in waiting_services:
+        previous, _ = get_probe_state(db, service)
         verdict = _SERVICE_PROBES.get(service, lambda: False)()
         _record_probe_state(db, service, verdict)
         if verdict:
             reachable.add(service)
+            # None means never probed; only a recorded outage counts as recovery.
+            if previous is False:
+                recovered.add(service)
     requeued = db.requeue_deferred_episodes(reachable) if reachable else 0
+    for service in sorted(recovered):
+        fire_service_reachable_event(service=service, requeued=requeued)
 
     if expired or requeued:
         logger.info(

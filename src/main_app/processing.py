@@ -106,7 +106,8 @@ from llm_client import (
 )
 from offline_queue import is_offline_queue_enabled
 from rate_limit_hold import (
-    RATE_LIMIT_DEFERRED_SERVICE, is_rate_limit_hold_enabled, record_hold_until,
+    RATE_LIMIT_DEFERRED_SERVICE, get_rate_limit_hold_ttl_hours,
+    is_rate_limit_hold_enabled, record_hold_until,
 )
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -133,7 +134,8 @@ from utils.text import (
 )
 from webhook_service import (
     fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED,
-    fire_cue_template_quiet_event,
+    fire_cue_template_quiet_event, fire_queue_held_event,
+    fire_service_offline_event,
 )
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -4141,6 +4143,11 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         audio_logger.warning(
             f"[{slug}:{episode_id}] Rate-limit hold: paused until "
             f"{hold_until_iso} (provider reset)")
+        fire_queue_held_event(
+            hold_until=hold_until_iso,
+            ttl_hours=get_rate_limit_hold_ttl_hours(db),
+            error_message=error, slug=slug, episode_id=episode_id,
+            podcast_name=podcast_name)
         return
 
     # Offline queue (#482): endpoint-down failures defer instead of failing.
@@ -4167,6 +4174,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             f"[{slug}:{episode_id}] Offline queue: deferred until the "
             f"{service} endpoint is reachable again"
         )
+        fire_service_offline_event(
+            service=service, error_message=error, slug=slug,
+            episode_id=episode_id, podcast_name=podcast_name)
         return
 
     transient = is_transient_error(error)

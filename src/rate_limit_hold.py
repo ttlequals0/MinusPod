@@ -8,16 +8,18 @@ draining after it is turned off.
 import logging
 
 from config import DEFER_SERVICE_RATE_LIMIT, coerce_bool_setting
-from utils.time import parse_iso_utc, utc_now
+from utils.time import parse_iso_utc, utc_now, utc_now_iso
+from webhook_service import fire_queue_resumed_event
 
 # offline_queue is lazy-imported below: at module level it would drag
-# transcriber and webhook_service into the LLM call path's import graph,
+# llm_client and transcriber into the LLM call path's import graph,
 # which utils.llm_call deliberately avoids.
 
 logger = logging.getLogger('podcast.refresh')
 
 RATE_LIMIT_DEFERRED_SERVICE = DEFER_SERVICE_RATE_LIMIT
 HOLD_UNTIL_KEY = 'rate_limit_hold_until'
+HOLD_SINCE_KEY = 'rate_limit_hold_since'
 HOLD_LABEL = 'Rate-limit hold'
 
 # A provider reset farther out than this is treated as unusable reset info;
@@ -63,6 +65,9 @@ def record_hold_until(db, retry_at_iso: str) -> None:
     current = get_hold_until(db)
     if current and parse_iso_utc(current) and parse_iso_utc(current) > parse_iso_utc(retry_at_iso):
         return
+    # Extending an active pause keeps its start; only a fresh pause stamps it.
+    if not hold_is_active(current):
+        db.set_setting(HOLD_SINCE_KEY, utc_now_iso())
     db.set_setting(HOLD_UNTIL_KEY, retry_at_iso)
 
 
@@ -116,5 +121,8 @@ def rate_limit_hold_tick(db) -> None:
     if hold_until and get_hold_until(db) == hold_until:
         # Reset time passed and nothing re-stamped it; clear the stale
         # marker so the claim gate unblocks.
+        held_since = db.get_setting(HOLD_SINCE_KEY)
         db.clear_setting(HOLD_UNTIL_KEY)
+        db.clear_setting(HOLD_SINCE_KEY)
         logger.info("Rate-limit hold: queue pause lifted after provider reset")
+        fire_queue_resumed_event(held_since=held_since, requeued=requeued)

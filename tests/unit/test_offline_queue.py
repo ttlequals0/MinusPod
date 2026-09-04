@@ -223,3 +223,41 @@ class TestTtlAndRequeue:
         with patch('llm_client.check_llm_connectivity', return_value=True):
             offline_queue_tick(db)
         assert db.get_episode(SLUG, 'ep-llm')['status'] == 'pending'
+
+
+class TestServiceAlerts:
+    def _defer_llm(self):
+        db.upsert_episode(SLUG, 'ep-llm', title='ep-llm', status='deferred',
+                          original_url='https://example.com/ep-llm.mp3',
+                          error_message='Deferred (llm endpoint unreachable)',
+                          deferred_at='2999-01-01T00:00:00Z', deferred_service='llm')
+
+    def teardown_method(self):
+        db.clear_setting('offline_probe_llm_reachable')
+
+    @patch('offline_queue.fire_service_reachable_event')
+    def test_probe_false_to_true_fires_reachable(self, mock_fire, seeded_episode):
+        self._defer_llm()
+        db.set_setting('offline_probe_llm_reachable', 'false', is_default=False)
+        with patch('llm_client.check_llm_connectivity', return_value=True):
+            offline_queue_tick(db)
+        mock_fire.assert_called_once_with(service='llm', requeued=1)
+
+    @patch('offline_queue.fire_service_reachable_event')
+    def test_first_probe_does_not_fire_reachable(self, mock_fire, seeded_episode):
+        self._defer_llm()
+        db.clear_setting('offline_probe_llm_reachable')
+        with patch('llm_client.check_llm_connectivity', return_value=True):
+            offline_queue_tick(db)
+        mock_fire.assert_not_called()
+        assert db.get_episode(SLUG, 'ep-llm')['status'] == 'pending'
+
+    @patch('main_app.processing.fire_service_offline_event')
+    def test_deferral_fires_service_offline(self, mock_fire, seeded_episode):
+        db.set_setting('offline_queue_enabled', 'true')
+        _fail(seeded_episode, ServiceUnavailableError('whisper', 'down'))
+        assert mock_fire.call_count == 1
+        kwargs = mock_fire.call_args.kwargs
+        assert kwargs['service'] == 'whisper'
+        assert kwargs['slug'] == SLUG
+        assert kwargs['episode_id'] == seeded_episode
