@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, ReactNode } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { search, rebuildSearchIndex, getSearchStats } from '../api/search';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { btnSecondary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
+import { renderSnippet } from '../utils/searchSnippet';
 
 type FilterType = 'all' | 'episode' | 'podcast' | 'transcript' | 'pattern' | 'sponsor';
 type ResultType = Exclude<FilterType, 'all'>;
@@ -16,21 +17,6 @@ interface NormalizedResult {
   subtitle?: string;
   snippet: string | null;
   link: string;
-}
-
-/**
- * Safely render a search snippet with <mark> highlights as React elements.
- * All other content is rendered as plain text (auto-escaped by React).
- */
-function renderSnippet(snippet: string): ReactNode[] {
-  const parts = snippet.split(/(<mark>.*?<\/mark>)/g);
-  return parts.map((part, i) => {
-    const match = part.match(/^<mark>(.*?)<\/mark>$/);
-    if (match) {
-      return <mark key={i}>{match[1]}</mark>;
-    }
-    return part;
-  });
 }
 
 function Search() {
