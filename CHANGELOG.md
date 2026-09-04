@@ -11,6 +11,8 @@ release notes.
 
 ## [Unreleased]
 
+## [2.95.0] - 2026-09-04
+
 ### Added
 
 - Webhook and email alerts for queue holds: `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`.
