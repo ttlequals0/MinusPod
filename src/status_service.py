@@ -205,18 +205,30 @@ class StatusService:
         """Write status to the shared file. Best effort, never raises."""
         write_json_atomic(STATUS_FILE, status)
 
-    def set_server_start_time(self, start_time: float):
-        """Store server start time in shared status file.
+    def get_server_start_time(self) -> float | None:
+        """Shared server start time, or None when it was never recorded."""
+        value = self._peek().get('server_start_time')
+        return value if isinstance(value, (int, float)) else None
 
-        Always overwrites the existing value. This ensures uptime resets
-        on deploy/container restart (when the status file persists but
-        the server did restart). Workers starting at slightly different
-        times will overwrite each other, but the difference is negligible.
+    def claim_server_start_time(self, start_time: float, owner: str) -> float:
+        """Record `start_time` for this server run and return the effective value.
+
+        A worker respawn (OOM kill, max_requests recycle) must not reset
+        uptime, so a stored stamp from the same `owner` wins. A new server
+        run has a different owner and overwrites, which is what makes
+        uptime reset on deploy even though the status file persists.
         """
         with self._status_transaction():
             status = self._load()
+            stored = status.get('server_start_time')
+            if (status.get('server_start_owner') == owner
+                    and isinstance(stored, (int, float))
+                    and stored <= start_time):
+                return stored
             status['server_start_time'] = start_time
+            status['server_start_owner'] = owner
             self._write_status_file(status)
+            return start_time
 
     def _empty_status(self) -> dict:
         """Return empty status dict."""
