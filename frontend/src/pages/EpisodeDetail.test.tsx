@@ -77,7 +77,8 @@ const mockUploadLocalEpisodeArtwork = vi.fn();
 vi.mock('../api/feeds', () => ({
   getEpisode: vi.fn(),
   getFeed: vi.fn(),
-  getOriginalTranscript: vi.fn(),
+  getOriginalSegments: vi.fn(),
+  getFinalSegments: vi.fn(),
   reprocessEpisode: (...args: unknown[]) => mockReprocessEpisode(...args),
   regenerateChapters: (...args: unknown[]) => mockRegenerateChapters(...args),
   episodeOriginalUrl: (slug: string, episodeId: string) =>

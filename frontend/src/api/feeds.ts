@@ -96,6 +96,15 @@ export async function getOriginalSegments(
   );
 }
 
+export async function getFinalSegments(
+  slug: string,
+  episodeId: string,
+): Promise<OriginalSegmentsResponse> {
+  return apiRequest<OriginalSegmentsResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/final-segments`,
+  );
+}
+
 export interface FeedsResponse {
   feeds: Feed[];
   // Stamped whenever an all-feeds refresh pass finishes (15-minute
@@ -238,13 +247,6 @@ export async function getEpisodes(
 
 export async function getEpisode(slug: string, episodeId: string): Promise<EpisodeDetail> {
   return apiRequest<EpisodeDetail>(`/feeds/${slug}/episodes/${episodeId}`);
-}
-
-export async function getOriginalTranscript(slug: string, episodeId: string): Promise<string> {
-  const response = await apiRequest<{ originalTranscript: string }>(
-    `/feeds/${slug}/episodes/${episodeId}/original-transcript`
-  );
-  return response.originalTranscript;
 }
 
 export async function reprocessEpisode(

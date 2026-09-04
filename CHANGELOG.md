@@ -19,6 +19,8 @@ release notes.
 
 ### Changed
 
+- Episode page: the Transcript and Original Transcript sections merged into one, with a View transcript button. The reader shows original or processed segments with timestamps, a search box, a start and end time window, and (original only) a checkbox that highlights the rows that were cut and names the sponsor.
+
 ### Fixed
 
 - Frontend unit tests run on Node 25 and later (the runtime's own localStorage getter shadowed the test DOM's).

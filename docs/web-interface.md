@@ -92,7 +92,7 @@ Both of these are global defaults. Any single feed can override them on its own 
 
 Since 2.5.14, original audio has its own retention input under the same section: "Retain original audio for: N days". Defaults to whatever the processed retention is, so existing installs see no change. Set a smaller number to drop the pre-cut copy sooner while keeping the processed file for the full retention period (useful if originals are taking too much disk but you still want the processed output around for the normal 30-day window). Capped at the processed retention by the server; the input is disabled when "Keep original audio" is off.
 
-The **Original Transcript** panel on the Episode Detail page shows the full pre-cut transcript so you can see exactly what text was identified and removed.
+The **Transcript** section on the Episode Detail page has one View transcript button. It opens a reader with a source select, Original for the full pre-cut text or Processed for what is served, and every segment carries its timestamps. There is a search box that marks each match, a start and end time window, and, on the original, a Highlight ads checkbox that tints the rows that were cut and names the sponsor.
 
 ### Waveform Ad Editor
 
