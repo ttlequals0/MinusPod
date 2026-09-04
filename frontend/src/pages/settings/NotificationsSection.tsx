@@ -295,14 +295,13 @@ function WebhooksBlock() {
           {/* Events */}
           <div>
             <span className="block text-sm font-medium text-foreground mb-1">Events</span>
-            <div className="space-y-1.5">
+            <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
               {EVENT_OPTIONS.map((opt) => (
                 <Checkbox
                   key={opt.value}
                   checked={form.events.includes(opt.value)}
                   onChange={() => handleEventToggle(opt.value)}
                   label={opt.label}
-                  className="flex"
                 />
               ))}
             </div>

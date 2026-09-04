@@ -741,6 +741,35 @@ describe('Held for Review: apply bar guards', () => {
     expect(applyBtn).toHaveProperty('disabled', true);
   });
 
+  it('apply button stays disabled after submit, until the refetch lands', async () => {
+    // The POST only queues the run. Before the refetch, the cached status
+    // still reads idle, so an un-awaited invalidate re-enabled the button
+    // and a second click raced the processing lock.
+    let releaseGet: () => void = () => {};
+    const episode = makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [{ ...heldMarker, approved: true }, secondHeldMarker],
+      corrections: [confirmedHeldCorrection],
+    });
+    renderDetail(episode);
+    await screen.findByTestId('held-for-review-section');
+    const applyBtn = await screen.findByTestId('apply-approved-recut');
+
+    // Hold the refetch open so the window under test stays observable.
+    (getEpisode as ReturnType<typeof vi.fn>).mockImplementation(
+      () => new Promise((resolve) => {
+        releaseGet = () => resolve({ ...episode, status: 'processing' });
+      }));
+    applyBtn.click();
+
+    await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(applyBtn).toHaveProperty('disabled', true));
+    releaseGet();
+    // Still disabled once the refetch reports the episode as processing.
+    await waitFor(() => expect(applyBtn).toHaveProperty('disabled', true));
+    expect(mockReprocessEpisode).toHaveBeenCalledTimes(1);
+  });
+
   it('legacy confirmed hold without the approved flag still counts', async () => {
     // Confirms recorded before 2.51.0 carry no marker flag; the correction
     // join is the fallback so their apply action does not disappear.

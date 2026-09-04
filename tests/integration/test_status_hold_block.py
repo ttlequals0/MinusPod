@@ -13,7 +13,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='status-hold-test-'))
 
-HOLD_KEYS = {'queuePaused', 'holdUntil', 'rateLimitHeld',
+HOLD_KEYS = {'queuePaused', 'holdUntil', 'holdSince', 'rateLimitHeld',
              'offlineHeld', 'offlineServices'}
 
 
@@ -78,6 +78,7 @@ def test_status_reports_an_empty_hold_when_nothing_is_held(clean_hold, app_clien
     assert set(hold) == HOLD_KEYS
     assert hold['queuePaused'] is False
     assert hold['holdUntil'] is None
+    assert hold['holdSince'] is None
     assert hold['rateLimitHeld'] == 0
     assert hold['offlineHeld'] == 0
     assert hold['offlineServices'] == []

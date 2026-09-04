@@ -46,6 +46,7 @@ function emptyHold(overrides = {}) {
   return {
     queuePaused: false,
     holdUntil: null,
+    holdSince: null,
     rateLimitHeld: 0,
     offlineHeld: 0,
     offlineServices: [],
@@ -105,6 +106,37 @@ describe('GlobalStatusBar queue holds', () => {
     });
     const detail = holdRow('Provider rate limit lifted');
     expect(detail.textContent).toContain('3 episodes waiting');
+  });
+
+  it('says when a lifted hold started and how long it ran', () => {
+    const holdSince = new Date(Date.now() - 75 * 60 * 1000).toISOString();
+    const holdUntil = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    renderBar(makeStatus({
+      hold: emptyHold({
+        queuePaused: false, holdSince, holdUntil, rateLimitHeld: 1,
+      }),
+    }));
+    act(() => {
+      screen.getByRole('button', { name: 'Expand status bar' }).click();
+    });
+    const detail = holdRow('Provider rate limit lifted');
+    expect(detail.textContent).toContain('after 1h 10m');
+    expect(detail.textContent).toContain('1 episode waiting');
+  });
+
+  it('says when an active hold started alongside its reset time', () => {
+    const holdSince = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+    const holdUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    renderBar(makeStatus({
+      hold: emptyHold({ queuePaused: true, holdSince, holdUntil }),
+    }));
+    act(() => {
+      screen.getByRole('button', { name: 'Expand status bar' }).click();
+    });
+    const detail = holdRow('Provider rate limit since');
+    // Both stamps render: when the pause began, and when it lifts.
+    expect(detail.textContent).toMatch(/since \d{1,2}:\d{2}/);
+    expect(detail.textContent).toContain('Resumes');
   });
 
   it('names the unreachable service rather than only counting held episodes', () => {

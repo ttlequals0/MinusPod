@@ -73,6 +73,14 @@ def record_hold_until(db, retry_at_iso: str) -> str:
     return retry_at_iso
 
 
+def get_hold_since(db) -> str | None:
+    """When the active pause began, or None when nothing is held."""
+    try:
+        return db.get_setting(HOLD_SINCE_KEY) or None
+    except Exception:
+        return None
+
+
 def clear_hold(db) -> str | None:
     """Drop the pause marker and its start stamp; returns when the hold began."""
     held_since = db.get_setting(HOLD_SINCE_KEY)

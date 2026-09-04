@@ -11,6 +11,15 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- Notification event checkboxes ran together with no space before their labels. The list is now a two-column grid, so twelve events read as twelve choices.
+- The recut and reprocess buttons on an episode page re-enabled for a moment after being clicked. The request only queues the run, so the button woke up again before the refetch reported the episode as processing, and a second click raced the lock.
+
+### Changed
+
+- The queue hold line in the status bar says when the pause began, and how long it ran once it lifts.
+
 ## [2.95.1] - 2026-09-04
 
 ### Fixed

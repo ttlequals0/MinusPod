@@ -276,16 +276,19 @@ function EpisodeDetail() {
 
   const reprocessMutation = useMutation({
     mutationFn: (mode: 'reprocess' | 'full' | 'llm' | 'recut') => reprocessEpisode(slug!, episodeId!, mode),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+    // Awaited so the mutation stays pending until the refetch lands. The POST
+    // only queues the run, so returning early would re-enable the button while
+    // the cached status still said the episode was idle.
+    onSuccess: async () => {
       setShowReprocessMenu(false);
+      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
     // Processing is serialized by a lock, so a stale cached status leaves the
     // button enabled and the click is refused; showing the 409 stops it just
     // flickering with nothing to explain it (#707).
-    onError: (error) => {
-      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+    onError: async (error) => {
       setCorrectionError(getErrorMessage(error, 'Could not start reprocessing.'));
+      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
   });
 

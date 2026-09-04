@@ -41,6 +41,7 @@ interface OfflineService {
 interface QueueHold {
   queuePaused: boolean;
   holdUntil: string | null;
+  holdSince: string | null;
   rateLimitHeld: number;
   offlineHeld: number;
   offlineServices: OfflineService[];
@@ -88,6 +89,28 @@ function resumesText(iso: string | null): string {
   if (!iso) return 'Resumes once the provider window resets.';
   const relative = formatRelative(iso);
   return `Resumes ${formatClock(iso)}${relative ? ` (${relative})` : ''}.`;
+}
+
+/** "1h 15m" between two stamps, or null when either is missing. */
+function spanText(fromIso: string | null, toIso: string | null): string | null {
+  if (!fromIso || !toIso) return null;
+  const mins = Math.round(
+    (new Date(toIso).getTime() - new Date(fromIso).getTime()) / 60000);
+  if (!Number.isFinite(mins) || mins < 1) return null;
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+/** The rate-limit line: how long the pause has run and when it ends. */
+function rateLimitText(hold: QueueHold): string {
+  const started = hold.holdSince ? ` since ${formatClock(hold.holdSince)}` : '';
+  if (hold.queuePaused) {
+    return `Provider rate limit${started}. ${resumesText(hold.holdUntil)}`;
+  }
+  const ran = spanText(hold.holdSince, hold.holdUntil);
+  const lifted = hold.holdUntil ? ` at ${formatClock(hold.holdUntil)}` : '';
+  return `Provider rate limit lifted${lifted}${ran ? ` after ${ran}` : ''}. `
+    + 'Held episodes requeue shortly.';
 }
 
 /** Short summary for the collapsed bar, or null when nothing is held. */
@@ -380,9 +403,7 @@ function GlobalStatusBar() {
               <ul className="space-y-1">
                 {(hold.queuePaused || hold.rateLimitHeld > 0) && (
                   <li className="text-xs text-foreground">
-                    {hold.queuePaused
-                      ? `Provider rate limit. ${resumesText(hold.holdUntil)}`
-                      : 'Provider rate limit lifted. Held episodes requeue shortly.'}
+                    {rateLimitText(hold)}
                     {hold.rateLimitHeld > 0
                       && ` ${countLabel(hold.rateLimitHeld, 'episode')} waiting.`}
                   </li>

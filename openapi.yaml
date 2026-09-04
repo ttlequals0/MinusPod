@@ -11856,6 +11856,12 @@ components:
             - 'null'
           format: date-time
           description: The provider's own rate-limit reset time, or null
+        holdSince:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the current pause began, or null when nothing is held
         rateLimitHeld:
           type: integer
           description: Episodes held by the rate-limit hold
