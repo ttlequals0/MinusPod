@@ -75,6 +75,37 @@ def test_upsert_episode_new_row_is_indexed_immediately():
     assert _episode_hit(db.search('Vexillological'), ep_id)
 
 
+def test_reindex_scopes_by_podcast_slug_not_bare_episode_id():
+    """Two podcasts can share an episode_id GUID; reindexing one must not lose the other's row.
+
+    index_episodes scopes its DELETE/SELECT by (episode_id, podcast_slug) pairs rather than a
+    bare episode_id, precisely so this case is safe: a naive bare-episode_id DELETE would sweep
+    up both podcasts' search_index rows, while a properly-scoped SELECT would only re-fetch and
+    reinsert the one requested, permanently dropping the other podcast's row from the index.
+    """
+    slug_a = _feed('collide-a')
+    slug_b = _feed('collide-b')
+    shared_id = _eid()
+    db.bulk_upsert_discovered_episodes(slug_a, [_episode(shared_id, title='Umbraflux Podcast A')])
+    db.bulk_upsert_discovered_episodes(slug_b, [_episode(shared_id, title='Umbraflux Podcast B')])
+
+    conn = db.get_connection()
+    count_sql = "SELECT COUNT(*) FROM search_index WHERE content_type = 'episode' AND content_id = ?"
+    assert conn.execute(count_sql, (shared_id,)).fetchone()[0] == 2
+
+    assert db.index_episode(shared_id, slug_a) is True
+
+    assert conn.execute(count_sql, (shared_id,)).fetchone()[0] == 2
+    rows = conn.execute(
+        "SELECT podcast_slug, title FROM search_index "
+        "WHERE content_type = 'episode' AND content_id = ?",
+        (shared_id,)
+    ).fetchall()
+    by_slug = {r['podcast_slug']: r['title'] for r in rows}
+    assert by_slug[slug_a] == 'Umbraflux Podcast A'
+    assert by_slug[slug_b] == 'Umbraflux Podcast B'
+
+
 def test_bulk_insert_uses_one_batched_index_call_not_per_row(monkeypatch):
     slug = _feed('bulk-index-batch')
     real_transaction = db.transaction
@@ -150,6 +181,26 @@ def test_reindex_migration_runs_once(monkeypatch):
     db._run_reindex_search_all_episode_statuses(conn)
 
     assert calls == [1]
+    row = conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = 'reindex_search_all_episode_statuses'"
+    ).fetchone()
+    assert row is not None
+
+
+def test_reindex_migration_skips_rebuild_when_already_populated(monkeypatch):
+    """A fresh install's empty-index auto-populate already rebuilt this boot; don't redo it."""
+    conn = db.get_connection()
+    conn.execute(
+        "DELETE FROM schema_migrations WHERE name = 'reindex_search_all_episode_statuses'"
+    )
+    conn.commit()
+
+    calls = []
+    monkeypatch.setattr(db, 'rebuild_search_index', lambda: calls.append(1))
+
+    db._run_reindex_search_all_episode_statuses(conn, already_rebuilt=True)
+
+    assert calls == []
     row = conn.execute(
         "SELECT 1 FROM schema_migrations WHERE name = 'reindex_search_all_episode_statuses'"
     ).fetchone()

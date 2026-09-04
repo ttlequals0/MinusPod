@@ -966,11 +966,13 @@ class SchemaMixin:
             logger.debug(f"FTS5 search_index creation (may already exist): {e}")
 
         # Auto-populate search index if empty
+        search_index_freshly_populated = False
         try:
             cursor = conn.execute("SELECT COUNT(*) FROM search_index")
             if cursor.fetchone()[0] == 0:
                 logger.info("Search index is empty, rebuilding...")
                 count = self.rebuild_search_index()
+                search_index_freshly_populated = True
                 logger.info(f"Search index populated with {count} items")
         except Exception as e:
             logger.warning(f"Failed to auto-populate search index: {e}")
@@ -1446,7 +1448,8 @@ class SchemaMixin:
         # One-shot reindex so discovered/pending episodes are searchable too (2.95.2),
         # not just status='processed'. search_index is derived, so this is safe to redo.
         try:
-            self._run_reindex_search_all_episode_statuses(conn)
+            self._run_reindex_search_all_episode_statuses(
+                conn, already_rebuilt=search_index_freshly_populated)
         except Exception as e:
             conn.rollback()
             logger.error(f"search index reindex failed: {e}")
@@ -1997,13 +2000,12 @@ class SchemaMixin:
             ", ".join(cleared) if cleared else "none (nothing to clear)",
         )
 
-    def _run_reindex_search_all_episode_statuses(self, conn):
-        """One-shot reindex of search_index to cover every episode status (2.95.2).
+    def _run_reindex_search_all_episode_statuses(self, conn, already_rebuilt: bool = False):
+        """One-shot reindex of search_index to cover every episode status.
 
-        search_index previously only indexed status='processed' episodes, so a
-        discovered or pending episode was unsearchable until it finished
-        processing. search_index is derived (not source data), so a full
-        rebuild is safe to run once here and again on demand.
+        search_index is derived, so a full rebuild is safe to run once here.
+        already_rebuilt: True when this boot's auto-populate step (an empty
+        search_index) already rebuilt it, so this only needs to set the gate.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'reindex_search_all_episode_statuses'"
@@ -2011,13 +2013,16 @@ class SchemaMixin:
         if gate is not None:
             return
 
-        count = self.rebuild_search_index()
+        count = 0 if already_rebuilt else self.rebuild_search_index()
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
             "('reindex_search_all_episode_statuses')"
         )
         conn.commit()
-        logger.info(f"search-index-reindex: complete, {count} row(s) indexed")
+        if already_rebuilt:
+            logger.info("search-index-reindex: skipped, auto-populate already rebuilt it this boot")
+        else:
+            logger.info(f"search-index-reindex: complete, {count} row(s) indexed")
 
     def _seed_model_settings_from_env(self, conn):
         """Seed an absent model row from OPENAI_MODEL (2.86.4).
