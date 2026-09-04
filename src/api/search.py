@@ -7,6 +7,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database,
 )
+from utils.constants import EpisodeStatus
 
 logger = logging.getLogger('podcast.api')
 
@@ -59,6 +60,8 @@ def quick_search():
     except ValueError:
         limit = 8
     result = get_database().quick_search(query, limit=limit)
+    for ep in result['episodes']:
+        ep['status'] = EpisodeStatus.to_api(ep['status'])
     return json_response({'query': query, **result})
 
 

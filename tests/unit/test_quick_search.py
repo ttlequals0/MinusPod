@@ -38,6 +38,12 @@ def test_matches_feed_and_pending_episode(app_client, seeded):
     assert eps[0]['feedTitle'] == 'The Daily Tech Show'
 
 
+def test_processed_status_uses_api_alias(app_client, seeded):
+    _authed(app_client)
+    eps = app_client.get('/api/v1/quick-search?q=sodium').get_json()['episodes']
+    assert eps[0]['status'] == 'completed'
+
+
 def test_short_query_returns_empty_groups(app_client, seeded):
     _authed(app_client)
     body = app_client.get('/api/v1/quick-search?q=t').get_json()

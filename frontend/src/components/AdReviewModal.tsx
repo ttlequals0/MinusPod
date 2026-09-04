@@ -866,6 +866,9 @@ function AdReviewModal({
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Review ad"
         className="bg-card rounded-lg border border-border w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
