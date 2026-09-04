@@ -4,12 +4,15 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TranscriptViewer from './TranscriptViewer';
 import type { EpisodeDetail } from '../api/types';
+import { ApiError } from '../api/client';
 
 const mockOriginal = vi.fn();
 const mockFinal = vi.fn();
+const mockOriginalTranscript = vi.fn();
 vi.mock('../api/feeds', () => ({
   getOriginalSegments: (...a: unknown[]) => mockOriginal(...a),
   getFinalSegments: (...a: unknown[]) => mockFinal(...a),
+  getOriginalTranscript: (...a: unknown[]) => mockOriginalTranscript(...a),
 }));
 
 const SEGS = [
@@ -78,11 +81,27 @@ describe('TranscriptViewer', () => {
     expect(screen.queryByLabelText('Highlight ads')).toBeNull();
   });
 
-  it('falls back to plain text when processed segments are missing', async () => {
-    mockFinal.mockRejectedValue(new Error('Final segments not found'));
+  it('falls back to plain text when processed segments 404', async () => {
+    mockFinal.mockRejectedValue(new ApiError('Final segments not found', 404));
     renderViewer({ ...episode, originalTranscriptAvailable: false } as EpisodeDetail);
     await waitFor(() => screen.getByText('plain text only'));
     expect(mockOriginal).not.toHaveBeenCalled();
     expect((screen.getByLabelText('Source') as HTMLSelectElement).value).toBe('processed');
+  });
+
+  it('shows the error message instead of plain text on a non-404 processed error', async () => {
+    mockFinal.mockRejectedValue(new ApiError('Something broke', 500));
+    renderViewer({ ...episode, originalTranscriptAvailable: false } as EpisodeDetail);
+    await waitFor(() => screen.getByText('Something broke'));
+    expect(screen.queryByText('plain text only')).toBeNull();
+  });
+
+  it('falls back to the original transcript text on a 404 for original segments', async () => {
+    mockOriginal.mockRejectedValue(new ApiError('Original segments not found', 404));
+    mockOriginalTranscript.mockResolvedValue('the retained pre-cut transcript');
+    renderViewer();
+    await waitFor(() => screen.getByText('the retained pre-cut transcript'));
+    expect(mockOriginalTranscript).toHaveBeenCalledWith('example-podcast', 'a1b2c3d4e5f6');
+    expect(screen.getByText('Plain text, no timestamps')).toBeTruthy();
   });
 });

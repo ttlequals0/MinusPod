@@ -1,20 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getFinalSegments, getOriginalSegments, type OriginalSegment } from '../api/feeds';
+import { getFinalSegments, getOriginalSegments, getOriginalTranscript, type OriginalSegment } from '../api/feeds';
 import type { AdSegment, EpisodeDetail } from '../api/types';
-import { getErrorMessage } from '../api/client';
+import { ApiError, getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
 import { btnGhost } from './buttonStyles';
 import { focusRing, inputBase, selectBase } from './fieldStyles';
 import LoadingSpinner from './LoadingSpinner';
 import { formatTimestamp } from '../utils/format';
 import { parseTimeInput } from '../utils/adReviewHelpers';
+import { usePagedList } from '../hooks/usePagedList';
 
 type Source = 'original' | 'processed';
-
-// Rows rendered before the reader scrolls, and how many more each time they
-// reach the end. A three-hour episode has a few thousand segments.
-const PAGE = 300;
 
 // Attribute variants outrank inputBase's border and focus ring, so an
 // unparsable time reads red whether or not the field has focus.
@@ -31,14 +28,23 @@ function adFor(seg: OriginalSegment, markers: AdSegment[]): AdSegment | undefine
   return markers.find((m) => seg.end > m.start && seg.start < m.end);
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// A toLowerCase-then-indexOf approach breaks on characters whose lowercase
+// form is a different length (e.g. Turkish 'I'), shifting the match off the
+// original string. Matching directly against `text` with a case-insensitive
+// regex avoids the drift.
 function Highlight({ text, needle }: { text: string; needle: string }) {
   if (!needle) return <>{text}</>;
-  const lower = text.toLowerCase();
+  const re = new RegExp(escapeRegExp(needle), 'gi');
   const parts: React.ReactNode[] = [];
   let from = 0;
-  for (let idx = lower.indexOf(needle); idx >= 0; idx = lower.indexOf(needle, from)) {
-    parts.push(text.slice(from, idx), <mark key={idx}>{text.slice(idx, idx + needle.length)}</mark>);
-    from = idx + needle.length;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    parts.push(text.slice(from, m.index), <mark key={m.index}>{m[0]}</mark>);
+    from = m.index + m[0].length;
   }
   parts.push(text.slice(from));
   return <>{parts}</>;
@@ -52,7 +58,6 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
   const [startText, setStartText] = useState('');
   const [endText, setEndText] = useState('');
   const [highlight, setHighlight] = useState(false);
-  const [shown, setShown] = useState(PAGE);
 
   const query = useQuery({
     queryKey: [source === 'original' ? 'originalSegments' : 'finalSegments', slug, episodeId],
@@ -72,24 +77,37 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
     if (end !== null && seg.start >= end) return false;
     return !needle || seg.text.toLowerCase().includes(needle);
   }), [segments, start, end, needle]);
+  const { shown, reset, onScroll } = usePagedList(filtered.length);
   const visible = filtered.slice(0, shown);
 
   const onFilter = (apply: () => void) => {
     apply();
-    setShown(PAGE);
-  };
-  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
-      setShown((n) => (n < filtered.length ? n + PAGE : n));
-    }
+    reset();
   };
 
+  const status = query.error instanceof ApiError ? query.error.status : undefined;
+  const original404 = source === 'original' && query.isError && status === 404;
+
+  // Original segments 404 (never stored as JSON) falls back to the plain
+  // retained transcript via the older endpoint. Only fetched once the
+  // segments query actually 404s, not on every render of Original.
+  const transcriptQuery = useQuery({
+    queryKey: ['originalTranscript', slug, episodeId],
+    queryFn: () => getOriginalTranscript(slug, episodeId),
+    enabled: original404,
+  });
+
   // Episodes processed before segments were stored only have the plain
-  // processed text, so that is what Processed falls back to.
-  const fallback = source === 'processed' && !query.isPending && segments.length === 0
+  // processed text, so that is what Processed falls back to, but only on
+  // an empty result or a 404; any other error (e.g. a 500) must still show
+  // as an error, not silently swap in stale plain text.
+  const processedFallbackReady = source === 'processed'
+    && ((query.isSuccess && segments.length === 0) || status === 404);
+  const fallback = processedFallbackReady
     ? episode.transcript
-    : undefined;
+    : original404 && transcriptQuery.isSuccess ? transcriptQuery.data : undefined;
+  const fallbackPending = original404 && transcriptQuery.isLoading;
+  const fallbackError = original404 && transcriptQuery.isError ? transcriptQuery.error : undefined;
 
   return (
     <Modal onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground">
@@ -166,8 +184,11 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4" onScroll={onScroll}>
-        {query.isLoading && <LoadingSpinner className="py-8" />}
-        {query.isError && !fallback && (
+        {(query.isLoading || fallbackPending) && <LoadingSpinner className="py-8" />}
+        {fallbackError && (
+          <p className="text-sm text-destructive">{getErrorMessage(fallbackError)}</p>
+        )}
+        {query.isError && !original404 && !fallback && (
           <p className="text-sm text-destructive">{getErrorMessage(query.error)}</p>
         )}
         {query.isSuccess && segments.length === 0 && !fallback && (

@@ -105,6 +105,16 @@ export async function getFinalSegments(
   );
 }
 
+// Plain-text fallback for episodes whose original segments were never stored
+// as JSON (pre-segment-storage). TranscriptViewer falls back to this on a
+// 404 from getOriginalSegments.
+export async function getOriginalTranscript(slug: string, episodeId: string): Promise<string> {
+  const response = await apiRequest<{ originalTranscript: string }>(
+    `/feeds/${slug}/episodes/${episodeId}/original-transcript`
+  );
+  return response.originalTranscript;
+}
+
 export interface FeedsResponse {
   feeds: Feed[];
   // Stamped whenever an all-feeds refresh pass finishes (15-minute
