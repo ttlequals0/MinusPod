@@ -31,6 +31,7 @@ VALID_SECURITY = ('none', 'starttls', 'ssl')
 DEFAULT_EVENTS = [
     'Episode Failed', 'Auth Failure', 'Limit Exceeded', 'Rate Limit Structural',
     'Feed Refresh Failed', 'Update Available', 'Cue Template Quiet',
+    'Queue Held', 'Queue Resumed', 'Service Offline', 'Service Reachable',
 ]
 # Repo layout: <root>/src/email_service.py and <root>/static/ui/logo.png.
 # Container layout: /app/src/email_service.py and /app/static/ui/logo.png.

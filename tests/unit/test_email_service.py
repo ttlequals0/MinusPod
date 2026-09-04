@@ -12,6 +12,7 @@ import email_service
 from utils.url import SSRFError
 from webhook_service import VALID_EVENTS
 from email_service import (
+    DEFAULT_EVENTS,
     EmailConfig,
     build_message,
     is_send_ready,
@@ -341,7 +342,6 @@ class TestSendTestEmail:
 
 
 def test_new_alert_formatters_render():
-    from email_service import FORMATTERS
     cases = {
         'Queue Held': {'hold_until': '2026-09-03T18:00:00Z', 'ttl_hours': 24,
                        'error_message': 'rate limited', 'slug': 'example-podcast',
@@ -357,3 +357,4 @@ def test_new_alert_formatters_render():
         subject, rows, hint = FORMATTERS[event](ctx)
         assert subject.startswith(f'[MinusPod] {event}')
         assert rows and all(len(r) == 2 for r in rows)
+        assert event in DEFAULT_EVENTS
