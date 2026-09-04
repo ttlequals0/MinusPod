@@ -3312,11 +3312,13 @@ paths:
     get:
       tags:
         - Search
-      summary: Full-text search
+      summary: Unified search
       description: |
-        Search across all content including episodes, podcasts, patterns,
-        and sponsors. Returns ranked results with relevance scores and
-        text snippets.
+        Word-match search across shows, episodes and transcripts, returned as
+        three independent groups. Show and episode titles also get a
+        substring match so a mid-word fragment still finds them; descriptions
+        and transcripts match whole words only. Transcript results are capped
+        at 3.
       operationId: search
       parameters:
         - name: q
@@ -3325,15 +3327,9 @@ paths:
           description: Search query
           schema:
             type: string
-        - name: type
-          in: query
-          description: Filter by content type
-          schema:
-            type: string
-            enum: [episode, podcast, pattern, sponsor]
         - name: limit
           in: query
-          description: Maximum results to return
+          description: Maximum results per group
           schema:
             type: integer
             minimum: 1
@@ -3341,7 +3337,7 @@ paths:
             default: 50
       responses:
         '200':
-          description: Search results
+          description: Grouped search results
           content:
             application/json:
               schema:
@@ -3349,12 +3345,18 @@ paths:
                 properties:
                   query:
                     type: string
-                  results:
+                  shows:
                     type: array
                     items:
-                      $ref: '#/components/schemas/SearchResult'
-                  total:
-                    type: integer
+                      $ref: '#/components/schemas/SearchShowResult'
+                  episodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchEpisodeResult'
+                  transcripts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchTranscriptResult'
         '400':
           $ref: '#/components/responses/BadRequest'
 
@@ -12038,30 +12040,57 @@ components:
           type: string
           format: date-time
 
-    SearchResult:
+    SearchShowResult:
       type: object
       properties:
-        type:
+        slug:
           type: string
-          enum: [episode, podcast, pattern, sponsor]
-          description: Type of matched content
-        id:
+        title:
           type: string
-          description: Identifier of the matched item
-        podcastSlug:
+        snippet:
           type:
             - string
             - 'null'
-          description: Podcast slug (for episode results)
+          description: Highlighted match context; null for a title-only substring match
+    SearchEpisodeResult:
+      type: object
+      properties:
+        feedSlug:
+          type: string
+        feedTitle:
+          type: string
+        episodeId:
+          type: string
         title:
           type: string
-          description: Title or name of the matched item
+        status:
+          type: string
+        publishDate:
+          type:
+            - string
+            - 'null'
+        snippet:
+          type:
+            - string
+            - 'null'
+          description: Highlighted match context; null for a title-only substring match
+    SearchTranscriptResult:
+      type: object
+      properties:
+        feedSlug:
+          type: string
+        episodeId:
+          type: string
+        title:
+          type: string
         snippet:
           type: string
-          description: Text snippet showing the match context
-        score:
-          type: number
-          description: Relevance score
+          description: Highlighted transcript match context
+        timestamp:
+          type:
+            - number
+            - 'null'
+          description: Always null; the search index has no offset back into the transcript timing
 
     Webhook:
       type: object

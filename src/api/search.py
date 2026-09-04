@@ -18,37 +18,18 @@ logger = logging.getLogger('podcast.api')
 @api.route('/search', methods=['GET'])
 @log_request
 def search():
-    """Full-text search across all content.
-
-    Query params:
-        q: Search query (required)
-        type: Filter by content type (episode, podcast, pattern, sponsor)
-        limit: Maximum results (default 50, max 100)
-
-    Returns:
-        List of search results with type, id, podcastSlug, title, snippet, score
-    """
+    """Unified search: {query, shows, episodes, transcripts}, covering episodes of any status."""
     query = request.args.get('q', '').strip()
     if not query:
         return error_response('Search query (q) is required', 400)
 
-    content_type = request.args.get('type')
-    if content_type and content_type not in ('episode', 'podcast', 'pattern', 'sponsor'):
-        return error_response('Invalid type. Use: episode, podcast, pattern, sponsor', 400)
+    limit = _clamped_int(request.args.get('limit'), 50, 1, 100)
 
-    try:
-        limit = max(1, min(int(request.args.get('limit', 50)), 100))
-    except ValueError:
-        limit = 50
+    result = get_database().search_grouped(query, limit=limit)
+    for ep in result['episodes']:
+        ep['status'] = EpisodeStatus.to_api(ep['status'])
 
-    db = get_database()
-    results = db.search(query, content_type=content_type, limit=limit)
-
-    return json_response({
-        'query': query,
-        'results': results,
-        'total': len(results)
-    })
+    return json_response({'query': query, **result})
 
 
 @api.route('/quick-search', methods=['GET'])

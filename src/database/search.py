@@ -217,6 +217,116 @@ class SearchMixin:
             logger.error(f"Search error for query '{query}': {e}")
             return []
 
+    def search_grouped(self, query: str, limit: int = 50) -> dict:
+        """Grouped search: shows, episodes, transcripts, each an independent FTS query.
+
+        FTS5 can't report which column matched, so each group scopes its MATCH to a
+        column filter; titles also get a substring LIKE pass. Transcripts cap at 3:
+        search_index holds one row per episode, so this limits distinct episodes,
+        not hits within one. timestamp is always None (no offset back into the VTT).
+        """
+        conn = self.get_connection()
+        clean_query = query.replace('"', '""').strip()
+        if not clean_query:
+            return {'shows': [], 'episodes': [], 'transcripts': []}
+        fts_query = f'"{clean_query}"* OR {clean_query}*'
+        needle = query.strip()
+        # Escape LIKE metacharacters so user input cannot widen the match
+        escaped = needle.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        like_pattern = f'%{escaped}%'
+        like_prefix = f'{escaped}%'
+
+        shows = self._search_shows(conn, fts_query, like_pattern, like_prefix, limit)
+        episodes = self._search_episodes(conn, fts_query, like_pattern, like_prefix, limit)
+        transcripts = self._search_transcripts(conn, fts_query)
+
+        return {'shows': shows, 'episodes': episodes, 'transcripts': transcripts}
+
+    def _search_shows(self, conn, fts_query, like_pattern, like_prefix, limit):
+        """Shows: FTS over title+description, plus a title LIKE pass for substrings."""
+        rows = conn.execute("""
+            SELECT si.content_id AS slug, COALESCE(p.title_override, p.title) AS title,
+                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+            FROM search_index si
+            JOIN podcasts p ON p.slug = si.content_id
+            WHERE si.content_type = 'podcast' AND search_index MATCH '{title body}:(' || ? || ')'
+            ORDER BY bm25(search_index)
+            LIMIT ?
+        """, (fts_query, limit)).fetchall()
+        shows = [{'slug': r['slug'], 'title': r['title'],
+                  'snippet': self._sanitize_snippet(r['snippet'])} for r in rows]
+        seen = {r['slug'] for r in rows}
+        if len(shows) < limit:
+            like_rows = conn.execute("""
+                SELECT slug, COALESCE(title_override, title) AS title
+                FROM podcasts
+                WHERE COALESCE(title_override, title) LIKE ? ESCAPE '\\'
+                ORDER BY (COALESCE(title_override, title) LIKE ? ESCAPE '\\') DESC, title
+                LIMIT ?
+            """, (like_pattern, like_prefix, limit)).fetchall()
+            for r in like_rows:
+                if r['slug'] not in seen:
+                    shows.append({'slug': r['slug'], 'title': r['title'], 'snippet': None})
+                    seen.add(r['slug'])
+        return shows[:limit]
+
+    def _search_episodes(self, conn, fts_query, like_pattern, like_prefix, limit):
+        """Episodes: FTS over title+description, plus a title LIKE pass, deduped by episode."""
+        rows = conn.execute("""
+            SELECT si.content_id AS episode_id, p.slug AS feed_slug,
+                   COALESCE(p.title_override, p.title) AS feed_title,
+                   e.title AS title, e.status AS status, e.published_at AS publish_date,
+                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+            FROM search_index si
+            JOIN podcasts p ON p.slug = si.podcast_slug
+            JOIN episodes e ON e.episode_id = si.content_id AND e.podcast_id = p.id
+            WHERE si.content_type = 'episode'
+              AND search_index MATCH '{title metadata}:(' || ? || ')'
+            ORDER BY bm25(search_index)
+            LIMIT ?
+        """, (fts_query, limit)).fetchall()
+        episodes = [{
+            'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'], 'episodeId': r['episode_id'],
+            'title': r['title'], 'status': r['status'], 'publishDate': r['publish_date'],
+            'snippet': self._sanitize_snippet(r['snippet']),
+        } for r in rows]
+        seen = {(r['feed_slug'], r['episode_id']) for r in rows}
+        if len(episodes) < limit:
+            like_rows = conn.execute("""
+                SELECT e.episode_id AS episode_id, p.slug AS feed_slug,
+                       COALESCE(p.title_override, p.title) AS feed_title,
+                       e.title AS title, e.status AS status, e.published_at AS publish_date
+                FROM episodes e JOIN podcasts p ON e.podcast_id = p.id
+                WHERE e.title LIKE ? ESCAPE '\\'
+                ORDER BY (e.title LIKE ? ESCAPE '\\') DESC, e.published_at DESC
+                LIMIT ?
+            """, (like_pattern, like_prefix, limit)).fetchall()
+            for r in like_rows:
+                key = (r['feed_slug'], r['episode_id'])
+                if key not in seen:
+                    episodes.append({
+                        'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'],
+                        'episodeId': r['episode_id'], 'title': r['title'], 'status': r['status'],
+                        'publishDate': r['publish_date'], 'snippet': None,
+                    })
+                    seen.add(key)
+        return episodes[:limit]
+
+    def _search_transcripts(self, conn, fts_query):
+        """Transcripts: word matches in the body column only, capped at 3 distinct episodes."""
+        rows = conn.execute("""
+            SELECT si.content_id AS episode_id, si.podcast_slug AS feed_slug, si.title AS title,
+                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+            FROM search_index si
+            WHERE si.content_type = 'episode' AND search_index MATCH 'body:(' || ? || ')'
+            ORDER BY bm25(search_index)
+            LIMIT 3
+        """, (fts_query,)).fetchall()
+        return [{
+            'feedSlug': r['feed_slug'], 'episodeId': r['episode_id'], 'title': r['title'],
+            'snippet': self._sanitize_snippet(r['snippet']), 'timestamp': None,
+        } for r in rows]
+
     def quick_search(self, query: str, limit: int = 8) -> dict:
         """Title-only LIKE match on feeds and episodes of any status."""
         needle = query.strip()
