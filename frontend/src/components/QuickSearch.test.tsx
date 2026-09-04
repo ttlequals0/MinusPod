@@ -6,8 +6,8 @@ import { MemoryRouter } from 'react-router';
 import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
 
 const mockQuickSearch = vi.fn();
-vi.mock('../api/quickSearch', () => ({
-  quickSearch: (...a: unknown[]) => mockQuickSearch(...a),
+vi.mock('../api/search', () => ({
+  search: (...a: unknown[]) => mockQuickSearch(...a),
 }));
 const mockNavigate = vi.fn();
 vi.mock('react-router', async (importOriginal) => ({
@@ -31,9 +31,10 @@ describe('QuickSearch', () => {
     vi.clearAllMocks();
     mockQuickSearch.mockResolvedValue({
       query: 'ba',
-      feeds: [{ slug: 'example-podcast', title: 'The Daily Tech Show' }],
+      shows: [{ slug: 'example-podcast', title: 'The Daily Tech Show', snippet: null }],
       episodes: [{ feedSlug: 'example-podcast', feedTitle: 'The Daily Tech Show',
-        episodeId: 'a1b2c3d4e5f6', title: 'Batteries again', status: 'pending', publishDate: null }],
+        episodeId: 'a1b2c3d4e5f6', title: 'Batteries again', status: 'pending', publishDate: null, snippet: null }],
+      transcripts: [], patterns: [], sponsors: [],
     });
   });
 
@@ -57,7 +58,9 @@ describe('QuickSearch', () => {
   });
 
   it('ignores arrows and Enter with no rows, then selects index 1 once results arrive', async () => {
-    mockQuickSearch.mockResolvedValueOnce({ query: 'ba', feeds: [], episodes: [] });
+    mockQuickSearch.mockResolvedValueOnce({
+      query: 'ba', shows: [], episodes: [], transcripts: [], patterns: [], sponsors: [],
+    });
     renderPalette();
     await waitFor(() => screen.getByText('No feed or episode titles match.'));
     await userEvent.keyboard('{ArrowDown}{Enter}');

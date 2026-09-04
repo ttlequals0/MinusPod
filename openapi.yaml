@@ -3314,11 +3314,13 @@ paths:
         - Search
       summary: Unified search
       description: |
-        Word-match search across shows, episodes and transcripts, returned as
-        three independent groups. Show and episode titles also get a
-        substring match so a mid-word fragment still finds them; descriptions
-        and transcripts match whole words only. Transcript results are capped
-        at 3.
+        Word-match search across shows, episodes, transcripts, patterns and
+        sponsors, returned as five independent groups. Show and episode
+        titles also get a substring match so a mid-word fragment still finds
+        them; descriptions and transcripts match whole words only.
+        Transcript results are capped at 3. Patterns and sponsors are
+        Advanced-page-only groups; the Dashboard box and keyboard palette
+        ignore them.
       operationId: search
       parameters:
         - name: q
@@ -3357,72 +3359,16 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/SearchTranscriptResult'
+                  patterns:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchPatternResult'
+                  sponsors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchSponsorResult'
         '400':
           $ref: '#/components/responses/BadRequest'
-
-  /quick-search:
-    get:
-      tags:
-        - Search
-      summary: Quick title search
-      description: |
-        Case-insensitive title match over feeds and episodes of any
-        processing status, for the keyboard palette. Queries shorter than
-        two characters return empty groups. LIKE wildcards in the query
-        are matched literally.
-      operationId: quickSearch
-      parameters:
-        - name: q
-          in: query
-          required: true
-          description: Title fragment (minimum 2 characters)
-          schema:
-            type: string
-        - name: limit
-          in: query
-          description: Maximum results per group
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 20
-            default: 8
-      responses:
-        '200':
-          description: Matching feeds and episodes
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  query:
-                    type: string
-                  feeds:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        slug:
-                          type: string
-                        title:
-                          type: string
-                  episodes:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        feedSlug:
-                          type: string
-                        feedTitle:
-                          type: string
-                        episodeId:
-                          type: string
-                        title:
-                          type: string
-                        status:
-                          type: string
-                        publishDate:
-                          type: string
-                          nullable: true
 
   /search/rebuild:
     post:
@@ -12091,6 +12037,33 @@ components:
             - number
             - 'null'
           description: Always null; the search index has no offset back into the transcript timing
+    SearchPatternResult:
+      type: object
+      description: Advanced-page-only group; not shown in the Dashboard box or palette.
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+          description: Pattern scope (podcast slug, or "global")
+        sponsor:
+          type: string
+        snippet:
+          type:
+            - string
+            - 'null'
+    SearchSponsorResult:
+      type: object
+      description: Advanced-page-only group; not shown in the Dashboard box or palette.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        snippet:
+          type:
+            - string
+            - 'null'
 
     Webhook:
       type: object

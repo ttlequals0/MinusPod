@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { quickSearch } from '../api/quickSearch';
+// Minimal glue onto the unified endpoint; the palette body itself is due a fuller rewrite.
+import { search } from '../api/search';
 import { modalBackdrop, modalPanel, useEscape, useFocusTrap } from './Modal';
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
 
@@ -52,14 +53,14 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
   const ready = debounced.trim().length >= MIN_QUERY;
   const { data } = useQuery({
     queryKey: ['quickSearch', debounced],
-    queryFn: ({ signal }) => quickSearch(debounced, signal),
+    queryFn: ({ signal }) => search(debounced, 8, signal),
     enabled: ready,
     placeholderData: keepPreviousData,
   });
 
   // Guard on ready: keepPreviousData would otherwise show stale rows under a too-short query.
   const rows = useMemo<Row[]>(() => !ready || !data ? [] : [
-    ...data.feeds.map((f) => ({
+    ...data.shows.map((f) => ({
       key: `qs-f-${f.slug}`, group: 'Feeds' as const, label: f.title, to: `/feeds/${f.slug}`,
     })),
     ...data.episodes.map((e) => ({

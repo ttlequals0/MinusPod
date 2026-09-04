@@ -18,7 +18,7 @@ logger = logging.getLogger('podcast.api')
 @api.route('/search', methods=['GET'])
 @log_request
 def search():
-    """Unified search: {query, shows, episodes, transcripts}, covering episodes of any status."""
+    """Unified search: {query, shows, episodes, transcripts, patterns, sponsors}, covering episodes of any status."""
     query = request.args.get('q', '').strip()
     if not query:
         return error_response('Search query (q) is required', 400)
@@ -29,18 +29,6 @@ def search():
     for ep in result['episodes']:
         ep['status'] = EpisodeStatus.to_api(ep['status'])
 
-    return json_response({'query': query, **result})
-
-
-@api.route('/quick-search', methods=['GET'])
-@log_request
-def quick_search():
-    """Title-only search for the keyboard palette; covers episodes of any status."""
-    query = request.args.get('q', '').strip()
-    limit = _clamped_int(request.args.get('limit'), 8, 1, 20)
-    result = get_database().quick_search(query, limit=limit)
-    for ep in result['episodes']:
-        ep['status'] = EpisodeStatus.to_api(ep['status'])
     return json_response({'query': query, **result})
 
 

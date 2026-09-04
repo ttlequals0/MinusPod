@@ -137,8 +137,9 @@ def test_colon_in_query_finds_real_title_match():
 
 
 def test_fts_operator_characters_do_not_raise():
+    empty = {'shows': [], 'episodes': [], 'transcripts': [], 'patterns': [], 'sponsors': []}
     for needle in ('foo:bar', '(', 'a OR OR b'):
-        assert db.search_grouped(needle) == {'shows': [], 'episodes': [], 'transcripts': []}
+        assert db.search_grouped(needle) == empty
 
 
 def test_transcript_only_match_absent_from_episodes_group():
@@ -160,3 +161,28 @@ def test_title_or_description_match_absent_from_transcripts_group():
     result = db.search_grouped('ephemeralization')
     assert result['transcripts'] == []
     assert any(e['episodeId'] == ep_id for e in result['episodes'])
+
+
+# Patterns and sponsors are Advanced-page-only groups, always present in the response.
+# They only land in search_index via a rebuild, so these run last in the file: a full
+# rebuild also reindexes every podcast/episode created by the tests above it.
+
+
+def test_patterns_group_matches_after_rebuild():
+    sponsor_id = db.create_known_sponsor('Vermillion Botanics')
+    db.create_ad_pattern('global', text_template='mentions vermillionbotanics ad copy', sponsor_id=sponsor_id)
+    db.rebuild_search_index()
+    result = db.search_grouped('vermillionbotanics')
+    assert any(p['sponsor'] == 'Vermillion Botanics' for p in result['patterns'])
+
+
+def test_sponsors_group_matches_after_rebuild():
+    db.create_known_sponsor('Quixotic Roasters', aliases=['quixoticroasters'])
+    db.rebuild_search_index()
+    result = db.search_grouped('Quixotic Roasters')
+    assert any(s['name'] == 'Quixotic Roasters' for s in result['sponsors'])
+
+
+def test_grouped_response_always_has_five_keys():
+    result = db.search_grouped('an-unmatched-query-xyz')
+    assert set(result.keys()) == {'shows', 'episodes', 'transcripts', 'patterns', 'sponsors'}

@@ -218,11 +218,16 @@ class SearchMixin:
             return []
 
     def search_grouped(self, query: str, limit: int = 50) -> dict:
-        """Grouped search: shows, episodes, transcripts, each an independent FTS query."""
+        """Grouped search: shows, episodes, transcripts, patterns, sponsors; each an independent FTS query.
+
+        Patterns and sponsors are always included so the endpoint has one shape regardless of
+        caller (Dashboard box, palette, or the Advanced page, which is their only consumer).
+        """
         conn = self.get_connection()
         clean_query = query.replace('"', '""').strip()
+        empty = {'shows': [], 'episodes': [], 'transcripts': [], 'patterns': [], 'sponsors': []}
         if not clean_query:
-            return {'shows': [], 'episodes': [], 'transcripts': []}
+            return empty
         fts_query = self._safe_fts_query(clean_query)
         needle = query.strip()
         # Escape LIKE metacharacters so user input cannot widen the match
@@ -231,7 +236,7 @@ class SearchMixin:
         like_prefix = f'{escaped}%'
 
         # Each group is independent: one group's unexpected failure should not blank the others.
-        shows, episodes, transcripts = [], [], []
+        shows, episodes, transcripts, patterns, sponsors = [], [], [], [], []
         try:
             shows = self._search_shows(conn, fts_query, like_pattern, like_prefix, limit)
         except Exception as e:
@@ -244,8 +249,19 @@ class SearchMixin:
             transcripts = self._search_transcripts(conn, fts_query)
         except Exception as e:
             logger.error(f"Grouped search (transcripts) failed for query '{query}': {e}")
+        try:
+            patterns = self._search_patterns(conn, fts_query, limit)
+        except Exception as e:
+            logger.error(f"Grouped search (patterns) failed for query '{query}': {e}")
+        try:
+            sponsors = self._search_sponsors(conn, fts_query, limit)
+        except Exception as e:
+            logger.error(f"Grouped search (sponsors) failed for query '{query}': {e}")
 
-        return {'shows': shows, 'episodes': episodes, 'transcripts': transcripts}
+        return {
+            'shows': shows, 'episodes': episodes, 'transcripts': transcripts,
+            'patterns': patterns, 'sponsors': sponsors,
+        }
 
     @staticmethod
     def _safe_fts_query(clean_query: str) -> str:
@@ -340,39 +356,31 @@ class SearchMixin:
             'snippet': self._sanitize_snippet(r['snippet']), 'timestamp': None,
         } for r in rows]
 
-    def quick_search(self, query: str, limit: int = 8) -> dict:
-        """Title-only LIKE match on feeds and episodes of any status."""
-        needle = query.strip()
-        if len(needle) < 2:
-            return {'feeds': [], 'episodes': []}
-        # Escape LIKE metacharacters so user input cannot widen the match
-        escaped = needle.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-        pattern = f'%{escaped}%'
-        prefix = f'{escaped}%'
-        conn = self.get_connection()
-        feeds = conn.execute("""
-            SELECT slug, COALESCE(title_override, title) AS title
-            FROM podcasts
-            WHERE COALESCE(title_override, title) LIKE ? ESCAPE '\\'
-            ORDER BY (COALESCE(title_override, title) LIKE ? ESCAPE '\\') DESC, title
+    def _search_patterns(self, conn, fts_query, limit):
+        """Patterns: FTS over sponsor name + pattern text. Advanced-page-only group."""
+        rows = conn.execute("""
+            SELECT si.content_id AS id, si.podcast_slug AS scope, si.title AS sponsor,
+                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+            FROM search_index si
+            WHERE si.content_type = 'pattern' AND search_index MATCH '{title body}:(' || ? || ')'
+            ORDER BY bm25(search_index)
             LIMIT ?
-        """, (pattern, prefix, limit)).fetchall()
-        episodes = conn.execute("""
-            SELECT e.episode_id, e.title, e.status, e.published_at,
-                   p.slug AS feed_slug, COALESCE(p.title_override, p.title) AS feed_title
-            FROM episodes e JOIN podcasts p ON e.podcast_id = p.id
-            WHERE e.title LIKE ? ESCAPE '\\'
-            ORDER BY (e.title LIKE ? ESCAPE '\\') DESC, e.published_at DESC
+        """, (fts_query, limit)).fetchall()
+        return [{'id': r['id'], 'scope': r['scope'], 'sponsor': r['sponsor'],
+                 'snippet': self._sanitize_snippet(r['snippet'])} for r in rows]
+
+    def _search_sponsors(self, conn, fts_query, limit):
+        """Sponsors: FTS over name + aliases. Advanced-page-only group."""
+        rows = conn.execute("""
+            SELECT si.content_id AS id, si.title AS name,
+                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+            FROM search_index si
+            WHERE si.content_type = 'sponsor' AND search_index MATCH '{title body}:(' || ? || ')'
+            ORDER BY bm25(search_index)
             LIMIT ?
-        """, (pattern, prefix, limit)).fetchall()
-        return {
-            'feeds': [{'slug': r['slug'], 'title': r['title']} for r in feeds],
-            'episodes': [{
-                'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'],
-                'episodeId': r['episode_id'], 'title': r['title'],
-                'status': r['status'], 'publishDate': r['published_at'],
-            } for r in episodes],
-        }
+        """, (fts_query, limit)).fetchall()
+        return [{'id': r['id'], 'name': r['name'],
+                 'snippet': self._sanitize_snippet(r['snippet'])} for r in rows]
 
     def get_search_index_stats(self) -> dict[str, int]:
         """Get statistics about the search index."""
