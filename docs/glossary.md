@@ -189,7 +189,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Waveform Ad Editor** - The visual editor for a single detection: waveform, transcript context, and draggable boundaries, with the original audio for reference. [Web Interface > Waveform Ad Editor](web-interface.md#waveform-ad-editor)
 
-**Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
+**Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet, Queue Held, Queue Resumed, Service Offline, Service Reachable. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
 
 ---
 

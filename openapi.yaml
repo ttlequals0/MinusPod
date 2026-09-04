@@ -6057,7 +6057,11 @@ paths:
                       - Feed Refresh Failed
                       - Update Available
                       - Cue Template Quiet
-                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes.
+                      - Queue Held
+                      - Queue Resumed
+                      - Service Offline
+                      - Service Reachable
+                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes. `Queue Held` fires when a provider rate limit pauses the queue; `Queue Resumed` when that hold clears. `Service Offline` fires when an episode defers because the LLM or Whisper endpoint is unreachable; `Service Reachable` when the probe finds it back up.
                 enabled:
                   type: boolean
                   description: Whether the webhook is active
@@ -11986,6 +11990,10 @@ components:
               - Feed Refresh Failed
               - Update Available
               - Cue Template Quiet
+              - Queue Held
+              - Queue Resumed
+              - Service Offline
+              - Service Reachable
         smtpHost:
           type: string
         smtpPort:

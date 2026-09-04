@@ -110,7 +110,7 @@ All of these are gated by the feed auth key the same way as the RSS feed itself 
 
 ## Notifications
 
-MinusPod can notify you when episodes complete processing, permanently fail, or when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure both in **Settings > Notifications** in the web UI, or via the REST API.
+MinusPod can notify you when episodes complete processing or permanently fail, and when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). It can also alert you when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure both in **Settings > Notifications** in the web UI, or via the REST API.
 
 ## Webhooks
 
@@ -128,6 +128,10 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Feed Refresh Failed` | A feed's upstream RSS fetch fails 3 times in a row. One alert per feed per 5 minutes, with a shared burst cap so an outage that breaks every feed at once sends one alert, not one per feed. |
 | `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
 | `Cue Template Quiet` | An enabled audio cue template on a `cue_only` feed has matched before but has zero above-threshold matches across the feed's last 5 telemetry-recorded episodes. Rate-limited to one alert per template per 5 minutes. |
+| `Queue Held` | A provider 429 with a reset time paused the queue (Queue Control > Rate-limit hold). One alert per 5 minutes. |
+| `Queue Resumed` | The rate-limit hold cleared and held episodes went back to the queue. |
+| `Service Offline` | An episode deferred because the LLM or Whisper endpoint was unreachable (Offline queue). One alert per service per 5 minutes. |
+| `Service Reachable` | The offline probe found a service back up and re-queued its deferred episodes. |
 
 The **Test** button sends one sample payload per event the webhook is subscribed to, each shaped like that event's real payload (see Default Payloads below) with `test: true` set. A webhook subscribed to three events gets three test deliveries in one click; a custom payload template renders against each event's own variable set (episode-shaped for `Episode Processed`/`Episode Failed`, provider-shaped for the alert events, and so on).
 
@@ -226,6 +230,49 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `template.id` | int | Cue template ID |
 | `template.label` | string | Cue template label |
 | `last_match_at` | string/null | Timestamp of the template's last above-threshold match before it went quiet |
+
+**Queue Held events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Queue Held` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `hold_until` | string | The provider's reset time; the queue claims no new work until then |
+| `ttl_hours` | int | Hours a held episode waits before it expires and fails |
+| `error_message` | string | The 429 response that triggered the hold |
+| `slug` | string | Feed slug of the episode that hit the limit |
+| `episode_id` | string | ID of that episode |
+| `podcast_name` | string | Podcast title (falls back to the slug) |
+
+**Queue Resumed events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Queue Resumed` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `held_since` | string/null | When the hold began; null when no start time was recorded |
+| `requeued` | int | Held episodes sent back to the queue |
+
+**Service Offline events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Service Offline` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `service` | string | `llm` or `whisper` |
+| `error_message` | string | The connection error that deferred the episode |
+| `slug` | string | Feed slug of the deferred episode |
+| `episode_id` | string | ID of that episode |
+| `podcast_name` | string | Podcast title (falls back to the slug) |
+
+**Service Reachable events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Service Reachable` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `service` | string | `llm` or `whisper` |
+| `requeued` | int | Deferred episodes the probe pass sent back to the queue |
 
 ### Default Payloads
 
@@ -375,13 +422,64 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 }
 ```
 
+**Queue Held:**
+
+```json
+{
+  "event": "Queue Held",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "hold_until": "2026-01-01T12:30:00Z",
+  "ttl_hours": 24,
+  "error_message": "rate_limit_exceeded: retry after 900 seconds",
+  "slug": "my-podcast",
+  "episode_id": "a1b2c3d4e5f6",
+  "podcast_name": "My Podcast"
+}
+```
+
+**Queue Resumed:**
+
+```json
+{
+  "event": "Queue Resumed",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "held_since": "2026-01-01T12:15:00Z",
+  "requeued": 3
+}
+```
+
+**Service Offline:**
+
+```json
+{
+  "event": "Service Offline",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "service": "llm",
+  "error_message": "Connection refused",
+  "slug": "my-podcast",
+  "episode_id": "a1b2c3d4e5f6",
+  "podcast_name": "My Podcast"
+}
+```
+
+**Service Reachable:**
+
+```json
+{
+  "event": "Service Reachable",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "service": "llm",
+  "requeued": 3
+}
+```
+
 ## Email notifications
 
 Point MinusPod at an SMTP server and it emails you for the events you pick. Community webhook-to-email sidecars like minuspod-webhook-mailer are no longer needed. One configuration: SMTP host, port, security (None, STARTTLS, or SSL/TLS), optional username and password, a from address, and a comma-separated recipient list. The password is stored encrypted like provider API keys, so saving one needs `MINUSPOD_MASTER_PASSPHRASE` set.
 
-Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
+Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
 
-By default the failure and alert events are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback (issue #571) rather than just the exception message, for easier SMTP troubleshooting from container logs.
+By default the failure and alert events, including the four queue hold events, are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback (issue #571) rather than just the exception message, for easier SMTP troubleshooting from container logs.
 
 ### Example: Pushover
 
