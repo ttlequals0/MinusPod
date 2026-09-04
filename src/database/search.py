@@ -218,29 +218,42 @@ class SearchMixin:
             return []
 
     def search_grouped(self, query: str, limit: int = 50) -> dict:
-        """Grouped search: shows, episodes, transcripts, each an independent FTS query.
-
-        FTS5 can't report which column matched, so each group scopes its MATCH to a
-        column filter; titles also get a substring LIKE pass. Transcripts cap at 3:
-        search_index holds one row per episode, so this limits distinct episodes,
-        not hits within one. timestamp is always None (no offset back into the VTT).
-        """
+        """Grouped search: shows, episodes, transcripts, each an independent FTS query."""
         conn = self.get_connection()
         clean_query = query.replace('"', '""').strip()
         if not clean_query:
             return {'shows': [], 'episodes': [], 'transcripts': []}
-        fts_query = f'"{clean_query}"* OR {clean_query}*'
+        fts_query = self._safe_fts_query(clean_query)
         needle = query.strip()
         # Escape LIKE metacharacters so user input cannot widen the match
         escaped = needle.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
         like_pattern = f'%{escaped}%'
         like_prefix = f'{escaped}%'
 
-        shows = self._search_shows(conn, fts_query, like_pattern, like_prefix, limit)
-        episodes = self._search_episodes(conn, fts_query, like_pattern, like_prefix, limit)
-        transcripts = self._search_transcripts(conn, fts_query)
+        # Each group is independent: one group's unexpected failure should not blank the others.
+        shows, episodes, transcripts = [], [], []
+        try:
+            shows = self._search_shows(conn, fts_query, like_pattern, like_prefix, limit)
+        except Exception as e:
+            logger.error(f"Grouped search (shows) failed for query '{query}': {e}")
+        try:
+            episodes = self._search_episodes(conn, fts_query, like_pattern, like_prefix, limit)
+        except Exception as e:
+            logger.error(f"Grouped search (episodes) failed for query '{query}': {e}")
+        try:
+            transcripts = self._search_transcripts(conn, fts_query)
+        except Exception as e:
+            logger.error(f"Grouped search (transcripts) failed for query '{query}': {e}")
 
         return {'shows': shows, 'episodes': episodes, 'transcripts': transcripts}
+
+    @staticmethod
+    def _safe_fts_query(clean_query: str) -> str:
+        """Quote every term so punctuation and bare AND/OR/NOT can't be parsed as FTS5 syntax."""
+        tokens = clean_query.split()
+        quoted = [f'"{t}"' for t in tokens]
+        quoted[-1] += '*'
+        return f'"{clean_query}"* OR {" AND ".join(quoted)}'
 
     def _search_shows(self, conn, fts_query, like_pattern, like_prefix, limit):
         """Shows: FTS over title+description, plus a title LIKE pass for substrings."""
@@ -313,7 +326,7 @@ class SearchMixin:
         return episodes[:limit]
 
     def _search_transcripts(self, conn, fts_query):
-        """Transcripts: word matches in the body column only, capped at 3 distinct episodes."""
+        """Transcripts: body-only word matches, capped at 3 episodes; timestamp is always None (no VTT offset)."""
         rows = conn.execute("""
             SELECT si.content_id AS episode_id, si.podcast_slug AS feed_slug, si.title AS title,
                    snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet

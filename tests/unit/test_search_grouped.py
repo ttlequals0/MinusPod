@@ -63,10 +63,8 @@ def test_queued_episode_appears_with_status():
 
 
 def test_api_aliases_processed_status_to_completed():
-    # Fetch the db the route will actually use via get_database(), not the
-    # module-level `db`: an unrelated test's temp_db fixture can reset the
-    # Database singleton between collection and this test running, which
-    # would silently orphan a captured module-level reference from the route.
+    # Use get_database() (not module-level db): an unrelated test's temp_db
+    # fixture can reset the Database singleton before this runs, orphaning a captured reference.
     live_db = get_database()
     slug = f'processed-alias-{_eid()}'
     live_db.create_podcast(slug, f'https://example.com/{slug}.xml', 'The Daily Tech Show')
@@ -126,4 +124,39 @@ def test_description_match_is_word_only_no_like():
     result = db.search_grouped('lorbnorf')
     assert result['episodes'] == []
     result = db.search_grouped('glorb')
+    assert any(e['episodeId'] == ep_id for e in result['episodes'])
+
+
+def test_colon_in_query_finds_real_title_match():
+    # Episode titles like "Ep 12: Title" are mainstream; a colon must not be parsed as FTS5 syntax.
+    slug = _feed('colon-query')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, title='Interview: Someone Interesting')
+    result = db.search_grouped('Interview: Someone')
+    assert any(e['episodeId'] == ep_id for e in result['episodes'])
+
+
+def test_fts_operator_characters_do_not_raise():
+    for needle in ('foo:bar', '(', 'a OR OR b'):
+        assert db.search_grouped(needle) == {'shows': [], 'episodes': [], 'transcripts': []}
+
+
+def test_transcript_only_match_absent_from_episodes_group():
+    slug = _feed('column-separation-transcript')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, title='Episode Title Unrelated')
+    db.save_episode_details(slug, ep_id, transcript_text='discusses xenoglossy extensively')
+    db.index_episode(ep_id, slug)
+    result = db.search_grouped('xenoglossy')
+    assert result['episodes'] == []
+    assert any(t['episodeId'] == ep_id for t in result['transcripts'])
+
+
+def test_title_or_description_match_absent_from_transcripts_group():
+    slug = _feed('column-separation-episode')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, title='Discusses Ephemeralization Theory',
+                       description='about ephemeralization')
+    result = db.search_grouped('ephemeralization')
+    assert result['transcripts'] == []
     assert any(e['episodeId'] == ep_id for e in result['episodes'])
