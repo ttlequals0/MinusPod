@@ -11,6 +11,12 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
 ## [2.94.11] - 2026-09-03
 
 ### Added
