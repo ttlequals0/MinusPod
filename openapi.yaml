@@ -603,6 +603,12 @@ paths:
                     - 'null'
                   maxLength: 500
                   description: Per-feed display title shown to subscribers in the generated RSS feed (issue 375). Survives RSS refreshes. Null or empty clears it and falls back to the source feed title.
+                detectionNotes:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 1000
+                  description: Operator hints about this show appended to the LLM ad-detection and review prompts (issue 709). Survives RSS refreshes. Null or empty clears it.
                 detectionMode:
                   type:
                     - string
@@ -9243,6 +9249,11 @@ components:
             - string
             - 'null'
           description: Per-feed display title shown to subscribers in the generated RSS feed (issue 375); null falls back to the source feed title.
+        detectionNotes:
+          type:
+            - string
+            - 'null'
+          description: Operator hints about this show appended to the LLM ad-detection and review prompts (issue 709); null when unset.
         detectionMode:
           type:
             - string

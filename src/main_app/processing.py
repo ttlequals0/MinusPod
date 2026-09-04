@@ -4248,6 +4248,17 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")
 
 
+def build_podcast_context(podcast_settings):
+    """Podcast description plus operator detection notes (#709), or None."""
+    if not podcast_settings:
+        return None
+    description = podcast_settings.get('description') or ''
+    notes = podcast_settings.get('detection_notes')
+    if not notes:
+        return description or None
+    return f"{description}\n\nOperator notes for this show:\n{notes}".strip()
+
+
 def process_episode(slug: str, episode_id: str, episode_url: str,
                    episode_title: str = "Unknown", podcast_name: str = "Unknown",
                    episode_description: str = None, episode_artwork_url: str = None,
@@ -4286,7 +4297,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                               episode_description, start_time, cancel_event)
 
     podcast_settings = db.get_podcast_by_slug(slug)
-    podcast_description = podcast_settings.get('description') if podcast_settings else None
+    podcast_description = build_podcast_context(podcast_settings)
+    if podcast_settings and podcast_settings.get('detection_notes'):
+        audio_logger.info(f"[{slug}:{episode_id}] Including detection notes "
+                          f"({len(podcast_settings['detection_notes'])} chars)")
 
     # Effective per-feed mode, resolved once from the row above. The
     # precedence (passthrough > skip-detection > keep-content > cue_only > standard)

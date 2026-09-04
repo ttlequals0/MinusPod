@@ -396,6 +396,8 @@ class SchemaMixin:
             ('author', 'TEXT'),
             ('explicit', 'INTEGER'),
             ('categories', 'TEXT'),
+            # Operator hints appended to the LLM prompt for this feed (#709).
+            ('detection_notes', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
