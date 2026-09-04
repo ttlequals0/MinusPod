@@ -805,6 +805,7 @@ def test_affirmed_confirm_with_trim_language_applies_recovered_trim():
     assert accepted['start'] == 837.2
     assert accepted['end'] == pytest.approx(1040.9)
     assert accepted['reviewer_verdict'] == 'adjust'
+    assert accepted['reviewer_moved'] is True
     verdict = result.verdicts[0]
     assert verdict.verdict == 'adjust'
     assert verdict.adjusted_start == 837.2
@@ -828,6 +829,7 @@ def test_reviewer_end_adjustment_clears_stale_tail_eligibility():
 
     processing._apply_reviewer_verdict_to_ad(ad, result.verdicts[0])
     assert ad['end'] == pytest.approx(1040.9)
+    assert ad['reviewer_moved'] is True
     assert 'end_extended_by_content' not in ad
     assert 'tail_splice_snap' not in ad
 

@@ -7,6 +7,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database,
 )
+from api.settings import _clamped_int
 from utils.constants import EpisodeStatus
 
 logger = logging.getLogger('podcast.api')
@@ -55,10 +56,7 @@ def search():
 def quick_search():
     """Title-only search for the keyboard palette; covers episodes of any status."""
     query = request.args.get('q', '').strip()
-    try:
-        limit = max(1, min(int(request.args.get('limit', 8)), 20))
-    except ValueError:
-        limit = 8
+    limit = _clamped_int(request.args.get('limit'), 8, 1, 20)
     result = get_database().quick_search(query, limit=limit)
     for ep in result['episodes']:
         ep['status'] = EpisodeStatus.to_api(ep['status'])

@@ -3914,15 +3914,12 @@ paths:
         - name: reviewer
           in: query
           description: >-
-            Whether the ad reviewer moved the span. adjusted keeps rows with
-            verdict adjust and recorded original bounds; unadjusted keeps
-            everything else, including held contradictions and split pieces,
-            which carry the verdict without a move. Applies to the cutSummary
-            totals as well.
+            Filter by whether the span was moved (see ReviewDetection.reviewerMoved).
+            adjusted keeps moved rows; unadjusted keeps everything else. Omit
+            for no filter. Applies to the cutSummary totals as well.
           schema:
             type: string
-            enum: [all, adjusted, unadjusted]
-            default: all
+            enum: [adjusted, unadjusted]
       responses:
         '200':
           description: Paginated detection list
@@ -10286,6 +10283,12 @@ components:
           type: number
           nullable: true
           description: End of the span before the reviewer moved it; present only when the reviewer moved the span
+        reviewerMoved:
+          type: boolean
+          description: >-
+            Whether the span was moved from its pass-1 bounds, by the
+            reviewer or by a human approving a trimmed boundary. Use this
+            instead of inferring a move from reviewerVerdict/reviewerOriginalStart/End.
         status:
           type: string
           enum: [accepted, rejected, pending]
@@ -11278,6 +11281,12 @@ components:
         openrouterApiKeyConfigured:
           type: boolean
           description: Whether an OpenRouter API key is configured (read-only)
+        podcastSearchReady:
+          type: boolean
+          description: >-
+            Whether the resolved podcast search provider (podcastSearchProvider)
+            can run right now: iTunes always is; PodcastIndex needs both API
+            credentials saved (read-only).
         openrouterBaseUrl:
           type: string
           description: OpenRouter API base URL (read-only)

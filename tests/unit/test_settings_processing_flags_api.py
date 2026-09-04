@@ -7,6 +7,8 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='settings-flags-api-test-'))
 
+from api import get_database
+
 
 def _authed(client):
     with client.session_transaction() as sess:
@@ -23,7 +25,6 @@ def _csrf_headers(client):
 
 
 def test_only_expose_processed_default_change_clears_etags(app_client):
-    from api import get_database
     db = get_database()
     _authed(app_client)
     db.set_setting('only_expose_processed_default', 'false', is_default=False)

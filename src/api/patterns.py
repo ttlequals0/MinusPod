@@ -1323,6 +1323,7 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
                 m['start'] = new_start
                 m['end'] = new_end
             m['approved'] = True
+            m['reviewer_moved'] = False
             changed = True
 
     if not changed:

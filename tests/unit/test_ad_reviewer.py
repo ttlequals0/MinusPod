@@ -166,6 +166,7 @@ def test_array_with_shifted_boundaries_yields_adjust():
     assert out['end'] == 185.0
     assert out['reviewer_original_start'] == 120.0
     assert out['reviewer_original_end'] == 180.0
+    assert out['reviewer_moved'] is True
 
 
 def test_corrected_start_keys_are_applied_as_adjust():

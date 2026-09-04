@@ -8,10 +8,11 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='quick-search-test-'))
 
+from api import get_database
+
 
 @pytest.fixture
 def seeded(app_client):
-    from api import get_database
     db = get_database()
     db.create_podcast('example-podcast', 'https://example.com/feed.xml', 'The Daily Tech Show')
     db.upsert_episode('example-podcast', 'a1b2c3d4e5f6', title='Batteries again', status='pending')

@@ -271,6 +271,7 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     updated["start"] = start
     updated["end"] = end
     updated["reviewer_verdict"] = "adjust"
+    updated["reviewer_moved"] = True
     updated["reviewer_original_start"] = original_start
     updated["reviewer_original_end"] = original_end
     updated["reviewer_reasoning"] = reasoning

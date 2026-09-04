@@ -2004,6 +2004,7 @@ def _apply_reviewer_verdict_to_ad(ad, v):
             ad['reviewer_proposed_end'] = v.adjusted_end
         return
     if v.verdict == 'adjust':
+        ad['reviewer_moved'] = True
         ad['reviewer_original_start'] = v.original_start
         ad['reviewer_original_end'] = v.original_end
         invalidate_tail_provenance(ad, v.adjusted_end)

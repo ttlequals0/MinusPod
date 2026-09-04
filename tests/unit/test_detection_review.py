@@ -369,19 +369,39 @@ class TestReviewerFields:
         assert item['reviewerVerdict'] is None
         assert item['reviewerOriginalStart'] is None
         assert item['reviewerOriginalEnd'] is None
+        assert item['reviewerMoved'] is False
+
+    def test_legacy_marker_without_flag_infers_moved(self):
+        """No reviewer_moved field (written before it existed): adjust verdict
+        plus recorded originals is inferred as moved."""
+        item = flatten_detections([_row(markers=[self.ADJUSTED])], [])[0]
+        assert item['reviewerMoved'] is True
+
+    def test_human_approved_marker_flag_false_overrides_inference(self):
+        """_mark_held_marker_approved stamps reviewer_moved=False even when
+        it also writes originals, so the explicit flag must win over the
+        legacy heuristic (which would otherwise say True here)."""
+        marker = dict(self.ADJUSTED, reviewer_moved=False)
+        item = flatten_detections([_row(markers=[marker])], [])[0]
+        assert item['reviewerMoved'] is False
+
+    def test_reviewer_stamped_marker_flag_true_is_moved(self):
+        marker = dict(ACCEPTED, reviewer_moved=True)
+        item = flatten_detections([_row(markers=[marker])], [])[0]
+        assert item['reviewerMoved'] is True
 
     def _items(self):
         base = {'status': 'accepted', 'feedSlug': 'a', 'sponsor': '', 'reason': '',
                 'reviewerOriginalStart': None, 'reviewerOriginalEnd': None}
         return [
             dict(base, reviewerVerdict='adjust', reviewerOriginalStart=8.0,
-                 reviewerOriginalEnd=41.0),
+                 reviewerOriginalEnd=41.0, reviewerMoved=True),
             # Held contradiction or split piece: verdict kept, no move recorded.
-            dict(base, reviewerVerdict='adjust'),
-            dict(base, reviewerVerdict='confirmed'),
-            dict(base, reviewerVerdict='reject'),
-            dict(base, reviewerVerdict='failure'),
-            dict(base, reviewerVerdict=None),
+            dict(base, reviewerVerdict='adjust', reviewerMoved=False),
+            dict(base, reviewerVerdict='confirmed', reviewerMoved=False),
+            dict(base, reviewerVerdict='reject', reviewerMoved=False),
+            dict(base, reviewerVerdict='failure', reviewerMoved=False),
+            dict(base, reviewerVerdict=None, reviewerMoved=False),
         ]
 
     def test_adjusted_requires_verdict_and_original_span(self):
@@ -393,6 +413,6 @@ class TestReviewerFields:
         assert [i['reviewerVerdict'] for i in out] == [
             'adjust', 'confirmed', 'reject', 'failure', None]
 
-    def test_all_and_absent_reviewer_are_no_ops(self):
-        assert len(filter_detections(self._items(), status='all', reviewer='all')) == 6
+    def test_empty_and_absent_reviewer_are_no_ops(self):
+        assert len(filter_detections(self._items(), status='all', reviewer='')) == 6
         assert len(filter_detections(self._items(), status='all')) == 6

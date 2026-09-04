@@ -49,7 +49,7 @@ from config import (
 # podcast_search only pulls names api/__init__ defines before its submodule
 # imports. A reorder that gives podcast_search a top-level dependency on
 # settings would break boot -- keep this the only cross-submodule import.
-from api.podcast_search import resolve_search_provider
+from api.podcast_search import resolve_search_provider, search_provider_ready
 from ad_detector import AdDetector
 from artwork_watermark import BADGE_POSITIONS
 from audio_processor import NORMALIZE_PRESETS
@@ -617,6 +617,9 @@ def get_settings():
         # else iTunes. isDefault marks a derived value; saving from the UI
         # makes the choice explicit.
         'podcastSearchProvider': _search_provider_setting(settings),
+        # Whether the resolved provider can actually run search right now
+        # (AddFeed gates its search UI on this, not just a resolved name).
+        'podcastSearchReady': search_provider_ready(),
         'openrouterBaseUrl': OPENROUTER_BASE_URL,
         'whisperBackend': _sv('whisper_backend', whisper_backend),
         'whisperApiBaseUrl': _sv('whisper_api_base_url', whisper_api_base_url),

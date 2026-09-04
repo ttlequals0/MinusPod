@@ -46,6 +46,18 @@ def marker_resolution(marker: dict, episode_corrections: list[dict]) -> str:
     return 'unresolved'
 
 
+def _reviewer_moved_from_marker(marker: dict) -> bool:
+    """reviewer_moved when the marker stamps it explicitly (both reviewer
+    paths and human approval do); otherwise infer it for markers written
+    before the field existed, same rule reviewer_moved() used to apply."""
+    flag = marker.get('reviewer_moved')
+    if flag is not None:
+        return bool(flag)
+    return (marker.get('reviewer_verdict') == 'adjust'
+            and marker.get('reviewer_original_start') is not None
+            and marker.get('reviewer_original_end') is not None)
+
+
 def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
     by_episode: dict[str, list[dict]] = {}
     for c in corrections:
@@ -91,6 +103,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
                 'reviewerVerdict': marker.get('reviewer_verdict'),
                 'reviewerOriginalStart': marker.get('reviewer_original_start'),
                 'reviewerOriginalEnd': marker.get('reviewer_original_end'),
+                'reviewerMoved': _reviewer_moved_from_marker(marker),
                 'status': marker_status(marker),
                 'resolution': marker_resolution(marker, episode_corrections),
             })
@@ -161,11 +174,9 @@ def awaits_decision(item: dict) -> bool:
 
 
 def reviewer_moved(item: dict) -> bool:
-    """An adjust verdict alone is not a move: contradiction holds keep pass-1
-    bounds and split pieces drop the originals, so both lack the span."""
-    return (item.get('reviewerVerdict') == 'adjust'
-            and item.get('reviewerOriginalStart') is not None
-            and item.get('reviewerOriginalEnd') is not None)
+    """Whether the reviewer (or a human approval) actually moved the span.
+    Set by flatten_detections; see _reviewer_moved_from_marker."""
+    return bool(item.get('reviewerMoved'))
 
 
 def filter_detections(items: list[dict], status: str = 'needs_review',

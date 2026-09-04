@@ -20,7 +20,7 @@ VALID_STATUS = {'needs_review', 'pending', 'rejected', 'accepted', 'all'}
 VALID_SORT = {'date', 'confidence', 'podcast'}
 VALID_ORDER = {'asc', 'desc'}
 VALID_CATEGORY = set(SEGMENT_CATEGORIES) | {UNSET_CATEGORY}
-VALID_REVIEWER = {'adjusted', 'unadjusted', 'all'}
+VALID_REVIEWER = {'adjusted', 'unadjusted'}
 
 
 @api.route('/detections', methods=['GET'])
@@ -45,8 +45,8 @@ def list_detections():
     category = request.args.get('category') or None
     if category is not None and category not in VALID_CATEGORY:
         return error_response(f"Invalid category '{category}'", 400)
-    reviewer = request.args.get('reviewer', 'all')
-    if reviewer not in VALID_REVIEWER:
+    reviewer = request.args.get('reviewer') or None
+    if reviewer is not None and reviewer not in VALID_REVIEWER:
         return error_response(f"Invalid reviewer '{reviewer}'", 400)
 
     rows = db.get_detection_rows()
