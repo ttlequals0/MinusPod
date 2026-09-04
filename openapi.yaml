@@ -3911,6 +3911,15 @@ paths:
           schema:
             type: string
             enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, none]
+        - name: reviewer
+          in: query
+          description: >-
+            Reviewer boundary decision: adjusted rows had their span moved by
+            the ad reviewer. Applies to the cutSummary totals as well.
+          schema:
+            type: string
+            enum: [all, adjusted, unadjusted]
+            default: all
       responses:
         '200':
           description: Paginated detection list
@@ -10257,6 +10266,19 @@ components:
           nullable: true
           description: Action the category resolved to for this marker
           enum: [remove, beep, keep, null]
+        reviewerVerdict:
+          type: string
+          nullable: true
+          description: Ad reviewer verdict on this marker, or null when the reviewer did not run
+          enum: [confirmed, adjust, reject, resurrect, failure, null]
+        reviewerOriginalStart:
+          type: number
+          nullable: true
+          description: Start of the span before the reviewer moved it; set when reviewerVerdict is adjust
+        reviewerOriginalEnd:
+          type: number
+          nullable: true
+          description: End of the span before the reviewer moved it; set when reviewerVerdict is adjust
         status:
           type: string
           enum: [accepted, rejected, pending]

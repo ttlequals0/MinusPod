@@ -63,11 +63,26 @@ function ActionBadge({ action }: { action: string | null }) {
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
 }
 
+// Only 'adjust' gets a chip: the reviewer confirms most spans it sees, and a
+// moved boundary is the one verdict worth checking against the audio.
+function ReviewerBadge({ d }: { d: ReviewDetection }) {
+  if (d.reviewerVerdict !== 'adjust') return null;
+  const title = d.reviewerOriginalStart != null && d.reviewerOriginalEnd != null
+    ? `Reviewer moved this from ${formatTimestamp(d.reviewerOriginalStart)} - ${formatTimestamp(d.reviewerOriginalEnd)}`
+    : 'Reviewer adjusted the boundaries';
+  return (
+    <span className="px-2 py-0.5 rounded text-xs whitespace-nowrap bg-c-blue/10 text-c-blue" title={title}>
+      Adjusted
+    </span>
+  );
+}
+
 function DetectionBadges({ d, showCategory }: { d: ReviewDetection; showCategory: boolean }) {
   return (
     <div className="flex gap-1.5 shrink-0">
       <DetectionStatusBadge status={d.status} />
       <ResolutionBadge resolution={d.resolution} />
+      <ReviewerBadge d={d} />
       {showCategory && <ActionBadge action={d.actionApplied} />}
     </div>
   );

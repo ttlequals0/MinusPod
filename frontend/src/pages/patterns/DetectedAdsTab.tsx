@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getDetections,
   type CutSummary,
+  type DetectionReviewerFilter,
   type DetectionSort,
   type ReviewDetection,
 } from '../../api/detections';
@@ -93,6 +94,7 @@ export default function DetectedAdsTab() {
   const [page, setPage] = useState(1);
   const [feed, setFeed] = useState('');
   const [category, setCategory] = useState('');
+  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('all');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
@@ -136,12 +138,13 @@ export default function DetectedAdsTab() {
     };
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['detections', 'cut', page, feed, category, debouncedQ, sort, order],
+    queryKey: ['detections', 'cut', page, feed, category, reviewer, debouncedQ, sort, order],
     queryFn: () => getDetections({
       page,
       status: 'accepted',
       feed: feed || undefined,
       category: category || undefined,
+      reviewer: reviewer === 'all' ? undefined : reviewer,
       q: debouncedQ || undefined,
       sort,
       order,
@@ -165,6 +168,8 @@ export default function DetectedAdsTab() {
         onFeedChange={(v) => { setFeed(v); setPage(1); }}
         category={category}
         onCategoryChange={(v) => { setCategory(v); setPage(1); }}
+        reviewer={reviewer}
+        onReviewerChange={(v) => { setReviewer(v); setPage(1); }}
         q={q}
         onQChange={setQ}
         sort={sort}
@@ -188,7 +193,7 @@ export default function DetectedAdsTab() {
       )}
       {!isLoading && !error && data && (data.total === 0 ? (
         <div className="text-muted-foreground text-sm py-8 text-center">
-          {feed || category || debouncedQ
+          {feed || category || reviewer !== 'all' || debouncedQ
             ? 'No cut ads match the current filters.'
             : 'No ads have been cut yet.'}
         </div>

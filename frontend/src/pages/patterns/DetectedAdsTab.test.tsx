@@ -59,6 +59,7 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
     sponsor: 'Acme', reason: 'sponsor read',
     patternId: null, detectionStage: 'first_pass',
     category: 'sponsor', actionApplied: 'remove',
+    reviewerVerdict: null, reviewerOriginalStart: null, reviewerOriginalEnd: null,
     status: 'accepted', resolution: 'unresolved',
     ...over,
   };
@@ -147,6 +148,18 @@ describe('DetectedAdsTab', () => {
     // The server stamps the episode; the Apply bar puts the audio back in one
     // pass, so several rejects on one episode do not recut it several times.
     expect(mockReprocess).not.toHaveBeenCalled();
+  });
+
+  it('sends the selected reviewer filter', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.selectOptions(screen.getByLabelText('Reviewer'), 'unadjusted');
+    await waitFor(() => {
+      expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
+        reviewer: 'unadjusted', page: 1,
+      });
+    });
   });
 
   it('sends the selected category', async () => {

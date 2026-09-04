@@ -20,6 +20,7 @@ VALID_STATUS = {'needs_review', 'pending', 'rejected', 'accepted', 'all'}
 VALID_SORT = {'date', 'confidence', 'podcast'}
 VALID_ORDER = {'asc', 'desc'}
 VALID_CATEGORY = set(SEGMENT_CATEGORIES) | {UNSET_CATEGORY}
+VALID_REVIEWER = {'adjusted', 'unadjusted', 'all'}
 
 
 @api.route('/detections', methods=['GET'])
@@ -44,12 +45,16 @@ def list_detections():
     category = request.args.get('category') or None
     if category is not None and category not in VALID_CATEGORY:
         return error_response(f"Invalid category '{category}'", 400)
+    reviewer = request.args.get('reviewer', 'all')
+    if reviewer not in VALID_REVIEWER:
+        return error_response(f"Invalid reviewer '{reviewer}'", 400)
 
     rows = db.get_detection_rows()
     corrections = db.get_review_corrections()
     items = flatten_detections(rows, corrections)
     counts = summarize_detections(items)
-    items = filter_detections(items, status=status, feed=feed, q=q)
+    items = filter_detections(items, status=status, feed=feed, q=q,
+                              reviewer=reviewer)
     # Summarised before the category filter so byCategory keeps every bucket
     # while the podcast and search filters still narrow the header.
     cut_summary = summarize_cut_detections(

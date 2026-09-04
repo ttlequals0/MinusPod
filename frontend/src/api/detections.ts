@@ -5,6 +5,7 @@ export type DetectionResolution = 'unresolved' | 'confirmed' | 'dismissed';
 export type DetectionStatusFilter =
   | 'needs_review' | 'pending' | 'rejected' | 'accepted' | 'all';
 export type DetectionSort = 'date' | 'confidence' | 'podcast';
+export type DetectionReviewerFilter = 'all' | 'adjusted' | 'unadjusted';
 
 export interface ReviewDetection {
   feedSlug: string;
@@ -23,6 +24,11 @@ export interface ReviewDetection {
   detectionStage: string | null;
   category: string | null;
   actionApplied: string | null;
+  // Set by the ad reviewer stage; the original span is present when the
+  // verdict is 'adjust'.
+  reviewerVerdict: string | null;
+  reviewerOriginalStart: number | null;
+  reviewerOriginalEnd: number | null;
   episodeDuration: number | null;
   status: DetectionStatus;
   resolution: DetectionResolution;
@@ -67,6 +73,7 @@ export type DetectionListParams = {
   sort?: DetectionSort;
   order?: 'asc' | 'desc';
   category?: string;
+  reviewer?: DetectionReviewerFilter;
 };
 
 export async function getDetections(

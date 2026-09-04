@@ -88,6 +88,9 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
                 'detectionStage': marker.get('detection_stage'),
                 'category': marker.get('category'),
                 'actionApplied': marker.get('action_applied'),
+                'reviewerVerdict': marker.get('reviewer_verdict'),
+                'reviewerOriginalStart': marker.get('reviewer_original_start'),
+                'reviewerOriginalEnd': marker.get('reviewer_original_end'),
                 'status': marker_status(marker),
                 'resolution': marker_resolution(marker, episode_corrections),
             })
@@ -160,7 +163,8 @@ def awaits_decision(item: dict) -> bool:
 def filter_detections(items: list[dict], status: str = 'needs_review',
                       feed: str | None = None,
                       q: str | None = None,
-                      category: str | None = None) -> list[dict]:
+                      category: str | None = None,
+                      reviewer: str | None = None) -> list[dict]:
     out = items
     if status == 'needs_review':
         out = [i for i in out if awaits_decision(i)]
@@ -170,6 +174,10 @@ def filter_detections(items: list[dict], status: str = 'needs_review',
         out = [i for i in out if not i.get('category')]
     elif category:
         out = [i for i in out if i.get('category') == category]
+    if reviewer == 'adjusted':
+        out = [i for i in out if i.get('reviewerVerdict') == 'adjust']
+    elif reviewer == 'unadjusted':
+        out = [i for i in out if i.get('reviewerVerdict') != 'adjust']
     if feed:
         out = [i for i in out if i['feedSlug'] == feed]
     if q:

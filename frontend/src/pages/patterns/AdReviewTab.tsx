@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   getDetections,
+  type DetectionReviewerFilter,
   type DetectionSort,
   type DetectionStatusFilter,
   type ReviewDetection,
@@ -35,6 +36,7 @@ export default function AdReviewTab() {
   const [status, setStatus] = useState<DetectionStatusFilter>('needs_review');
   const [feed, setFeed] = useState('');
   const [category, setCategory] = useState('');
+  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('all');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
@@ -60,12 +62,13 @@ export default function AdReviewTab() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['detections', page, status, feed, category, debouncedQ, sort, order],
+    queryKey: ['detections', page, status, feed, category, reviewer, debouncedQ, sort, order],
     queryFn: () => getDetections({
       page,
       status,
       feed: feed || undefined,
       category: category || undefined,
+      reviewer: reviewer === 'all' ? undefined : reviewer,
       q: debouncedQ || undefined,
       sort,
       order,
@@ -123,6 +126,8 @@ export default function AdReviewTab() {
         onFeedChange={(v) => { setFeed(v); setPage(1); }}
         category={category}
         onCategoryChange={(v) => { setCategory(v); setPage(1); }}
+        reviewer={reviewer}
+        onReviewerChange={(v) => { setReviewer(v); setPage(1); }}
         q={q}
         onQChange={setQ}
         sort={sort}

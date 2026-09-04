@@ -352,3 +352,39 @@ class TestCutSummary:
         s = summarize_cut_detections([{'start': 0, 'end': 5, 'category': 'brand_new'}])
         assert s['byCategory']['brand_new'] == 1
         assert s['count'] == 1
+
+
+class TestReviewerFields:
+    ADJUSTED = dict(ACCEPTED, reviewer_verdict='adjust',
+                    reviewer_original_start=8.0, reviewer_original_end=41.0)
+
+    def test_flatten_exposes_reviewer_fields(self):
+        item = flatten_detections([_row(markers=[self.ADJUSTED])], [])[0]
+        assert item['reviewerVerdict'] == 'adjust'
+        assert item['reviewerOriginalStart'] == 8.0
+        assert item['reviewerOriginalEnd'] == 41.0
+
+    def test_unreviewed_marker_has_null_reviewer_fields(self):
+        item = flatten_detections([_row(markers=[ACCEPTED])], [])[0]
+        assert item['reviewerVerdict'] is None
+        assert item['reviewerOriginalStart'] is None
+        assert item['reviewerOriginalEnd'] is None
+
+    def _items(self):
+        return [
+            {'reviewerVerdict': 'adjust', 'status': 'accepted', 'feedSlug': 'a',
+             'sponsor': '', 'reason': ''},
+            {'reviewerVerdict': 'confirmed', 'status': 'accepted', 'feedSlug': 'a',
+             'sponsor': '', 'reason': ''},
+            {'reviewerVerdict': None, 'status': 'accepted', 'feedSlug': 'a',
+             'sponsor': '', 'reason': ''},
+        ]
+
+    def test_filter_reviewer_adjusted_and_unadjusted(self):
+        items = self._items()
+        assert len(filter_detections(items, status='all', reviewer='adjusted')) == 1
+        assert len(filter_detections(items, status='all', reviewer='unadjusted')) == 2
+        assert len(filter_detections(items, status='all', reviewer='all')) == 3
+
+    def test_absent_reviewer_is_a_no_op(self):
+        assert len(filter_detections(self._items(), status='all')) == 3

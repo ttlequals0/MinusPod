@@ -139,6 +139,7 @@ A row carries up to three badges, and each answers a different question.
 | Confirmed | What did you decide? | You said this is an ad |
 | Not an ad | What did you decide? | You said it is not |
 | Kept | Why was it left in? | Its category resolves to keep, so it was never a candidate to cut |
+| Adjusted | Did the reviewer move it? | The ad reviewer moved the boundaries; hover the badge for the span it started from |
 
 A detection you have not decided on yet gets no second badge. Undecided is the normal state in this list, so a badge on every row would say nothing.
 
@@ -150,7 +151,7 @@ The tab opens with "Needs review" selected. That filter shows detections still w
 
 Segments left in by their category are not in "Needs review". Their fate is already settled by the feed's segment actions, and the corrections endpoint refuses a verdict on one, so listing them would offer a decision nobody can make. Change the category to move one, or find them under Rejected and All.
 
-A podcast dropdown narrows the list to one feed. The search box filters by sponsor name or detection reason. The list shows 20 rows per page. Click a column header (Podcast, Published, Confidence) to sort; click again to reverse.
+A podcast dropdown narrows the list to one feed. The Reviewer dropdown, on this tab and on Detected Ads, shows only rows the ad reviewer moved, or only rows it left alone. The search box filters by sponsor name or detection reason. The list shows 20 rows per page. Click a column header (Podcast, Published, Confidence) to sort; click again to reverse.
 
 Each row has up to five actions:
 
