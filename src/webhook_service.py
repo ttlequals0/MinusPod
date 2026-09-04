@@ -29,6 +29,10 @@ EVENT_LIMIT_EXCEEDED = 'Limit Exceeded'
 EVENT_FEED_REFRESH_FAILED = 'Feed Refresh Failed'
 EVENT_UPDATE_AVAILABLE = 'Update Available'
 EVENT_CUE_TEMPLATE_QUIET = 'Cue Template Quiet'
+EVENT_QUEUE_HELD = 'Queue Held'
+EVENT_QUEUE_RESUMED = 'Queue Resumed'
+EVENT_SERVICE_OFFLINE = 'Service Offline'
+EVENT_SERVICE_REACHABLE = 'Service Reachable'
 VALID_EVENTS = {
     EVENT_EPISODE_PROCESSED,
     EVENT_EPISODE_FAILED,
@@ -38,6 +42,10 @@ VALID_EVENTS = {
     EVENT_FEED_REFRESH_FAILED,
     EVENT_UPDATE_AVAILABLE,
     EVENT_CUE_TEMPLATE_QUIET,
+    EVENT_QUEUE_HELD,
+    EVENT_QUEUE_RESUMED,
+    EVENT_SERVICE_OFFLINE,
+    EVENT_SERVICE_REACHABLE,
 }
 
 _sandbox_env = SandboxedEnvironment()
@@ -131,6 +139,29 @@ _ALERT_SAMPLE_CONTEXTS = {
         'podcast': {'name': 'My Favorite Podcast', 'slug': 'my-favorite-podcast'},
         'template': {'id': 3, 'label': 'break stinger'},
         'last_match_at': '2026-03-01T00:00:00Z',
+    },
+    EVENT_QUEUE_HELD: {
+        'hold_until': '2026-01-01T12:30:00Z',
+        'ttl_hours': 24,
+        'error_message': 'rate_limit_exceeded: retry after 900 seconds',
+        'slug': 'my-podcast',
+        'episode_id': 'a1b2c3d4e5f6',
+        'podcast_name': 'My Podcast',
+    },
+    EVENT_QUEUE_RESUMED: {
+        'held_since': '2026-01-01T12:15:00Z',
+        'requeued': 3,
+    },
+    EVENT_SERVICE_OFFLINE: {
+        'service': 'llm',
+        'error_message': 'Connection refused',
+        'slug': 'my-podcast',
+        'episode_id': 'a1b2c3d4e5f6',
+        'podcast_name': 'My Podcast',
+    },
+    EVENT_SERVICE_REACHABLE: {
+        'service': 'llm',
+        'requeued': 3,
     },
 }
 
@@ -465,6 +496,46 @@ def fire_structural_rate_limit_event(provider, model, limit, used, requested, er
         'requested': requested,
         'error_message': str(error_message),
     }, f"provider={provider}, limit={limit}, requested={requested}")
+
+
+def fire_queue_held_event(hold_until, ttl_hours, error_message, slug, episode_id, podcast_name):
+    """Fire when a provider 429 pauses the queue (#696 hold)."""
+    return _fire_alert_event(EVENT_QUEUE_HELD, {
+        'hold_until': hold_until,
+        'ttl_hours': ttl_hours,
+        'error_message': str(error_message),
+        'slug': slug,
+        'episode_id': episode_id,
+        'podcast_name': podcast_name,
+    }, f"hold_until={hold_until}")
+
+
+def fire_queue_resumed_event(held_since, requeued):
+    """Fire when the rate-limit hold clears and held episodes re-queue."""
+    return _fire_alert_event(EVENT_QUEUE_RESUMED, {
+        'held_since': held_since,
+        'requeued': requeued,
+    }, f"requeued={requeued}")
+
+
+def fire_service_offline_event(service, error_message, slug, episode_id, podcast_name):
+    """Fire when an episode defers because `service` is unreachable; one alert per service per 5 min."""
+    return _fire_alert_event(EVENT_SERVICE_OFFLINE, {
+        'service': service,
+        'error_message': str(error_message),
+        'slug': slug,
+        'episode_id': episode_id,
+        'podcast_name': podcast_name,
+    }, f"service={service}", dedup_key=f"{EVENT_SERVICE_OFFLINE}:{service}")
+
+
+def fire_service_reachable_event(service, requeued):
+    """Fire when a probe finds `service` back up and deferred episodes re-queue."""
+    return _fire_alert_event(EVENT_SERVICE_REACHABLE, {
+        'service': service,
+        'requeued': requeued,
+    }, f"service={service}, requeued={requeued}",
+        dedup_key=f"{EVENT_SERVICE_REACHABLE}:{service}")
 
 
 def fire_update_available_event(version, channel, release_date, url):

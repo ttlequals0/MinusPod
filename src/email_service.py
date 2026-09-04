@@ -229,6 +229,53 @@ def _fmt_update_available(ctx):
                            'selected channel. Pull the new image to update.')
 
 
+def _fmt_queue_held(ctx):
+    subject = f"[MinusPod] Queue Held until {_value(ctx.get('hold_until'))}"
+    rows = [
+        ('Held until', _value(ctx.get('hold_until'))),
+        ('Hold TTL (hours)', _value(ctx.get('ttl_hours'))),
+        ('Tripped by', f"{_value(ctx.get('podcast_name'))} ({_value(ctx.get('slug'))}:{_value(ctx.get('episode_id'))})"),
+        ('Error', _value(ctx.get('error_message'))),
+        ('Timestamp', _value(ctx.get('timestamp'))),
+    ]
+    return subject, rows, ('The LLM provider returned a rate limit with a reset time. '
+                           'Processing resumes on its own when it passes. Play or '
+                           'Reprocess on an episode bypasses the hold.')
+
+
+def _fmt_queue_resumed(ctx):
+    subject = f"[MinusPod] Queue Resumed: {_value(ctx.get('requeued'))} episodes re-queued"
+    rows = [
+        ('Held since', _value(ctx.get('held_since'))),
+        ('Episodes re-queued', _value(ctx.get('requeued'))),
+        ('Timestamp', _value(ctx.get('timestamp'))),
+    ]
+    return subject, rows, None
+
+
+def _fmt_service_offline(ctx):
+    subject = f"[MinusPod] Service Offline: {_value(ctx.get('service'))}"
+    rows = [
+        ('Service', _value(ctx.get('service'))),
+        ('Tripped by', f"{_value(ctx.get('podcast_name'))} ({_value(ctx.get('slug'))}:{_value(ctx.get('episode_id'))})"),
+        ('Error', _value(ctx.get('error_message'))),
+        ('Timestamp', _value(ctx.get('timestamp'))),
+    ]
+    return subject, rows, ('Episodes defer instead of failing while the service is down. '
+                           'The offline queue probes it every few minutes and re-queues '
+                           'them when it answers.')
+
+
+def _fmt_service_reachable(ctx):
+    subject = f"[MinusPod] Service Reachable: {_value(ctx.get('service'))}"
+    rows = [
+        ('Service', _value(ctx.get('service'))),
+        ('Episodes re-queued', _value(ctx.get('requeued'))),
+        ('Timestamp', _value(ctx.get('timestamp'))),
+    ]
+    return subject, rows, None
+
+
 FORMATTERS = {
     'Episode Processed': _fmt_episode_processed,
     'Episode Failed': _fmt_episode_failed,
@@ -238,6 +285,10 @@ FORMATTERS = {
     'Feed Refresh Failed': _fmt_feed_refresh_failed,
     'Update Available': _fmt_update_available,
     'Cue Template Quiet': _fmt_cue_template_quiet,
+    'Queue Held': _fmt_queue_held,
+    'Queue Resumed': _fmt_queue_resumed,
+    'Service Offline': _fmt_service_offline,
+    'Service Reachable': _fmt_service_reachable,
 }
 
 

@@ -607,3 +607,57 @@ class TestEmailDispatchHooks:
             webhook_service.fire_limit_exceeded_event('openrouter', 'm', 'x', 403)
             webhook_service.fire_limit_exceeded_event('openrouter', 'm', 'x', 403)
         assert send.call_count == 1
+
+
+class TestQueueAndServiceAlerts:
+    @pytest.fixture(autouse=True)
+    def _reset(self):
+        webhook_service._last_alert_time.clear()
+        yield
+        webhook_service._last_alert_time.clear()
+
+    def test_new_events_are_valid(self):
+        for ev in (webhook_service.EVENT_QUEUE_HELD, webhook_service.EVENT_QUEUE_RESUMED,
+                   webhook_service.EVENT_SERVICE_OFFLINE, webhook_service.EVENT_SERVICE_REACHABLE):
+            assert ev in webhook_service.VALID_EVENTS
+            assert ev in webhook_service._ALERT_SAMPLE_CONTEXTS
+
+    @patch('webhook_service.threading.Thread', SyncThread)
+    @patch('webhook_service.email_service.send_event_email')
+    @patch('webhook_service._prepare_and_dispatch')
+    @patch('webhook_service.load_webhooks')
+    def test_queue_held_dispatches_context(self, mock_load, mock_dispatch, _mock_email):
+        mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
+                                   'events': ['Queue Held']}]
+        assert webhook_service.fire_queue_held_event(
+            '2026-09-03T18:00:00Z', 24, 'rate limited', 'example-podcast',
+            'a1b2c3d4e5f6', 'Example Podcast') is True
+        ctx = mock_dispatch.call_args[0][1]
+        assert ctx['event'] == 'Queue Held'
+        assert ctx['hold_until'] == '2026-09-03T18:00:00Z'
+        assert ctx['ttl_hours'] == 24
+        assert ctx['slug'] == 'example-podcast'
+
+    @patch('webhook_service.threading.Thread', SyncThread)
+    @patch('webhook_service.email_service.send_event_email')
+    @patch('webhook_service._prepare_and_dispatch')
+    @patch('webhook_service.load_webhooks')
+    def test_service_offline_dedups_per_service(self, mock_load, mock_dispatch, _mock_email):
+        mock_load.return_value = []
+        assert webhook_service.fire_service_offline_event('llm', 'down', 's', 'e', 'P') is True
+        assert webhook_service.fire_service_offline_event('llm', 'down', 's', 'e', 'P') is False
+        # A different service is its own key but shares the 60s burst cap.
+        assert webhook_service.fire_service_offline_event('whisper', 'down', 's', 'e', 'P') is False
+
+    @patch('webhook_service.threading.Thread', SyncThread)
+    @patch('webhook_service.email_service.send_event_email')
+    @patch('webhook_service._prepare_and_dispatch')
+    @patch('webhook_service.load_webhooks')
+    def test_resumed_and_reachable_carry_requeued(self, mock_load, mock_dispatch, _mock_email):
+        mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
+                                   'events': ['Queue Resumed', 'Service Reachable']}]
+        webhook_service.fire_queue_resumed_event('2026-09-03T17:00:00Z', 3)
+        webhook_service.fire_service_reachable_event('whisper', 2)
+        contexts = [c[0][1] for c in mock_dispatch.call_args_list]
+        assert contexts[0]['requeued'] == 3 and contexts[0]['held_since'] == '2026-09-03T17:00:00Z'
+        assert contexts[1]['service'] == 'whisper' and contexts[1]['requeued'] == 2

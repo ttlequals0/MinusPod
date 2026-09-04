@@ -338,3 +338,22 @@ class TestSendTestEmail:
         assert len(records) == 1
         assert records[0].exc_info is not None
         assert 'OSError' in caplog.text and 'connection refused' in caplog.text
+
+
+def test_new_alert_formatters_render():
+    from email_service import FORMATTERS
+    cases = {
+        'Queue Held': {'hold_until': '2026-09-03T18:00:00Z', 'ttl_hours': 24,
+                       'error_message': 'rate limited', 'slug': 'example-podcast',
+                       'episode_id': 'a1b2c3d4e5f6', 'podcast_name': 'Example Podcast',
+                       'timestamp': 't'},
+        'Queue Resumed': {'held_since': '2026-09-03T17:00:00Z', 'requeued': 3, 'timestamp': 't'},
+        'Service Offline': {'service': 'llm', 'error_message': 'down', 'slug': 'example-podcast',
+                            'episode_id': 'a1b2c3d4e5f6', 'podcast_name': 'Example Podcast',
+                            'timestamp': 't'},
+        'Service Reachable': {'service': 'whisper', 'requeued': 2, 'timestamp': 't'},
+    }
+    for event, ctx in cases.items():
+        subject, rows, hint = FORMATTERS[event](ctx)
+        assert subject.startswith(f'[MinusPod] {event}')
+        assert rows and all(len(r) == 2 for r in rows)
