@@ -3358,6 +3358,70 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /quick-search:
+    get:
+      tags:
+        - Search
+      summary: Quick title search
+      description: |
+        Case-insensitive title match over feeds and episodes of any
+        processing status, for the keyboard palette. Queries shorter than
+        two characters return empty groups. LIKE wildcards in the query
+        are matched literally.
+      operationId: quickSearch
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Title fragment (minimum 2 characters)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum results per group
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 8
+      responses:
+        '200':
+          description: Matching feeds and episodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  feeds:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        slug:
+                          type: string
+                        title:
+                          type: string
+                  episodes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        feedSlug:
+                          type: string
+                        feedTitle:
+                          type: string
+                        episodeId:
+                          type: string
+                        title:
+                          type: string
+                        status:
+                          type: string
+                        publishDate:
+                          type: string
+                          nullable: true
+
   /search/rebuild:
     post:
       tags:

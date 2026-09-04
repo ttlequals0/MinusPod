@@ -195,6 +195,40 @@ class SearchMixin:
             logger.error(f"Search error for query '{query}': {e}")
             return []
 
+    def quick_search(self, query: str, limit: int = 8) -> dict:
+        """Title-only LIKE match on feeds and episodes of any status."""
+        needle = query.strip()
+        if len(needle) < 2:
+            return {'feeds': [], 'episodes': []}
+        # Escape LIKE metacharacters so user input cannot widen the match
+        escaped = needle.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        pattern = f'%{escaped}%'
+        prefix = f'{escaped}%'
+        conn = self.get_connection()
+        feeds = conn.execute("""
+            SELECT slug, COALESCE(title_override, title) AS title
+            FROM podcasts
+            WHERE COALESCE(title_override, title) LIKE ? ESCAPE '\\'
+            ORDER BY (COALESCE(title_override, title) LIKE ? ESCAPE '\\') DESC, title
+            LIMIT ?
+        """, (pattern, prefix, limit)).fetchall()
+        episodes = conn.execute("""
+            SELECT e.episode_id, e.title, e.status, e.published_at,
+                   p.slug AS feed_slug, COALESCE(p.title_override, p.title) AS feed_title
+            FROM episodes e JOIN podcasts p ON e.podcast_id = p.id
+            WHERE e.title LIKE ? ESCAPE '\\'
+            ORDER BY (e.title LIKE ? ESCAPE '\\') DESC, e.published_at DESC
+            LIMIT ?
+        """, (pattern, prefix, limit)).fetchall()
+        return {
+            'feeds': [{'slug': r['slug'], 'title': r['title']} for r in feeds],
+            'episodes': [{
+                'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'],
+                'episodeId': r['episode_id'], 'title': r['title'],
+                'status': r['status'], 'publishDate': r['published_at'],
+            } for r in episodes],
+        }
+
     def get_search_index_stats(self) -> dict[str, int]:
         """Get statistics about the search index."""
         conn = self.get_connection()

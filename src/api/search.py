@@ -49,6 +49,19 @@ def search():
     })
 
 
+@api.route('/quick-search', methods=['GET'])
+@log_request
+def quick_search():
+    """Title-only search for the keyboard palette; covers episodes of any status."""
+    query = request.args.get('q', '').strip()
+    try:
+        limit = max(1, min(int(request.args.get('limit', 8)), 20))
+    except ValueError:
+        limit = 8
+    result = get_database().quick_search(query, limit=limit)
+    return json_response({'query': query, **result})
+
+
 @api.route('/search/rebuild', methods=['POST'])
 @limiter.limit("1 per minute")
 @log_request
