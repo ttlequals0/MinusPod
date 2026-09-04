@@ -29,7 +29,8 @@ release notes.
 
 - Frontend unit tests run on Node 25 and later (the runtime's own localStorage getter shadowed the test DOM's).
 - Changing the global "Only expose processed episodes" default now clears feed etags so inheriting feeds rebuild on the next refresh instead of serving a stale RSS until upstream changes. Reported and first fixed by @tylermiranda.
-- Add Feed shows podcast search whenever a provider is available (iTunes needs no keys) instead of only with PodcastIndex credentials. Reported and first fixed by @tylermiranda.
+- Add Feed shows podcast search whenever a provider is available (iTunes needs no keys) instead of only with PodcastIndex credentials. It now also checks that the provider is ready: with PodcastIndex selected and no credentials saved, search stays off and a banner links to Settings. Reported and first fixed by @tylermiranda.
+- The ad editor's Start/End time fields used `Number()`, which silently accepted junk like `0x10` (hex) or a trailing `1:` as a valid boundary. Both now require a clean h:mm:ss or seconds value.
 
 ## [2.94.11] - 2026-09-03
 
