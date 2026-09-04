@@ -8,7 +8,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Ad Reviewer** - An optional second LLM that double-checks each planned cut before it happens and can confirm, adjust, reject, or resurrect a detection. Off by default. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
-**Addressing mode** - An experimental detector setting where the LLM names numbered transcript lines (`segment_ids`) instead of inventing start and end timestamps (`timestamps`), or where `random` draws one of the two per run. Timestamps stays the default while results decide whether that changes. The Stats page compares the modes on contract compliance and on ad yield (proposed vs kept, with drop reasons). [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
+**Addressing mode** - An experimental detector setting where the LLM names numbered transcript lines (`segment_ids`) instead of inventing start and end timestamps (`timestamps`), or where `random` draws one of the two per run. [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
 
 **Archive mode** - A per-feed retention setting that keeps every processed episode indefinitely, ignoring the global retention window and the "Clear all processed audio" action. Set it on shows you never want swept, such as ones that have stopped publishing. [Configuration > Per-feed retention](configuration.md#per-feed-retention)
 
@@ -50,7 +50,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Deferred** - An episode parked because the LLM or transcription endpoint was unreachable. It retries automatically when the endpoint comes back instead of burning through its retry budget. [Configuration > Offline Queue](configuration.md#offline-queue)
 
-**Differential hold** - An uncorroborated cross-fetch differential candidate: the two fetches measurably differ, but no other stage, overlap, or matched audio cue backs it as an ad. Held for review rather than cut, unless it is shorter than the differential hold-minimum-length setting, in which case it is dropped instead. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
+**Differential hold** - An uncorroborated cross-fetch differential candidate: the two fetches measurably differ, but no other stage, overlap, or matched audio cue backs it as an ad. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
 
 **Dry-run import plan** - The preview a bulk archive-import scan returns before anything is written: every file matched to an episode, every rejected file with a reason, and the publish date each episode would get. Committing re-checks the same files and refuses if anything changed underneath the plan. [Local Feeds > Scan, then commit](local-feeds.md#scan-then-commit)
 
@@ -60,7 +60,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## F
 
-**False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. Rejecting a differential detection, held or not, does not create this text (it was only ever a candidate, never a confirmed false positive from a real detector), though the same-episode region is still blocked from resurfacing. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
+**False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
 **Fingerprint** - An acoustic signature of a known ad, matched against new episodes without any transcript. One of the pattern types MinusPod learns from confirmed cuts. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
@@ -78,7 +78,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## K
 
-**Keep action** - A per-category segment action that leaves a detected span in the audio untouched. A kept marker bypasses validator hold rules and reviewer boundary checks, is dropped instead of re-flagged if pass-2 verification finds it again, and never creates a correction or false-positive text, though it still teaches the pattern learner its category. [How It Works > Segment Categories](how-it-works.md#segment-categories)
+**Keep action** - A per-category segment action that leaves a detected span in the audio untouched. [How It Works > Segment Categories](how-it-works.md#segment-categories)
 
 ## L
 
@@ -136,14 +136,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Sidecar file** - An optional file next to an archive-import audio file, sharing its exact basename: a `.txt` description, a `.jpg`/`.jpeg`/`.png` cover, or a `.json` file overriding title, description, publish date, season, and episode. A JSON sidecar overrides everything else, including the filename's sNNeNN token. [Local Feeds > JSON sidecar](local-feeds.md#json-sidecar)
 
-**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep), set per feed or globally on the **Segment actions** card and defaulting to remove until changed. Intro, outro, and recap are only detected on feeds where show-segments detection resolves to on (a per-feed Inherit/On/Off choice, falling back to the global default); the other four categories are always detected. A defined pattern's match always cuts regardless of the resolved action. [How It Works > Segment Categories](how-it-works.md#segment-categories)
-  - Sponsor - Paid ads, including dynamically inserted ones
-  - Cross-promo - Promos for other shows and the network
-  - Self-promo - The show's own Patreon, merch, and subscribe asks
-  - Interaction - Follow, rate, and review reminders
-  - Intro - Opening theme and welcome
-  - Outro - Closing credits and sign-off
-  - Recap - Previews and coming-up bumpers
+**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep). [How It Works > Segment Categories](how-it-works.md#segment-categories)
 
 **Silence snap** - Nudging a cut boundary to the nearest silence so the edit lands between words instead of inside one. [Audio Cues > Silence snap](audio-cues.md#silence-snap)
 
@@ -173,7 +166,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## U
 
-**User-Agent** - The string MinusPod sends to identify itself on an outbound request. There are two, because hosts disagree about what they will answer. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship, while some feed hosts serve only a declared podcast client. Both are editable. [Configuration > Outbound Requests](configuration.md#outbound-requests)
+**User-Agent** - The string MinusPod sends to identify itself on an outbound request; there are two, because hosts disagree about what they will answer. [Configuration > Outbound Requests](configuration.md#outbound-requests)
 
 ## V
 

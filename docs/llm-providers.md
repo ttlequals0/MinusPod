@@ -109,11 +109,8 @@ The report ranks by F0.5, which weights precision twice as heavily as recall. Th
 \* `stealth/ox-alpha` is a cloaked listing: an unannounced model published under a placeholder name, free during the preview. Treat the $0.00 as promotional, not structural. When it ships under its real name the slug disappears and pricing appears, so anything depending on it should have a fallback configured. Cloaked listings also generally allow provider-side prompt logging, which matters if your transcripts are sensitive.
 
 Caveats:
-- Numbers come from the 2026-08 sweep: a 14-episode corpus (12 ad-bearing, 2 no-ad controls), 84 models, 5 trials each, 71,820 work units (71,690 scored; 130 ended in provider errors). They will refine as the corpus grows.
-- The sweep ran against a frozen system prompt, `benchmarks/llm/prompts/2026-08.txt` (sha256 prefix `1030b29e`), not the live one. The detection prompt changed mid-campaign, and pinning it lets later models join the same run instead of forcing a re-sweep. Reproducing these numbers needs that file, via `benchmark run --snapshot`.
-- The report groups models into tiers by a paired test across episodes. Models in the same tier are statistically tied on this corpus, so order within a tier is not meaningful. It also flags models for low JSON compliance or a no-ad control failure without changing their rank.
-- Latency for OpenRouter-routed models reflects routing-layer queueing, not just model compute. Treat it as an availability indicator.
-- F0.5 and F1 both use IoU >= 0.5 against human-verified ad spans, after predicted and truth spans are merged into contiguous breaks (gaps under 15 seconds), so splitting one break into adjacent spots is not penalized. F0.5 rewards not over-cutting; F1 weights precision and recall equally. Higher is closer to the truth.
+- Corpus size, trial counts, statistical tiering, and how F0.5 and F1 are scored are covered in [`benchmarks/llm/results/report.md`](../benchmarks/llm/results/report.md), linked above.
+- The sweep ran against a frozen system prompt, `benchmarks/llm/prompts/2026-08.txt`, not the live one. Reproducing these numbers needs that file, via `benchmark run --snapshot`.
 - Provider-side content moderation can take episodes out of a model's reach entirely. One roster model was refused on 15.2% of its calls because the provider's filter blocked explicit transcripts, losing a quarter of the ads in the two affected episodes. If your library includes explicit shows, check [`benchmarks/llm/results/parse-and-moderation.md`](../benchmarks/llm/results/parse-and-moderation.md) before picking a model.
 
 #### Local Ollama Models (by VRAM tier)
@@ -163,8 +160,6 @@ Simplest task. Summarization only, no structured detection. Minimize VRAM usage 
 ---
 
 ### Cloud vs. Local: What Changes
-
-Best cloud F0.5 in the [benchmark](../benchmarks/llm/) is 0.91 (`claude-haiku-4-5`, F1 0.92) across 83 models on a 14-episode corpus. Scores run the full range down to zero, and the top statistical tier holds 13 models from six vendors, so there is real choice at the top. The cloud model you pick matters as much as cloud-vs-local does: a capable mid-tier model beats a weak frontier one.
 
 The LLM only sees host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without promo codes or URLs. Everything else (audio fingerprinting, text pattern matching, pre/post-roll heuristics, audio-signal enforcement) runs without an LLM and catches a substantial share of ads regardless of model.
 
@@ -218,7 +213,7 @@ OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
 ### Model Selection
 
-No model ships by default: pick one in the Settings UI, or seed it with the `OPENAI_MODEL` env var. There is no `LLM_MODEL` variable; only `LLM_PROVIDER` picks the provider. `OPENAI_MODEL` seeds a model setting whenever it is unset, not just on first startup. Once a setting has a stored value, the env var no longer touches it and changing it has no effect, so switch models from the Settings UI. Processing fails with a message pointing at Settings > AI models until every model setting is configured.
+No model ships by default: pick one in the Settings UI, or seed it with the `OPENAI_MODEL` env var; see its row in [Environment Variables](environment-variables.md#standard) for how seeding works.
 
 Any [OpenRouter model ID](https://openrouter.ai/models) works:
 

@@ -66,7 +66,7 @@ Key endpoints:
 - `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running)
 - `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`)
 - `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status)
-- `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` (added in 2.5.14) controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
+- `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds
 - `GET/PUT /api/v1/settings/update-check` - Get or update the update-check settings (`enabled` for the daily auto-check, `channel`: `stable` or `edge`)
@@ -485,12 +485,10 @@ By default the failure and alert events, including the four new hold and offline
 
 Pushover supports native webhook ingestion with data extraction selectors. No custom payload template needed. MinusPod's default JSON payload works directly.
 
-1. Log in to [pushover.net/dashboard](https://pushover.net/dashboard), scroll to "Your Webhooks", click "Create a Webhook". Name it MinusPod.
-2. Copy the unique webhook URL.
-3. In MinusPod Settings > Webhooks: paste the URL, select events, **leave payload template blank**.
-4. Click Test in MinusPod to fire a sample payload to Pushover.
-5. In Pushover dashboard: click "Check for Update" in Last Payload to load MinusPod's JSON.
-6. Configure data extraction selectors:
+1. Create a webhook at [pushover.net/dashboard](https://pushover.net/dashboard) and copy its URL.
+2. In MinusPod Settings > Webhooks: paste the URL, select events, **leave payload template blank**.
+3. Click Test in MinusPod to fire a sample payload to Pushover.
+4. In Pushover, load the last payload and configure data extraction selectors:
 
 | Field | Selector |
 |---|---|
@@ -498,8 +496,6 @@ Pushover supports native webhook ingestion with data extraction selectors. No cu
 | Body | `{{episode.title}}`<br>`{{episode.ads_removed}} ads removed. Saved {{episode.time_saved}}. Cost {{episode.llm_cost_display}}` |
 | URL | `{{episode.url}}` |
 | URL Title | `Open in MinusPod` |
-
-7. Click "Test Selectors on Last Payload" to preview, then Save.
 
 > Pushover's `{{...}}` selector syntax is evaluated on Pushover's side; these are not Jinja2 templates.
 
