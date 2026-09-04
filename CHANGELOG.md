@@ -14,6 +14,7 @@ release notes.
 ### Added
 
 - Webhook and email alerts for queue holds: `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`.
+- Per-feed detection notes: a short text on the feed settings page appended to the LLM prompt context (#709).
 
 ### Changed
 

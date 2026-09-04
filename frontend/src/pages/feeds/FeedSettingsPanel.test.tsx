@@ -1058,3 +1058,41 @@ describe('FeedSettingsPanel feed cap', () => {
       'test-feed', expect.objectContaining({ maxEpisodes: 10 })));
   });
 });
+
+describe('FeedSettingsPanel detection notes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('saves detection notes on blur', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const box = screen.getByLabelText('Detection notes');
+    await user.type(box, 'Intro has three parts.');
+    await user.tab();
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ detectionNotes: 'Intro has three parts.' })));
+  });
+
+  it('does not PATCH on blur when the notes are unchanged', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: 'Keep the news roundup.' }));
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    expect(box.value).toBe('Keep the news roundup.');
+    await user.click(box);
+    await user.tab();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('clearing the notes sends null', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: 'Old note.' }));
+    const box = screen.getByLabelText('Detection notes');
+    await user.clear(box);
+    await user.tab();
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ detectionNotes: null })));
+  });
+});

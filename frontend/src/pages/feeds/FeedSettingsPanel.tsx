@@ -221,6 +221,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [snapLagInput, setSnapLagInput] = useState(s(feed.cueSnapLagOverride));
   const [maxAdDurInput, setMaxAdDurInput] = useState(s(feed.maxAdDurationOverride));
   const [maxAdDurRejectInput, setMaxAdDurRejectInput] = useState(s(feed.maxAdDurationRejectOverride));
+  const [editDetectionNotes, setEditDetectionNotes] = useState(feed.detectionNotes ?? '');
   // Retention days edits stay local until blur. Committing per keystroke
   // would PATCH every intermediate digit (typing 365 sends 3, then 36) and
   // retention is the one field where an intermediate value deletes audio.
@@ -245,6 +246,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     setSnapLagInput(s(f.cueSnapLagOverride));
     setMaxAdDurInput(s(f.maxAdDurationOverride));
     setMaxAdDurRejectInput(s(f.maxAdDurationRejectOverride));
+    setEditDetectionNotes(f.detectionNotes ?? '');
     setSegmentOverrides(f.segmentCategoryActions ?? {});
   });
 
@@ -595,6 +597,30 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </button>
             </div>
           )}
+
+          {/* Detection notes (#709): free text appended to the LLM prompt context. */}
+          <div className="flex flex-col gap-1 text-sm">
+            <label htmlFor="detection-notes" className="text-muted-foreground">Detection notes</label>
+            <textarea
+              id="detection-notes"
+              value={editDetectionNotes}
+              maxLength={1000}
+              rows={3}
+              onChange={(e) => setEditDetectionNotes(e.target.value)}
+              onBlur={() => {
+                const next = editDetectionNotes.trim() || null;
+                if (next !== (feed.detectionNotes ?? null)) {
+                  updateMutation.mutate({ detectionNotes: next });
+                }
+              }}
+              placeholder="What only this show does, e.g. host-read ads start right after 'a word from our sponsors'."
+              className={`w-full px-2 py-1 bg-secondary text-foreground placeholder:text-muted-foreground border border-border rounded resize-y ${focusRing}`}
+            />
+            <p className="flex justify-between gap-2 text-xs text-muted-foreground">
+              <span>Sent to the model with every episode of this feed.</span>
+              <span className="tabular-nums shrink-0">{editDetectionNotes.length} / 1000</span>
+            </p>
+          </div>
 
           {/* Source RSS URL (#484): the feed MinusPod pulls from, not the
               URL subscribers use. Editable with validate-then-refresh.

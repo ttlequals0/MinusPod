@@ -308,6 +308,10 @@ If you customized your system or verification prompt before this release, the up
 
 Each pass (first, verification, reviewer, resurrect) has an optional **Override** field in Settings, empty by default. Text there is added to that pass at run time, so you can apply a tweak (e.g. "keep this show's news roundup") without editing the built-in prompt, which stays intact. It is inserted at the prompt's `{override}` placeholder if present, otherwise appended under an "additional instructions" header. An empty override changes nothing.
 
+### Per-feed detection notes
+
+The global overrides apply to every feed. For one show, use **Detection notes** on the feed's settings page (up to 1000 characters). The text is appended to the podcast description the model already sees, so it reaches the first pass and the reviewer. Use it for things only that show does: how its intro is structured, how host-read ads usually start, a recurring segment to keep. API: `detectionNotes` on `PATCH /api/v1/feeds/{slug}`.
+
 ### Audio Cue Detection
 
 Audio cue detection snaps ad cuts to a show's recurring chime or stinger, and is

@@ -276,6 +276,7 @@ export interface UpdateFeedPayload {
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
   titleOverride?: string | null;
+  detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;

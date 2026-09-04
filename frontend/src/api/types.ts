@@ -76,6 +76,7 @@ export interface Feed {
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
   titleOverride?: string | null;
+  detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   // Per-feed auto-process queue priority (#625). Server always resolves to
