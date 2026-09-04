@@ -19,6 +19,8 @@ release notes.
 
 ### Fixed
 
+- Frontend unit tests run on Node 25 and later (the runtime's own localStorage getter shadowed the test DOM's).
+
 ## [2.94.11] - 2026-09-03
 
 ### Added
