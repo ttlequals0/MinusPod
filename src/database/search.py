@@ -39,13 +39,12 @@ class SearchMixin:
                   row['description'] or '', ''))
             count += 1
 
-        # Index episodes with transcripts
+        # Index episodes of every status; body is the transcript when one exists, else ''.
         cursor = conn.execute("""
             SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
             FROM episodes e
             JOIN podcasts p ON e.podcast_id = p.id
             LEFT JOIN episode_details ed ON e.id = ed.episode_id
-            WHERE e.status = 'processed'
         """)
         for row in cursor:
             # Limit transcript size to avoid huge index entries
@@ -92,32 +91,55 @@ class SearchMixin:
 
     def index_episode(self, episode_id: str, slug: str) -> bool:
         """Index or re-index a single episode in the search index."""
-        conn = self.get_connection()
+        return self.index_episodes([(episode_id, slug)]) > 0
+
+    def index_episodes(self, pairs: list[tuple[str, str]], conn=None) -> int:
+        """Batch (re)index episodes: one DELETE and one INSERT for the whole set.
+
+        pairs is [(episode_id, slug), ...]. When conn is passed, the caller owns
+        the transaction: this never commits or rolls back on that connection.
+        """
+        pairs = list(dict.fromkeys(pairs))
+        if not pairs:
+            return 0
+        own_conn = conn is None
+        if own_conn:
+            conn = self.get_connection()
+        values_sql = ','.join('(?,?)' for _ in pairs)
+        flat = [v for pair in pairs for v in pair]
+        # values_sql is just "(?,?),(?,?),..." repeated per pair; all values are bound params.
+        delete_sql = (
+            "DELETE FROM search_index WHERE content_type = 'episode' "  # noqa: S608
+            f"AND (content_id, podcast_slug) IN (VALUES {values_sql})"
+        )
+        select_sql = (
+            "SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text "  # noqa: S608
+            "FROM episodes e "
+            "JOIN podcasts p ON e.podcast_id = p.id "
+            "LEFT JOIN episode_details ed ON e.id = ed.episode_id "
+            f"WHERE (e.episode_id, p.slug) IN (VALUES {values_sql})"
+        )
         try:
-            row = conn.execute("""
-                SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
-                FROM episodes e
-                JOIN podcasts p ON e.podcast_id = p.id
-                LEFT JOIN episode_details ed ON e.id = ed.episode_id
-                WHERE e.episode_id = ? AND p.slug = ?
-            """, (episode_id, slug)).fetchone()
-            if not row:
-                return False
-            conn.execute(
-                "DELETE FROM search_index WHERE content_type = 'episode' AND content_id = ?",
-                (episode_id,))
-            transcript = (row['transcript_text'] or '')[:100000]
-            conn.execute("""
-                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, ('episode', row['episode_id'], row['slug'], row['title'],
-                  transcript, row['description'] or ''))
-            conn.commit()
-            return True
+            conn.execute(delete_sql, flat)
+            rows = conn.execute(select_sql, flat).fetchall()
+            insert_values = [
+                ('episode', row['episode_id'], row['slug'], row['title'],
+                 (row['transcript_text'] or '')[:100000], row['description'] or '')
+                for row in rows
+            ]
+            if insert_values:
+                conn.executemany("""
+                    INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, insert_values)
+            if own_conn:
+                conn.commit()
+            return len(insert_values)
         except Exception as e:
-            conn.rollback()
-            logger.error(f"Failed to index episode {episode_id}: {e}")
-            return False
+            if own_conn:
+                conn.rollback()
+            logger.error(f"Batch index failed for {len(pairs)} episode(s): {e}")
+            return 0
 
     @staticmethod
     def _sanitize_snippet(snippet):

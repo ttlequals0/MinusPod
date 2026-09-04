@@ -298,6 +298,7 @@ class EpisodeMixin:
             )
             db_id = cursor.lastrowid
             conn.commit()
+            self.index_episode(episode_id, slug)
 
         return db_id
 
@@ -1028,11 +1029,19 @@ class EpisodeMixin:
                 ).fetchall()
             }
 
+            newly_inserted_pairs = []
             for ep in episodes:
                 row_inserted, row_skipped = self._upsert_one_discovered_episode(
                     conn, podcast_id, ep, existing_ids)
                 inserted += row_inserted
                 skipped += row_skipped
+                if row_inserted:
+                    newly_inserted_pairs.append((ep['id'], slug))
+
+            # Batched inside this same transaction: one DELETE + INSERT for the
+            # whole discovery, never index_episode() per row (that commits per call).
+            if newly_inserted_pairs:
+                self.index_episodes(newly_inserted_pairs, conn=conn)
 
         if skipped:
             logger.warning(

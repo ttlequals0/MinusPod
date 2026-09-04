@@ -1443,6 +1443,14 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"seeded model defaults clear failed: {e}")
 
+        # One-shot reindex so discovered/pending episodes are searchable too (2.95.2),
+        # not just status='processed'. search_index is derived, so this is safe to redo.
+        try:
+            self._run_reindex_search_all_episode_statuses(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"search index reindex failed: {e}")
+
         # Per-boot, not schema_migrations-gated: seeds an absent model row
         # from OPENAI_MODEL, run after the clear above so a stale default is
         # removed and reseeded in the same boot.
@@ -1988,6 +1996,28 @@ class SchemaMixin:
             "Migration: cleared seeded model defaults for %s",
             ", ".join(cleared) if cleared else "none (nothing to clear)",
         )
+
+    def _run_reindex_search_all_episode_statuses(self, conn):
+        """One-shot reindex of search_index to cover every episode status (2.95.2).
+
+        search_index previously only indexed status='processed' episodes, so a
+        discovered or pending episode was unsearchable until it finished
+        processing. search_index is derived (not source data), so a full
+        rebuild is safe to run once here and again on demand.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'reindex_search_all_episode_statuses'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        count = self.rebuild_search_index()
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('reindex_search_all_episode_statuses')"
+        )
+        conn.commit()
+        logger.info(f"search-index-reindex: complete, {count} row(s) indexed")
 
     def _seed_model_settings_from_env(self, conn):
         """Seed an absent model row from OPENAI_MODEL (2.86.4).
