@@ -11,6 +11,13 @@ release notes.
 
 ## [Unreleased]
 
+## [2.95.1] - 2026-09-04
+
+### Fixed
+
+- Uptime on the Settings page no longer flips between two values on refresh. Each gunicorn worker stamped its own start time, so once a worker respawned (an OOM kill, for instance) the two workers disagreed and the round-robin decided which number you saw. The stamp is now shared per server run and survives a respawn, while a deploy still resets it.
+- Rate-limited API requests no longer return a sporadic 500. The limiter's in-memory backend restarts an expiry timer with a check-then-start that two request threads can interleave, and the loser raised RuntimeError into the response; with 8 threads per worker this hit roughly twice a week. The default storage is now a serialized subclass. Set `RATE_LIMIT_STORAGE_URI` to a Redis URL to share counters across workers instead.
+
 ## [2.95.0] - 2026-09-04
 
 ### Added
@@ -27,8 +34,6 @@ release notes.
 
 ### Fixed
 
-- Rate-limited API requests no longer return a sporadic 500. The limiter's in-memory backend restarts an expiry timer with a check-then-start that two request threads can interleave, and the loser raised RuntimeError into the response; with 8 threads per worker this hit roughly twice a week. The default storage is now a serialized subclass. Set `RATE_LIMIT_STORAGE_URI` to a Redis URL to share counters across workers instead.
-- Uptime on the Settings page no longer flips between two values on refresh. Each gunicorn worker stamped its own start time, so once a worker respawned (an OOM kill, for instance) the two workers disagreed and the round-robin decided which number you saw. The stamp is now shared per server run and survives a respawn, while a deploy still resets it.
 - Frontend unit tests run on Node 25 and later (the runtime's own localStorage getter shadowed the test DOM's).
 - Changing the global "Only expose processed episodes" default now clears feed etags so inheriting feeds rebuild on the next refresh instead of serving a stale RSS until upstream changes. Reported and first fixed by @tylermiranda.
 - Add Feed shows podcast search whenever a provider is available (iTunes needs no keys) instead of only with PodcastIndex credentials. It now also checks that the provider is ready: with PodcastIndex selected and no credentials saved, search stays off and a banner links to Settings. Reported and first fixed by @tylermiranda.
