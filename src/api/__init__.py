@@ -11,6 +11,8 @@ from functools import wraps
 
 from config import normalize_model_key
 from utils.http import client_ip
+# Import registers the memory-threadsafe scheme before the Limiter resolves it.
+from utils.ratelimit_storage import STORAGE_URI as RATELIMIT_STORAGE_URI
 from utils.text import extract_text_in_range
 from sponsor_service import SponsorService
 
@@ -50,13 +52,15 @@ _start_time = _init_server_start_time()
 
 api = Blueprint('api', __name__, url_prefix='/api/v1')
 
-# memory:// storage is per-worker; with workers=2 the effective limit is
+# In-process storage is per-worker; with workers=2 the effective limit is
 # 2x declared. Set RATE_LIMIT_STORAGE_URI=redis://<host>:6379 to share
-# counters across workers and get exact declared limits.
+# counters across workers and get exact declared limits. The default is our
+# thread-safe MemoryStorage subclass: stock memory:// raises RuntimeError
+# out of a request when two threads restart its expiry timer at once.
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per minute", "1000 per hour"],
-    storage_uri=os.environ.get('RATE_LIMIT_STORAGE_URI', 'memory://'),
+    storage_uri=os.environ.get('RATE_LIMIT_STORAGE_URI', RATELIMIT_STORAGE_URI),
 )
 
 
