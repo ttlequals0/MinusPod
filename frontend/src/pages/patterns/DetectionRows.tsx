@@ -63,11 +63,8 @@ function ActionBadge({ action }: { action: string | null }) {
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
 }
 
-// The verdict alone is not a move: held contradictions and split pieces keep
-// 'adjust' without the original span, so the chip needs both.
 function ReviewerBadge({ d }: { d: ReviewDetection }) {
-  if (d.reviewerVerdict !== 'adjust'
-    || d.reviewerOriginalStart == null || d.reviewerOriginalEnd == null) return null;
+  if (!d.reviewerMoved || d.reviewerOriginalStart == null || d.reviewerOriginalEnd == null) return null;
   const title = `Reviewer moved this from ${formatTimestamp(d.reviewerOriginalStart)} - ${formatTimestamp(d.reviewerOriginalEnd)}`;
   return (
     <span className="px-2 py-0.5 rounded text-xs whitespace-nowrap bg-c-blue/10 text-c-blue-on-tint" title={title}>

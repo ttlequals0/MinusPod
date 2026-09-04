@@ -56,6 +56,7 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
     patternId: null, detectionStage: 'first_pass',
     category: null, actionApplied: null,
     reviewerVerdict: null, reviewerOriginalStart: null, reviewerOriginalEnd: null,
+    reviewerMoved: false,
     status: 'rejected', resolution: 'unresolved',
     ...over,
   };
@@ -317,6 +318,7 @@ describe('AdReviewTab reviewer filter', () => {
     mockGetDetections.mockResolvedValue({
       detections: [detection({
         reviewerVerdict: 'adjust', reviewerOriginalStart: 98, reviewerOriginalEnd: 131,
+        reviewerMoved: true,
       })],
       total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
     });

@@ -30,6 +30,10 @@ export interface ReviewDetection {
   reviewerVerdict: string | null;
   reviewerOriginalStart: number | null;
   reviewerOriginalEnd: number | null;
+  // Whether the span was actually moved (by the reviewer or a human
+  // approving a trimmed boundary); use this instead of inferring a move
+  // from reviewerVerdict/reviewerOriginalStart/End.
+  reviewerMoved: boolean;
   episodeDuration: number | null;
   status: DetectionStatus;
   resolution: DetectionResolution;
