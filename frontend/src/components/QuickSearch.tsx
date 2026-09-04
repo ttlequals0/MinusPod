@@ -6,9 +6,9 @@ import { modalBackdrop, modalPanel, useEscape, useFocusTrap } from './Modal';
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
 
 interface Props {
-  open: boolean;
   // Character that opened the palette, so the first keystroke is not lost.
-  seed: string;
+  // null means the palette is closed.
+  seed: string | null;
   onClose: () => void;
 }
 
@@ -35,7 +35,7 @@ export function useQuickSearchHotkey(onOpen: (seed: string) => void) {
   }, [onOpen]);
 }
 
-function Palette({ seed, onClose }: Omit<Props, 'open'>) {
+function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
   const [q, setQ] = useState(seed);
   const [debounced, setDebounced] = useState(seed);
   const [active, setActive] = useState(0);
@@ -159,21 +159,23 @@ function Palette({ seed, onClose }: Omit<Props, 'open'>) {
             <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">No feed or episode titles match.</li>
           )}
         </ul>
-        {ready && (
-          <div className="border-t border-border bg-secondary/50 px-4 py-2 text-sm">
-            <Link to={`/search?q=${encodeURIComponent(debounced)}`} onClick={onClose} className="text-primary hover:underline">
-              Search transcripts for "{debounced}"
-            </Link>
-          </div>
-        )}
+        <div className="border-t border-border bg-secondary/50 px-4 py-2 text-sm">
+          <Link
+            to={ready ? `/search?q=${encodeURIComponent(debounced)}` : '/search'}
+            onClick={onClose}
+            className="text-primary hover:underline"
+          >
+            {ready ? `Search transcripts for "${debounced}"` : 'Open full search'}
+          </Link>
+        </div>
       </div>
     </div>
   );
 }
 
 // Mounting the palette only while open scopes its state and focus trap to one session.
-function QuickSearch({ open, seed, onClose }: Props) {
-  if (!open) return null;
+function QuickSearch({ seed, onClose }: Props) {
+  if (seed === null) return null;
   return <Palette seed={seed} onClose={onClose} />;
 }
 

@@ -50,10 +50,9 @@ function Layout() {
   const { logout, isPasswordSet } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchSeed, setSearchSeed] = useState('');
-  const openSearch = useCallback((seed: string) => { setSearchSeed(seed); setSearchOpen(true); }, []);
-  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  const [searchSeed, setSearchSeed] = useState<string | null>(null);
+  const openSearch = useCallback((seed: string) => setSearchSeed(seed), []);
+  const closeSearch = useCallback(() => setSearchSeed(null), []);
   useQuickSearchHotkey(openSearch);
 
   const handleLogout = async () => {
@@ -198,7 +197,7 @@ function Layout() {
         <UpdateBanner />
         <Outlet />
       </main>
-      <QuickSearch open={searchOpen} seed={searchSeed} onClose={closeSearch} />
+      <QuickSearch seed={searchSeed} onClose={closeSearch} />
     </div>
   );
 }

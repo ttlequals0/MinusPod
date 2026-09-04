@@ -20,7 +20,7 @@ function renderPalette(seed = 'ba', onClose = vi.fn()) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <QuickSearch open seed={seed} onClose={onClose} />
+        <QuickSearch seed={seed} onClose={onClose} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -75,6 +75,25 @@ describe('QuickSearch', () => {
     await waitFor(() => screen.getByText('Batteries again'));
     const link = screen.getByRole('link', { name: /search transcripts/i });
     expect(link.getAttribute('href')).toBe('/search?q=ba');
+  });
+
+  it('links to plain /search with an empty query', () => {
+    renderPalette('');
+    const link = screen.getByRole('link', { name: 'Open full search' });
+    expect(link.getAttribute('href')).toBe('/search');
+    expect(mockQuickSearch).not.toHaveBeenCalled();
+  });
+
+  it('renders nothing when seed is null', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <QuickSearch seed={null} onClose={vi.fn()} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 
