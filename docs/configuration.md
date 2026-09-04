@@ -154,7 +154,7 @@ The served feed URL does not change, which is the point: your app keeps pulling 
 
 ### Segment categories
 
-Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
+Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). A pattern's category is set on creation (the Category select, or `category` on import) and can be changed on the pattern detail modal. See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
 
 | Category | Covers | Detected by default |
 |---|---|---|
@@ -178,7 +178,7 @@ Resolution order: a per-feed override, if set, wins; otherwise the global defaul
 
 Show-segments detection (whether intro, outro, and recap markers get produced at all) has its own global default alongside the global action map on the **Segment actions** card, off by default, and saves immediately when toggled. A feed inherits that default until it sets its own value: the feed settings page exposes an explicit **Inherit / On / Off** choice (`detectShowSegments` on `PATCH /api/v1/feeds/{slug}`; `null` means inherit) and shows the effective value while inheriting. With detection off, the LLM never produces intro/outro/recap markers for that feed, so those rows of the action map have nothing to act on regardless of how they are set. With it on, intro/outro/recap detection is added to that feed's LLM detection windows; the other four categories are detected regardless of this setting.
 
-To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`). It recuts every processed episode that still has a retained original, saved transcript, and ad detections.
+To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`). It recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
 
 ### Queue priority
 

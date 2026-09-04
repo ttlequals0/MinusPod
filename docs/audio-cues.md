@@ -265,11 +265,16 @@ Uses accepted cues to snap ad edges or build ads from cue pairs.
   the boundary.
 - **Silence threshold (dBFS)** - audio quieter than this counts as silence for
   silence snap (-90 to -20, default -50). Applies only on feeds with the
-  per-feed **Snap cuts to silence** toggle enabled.
+  per-feed **Snap cuts to silence** toggle enabled. Raise it if the feed's
+  ad-break gaps carry room tone that never drops below the default; lower it
+  if ordinary speech pauses count as silence.
 - **Silence minimum duration (s)** - shortest quiet span that counts as a
-  silence (0.1 to 5, default 0.3).
+  silence (0.1 to 5, default 0.3). Raise it if short natural pauses qualify
+  as splice silences.
 - **Silence snap max distance (s)** - farthest an ad edge may move to reach a
-  detected silence (0.25 to 10, default 2).
+  detected silence (0.25 to 10, default 2). Widen it if edges consistently
+  land more than 2 s from the real splice; a wider window risks snapping to a
+  pause inside the ad.
 - **Cue-pair confidence floor** - minimum cue confidence to synthesize an ad from
   a cue pair. Higher than the snap floor because this creates an ad rather than
   refining one.

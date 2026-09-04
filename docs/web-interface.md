@@ -88,7 +88,7 @@ The ad editor supports two review modes, selected by a toggle above the ads list
 
 Original mode requires the pre-cut audio to have been retained. That's controlled by the "Keep original audio for ad boundary review" toggle under Settings > Storage & Retention (default on). Keeping originals roughly doubles per-episode storage; disable it if disk is tight. The toggle is disabled (with a tooltip) until you reprocess.
 
-Any single feed can override both on its own settings page; see [Configuration > Per-feed retention](configuration.md#per-feed-retention).
+Any single feed can override the retention window and the keep-original toggle on its own settings page; see [Configuration > Per-feed retention](configuration.md#per-feed-retention).
 
 Original audio has its own retention input under the same section: "Retain original audio for: N days". Defaults to whatever the processed retention is. Set a smaller number to drop the pre-cut copy sooner while keeping the processed file for the full retention period (useful if originals are taking too much disk but you still want the processed output around for the normal 30-day window). Capped at the processed retention by the server; the input is disabled when "Keep original audio" is off.
 
