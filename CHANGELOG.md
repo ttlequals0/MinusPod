@@ -22,6 +22,8 @@ release notes.
 ### Fixed
 
 - Frontend unit tests run on Node 25 and later (the runtime's own localStorage getter shadowed the test DOM's).
+- Changing the global "Only expose processed episodes" default now clears feed etags so inheriting feeds rebuild on the next refresh instead of serving a stale RSS until upstream changes. Reported and first fixed by @tylermiranda.
+- Add Feed shows podcast search whenever a provider is available (iTunes needs no keys) instead of only with PodcastIndex credentials. Reported and first fixed by @tylermiranda.
 
 ## [2.94.11] - 2026-09-03
 

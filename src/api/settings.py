@@ -948,7 +948,12 @@ def _apply_processing_flags(db, data):
 
     if 'onlyExposeProcessedDefault' in data:
         value = 'true' if data['onlyExposeProcessedDefault'] else 'false'
+        changed = (db.get_setting('only_expose_processed_default') or 'false') != value
         db.set_setting('only_expose_processed_default', value, is_default=False)
+        if changed:
+            # Inheriting feeds 304-skip the rebuild that would hide or show
+            # unprocessed episodes; force the next refresh to fetch in full.
+            db.clear_all_podcast_etags()
         logger.info(f"Updated only-expose-processed default to: {value}")
 
     if 'detectShowSegments' in data:

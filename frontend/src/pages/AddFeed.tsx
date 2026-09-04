@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { addFeed, addLocalFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
@@ -403,12 +403,12 @@ function AddFeed() {
   const urlValidation = useMemo(() => isUrl ? validateUrl(inputValue) : { isValid: false, error: null, warning: null }, [inputValue, isUrl]);
   const [touched, setTouched] = useState(false);
 
-  // Settings query to check if PodcastIndex is configured
+  // Search is gated on any resolved provider; iTunes needs no keys.
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
   });
-  const podcastIndexConfigured = settings?.podcastIndexApiKeyConfigured ?? false;
+  const searchAvailable = !!settings?.podcastSearchProvider?.value;
 
   // Existing feeds for "already added" detection
   const { data: feedsData } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
@@ -418,7 +418,7 @@ function AddFeed() {
   }, [feedsData]);
 
   const inputTrimmed = inputValue.trim();
-  const shouldSearch = !isUrl && podcastIndexConfigured && inputTrimmed.length >= 2;
+  const shouldSearch = !isUrl && searchAvailable && inputTrimmed.length >= 2;
 
   // Clear stale search state during render when the search is no longer
   // applicable. Avoids a setState-in-effect for the early-return branch.
@@ -551,23 +551,11 @@ function AddFeed() {
 
       {mode === 'subscribe' && (
       <>
-      {/* No-credentials info banner */}
-      {!podcastIndexConfigured && (
-        <div className="mb-6 p-4 rounded-lg bg-accent/50 border border-border">
-          <p className="text-sm text-muted-foreground">
-            <Link to="/settings#podcast-index" className={`text-primary hover:underline font-medium ${focusRing}`}>
-              Configure PodcastIndex API credentials
-            </Link>
-            {' '}to search for podcasts by name. You can still add feeds by URL below.
-          </p>
-        </div>
-      )}
-
       {/* Section A: Unified Input */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="podcastInput" className="block text-sm font-medium text-foreground mb-2">
-            {podcastIndexConfigured ? 'Search podcasts or enter RSS URL' : 'Podcast RSS Feed URL'}
+            {searchAvailable ? 'Search podcasts or enter RSS URL' : 'Podcast RSS Feed URL'}
           </label>
           <input
             type="text"
@@ -575,7 +563,7 @@ function AddFeed() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onBlur={() => { if (isUrl) setTouched(true); }}
-            placeholder={podcastIndexConfigured ? 'Search by name or paste an RSS feed URL...' : 'https://example.com/podcast/feed.xml'}
+            placeholder={searchAvailable ? 'Search by name or paste an RSS feed URL...' : 'https://example.com/podcast/feed.xml'}
             className={`w-full px-4 py-2 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring ${
               isUrl && touched && urlValidation.error
                 ? 'border-destructive focus:ring-destructive'
@@ -696,7 +684,7 @@ function AddFeed() {
       </form>
 
       {/* Section C: Search Results */}
-      {!isUrl && inputValue.trim() && podcastIndexConfigured && (
+      {!isUrl && inputValue.trim() && searchAvailable && (
         <div className="mt-4 space-y-2">
           {isSearching && (
             <div className="space-y-3">
