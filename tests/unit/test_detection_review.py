@@ -371,20 +371,28 @@ class TestReviewerFields:
         assert item['reviewerOriginalEnd'] is None
 
     def _items(self):
+        base = {'status': 'accepted', 'feedSlug': 'a', 'sponsor': '', 'reason': '',
+                'reviewerOriginalStart': None, 'reviewerOriginalEnd': None}
         return [
-            {'reviewerVerdict': 'adjust', 'status': 'accepted', 'feedSlug': 'a',
-             'sponsor': '', 'reason': ''},
-            {'reviewerVerdict': 'confirmed', 'status': 'accepted', 'feedSlug': 'a',
-             'sponsor': '', 'reason': ''},
-            {'reviewerVerdict': None, 'status': 'accepted', 'feedSlug': 'a',
-             'sponsor': '', 'reason': ''},
+            dict(base, reviewerVerdict='adjust', reviewerOriginalStart=8.0,
+                 reviewerOriginalEnd=41.0),
+            # Held contradiction or split piece: verdict kept, no move recorded.
+            dict(base, reviewerVerdict='adjust'),
+            dict(base, reviewerVerdict='confirmed'),
+            dict(base, reviewerVerdict='reject'),
+            dict(base, reviewerVerdict='failure'),
+            dict(base, reviewerVerdict=None),
         ]
 
-    def test_filter_reviewer_adjusted_and_unadjusted(self):
-        items = self._items()
-        assert len(filter_detections(items, status='all', reviewer='adjusted')) == 1
-        assert len(filter_detections(items, status='all', reviewer='unadjusted')) == 2
-        assert len(filter_detections(items, status='all', reviewer='all')) == 3
+    def test_adjusted_requires_verdict_and_original_span(self):
+        out = filter_detections(self._items(), status='all', reviewer='adjusted')
+        assert [i['reviewerOriginalStart'] for i in out] == [8.0]
 
-    def test_absent_reviewer_is_a_no_op(self):
-        assert len(filter_detections(self._items(), status='all')) == 3
+    def test_unadjusted_keeps_adjust_without_span_and_other_verdicts(self):
+        out = filter_detections(self._items(), status='all', reviewer='unadjusted')
+        assert [i['reviewerVerdict'] for i in out] == [
+            'adjust', 'confirmed', 'reject', 'failure', None]
+
+    def test_all_and_absent_reviewer_are_no_ops(self):
+        assert len(filter_detections(self._items(), status='all', reviewer='all')) == 6
+        assert len(filter_detections(self._items(), status='all')) == 6

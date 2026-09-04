@@ -24,8 +24,9 @@ export interface ReviewDetection {
   detectionStage: string | null;
   category: string | null;
   actionApplied: string | null;
-  // Set by the ad reviewer stage; the original span is present when the
-  // verdict is 'adjust'.
+  // Set by the ad reviewer stage. The original span is present only when the
+  // reviewer moved the span; held contradictions and split pieces keep the
+  // 'adjust' verdict without it.
   reviewerVerdict: string | null;
   reviewerOriginalStart: number | null;
   reviewerOriginalEnd: number | null;

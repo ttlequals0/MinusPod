@@ -151,7 +151,7 @@ The tab opens with "Needs review" selected. That filter shows detections still w
 
 Segments left in by their category are not in "Needs review". Their fate is already settled by the feed's segment actions, and the corrections endpoint refuses a verdict on one, so listing them would offer a decision nobody can make. Change the category to move one, or find them under Rejected and All.
 
-A podcast dropdown narrows the list to one feed. The Reviewer dropdown, on this tab and on Detected Ads, shows only rows the ad reviewer moved, or only rows it left alone. The search box filters by sponsor name or detection reason. The list shows 20 rows per page. Click a column header (Podcast, Published, Confidence) to sort; click again to reverse.
+A podcast dropdown narrows the list to one feed. The Reviewer dropdown, on this tab and on Detected Ads, shows only rows whose span the ad reviewer moved, or only rows it left where they were. The search box filters by sponsor name or detection reason. The list shows 20 rows per page. Click a column header (Podcast, Published, Confidence) to sort; click again to reverse.
 
 Each row has up to five actions:
 

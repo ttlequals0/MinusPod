@@ -328,10 +328,15 @@ describe('AdReviewTab reviewer filter', () => {
     }
   });
 
-  it('shows no badge for a confirmed or unreviewed row', async () => {
+  it('shows no badge for a confirmed, unreviewed, or unmoved adjust row', async () => {
     mockGetDetections.mockResolvedValue({
-      detections: [detection({ reviewerVerdict: 'confirmed' }), detection()],
-      total: 2, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
+      // The third row is a held contradiction: verdict kept, no move recorded.
+      detections: [
+        detection({ reviewerVerdict: 'confirmed' }),
+        detection(),
+        detection({ reviewerVerdict: 'adjust' }),
+      ],
+      total: 3, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
     });
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });

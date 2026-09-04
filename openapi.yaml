@@ -3914,8 +3914,11 @@ paths:
         - name: reviewer
           in: query
           description: >-
-            Reviewer boundary decision: adjusted rows had their span moved by
-            the ad reviewer. Applies to the cutSummary totals as well.
+            Whether the ad reviewer moved the span. adjusted keeps rows with
+            verdict adjust and recorded original bounds; unadjusted keeps
+            everything else, including held contradictions and split pieces,
+            which carry the verdict without a move. Applies to the cutSummary
+            totals as well.
           schema:
             type: string
             enum: [all, adjusted, unadjusted]
@@ -10269,16 +10272,20 @@ components:
         reviewerVerdict:
           type: string
           nullable: true
-          description: Ad reviewer verdict on this marker, or null when the reviewer did not run
+          description: >-
+            Ad reviewer verdict on this marker, or null when the reviewer did
+            not run. adjust alone does not mean the span moved: a held
+            contradiction keeps the pass-1 bounds and a split piece drops the
+            originals, and neither records reviewerOriginalStart/End.
           enum: [confirmed, adjust, reject, resurrect, failure, null]
         reviewerOriginalStart:
           type: number
           nullable: true
-          description: Start of the span before the reviewer moved it; set when reviewerVerdict is adjust
+          description: Start of the span before the reviewer moved it; present only when the reviewer moved the span
         reviewerOriginalEnd:
           type: number
           nullable: true
-          description: End of the span before the reviewer moved it; set when reviewerVerdict is adjust
+          description: End of the span before the reviewer moved it; present only when the reviewer moved the span
         status:
           type: string
           enum: [accepted, rejected, pending]

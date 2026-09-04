@@ -160,6 +160,13 @@ def awaits_decision(item: dict) -> bool:
             and item.get('actionApplied') != 'keep')
 
 
+def reviewer_moved(item: dict) -> bool:
+    """An adjust verdict alone is not a move: contradiction holds keep pass-1
+    bounds and split pieces drop the originals, so both lack the span."""
+    return (item.get('reviewerVerdict') == 'adjust'
+            and item.get('reviewerOriginalStart') is not None)
+
+
 def filter_detections(items: list[dict], status: str = 'needs_review',
                       feed: str | None = None,
                       q: str | None = None,
@@ -175,9 +182,9 @@ def filter_detections(items: list[dict], status: str = 'needs_review',
     elif category:
         out = [i for i in out if i.get('category') == category]
     if reviewer == 'adjusted':
-        out = [i for i in out if i.get('reviewerVerdict') == 'adjust']
+        out = [i for i in out if reviewer_moved(i)]
     elif reviewer == 'unadjusted':
-        out = [i for i in out if i.get('reviewerVerdict') != 'adjust']
+        out = [i for i in out if not reviewer_moved(i)]
     if feed:
         out = [i for i in out if i['feedSlug'] == feed]
     if q:
