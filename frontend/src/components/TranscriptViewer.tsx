@@ -7,7 +7,8 @@ import { Modal } from './Modal';
 import { btnGhost } from './buttonStyles';
 import { focusRing, inputBase, selectBase } from './fieldStyles';
 import LoadingSpinner from './LoadingSpinner';
-import { formatClock, parseClock } from '../utils/transcriptTime';
+import { formatTimestamp } from '../utils/format';
+import { parseTimeInput } from '../utils/adReviewHelpers';
 
 type Source = 'original' | 'processed';
 
@@ -53,22 +54,15 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
   const [highlight, setHighlight] = useState(false);
   const [shown, setShown] = useState(PAGE);
 
-  const original = useQuery({
-    queryKey: ['originalSegments', slug, episodeId],
-    queryFn: () => getOriginalSegments(slug, episodeId),
-    enabled: source === 'original',
+  const query = useQuery({
+    queryKey: [source === 'original' ? 'originalSegments' : 'finalSegments', slug, episodeId],
+    queryFn: () => (source === 'original' ? getOriginalSegments : getFinalSegments)(slug, episodeId),
   });
-  const processed = useQuery({
-    queryKey: ['finalSegments', slug, episodeId],
-    queryFn: () => getFinalSegments(slug, episodeId),
-    enabled: source === 'processed',
-  });
-  const query = source === 'original' ? original : processed;
   const segments = useMemo(() => query.data?.segments ?? [], [query.data]);
   const markers = episode.adMarkers ?? [];
 
-  const start = parseClock(startText);
-  const end = parseClock(endText);
+  const start = parseTimeInput(startText);
+  const end = parseTimeInput(endText);
   const startBad = startText.trim() !== '' && start === null;
   const endBad = endText.trim() !== '' && end === null;
   const needle = search.trim().toLowerCase();
@@ -93,8 +87,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
 
   // Episodes processed before segments were stored only have the plain
   // processed text, so that is what Processed falls back to.
-  const settled = query.isSuccess || query.isError;
-  const fallback = source === 'processed' && settled && segments.length === 0
+  const fallback = source === 'processed' && !query.isPending && segments.length === 0
     ? episode.transcript
     : undefined;
 
@@ -200,7 +193,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
                   }`}
                 >
                   <span className="shrink-0 w-28 tabular-nums text-muted-foreground">
-                    {formatClock(seg.start)} - {formatClock(seg.end)}
+                    {formatTimestamp(seg.start)} - {formatTimestamp(seg.end)}
                   </span>
                   <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
                     <Highlight text={seg.text} needle={needle} />

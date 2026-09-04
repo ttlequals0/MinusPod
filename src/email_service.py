@@ -101,6 +101,10 @@ def _value(v) -> str:
     return '-' if v is None or v == '' else str(v)
 
 
+def _episode_ref(ctx):
+    return f"{_value(ctx.get('podcast_name'))} ({_value(ctx.get('slug'))}:{_value(ctx.get('episode_id'))})"
+
+
 def _fmt_episode_processed(ctx):
     podcast = ctx.get('podcast', {})
     episode = ctx.get('episode', {})
@@ -235,7 +239,7 @@ def _fmt_queue_held(ctx):
     rows = [
         ('Held until', _value(ctx.get('hold_until'))),
         ('Hold TTL (hours)', _value(ctx.get('ttl_hours'))),
-        ('Tripped by', f"{_value(ctx.get('podcast_name'))} ({_value(ctx.get('slug'))}:{_value(ctx.get('episode_id'))})"),
+        ('Tripped by', _episode_ref(ctx)),
         ('Error', _value(ctx.get('error_message'))),
         ('Timestamp', _value(ctx.get('timestamp'))),
     ]
@@ -258,7 +262,7 @@ def _fmt_service_offline(ctx):
     subject = f"[MinusPod] Service Offline: {_value(ctx.get('service'))}"
     rows = [
         ('Service', _value(ctx.get('service'))),
-        ('Tripped by', f"{_value(ctx.get('podcast_name'))} ({_value(ctx.get('slug'))}:{_value(ctx.get('episode_id'))})"),
+        ('Tripped by', _episode_ref(ctx)),
         ('Error', _value(ctx.get('error_message'))),
         ('Timestamp', _value(ctx.get('timestamp'))),
     ]

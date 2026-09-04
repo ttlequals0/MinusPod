@@ -4298,9 +4298,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     podcast_settings = db.get_podcast_by_slug(slug)
     podcast_description = build_podcast_context(podcast_settings)
-    if podcast_settings and podcast_settings.get('detection_notes'):
-        audio_logger.info(f"[{slug}:{episode_id}] Including detection notes "
-                          f"({len(podcast_settings['detection_notes'])} chars)")
+    notes = (podcast_settings or {}).get('detection_notes')
+    if notes:
+        audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(notes)} chars)")
 
     # Effective per-feed mode, resolved once from the row above. The
     # precedence (passthrough > skip-detection > keep-content > cue_only > standard)

@@ -14,7 +14,7 @@ const SORT_OPTIONS: Array<[DetectionSort, string]> = [
 ];
 
 const REVIEWER_OPTIONS: Array<[DetectionReviewerFilter, string]> = [
-  ['all', 'Any'],
+  ['', 'Any'],
   ['adjusted', 'Adjusted'],
   ['unadjusted', 'Not adjusted'],
 ];
@@ -113,7 +113,7 @@ export function DetectionFilterBar({
           className={SELECT_CLASS}
         >
           {REVIEWER_OPTIONS.map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
+            <option key={value || 'any'} value={value}>{label}</option>
           ))}
         </select>
       </div>

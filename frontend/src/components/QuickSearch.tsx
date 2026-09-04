@@ -22,11 +22,11 @@ export function useQuickSearchHotkey(onOpen: (seed: string) => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || e.defaultPrevented) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.closest(EDITABLE) || document.querySelector('[role="dialog"]')) return;
       const palette = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
       const printable = !e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1 && e.key !== ' ';
       if (!palette && !printable) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest(EDITABLE) || document.querySelector('[role="dialog"]')) return;
       e.preventDefault();
       onOpen(palette || e.key === '/' ? '' : e.key);
     };

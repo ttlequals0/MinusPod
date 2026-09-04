@@ -5,7 +5,7 @@ export type DetectionResolution = 'unresolved' | 'confirmed' | 'dismissed';
 export type DetectionStatusFilter =
   | 'needs_review' | 'pending' | 'rejected' | 'accepted' | 'all';
 export type DetectionSort = 'date' | 'confidence' | 'podcast';
-export type DetectionReviewerFilter = 'all' | 'adjusted' | 'unadjusted';
+export type DetectionReviewerFilter = '' | 'adjusted' | 'unadjusted';
 
 export interface ReviewDetection {
   feedSlug: string;

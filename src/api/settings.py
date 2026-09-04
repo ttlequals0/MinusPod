@@ -64,8 +64,7 @@ from offline_queue import (
 )
 from rate_limit_hold import (
     get_hold_until, get_rate_limit_hold_ttl_hours,
-    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE, HOLD_SINCE_KEY,
-    HOLD_UNTIL_KEY,
+    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE, clear_hold,
 )
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
@@ -2365,8 +2364,7 @@ def update_rate_limit_hold_settings():
     if data.get('enabled') is False:
         # Escape hatch: lifting the hold releases the pause and lets the
         # tick requeue every held episode on its next pass.
-        db.clear_setting(HOLD_UNTIL_KEY)
-        db.clear_setting(HOLD_SINCE_KEY)
+        clear_hold(db)
     view = _rate_limit_hold_view(db)
     logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
     return json_response(view)

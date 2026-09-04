@@ -71,6 +71,14 @@ def record_hold_until(db, retry_at_iso: str) -> None:
     db.set_setting(HOLD_UNTIL_KEY, retry_at_iso)
 
 
+def clear_hold(db) -> str | None:
+    """Drop the pause marker and its start stamp; returns when the hold began."""
+    held_since = db.get_setting(HOLD_SINCE_KEY)
+    db.clear_setting(HOLD_UNTIL_KEY)
+    db.clear_setting(HOLD_SINCE_KEY)
+    return held_since
+
+
 def hold_is_active(hold_until: str | None) -> bool:
     """True when `hold_until` is a reset time still in the future."""
     return bool(hold_until and parse_iso_utc(hold_until)
@@ -121,8 +129,6 @@ def rate_limit_hold_tick(db) -> None:
     if hold_until and get_hold_until(db) == hold_until:
         # Reset time passed and nothing re-stamped it; clear the stale
         # marker so the claim gate unblocks.
-        held_since = db.get_setting(HOLD_SINCE_KEY)
-        db.clear_setting(HOLD_UNTIL_KEY)
-        db.clear_setting(HOLD_SINCE_KEY)
+        held_since = clear_hold(db)
         logger.info("Rate-limit hold: queue pause lifted after provider reset")
         fire_queue_resumed_event(held_since=held_since, requeued=requeued)

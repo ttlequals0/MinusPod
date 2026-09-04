@@ -36,7 +36,7 @@ export default function AdReviewTab() {
   const [status, setStatus] = useState<DetectionStatusFilter>('needs_review');
   const [feed, setFeed] = useState('');
   const [category, setCategory] = useState('');
-  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('all');
+  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
@@ -68,7 +68,7 @@ export default function AdReviewTab() {
       status,
       feed: feed || undefined,
       category: category || undefined,
-      reviewer: reviewer === 'all' ? undefined : reviewer,
+      reviewer: reviewer || undefined,
       q: debouncedQ || undefined,
       sort,
       order,

@@ -164,7 +164,8 @@ def reviewer_moved(item: dict) -> bool:
     """An adjust verdict alone is not a move: contradiction holds keep pass-1
     bounds and split pieces drop the originals, so both lack the span."""
     return (item.get('reviewerVerdict') == 'adjust'
-            and item.get('reviewerOriginalStart') is not None)
+            and item.get('reviewerOriginalStart') is not None
+            and item.get('reviewerOriginalEnd') is not None)
 
 
 def filter_detections(items: list[dict], status: str = 'needs_review',

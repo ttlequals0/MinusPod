@@ -1554,21 +1554,18 @@ function EpisodeDetail() {
       )}
 
       {(episode.transcript || episode.originalTranscriptAvailable) && (
-        <div className="mb-6">
-          <CollapsibleSection
-            title="Transcript"
-            subtitle="Original and processed text, with search"
-            defaultOpen={false}
-            storageKey="episode-transcript"
+        <div className="mb-6 bg-card rounded-lg border border-border p-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Transcript</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Original and processed text, with search</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTranscriptOpen(true)}
+            className={`shrink-0 px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors ${focusRing}`}
           >
-            <button
-              type="button"
-              onClick={() => setTranscriptOpen(true)}
-              className={`px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors ${focusRing}`}
-            >
-              View transcript
-            </button>
-          </CollapsibleSection>
+            View transcript
+          </button>
         </div>
       )}
       {transcriptOpen && (

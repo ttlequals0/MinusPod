@@ -94,7 +94,7 @@ export default function DetectedAdsTab() {
   const [page, setPage] = useState(1);
   const [feed, setFeed] = useState('');
   const [category, setCategory] = useState('');
-  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('all');
+  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
@@ -144,7 +144,7 @@ export default function DetectedAdsTab() {
       status: 'accepted',
       feed: feed || undefined,
       category: category || undefined,
-      reviewer: reviewer === 'all' ? undefined : reviewer,
+      reviewer: reviewer || undefined,
       q: debouncedQ || undefined,
       sort,
       order,
@@ -193,7 +193,7 @@ export default function DetectedAdsTab() {
       )}
       {!isLoading && !error && data && (data.total === 0 ? (
         <div className="text-muted-foreground text-sm py-8 text-center">
-          {feed || category || reviewer !== 'all' || debouncedQ
+          {feed || category || reviewer || debouncedQ
             ? 'No cut ads match the current filters.'
             : 'No ads have been cut yet.'}
         </div>
