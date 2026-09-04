@@ -129,9 +129,9 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
 | `Cue Template Quiet` | An enabled audio cue template on a `cue_only` feed has matched before but has zero above-threshold matches across the feed's last 5 telemetry-recorded episodes. Rate-limited to one alert per template per 5 minutes. |
 | `Queue Held` | A provider 429 with a reset time paused the queue (Queue Control > Rate-limit hold). One alert per 5 minutes. |
-| `Queue Resumed` | The rate-limit hold cleared and held episodes went back to the queue. |
+| `Queue Resumed` | The rate-limit hold cleared and held episodes went back to the queue. One alert per 5 minutes. |
 | `Service Offline` | An episode deferred because the LLM or Whisper endpoint was unreachable (Offline queue). One alert per service per 5 minutes. |
-| `Service Reachable` | The offline probe found a service back up and re-queued its deferred episodes. |
+| `Service Reachable` | The offline probe found a service back up and re-queued its deferred episodes. One alert per service per 5 minutes. |
 
 The **Test** button sends one sample payload per event the webhook is subscribed to, each shaped like that event's real payload (see Default Payloads below) with `test: true` set. A webhook subscribed to three events gets three test deliveries in one click; a custom payload template renders against each event's own variable set (episode-shaped for `Episode Processed`/`Episode Failed`, provider-shaped for the alert events, and so on).
 
@@ -141,7 +141,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, or `Cue Template Quiet` |
+| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, or `Service Reachable` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
@@ -479,7 +479,7 @@ Point MinusPod at an SMTP server and it emails you for the events you pick. Comm
 
 Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
 
-By default the failure and alert events, including the four queue hold events, are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback (issue #571) rather than just the exception message, for easier SMTP troubleshooting from container logs.
+By default the failure and alert events, including the four new hold and offline events, are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback (issue #571) rather than just the exception message, for easier SMTP troubleshooting from container logs.
 
 ### Example: Pushover
 
