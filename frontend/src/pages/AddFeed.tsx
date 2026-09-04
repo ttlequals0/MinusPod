@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, Link } from 'react-router';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { addFeed, addLocalFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
@@ -408,7 +408,7 @@ function AddFeed() {
     queryKey: ['settings'],
     queryFn: getSettings,
   });
-  const searchAvailable = !!settings?.podcastSearchProvider?.value;
+  const searchAvailable = settings?.podcastSearchReady ?? false;
 
   // Existing feeds for "already added" detection
   const { data: feedsData } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
@@ -551,6 +551,13 @@ function AddFeed() {
 
       {mode === 'subscribe' && (
       <>
+      {settings && !settings.podcastSearchReady && (
+        <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+          PodcastIndex is selected but its credentials are missing. Add them in{' '}
+          <Link to="/settings#podcast-index" className="underline">Settings</Link>
+          {' '}or switch the provider to iTunes.
+        </div>
+      )}
       {/* Section A: Unified Input */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>

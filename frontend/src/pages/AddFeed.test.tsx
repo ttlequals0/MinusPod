@@ -6,11 +6,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import AddFeed from './AddFeed';
 
 const mockNavigate = vi.fn();
 
-vi.mock('react-router', () => ({
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
   useNavigate: () => mockNavigate,
 }));
 
@@ -50,6 +52,7 @@ function makeClient() {
 const defaultSettings = {
   podcastIndexApiKeyConfigured: false,
   podcastSearchProvider: { value: 'itunes', isDefault: true },
+  podcastSearchReady: true,
 };
 
 function renderAddFeed(settings: unknown = defaultSettings) {
@@ -57,7 +60,9 @@ function renderAddFeed(settings: unknown = defaultSettings) {
   mockGetFeedsResponse.mockResolvedValue({ feeds: [], lastRefreshCompletedAt: null });
   return render(
     <QueryClientProvider client={makeClient()}>
-      <AddFeed />
+      <MemoryRouter>
+        <AddFeed />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -131,6 +136,22 @@ describe('AddFeed: podcast search gating', () => {
     renderAddFeed(new Promise(() => {}));
     expect(screen.getByLabelText('Podcast RSS Feed URL')).toBeDefined();
     expect(screen.queryByText('Configure PodcastIndex API credentials')).toBeNull();
+  });
+
+  it('shows a banner and does not search when PodcastIndex is selected but not ready', async () => {
+    const user = userEvent.setup();
+    renderAddFeed({
+      podcastIndexApiKeyConfigured: false,
+      podcastSearchProvider: { value: 'podcastindex', isDefault: false },
+      podcastSearchReady: false,
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/PodcastIndex is selected but its credentials are missing/)).toBeDefined();
+    });
+
+    await user.type(screen.getByLabelText('Podcast RSS Feed URL'), 'daily');
+    await new Promise((r) => setTimeout(r, 500));
+    expect(mockSearchPodcasts).not.toHaveBeenCalled();
   });
 });
 

@@ -577,6 +577,8 @@ export interface Settings {
   apiKeyConfigured: boolean;
   podcastIndexApiKeyConfigured: boolean;
   podcastSearchProvider: SettingValue;
+  // Whether podcastSearchProvider's resolved value can actually run search.
+  podcastSearchReady: boolean;
   openrouterBaseUrl: string;
   retentionDays: number;
   stageTunables: StageTunables;
