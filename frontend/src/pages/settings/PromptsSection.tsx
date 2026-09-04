@@ -3,8 +3,8 @@ import ConfirmResetButton from './ConfirmResetButton';
 import PromptField from './PromptField';
 
 const OVERRIDE_HELP =
-  'Optional. Added to this pass at run time; leave blank to use the default prompt '
-  + 'unchanged. Put {override} in a customized prompt above to control where it goes.';
+  'Optional. Appended to the prompt above at run time. Put {override} in a '
+  + 'customized prompt to change where it goes.';
 
 interface PromptsSectionProps {
   systemPrompt: string;

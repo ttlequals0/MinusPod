@@ -306,7 +306,7 @@ If you customized your system or verification prompt before this release, the up
 
 ### Per-pass prompt overrides
 
-Each pass (first, verification, reviewer, resurrect) has an optional **Override** field in Settings, empty by default. Text there is added to that pass at run time, so you can apply a tweak (e.g. "keep this show's news roundup") without editing the built-in prompt, which stays intact. It is inserted at the prompt's `{override}` placeholder if present, otherwise appended under an "additional instructions" header. An empty override changes nothing.
+Each pass (first, verification, reviewer, resurrect) has an optional **Override** field in Settings, empty by default. Text there is appended to that pass's prompt at run time, so you can add a tweak (e.g. "keep this show's news roundup") without editing the built-in prompt. To put it somewhere other than the end, add `{override}` to a customized prompt where you want it. An empty override changes nothing.
 
 ### Per-feed detection notes
 

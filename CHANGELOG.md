@@ -19,6 +19,7 @@ release notes.
 
 ### Changed
 
+- Prompt override help text and docs say plainly that the override is appended by default (#710).
 - Episode page: the Transcript and Original Transcript sections merged into one, with a View transcript button. The reader shows original or processed segments with timestamps, a search box, a start and end time window, and (original only) a checkbox that highlights the rows that were cut and names the sponsor.
 
 ### Fixed
