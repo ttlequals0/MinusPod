@@ -10,10 +10,7 @@ import json
 import math
 
 from config import SEGMENT_CATEGORIES, is_pending_review
-
-# Same tolerance the reject path uses to clear held markers
-# (_clear_held_marker_on_reject in api/patterns.py).
-BOUNDS_TOLERANCE_S = 0.5
+from utils.markers import BOUNDS_TOLERANCE_S, spans_match  # noqa: F401 BOUNDS_TOLERANCE_S re-exported
 
 # Filter value and summary key for markers no stage classified. Not a member of
 # SEGMENT_CATEGORIES: unset is the absence of a category, not a category.
@@ -30,20 +27,13 @@ def marker_status(marker: dict) -> str:
     return 'accepted'
 
 
-def _spans_match(a_start, a_end, b_start, b_end, tol: float = BOUNDS_TOLERANCE_S) -> bool:
-    """Both edges within tol seconds; mirrors _find_marker_in_list in api/patterns.py."""
-    if a_start is None or a_end is None or b_start is None or b_end is None:
-        return False
-    return abs(a_start - b_start) <= tol and abs(a_end - b_end) <= tol
-
-
 def marker_resolution(marker: dict, episode_corrections: list[dict]) -> str:
     start = marker.get('start')
     end = marker.get('end')
     if start is None or end is None:
         return 'unresolved'
     for c in episode_corrections:
-        if _spans_match(start, end, c.get('start'), c.get('end')):
+        if spans_match(start, end, c.get('start'), c.get('end')):
             return 'dismissed' if c['correction_type'] == 'false_positive' else 'confirmed'
     return 'unresolved'
 
@@ -81,7 +71,7 @@ def _keep_twin_action(marker: dict, keep_spans: list[tuple[float, float]]) -> st
     if start is None or end is None:
         return own
     for k_start, k_end in keep_spans:
-        if _spans_match(start, end, k_start, k_end):
+        if spans_match(start, end, k_start, k_end):
             return 'keep'
     return own
 

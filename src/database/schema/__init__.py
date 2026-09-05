@@ -1314,6 +1314,13 @@ class SchemaMixin:
         # doesn't update what the editor displays for already-detected ads.
         self._cleanup_zyn_ad_markers(conn)
 
+        # 2.95.2: collapse two stored markers for one span into one. Pass 2
+        # used to append a marker for a span pass 1 had already stored, which
+        # put that span in two mutually exclusive API buckets and doubled
+        # pending_review_count. The write path no longer does it; this cleans
+        # up what earlier versions wrote.
+        self._collapse_duplicate_ad_markers(conn)
+
         # 2.5.7: retire kitchen-sink ad_patterns that name multiple foreign
         # sponsors in their text_template. The merge guard prevents new ones
         # going forward; this disables what's already there.
@@ -3075,6 +3082,67 @@ class SchemaMixin:
                 )
         except Exception as e:
             logger.warning(f"Migration: ad-marker Zyn cleanup failed: {e}")
+
+    def _collapse_duplicate_ad_markers(self, conn):
+        """One-shot: fold a second stored marker for one span into the first.
+
+        Only pairs where both markers are uncut and both edges fall inside
+        BOUNDS_TOLERANCE_S collapse, and the fold is additive, so the survivor
+        gains the other record's fields rather than replacing them. Gated by
+        `schema_migrations` so it runs once per database.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'collapse_duplicate_ad_markers'"
+        ).fetchone()
+        if gate is not None:
+            return
+        try:
+            from config import count_pending_review
+            from utils.markers import collapse_duplicate_markers
+        except Exception as e:
+            logger.warning(
+                f"Migration: duplicate ad-marker collapse skipped (import failed): {e}")
+            return
+        try:
+            rows = conn.execute(
+                "SELECT episode_id, ad_markers_json FROM episode_details "
+                "WHERE ad_markers_json IS NOT NULL "
+                "AND ad_markers_json NOT IN ('', '[]', 'null')"
+            ).fetchall()
+            markers_folded = 0
+            episodes_touched = 0
+            for row in rows:
+                try:
+                    markers = json.loads(row['ad_markers_json'])
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                if not isinstance(markers, list):
+                    continue
+                collapsed, folded = collapse_duplicate_markers(markers)
+                if not folded:
+                    continue
+                conn.execute(
+                    "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
+                    (json.dumps(collapsed), row['episode_id'])
+                )
+                conn.execute(
+                    "UPDATE episodes SET pending_review_count = ? WHERE id = ?",
+                    (count_pending_review(collapsed), row['episode_id'])
+                )
+                markers_folded += folded
+                episodes_touched += 1
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+                "('collapse_duplicate_ad_markers')"
+            )
+            conn.commit()
+            logger.info(
+                f"duplicate-ad-marker collapse: complete, {markers_folded} marker(s) "
+                f"folded across {episodes_touched} episode(s)"
+            )
+        except Exception as e:
+            # Gate stays unset, so a failed run retries on the next boot.
+            logger.warning(f"Migration: duplicate ad-marker collapse failed: {e}")
 
     def _migrate_fingerprint_cascade(self, conn):
         """2.88.2: give audio_fingerprints.pattern_id an FK with ON DELETE CASCADE.

@@ -134,3 +134,106 @@ def mark_distinct_merge(target: dict, other: dict) -> None:
     bookkeeping. Call BEFORE mutating target's span or stage."""
     note_merged_members(target, other)
     target['merged_distinct_ads'] = True
+
+
+# Both-edges tolerance for treating two markers as the same span. Matches
+# _find_marker_in_list in api/patterns.py, the reject path, and the review
+# listing, so every consumer agrees on what one span means.
+BOUNDS_TOLERANCE_S = 0.5
+
+# Verdict fields the winning record owns on a fold, absences included.
+_FOLD_VERDICT_FIELDS = ('action_applied', 'held_for_review', 'hold_reason')
+
+
+def spans_match(a_start, a_end, b_start, b_end,
+                tol: float = BOUNDS_TOLERANCE_S) -> bool:
+    """Both edges within tol seconds."""
+    if a_start is None or a_end is None or b_start is None or b_end is None:
+        return False
+    return abs(a_start - b_start) <= tol and abs(a_end - b_end) <= tol
+
+
+def foldable_twin(markers, marker):
+    """The uncut marker in ``markers`` naming the same span as ``marker``.
+
+    A marker that was cut on either side names audio that is already gone, so
+    it never folds: its record has to keep describing what the cut removed.
+    """
+    if not isinstance(marker, dict) or marker.get('was_cut'):
+        return None
+    return next(
+        (m for m in markers
+         if isinstance(m, dict) and m is not marker and not m.get('was_cut')
+         and spans_match(m.get('start'), m.get('end'),
+                         marker.get('start'), marker.get('end'))),
+        None)
+
+
+def _folded_validation(winner: dict, loser: dict) -> dict:
+    """Validation for the folded marker: the winner's decision, the loser's
+    fields where the winner has none, and the union of both flag lists."""
+    won = winner.get('validation') or {}
+    lost = loser.get('validation') or {}
+    merged = {k: v for k, v in lost.items() if v is not None}
+    merged.update({k: v for k, v in won.items() if v is not None})
+    flags = list(lost.get('flags') or [])
+    flags += [f for f in (won.get('flags') or []) if f not in flags]
+    if flags:
+        merged['flags'] = flags
+    return merged
+
+
+def fold_marker_pair(target: dict, other: dict) -> None:
+    """Fold two markers stored for one span into ``target``, in place.
+
+    A keep is the feed's category action, so it wins the verdict over a hold
+    and the reason it overrides is retained as hold_cleared_reason; otherwise
+    target's verdict stands. The losing record fills every field the winner
+    lacks, nested validation included, and a hold reason with nowhere left to
+    go is recorded as a validation flag rather than dropped.
+    """
+    other_wins = (other.get('action_applied') == 'keep'
+                  and target.get('action_applied') != 'keep')
+    winner, loser = (other, target) if other_wins else (target, other)
+    cleared = loser.get('hold_reason') if loser.get('held_for_review') else None
+    merged = {k: v for k, v in loser.items() if v is not None}
+    merged.update({k: v for k, v in winner.items() if v is not None})
+    # Callers fold uncut pairs only; foldable_twin admits no other pair.
+    merged['was_cut'] = False
+    for field in _FOLD_VERDICT_FIELDS:
+        if field in winner:
+            merged[field] = winner[field]
+        else:
+            merged.pop(field, None)
+    validation = _folded_validation(winner, loser)
+    note = None
+    if cleared and merged.get('held_for_review'):
+        note = f'INFO: Pass 2 also held this span ({cleared})'
+    elif cleared and merged.get('hold_cleared_reason', cleared) != cleared:
+        note = f'INFO: A second hold was cleared on this span ({cleared})'
+    elif cleared:
+        merged['hold_cleared_reason'] = cleared
+    if note:
+        validation.setdefault('flags', []).append(note)
+    if validation:
+        merged['validation'] = validation
+    target.clear()
+    target.update(merged)
+
+
+def collapse_duplicate_markers(markers):
+    """Collapse markers stored twice for one span into one marker each.
+
+    Returns ``(markers, folded_count)``; the list is rebuilt only when
+    something folded, so a clean row is left untouched.
+    """
+    collapsed = []
+    folded = 0
+    for marker in markers:
+        twin = foldable_twin(collapsed, marker)
+        if twin is None:
+            collapsed.append(marker)
+            continue
+        fold_marker_pair(twin, marker)
+        folded += 1
+    return (collapsed, folded) if folded else (markers, 0)

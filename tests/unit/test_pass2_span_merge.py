@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from unittest.mock import patch  # noqa: E402
 
 import main_app.processing as processing  # noqa: E402
+from utils.markers import fold_marker_pair  # noqa: E402
 from config import (  # noqa: E402
     HOLD_REASON_VERIFICATION_KEPT_CONFLICT, count_pending_review,
     is_pending_review,
@@ -34,7 +35,8 @@ PASS1_CUTS = [{'start': 100.0, 'end': 200.0, 'replacement_duration': 1.0}]
 
 
 def _seam(all_ads, v_ads_for_ui, v_ads_held):
-    """The pass-2 merge seam in process_episode, on the same inputs."""
+    """The pass-2 merge seam in process_episode (the 'Merge pass 2 ads into
+    combined list for UI' block), on the same inputs."""
     merge_v = processing._dedupe_pass2_markers(
         processing._stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held))
     to_append, folded = processing._merge_pass2_markers(all_ads, merge_v)
@@ -111,8 +113,10 @@ def test_second_hold_for_the_same_span_is_not_counted_twice():
     assert count_pending_review(saved) == 1
     assert marker['hold_reason'] == 'max_duration'
     assert marker['sponsor'] == 'Acme'
-    # Still held, so nothing was cleared.
+    # Still held, so the second reason is a flag, not a cleared reason.
     assert 'hold_cleared_reason' not in marker
+    assert ('INFO: Pass 2 also held this span (cue_unproven)'
+            in marker['validation']['flags'])
 
 
 def test_adjacent_span_outside_tolerance_stays_its_own_marker():
@@ -164,3 +168,36 @@ def test_a_cut_pass1_marker_is_never_a_fold_target():
 
     assert folded == 0
     assert len(saved) == 2
+
+
+def test_fold_merges_validation_instead_of_replacing_it():
+    keep = {'start': 500.0, 'end': 520.0, 'was_cut': False,
+            'action_applied': 'keep',
+            'validation': {'decision': 'ACCEPT', 'flags': ['INFO: kept']}}
+    held = {'start': 500.2, 'end': 519.8, 'was_cut': False,
+            'held_for_review': True, 'hold_reason': 'cue_unproven',
+            'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.81,
+                           'flags': ['HOLD: cue unproven']}}
+
+    fold_marker_pair(keep, held)
+
+    assert keep['validation']['decision'] == 'ACCEPT'
+    # The loser fills what the winner lacked, flags included.
+    assert keep['validation']['adjusted_confidence'] == 0.81
+    assert keep['validation']['flags'] == ['HOLD: cue unproven', 'INFO: kept']
+
+
+def test_fold_does_not_shadow_a_hold_reason_already_cleared():
+    keep = {'start': 500.0, 'end': 520.0, 'was_cut': False,
+            'action_applied': 'keep', 'held_for_review': False,
+            'hold_cleared_reason': 'max_duration'}
+    held = {'start': 500.2, 'end': 519.8, 'was_cut': False,
+            'held_for_review': True,
+            'hold_reason': HOLD_REASON_VERIFICATION_KEPT_CONFLICT}
+
+    fold_marker_pair(keep, held)
+
+    assert keep['hold_cleared_reason'] == 'max_duration'
+    assert (f'INFO: A second hold was cleared on this span '
+            f'({HOLD_REASON_VERIFICATION_KEPT_CONFLICT})'
+            in keep['validation']['flags'])

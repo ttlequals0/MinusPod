@@ -261,6 +261,9 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     corroborated_count = 0
     for ad, orig_ad in zip(verification_ads_processed, verification_ads_original, strict=True):
         # Held ads divert to the held list; never cut, never enter the UI/reviewer pool.
+        # Checked before the pass-1 overlap below so a held ad can never
+        # corroborate a hold into auto-approval; one that repeats a pass-1
+        # span folds into it at the marker merge seam instead.
         if ad.get('held_for_review'):
             orig_ad['was_cut'] = False
             orig_ad['held_for_review'] = True
