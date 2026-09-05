@@ -290,7 +290,7 @@ class SearchMixin:
         group_fns = {
             'shows': lambda: self._search_shows(conn, fts_query, like_pattern, like_prefix, limit),
             'episodes': lambda: self._search_episodes(conn, fts_query, like_pattern, like_prefix, limit),
-            'transcripts': lambda: self._search_transcripts(conn, fts_query),
+            'transcripts': lambda: self._search_transcripts(conn, fts_query, limit),
             'patterns': lambda: self._search_patterns(conn, fts_query, limit),
             'sponsors': lambda: self._search_sponsors(conn, fts_query, limit),
         }
@@ -404,16 +404,17 @@ class SearchMixin:
             row_builder=row_builder, like_fetch=like_fetch,
             like_row_builder=like_row_builder, limit=limit)
 
-    def _search_transcripts(self, conn, fts_query):
-        """Transcripts: body-only word matches, capped at 3 episodes; timestamp is always None (no VTT offset)."""
+    def _search_transcripts(self, conn, fts_query, limit):
+        """Transcripts: body-only word matches. search_index holds one row per episode,
+        so no episode can flood the group; timestamp is always None (no VTT offset)."""
         rows = conn.execute("""
             SELECT si.content_id AS episode_id, si.podcast_slug AS feed_slug, si.title AS title,
                    snippet(search_index, 4, char(2), char(3), '...', 64) AS body_snippet
             FROM search_index si
             WHERE si.content_type = 'episode' AND search_index MATCH 'content_type:episode AND body:(' || ? || ')'
             ORDER BY bm25(search_index, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
-            LIMIT 3
-        """, (fts_query,)).fetchall()
+            LIMIT ?
+        """, (fts_query, limit)).fetchall()
         return [{
             'feedSlug': r['feed_slug'], 'episodeId': r['episode_id'], 'title': r['title'],
             'snippet': self._pick_snippet(r, 'body_snippet'), 'timestamp': None,

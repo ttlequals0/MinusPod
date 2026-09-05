@@ -79,15 +79,31 @@ def test_api_aliases_processed_status_to_completed():
     assert match['status'] == 'completed'
 
 
-def test_transcript_cap_holds_at_three():
+def test_transcripts_group_honours_the_callers_limit():
+    # The group hard-coded LIMIT 3, so the Advanced page could never reach past the
+    # first three body-only matches however high a limit it asked for.
     slug = _feed('transcript-cap')
-    for _ in range(5):
+    for _ in range(40):
         ep_id = _eid()
         db.upsert_episode(slug, ep_id, title=f'Episode {ep_id}')
         db.save_episode_details(slug, ep_id, transcript_text='mentions targaryen dragons extensively')
         db.index_episode(ep_id, slug)
-    result = db.search_grouped('targaryen')
-    assert len(result['transcripts']) == 3
+    assert len(db.search_grouped('targaryen', limit=50)['transcripts']) == 40
+    assert len(db.search_grouped('targaryen', limit=5)['transcripts']) == 5
+
+
+def test_transcripts_group_caps_hits_for_one_episode():
+    # search_index holds one row per episode, so a term repeated through a long
+    # transcript yields one hit and cannot crowd out the other episodes.
+    slug = _feed('transcript-per-episode')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, title='Repetition Hour')
+    db.save_episode_details(slug, ep_id,
+                            transcript_text=' '.join(['sesquipedalian filler'] * 10))
+    db.index_episode(ep_id, slug)
+    hits = [t for t in db.search_grouped('sesquipedalian', limit=50)['transcripts']
+            if t['episodeId'] == ep_id]
+    assert len(hits) <= 3
 
 
 def test_transcript_hit_has_no_invented_timestamp():

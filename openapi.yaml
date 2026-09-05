@@ -3318,7 +3318,7 @@ paths:
         sponsors, returned as five independent groups. Show and episode
         titles also get a substring match so a mid-word fragment still finds
         them; descriptions and transcripts match whole words only.
-        Transcript results are capped at 3. Patterns and sponsors are
+        Every group honours the limit parameter. Patterns and sponsors are
         Advanced-page-only groups; the Dashboard box and keyboard palette
         ignore them and request only shows, episodes and transcripts via
         the groups parameter.
