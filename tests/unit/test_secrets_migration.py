@@ -9,11 +9,9 @@ import secrets_crypto
 @pytest.fixture
 def crypto_env(monkeypatch, tmp_path):
     monkeypatch.setenv("MINUSPOD_MASTER_PASSPHRASE", "unit-test-passphrase")
-    monkeypatch.setattr(
-        secrets_crypto,
-        "BACKUP_DIR",
-        tmp_path / "backups",
-    )
+    # The backup dir is resolved from the environment at call time, so this
+    # keeps a fallback snapshot inside tmp_path.
+    monkeypatch.setenv("MINUSPOD_DATA_DIR", str(tmp_path))
     secrets_crypto.reset_cache()
     yield
     secrets_crypto.reset_cache()
