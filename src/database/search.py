@@ -236,32 +236,21 @@ class SearchMixin:
         like_prefix = f'{escaped}%'
 
         # Each group is independent: one group's unexpected failure should not blank the others.
-        shows, episodes, transcripts, patterns, sponsors = [], [], [], [], []
-        try:
-            shows = self._search_shows(conn, fts_query, like_pattern, like_prefix, limit)
-        except Exception as e:
-            logger.error(f"Grouped search (shows) failed for query '{query}': {e}")
-        try:
-            episodes = self._search_episodes(conn, fts_query, like_pattern, like_prefix, limit)
-        except Exception as e:
-            logger.error(f"Grouped search (episodes) failed for query '{query}': {e}")
-        try:
-            transcripts = self._search_transcripts(conn, fts_query)
-        except Exception as e:
-            logger.error(f"Grouped search (transcripts) failed for query '{query}': {e}")
-        try:
-            patterns = self._search_patterns(conn, fts_query, limit)
-        except Exception as e:
-            logger.error(f"Grouped search (patterns) failed for query '{query}': {e}")
-        try:
-            sponsors = self._search_sponsors(conn, fts_query, limit)
-        except Exception as e:
-            logger.error(f"Grouped search (sponsors) failed for query '{query}': {e}")
-
-        return {
-            'shows': shows, 'episodes': episodes, 'transcripts': transcripts,
-            'patterns': patterns, 'sponsors': sponsors,
+        groups = {
+            'shows': lambda: self._search_shows(conn, fts_query, like_pattern, like_prefix, limit),
+            'episodes': lambda: self._search_episodes(conn, fts_query, like_pattern, like_prefix, limit),
+            'transcripts': lambda: self._search_transcripts(conn, fts_query),
+            'patterns': lambda: self._search_patterns(conn, fts_query, limit),
+            'sponsors': lambda: self._search_sponsors(conn, fts_query, limit),
         }
+        results = dict(empty)
+        for name, fn in groups.items():
+            try:
+                results[name] = fn()
+            except Exception as e:
+                logger.error(f"Grouped search ({name}) failed for query '{query}': {e}")
+
+        return results
 
     @staticmethod
     def _safe_fts_query(clean_query: str) -> str:
@@ -270,6 +259,20 @@ class SearchMixin:
         quoted = [f'"{t}"' for t in tokens]
         quoted[-1] += '*'
         return f'"{clean_query}"* OR {" AND ".join(quoted)}'
+
+    @staticmethod
+    def _merge_fts_and_like(fts_rows, key_fn, row_builder, like_fetch, like_row_builder, limit):
+        """FTS rows first, then a LIKE fallback (only run if still under limit) for
+        substring matches FTS tokenization misses; deduped by key_fn, capped at limit."""
+        results = [row_builder(r) for r in fts_rows]
+        seen = {key_fn(r) for r in fts_rows}
+        if len(results) < limit:
+            for r in like_fetch():
+                key = key_fn(r)
+                if key not in seen:
+                    results.append(like_row_builder(r))
+                    seen.add(key)
+        return results[:limit]
 
     def _search_shows(self, conn, fts_query, like_pattern, like_prefix, limit):
         """Shows: FTS over title+description, plus a title LIKE pass for substrings."""
@@ -282,22 +285,23 @@ class SearchMixin:
             ORDER BY bm25(search_index)
             LIMIT ?
         """, (fts_query, limit)).fetchall()
-        shows = [{'slug': r['slug'], 'title': r['title'],
-                  'snippet': self._sanitize_snippet(r['snippet'])} for r in rows]
-        seen = {r['slug'] for r in rows}
-        if len(shows) < limit:
-            like_rows = conn.execute("""
+
+        def like_fetch():
+            return conn.execute("""
                 SELECT slug, COALESCE(title_override, title) AS title
                 FROM podcasts
                 WHERE COALESCE(title_override, title) LIKE ? ESCAPE '\\'
                 ORDER BY (COALESCE(title_override, title) LIKE ? ESCAPE '\\') DESC, title
                 LIMIT ?
             """, (like_pattern, like_prefix, limit)).fetchall()
-            for r in like_rows:
-                if r['slug'] not in seen:
-                    shows.append({'slug': r['slug'], 'title': r['title'], 'snippet': None})
-                    seen.add(r['slug'])
-        return shows[:limit]
+
+        return self._merge_fts_and_like(
+            rows, key_fn=lambda r: r['slug'],
+            row_builder=lambda r: {'slug': r['slug'], 'title': r['title'],
+                                    'snippet': self._sanitize_snippet(r['snippet'])},
+            like_fetch=like_fetch,
+            like_row_builder=lambda r: {'slug': r['slug'], 'title': r['title'], 'snippet': None},
+            limit=limit)
 
     def _search_episodes(self, conn, fts_query, like_pattern, like_prefix, limit):
         """Episodes: FTS over title+description, plus a title LIKE pass, deduped by episode."""
@@ -314,14 +318,9 @@ class SearchMixin:
             ORDER BY bm25(search_index)
             LIMIT ?
         """, (fts_query, limit)).fetchall()
-        episodes = [{
-            'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'], 'episodeId': r['episode_id'],
-            'title': r['title'], 'status': r['status'], 'publishDate': r['publish_date'],
-            'snippet': self._sanitize_snippet(r['snippet']),
-        } for r in rows]
-        seen = {(r['feed_slug'], r['episode_id']) for r in rows}
-        if len(episodes) < limit:
-            like_rows = conn.execute("""
+
+        def like_fetch():
+            return conn.execute("""
                 SELECT e.episode_id AS episode_id, p.slug AS feed_slug,
                        COALESCE(p.title_override, p.title) AS feed_title,
                        e.title AS title, e.status AS status, e.published_at AS publish_date
@@ -330,16 +329,21 @@ class SearchMixin:
                 ORDER BY (e.title LIKE ? ESCAPE '\\') DESC, e.published_at DESC
                 LIMIT ?
             """, (like_pattern, like_prefix, limit)).fetchall()
-            for r in like_rows:
-                key = (r['feed_slug'], r['episode_id'])
-                if key not in seen:
-                    episodes.append({
-                        'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'],
-                        'episodeId': r['episode_id'], 'title': r['title'], 'status': r['status'],
-                        'publishDate': r['publish_date'], 'snippet': None,
-                    })
-                    seen.add(key)
-        return episodes[:limit]
+
+        def row_builder(r):
+            return {'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'], 'episodeId': r['episode_id'],
+                    'title': r['title'], 'status': r['status'], 'publishDate': r['publish_date'],
+                    'snippet': self._sanitize_snippet(r['snippet'])}
+
+        def like_row_builder(r):
+            return {'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'], 'episodeId': r['episode_id'],
+                    'title': r['title'], 'status': r['status'], 'publishDate': r['publish_date'],
+                    'snippet': None}
+
+        return self._merge_fts_and_like(
+            rows, key_fn=lambda r: (r['feed_slug'], r['episode_id']),
+            row_builder=row_builder, like_fetch=like_fetch,
+            like_row_builder=like_row_builder, limit=limit)
 
     def _search_transcripts(self, conn, fts_query):
         """Transcripts: body-only word matches, capped at 3 episodes; timestamp is always None (no VTT offset)."""

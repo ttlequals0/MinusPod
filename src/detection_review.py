@@ -30,18 +30,20 @@ def marker_status(marker: dict) -> str:
     return 'accepted'
 
 
+def _spans_match(a_start, a_end, b_start, b_end, tol: float = BOUNDS_TOLERANCE_S) -> bool:
+    """Both edges within tol seconds; mirrors _find_marker_in_list in api/patterns.py."""
+    if a_start is None or a_end is None or b_start is None or b_end is None:
+        return False
+    return abs(a_start - b_start) <= tol and abs(a_end - b_end) <= tol
+
+
 def marker_resolution(marker: dict, episode_corrections: list[dict]) -> str:
     start = marker.get('start')
     end = marker.get('end')
     if start is None or end is None:
         return 'unresolved'
     for c in episode_corrections:
-        c_start = c.get('start')
-        c_end = c.get('end')
-        if c_start is None or c_end is None:
-            continue
-        if (abs(start - c_start) <= BOUNDS_TOLERANCE_S
-                and abs(end - c_end) <= BOUNDS_TOLERANCE_S):
+        if _spans_match(start, end, c.get('start'), c.get('end')):
             return 'dismissed' if c['correction_type'] == 'false_positive' else 'confirmed'
     return 'unresolved'
 
@@ -58,7 +60,19 @@ def _reviewer_moved_from_marker(marker: dict) -> bool:
             and marker.get('reviewer_original_end') is not None)
 
 
-def _keep_twin_action(marker: dict, markers: list[dict]) -> str | None:
+def _keep_spans(markers: list[dict]) -> list[tuple[float, float]]:
+    """Start/end pairs for this episode's keep markers, computed once so the
+    per-marker twin lookup below doesn't rescan the whole marker list each time."""
+    spans = []
+    for m in markers:
+        if isinstance(m, dict) and m.get('action_applied') == 'keep':
+            s, e = m.get('start'), m.get('end')
+            if isinstance(s, (int, float)) and isinstance(e, (int, float)):
+                spans.append((s, e))
+    return spans
+
+
+def _keep_twin_action(marker: dict, keep_spans: list[tuple[float, float]]) -> str | None:
     """action_applied for this span, falling back to a same-episode keep twin so an undecided copy inherits its verdict."""
     own = marker.get('action_applied')
     if own == 'keep':
@@ -66,15 +80,8 @@ def _keep_twin_action(marker: dict, markers: list[dict]) -> str | None:
     start, end = marker.get('start'), marker.get('end')
     if start is None or end is None:
         return own
-    for other in markers:
-        if other is marker or not isinstance(other, dict):
-            continue
-        if other.get('action_applied') != 'keep':
-            continue
-        o_start, o_end = other.get('start'), other.get('end')
-        if (isinstance(o_start, (int, float)) and isinstance(o_end, (int, float))
-                and abs(o_start - start) <= BOUNDS_TOLERANCE_S
-                and abs(o_end - end) <= BOUNDS_TOLERANCE_S):
+    for k_start, k_end in keep_spans:
+        if _spans_match(start, end, k_start, k_end):
             return 'keep'
     return own
 
@@ -93,6 +100,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
         if not isinstance(markers, list):
             continue
         episode_corrections = by_episode.get(row['episode_id'], [])
+        keep_spans = _keep_spans(markers)
         for marker in markers:
             if not isinstance(marker, dict):
                 continue
@@ -120,7 +128,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
                 'patternId': marker.get('pattern_id'),
                 'detectionStage': marker.get('detection_stage'),
                 'category': marker.get('category'),
-                'actionApplied': _keep_twin_action(marker, markers),
+                'actionApplied': _keep_twin_action(marker, keep_spans),
                 'reviewerVerdict': marker.get('reviewer_verdict'),
                 'reviewerOriginalStart': marker.get('reviewer_original_start'),
                 'reviewerOriginalEnd': marker.get('reviewer_original_end'),

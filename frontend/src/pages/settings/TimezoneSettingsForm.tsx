@@ -49,7 +49,8 @@ function TimezoneSettingsForm() {
     return <p className="text-sm text-muted-foreground">Loading timezone...</p>;
   }
 
-  const dirty = settings != null && draft !== settings.timezone;
+  // isLoading/draft===null both cleared above, so a successful fetch has landed.
+  const dirty = draft !== settings!.timezone;
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
