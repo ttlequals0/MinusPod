@@ -1,4 +1,5 @@
 """Full-text search mixin for MinusPod database."""
+import html
 import logging
 
 import nh3
@@ -183,11 +184,15 @@ class SearchMixin:
                 [v for pair in unmatchable for v in pair])
 
     def _pick_snippet(self, row, *keys):
-        """First of the named snippet columns FTS5 actually highlighted, sanitized."""
+        """First of the named snippet columns FTS5 actually highlighted.
+
+        Escaping the raw text before the sentinels become tags is what keeps a literal
+        <mark> in indexed text from reading as a highlight; the client decodes the rest.
+        """
         for key in keys:
             value = row[key]
             if value and _HL_OPEN in value:
-                return (self._sanitize_snippet(value)
+                return (html.escape(value, quote=False)
                         .replace(_HL_OPEN, '<mark>').replace(_HL_CLOSE, '</mark>'))
         return None
 

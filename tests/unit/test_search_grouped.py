@@ -412,3 +412,17 @@ def test_retired_type_param_is_rejected_naming_groups():
     assert resp.status_code == 400
     assert 'groups' in resp.get_json()['error']
     assert client.get('/api/v1/search?q=zorblat').status_code == 200
+
+
+def test_snippet_escapes_ampersands_and_literal_mark_tags():
+    # nh3 was given tags={'mark'}, so a literal <mark> in indexed text survived as a real
+    # tag and the frontend rendered it as a highlight.
+    slug = _feed('entity-snippet')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, title='Ligature Hour',
+                      description='sponsored by AT&T with <mark>fake</mark> zibbleflux copy')
+    hit = next(e for e in db.search_grouped('zibbleflux')['episodes']
+               if e['episodeId'] == ep_id)
+    assert 'AT&amp;T' in hit['snippet']
+    assert '&lt;mark&gt;fake&lt;/mark&gt;' in hit['snippet']
+    assert '<mark>zibbleflux</mark>' in hit['snippet']
