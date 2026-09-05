@@ -210,57 +210,35 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
   const s = (v: number | null | undefined) => (v != null ? String(v) : '');
 
-  // Per-field draft state. useSyncFromQuery reseeds from the server value
-  // whenever the query object identity changes (same render-phase pattern
-  // used by Settings.tsx), avoiding the one-frame stale UI of useEffect.
-  // Each blur-commit field is a useDraftField so an in-progress edit
-  // (dirty) is not overwritten by that reseed; see the sync callback below.
-  const cueScoreField = useDraftField(
-    feed.cueTemplateScoreOverride != null ? String(feed.cueTemplateScoreOverride) : '');
-  const pairMinField = useDraftField(s(feed.cuePairMinBreakOverride));
-  const pairMaxField = useDraftField(s(feed.cuePairMaxBreakOverride));
-  const pairFracField = useDraftField(s(feed.cuePairMaxBreakFractionOverride));
-  const snapConfField = useDraftField(s(feed.cueSnapConfidenceOverride));
-  const snapLeadField = useDraftField(s(feed.cueSnapLeadOverride));
-  const snapLagField = useDraftField(s(feed.cueSnapLagOverride));
-  const maxAdDurField = useDraftField(s(feed.maxAdDurationOverride));
-  const maxAdDurRejectField = useDraftField(s(feed.maxAdDurationRejectOverride));
+  // Per-field draft state. Each useDraftField reseeds itself from `feed`
+  // whenever its identity changes (same render-phase pattern used by
+  // Settings.tsx), avoiding the one-frame stale UI of useEffect, and skips
+  // that reseed while the field has an unsaved edit in progress (dirty).
+  const cueScoreField = useDraftField(feed, (f) =>
+    f.cueTemplateScoreOverride != null ? String(f.cueTemplateScoreOverride) : '');
+  const pairMinField = useDraftField(feed, (f) => s(f.cuePairMinBreakOverride));
+  const pairMaxField = useDraftField(feed, (f) => s(f.cuePairMaxBreakOverride));
+  const pairFracField = useDraftField(feed, (f) => s(f.cuePairMaxBreakFractionOverride));
+  const snapConfField = useDraftField(feed, (f) => s(f.cueSnapConfidenceOverride));
+  const snapLeadField = useDraftField(feed, (f) => s(f.cueSnapLeadOverride));
+  const snapLagField = useDraftField(feed, (f) => s(f.cueSnapLagOverride));
+  const maxAdDurField = useDraftField(feed, (f) => s(f.maxAdDurationOverride));
+  const maxAdDurRejectField = useDraftField(feed, (f) => s(f.maxAdDurationRejectOverride));
   // Notes commit on Save, not blur: markClean runs in the mutation's onSuccess so
   // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
-  const notesField = useDraftField(feed.detectionNotes ?? '', (v) => v.trim());
+  const notesField = useDraftField(feed, (f) => f.detectionNotes ?? '', (v) => v.trim());
   const [detectionNotesSaved, setDetectionNotesSaved] = useState(false);
   const [detectionNotesError, setDetectionNotesError] = useState<string | null>(null);
   // Retention days edits stay local until blur. Committing per keystroke
   // would PATCH every intermediate digit (typing 365 sends 3, then 36) and
   // retention is the one field where an intermediate value deletes audio.
-  const retentionDaysField = useDraftField(
-    feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
-      ? String(feed.retentionDaysOverride) : '');
+  const retentionDaysField = useDraftField(feed, (f) =>
+    f.retentionDaysOverride != null && f.retentionDaysOverride > 0 ? String(f.retentionDaysOverride) : '');
 
-  // Reseed inputs from the server feed object when it changes (e.g. after a
-  // successful mutation or a background refetch). This mirrors useSyncFromQuery
-  // applied to each field individually so that a mutation response immediately
-  // reflects the persisted value without waiting for a second refetch.
-  // Each field's own sync/dirty check (see useDraftField) skips a reseed
-  // while that field has an unsaved edit in progress; segmentOverrides has
-  // no such window since every click commits immediately.
+  // Everything left here is not a single draft field's own concern: clearing
+  // a stale notes error once the field is no longer dirty, and reseeding the
+  // segment-override map, which has no dirty window since every click commits.
   useSyncFromQuery(feed, (f) => {
-    retentionDaysField.sync(
-      f.retentionDaysOverride != null && f.retentionDaysOverride > 0
-        ? String(f.retentionDaysOverride) : '');
-    cueScoreField.sync(f.cueTemplateScoreOverride != null ? String(f.cueTemplateScoreOverride) : '');
-    pairMinField.sync(s(f.cuePairMinBreakOverride));
-    pairMaxField.sync(s(f.cuePairMaxBreakOverride));
-    pairFracField.sync(s(f.cuePairMaxBreakFractionOverride));
-    snapConfField.sync(s(f.cueSnapConfidenceOverride));
-    snapLeadField.sync(s(f.cueSnapLeadOverride));
-    snapLagField.sync(s(f.cueSnapLagOverride));
-    maxAdDurField.sync(s(f.maxAdDurationOverride));
-    maxAdDurRejectField.sync(s(f.maxAdDurationRejectOverride));
-    // Skip while dirty: a background refetch (staleTime elapsing, or any
-    // other field's save invalidating this query) must not clobber an
-    // unsaved draft. Save and Clear stay the only ways to change it.
-    notesField.sync(f.detectionNotes ?? '');
     if (!notesField.dirty) {
       setDetectionNotesError(null);
     }
