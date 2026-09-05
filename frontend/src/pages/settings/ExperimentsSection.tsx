@@ -238,7 +238,7 @@ function ExperimentsSection({
               rows={3}
               helpText={
                 <>
-                  Optional. Added to the review prompt at run time; leave blank for the default. Put <code>{'{override}'}</code> in a customized prompt above to control placement.
+                  Optional. Appended to the review prompt at run time. Put <code>{'{override}'}</code> in a customized prompt above to change where it goes.
                 </>
               }
             />
@@ -264,7 +264,7 @@ function ExperimentsSection({
               rows={3}
               helpText={
                 <>
-                  Optional. Added to the resurrect prompt at run time; leave blank for the default. Put <code>{'{override}'}</code> in a customized prompt above to control placement.
+                  Optional. Appended to the resurrect prompt at run time. Put <code>{'{override}'}</code> in a customized prompt above to change where it goes.
                 </>
               }
             />

@@ -37,8 +37,14 @@ from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
     SECRET_SETTING_KEYS,
 )
+from utils.time import is_valid_timezone
 
 logger = logging.getLogger(__name__)
+
+
+def _valid_notification_timezone(tz: str) -> bool:
+    """UTC is always acceptable, even on a host with no tzdata installed."""
+    return tz == 'UTC' or is_valid_timezone(tz)
 
 # Default pricing for known Anthropic models (USD per 1M tokens)
 # claude-sonnet-5/fable-5/opus-4-8 values from LiteLLM 2026-07-02.
@@ -166,6 +172,10 @@ class SettingSpec:
                     while the row is still flagged is_default, so an install
                     picks up later improvements to shipped prompt text. A
                     user-edited row (is_default = 0) is never touched.
+    validator:      checked against the resolved `env` value only; a failing
+                    value is ignored (falls back to `default`) with one
+                    WARNING log naming the bad value. No effect on keys that
+                    don't set it.
     """
     default: str | None = None
     env: str | None = None
@@ -182,6 +192,7 @@ class SettingSpec:
     payload_kind: str = 'str'
     payload_factory: Callable[[], Any] | None = None
     refresh_default: bool = False
+    validator: Callable[[str], bool] | None = None
 
 
 SETTINGS_REGISTRY: dict[str, SettingSpec] = {
@@ -620,6 +631,14 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'differential_hold_min_seconds': SettingSpec(
         default='10', seeded=True, in_ad_reset=True,
         payload_key='differentialHoldMinSeconds', payload_kind='float'),
+
+    # -- Notifications --
+    # IANA zone for timestamp_local in webhook/email payloads. Resolves from
+    # the container TZ env var when it names a valid zone; an invalid TZ
+    # falls back to UTC with a warning rather than rejecting notifications.
+    'notification_timezone': SettingSpec(
+        default='UTC', env='TZ', validator=_valid_notification_timezone,
+        payload_key='notificationTimezone'),
 }
 
 # Secrets: reset clears the row so env-var fallback takes over. Only the
@@ -663,6 +682,11 @@ def _validate_registry():
 
 _validate_registry()
 
+# (source, key, bad_value) triples already warned about, so a bad value logs
+# once per distinct value instead of once per call (every notification, every
+# GET); source ('env' vs 'stored') keeps the two paths from colliding.
+_warned_invalid_values: set[tuple[str, str, str]] = set()
+
 
 def registry_default(key: str) -> str | None:
     """DB-string default for a key (seed-time semantics)."""
@@ -674,9 +698,34 @@ def registry_default(key: str) -> str | None:
         return spec.factory()
     if spec.env is not None:
         if spec.env_blank_is_unset:
-            return os.environ.get(spec.env) or spec.default
-        return os.environ.get(spec.env, spec.default)
+            raw = os.environ.get(spec.env) or spec.default
+        else:
+            raw = os.environ.get(spec.env, spec.default)
+        if spec.validator is not None and not spec.validator(raw):
+            warn_key = ('env', key, raw)
+            if warn_key not in _warned_invalid_values:
+                _warned_invalid_values.add(warn_key)
+                logger.warning(
+                    "Ignoring invalid %s=%r for setting %r; using default %r",
+                    spec.env, raw, key, spec.default)
+            return spec.default
+        return raw
     return spec.default
+
+
+def registry_current_value(db, key: str) -> str | None:
+    """Stored value for `key` if valid per its SettingSpec.validator, else the
+    registry default: the one validated read path every consumer shares."""
+    spec = SETTINGS_REGISTRY[key]
+    value = db.get_setting(key)
+    if isinstance(value, str) and value:
+        if spec.validator is None or spec.validator(value):
+            return value
+        warn_key = ('stored', key, value)
+        if warn_key not in _warned_invalid_values:
+            _warned_invalid_values.add(warn_key)
+            logger.warning("Ignoring invalid stored value %r for setting %r", value, key)
+    return registry_default(key)
 
 
 def registry_get_default(key: str) -> Any:

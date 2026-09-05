@@ -1,18 +1,49 @@
 import { apiRequest, buildQueryString } from './client';
 
-export interface SearchResult {
-  type: 'episode' | 'podcast' | 'pattern' | 'sponsor';
-  id: string;
-  podcastSlug: string;
+export interface SearchShowResult {
+  slug: string;
+  title: string;
+  snippet: string | null;
+}
+
+export interface SearchEpisodeResult {
+  feedSlug: string;
+  feedTitle: string;
+  episodeId: string;
+  title: string;
+  status: string;
+  publishDate: string | null;
+  snippet: string | null;
+}
+
+export interface SearchTranscriptResult {
+  feedSlug: string;
+  episodeId: string;
   title: string;
   snippet: string;
-  score: number;
+  timestamp: number | null;
+}
+
+export interface SearchPatternResult {
+  id: string;
+  scope: string;
+  sponsor: string;
+  snippet: string | null;
+}
+
+export interface SearchSponsorResult {
+  id: string;
+  name: string;
+  snippet: string | null;
 }
 
 export interface SearchResponse {
   query: string;
-  results: SearchResult[];
-  total: number;
+  shows: SearchShowResult[];
+  episodes: SearchEpisodeResult[];
+  transcripts: SearchTranscriptResult[];
+  patterns: SearchPatternResult[];
+  sponsors: SearchSponsorResult[];
 }
 
 export interface SearchStats {
@@ -27,11 +58,12 @@ export interface SearchStats {
 
 export async function search(
   query: string,
-  type?: 'episode' | 'podcast' | 'pattern' | 'sponsor',
-  limit?: number
+  limit?: number,
+  signal?: AbortSignal,
+  groups?: string
 ): Promise<SearchResponse> {
-  const qs = buildQueryString({ q: query, type, limit });
-  return apiRequest<SearchResponse>(`/search${qs}`);
+  const qs = buildQueryString({ q: query, limit, groups });
+  return apiRequest<SearchResponse>(`/search${qs}`, { signal });
 }
 
 export async function rebuildSearchIndex(): Promise<{ message: string; indexedCount: number }> {

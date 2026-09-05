@@ -63,11 +63,22 @@ function ActionBadge({ action }: { action: string | null }) {
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
 }
 
+function ReviewerBadge({ d }: { d: ReviewDetection }) {
+  if (!d.reviewerMoved || d.reviewerOriginalStart == null || d.reviewerOriginalEnd == null) return null;
+  const title = `Reviewer moved this from ${formatTimestamp(d.reviewerOriginalStart)} - ${formatTimestamp(d.reviewerOriginalEnd)}`;
+  return (
+    <span className="px-2 py-0.5 rounded text-xs whitespace-nowrap bg-c-blue/10 text-c-blue-on-tint" title={title}>
+      Adjusted
+    </span>
+  );
+}
+
 function DetectionBadges({ d, showCategory }: { d: ReviewDetection; showCategory: boolean }) {
   return (
     <div className="flex gap-1.5 shrink-0">
       <DetectionStatusBadge status={d.status} />
       <ResolutionBadge resolution={d.resolution} />
+      <ReviewerBadge d={d} />
       {showCategory && <ActionBadge action={d.actionApplied} />}
     </div>
   );

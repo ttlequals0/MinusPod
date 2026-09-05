@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { useOutsideClick } from '../../hooks/useOutsideClick';
 
 export interface SponsorOption {
   id: number;
@@ -34,17 +35,9 @@ export function SponsorInput({ value, onChange, sponsors, placeholder }: Props) 
   }, [value]);
 
   // Close the menu on outside click (so a click on the modal chrome but
-  // outside this input does not leave a stray dropdown).
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [open]);
+  // outside this input does not leave a stray dropdown). target: window
+  // preserves this component's original listener target.
+  useOutsideClick(wrapperRef, open, () => setOpen(false), { touch: false, target: window });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

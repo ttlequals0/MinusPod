@@ -29,6 +29,7 @@ from utils.safe_http import (
     safe_get,
 )
 from utils.ttl_cache import TTLCache
+from utils.paths import resolve_data_dir
 
 
 _ALLOWED_IMAGE_TYPES = frozenset({
@@ -159,11 +160,7 @@ class Storage:
         # Tests and non-container deploys need a configurable root;
         # /app/data is the in-container default.
         if data_dir is None:
-            data_dir = (
-                os.environ.get("DATA_PATH")
-                or os.environ.get("MINUSPOD_DATA_DIR")
-                or "/app/data"
-            )
+            data_dir = resolve_data_dir()
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
 

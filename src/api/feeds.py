@@ -167,6 +167,23 @@ def _normalize_title_override(value):
     return val, None
 
 
+_DETECTION_NOTES_MAX = 1000
+
+
+def _normalize_detection_notes(value):
+    """None or blank clears; otherwise trimmed text up to the cap."""
+    if value is None:
+        return None, None
+    if not isinstance(value, str):
+        return None, "detectionNotes must be a string or null"
+    text = value.strip()
+    if not text:
+        return None, None
+    if len(text) > _DETECTION_NOTES_MAX:
+        return None, f"detectionNotes must be {_DETECTION_NOTES_MAX} characters or fewer"
+    return text, None
+
+
 def _fetch_feed_content(url, timeout=30):
     """Fetch a feed body with one retry, shared by add_feed and the sourceUrl
     PATCH. Some hosts (e.g. Buzzsprout) 403 the first fetch from a new client
@@ -831,6 +848,7 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'feedType': podcast.get('feed_type', 'subscribed'),
         'title': podcast['title'] or podcast['slug'],
         'titleOverride': podcast.get('title_override'),
+        'detectionNotes': podcast.get('detection_notes'),
         # Local-only metadata (_LOCAL_ONLY_FIELDS gates PATCH writes to local
         # feeds; reading them back is harmless for a subscribed feed, which
         # simply never has them set). Was write-only before this fix: PATCH
@@ -1552,6 +1570,12 @@ def update_feed(slug):
         if title_err:
             return error_response(title_err, 400)
         updates['title_override'] = title_val
+
+    if 'detectionNotes' in data:
+        notes_val, notes_err = _normalize_detection_notes(data['detectionNotes'])
+        if notes_err:
+            return error_response(notes_err, 400)
+        updates['detection_notes'] = notes_val
 
     if 'processingMode' in data:
         legacy = [k for k in ('passthroughEnabled', 'skipAdDetection',

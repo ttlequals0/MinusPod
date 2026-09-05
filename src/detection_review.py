@@ -10,10 +10,7 @@ import json
 import math
 
 from config import SEGMENT_CATEGORIES, is_pending_review
-
-# Same tolerance the reject path uses to clear held markers
-# (_clear_held_marker_on_reject in api/patterns.py).
-BOUNDS_TOLERANCE_S = 0.5
+from utils.markers import spans_match
 
 # Filter value and summary key for markers no stage classified. Not a member of
 # SEGMENT_CATEGORIES: unset is the absence of a category, not a category.
@@ -36,14 +33,21 @@ def marker_resolution(marker: dict, episode_corrections: list[dict]) -> str:
     if start is None or end is None:
         return 'unresolved'
     for c in episode_corrections:
-        c_start = c.get('start')
-        c_end = c.get('end')
-        if c_start is None or c_end is None:
-            continue
-        if (abs(start - c_start) <= BOUNDS_TOLERANCE_S
-                and abs(end - c_end) <= BOUNDS_TOLERANCE_S):
+        if spans_match(start, end, c.get('start'), c.get('end')):
             return 'dismissed' if c['correction_type'] == 'false_positive' else 'confirmed'
     return 'unresolved'
+
+
+def _reviewer_moved_from_marker(marker: dict) -> bool:
+    """reviewer_moved when the marker stamps it explicitly (both reviewer
+    paths and human approval do); otherwise infer it for markers written
+    before the field existed, same rule reviewer_moved() used to apply."""
+    flag = marker.get('reviewer_moved')
+    if flag is not None:
+        return bool(flag)
+    return (marker.get('reviewer_verdict') == 'adjust'
+            and marker.get('reviewer_original_start') is not None
+            and marker.get('reviewer_original_end') is not None)
 
 
 def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
@@ -88,6 +92,10 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
                 'detectionStage': marker.get('detection_stage'),
                 'category': marker.get('category'),
                 'actionApplied': marker.get('action_applied'),
+                'reviewerVerdict': marker.get('reviewer_verdict'),
+                'reviewerOriginalStart': marker.get('reviewer_original_start'),
+                'reviewerOriginalEnd': marker.get('reviewer_original_end'),
+                'reviewerMoved': _reviewer_moved_from_marker(marker),
                 'status': marker_status(marker),
                 'resolution': marker_resolution(marker, episode_corrections),
             })
@@ -157,10 +165,17 @@ def awaits_decision(item: dict) -> bool:
             and item.get('actionApplied') != 'keep')
 
 
+def reviewer_moved(item: dict) -> bool:
+    """Whether the reviewer (or a human approval) actually moved the span.
+    Set by flatten_detections; see _reviewer_moved_from_marker."""
+    return bool(item.get('reviewerMoved'))
+
+
 def filter_detections(items: list[dict], status: str = 'needs_review',
                       feed: str | None = None,
                       q: str | None = None,
-                      category: str | None = None) -> list[dict]:
+                      category: str | None = None,
+                      reviewer: str | None = None) -> list[dict]:
     out = items
     if status == 'needs_review':
         out = [i for i in out if awaits_decision(i)]
@@ -170,6 +185,10 @@ def filter_detections(items: list[dict], status: str = 'needs_review',
         out = [i for i in out if not i.get('category')]
     elif category:
         out = [i for i in out if i.get('category') == category]
+    if reviewer == 'adjusted':
+        out = [i for i in out if reviewer_moved(i)]
+    elif reviewer == 'unadjusted':
+        out = [i for i in out if not reviewer_moved(i)]
     if feed:
         out = [i for i in out if i['feedSlug'] == feed]
     if q:

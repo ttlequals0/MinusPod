@@ -108,6 +108,7 @@ def test_confirm_trimmed_moves_marker_bounds_and_approves(temp_db):
     assert m['start'] == 130.0 and m['end'] == 200.0
     assert m['reviewer_original_start'] == 100.0
     assert m['reviewer_original_end'] == 200.0
+    assert m['reviewer_moved'] is False
     assert m['held_for_review'] is True
     assert m['was_cut'] is False
     assert count == 1
@@ -169,6 +170,7 @@ def test_confirm_without_trim_keeps_marker_bounds(temp_db):
     assert m['approved'] is True
     assert m['start'] == 100.0 and m['end'] == 200.0
     assert 'reviewer_original_start' not in m
+    assert m['reviewer_moved'] is False
 
 
 def _confirm_raw(temp_db, slug, eid, original, data):

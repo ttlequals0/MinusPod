@@ -55,6 +55,8 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
     sponsor: 'Acme', reason: 'sponsor read',
     patternId: null, detectionStage: 'first_pass',
     category: null, actionApplied: null,
+    reviewerVerdict: null, reviewerOriginalStart: null, reviewerOriginalEnd: null,
+    reviewerMoved: false,
     status: 'rejected', resolution: 'unresolved',
     ...over,
   };
@@ -295,5 +297,54 @@ describe('AdReviewTab category filter', () => {
     renderTab();
     await waitFor(() => expect(mockGetDetections).toHaveBeenCalled());
     expect(mockGetDetections.mock.calls[0][0].category).toBeUndefined();
+  });
+});
+
+describe('AdReviewTab reviewer filter', () => {
+  it('omits the reviewer param by default and sends the selection with page 1', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    expect(mockGetDetections.mock.calls[0][0].reviewer).toBeUndefined();
+    await user.selectOptions(screen.getByLabelText('Reviewer'), 'adjusted');
+    await waitFor(() => {
+      expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
+        reviewer: 'adjusted', page: 1,
+      });
+    });
+  });
+
+  it('badges a reviewer-adjusted row with the original span in both layouts', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({
+        reviewerVerdict: 'adjust', reviewerOriginalStart: 98, reviewerOriginalEnd: 131,
+        reviewerMoved: true,
+      })],
+      total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
+    });
+    renderTab();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    for (const id of ['detections-rows', 'detections-cards']) {
+      const badge = within(screen.getByTestId(id)).getByText('Adjusted');
+      expect(badge.getAttribute('title')).toBe('Reviewer moved this from 1:38 - 2:11');
+    }
+  });
+
+  it('shows no badge for a confirmed, unreviewed, or unmoved adjust row', async () => {
+    mockGetDetections.mockResolvedValue({
+      // The third row is a held contradiction: verdict kept, no move recorded.
+      detections: [
+        detection({ reviewerVerdict: 'confirmed' }),
+        detection(),
+        detection({ reviewerVerdict: 'adjust' }),
+      ],
+      total: 3, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
+    });
+    renderTab();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    // Scope to the lists: the Reviewer select also offers an "Adjusted" option.
+    for (const id of ['detections-rows', 'detections-cards']) {
+      expect(within(screen.getByTestId(id)).queryByText('Adjusted')).toBeNull();
+    }
   });
 });

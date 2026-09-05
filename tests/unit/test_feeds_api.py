@@ -467,3 +467,29 @@ def test_patch_invalid_episode_logs_rejected(app_client, seeded_feed):
     assert resp.status_code == 400
     assert 'episodeLogs' in resp.get_json()['error']
     assert seeded_feed['db'].get_podcast_by_slug(slug)['episode_logs'] == 'off'
+
+
+# -- detectionNotes (#709) --
+
+def test_patch_detection_notes_roundtrip(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    r = app_client.patch(f'/api/v1/feeds/{slug}', json={'detectionNotes': 'Intro has three parts.'},
+                         headers=_csrf_headers(app_client))
+    assert r.status_code == 200
+    assert r.get_json()['detectionNotes'] == 'Intro has three parts.'
+    r = app_client.get(f'/api/v1/feeds/{slug}')
+    assert r.get_json()['detectionNotes'] == 'Intro has three parts.'
+
+
+def test_patch_detection_notes_clear_and_limit(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    app_client.patch(f'/api/v1/feeds/{slug}', json={'detectionNotes': 'x'},
+                     headers=_csrf_headers(app_client))
+    r = app_client.patch(f'/api/v1/feeds/{slug}', json={'detectionNotes': ''},
+                         headers=_csrf_headers(app_client))
+    assert r.get_json()['detectionNotes'] is None
+    r = app_client.patch(f'/api/v1/feeds/{slug}', json={'detectionNotes': 'y' * 1001},
+                         headers=_csrf_headers(app_client))
+    assert r.status_code == 400

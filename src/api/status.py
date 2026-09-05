@@ -13,7 +13,7 @@ from api import (
 from config import DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER
 from offline_queue import get_probe_state
 from rate_limit_hold import (
-    RATE_LIMIT_DEFERRED_SERVICE, get_hold_until, hold_is_active,
+    RATE_LIMIT_DEFERRED_SERVICE, get_hold_since, get_hold_until, hold_is_active,
 )
 from utils.ttl_cache import TTLCache
 
@@ -24,8 +24,8 @@ OFFLINE_SERVICES = (DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER)
 
 # What a caller sees when nothing is held, and when the read fails.
 EMPTY_HOLD = {
-    'queuePaused': False, 'holdUntil': None, 'rateLimitHeld': 0,
-    'offlineHeld': 0, 'offlineServices': [],
+    'queuePaused': False, 'holdUntil': None, 'holdSince': None,
+    'rateLimitHeld': 0, 'offlineHeld': 0, 'offlineServices': [],
 }
 
 # The block is rebuilt per reader, so it is cached. The underlying state only
@@ -59,6 +59,8 @@ def _build_hold_block(db) -> dict:
     return {
         'queuePaused': hold_is_active(hold_until),
         'holdUntil': hold_until,
+        # When the pause began, so the bar can show how long it ran.
+        'holdSince': get_hold_since(db),
         'rateLimitHeld': db.count_deferred_episodes(
             service=RATE_LIMIT_DEFERRED_SERVICE),
         # Every non-rate-limit deferral, so the total agrees with

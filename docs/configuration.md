@@ -10,10 +10,7 @@ All configuration is in the web UI or REST API. No config files needed.
 
 ### Adding Feeds
 
-1. Open `http://your-server:8000/ui/`
-2. Click "Add Feed"
-3. Enter the podcast RSS URL
-4. Optionally set a custom slug (URL path)
+Add a feed from the dashboard at `/ui/` (Add Feed, RSS URL, optional custom slug) or with `POST /api/v1/feeds` (see [API & Webhooks](api-and-webhooks.md#api)).
 
 ### Ad Detection Settings
 
@@ -116,7 +113,7 @@ When the provider returns a 429 because a single window's request exceeds the pe
 
 Whisper uses Voice Activity Detection to skip regions it classifies as silence or non-speech. Sped-up legal disclaimers at the tail of DIA ads, distorted interstitials, and some ad intros fall into that bucket and never make it into the transcript. Since MinusPod's Claude, text-pattern, and roll detectors all run against the transcript, these regions are invisible to them and can leak into the processed output, usually at the very start or end of an episode.
 
-The VAD gap detector (added in 2.0.7) runs after the other stages and treats untranscribed spans as ad candidates:
+The VAD gap detector runs after the other stages and treats untranscribed spans as ad candidates:
 
 - **Head gap** at the top of the episode: cut whenever the first transcribed segment starts more than `VAD_GAP_START_MIN_SECONDS` (default 3s) into the audio and nothing already covers it.
 - **Mid gap** between segments: if the span is adjacent to a detected ad, the ad's boundary is extended in place. Otherwise, the gap must be at least `VAD_GAP_MID_MIN_SECONDS` (default 8s) AND have ad-signoff language before it or show-resume language after it. Neutral content pauses are left alone.
@@ -157,11 +154,7 @@ The served feed URL does not change, which is the point: your app keeps pulling 
 
 ### Segment categories
 
-Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
-
-Opt-in, two ways: every category defaults to remove, so upgrading changes no feed's output on its own. Intro, outro, and recap markers are produced only for feeds where show-segments detection resolves to on (see below); a feed where it resolves to off has no intro/outro/recap markers to apply a keep or beep action to, no matter what its action map says. If a feed's action map was previously worked around by editing the global first-pass prompt override to force intro/outro removal, remove that override; it applies to every feed and will keep fighting a per-feed keep setting.
-
-A **defined** pattern (one you created, or one synced in from the community pattern list) always cuts its matched segment, overriding whatever action the category resolves to. Only auto-learned patterns respect segment actions. A pattern's category can be set when creating it (the manual ad editor's Category select, or `category` on import) and edited on the pattern detail modal, so a miscategorized auto-learned pattern that keeps protecting an ad can be corrected in place. See [How It Works > Segment Categories](how-it-works.md#segment-categories).
+Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). A pattern's category is set on creation (the Category select, or `category` on import) and can be changed on the pattern detail modal. See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
 
 | Category | Covers | Detected by default |
 |---|---|---|
@@ -185,9 +178,7 @@ Resolution order: a per-feed override, if set, wins; otherwise the global defaul
 
 Show-segments detection (whether intro, outro, and recap markers get produced at all) has its own global default alongside the global action map on the **Segment actions** card, off by default, and saves immediately when toggled. A feed inherits that default until it sets its own value: the feed settings page exposes an explicit **Inherit / On / Off** choice (`detectShowSegments` on `PATCH /api/v1/feeds/{slug}`; `null` means inherit) and shows the effective value while inheriting. With detection off, the LLM never produces intro/outro/recap markers for that feed, so those rows of the action map have nothing to act on regardless of how they are set. With it on, intro/outro/recap detection is added to that feed's LLM detection windows; the other four categories are detected regardless of this setting.
 
-A single detection can also be recategorized from the Detected ad window, which changes that episode's marker without touching the linked pattern or the map. Use it when the detector filed a span under the wrong category, rather than changing the action for every span of that category.
-
-Changing an action map only affects episodes processed after the change. To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`), which recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
+To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`). It recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
 
 ### Queue priority
 
@@ -201,7 +192,7 @@ Three automatic boosts stack on top of a feed's base priority, and the size of e
 | New episode | 5 | The episode's publish date is within 48 hours of now, and the global **Process new episodes first** toggle (on by default) is on. |
 | Reprocess All | 0 | Bulk work: Reprocess All on a feed, or segment re-renders. The default of 0 keeps a backlog run behind everything else. |
 
-The defaults encode one rule: a request you make right now beats backlog work, always. Before 2.92.1, Reprocess All stamped every episode with the full manual boost, so a 93-episode backfill could pin a just-published episode 94th in line for two days. Raise the Reprocess All boost only if you want backfills to compete with new releases.
+The defaults encode one rule: a request you make right now beats backlog work, always. Raise the Reprocess All boost only if you want backfills to compete with new releases.
 
 Automatic changes only ever raise a queued episode's priority: pressing play on an episode already sitting in the queue lifts it to the play boost, and background refreshes can never knock a boosted episode back down.
 
@@ -306,7 +297,11 @@ If you customized your system or verification prompt before this release, the up
 
 ### Per-pass prompt overrides
 
-Each pass (first, verification, reviewer, resurrect) has an optional **Override** field in Settings, empty by default. Text there is added to that pass at run time, so you can apply a tweak (e.g. "keep this show's news roundup") without editing the built-in prompt, which stays intact. It is inserted at the prompt's `{override}` placeholder if present, otherwise appended under an "additional instructions" header. An empty override changes nothing.
+Each pass (first, verification, reviewer, resurrect) has an optional **Override** field in Settings, empty by default. Text there is appended to that pass's prompt at run time, so you can add a tweak (e.g. "keep this show's news roundup") without editing the built-in prompt. To put it somewhere other than the end, add `{override}` to a customized prompt where you want it. An empty override changes nothing.
+
+### Per-feed detection notes
+
+The global overrides apply to every feed. For one show, use **Detection notes** on the feed's settings page (up to 1000 characters). The text is appended to the podcast description the model already sees, so it reaches the first pass and the reviewer. Use it for things only that show does: how its intro is structured, how host-read ads usually start, a recurring segment to keep. API: `detectionNotes` on `PATCH /api/v1/feeds/{slug}`.
 
 ### Audio Cue Detection
 
@@ -328,12 +323,6 @@ Reprocessing an episode re-runs detection without re-fetching it from the source
 MinusPod can share and receive ad patterns from a community-maintained seed list. Patterns describe recognized ad reads (sponsor scripts, host-read pre-rolls, etc.) so new MinusPod instances skip the LLM detection step for ads that have already been identified elsewhere.
 
 The feature is **opt-in** and **off by default**. When enabled, your MinusPod instance pulls a manifest of community patterns from this repo on a schedule you control. To submit your own patterns back, open the Patterns page Export dialog and pick **Submit to community**: the app runs quality gates over your selection, shows what will pass, and downloads a single bundle file. Drop it into your fork of `patterns/community/` and open one PR.
-
-### What you get when enabled
-
-- Faster ad detection for sponsors other MinusPod users have already identified
-- New patterns appear automatically as the community contributes them
-- Local patterns you build stay private unless you choose to submit them
 
 ### What you control
 
@@ -360,9 +349,7 @@ See [`patterns/README.md`](../patterns/README.md) for the technical reference (s
 
 ### Splice check
 
-A long cut is held for review unless the audio carries evidence of an insertion point near its edges. The idea is that a real ad break leaves a mark. That can be a transition pair, a break stinger, a volume step, a splice event, or a region that differs between two fetches. A multi-minute cut backed only by the model reading a transcript is worth a second look before it removes audio.
-
-The test is whether the ad was joined into the audio, not who reads it. An ad recorded separately and edited in leaves an edit point and passes the check like any other. One spoken straight through in a single take does not. Every long cut on such a feed is then held, however obvious the ad.
+A long cut is held for review unless the audio carries evidence of an insertion point near its edges. See [How It Works > Held for Review](how-it-works.md#held-for-review) for what counts as evidence, and why a feed whose ads are read straight through in one take has every long cut held.
 
 The per-feed **Splice check** setting, under Advanced on the feed's settings page, is the way out. It overrides the global either way, so a feed that can never satisfy the check stops being held by it without changing anything for your other feeds.
 

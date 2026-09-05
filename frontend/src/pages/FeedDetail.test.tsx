@@ -144,6 +144,32 @@ describe('FeedDetail: local feed visibility matrix', () => {
   });
 });
 
+// #718: the copy control shrinks to an icon below sm to stay in the left group.
+// Label is hidden directly, not via hideLabelOnMobile: its sm:px-2/h-8 lose to
+// this call site's desktop padding since Tailwind orders same-utility conflicts by scale, not source.
+describe('FeedDetail: copy control mobile sizing', () => {
+  it('does not carry the unprefixed px-4 py-2 padding that fights icon-only sizing', async () => {
+    renderFeedDetail(makeFeed());
+    await waitFor(() => {
+      expect(screen.getByText('Test Feed')).toBeDefined();
+    });
+    const copyButton = screen.getByTitle('Copy Feed URL');
+    expect(copyButton.className).not.toContain('px-4 py-2');
+    expect(copyButton.className).not.toContain('sm:px-2');
+    expect(copyButton.className).not.toContain('h-8 w-8');
+  });
+
+  it('hides the label with a plain responsive class instead of hideLabelOnMobile', async () => {
+    renderFeedDetail(makeFeed());
+    await waitFor(() => {
+      expect(screen.getByText('Test Feed')).toBeDefined();
+    });
+    const label = screen.getByTitle('Copy Feed URL').querySelector('span');
+    expect(label?.className).toContain('hidden');
+    expect(label?.className).toContain('sm:inline');
+  });
+});
+
 describe('FeedDetail: notice from router state', () => {
   it('surfaces a notice left in router state (e.g. from AddFeed local mode) as a toast', async () => {
     mockLocationState = { notice: 'Feed created. Artwork upload failed. Retry from the feed page.' };

@@ -13,7 +13,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='status-hold-test-'))
 
-HOLD_KEYS = {'queuePaused', 'holdUntil', 'rateLimitHeld',
+HOLD_KEYS = {'queuePaused', 'holdUntil', 'holdSince', 'rateLimitHeld',
              'offlineHeld', 'offlineServices'}
 
 
@@ -78,6 +78,7 @@ def test_status_reports_an_empty_hold_when_nothing_is_held(clean_hold, app_clien
     assert set(hold) == HOLD_KEYS
     assert hold['queuePaused'] is False
     assert hold['holdUntil'] is None
+    assert hold['holdSince'] is None
     assert hold['rateLimitHeld'] == 0
     assert hold['offlineHeld'] == 0
     assert hold['offlineServices'] == []
@@ -106,10 +107,10 @@ def test_a_past_reset_time_is_not_a_pause(clean_hold, app_client):
 
 def test_offline_services_report_the_last_probe_verdict(deferred_on, app_client):
     from config import DEFER_SERVICE_WHISPER
-    from offline_queue import _record_probe_state
+    from offline_queue import record_probe_state
 
     with deferred_on(DEFER_SERVICE_WHISPER) as db:
-        _record_probe_state(db, DEFER_SERVICE_WHISPER, False)
+        record_probe_state(db, DEFER_SERVICE_WHISPER, False)
         hold = _hold(app_client)
         assert hold['offlineHeld'] == 1
         assert hold['offlineServices'] == [{

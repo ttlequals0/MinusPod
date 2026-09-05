@@ -325,7 +325,7 @@ function FeedDetail() {
         )}
       </div>
 
-      <div className="bg-card rounded-lg border border-border p-6 mb-6">
+      <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="w-32 h-32 shrink-0 mx-auto sm:mx-0">
             {feed.websiteUrl ? (
@@ -425,18 +425,21 @@ function FeedDetail() {
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-4 items-center justify-between">
+        <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-2 sm:gap-4 items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <span className="hidden sm:inline text-sm text-muted-foreground shrink-0">Feed URL:</span>
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
               {feed.feedUrl}
             </code>
+            {/* Not hideLabelOnMobile: its baseClass adds sm:px-2 and h-8, which
+                beat this call site's desktop padding because Tailwind orders
+                same-utility conflicts by scale, not by source order. */}
             <CopyButton
               text={feed.feedUrl}
               label="Copy Feed URL"
-              className={`px-4 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
+              className={`px-2 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
               copiedClassName="text-success bg-success/10 sm:bg-transparent"
-              labelClassName="text-sm"
+              labelClassName="hidden sm:inline text-sm"
             />
           </div>
           {/* Wraps rather than overflowing: every child is whitespace-nowrap, so
@@ -449,7 +452,7 @@ function FeedDetail() {
               triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : (
                 <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">Reprocess All</span></>
               )}
-              triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
+              triggerClassName={`px-2 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap`}
               disabled={reprocessAllMutation.isPending}
               title="Reprocess all processed episodes"
               align="left"
@@ -485,7 +488,7 @@ function FeedDetail() {
                 triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
                   <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh Feed</span></>
                 )}
-                triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
+                triggerClassName={`px-2 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap`}
                 disabled={refreshMutation.isPending}
                 title="Refresh feed"
                 items={[
@@ -506,7 +509,7 @@ function FeedDetail() {
             <button
               onClick={handleDeleteFeed}
               disabled={deleteMutation.isPending}
-              className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors ${focusRing}`}
+              className={`inline-flex items-center justify-center gap-2 px-2 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors ${focusRing}`}
               title="Delete feed"
               aria-label="Delete feed"
             >

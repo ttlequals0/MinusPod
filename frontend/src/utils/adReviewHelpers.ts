@@ -6,22 +6,28 @@ import type { KeyboardEvent } from 'react';
 
 export const PLAY_WHILE_DRAG_KEY = 'minuspod.adInbox.playWhileDragging';
 
+const INT_PART = /^\d+$/;
+const LAST_PART = /^\d+(\.\d+)?$/;
+
 // Parse user-entered timestamp text. Accepts either `MM:SS[.s]` (or
 // `H:MM:SS[.s]`) or a raw seconds value like `139.4`. Returns null on
-// any invalid input so callers can keep the prior boundary.
+// any invalid input so callers can keep the prior boundary. Number()'s
+// leniency (hex strings, leading/trailing junk, exponents) is rejected by
+// matching each part against a plain-digits pattern instead.
 export function parseTimeInput(s: string): number | null {
   const t = s.trim();
   if (!t) return null;
-  if (t.includes(':')) {
-    const parts = t.split(':');
-    if (parts.length < 2 || parts.length > 3) return null;
-    const nums = parts.map(Number);
-    if (nums.some((n) => !Number.isFinite(n) || n < 0)) return null;
-    if (parts.length === 2) return nums[0] * 60 + nums[1];
-    return nums[0] * 3600 + nums[1] * 60 + nums[2];
+  const parts = t.split(':');
+  if (parts.length > 3) return null;
+  for (let i = 0; i < parts.length; i++) {
+    const re = i === parts.length - 1 ? LAST_PART : INT_PART;
+    if (!re.test(parts[i])) return null;
   }
-  const n = Number(t);
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  const nums = parts.map(Number);
+  if (nums.slice(1).some((n) => n >= 60)) return null;
+  if (nums.length === 1) return nums[0];
+  if (nums.length === 2) return nums[0] * 60 + nums[1];
+  return nums[0] * 3600 + nums[1] * 60 + nums[2];
 }
 
 export function formatTime(seconds: number): string {

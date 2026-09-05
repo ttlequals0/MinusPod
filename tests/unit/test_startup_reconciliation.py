@@ -24,7 +24,7 @@ def reconcile_env(temp_dir, temp_db, monkeypatch):
     """Fresh StatusService bound to temp_dir."""
     import status_service as ss_mod
     ss_mod.StatusService._instance = None
-    monkeypatch.setattr(ss_mod, 'STATUS_FILE', os.path.join(temp_dir, 'processing_status.json'))
+    monkeypatch.setenv('DATA_DIR', temp_dir)
     monkeypatch.setattr(ss_mod, '_get_soft_timeout', lambda: 3600)
 
     ss = ss_mod.StatusService()

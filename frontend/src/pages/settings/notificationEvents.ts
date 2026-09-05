@@ -8,4 +8,8 @@ export const EVENT_OPTIONS: { value: string; label: string }[] = [
   { value: 'Feed Refresh Failed', label: 'Feed Refresh Failed' },
   { value: 'Update Available', label: 'Update Available' },
   { value: 'Cue Template Quiet', label: 'Cue Template Quiet' },
+  { value: 'Queue Held', label: 'Queue Held' },
+  { value: 'Queue Resumed', label: 'Queue Resumed' },
+  { value: 'Service Offline', label: 'Service Offline' },
+  { value: 'Service Reachable', label: 'Service Reachable' },
 ];

@@ -48,7 +48,7 @@ Key endpoints:
 - `GET /api/v1/patterns` - List ad patterns (filter by scope)
 - `GET /api/v1/patterns/stats` - Pattern database statistics
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
-- `GET /api/v1/search?q=query` - Full-text search across all content
+- `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted. Names are case-sensitive, empty tokens from a stray comma are ignored, and duplicates are tolerated. A query shorter than two characters returns every group empty. The old `type` parameter was removed; a request that still sends it gets a 400
 - `GET /api/v1/episodes/processing` - List episodes currently processing
 - `GET /api/v1/history` - Processing history with pagination and export
 - `GET /api/v1/stats/dashboard` - Aggregate stats (avg/min/max time saved, ads, cost, tokens) with optional podcast filter
@@ -66,7 +66,7 @@ Key endpoints:
 - `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running)
 - `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`)
 - `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status)
-- `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` (added in 2.5.14) controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
+- `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds
 - `GET/PUT /api/v1/settings/update-check` - Get or update the update-check settings (`enabled` for the daily auto-check, `channel`: `stable` or `edge`)
@@ -110,7 +110,9 @@ All of these are gated by the feed auth key the same way as the RSS feed itself 
 
 ## Notifications
 
-MinusPod can notify you when episodes complete processing, permanently fail, or when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure both in **Settings > Notifications** in the web UI, or via the REST API.
+MinusPod can notify you when episodes complete processing or permanently fail, and when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). It can also alert you when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure both in **Settings > Notifications** in the web UI, or via the REST API.
+
+Every payload carries `timestamp` (UTC, `Z`-suffixed) and `timestamp_local` (the same instant in the configured `notification_timezone`, with a UTC offset). `notification_timezone` is an IANA zone name (default `UTC`, or the container's `TZ` env var when it names a valid zone); get or set it at `GET`/`PUT /api/v1/settings/notifications/timezone`. Email shows `timestamp_local` in the Timestamp row, falling back to `timestamp` when the zone is UTC.
 
 ## Webhooks
 
@@ -128,6 +130,10 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Feed Refresh Failed` | A feed's upstream RSS fetch fails 3 times in a row. One alert per feed per 5 minutes, with a shared burst cap so an outage that breaks every feed at once sends one alert, not one per feed. |
 | `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
 | `Cue Template Quiet` | An enabled audio cue template on a `cue_only` feed has matched before but has zero above-threshold matches across the feed's last 5 telemetry-recorded episodes. Rate-limited to one alert per template per 5 minutes. |
+| `Queue Held` | A provider 429 with a reset time paused the queue (Queue Control > Rate-limit hold). One alert per 5 minutes. |
+| `Queue Resumed` | The rate-limit hold cleared and held episodes went back to the queue. One alert per 5 minutes. |
+| `Service Offline` | An episode deferred because the LLM or Whisper endpoint was unreachable (Offline queue). One alert per service per 5 minutes. |
+| `Service Reachable` | The offline probe found a service back up and re-queued its deferred episodes. One alert per service per 5 minutes. |
 
 The **Test** button sends one sample payload per event the webhook is subscribed to, each shaped like that event's real payload (see Default Payloads below) with `test: true` set. A webhook subscribed to three events gets three test deliveries in one click; a custom payload template renders against each event's own variable set (episode-shaped for `Episode Processed`/`Episode Failed`, provider-shaped for the alert events, and so on).
 
@@ -137,8 +143,9 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, or `Cue Template Quiet` |
+| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, or `Service Reachable` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
 | `episode.id` | string | Episode ID |
@@ -163,6 +170,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 |---|---|---|
 | `event` | string | `Auth Failure` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `provider` | string | LLM provider name (anthropic, openrouter, etc.) |
 | `model` | string | Model that failed authentication |
 | `error_message` | string | Error details from the provider |
@@ -174,6 +182,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 |---|---|---|
 | `event` | string | `Limit Exceeded` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `provider` | string | LLM provider name (openrouter, openai, etc.) |
 | `model` | string | Model the rejected request targeted |
 | `error_message` | string | Error details from the provider |
@@ -185,6 +194,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 |---|---|---|
 | `event` | string | `Rate Limit Structural` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `provider` | string | LLM provider name |
 | `model` | string | Model that returned the 429 |
 | `limit` | int | The provider's per-minute token cap |
@@ -198,6 +208,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 |---|---|---|
 | `event` | string | `Feed Refresh Failed` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `slug` | string | Feed slug |
 | `podcast_name` | string | Podcast title (falls back to the slug) |
 | `feed_url` | string | Upstream feed URL, with any credentials stripped |
@@ -210,6 +221,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 |---|---|---|
 | `event` | string | `Update Available` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `version` | string | Version number of the newer release |
 | `channel` | string | Channel the release was found on: `stable` or `edge` |
 | `release_date` | string/null | Release date (`YYYY-MM-DD`) |
@@ -221,11 +233,60 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 |---|---|---|
 | `event` | string | `Cue Template Quiet` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
 | `template.id` | int | Cue template ID |
 | `template.label` | string | Cue template label |
 | `last_match_at` | string/null | Timestamp of the template's last above-threshold match before it went quiet |
+
+**Queue Held events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Queue Held` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
+| `hold_until` | string | The provider's reset time; the queue claims no new work until then |
+| `hold_until_local` | string | The same reset time in the notification_timezone setting, with UTC offset |
+| `ttl_hours` | int | Hours a held episode waits before it expires and fails |
+| `error_message` | string | The 429 response that triggered the hold |
+| `slug` | string | Feed slug of the episode that hit the limit |
+| `episode_id` | string | ID of that episode |
+| `podcast_name` | string | Podcast title (falls back to the slug) |
+
+**Queue Resumed events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Queue Resumed` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
+| `held_since` | string/null | When the hold began; null when no start time was recorded |
+| `requeued` | int | Held episodes sent back to the queue |
+
+**Service Offline events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Service Offline` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
+| `service` | string | `llm` or `whisper` |
+| `error_message` | string | The connection error that deferred the episode |
+| `slug` | string | Feed slug of the deferred episode |
+| `episode_id` | string | ID of that episode |
+| `podcast_name` | string | Podcast title (falls back to the slug) |
+
+**Service Reachable events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Service Reachable` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
+| `service` | string | `llm` or `whisper` |
+| `requeued` | int | Deferred episodes the probe pass sent back to the queue |
 
 ### Default Payloads
 
@@ -237,6 +298,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 {
   "event": "Episode Processed",
   "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
   "podcast": {
     "name": "My Favorite Podcast",
     "slug": "my-favorite-podcast"
@@ -266,6 +328,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 {
   "event": "Episode Failed",
   "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
   "podcast": {
     "name": "My Favorite Podcast",
     "slug": "my-favorite-podcast"
@@ -295,6 +358,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 {
   "event": "Auth Failure",
   "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
   "provider": "anthropic",
   "model": "claude-sonnet-4-20250514",
   "error_message": "Invalid API key provided",
@@ -308,6 +372,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 {
   "event": "Limit Exceeded",
   "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
   "provider": "openrouter",
   "model": "anthropic/claude-sonnet-4",
   "error_message": "Key limit exceeded (monthly limit). Manage it using https://openrouter.ai/settings/keys",
@@ -321,6 +386,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 {
   "event": "Rate Limit Structural",
   "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
   "provider": "groq",
   "model": "llama-3.3-70b-versatile",
   "limit": 6000,
@@ -336,6 +402,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 {
   "event": "Feed Refresh Failed",
   "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
   "slug": "my-podcast",
   "podcast_name": "My Podcast",
   "feed_url": "https://feeds.example.com/my-podcast",
@@ -350,6 +417,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 {
   "event": "Update Available",
   "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
   "version": "2.74.0",
   "channel": "stable",
   "release_date": "2026-07-22",
@@ -363,6 +431,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 {
   "event": "Cue Template Quiet",
   "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
   "podcast": {
     "name": "My Favorite Podcast",
     "slug": "my-favorite-podcast"
@@ -375,24 +444,78 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 }
 ```
 
+**Queue Held:**
+
+```json
+{
+  "event": "Queue Held",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
+  "hold_until": "2026-01-01T12:30:00Z",
+  "hold_until_local": "2026-01-01T12:30:00+00:00",
+  "ttl_hours": 24,
+  "error_message": "rate_limit_exceeded: retry after 900 seconds",
+  "slug": "my-podcast",
+  "episode_id": "a1b2c3d4e5f6",
+  "podcast_name": "My Podcast"
+}
+```
+
+**Queue Resumed:**
+
+```json
+{
+  "event": "Queue Resumed",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
+  "held_since": "2026-01-01T12:15:00Z",
+  "requeued": 3
+}
+```
+
+**Service Offline:**
+
+```json
+{
+  "event": "Service Offline",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
+  "service": "llm",
+  "error_message": "Connection refused",
+  "slug": "my-podcast",
+  "episode_id": "a1b2c3d4e5f6",
+  "podcast_name": "My Podcast"
+}
+```
+
+**Service Reachable:**
+
+```json
+{
+  "event": "Service Reachable",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
+  "service": "llm",
+  "requeued": 3
+}
+```
+
 ## Email notifications
 
 Point MinusPod at an SMTP server and it emails you for the events you pick. Community webhook-to-email sidecars like minuspod-webhook-mailer are no longer needed. One configuration: SMTP host, port, security (None, STARTTLS, or SSL/TLS), optional username and password, a from address, and a comma-separated recipient list. The password is stored encrypted like provider API keys, so saving one needs `MINUSPOD_MASTER_PASSPHRASE` set.
 
-Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
+Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
 
-By default the failure and alert events are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback (issue #571) rather than just the exception message, for easier SMTP troubleshooting from container logs.
+By default the failure and alert events, including the four new hold and offline events, are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback (issue #571) rather than just the exception message, for easier SMTP troubleshooting from container logs.
 
 ### Example: Pushover
 
 Pushover supports native webhook ingestion with data extraction selectors. No custom payload template needed. MinusPod's default JSON payload works directly.
 
-1. Log in to [pushover.net/dashboard](https://pushover.net/dashboard), scroll to "Your Webhooks", click "Create a Webhook". Name it MinusPod.
-2. Copy the unique webhook URL.
-3. In MinusPod Settings > Webhooks: paste the URL, select events, **leave payload template blank**.
-4. Click Test in MinusPod to fire a sample payload to Pushover.
-5. In Pushover dashboard: click "Check for Update" in Last Payload to load MinusPod's JSON.
-6. Configure data extraction selectors:
+1. Create a webhook at [pushover.net/dashboard](https://pushover.net/dashboard) and copy its URL.
+2. In MinusPod Settings > Webhooks: paste the URL, select events, **leave payload template blank**.
+3. Click Test in MinusPod to fire a sample payload to Pushover.
+4. In Pushover, load the last payload and configure data extraction selectors:
 
 | Field | Selector |
 |---|---|
@@ -400,8 +523,6 @@ Pushover supports native webhook ingestion with data extraction selectors. No cu
 | Body | `{{episode.title}}`<br>`{{episode.ads_removed}} ads removed. Saved {{episode.time_saved}}. Cost {{episode.llm_cost_display}}` |
 | URL | `{{episode.url}}` |
 | URL Title | `Open in MinusPod` |
-
-7. Click "Test Selectors on Last Payload" to preview, then Save.
 
 > Pushover's `{{...}}` selector syntax is evaluated on Pushover's side; these are not Jinja2 templates.
 

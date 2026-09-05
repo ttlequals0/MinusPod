@@ -5,6 +5,7 @@ import { Feed } from '../api/types';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
+import FeedArtworkLink from './FeedArtworkLink';
 import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
@@ -25,13 +26,13 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
 
   return (
     <div className="bg-card rounded-lg border border-border p-3 flex items-center gap-3 sm:gap-4">
-      <div className="w-10 h-10 shrink-0">
+      <FeedArtworkLink slug={feed.slug} className="block w-10 h-10 shrink-0 cursor-pointer">
         <Artwork
           src={artworkUrl}
           alt={feed.title}
           className="w-full h-full object-cover rounded"
         />
-      </div>
+      </FeedArtworkLink>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           <Link

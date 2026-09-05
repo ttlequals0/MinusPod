@@ -49,7 +49,7 @@ from config import (
 # podcast_search only pulls names api/__init__ defines before its submodule
 # imports. A reorder that gives podcast_search a top-level dependency on
 # settings would break boot -- keep this the only cross-submodule import.
-from api.podcast_search import resolve_search_provider
+from api.podcast_search import resolve_search_provider, search_provider_ready
 from ad_detector import AdDetector
 from artwork_watermark import BADGE_POSITIONS
 from audio_processor import NORMALIZE_PRESETS
@@ -64,7 +64,7 @@ from offline_queue import (
 )
 from rate_limit_hold import (
     get_hold_until, get_rate_limit_hold_ttl_hours,
-    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE, HOLD_UNTIL_KEY,
+    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE, clear_hold,
 )
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
@@ -79,7 +79,10 @@ from utils.opml import modified_feed_url
 from utils.url import validate_base_url, validate_outbound_host, SSRFError
 from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from webhook_service import render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS
+from webhook_service import (
+    render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS,
+    get_notification_timezone,
+)
 import email_service
 from email.utils import parseaddr
 from db_backup_service import (
@@ -617,6 +620,9 @@ def get_settings():
         # else iTunes. isDefault marks a derived value; saving from the UI
         # makes the choice explicit.
         'podcastSearchProvider': _search_provider_setting(settings),
+        # Whether the resolved provider can actually run search right now
+        # (AddFeed gates its search UI on this, not just a resolved name).
+        'podcastSearchReady': search_provider_ready(),
         'openrouterBaseUrl': OPENROUTER_BASE_URL,
         'whisperBackend': _sv('whisper_backend', whisper_backend),
         'whisperApiBaseUrl': _sv('whisper_api_base_url', whisper_api_base_url),
@@ -947,7 +953,12 @@ def _apply_processing_flags(db, data):
 
     if 'onlyExposeProcessedDefault' in data:
         value = 'true' if data['onlyExposeProcessedDefault'] else 'false'
+        changed = (db.get_setting('only_expose_processed_default') or 'false') != value
         db.set_setting('only_expose_processed_default', value, is_default=False)
+        if changed:
+            # Inheriting feeds 304-skip the rebuild that would hide or show
+            # unprocessed episodes; force the next refresh to fetch in full.
+            db.clear_all_podcast_etags()
         logger.info(f"Updated only-expose-processed default to: {value}")
 
     if 'detectShowSegments' in data:
@@ -2359,7 +2370,7 @@ def update_rate_limit_hold_settings():
     if data.get('enabled') is False:
         # Escape hatch: lifting the hold releases the pause and lets the
         # tick requeue every held episode on its next pass.
-        db.clear_setting(HOLD_UNTIL_KEY)
+        clear_hold(db)
     view = _rate_limit_hold_view(db)
     logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
     return json_response(view)
@@ -2841,6 +2852,31 @@ def test_email_notifications():
             'success': False,
             'message': 'email test failed; see server logs for details',
         })
+
+
+# ========== Notification timezone ==========
+
+@api.route('/settings/notifications/timezone', methods=['GET'])
+@log_request
+def get_notification_timezone_setting():
+    """Return the IANA zone used for timestamp_local in webhook/email notifications."""
+    return json_response({'timezone': get_notification_timezone(get_database())})
+
+
+@api.route('/settings/notifications/timezone', methods=['PUT'])
+@log_request
+def update_notification_timezone_setting():
+    """Set the notification timezone; rejects a name zoneinfo cannot resolve."""
+    db = get_database()
+    data = request.get_json() or {}
+    tz = data.get('timezone')
+    if not isinstance(tz, str) or not tz.strip():
+        return error_response('timezone is required', 400)
+    tz = tz.strip()
+    if not SETTINGS_REGISTRY['notification_timezone'].validator(tz):
+        return error_response(f'unknown timezone: {tz}', 400)
+    db.set_setting('notification_timezone', tz, is_default=False)
+    return json_response({'timezone': tz})
 
 
 # ========== Ad Reviewer settings ==========

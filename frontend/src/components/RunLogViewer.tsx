@@ -6,6 +6,7 @@ import { btnGhost, btnOutline } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { episodeRunLogDownloadUrl, getEpisodeRunLog } from '../api/feeds';
 import type { RunLogLine } from '../api/types';
+import { usePagedList } from '../hooks/usePagedList';
 
 interface RunLogViewerProps {
   slug: string;
@@ -34,10 +35,6 @@ const LEVEL_STYLE: Record<string, { rail: string; tag: string }> = {
   critical: { rail: 'border-l-destructive', tag: 'text-destructive' },
 };
 
-// Rows rendered before the reader scrolls, and how many more each time they
-// reach the end. Keeps a 50k-line log off the first paint.
-const PAGE = 300;
-
 function clockTime(ts: string): string {
   const at = new Date(ts);
   return Number.isNaN(at.getTime()) ? ts : at.toISOString().slice(11, 19);
@@ -54,7 +51,6 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
   // those levels. Matches how the pills read at a glance.
   const [selectedLevels, setSelectedLevels] = useState<ReadonlySet<Level>>(new Set());
   const [search, setSearch] = useState('');
-  const [shown, setShown] = useState(PAGE);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['runLog', slug, episodeId, runNumber],
@@ -75,18 +71,12 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
     });
   }, [lines, selectedLevels, search]);
 
+  const { shown, reset, onScroll } = usePagedList(filtered.length);
   const visible = filtered.slice(0, shown);
 
   const onFilterChange = (apply: () => void) => {
     apply();
-    setShown(PAGE);
-  };
-
-  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
-      setShown((n) => (n < filtered.length ? n + PAGE : n));
-    }
+    reset();
   };
 
   return (

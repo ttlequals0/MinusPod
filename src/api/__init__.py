@@ -11,6 +11,8 @@ from functools import wraps
 
 from config import normalize_model_key
 from utils.http import client_ip
+# Import registers the memory-threadsafe scheme before the Limiter resolves it.
+from utils.ratelimit_storage import STORAGE_URI as RATELIMIT_STORAGE_URI
 from utils.text import extract_text_in_range
 from sponsor_service import SponsorService
 
@@ -18,21 +20,20 @@ logger = logging.getLogger('podcast.api')
 
 # Track server start time for uptime calculation
 # Stored in shared file so all gunicorn workers report the same uptime
-def _init_server_start_time():
-    """Initialize server start time in shared status file.
+def _server_run_owner():
+    """Pid shared by every worker of one server run: the gunicorn master's parent pid,
+    stable across a worker respawn; falls back to this pid when unforked."""
+    parent = os.getppid()
+    return str(parent if parent > 1 else os.getpid())
 
-    Always writes the current time on module load (server start).
-    This ensures uptime resets on deploy/container restart even when
-    the status file persists. Multiple workers may race to write,
-    but the difference is negligible (milliseconds). An exception
-    writing to the shared file is non-fatal (uptime just stays
-    worker-local) but is logged so operators see the regression.
-    """
+
+def _init_server_start_time():
+    """Server start time for this run, shared across gunicorn workers so uptime doesn't
+    flip on a worker respawn; a write failure is logged but non-fatal."""
     start_time = time.time()
     try:
         from status_service import StatusService
-        svc = StatusService()
-        svc.set_server_start_time(start_time)
+        return StatusService().claim_server_start_time(start_time, _server_run_owner())
     except Exception:
         logger.warning("Failed to record server start time in shared status file", exc_info=True)
     return start_time
@@ -41,13 +42,15 @@ _start_time = _init_server_start_time()
 
 api = Blueprint('api', __name__, url_prefix='/api/v1')
 
-# memory:// storage is per-worker; with workers=2 the effective limit is
+# In-process storage is per-worker; with workers=2 the effective limit is
 # 2x declared. Set RATE_LIMIT_STORAGE_URI=redis://<host>:6379 to share
-# counters across workers and get exact declared limits.
+# counters across workers and get exact declared limits. The default is our
+# thread-safe MemoryStorage subclass: stock memory:// raises RuntimeError
+# out of a request when two threads restart its expiry timer at once.
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per minute", "1000 per hour"],
-    storage_uri=os.environ.get('RATE_LIMIT_STORAGE_URI', 'memory://'),
+    storage_uri=os.environ.get('RATE_LIMIT_STORAGE_URI', RATELIMIT_STORAGE_URI),
 )
 
 
@@ -180,12 +183,7 @@ def get_storage():
 def get_database():
     """Get database instance."""
     from database import Database
-    data_dir = (
-        os.environ.get('DATA_DIR')
-        or os.environ.get('DATA_PATH')
-        or os.environ.get('MINUSPOD_DATA_DIR')
-    )
-    return Database(data_dir) if data_dir else Database()
+    return Database()
 
 
 def get_feed_auth_key(db):

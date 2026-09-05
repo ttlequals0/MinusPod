@@ -11,6 +11,78 @@ release notes.
 
 ## [Unreleased]
 
+## [2.95.3] - 2026-09-05
+
+### Added
+
+- The Queue Held notification carries `hold_until_local`, the provider reset time in the notification timezone, next to the UTC `hold_until`. The email subject and its Held until row use the local value.
+
+### Changed
+
+- The Dashboard search field now sits above the Feeds heading and its controls, as in the design mockup. It searches shows, episodes and transcripts, not the feed list below it.
+
+### Fixed
+
+- Focusing a field on a phone no longer makes iOS Safari zoom the page. Mobile Safari zooms any input under 16px, so every input, select and textarea is now 16px on touch devices, including phones in landscape, and unchanged elsewhere. One stylesheet rule covers them all, rather than a class per field.
+- From this version on, a deploy reloads the app once the new service worker is ready and the tab is next hidden, instead of running the previously cached bundle until the next visit. That stale bundle is what produced "The type parameter was removed" on search after upgrading to 2.95.2; clients still on 2.95.2 need one manual reload to pick this up.
+- The feed detail action row (Copy URL, Reprocess, Refresh, Delete) fits on one line on phones from 360px up. The card and its buttons use tighter padding below the small breakpoint; the row previously wrapped on every common phone width.
+
+## [2.95.2] - 2026-09-04
+
+### Added
+
+- Unified search: the keyboard palette (`/`, Ctrl+K, or type-to-open) still works everywhere, and the Dashboard now has the same search field built in, so it works on mobile too. Both return shows, episodes, and transcript matches together; the header magnifier, or the palette's own "Advanced search" link, opens a dedicated page with type filters plus pattern and sponsor matches. The search index now covers every episode regardless of status, not just processed ones, so a discovered, queued, or failed episode is findable by title and description too. Upgrading to this version reindexes automatically; there is no manual step. The `/quick-search` endpoint is removed; use `/search` instead.
+- Webhook and email notifications now include a `timestamp_local` field next to the existing UTC `timestamp`, computed in a configurable timezone (Settings > Notifications > Timezone; `GET`/`PUT /api/v1/settings/notifications/timezone`). It defaults to `UTC`, or the container's `TZ` env var when that names a valid zone.
+
+### Changed
+
+- The queue hold line in the status bar says when the pause began, and how long it ran once it lifts.
+- Feed cover art on the Dashboard now opens the feed, matching the title link (#718).
+- Feed card footers on the Dashboard grid line up across a row, instead of each card's Copy URL / Delete row settling at a different height depending on its status pills.
+- The Copy Feed URL control on a feed's detail page is icon-only on mobile, so Reprocess, Refresh, and Delete stay on one row instead of wrapping.
+- Per-feed detection notes now save with an explicit Save button and a Clear button, replacing the old save-on-blur. A failed save is shown as an error instead of failing silently, and a draft in progress is no longer overwritten by a background refetch.
+- The notification timezone setting now appears in the general `GET /settings` response and follows the same reset path as other settings, instead of being handled on its own. An invalid stored or `TZ` value falls back to UTC with a logged warning instead of being accepted silently.
+- Searching a common word is about twice as fast on a large index. Each of the five result groups now narrows its full-text match by content type, so the shows, patterns and sponsors groups no longer walk the episode postings. Results and their order are unchanged. A result whose description matched now shows the description snippet rather than repeating the title.
+- `GET /search` takes an optional `groups` parameter to compute only the requested result groups; the Dashboard field and keyboard palette now ask for shows, episodes and transcripts only, since they never showed pattern or sponsor matches anyway.
+- Search needs at least two characters before it runs, and the transcripts group honours the limit you ask for rather than stopping at three. `GET /search` now rejects the removed `type` parameter with a 400 instead of ignoring it; use `groups` to choose result groups.
+- Storage and audio-processing paths now resolve `DATA_DIR` before `DATA_PATH`/`MINUSPOD_DATA_DIR`, matching every other path resolver in the app. An operator with `DATA_DIR` and a different `DATA_PATH` set will see storage and audio use the `DATA_DIR` value after upgrading.
+
+### Fixed
+
+- Search snippets showed `&amp;` where the text said `AT&T`, and a literal `<mark>` in a description was rendered as a real highlight. Both now show what the text actually says.
+- Notification event checkboxes ran together with no space before their labels. The list is now a two-column grid, so twelve events read as twelve choices.
+- The recut and reprocess buttons on an episode page re-enabled for a moment after being clicked. The request only queues the run, so the button woke up again before the refetch reported the episode as processing, and a second click raced the lock.
+- The verification pass no longer stores a second marker for a span pass 1 already recorded. That duplicate put one span in two marker buckets on the episode page and counted a single pending review twice. A repeat finding now merges into the existing marker. A keep wins over a hold, and the reason it overrides is kept as `hold_cleared_reason`. A hold wins over a rejected record, so the span still reaches the review queue. The merged record reads the same on the episode page, in the review queue and in the badge count. A kept span no longer asks for a decision the server rejects with a 409. Episodes already holding duplicates are cleaned up once on upgrade.
+- Editing a feed setting other than detection notes (retention days, cue thresholds, snap timing, max ad duration, and the rest) could lose an unsaved edit. A background refetch landing between typing and leaving the field would silently overwrite it. Every drafted field on the panel now protects an in-progress edit the way detection notes already did, then resyncs once it is clean again.
+
+## [2.95.1] - 2026-09-04
+
+### Fixed
+
+- Uptime on the Settings page no longer flips between two values on refresh. Each gunicorn worker stamped its own start time, so once a worker respawned (an OOM kill, for instance) the two workers disagreed and the round-robin decided which number you saw. The stamp is now shared per server run and survives a respawn, while a deploy still resets it.
+- Rate-limited API requests no longer return a sporadic 500. The limiter's in-memory backend restarts an expiry timer with a check-then-start that two request threads can interleave, and the loser raised RuntimeError into the response; with 8 threads per worker this hit roughly twice a week. The default storage is now a serialized subclass. Set `RATE_LIMIT_STORAGE_URI` to a Redis URL to share counters across workers instead.
+
+## [2.95.0] - 2026-09-04
+
+### Added
+
+- Webhook and email alerts for queue holds: `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`.
+- Per-feed detection notes: a short text on the feed settings page appended to the LLM prompt context (#709).
+- Quick search: start typing on any page (or press `/` or Ctrl+K) to jump to a feed or episode by title. The header search icon opens the same box.
+- Detected Ads and Ad Review: a Reviewer filter (`reviewer=adjusted|unadjusted` on `GET /api/v1/detections`) and an Adjusted badge. The badge tooltip shows the span before the ad reviewer moved it.
+
+### Changed
+
+- Prompt override help text and docs say plainly that the override is appended by default (#710).
+- Episode page: the Transcript and Original Transcript sections merged into one, with a View transcript button. The reader shows original or processed segments with timestamps, a search box, a start and end time window, and (original only) a checkbox that highlights the rows that were cut and names the sponsor.
+
+### Fixed
+
+- Frontend unit tests run on Node 25 and later (the runtime's own localStorage getter shadowed the test DOM's).
+- Changing the global "Only expose processed episodes" default now clears feed etags so inheriting feeds rebuild on the next refresh instead of serving a stale RSS until upstream changes. Ported from a fix by Tyler Miranda (@tylermiranda).
+- Add Feed shows podcast search whenever a provider is available (iTunes needs no keys) instead of only with PodcastIndex credentials. It now also checks that the provider is ready: with PodcastIndex selected and no credentials saved, search stays off and a banner links to Settings. Ported from a fix by Tyler Miranda (@tylermiranda).
+- The ad editor's Start/End time fields used `Number()`, which silently accepted junk like `0x10` (hex) or a trailing `1:` as a valid boundary. Both now require a clean h:mm:ss or seconds value.
+
 ## [2.94.11] - 2026-09-03
 
 ### Added

@@ -240,7 +240,7 @@ class PodcastMixin:
                 'title', 'description', 'artwork_url', 'artwork_cached',
                 'last_checked_at', 'source_url', 'network_id', 'dai_platform',
                 'network_id_override', 'audio_analysis_override', 'auto_process_override',
-                'language_override', 'title_override', 'detection_mode',
+                'language_override', 'title_override', 'detection_notes', 'detection_mode',
                 'chapters_mode', 'own_episode_guids',
                 'cue_template_score_override',
                 *self._CUE_OVERRIDE_COLS,

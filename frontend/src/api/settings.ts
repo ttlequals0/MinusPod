@@ -348,6 +348,25 @@ export async function validateTemplate(template: string): Promise<TemplateValida
   });
 }
 
+// Notification timezone
+
+export interface NotificationTimezoneSettings {
+  timezone: string;
+}
+
+export async function getNotificationTimezone(): Promise<NotificationTimezoneSettings> {
+  return apiRequest<NotificationTimezoneSettings>('/settings/notifications/timezone');
+}
+
+export async function updateNotificationTimezone(
+  timezone: string,
+): Promise<NotificationTimezoneSettings> {
+  return apiRequest<NotificationTimezoneSettings>('/settings/notifications/timezone', {
+    method: 'PUT',
+    body: { timezone },
+  });
+}
+
 // Email notifications
 
 export interface EmailNotificationSettings {

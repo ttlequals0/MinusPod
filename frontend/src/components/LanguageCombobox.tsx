@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { WHISPER_LANGUAGES, labelForLanguage } from '../utils/whisperLanguages';
+import { useOutsideClick } from '../hooks/useOutsideClick';
 
 interface LanguageComboboxProps {
   id?: string;
@@ -49,17 +50,7 @@ function LanguageCombobox({ id, value, onChange, className = '' }: LanguageCombo
 
   const canUseCustom = options.length === 0 && CUSTOM_CODE.test(query.trim());
 
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery('');
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [open]);
+  useOutsideClick(rootRef, open, () => { setOpen(false); setQuery(''); }, { touch: false });
 
   const [lastQuery, setLastQuery] = useState(query);
   const [lastOpen, setLastOpen] = useState(open);

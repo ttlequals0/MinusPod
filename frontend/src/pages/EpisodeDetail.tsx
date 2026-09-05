@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  episodeOriginalUrl, getEpisode, getFeed, getOriginalTranscript, reprocessEpisode, regenerateChapters,
+  episodeOriginalUrl, getEpisode, getFeed, reprocessEpisode, regenerateChapters,
   updateLocalEpisode, uploadLocalEpisodeArtwork,
 } from '../api/feeds';
 import type { LocalEpisodePatch } from '../api/feeds';
@@ -23,7 +23,8 @@ import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi } from '../api/
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
-import CollapsibleSection, { useCollapsibleOpen } from '../components/CollapsibleSection';
+import CollapsibleSection from '../components/CollapsibleSection';
+import TranscriptViewer from '../components/TranscriptViewer';
 import CueDetectionsSection from '../components/CueDetectionsSection';
 import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
@@ -60,16 +61,6 @@ function btnClass(status: string, idleClass: string): string {
   if (status === 'success') return 'bg-success/20 text-success';
   if (status === 'error') return 'bg-destructive/20 text-destructive';
   return idleClass;
-}
-
-function TranscriptBlock({ text }: { text: string }) {
-  return (
-    <div className="prose prose-sm dark:prose-invert max-w-none">
-      <pre className="whitespace-pre-wrap text-sm text-muted-foreground font-sans">
-        {text}
-      </pre>
-    </div>
-  );
 }
 
 // Row-identity payload the corrections API keys on. One builder so the
@@ -261,12 +252,7 @@ function EpisodeDetail() {
     'ad-editor-review-mode',
     'processed',
   );
-  // Tracks the Original Transcript section's open state (mirrors the
-  // CollapsibleSection's persisted flag, same storage key) so the full
-  // transcript is only fetched while the section is actually open -- not on
-  // every episode page forever after one use.
-  const [originalTranscriptOpen, setOriginalTranscriptOpen] =
-    useCollapsibleOpen('episode-original-transcript');
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   // When a "Confirm & Recut" action fires, this flag signals the correctionMutation
   // onSuccess to chain a recut immediately after the correction is stored.
   const pendingRecutRef = useRef(false);
@@ -288,24 +274,21 @@ function EpisodeDetail() {
     enabled: !!slug,
   });
 
-  const { data: originalTranscript, isError: originalTranscriptError } = useQuery({
-    queryKey: ['originalTranscript', slug, episodeId],
-    queryFn: () => getOriginalTranscript(slug!, episodeId!),
-    enabled: originalTranscriptOpen && !!slug && !!episodeId && !!episode?.originalTranscriptAvailable,
-  });
-
   const reprocessMutation = useMutation({
     mutationFn: (mode: 'reprocess' | 'full' | 'llm' | 'recut') => reprocessEpisode(slug!, episodeId!, mode),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+    // Awaited so the mutation stays pending until the refetch lands. The POST
+    // only queues the run, so returning early would re-enable the button while
+    // the cached status still said the episode was idle.
+    onSuccess: async () => {
       setShowReprocessMenu(false);
+      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
     // Processing is serialized by a lock, so a stale cached status leaves the
     // button enabled and the click is refused; showing the 409 stops it just
     // flickering with nothing to explain it (#707).
-    onError: (error) => {
-      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+    onError: async (error) => {
       setCorrectionError(getErrorMessage(error, 'Could not start reprocessing.'));
+      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
   });
 
@@ -1573,31 +1556,28 @@ function EpisodeDetail() {
         </div>
       )}
 
-      {episode.transcript && (
-        <div className="mb-6">
-          <CollapsibleSection title="Transcript" defaultOpen={false} storageKey="episode-transcript">
-            <TranscriptBlock text={episode.transcript} />
-          </CollapsibleSection>
+      {(episode.transcript || episode.originalTranscriptAvailable) && (
+        <div className="mb-6 bg-card rounded-lg border border-border p-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Transcript</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Original and processed text, with search</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTranscriptOpen(true)}
+            className={`shrink-0 px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors ${focusRing}`}
+          >
+            View transcript
+          </button>
         </div>
       )}
-
-      {episode.originalTranscriptAvailable && (
-        <div className="mb-6">
-          <CollapsibleSection
-            title="Original Transcript"
-            subtitle="Raw transcript before ads were removed"
-            defaultOpen={false}
-            storageKey="episode-original-transcript"
-            onToggle={setOriginalTranscriptOpen}
-          >
-            {originalTranscript
-              ? <TranscriptBlock text={originalTranscript} />
-              : originalTranscriptError
-                ? <p className="text-destructive">Failed to load original transcript</p>
-                : <LoadingSpinner className="py-4" />
-            }
-          </CollapsibleSection>
-        </div>
+      {transcriptOpen && (
+        <TranscriptViewer
+          slug={slug!}
+          episodeId={episodeId!}
+          episode={episode}
+          onClose={() => setTranscriptOpen(false)}
+        />
       )}
 
       {episode.processingRuns && episode.processingRuns.length > 0 && (

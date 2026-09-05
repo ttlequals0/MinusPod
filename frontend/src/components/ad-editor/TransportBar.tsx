@@ -3,6 +3,7 @@ import { Play, Pause, SkipBack, SkipForward, Rewind, FastForward, Square, Chevro
 import { formatTime } from '../../utils/adReviewHelpers';
 import { PLAYBACK_RATES, ghostBtn, primaryBtn, selectionBtn } from './controlStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { useOutsideClick } from '../../hooks/useOutsideClick';
 
 // Shared playback transport bar for the audio-editor modals (AdReviewModal and
 // CueMarkModal). Purely presentational: the host owns the <audio> element, the
@@ -50,22 +51,14 @@ function TransportBar({
   // button + popover renders identically everywhere and stays button-sized.
   const [speedOpen, setSpeedOpen] = useState(false);
   const speedRef = useRef<HTMLDivElement>(null);
+  useOutsideClick(speedRef, speedOpen, () => setSpeedOpen(false));
   useEffect(() => {
     if (!speedOpen) return;
-    const onDown = (e: MouseEvent | TouchEvent) => {
-      if (speedRef.current && !speedRef.current.contains(e.target as Node)) setSpeedOpen(false);
-    };
     // stopPropagation so Escape only closes the popover, not the parent modal
     // (both editors close on a window-level Escape and would discard the edit).
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setSpeedOpen(false); } };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('touchstart', onDown);
     document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('touchstart', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
+    return () => document.removeEventListener('keydown', onKey);
   }, [speedOpen]);
 
   return (

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.94.11
+  version: 2.95.3
   contact:
     name: MinusPod
   license:
@@ -603,6 +603,12 @@ paths:
                     - 'null'
                   maxLength: 500
                   description: Per-feed display title shown to subscribers in the generated RSS feed (issue 375). Survives RSS refreshes. Null or empty clears it and falls back to the source feed title.
+                detectionNotes:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 1000
+                  description: Operator hints about this show appended to the LLM ad-detection and review prompts (issue 709). Survives RSS refreshes. Null or empty clears it.
                 detectionMode:
                   type:
                     - string
@@ -3306,36 +3312,56 @@ paths:
     get:
       tags:
         - Search
-      summary: Full-text search
+      summary: Unified search
       description: |
-        Search across all content including episodes, podcasts, patterns,
-        and sponsors. Returns ranked results with relevance scores and
-        text snippets.
+        Word-match search across shows, episodes, transcripts, patterns and
+        sponsors, returned as five independent groups. Show and episode
+        titles also get a substring match so a mid-word fragment still finds
+        them; descriptions and transcripts match whole words only.
+        Every group honours the limit parameter. Patterns and sponsors are
+        Advanced-page-only groups; the Dashboard box and keyboard palette
+        ignore them and request only shows, episodes and transcripts via
+        the groups parameter. The former type parameter is gone: a request
+        that still sends it is rejected with 400 rather than served a
+        different payload shape, so use groups instead.
       operationId: search
       parameters:
         - name: q
           in: query
           required: true
-          description: Search query
+          description: |
+            Search query. A query shorter than two characters after trimming
+            returns all five groups empty without running a search.
           schema:
             type: string
-        - name: type
-          in: query
-          description: Filter by content type
-          schema:
-            type: string
-            enum: [episode, podcast, pattern, sponsor]
         - name: limit
           in: query
-          description: Maximum results to return
+          description: Maximum results per group
           schema:
             type: integer
             minimum: 1
             maximum: 100
             default: 50
+        - name: groups
+          in: query
+          description: |
+            Comma-separated subset of groups to compute. An unrequested
+            group is still present in the response as an empty array
+            rather than omitted. A blank or omitted value means all five.
+            Names are case-sensitive, empty tokens from a stray comma are
+            ignored, and duplicates are tolerated.
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [shows, episodes, transcripts, patterns, sponsors]
+            default: [shows, episodes, transcripts, patterns, sponsors]
+          example: shows,episodes,transcripts
       responses:
         '200':
-          description: Search results
+          description: Grouped search results
           content:
             application/json:
               schema:
@@ -3343,12 +3369,26 @@ paths:
                 properties:
                   query:
                     type: string
-                  results:
+                  shows:
                     type: array
                     items:
-                      $ref: '#/components/schemas/SearchResult'
-                  total:
-                    type: integer
+                      $ref: '#/components/schemas/SearchShowResult'
+                  episodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchEpisodeResult'
+                  transcripts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchTranscriptResult'
+                  patterns:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchPatternResult'
+                  sponsors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchSponsorResult'
         '400':
           $ref: '#/components/responses/BadRequest'
 
@@ -3841,6 +3881,15 @@ paths:
           schema:
             type: string
             enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, none]
+        - name: reviewer
+          in: query
+          description: >-
+            Filter by whether the span was moved (see ReviewDetection.reviewerMoved).
+            adjusted keeps moved rows; unadjusted keeps everything else. Omit
+            for no filter. Applies to the cutSummary totals as well.
+          schema:
+            type: string
+            enum: [adjusted, unadjusted]
       responses:
         '200':
           description: Paginated detection list
@@ -6057,7 +6106,11 @@ paths:
                       - Feed Refresh Failed
                       - Update Available
                       - Cue Template Quiet
-                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes.
+                      - Queue Held
+                      - Queue Resumed
+                      - Service Offline
+                      - Service Reachable
+                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes. `Queue Held` fires when a provider rate limit pauses the queue; `Queue Resumed` when that hold clears. `Service Offline` fires when an episode defers because the LLM or Whisper endpoint is unreachable; `Service Reachable` when the probe finds it back up.
                 enabled:
                   type: boolean
                   description: Whether the webhook is active
@@ -6221,6 +6274,46 @@ paths:
                     description: Error message (when invalid)
         '429':
           description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /settings/notifications/timezone:
+    get:
+      tags:
+        - Settings
+      summary: Get the notification timezone
+      description: Returns the IANA zone used to compute timestamp_local in webhook and email notifications. Defaults to UTC, or the container's TZ env var when it names a valid zone.
+      operationId: getNotificationTimezone
+      responses:
+        '200':
+          description: Notification timezone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTimezoneSettings'
+    put:
+      tags:
+        - Settings
+      summary: Set the notification timezone
+      description: Rejects a timezone name zoneinfo cannot resolve.
+      operationId: updateNotificationTimezone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationTimezoneSettings'
+      responses:
+        '200':
+          description: Updated timezone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTimezoneSettings'
+        '400':
+          description: Unknown timezone name
           content:
             application/json:
               schema:
@@ -9239,6 +9332,11 @@ components:
             - string
             - 'null'
           description: Per-feed display title shown to subscribers in the generated RSS feed (issue 375); null falls back to the source feed title.
+        detectionNotes:
+          type:
+            - string
+            - 'null'
+          description: Operator hints about this show appended to the LLM ad-detection and review prompts (issue 709); null when unset.
         detectionMode:
           type:
             - string
@@ -10178,6 +10276,29 @@ components:
           nullable: true
           description: Action the category resolved to for this marker
           enum: [remove, beep, keep, null]
+        reviewerVerdict:
+          type: string
+          nullable: true
+          description: >-
+            Ad reviewer verdict on this marker, or null when the reviewer did
+            not run. adjust alone does not mean the span moved: a held
+            contradiction keeps the pass-1 bounds and a split piece drops the
+            originals, and neither records reviewerOriginalStart/End.
+          enum: [confirmed, adjust, reject, resurrect, failure, null]
+        reviewerOriginalStart:
+          type: number
+          nullable: true
+          description: Start of the span before the reviewer moved it; present only when the reviewer moved the span
+        reviewerOriginalEnd:
+          type: number
+          nullable: true
+          description: End of the span before the reviewer moved it; present only when the reviewer moved the span
+        reviewerMoved:
+          type: boolean
+          description: >-
+            Whether the span was moved from its pass-1 bounds, by the
+            reviewer or by a human approving a trimmed boundary. Use this
+            instead of inferring a move from reviewerVerdict/reviewerOriginalStart/End.
         status:
           type: string
           enum: [accepted, rejected, pending]
@@ -11170,6 +11291,12 @@ components:
         openrouterApiKeyConfigured:
           type: boolean
           description: Whether an OpenRouter API key is configured (read-only)
+        podcastSearchReady:
+          type: boolean
+          description: >-
+            Whether the resolved podcast search provider (podcastSearchProvider)
+            can run right now: iTunes always is; PodcastIndex needs both API
+            credentials saved (read-only).
         openrouterBaseUrl:
           type: string
           description: OpenRouter API base URL (read-only)
@@ -11358,6 +11485,12 @@ components:
             pricingSourceMode:
               type: string
               enum: [auto, litellm, free]
+            notificationTimezone:
+              type: string
+              description: >-
+                IANA zone for timestamp_local in webhook/email payloads
+                (default UTC). Get/set via
+                /settings/notifications/timezone.
             openrouterBaseUrl:
               type: string
 
@@ -11739,6 +11872,12 @@ components:
             - 'null'
           format: date-time
           description: The provider's own rate-limit reset time, or null
+        holdSince:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the current pause began, or null when nothing is held
         rateLimitHeld:
           type: integer
           description: Episodes held by the rate-limit hold
@@ -11915,30 +12054,84 @@ components:
           type: string
           format: date-time
 
-    SearchResult:
+    SearchShowResult:
       type: object
       properties:
-        type:
+        slug:
           type: string
-          enum: [episode, podcast, pattern, sponsor]
-          description: Type of matched content
-        id:
+        title:
           type: string
-          description: Identifier of the matched item
-        podcastSlug:
+        snippet:
           type:
             - string
             - 'null'
-          description: Podcast slug (for episode results)
+          description: Highlighted match context; null for a title-only substring match
+    SearchEpisodeResult:
+      type: object
+      properties:
+        feedSlug:
+          type: string
+        feedTitle:
+          type: string
+        episodeId:
+          type: string
         title:
           type: string
-          description: Title or name of the matched item
+        status:
+          type: string
+        publishDate:
+          type:
+            - string
+            - 'null'
+        snippet:
+          type:
+            - string
+            - 'null'
+          description: Highlighted match context; null for a title-only substring match
+    SearchTranscriptResult:
+      type: object
+      properties:
+        feedSlug:
+          type: string
+        episodeId:
+          type: string
+        title:
+          type: string
         snippet:
           type: string
-          description: Text snippet showing the match context
-        score:
-          type: number
-          description: Relevance score
+          description: Highlighted transcript match context
+        timestamp:
+          type:
+            - number
+            - 'null'
+          description: Always null; the search index has no offset back into the transcript timing
+    SearchPatternResult:
+      type: object
+      description: Advanced-page-only group; not shown in the Dashboard box or palette.
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+          description: Pattern scope (podcast slug, or "global")
+        sponsor:
+          type: string
+        snippet:
+          type:
+            - string
+            - 'null'
+    SearchSponsorResult:
+      type: object
+      description: Advanced-page-only group; not shown in the Dashboard box or palette.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        snippet:
+          type:
+            - string
+            - 'null'
 
     Webhook:
       type: object
@@ -11968,6 +12161,14 @@ components:
           description: Content type for webhook delivery
       description: Webhook configuration. Note -- the secret field is never returned in responses.
 
+    NotificationTimezoneSettings:
+      type: object
+      properties:
+        timezone:
+          type: string
+          description: IANA zone name (e.g. 'America/New_York'), or 'UTC'
+          example: UTC
+
     EmailNotificationSettings:
       type: object
       properties:
@@ -11986,6 +12187,10 @@ components:
               - Feed Refresh Failed
               - Update Available
               - Cue Template Quiet
+              - Queue Held
+              - Queue Resumed
+              - Service Offline
+              - Service Reachable
         smtpHost:
           type: string
         smtpPort:

@@ -35,7 +35,8 @@ from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import clip_dai_core_spans, invalidate_tail_provenance
+from utils.markers import (clip_dai_core_spans, fold_marker_pair,
+                           foldable_twin, invalidate_tail_provenance)
 from utils.time import (
     adjust_timestamp, epoch_to_iso, ISO_FORMAT, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now, utc_now_iso,
@@ -104,9 +105,10 @@ from llm_client import (
     ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
 )
-from offline_queue import is_offline_queue_enabled
+from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
-    RATE_LIMIT_DEFERRED_SERVICE, is_rate_limit_hold_enabled, record_hold_until,
+    RATE_LIMIT_DEFERRED_SERVICE, get_rate_limit_hold_ttl_hours,
+    is_rate_limit_hold_enabled, record_hold_until,
 )
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -133,7 +135,8 @@ from utils.text import (
 )
 from webhook_service import (
     fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED,
-    fire_cue_template_quiet_event,
+    fire_cue_template_quiet_event, fire_queue_held_event,
+    fire_service_offline_event,
 )
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -1290,6 +1293,17 @@ def _keep_overridden_by_pattern(ad) -> bool:
     return False
 
 
+def _clear_hold_for_keep(marker) -> bool:
+    """Move a keep marker's hold to hold_cleared_reason: a kept span is never
+    force-cut by a stale hold. True when there was a hold to clear."""
+    if not marker.get('held_for_review'):
+        return False
+    marker['hold_cleared_reason'] = marker.get('hold_reason')
+    marker['held_for_review'] = False
+    marker.pop('hold_reason', None)
+    return True
+
+
 def _partition_keep_ads(all_ads, actions_map):
     """Split first-pass markers by resolved segment-category action.
 
@@ -1316,10 +1330,7 @@ def _partition_keep_ads(all_ads, actions_map):
                 continue
             ad['was_cut'] = False
             ad['action_applied'] = 'keep'
-            if ad.get('held_for_review'):
-                ad['hold_cleared_reason'] = ad.get('hold_reason')
-                ad['held_for_review'] = False
-                ad.pop('hold_reason', None)
+            if _clear_hold_for_keep(ad):
                 audio_logger.debug(
                     f"Keep resolution clears hold on marker "
                     f"{ad['start']:.1f}s-{ad['end']:.1f}s "
@@ -1343,9 +1354,10 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
     DEFAULT_SEGMENT_ACTION and still cut it.
 
     Stamps was_cut=False/action_applied='keep' on a caught marker (and its
-    all_ads_with_validation master) and removes it from the returned cut
-    list. Exception: a marker from a defined pattern stays in the cut list
-    with keep_overridden_by_pattern=True, never kept by keep maps.
+    all_ads_with_validation master), clears any hold the same way the keep
+    partition does, and removes it from the returned cut list.
+    Exception: a marker from a defined pattern stays in the cut list with
+    keep_overridden_by_pattern=True, never kept by keep maps.
     Returns ads_to_remove unchanged when no category resolves to 'keep'.
     """
     if not any(action == 'keep' for action in actions_map.values()):
@@ -1363,10 +1375,12 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
         else:
             ad['was_cut'] = False
             ad['action_applied'] = 'keep'
+            _clear_hold_for_keep(ad)
             master = _find_master(all_ads_with_validation, ad)
             if master is not None:
                 master['was_cut'] = False
                 master['action_applied'] = 'keep'
+                _clear_hold_for_keep(master)
             audio_logger.debug(
                 f"Late keep safety net: dropping synthesized marker "
                 f"{ad['start']:.1f}s-{ad['end']:.1f}s (category={category!r}) "
@@ -1440,6 +1454,28 @@ def _dedupe_pass2_markers(markers):
     return unique
 
 
+def _merge_pass2_markers(all_ads, pass2_markers):
+    """Fold a pass-2 marker into the pass-1 marker it repeats, since appending it
+    would double-count pending reviews. Returns (to_append, folded_count)."""
+    to_append = []
+    folded = 0
+    for marker in pass2_markers:
+        twin = foldable_twin(all_ads, marker)
+        if twin is None:
+            to_append.append(marker)
+            continue
+        audio_logger.info(
+            f"Pass-2 marker {marker['start']:.1f}s-{marker['end']:.1f}s repeats "
+            f"pass-1 marker {twin['start']:.1f}s-{twin['end']:.1f}s "
+            f"(actions {twin.get('action_applied')!r}/{marker.get('action_applied')!r}, "
+            f"holds {twin.get('hold_reason')!r}/{marker.get('hold_reason')!r}); "
+            f"folding into it"
+        )
+        fold_marker_pair(twin, marker)
+        folded += 1
+    return to_append, folded
+
+
 def _stamp_pass2_marker_categories(markers):
     """Validate the category on pass-2 markers at save time.
 
@@ -1485,10 +1521,7 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
             for marker in (processed, original):
                 marker['was_cut'] = False
                 marker['action_applied'] = 'keep'
-                if marker.get('held_for_review'):
-                    marker['hold_cleared_reason'] = marker.get('hold_reason')
-                    marker['held_for_review'] = False
-                    marker.pop('hold_reason', None)
+                _clear_hold_for_keep(marker)
             kept_processed.append(processed)
             kept_original.append(original)
             continue
@@ -2002,6 +2035,7 @@ def _apply_reviewer_verdict_to_ad(ad, v):
             ad['reviewer_proposed_end'] = v.adjusted_end
         return
     if v.verdict == 'adjust':
+        ad['reviewer_moved'] = True
         ad['reviewer_original_start'] = v.original_start
         ad['reviewer_original_end'] = v.original_end
         invalidate_tail_provenance(ad, v.adjusted_end)
@@ -4130,17 +4164,25 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         hold_until = utc_now() + timedelta(
             seconds=max(0.0, float(error.retry_after_seconds)))
         hold_until_iso = hold_until.strftime(ISO_FORMAT)
-        record_hold_until(db, hold_until_iso)
+        effective_until = record_hold_until(db, hold_until_iso)
         db.upsert_episode(
             slug, episode_id,
             status=EpisodeStatus.DEFERRED.value,
-            error_message=f"Paused (LLM rate limit until {hold_until_iso}): {error}",
+            error_message=f"Paused (LLM rate limit until {effective_until}): {error}",
             deferred_at=first_deferred_at,
             deferred_service=RATE_LIMIT_DEFERRED_SERVICE,
         )
         audio_logger.warning(
             f"[{slug}:{episode_id}] Rate-limit hold: paused until "
             f"{hold_until_iso} (provider reset)")
+        # A shorter reset under an active hold changes nothing; only a new
+        # or extended hold is worth an alert.
+        if effective_until == hold_until_iso:
+            fire_queue_held_event(
+                hold_until=effective_until,
+                ttl_hours=get_rate_limit_hold_ttl_hours(db),
+                error_message=error, slug=slug, episode_id=episode_id,
+                podcast_name=podcast_name)
         return
 
     # Offline queue (#482): endpoint-down failures defer instead of failing.
@@ -4167,6 +4209,12 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             f"[{slug}:{episode_id}] Offline queue: deferred until the "
             f"{service} endpoint is reachable again"
         )
+        # Seed the outage verdict so the next tick's True probe reads as a
+        # recovery and fires Service Reachable.
+        record_probe_state(db, service, False)
+        fire_service_offline_event(
+            service=service, error_message=error, slug=slug,
+            episode_id=episode_id, podcast_name=podcast_name)
         return
 
     transient = is_transient_error(error)
@@ -4238,6 +4286,17 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")
 
 
+def build_podcast_context(podcast_settings):
+    """Podcast description plus operator detection notes (#709), or None."""
+    if not podcast_settings:
+        return None
+    description = podcast_settings.get('description') or ''
+    notes = podcast_settings.get('detection_notes')
+    if not notes:
+        return description or None
+    return f"{description}\n\nOperator notes for this show:\n{notes}".strip()
+
+
 def process_episode(slug: str, episode_id: str, episode_url: str,
                    episode_title: str = "Unknown", podcast_name: str = "Unknown",
                    episode_description: str = None, episode_artwork_url: str = None,
@@ -4276,7 +4335,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                               episode_description, start_time, cancel_event)
 
     podcast_settings = db.get_podcast_by_slug(slug)
-    podcast_description = podcast_settings.get('description') if podcast_settings else None
+    podcast_description = build_podcast_context(podcast_settings)
+    notes = (podcast_settings or {}).get('detection_notes')
+    if notes:
+        audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(notes)} chars)")
 
     # Effective per-feed mode, resolved once from the row above. The
     # precedence (passthrough > skip-detection > keep-content > cue_only > standard)
@@ -4825,9 +4887,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # mapping are never contaminated with uncut ads.
             merge_v = _dedupe_pass2_markers(
                 _stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held))
-            # Corroboration stamps mutated markers already in
+            # A pass-2 marker repeating a span pass 1 already persisted folds
+            # into that marker; appending it would store one span twice.
+            merge_v, folded_v = _merge_pass2_markers(
+                all_ads_with_validation, merge_v)
+            # Corroboration and folds mutate markers already in
             # all_ads_with_validation, so they need a re-save too.
-            if merge_v or v_corroborated_count:
+            if merge_v or folded_v or v_corroborated_count:
                 all_ads_with_validation = list(all_ads_with_validation) + merge_v
                 all_ads_with_validation.sort(key=lambda x: x['start'])
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)

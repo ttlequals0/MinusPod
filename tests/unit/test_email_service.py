@@ -12,6 +12,7 @@ import email_service
 from utils.url import SSRFError
 from webhook_service import VALID_EVENTS
 from email_service import (
+    DEFAULT_EVENTS,
     EmailConfig,
     build_message,
     is_send_ready,
@@ -162,6 +163,18 @@ class TestFormatters:
         subject, rows, _ = FORMATTERS['Auth Failure']({})
         assert subject == '[MinusPod] Auth Failure: unknown / unknown'
         assert all(value == '-' for _, value in rows)
+
+    def test_timestamp_row_uses_local_time_for_a_non_utc_zone(self):
+        ctx = dict(ALERT_CTX, event='Auth Failure',
+                   timestamp_local='2026-07-11T20:00:00-04:00')
+        _, rows, _ = FORMATTERS['Auth Failure'](ctx)
+        assert ('Timestamp', '2026-07-11T20:00:00-04:00') in rows
+
+    def test_timestamp_row_falls_back_to_utc_for_the_utc_zone(self):
+        ctx = dict(ALERT_CTX, event='Auth Failure',
+                   timestamp_local='2026-07-12T00:00:00+00:00')
+        _, rows, _ = FORMATTERS['Auth Failure'](ctx)
+        assert ('Timestamp', ALERT_CTX['timestamp']) in rows
 
 
 class TestBuildMessage:
@@ -338,3 +351,22 @@ class TestSendTestEmail:
         assert len(records) == 1
         assert records[0].exc_info is not None
         assert 'OSError' in caplog.text and 'connection refused' in caplog.text
+
+
+def test_new_alert_formatters_render():
+    cases = {
+        'Queue Held': {'hold_until': '2026-09-03T18:00:00Z', 'ttl_hours': 24,
+                       'error_message': 'rate limited', 'slug': 'example-podcast',
+                       'episode_id': 'a1b2c3d4e5f6', 'podcast_name': 'Example Podcast',
+                       'timestamp': 't'},
+        'Queue Resumed': {'held_since': '2026-09-03T17:00:00Z', 'requeued': 3, 'timestamp': 't'},
+        'Service Offline': {'service': 'llm', 'error_message': 'down', 'slug': 'example-podcast',
+                            'episode_id': 'a1b2c3d4e5f6', 'podcast_name': 'Example Podcast',
+                            'timestamp': 't'},
+        'Service Reachable': {'service': 'whisper', 'requeued': 2, 'timestamp': 't'},
+    }
+    for event, ctx in cases.items():
+        subject, rows, hint = FORMATTERS[event](ctx)
+        assert subject.startswith(f'[MinusPod] {event}')
+        assert rows and all(len(r) == 2 for r in rows)
+        assert event in DEFAULT_EVENTS

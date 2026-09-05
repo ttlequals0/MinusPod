@@ -11,10 +11,16 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Rows read per page by the duplicate-marker collapse, so a large library does
+# not land in memory at once inside the startup schema lock.
+_COLLAPSE_BATCH_ROWS = 500
+
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import SCHEMA_SQL, TABLE_DDL
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
+from config import count_pending_review
+from utils.markers import collapse_duplicate_markers
 
 
 @contextmanager
@@ -396,6 +402,8 @@ class SchemaMixin:
             ('author', 'TEXT'),
             ('explicit', 'INTEGER'),
             ('categories', 'TEXT'),
+            # Operator hints appended to the LLM prompt for this feed (#709).
+            ('detection_notes', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
@@ -964,11 +972,13 @@ class SchemaMixin:
             logger.debug(f"FTS5 search_index creation (may already exist): {e}")
 
         # Auto-populate search index if empty
+        search_index_freshly_populated = False
         try:
             cursor = conn.execute("SELECT COUNT(*) FROM search_index")
             if cursor.fetchone()[0] == 0:
                 logger.info("Search index is empty, rebuilding...")
                 count = self.rebuild_search_index()
+                search_index_freshly_populated = True
                 logger.info(f"Search index populated with {count} items")
         except Exception as e:
             logger.warning(f"Failed to auto-populate search index: {e}")
@@ -1310,6 +1320,10 @@ class SchemaMixin:
         # doesn't update what the editor displays for already-detected ads.
         self._cleanup_zyn_ad_markers(conn)
 
+        # 2.95.2: one-shot fold of duplicate pass-1/pass-2 markers for the same span
+        # (they used to double-count pending_review_count); write path no longer produces them.
+        self._collapse_duplicate_ad_markers(conn)
+
         # 2.5.7: retire kitchen-sink ad_patterns that name multiple foreign
         # sponsors in their text_template. The merge guard prevents new ones
         # going forward; this disables what's already there.
@@ -1440,6 +1454,15 @@ class SchemaMixin:
         except Exception as e:
             conn.rollback()
             logger.error(f"seeded model defaults clear failed: {e}")
+
+        # One-shot reindex so discovered/pending episodes are searchable too (2.95.2),
+        # not just status='processed'. search_index is derived, so this is safe to redo.
+        try:
+            self._run_reindex_search_all_episode_statuses(
+                conn, already_rebuilt=search_index_freshly_populated)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"search index reindex failed: {e}")
 
         # Per-boot, not schema_migrations-gated: seeds an absent model row
         # from OPENAI_MODEL, run after the clear above so a stale default is
@@ -1986,6 +2009,26 @@ class SchemaMixin:
             "Migration: cleared seeded model defaults for %s",
             ", ".join(cleared) if cleared else "none (nothing to clear)",
         )
+
+    def _run_reindex_search_all_episode_statuses(self, conn, already_rebuilt: bool = False):
+        """One-shot reindex of search_index to cover every episode status; skips the
+        rebuild if this boot's auto-populate already did it."""
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'reindex_search_all_episode_statuses'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        count = 0 if already_rebuilt else self.rebuild_search_index()
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('reindex_search_all_episode_statuses')"
+        )
+        conn.commit()
+        if already_rebuilt:
+            logger.info("search-index-reindex: skipped, auto-populate already rebuilt it this boot")
+        else:
+            logger.info(f"search-index-reindex: complete, {count} row(s) indexed")
 
     def _seed_model_settings_from_env(self, conn):
         """Seed an absent model row from OPENAI_MODEL (2.86.4).
@@ -3038,6 +3081,73 @@ class SchemaMixin:
                 )
         except Exception as e:
             logger.warning(f"Migration: ad-marker Zyn cleanup failed: {e}")
+
+    def _collapse_duplicate_ad_markers(self, conn):
+        """One-shot: fold a second stored marker into the first when both are uncut and
+        within BOUNDS_TOLERANCE_S, merging fields into the survivor. Gated by schema_migrations."""
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'collapse_duplicate_ad_markers'"
+        ).fetchone()
+        if gate is not None:
+            return
+        try:
+            markers_folded = 0
+            episodes_touched = 0
+            last_id = 0
+            while True:
+                # Paged by key, not a cursor, so interleaved writes never skip a row.
+                # json_valid guards json_array_length, which raises on bad JSON.
+                batch = conn.execute(
+                    "SELECT episode_id, ad_markers_json FROM episode_details "
+                    "WHERE episode_id > ? AND ad_markers_json IS NOT NULL "
+                    "AND (CASE WHEN json_valid(ad_markers_json) "
+                    "THEN json_array_length(ad_markers_json) ELSE 0 END) > 1 "
+                    "ORDER BY episode_id LIMIT ?",
+                    (last_id, _COLLAPSE_BATCH_ROWS)
+                ).fetchall()
+                if not batch:
+                    break
+                last_id = batch[-1]['episode_id']
+                for row in batch:
+                    # Contained per row: one malformed marker must not block the
+                    # cleanup for every other episode on every boot.
+                    try:
+                        markers = json.loads(row['ad_markers_json'])
+                        collapsed, folded = (
+                            collapse_duplicate_markers(markers)
+                            if isinstance(markers, list) else (markers, 0))
+                    except Exception as e:
+                        logger.warning(
+                            f"Migration: duplicate ad-marker collapse skipped "
+                            f"episode_id={row['episode_id']}: {e}")
+                        continue
+                    if not folded:
+                        continue
+                    conn.execute(
+                        "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
+                        (json.dumps(collapsed), row['episode_id'])
+                    )
+                    conn.execute(
+                        "UPDATE episodes SET pending_review_count = ? WHERE id = ?",
+                        (count_pending_review(collapsed), row['episode_id'])
+                    )
+                    markers_folded += folded
+                    episodes_touched += 1
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+                "('collapse_duplicate_ad_markers')"
+            )
+            conn.commit()
+            logger.info(
+                f"duplicate-ad-marker collapse: complete, {markers_folded} marker(s) "
+                f"folded across {episodes_touched} episode(s)"
+            )
+        except Exception as e:
+            # Discard the run's partial writes so the next migration's commit
+            # cannot flush them. The gate stays unset, so this retries on the
+            # next boot.
+            conn.rollback()
+            logger.warning(f"Migration: duplicate ad-marker collapse failed: {e}")
 
     def _migrate_fingerprint_cascade(self, conn):
         """2.88.2: give audio_fingerprints.pattern_id an FK with ON DELETE CASCADE.

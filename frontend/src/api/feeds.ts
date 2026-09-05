@@ -96,6 +96,25 @@ export async function getOriginalSegments(
   );
 }
 
+export async function getFinalSegments(
+  slug: string,
+  episodeId: string,
+): Promise<OriginalSegmentsResponse> {
+  return apiRequest<OriginalSegmentsResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/final-segments`,
+  );
+}
+
+// Plain-text fallback for episodes whose original segments were never stored
+// as JSON (pre-segment-storage). TranscriptViewer falls back to this on a
+// 404 from getOriginalSegments.
+export async function getOriginalTranscript(slug: string, episodeId: string): Promise<string> {
+  const response = await apiRequest<{ originalTranscript: string }>(
+    `/feeds/${slug}/episodes/${episodeId}/original-transcript`
+  );
+  return response.originalTranscript;
+}
+
 export interface FeedsResponse {
   feeds: Feed[];
   // Stamped whenever an all-feeds refresh pass finishes (15-minute
@@ -240,13 +259,6 @@ export async function getEpisode(slug: string, episodeId: string): Promise<Episo
   return apiRequest<EpisodeDetail>(`/feeds/${slug}/episodes/${episodeId}`);
 }
 
-export async function getOriginalTranscript(slug: string, episodeId: string): Promise<string> {
-  const response = await apiRequest<{ originalTranscript: string }>(
-    `/feeds/${slug}/episodes/${episodeId}/original-transcript`
-  );
-  return response.originalTranscript;
-}
-
 export async function reprocessEpisode(
   slug: string,
   episodeId: string,
@@ -276,6 +288,7 @@ export interface UpdateFeedPayload {
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
   titleOverride?: string | null;
+  detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;

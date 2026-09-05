@@ -5,7 +5,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from utils.time import parse_timestamp
+from utils.time import parse_timestamp, is_valid_timezone, local_now_iso
 
 
 class TestParseTimestampValid:
@@ -192,3 +192,31 @@ class TestSpanInsideAnyCutUnion:
         from utils.time import span_inside_any_cut
         cuts = [{'start': 0.0, 'end': 10.0}, {'start': 8.0, 'end': 20.0}]
         assert span_inside_any_cut(5.0, 25.0, cuts) is False
+
+
+class TestIsValidTimezone:
+    def test_known_zone_is_valid(self):
+        assert is_valid_timezone('America/New_York') is True
+
+    def test_unknown_zone_is_invalid(self):
+        assert is_valid_timezone('Not/AZone') is False
+
+    def test_non_string_is_invalid(self):
+        assert is_valid_timezone(None) is False
+
+
+class TestLocalNowIso:
+    def test_known_zone_carries_its_offset(self):
+        result = local_now_iso('America/New_York')
+        # New York is always behind UTC; offset is -04:00 or -05:00 by DST.
+        assert result[-6] in ('+', '-')
+        assert result.endswith(('-04:00', '-05:00'))
+
+    def test_utc_zone_uses_plus_zero_offset(self):
+        assert local_now_iso('UTC').endswith('+00:00')
+
+    def test_unknown_zone_falls_back_to_utc_offset(self):
+        assert local_now_iso('Not/AZone').endswith('+00:00')
+
+    def test_non_string_falls_back_to_utc_offset(self):
+        assert local_now_iso(None).endswith('+00:00')

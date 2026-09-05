@@ -23,6 +23,7 @@ from webhook_service import (
     _prepare_and_dispatch,
     _format_duration,
     _format_cost,
+    get_notification_timezone,
     load_webhooks,
     fire_event,
     fire_test_event,
@@ -88,6 +89,44 @@ class TestRenderTemplatePreview:
 # Context building tests
 # ---------------------------------------------------------------------------
 
+class TestGetNotificationTimezone:
+    """get_notification_timezone reads through SETTINGS_REGISTRY (notification_timezone)."""
+
+    def test_valid_stored_value_wins_over_env(self, monkeypatch):
+        monkeypatch.setenv('TZ', 'Europe/London')
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = 'America/New_York'
+        assert get_notification_timezone(mock_db) == 'America/New_York'
+
+    def test_env_wins_over_default(self, monkeypatch):
+        monkeypatch.setenv('TZ', 'Europe/London')
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = None
+        assert get_notification_timezone(mock_db) == 'Europe/London'
+
+    def test_no_stored_value_no_env_defaults_to_utc(self, monkeypatch):
+        monkeypatch.delenv('TZ', raising=False)
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = None
+        assert get_notification_timezone(mock_db) == 'UTC'
+
+    def test_invalid_stored_value_falls_back_to_utc_without_raising(self, monkeypatch, caplog):
+        monkeypatch.delenv('TZ', raising=False)
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = 'Not/AZone'
+        with caplog.at_level('WARNING'):
+            assert get_notification_timezone(mock_db) == 'UTC'
+        assert any('Not/AZone' in r.message for r in caplog.records)
+
+    def test_invalid_env_value_falls_back_to_utc_with_warning(self, monkeypatch, caplog):
+        monkeypatch.setenv('TZ', 'Not/AZone')
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = None
+        with caplog.at_level('WARNING'):
+            assert get_notification_timezone(mock_db) == 'UTC'
+        assert any('Not/AZone' in r.message for r in caplog.records)
+
+
 class TestBuildContext:
 
     def test_build_context_success(self):
@@ -115,6 +154,19 @@ class TestBuildContext:
         assert ctx['episode']['time_saved'] == '1:40'
         assert ctx['episode']['error_message'] is None
         assert 'timestamp' in ctx
+        assert ctx['timestamp'].endswith('Z')
+        assert 'timestamp_local' in ctx
+
+    def test_build_context_timestamp_local_carries_configured_offset(self):
+        """timestamp_local reflects notification_timezone with a UTC offset,
+        while timestamp is untouched and still Z-suffixed."""
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = 'America/New_York'
+        payload = _make_payload()
+        with patch('webhook_service.Database', return_value=mock_db):
+            ctx = _build_context(payload)
+        assert ctx['timestamp'].endswith('Z')
+        assert ctx['timestamp_local'].endswith(('-04:00', '-05:00'))
 
     def test_build_context_podcast_name_defaults_to_slug(self):
         """When podcast_name is not provided, podcast.name falls back to slug."""
@@ -386,6 +438,7 @@ class TestFireTestEvent:
         assert body['status_code'] == 401
         assert 'episode' not in body
         assert body['test'] is True
+        assert 'timestamp_local' in body
 
     @patch('webhook_service.safe_post')
     def test_three_events_across_families(self, mock_post):
@@ -607,3 +660,82 @@ class TestEmailDispatchHooks:
             webhook_service.fire_limit_exceeded_event('openrouter', 'm', 'x', 403)
             webhook_service.fire_limit_exceeded_event('openrouter', 'm', 'x', 403)
         assert send.call_count == 1
+
+
+class TestQueueAndServiceAlerts:
+    @pytest.fixture(autouse=True)
+    def _reset(self):
+        webhook_service._last_alert_time.clear()
+        yield
+        webhook_service._last_alert_time.clear()
+
+    def test_new_events_are_valid(self):
+        for ev in (webhook_service.EVENT_QUEUE_HELD, webhook_service.EVENT_QUEUE_RESUMED,
+                   webhook_service.EVENT_SERVICE_OFFLINE, webhook_service.EVENT_SERVICE_REACHABLE):
+            assert ev in webhook_service.VALID_EVENTS
+            assert ev in webhook_service._ALERT_SAMPLE_CONTEXTS
+
+    @patch('webhook_service.get_notification_timezone')
+    @patch('webhook_service.threading.Thread')
+    @patch('webhook_service.load_webhooks', return_value=[])
+    def test_no_webhooks_and_no_dispatch_reads_no_timezone_on_caller_thread(
+            self, _mock_load, mock_thread, mock_tz):
+        """With no webhooks and the dispatch thread never actually run (as
+        in production, where it is asynchronous), the caller must not have
+        paid for the notification_timezone DB read itself."""
+        assert webhook_service.fire_service_offline_event('llm', 'down', 's', 'e', 'P') is True
+        mock_thread.return_value.start.assert_called_once()
+        mock_tz.assert_not_called()
+
+    @patch('webhook_service.threading.Thread', SyncThread)
+    @patch('webhook_service.email_service.send_event_email')
+    @patch('webhook_service._prepare_and_dispatch')
+    @patch('webhook_service.load_webhooks')
+    def test_queue_held_dispatches_context(self, mock_load, mock_dispatch, _mock_email):
+        mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
+                                   'events': ['Queue Held']}]
+        assert webhook_service.fire_queue_held_event(
+            '2026-09-03T18:00:00Z', 24, 'rate limited', 'example-podcast',
+            'a1b2c3d4e5f6', 'Example Podcast') is True
+        ctx = mock_dispatch.call_args[0][1]
+        assert ctx['event'] == 'Queue Held'
+        assert ctx['hold_until'] == '2026-09-03T18:00:00Z'
+        assert ctx['ttl_hours'] == 24
+        assert ctx['slug'] == 'example-podcast'
+
+    @patch('webhook_service.threading.Thread', SyncThread)
+    @patch('webhook_service.email_service.send_event_email')
+    @patch('webhook_service._prepare_and_dispatch')
+    @patch('webhook_service.load_webhooks')
+    def test_service_offline_dedups_per_service(self, mock_load, mock_dispatch, _mock_email):
+        mock_load.return_value = []
+        assert webhook_service.fire_service_offline_event('llm', 'down', 's', 'e', 'P') is True
+        assert webhook_service.fire_service_offline_event('llm', 'down', 's', 'e', 'P') is False
+        # A different service is its own key but shares the 60s burst cap.
+        assert webhook_service.fire_service_offline_event('whisper', 'down', 's', 'e', 'P') is False
+
+    @patch('webhook_service.threading.Thread', SyncThread)
+    @patch('webhook_service.email_service.send_event_email')
+    @patch('webhook_service._prepare_and_dispatch')
+    @patch('webhook_service.load_webhooks')
+    def test_resumed_and_reachable_carry_requeued(self, mock_load, mock_dispatch, _mock_email):
+        mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
+                                   'events': ['Queue Resumed', 'Service Reachable']}]
+        webhook_service.fire_queue_resumed_event('2026-09-03T17:00:00Z', 3)
+        webhook_service.fire_service_reachable_event('whisper', 2)
+        contexts = [c[0][1] for c in mock_dispatch.call_args_list]
+        assert contexts[0]['requeued'] == 3 and contexts[0]['held_since'] == '2026-09-03T17:00:00Z'
+        assert contexts[1]['service'] == 'whisper' and contexts[1]['requeued'] == 2
+
+
+def test_queue_held_event_carries_hold_until_local(monkeypatch):
+    import webhook_service
+    from utils.time import local_iso
+    monkeypatch.setattr(webhook_service, 'get_notification_timezone', lambda db=None: 'America/New_York')
+    captured = {}
+    monkeypatch.setattr(webhook_service, '_fire_alert_event', lambda event, ctx, note: captured.update(ctx))
+    webhook_service.fire_queue_held_event('2026-01-01T12:30:00Z', 24, 'rate limited', 'my-podcast', 'a1b2c3d4e5f6', 'My Podcast')
+    assert captured['hold_until'] == '2026-01-01T12:30:00Z'
+    assert captured['hold_until_local'] == '2026-01-01T07:30:00-05:00'
+    assert local_iso('not a date', 'UTC') is None
+    assert local_iso('2026-07-01T12:00:00Z', 'No/Such_Zone') == '2026-07-01T12:00:00+00:00'

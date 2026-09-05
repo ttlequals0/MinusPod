@@ -1084,3 +1084,128 @@ def test_error_state_report_still_exposes_outcomes_before_crash(
     assert report['committed'][0]['episodeId'] == 's01e01'
     # The entry itself really did commit despite the later crash.
     assert db.get_episode(slug, 's01e01') is not None
+
+
+@requires_ffmpeg
+def test_commit_indexes_every_entry_in_one_batch(db_storage, local_feed, real_mp3_bytes,
+                                                 monkeypatch):
+    """Per-file indexing opened a write transaction per imported episode."""
+    db, storage = db_storage
+    slug = local_feed
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    names = ['S01E01 - Perihelion.mp3', 'S01E02 - Aphelion.mp3', 'S01E03 - Syzygy.mp3']
+    for name in names:
+        (src_dir / name).write_bytes(real_mp3_bytes)
+
+    plan = build_import_plan(slug, [src_dir / name for name in names], existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+
+    batches = []
+    real_index_episodes = db.index_episodes
+
+    def spy_index_episodes(pairs, conn=None):
+        batches.append(list(pairs))
+        return real_index_episodes(pairs, conn=conn)
+
+    singles = []
+    monkeypatch.setattr(db, 'index_episodes', spy_index_episodes)
+    monkeypatch.setattr(db, 'index_episode', lambda *a, **k: singles.append(a))
+
+    _commit_synchronously(slug, plan, db, storage)
+
+    assert singles == []
+    assert len(batches) == 1
+    assert sorted(pair[0] for pair in batches[0]) == ['s01e01', 's01e02', 's01e03']
+    assert any(e['episodeId'] == 's01e01'
+               for e in db.search_grouped('Perihelion')['episodes'])
+
+
+@requires_ffmpeg
+def test_entry_that_fails_after_upsert_is_still_indexed(db_storage, local_feed,
+                                                        real_mp3_bytes, monkeypatch):
+    """The row is committed by then, so skipping it leaves an episode that exists but
+    cannot be found by search until the next full rebuild."""
+    db, storage = db_storage
+    slug = local_feed
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    (src_dir / 'S01E01 - Anemochory.mp3').write_bytes(real_mp3_bytes)
+
+    plan = build_import_plan(slug, [src_dir / 'S01E01 - Anemochory.mp3'], existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+
+    def boom(_path):
+        raise OSError('ffprobe died')
+
+    monkeypatch.setattr(local_import, 'probe_chapters', boom)
+    _commit_synchronously(slug, plan, db, storage)
+
+    report = local_import.get_import_status(slug, storage)['report']
+    assert [item['episodeId'] for item in report['failed']] == ['s01e01']
+    assert db.get_episode(slug, 's01e01') is not None
+    # Asserted on the index row, not through search: the episodes group's LIKE fallback
+    # would find this title even with no index row at all.
+    indexed = db.get_connection().execute(
+        "SELECT 1 FROM search_index WHERE content_type = 'episode' "
+        "AND content_id = ? AND podcast_slug = ?", ('s01e01', slug)).fetchone()
+    assert indexed is not None
+
+
+@requires_ffmpeg
+def test_index_pass_runs_even_when_the_loop_raises(db_storage, local_feed, real_mp3_bytes,
+                                                   monkeypatch):
+    """Every row upserted so far is already committed, so an exception on the way out of
+    the loop must not cost them their index rows."""
+    db, storage = db_storage
+    slug = local_feed
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    names = ['S01E01 - Halocline.mp3', 'S01E02 - Thermocline.mp3']
+    for name in names:
+        (src_dir / name).write_bytes(real_mp3_bytes)
+
+    plan = build_import_plan(slug, [src_dir / name for name in names], existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+
+    calls = []
+
+    def boom(*_args):
+        calls.append(1)
+        if len(calls) == 2:
+            raise OSError('job state write failed')
+
+    monkeypatch.setattr(local_import, '_bump_processed', boom)
+    report = {'committed': [], 'skipped': [], 'failed': [], 'queued': []}
+    with pytest.raises(OSError):
+        local_import._commit_entries(slug, plan, db, storage, True, report)
+
+    rows = db.get_connection().execute(
+        "SELECT content_id FROM search_index "
+        "WHERE content_type = 'episode' AND podcast_slug = ?", (slug,)).fetchall()
+    assert sorted(row['content_id'] for row in rows) == ['s01e01', 's01e02']
+
+
+@requires_ffmpeg
+def test_failing_index_pass_does_not_mask_the_original_error(db_storage, local_feed,
+                                                            real_mp3_bytes, monkeypatch):
+    db, storage = db_storage
+    slug = local_feed
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    (src_dir / 'S01E01 - Nephology.mp3').write_bytes(real_mp3_bytes)
+
+    plan = build_import_plan(slug, [src_dir / 'S01E01 - Nephology.mp3'], existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+
+    def bump_boom(*_args):
+        raise OSError('job state write failed')
+
+    def index_boom(*_args, **_kwargs):
+        raise RuntimeError('index blew up')
+
+    monkeypatch.setattr(local_import, '_bump_processed', bump_boom)
+    monkeypatch.setattr(db, 'index_episodes', index_boom)
+    report = {'committed': [], 'skipped': [], 'failed': [], 'queued': []}
+    with pytest.raises(OSError):
+        local_import._commit_entries(slug, plan, db, storage, True, report)

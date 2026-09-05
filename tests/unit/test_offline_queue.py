@@ -5,7 +5,7 @@ Uses the main_app boot pattern from test_history_ad_count: bind a temp
 DATA_DIR before importing main_app so singletons initialize against it.
 """
 import socket
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 import requests
@@ -223,3 +223,76 @@ class TestTtlAndRequeue:
         with patch('llm_client.check_llm_connectivity', return_value=True):
             offline_queue_tick(db)
         assert db.get_episode(SLUG, 'ep-llm')['status'] == 'pending'
+
+
+class TestServiceAlerts:
+    def _defer_llm(self):
+        db.upsert_episode(SLUG, 'ep-llm', title='ep-llm', status='deferred',
+                          original_url='https://example.com/ep-llm.mp3',
+                          error_message='Deferred (llm endpoint unreachable)',
+                          deferred_at='2999-01-01T00:00:00Z', deferred_service='llm')
+
+    def _defer_whisper(self, episode_id):
+        db.upsert_episode(SLUG, episode_id, title=episode_id, status='deferred',
+                          original_url=f'https://example.com/{episode_id}.mp3',
+                          error_message='Deferred (whisper endpoint unreachable)',
+                          deferred_at='2999-01-01T00:00:00Z', deferred_service='whisper')
+
+    def teardown_method(self):
+        db.clear_setting('offline_probe_llm_reachable')
+        db.clear_setting('offline_probe_whisper_reachable')
+
+    @patch('offline_queue.fire_service_reachable_event')
+    def test_probe_false_to_true_fires_reachable(self, mock_fire, seeded_episode):
+        self._defer_llm()
+        db.set_setting('offline_probe_llm_reachable', 'false', is_default=False)
+        with patch('llm_client.check_llm_connectivity', return_value=True):
+            offline_queue_tick(db)
+        mock_fire.assert_called_once_with(service='llm', requeued=1)
+
+    @patch('offline_queue.fire_service_reachable_event')
+    def test_first_probe_does_not_fire_reachable(self, mock_fire, seeded_episode):
+        self._defer_llm()
+        db.clear_setting('offline_probe_llm_reachable')
+        with patch('llm_client.check_llm_connectivity', return_value=True):
+            offline_queue_tick(db)
+        mock_fire.assert_not_called()
+        assert db.get_episode(SLUG, 'ep-llm')['status'] == 'pending'
+
+    @patch('offline_queue.fire_service_reachable_event')
+    def test_each_recovered_service_gets_its_own_count(self, mock_fire, seeded_episode):
+        self._defer_llm()
+        self._defer_whisper('ep-w1')
+        self._defer_whisper('ep-w2')
+        db.set_setting('offline_probe_llm_reachable', 'false', is_default=False)
+        db.set_setting('offline_probe_whisper_reachable', 'false', is_default=False)
+        with patch('llm_client.check_llm_connectivity', return_value=True), \
+             patch('transcriber.check_whisper_connectivity', return_value=True):
+            offline_queue_tick(db)
+        assert mock_fire.call_args_list == [
+            call(service='llm', requeued=1),
+            call(service='whisper', requeued=2),
+        ]
+
+    @patch('main_app.processing.fire_service_offline_event')
+    def test_deferral_fires_service_offline(self, mock_fire, seeded_episode):
+        db.set_setting('offline_queue_enabled', 'true')
+        _fail(seeded_episode, ServiceUnavailableError('whisper', 'down'))
+        assert mock_fire.call_count == 1
+        kwargs = mock_fire.call_args.kwargs
+        assert kwargs['service'] == 'whisper'
+        assert kwargs['slug'] == SLUG
+        assert kwargs['episode_id'] == seeded_episode
+        assert db.get_setting('offline_probe_whisper_reachable') == 'false'
+
+    @patch('offline_queue.fire_service_reachable_event')
+    @patch('main_app.processing.fire_service_offline_event')
+    def test_recovery_within_one_tick_fires_reachable(self, _offline, mock_fire, seeded_episode):
+        """The deferral seeds the outage verdict, so the first probe after
+        a recovery reads False -> True even with no earlier tick."""
+        db.set_setting('offline_queue_enabled', 'true')
+        _fail(seeded_episode, ServiceUnavailableError('llm', 'down'))
+        with patch('llm_client.check_llm_connectivity', return_value=True):
+            offline_queue_tick(db)
+        mock_fire.assert_called_once_with(service='llm', requeued=1)
+        assert db.get_episode(SLUG, seeded_episode)['status'] == 'pending'

@@ -91,11 +91,20 @@ function renderPanel(feed: Feed) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const result = render(
     <QueryClientProvider client={client}>
       <FeedSettingsPanel feed={feed} slug={feed.slug} />
     </QueryClientProvider>,
   );
+  // Re-render with a new feed object of the same shape, simulating a
+  // background refetch (new identity) that a real ['feed', slug] query
+  // would produce without the value actually having changed.
+  const rerenderWithFeed = (next: Feed) => result.rerender(
+    <QueryClientProvider client={client}>
+      <FeedSettingsPanel feed={next} slug={next.slug} />
+    </QueryClientProvider>,
+  );
+  return { ...result, rerenderWithFeed };
 }
 
 const SELECT_NAME = 'Fetch each episode twice to find inserted ads';
@@ -1056,5 +1065,184 @@ describe('FeedSettingsPanel feed cap', () => {
 
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
       'test-feed', expect.objectContaining({ maxEpisodes: 10 })));
+  });
+});
+
+describe('FeedSettingsPanel detection notes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('disables Save until the draft differs from the saved value', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: 'Keep the news roundup.' }));
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    const save = screen.getByRole('button', { name: 'Save detection notes' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    await user.type(box, ' Plus this.');
+    expect(save.disabled).toBe(false);
+  });
+
+  it('a trailing-space-only edit stays clean; Save stays disabled', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: 'abc' }));
+    const box = screen.getByLabelText('Detection notes');
+    const save = screen.getByRole('button', { name: 'Save detection notes' }) as HTMLButtonElement;
+    await user.type(box, ' ');
+    expect(save.disabled).toBe(true);
+  });
+
+  it('starts with Save disabled for a feed with no notes and an empty textarea', () => {
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const save = screen.getByRole('button', { name: 'Save detection notes' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+  });
+
+  it('blur alone writes nothing', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const box = screen.getByLabelText('Detection notes');
+    await user.type(box, 'Intro has three parts.');
+    await user.tab();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('Save writes detectionNotes and shows the saved confirmation', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const box = screen.getByLabelText('Detection notes');
+    await user.type(box, 'Intro has three parts.');
+    await user.click(screen.getByRole('button', { name: 'Save detection notes' }));
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ detectionNotes: 'Intro has three parts.' })));
+    expect(await screen.findByText('Saved')).toBeDefined();
+  });
+
+  it('Clear empties the field locally, then Save commits null', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: 'Old note.' }));
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    await user.click(screen.getByRole('button', { name: 'Clear detection notes' }));
+    expect(box.value).toBe('');
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Save detection notes' }));
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ detectionNotes: null })));
+  });
+
+  it('a rejected save shows an error and leaves the draft intact', async () => {
+    mockUpdateFeed.mockRejectedValueOnce(new Error('Detection notes could not be saved'));
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    await user.type(box, 'Intro has three parts.');
+    await user.click(screen.getByRole('button', { name: 'Save detection notes' }));
+    expect(await screen.findByText('Detection notes could not be saved')).toBeDefined();
+    expect(box.value).toBe('Intro has three parts.');
+  });
+
+  it('a background refetch does not clobber an unsaved draft', async () => {
+    const user = userEvent.setup();
+    const original = makeFeed({ detectionNotes: 'Old note.' });
+    const { rerenderWithFeed } = renderPanel(original);
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    await user.type(box, ' Plus this.');
+    expect(box.value).toBe('Old note. Plus this.');
+
+    // A new feed object with the same content, as a refetch would produce
+    // after staleTime elapses or another field's save invalidates the query.
+    rerenderWithFeed(makeFeed({ detectionNotes: 'Old note.' }));
+
+    expect(box.value).toBe('Old note. Plus this.');
+    expect((screen.getByRole('button', { name: 'Save detection notes' }) as HTMLButtonElement).disabled)
+      .toBe(false);
+  });
+
+  it('a background refetch reseeds the draft once it is no longer dirty', () => {
+    const original = makeFeed({ detectionNotes: 'Old note.' });
+    const { rerenderWithFeed } = renderPanel(original);
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    expect(box.value).toBe('Old note.');
+
+    // Not dirty (matches the saved value): a refetch reflecting a change
+    // made elsewhere (or by this same save) is free to reseed.
+    rerenderWithFeed(makeFeed({ detectionNotes: 'Edited elsewhere.' }));
+
+    expect(box.value).toBe('Edited elsewhere.');
+  });
+
+  it('clears a stale save error as soon as the user edits again', async () => {
+    mockUpdateFeed.mockRejectedValueOnce(new Error('Detection notes could not be saved'));
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const box = screen.getByLabelText('Detection notes');
+    await user.type(box, 'Intro has three parts.');
+    await user.click(screen.getByRole('button', { name: 'Save detection notes' }));
+    expect(await screen.findByText('Detection notes could not be saved')).toBeDefined();
+
+    await user.type(box, ' More.');
+    expect(screen.queryByText('Detection notes could not be saved')).toBeNull();
+  });
+});
+
+describe('FeedSettingsPanel draft protection for non-notes fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({ retentionDays: 30 });
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('an unsaved retention edit survives a background refetch and still commits on blur', async () => {
+    const user = userEvent.setup();
+    const { rerenderWithFeed } = renderPanel(makeFeed({ retentionDaysOverride: 7 }));
+    const days = await screen.findByLabelText('Retention days');
+
+    await user.clear(days);
+    await user.type(days, '45');
+
+    // Same content as the initial feed, a fresh object as a background
+    // refetch (staleTime elapsing, or another field's save) would produce.
+    rerenderWithFeed(makeFeed({ retentionDaysOverride: 7 }));
+
+    await user.tab();
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ retentionDaysOverride: 45 })));
+  });
+
+  it('a clean retention field resyncs to a new server value on refetch', async () => {
+    const { rerenderWithFeed } = renderPanel(makeFeed({ retentionDaysOverride: 7 }));
+    expect((await screen.findByLabelText('Retention days') as HTMLInputElement).value).toBe('7');
+
+    rerenderWithFeed(makeFeed({ retentionDaysOverride: 45 }));
+
+    await waitFor(() => expect(
+      (screen.getByLabelText('Retention days') as HTMLInputElement).value).toBe('45'));
+  });
+
+  it('an unsaved pair-min-break edit survives a background refetch and still commits on blur', async () => {
+    const user = userEvent.setup();
+    const { rerenderWithFeed } = renderPanel(makeFeed({ cuePairMinBreakOverride: 20 }));
+    const field = screen.getByLabelText('Pair min break');
+
+    await user.clear(field);
+    await user.type(field, '99');
+
+    rerenderWithFeed(makeFeed({ cuePairMinBreakOverride: 20 }));
+
+    await user.tab();
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ cuePairMinBreakOverride: 99 })));
+  });
+
+  it('a clean pair-min-break field resyncs to a new server value on refetch', async () => {
+    const { rerenderWithFeed } = renderPanel(makeFeed({ cuePairMinBreakOverride: 20 }));
+    expect((screen.getByLabelText('Pair min break') as HTMLInputElement).value).toBe('20');
+
+    rerenderWithFeed(makeFeed({ cuePairMinBreakOverride: 50 }));
+
+    await waitFor(() => expect(
+      (screen.getByLabelText('Pair min break') as HTMLInputElement).value).toBe('50'));
   });
 });

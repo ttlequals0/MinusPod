@@ -10,14 +10,13 @@ only works within a single process.
 import fcntl
 import json
 import logging
-import os
 import threading
 import time
-from pathlib import Path
 
 # Timeouts are resolved at read time from settings via processing_timeouts.
 from processing_timeouts import get_soft_timeout, get_hard_timeout
 from utils.atomic_json import write_json_atomic
+from utils.paths import resolve_data_dir
 
 logger = logging.getLogger('podcast.processing_queue')
 
@@ -57,14 +56,7 @@ class ProcessingQueue:
         if self._initialized:
             return
 
-        # /app/data is the in-container volume; tests and non-container
-        # deploys override via DATA_PATH / MINUSPOD_DATA_DIR (matches Storage).
-        data_dir = Path(
-            os.environ.get('DATA_DIR')
-            or os.environ.get('DATA_PATH')
-            or os.environ.get('MINUSPOD_DATA_DIR')
-            or '/app/data'
-        )
+        data_dir = resolve_data_dir()
         data_dir.mkdir(parents=True, exist_ok=True)
 
         self._lock_file_path = data_dir / '.processing_queue.lock'

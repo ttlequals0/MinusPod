@@ -18,7 +18,7 @@ from config import (
     coerce_bool_setting,
 )
 from utils.time import utc_now_iso
-from webhook_service import fire_event, EVENT_EPISODE_FAILED
+from webhook_service import fire_event, fire_service_reachable_event, EVENT_EPISODE_FAILED
 
 logger = logging.getLogger('podcast.refresh')
 
@@ -99,7 +99,7 @@ def probe_state_keys(service: str) -> tuple[str, str]:
     return f'offline_probe_{service}_reachable', f'offline_probe_{service}_at'
 
 
-def _record_probe_state(db, service: str, reachable: bool) -> None:
+def record_probe_state(db, service: str, reachable: bool) -> None:
     """Persist one probe verdict so the status API can say what is down
     without re-probing on the read path."""
     reachable_key, at_key = probe_state_keys(service)
@@ -137,12 +137,22 @@ def offline_queue_tick(db) -> None:
         for e in deferred if e['id'] not in expired_ids
     }
     reachable = set()
+    recovered = set()
     for service in waiting_services:
+        previous, _ = get_probe_state(db, service)
         verdict = _SERVICE_PROBES.get(service, lambda: False)()
-        _record_probe_state(db, service, verdict)
+        record_probe_state(db, service, verdict)
         if verdict:
             reachable.add(service)
-    requeued = db.requeue_deferred_episodes(reachable) if reachable else 0
+            # None means never probed; only a recorded outage counts as recovery.
+            if previous is False:
+                recovered.add(service)
+    requeued = 0
+    for service in sorted(reachable):
+        count = db.requeue_deferred_episodes({service})
+        requeued += count
+        if service in recovered:
+            fire_service_reachable_event(service=service, requeued=count)
 
     if expired or requeued:
         logger.info(

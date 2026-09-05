@@ -20,6 +20,7 @@ from database.queue import QueueMixin
 from database.search import SearchMixin
 from database.auth_lockout import AuthLockoutMixin
 from database.podping_hosts import PodpingHostMixin
+from utils.paths import resolve_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -375,7 +376,7 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls, data_dir: str = "/app/data"):
+    def __new__(cls, data_dir: str = None):
         """Singleton pattern for database instance."""
         if cls._instance is None:
             with cls._lock:
@@ -384,11 +385,14 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                     cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, data_dir: str = "/app/data"):
+    def __init__(self, data_dir: str = None):
         if self._initialized:
             return
 
-        self.data_dir = Path(data_dir)
+        # Resolved at call time, not from an import-time constant: a bare
+        # Database() after the singleton is reset must land in the configured
+        # data dir, not the packaged default.
+        self.data_dir = Path(data_dir or resolve_data_dir())
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "podcast.db"
         self._local = threading.local()

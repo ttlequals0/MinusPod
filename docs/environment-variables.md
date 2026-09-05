@@ -38,6 +38,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 | `LOG_FORMAT` | `text` | `text` or `json`. JSON output works with log aggregators (Loki, CloudWatch). |
 | `DATA_DIR` | `/app/data` | Data storage directory. Aliases `DATA_PATH` and `MINUSPOD_DATA_DIR` are also honored. |
+| `TZ` | `UTC` | Container timezone (e.g. `America/New_York`). When set to a valid IANA zone, seeds the `notification_timezone` setting that computes `timestamp_local` in webhook and email notifications. Override the setting at Settings > Notifications, or `GET/PUT /api/v1/settings/notifications/timezone`, without touching `TZ`. |
 
 ## Security
 
@@ -68,7 +69,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `MAX_AUDIO_DOWNLOAD_MB` | `500` | Per-episode download size cap in MB. Raise it for feeds with very long or high-bitrate episodes (a 260-minute episode at 256kbps is about 500MB). Guards against a broken or malicious enclosure filling the disk, so keep it finite. Env-backed: seeds the default; editable at runtime in Settings, and a saved UI value wins over the env var. |
 | `MINUSPOD_MAX_ARTWORK_BYTES` | `26214400` (25 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. Env-backed: seeds the default; editable at runtime in Settings. |
 | `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. Env-backed: seeds the default; editable at runtime in Settings. |
-| `RATE_LIMIT_STORAGE_URI` | `memory://` | Flask-limiter storage backend. Default is per-worker; set to `redis://host:6379` + run a Redis sidecar for exact declared limits across workers. |
+| `RATE_LIMIT_STORAGE_URI` | `memory-threadsafe://` | Flask-limiter storage backend. Default is per-worker; set to `redis://host:6379` + run a Redis sidecar for exact declared limits across workers. |
 | `APP_UID` | `1000` | UID gunicorn runs as inside the container. Override to match host volume ownership. |
 | `APP_GID` | `1000` | GID counterpart to `APP_UID`. |
 | `GUNICORN_BIND` | `0.0.0.0:8000` | Listen address. Accepts a comma-separated list for multiple sockets. For dual-stack on rootless Podman, use `[::]:8000`: one IPv6 wildcard also accepts IPv4 when the kernel keeps `bindv6only=0` (the default). Do not list both `0.0.0.0:8000` and `[::]:8000` on such a kernel; the second bind fails with `EADDRINUSE` and gunicorn exits. |
