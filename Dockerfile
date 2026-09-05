@@ -50,6 +50,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libsndfile1 \
     libchromaprint-tools \
+    tzdata \
     && apt-get upgrade -y \
     && rm -rf /usr/lib/python3/dist-packages/cryptography* \
               /usr/lib/python3/dist-packages/PyJWT* \
