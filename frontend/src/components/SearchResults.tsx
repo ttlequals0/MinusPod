@@ -58,13 +58,25 @@ interface SearchResultsProps {
   onHover: (index: number) => void;
   // Click (or caller-driven Enter) on a row: caller decides navigation/closing.
   onSelect: (row: SearchResultRow) => void;
+  // Whether the query is long enough to have searched; drives the two empty-state messages.
+  ready?: boolean;
 }
 
+const HINT_MESSAGE = 'Type two or more characters to search shows, episodes and transcripts.';
+const NO_MATCHES_MESSAGE = 'No shows, episodes or transcripts match.';
+
 // Renders Shows/Episodes/In transcripts as <li role="option"> rows (plus
-// role="presentation" group headers), meant to sit inside a caller-supplied
-// role="listbox". No layout container of its own.
-function SearchResults({ results, activeIndex, onHover, onSelect }: SearchResultsProps) {
+// role="presentation" group headers and the two shared empty-state messages),
+// meant to sit inside a caller-supplied role="listbox". No layout container of its own.
+function SearchResults({ results, activeIndex, onHover, onSelect, ready = true }: SearchResultsProps) {
   const rows = useMemo(() => buildSearchResultRows(results), [results]);
+
+  if (!ready) {
+    return <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">{HINT_MESSAGE}</li>;
+  }
+  if (rows.length === 0) {
+    return <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">{NO_MATCHES_MESSAGE}</li>;
+  }
 
   return (
     <>

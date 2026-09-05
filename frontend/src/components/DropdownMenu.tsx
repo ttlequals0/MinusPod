@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { focusRing } from './fieldStyles';
+import { useOutsideClick } from '../hooks/useOutsideClick';
 
 export interface DropdownMenuItem {
   title: string;
@@ -64,22 +65,15 @@ function DropdownMenu({
     });
   };
 
+  useOutsideClick(rootRef, open, () => setOpen(false));
+
   useEffect(() => {
     if (!open) return;
-    const onPointerDown = (e: MouseEvent | TouchEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('touchstart', onPointerDown);
     document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('touchstart', onPointerDown);
-      document.removeEventListener('keydown', onKey);
-    };
+    return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
   return (

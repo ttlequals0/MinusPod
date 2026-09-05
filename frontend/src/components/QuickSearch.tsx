@@ -72,13 +72,7 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
           />
         </div>
         <ul id="quick-search-results" role="listbox" aria-label="Results" className="max-h-[50vh] overflow-y-auto py-1">
-          <SearchResults results={results} activeIndex={current} onHover={setActive} onSelect={go} />
-          {!ready && (
-            <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">Type two or more characters to search shows, episodes and transcripts.</li>
-          )}
-          {ready && rows.length === 0 && (
-            <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">No shows, episodes or transcripts match.</li>
-          )}
+          <SearchResults results={results} activeIndex={current} onHover={setActive} onSelect={go} ready={ready} />
         </ul>
         <div className="border-t border-border bg-secondary/50 px-4 py-2 text-sm">
           <Link

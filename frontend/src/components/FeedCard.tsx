@@ -4,6 +4,7 @@ import { Feed } from '../api/types';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
+import FeedArtworkLink from './FeedArtworkLink';
 import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
@@ -25,10 +26,8 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
       <div className="flex flex-1">
-        <Link
-          to={`/feeds/${feed.slug}`}
-          tabIndex={-1}
-          aria-hidden="true"
+        <FeedArtworkLink
+          slug={feed.slug}
           className="block w-24 h-24 shrink-0 overflow-hidden rounded-tl-lg cursor-pointer"
         >
           <Artwork
@@ -36,7 +35,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
             alt={feed.title}
             className="w-full h-full object-cover"
           />
-        </Link>
+        </FeedArtworkLink>
         <div className="flex-1 p-4 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <Link

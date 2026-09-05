@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
 import { feedsQueryOptions, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
@@ -10,6 +10,7 @@ import SearchResults from '../components/SearchResults';
 import type { SearchResultRow } from '../components/SearchResults';
 import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { useOutsideClick } from '../hooks/useOutsideClick';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import { formatDateTime } from '../utils/format';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
@@ -85,18 +86,7 @@ function Dashboard() {
   const goToResult = (row: SearchResultRow) => { setSearchOpen(false); navigate(row.to); };
 
   // Close on an outside click/tap, same pattern DropdownMenu uses for its popover.
-  useEffect(() => {
-    if (!searchOpen) return;
-    const onPointerDown = (e: MouseEvent | TouchEvent) => {
-      if (!searchRootRef.current?.contains(e.target as Node)) setSearchOpen(false);
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('touchstart', onPointerDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('touchstart', onPointerDown);
-    };
-  }, [searchOpen]);
+  useOutsideClick(searchRootRef, searchOpen, () => setSearchOpen(false));
 
   const showSearchPanel = searchOpen && query.length > 0;
 
@@ -275,15 +265,7 @@ function Dashboard() {
             onMouseDown={(e) => e.preventDefault()}
           >
             <ul id="dashboard-search-results" role="listbox" aria-label="Results" className="max-h-[60vh] overflow-y-auto py-1">
-              {ready ? (
-                rows.length > 0 ? (
-                  <SearchResults results={results} activeIndex={current} onHover={setActive} onSelect={goToResult} />
-                ) : (
-                  <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">No shows, episodes or transcripts match.</li>
-                )
-              ) : (
-                <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">Type two or more characters to search shows, episodes and transcripts.</li>
-              )}
+              <SearchResults results={results} activeIndex={current} onHover={setActive} onSelect={goToResult} ready={ready} />
             </ul>
             <div className="flex items-center justify-between gap-2 border-t border-border bg-secondary/50 px-4 py-2 text-sm">
               <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
