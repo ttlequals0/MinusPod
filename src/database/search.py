@@ -269,15 +269,16 @@ class SearchMixin:
 
     def search_grouped(self, query: str, limit: int = 50, groups: list[str] | None = None) -> dict:
         """Grouped search: shows, episodes, transcripts, patterns, sponsors, each an independent
-        FTS query. All five keys are always present; a name outside groups (default: all) or a
-        group whose query raised comes back empty."""
+        FTS query. All five keys are always present; a name outside groups (default: all), a
+        group whose query raised, or a query under two characters comes back empty."""
         conn = self.get_connection()
-        clean_query = query.replace('"', '""').strip()
         empty = {'shows': [], 'episodes': [], 'transcripts': [], 'patterns': [], 'sponsors': []}
-        if not clean_query:
-            return empty
-        fts_query = self._safe_fts_query(clean_query)
         needle = query.strip()
+        # A needle this short matches nearly everything and is not worth five FTS
+        # queries plus the LIKE passes; the UI holds to the same minimum.
+        if len(needle) < 2:
+            return empty
+        fts_query = self._safe_fts_query(query.replace('"', '""').strip())
         # Escape LIKE metacharacters so user input cannot widen the match
         escaped = needle.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
         like_pattern = f'%{escaped}%'

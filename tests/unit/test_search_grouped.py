@@ -380,3 +380,25 @@ def test_episode_title_substring_still_found_when_fts_finds_nothing():
     ep_id = _eid()
     db.upsert_episode(slug, ep_id, title='Thundersnow Bulletin')
     assert any(e['episodeId'] == ep_id for e in db.search_grouped('hundersnow')['episodes'])
+
+
+def test_query_under_two_characters_runs_no_queries():
+    # /quick-search enforced this minimum; without it a one-character needle runs five
+    # FTS queries plus the LIKE passes and matches nearly everything.
+    conn = db.get_connection()
+    statements = []
+    conn.set_trace_callback(statements.append)
+    try:
+        result = db.search_grouped('a')
+    finally:
+        conn.set_trace_callback(None)
+    assert result == {'shows': [], 'episodes': [], 'transcripts': [], 'patterns': [], 'sponsors': []}
+    assert statements == []
+
+
+def test_api_one_character_query_returns_five_empty_groups():
+    client = _authed_client()
+    body = client.get('/api/v1/search?q=+a+').get_json()
+    assert body['query'] == 'a'
+    assert all(body[name] == [] for name in
+               ('shows', 'episodes', 'transcripts', 'patterns', 'sponsors'))

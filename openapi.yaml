@@ -3327,7 +3327,9 @@ paths:
         - name: q
           in: query
           required: true
-          description: Search query
+          description: |
+            Search query. A query shorter than two characters after trimming
+            returns all five groups empty without running a search.
           schema:
             type: string
         - name: limit
