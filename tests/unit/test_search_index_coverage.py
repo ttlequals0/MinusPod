@@ -207,3 +207,44 @@ def test_reindex_migration_skips_rebuild_when_already_populated(monkeypatch):
         "SELECT 1 FROM schema_migrations WHERE name = 'reindex_search_all_episode_statuses'"
     ).fetchone()
     assert row is not None
+
+
+def test_reindex_delete_does_not_scan_the_fts_table():
+    """`(content_id, podcast_slug) IN (VALUES ...)` makes FTS5 visit every stored row,
+    so a single-episode reindex costs the whole table. The DELETE must go by rowid."""
+    slug = _feed('delete-plan')
+    ep_id = _eid()
+    db.bulk_upsert_discovered_episodes(slug, [_episode(ep_id)])
+
+    conn = db.get_connection()
+    statements = []
+    conn.set_trace_callback(statements.append)
+    try:
+        db.index_episode(ep_id, slug)
+    finally:
+        conn.set_trace_callback(None)
+
+    deletes = [s for s in statements
+               if s.lstrip().upper().startswith('DELETE') and 'search_index' in s]
+    assert deletes, 'index_episodes issued no DELETE against search_index'
+    for sql in deletes:
+        plan = conn.execute('EXPLAIN QUERY PLAN ' + sql).fetchall()
+        # FTS5 names the constraint it accepted after "INDEX 0:"; an empty one means it
+        # took nothing and walks the whole table.
+        assert not any(row['detail'].rstrip().endswith('VIRTUAL TABLE INDEX 0:')
+                       for row in plan), [row['detail'] for row in plan]
+
+
+def test_index_episodes_chunks_beyond_the_sql_variable_limit():
+    """One statement per 500 pairs: an unchunked VALUES list blows SQLite's
+    variable limit and the swallowed error leaves the episodes unindexed."""
+    slug = _feed('chunked-index')
+    real_ids = [_eid() for _ in range(3)]
+    db.bulk_upsert_discovered_episodes(
+        slug, [_episode(i, title=f'Perihelion Chronicle {i}') for i in real_ids])
+
+    pairs = [(i, slug) for i in real_ids] + [(f'ghost{n:011x}', slug) for n in range(17000)]
+    assert db.index_episodes(pairs) == 3
+    for ep_id in real_ids:
+        assert any(e['episodeId'] == ep_id
+                   for e in db.search_grouped('Perihelion')['episodes'])

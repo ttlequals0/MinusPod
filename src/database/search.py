@@ -12,6 +12,9 @@ _HL_CLOSE = '\x03'
 # All groups search_grouped can compute; also the valid values for the /search groups= param.
 SEARCH_GROUP_NAMES = ('shows', 'episodes', 'transcripts', 'patterns', 'sponsors')
 
+# Episodes per indexing statement: two bound params each, plus one MATCH term each.
+_INDEX_CHUNK = 500
+
 
 class SearchMixin:
     """Full-text search (FTS5) methods."""
@@ -101,49 +104,83 @@ class SearchMixin:
         return self.index_episodes([(episode_id, slug)]) > 0
 
     def index_episodes(self, pairs: list[tuple[str, str]], conn=None) -> int:
-        """Batch (re)index episodes as one DELETE+INSERT. pairs is [(episode_id, slug), ...];
-        if conn is passed, the caller owns the transaction."""
+        """Batch (re)index episodes as a DELETE+INSERT per chunk. pairs is
+        [(episode_id, slug), ...]; if conn is passed, the caller owns the transaction."""
         pairs = list(dict.fromkeys(pairs))
         if not pairs:
             return 0
         own_conn = conn is None
         if own_conn:
             conn = self.get_connection()
-        values_sql = ','.join('(?,?)' for _ in pairs)
-        flat = [v for pair in pairs for v in pair]
-        # values_sql is just "(?,?),(?,?),..." repeated per pair; all values are bound params.
-        delete_sql = (
-            "DELETE FROM search_index WHERE content_type = 'episode' "  # noqa: S608
-            f"AND (content_id, podcast_slug) IN (VALUES {values_sql})"
-        )
-        select_sql = (
-            "SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text "  # noqa: S608
-            "FROM episodes e "
-            "JOIN podcasts p ON e.podcast_id = p.id "
-            "LEFT JOIN episode_details ed ON e.id = ed.episode_id "
-            f"WHERE (e.episode_id, p.slug) IN (VALUES {values_sql})"
-        )
         try:
-            conn.execute(delete_sql, flat)
-            rows = conn.execute(select_sql, flat).fetchall()
-            insert_values = [
-                ('episode', row['episode_id'], row['slug'], row['title'],
-                 (row['transcript_text'] or '')[:100000], row['description'] or '')
-                for row in rows
-            ]
-            if insert_values:
-                conn.executemany("""
-                    INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, insert_values)
+            indexed = 0
+            for start in range(0, len(pairs), _INDEX_CHUNK):
+                indexed += self._index_episode_chunk(conn, pairs[start:start + _INDEX_CHUNK])
             if own_conn:
                 conn.commit()
-            return len(insert_values)
+            return indexed
         except Exception as e:
             if own_conn:
                 conn.rollback()
             logger.error(f"Batch index failed for {len(pairs)} episode(s): {e}")
             return 0
+
+    def _index_episode_chunk(self, conn, pairs: list[tuple[str, str]]) -> int:
+        """Reindex one chunk of pairs, small enough to stay under SQLite's variable limit."""
+        self._delete_indexed_episodes(conn, pairs)
+        values_sql = ','.join('(?,?)' for _ in pairs)
+        rows = conn.execute(
+            "SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text "  # noqa: S608
+            "FROM episodes e "
+            "JOIN podcasts p ON e.podcast_id = p.id "
+            "LEFT JOIN episode_details ed ON e.id = ed.episode_id "
+            f"WHERE (e.episode_id, p.slug) IN (VALUES {values_sql})",
+            [v for pair in pairs for v in pair]
+        ).fetchall()
+        insert_values = [
+            ('episode', row['episode_id'], row['slug'], row['title'],
+             (row['transcript_text'] or '')[:100000], row['description'] or '')
+            for row in rows
+        ]
+        if insert_values:
+            conn.executemany("""
+                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, insert_values)
+        return len(insert_values)
+
+    def _delete_indexed_episodes(self, conn, pairs: list[tuple[str, str]]) -> None:
+        """Drop these episodes' search_index rows, resolving rowids with one MATCH.
+
+        FTS5 pushes no constraint down for `(content_id, podcast_slug) IN (VALUES ...)`,
+        so that predicate visits every stored row; a MATCH on content_id uses the index.
+        """
+        # unicode61 tokenizes on alphanumerics, so an id without one has no term to MATCH.
+        matchable, unmatchable = [], []
+        for pair in pairs:
+            (matchable if any(c.isalnum() for c in pair[0]) else unmatchable).append(pair)
+        if matchable:
+            terms = ' OR '.join('content_id:"' + eid.replace('"', '""') + '"'
+                                for eid, _ in matchable)
+            hits = conn.execute(
+                "SELECT rowid, content_id, podcast_slug FROM search_index "
+                "WHERE search_index MATCH ?",
+                (f'content_type:episode AND ({terms})',)
+            ).fetchall()
+            # A phrase can match a longer id, and two podcasts can share one, so verify both.
+            wanted = set(matchable)
+            rowids = [h['rowid'] for h in hits
+                      if (h['content_id'], h['podcast_slug']) in wanted]
+            if rowids:
+                conn.execute(
+                    "DELETE FROM search_index "  # noqa: S608
+                    f"WHERE rowid IN ({','.join('?' * len(rowids))})",
+                    rowids)
+        if unmatchable:
+            conn.execute(
+                "DELETE FROM search_index WHERE content_type = 'episode' "  # noqa: S608
+                f"AND (content_id, podcast_slug) IN (VALUES {','.join('(?,?)' for _ in unmatchable)})",
+                [v for pair in unmatchable for v in pair])
 
     def _pick_snippet(self, row, *keys):
         """First of the named snippet columns FTS5 actually highlighted, sanitized."""
