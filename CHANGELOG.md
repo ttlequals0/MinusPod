@@ -11,10 +11,6 @@ release notes.
 
 ## [Unreleased]
 
-### Fixed
-
-- The feed detail action row (Copy URL, Reprocess, Refresh, Delete) fits on one line on phones from 360px up. The card and its buttons use tighter padding below the small breakpoint; the row previously wrapped on every common phone width.
-
 ## [2.95.3] - 2026-09-05
 
 ### Changed
@@ -25,6 +21,7 @@ release notes.
 
 - Focusing a field on a phone no longer makes iOS Safari zoom the page. Mobile Safari zooms any input under 16px, so every input, select and textarea is now 16px on touch devices, including phones in landscape, and unchanged elsewhere. One stylesheet rule covers them all, rather than a class per field.
 - From this version on, a deploy reloads the app once the new service worker is ready and the tab is next hidden, instead of running the previously cached bundle until the next visit. That stale bundle is what produced "The type parameter was removed" on search after upgrading to 2.95.2; clients still on 2.95.2 need one manual reload to pick this up.
+- The feed detail action row (Copy URL, Reprocess, Refresh, Delete) fits on one line on phones from 360px up. The card and its buttons use tighter padding below the small breakpoint; the row previously wrapped on every common phone width.
 
 ## [2.95.2] - 2026-09-04
 
