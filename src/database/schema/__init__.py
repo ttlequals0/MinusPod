@@ -3095,9 +3095,7 @@ class SchemaMixin:
             episodes_touched = 0
             last_id = 0
             while True:
-                # Paged by key so no cursor is open during the writes below: a
-                # row omitted from a SELECT stepped while its table is written
-                # would never be revisited, since the gate lands in this run.
+                # Paged by key, not a cursor, so interleaved writes never skip a row.
                 # json_valid guards json_array_length, which raises on bad JSON.
                 batch = conn.execute(
                     "SELECT episode_id, ad_markers_json FROM episode_details "

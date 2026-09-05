@@ -1355,8 +1355,9 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
 
     Stamps was_cut=False/action_applied='keep' on a caught marker (and its
     all_ads_with_validation master), clears any hold the same way the keep
-    partition does, and removes it from the returned cut list. Exception: a marker from a defined pattern stays in the cut list
-    with keep_overridden_by_pattern=True, never kept by keep maps.
+    partition does, and removes it from the returned cut list.
+    Exception: a marker from a defined pattern stays in the cut list with
+    keep_overridden_by_pattern=True, never kept by keep maps.
     Returns ads_to_remove unchanged when no category resolves to 'keep'.
     """
     if not any(action == 'keep' for action in actions_map.values()):
