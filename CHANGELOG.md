@@ -11,11 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.95.3] - 2026-09-05
+
 ### Added
 
 - The Queue Held notification carries `hold_until_local`, the provider reset time in the notification timezone, next to the UTC `hold_until`. The email subject and its Held until row use the local value.
-
-## [2.95.3] - 2026-09-05
 
 ### Changed
 
