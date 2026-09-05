@@ -90,7 +90,6 @@ from db_backup_service import (
     validate_backup_dest,
 )
 from utils.cron import is_valid_expression
-from utils.time import is_valid_timezone
 
 # Every LLM provider the settings API accepts.
 VALID_LLM_PROVIDERS = (
@@ -2874,7 +2873,7 @@ def update_notification_timezone_setting():
     if not isinstance(tz, str) or not tz.strip():
         return error_response('timezone is required', 400)
     tz = tz.strip()
-    if not is_valid_timezone(tz):
+    if not SETTINGS_REGISTRY['notification_timezone'].validator(tz):
         return error_response(f'unknown timezone: {tz}', 400)
     db.set_setting('notification_timezone', tz, is_default=False)
     return json_response({'timezone': tz})

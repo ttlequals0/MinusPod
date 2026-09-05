@@ -41,6 +41,11 @@ from utils.time import is_valid_timezone
 
 logger = logging.getLogger(__name__)
 
+
+def _valid_notification_timezone(tz: str) -> bool:
+    """UTC is always acceptable, even on a host with no tzdata installed."""
+    return tz == 'UTC' or is_valid_timezone(tz)
+
 # Default pricing for known Anthropic models (USD per 1M tokens)
 # claude-sonnet-5/fable-5/opus-4-8 values from LiteLLM 2026-07-02.
 DEFAULT_MODEL_PRICING = {
@@ -632,7 +637,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # the container TZ env var when it names a valid zone; an invalid TZ
     # falls back to UTC with a warning rather than rejecting notifications.
     'notification_timezone': SettingSpec(
-        default='UTC', env='TZ', validator=is_valid_timezone,
+        default='UTC', env='TZ', validator=_valid_notification_timezone,
         payload_key='notificationTimezone'),
 }
 
@@ -677,6 +682,10 @@ def _validate_registry():
 
 _validate_registry()
 
+# (key, bad_value) pairs already warned about, so a bad env value logs once
+# per distinct value instead of once per call (every notification, every GET).
+_warned_invalid_env_defaults: set[tuple[str, str]] = set()
+
 
 def registry_default(key: str) -> str | None:
     """DB-string default for a key (seed-time semantics)."""
@@ -692,12 +701,28 @@ def registry_default(key: str) -> str | None:
         else:
             raw = os.environ.get(spec.env, spec.default)
         if spec.validator is not None and not spec.validator(raw):
-            logger.warning(
-                "Ignoring invalid %s=%r for setting %r; using default %r",
-                spec.env, raw, key, spec.default)
+            warn_key = (key, raw)
+            if warn_key not in _warned_invalid_env_defaults:
+                _warned_invalid_env_defaults.add(warn_key)
+                logger.warning(
+                    "Ignoring invalid %s=%r for setting %r; using default %r",
+                    spec.env, raw, key, spec.default)
             return spec.default
         return raw
     return spec.default
+
+
+def registry_current_value(db, key: str) -> str | None:
+    """Stored value for `key` if present and valid per its SettingSpec.validator,
+    else the registry default. The single validated read path so every consumer
+    (settings API, notification code) applies the same rule."""
+    spec = SETTINGS_REGISTRY[key]
+    value = db.get_setting(key)
+    if isinstance(value, str) and value:
+        if spec.validator is None or spec.validator(value):
+            return value
+        logger.warning("Ignoring invalid stored value %r for setting %r", value, key)
+    return registry_default(key)
 
 
 def registry_get_default(key: str) -> Any:

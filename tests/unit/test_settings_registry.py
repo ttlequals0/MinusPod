@@ -468,6 +468,14 @@ class TestValidatorHook:
             assert registry_default('notification_timezone') == 'UTC'
         assert any('Not/AZone' in r.message for r in caplog.records)
 
+    def test_invalid_tz_env_warns_only_once_per_distinct_value(self, clean_env, monkeypatch, caplog):
+        monkeypatch.setenv('TZ', 'CET-1CEST')
+        with caplog.at_level('WARNING'):
+            for _ in range(3):
+                assert registry_default('notification_timezone') == 'UTC'
+        warnings = [r for r in caplog.records if 'CET-1CEST' in r.message]
+        assert len(warnings) == 1
+
     def test_entries_without_a_validator_are_unaffected(self, clean_env, monkeypatch):
         # Spot-check two existing env-backed entries: a bogus env value is
         # still passed through verbatim, exactly as before the validator hook.

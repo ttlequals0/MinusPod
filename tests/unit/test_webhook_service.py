@@ -163,7 +163,7 @@ class TestBuildContext:
         mock_db = MagicMock()
         mock_db.get_setting.return_value = 'America/New_York'
         payload = _make_payload()
-        with patch('database.Database', return_value=mock_db):
+        with patch('webhook_service.Database', return_value=mock_db):
             ctx = _build_context(payload)
         assert ctx['timestamp'].endswith('Z')
         assert ctx['timestamp_local'].endswith(('-04:00', '-05:00'))
@@ -674,6 +674,18 @@ class TestQueueAndServiceAlerts:
                    webhook_service.EVENT_SERVICE_OFFLINE, webhook_service.EVENT_SERVICE_REACHABLE):
             assert ev in webhook_service.VALID_EVENTS
             assert ev in webhook_service._ALERT_SAMPLE_CONTEXTS
+
+    @patch('webhook_service.get_notification_timezone')
+    @patch('webhook_service.threading.Thread')
+    @patch('webhook_service.load_webhooks', return_value=[])
+    def test_no_webhooks_and_no_dispatch_reads_no_timezone_on_caller_thread(
+            self, _mock_load, mock_thread, mock_tz):
+        """With no webhooks and the dispatch thread never actually run (as
+        in production, where it is asynchronous), the caller must not have
+        paid for the notification_timezone DB read itself."""
+        assert webhook_service.fire_service_offline_event('llm', 'down', 's', 'e', 'P') is True
+        mock_thread.return_value.start.assert_called_once()
+        mock_tz.assert_not_called()
 
     @patch('webhook_service.threading.Thread', SyncThread)
     @patch('webhook_service.email_service.send_event_email')

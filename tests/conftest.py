@@ -176,3 +176,19 @@ def _reset_rss_circuit_breakers():
         rss_parser._rss_circuit_breakers.clear()
     except ImportError:
         pass
+
+
+@pytest.fixture(autouse=True)
+def _reset_warned_invalid_env_defaults():
+    """Clear the dedup set of already-warned bad env values between tests.
+
+    Module-global by design (Finding 8: warn once per distinct value for
+    the life of the process); without a reset, one test's bad value can
+    silently suppress a later test's warning assertion for the same value.
+    """
+    yield
+    try:
+        import database.settings as settings_mod
+        settings_mod._warned_invalid_env_defaults.clear()
+    except ImportError:
+        pass
