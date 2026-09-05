@@ -11,10 +11,16 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Rows read per fetch by the duplicate-marker collapse, so a large library
+# does not land in memory at once inside the startup schema lock.
+_COLLAPSE_BATCH_ROWS = 500
+
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import SCHEMA_SQL, TABLE_DDL
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
+from config import count_pending_review
+from utils.markers import collapse_duplicate_markers
 
 
 @contextmanager
@@ -3085,45 +3091,45 @@ class SchemaMixin:
         if gate is not None:
             return
         try:
-            from config import count_pending_review
-            from utils.markers import collapse_duplicate_markers
-        except Exception as e:
-            logger.warning(
-                f"Migration: duplicate ad-marker collapse skipped (import failed): {e}")
-            return
-        try:
-            rows = conn.execute(
+            # A row holding fewer than two markers cannot hold a pair, and an
+            # unparseable one has nothing to fold, so neither is read at all.
+            cursor = conn.execute(
                 "SELECT episode_id, ad_markers_json FROM episode_details "
-                "WHERE ad_markers_json IS NOT NULL "
-                "AND ad_markers_json NOT IN ('', '[]', 'null')"
-            ).fetchall()
+                "WHERE ad_markers_json IS NOT NULL AND (CASE WHEN "
+                "json_valid(ad_markers_json) "
+                "THEN json_array_length(ad_markers_json) ELSE 0 END) > 1"
+            )
             markers_folded = 0
             episodes_touched = 0
-            for row in rows:
-                # Contained per row: one malformed marker must not block the
-                # cleanup for every other episode on every boot.
-                try:
-                    markers = json.loads(row['ad_markers_json'])
-                    collapsed, folded = (
-                        collapse_duplicate_markers(markers)
-                        if isinstance(markers, list) else (markers, 0))
-                except Exception as e:
-                    logger.warning(
-                        f"Migration: duplicate ad-marker collapse skipped "
-                        f"episode_id={row['episode_id']}: {e}")
-                    continue
-                if not folded:
-                    continue
-                conn.execute(
-                    "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
-                    (json.dumps(collapsed), row['episode_id'])
-                )
-                conn.execute(
-                    "UPDATE episodes SET pending_review_count = ? WHERE id = ?",
-                    (count_pending_review(collapsed), row['episode_id'])
-                )
-                markers_folded += folded
-                episodes_touched += 1
+            while True:
+                batch = cursor.fetchmany(_COLLAPSE_BATCH_ROWS)
+                if not batch:
+                    break
+                for row in batch:
+                    # Contained per row: one malformed marker must not block the
+                    # cleanup for every other episode on every boot.
+                    try:
+                        markers = json.loads(row['ad_markers_json'])
+                        collapsed, folded = (
+                            collapse_duplicate_markers(markers)
+                            if isinstance(markers, list) else (markers, 0))
+                    except Exception as e:
+                        logger.warning(
+                            f"Migration: duplicate ad-marker collapse skipped "
+                            f"episode_id={row['episode_id']}: {e}")
+                        continue
+                    if not folded:
+                        continue
+                    conn.execute(
+                        "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
+                        (json.dumps(collapsed), row['episode_id'])
+                    )
+                    conn.execute(
+                        "UPDATE episodes SET pending_review_count = ? WHERE id = ?",
+                        (count_pending_review(collapsed), row['episode_id'])
+                    )
+                    markers_folded += folded
+                    episodes_touched += 1
             conn.execute(
                 "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
                 "('collapse_duplicate_ad_markers')"

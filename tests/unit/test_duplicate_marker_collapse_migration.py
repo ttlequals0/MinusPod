@@ -220,3 +220,28 @@ def test_only_the_uncut_pair_collapses_in_a_mixed_row(temp_db):
         (500.0, 520.0)]
     assert markers[-1]['action_applied'] == 'keep'
     assert pending == 0
+
+
+def test_an_unparseable_row_does_not_abort_the_prefilter(temp_db):
+    """The row prefilter runs in SQL, so an unparseable value must not raise
+    there and take the whole cleanup down with it."""
+    good_slug, good_eid = _seed(temp_db, [_keep(), _held()],
+                                pending_review_count=1)
+    _bad_slug, bad_eid = _seed(temp_db, [_keep()], slug='collapse-unparseable',
+                               episode_id='beefbeef0001', pending_review_count=0)
+    conn = temp_db.get_connection()
+    bad_db_id = conn.execute(
+        "SELECT id FROM episodes WHERE episode_id = ?", (bad_eid,)).fetchone()['id']
+    conn.execute(
+        "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
+        ('{not json', bad_db_id))
+    conn.commit()
+
+    _run(temp_db)
+
+    good_markers, _pending = _stored(temp_db, good_slug, good_eid)
+    assert len(good_markers) == 1
+    row = conn.execute(
+        "SELECT ad_markers_json FROM episode_details WHERE episode_id = ?",
+        (bad_db_id,)).fetchone()
+    assert row['ad_markers_json'] == '{not json'
