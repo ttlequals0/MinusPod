@@ -50,32 +50,6 @@ def _reviewer_moved_from_marker(marker: dict) -> bool:
             and marker.get('reviewer_original_end') is not None)
 
 
-def _keep_spans(markers: list[dict]) -> list[tuple[float, float]]:
-    """Start/end pairs for this episode's keep markers, computed once so the
-    per-marker twin lookup below doesn't rescan the whole marker list each time."""
-    spans = []
-    for m in markers:
-        if isinstance(m, dict) and m.get('action_applied') == 'keep':
-            s, e = m.get('start'), m.get('end')
-            if isinstance(s, (int, float)) and isinstance(e, (int, float)):
-                spans.append((s, e))
-    return spans
-
-
-def _keep_twin_action(marker: dict, keep_spans: list[tuple[float, float]]) -> str | None:
-    """action_applied for this span, falling back to a same-episode keep twin so an undecided copy inherits its verdict."""
-    own = marker.get('action_applied')
-    if own == 'keep':
-        return own
-    start, end = marker.get('start'), marker.get('end')
-    if start is None or end is None:
-        return own
-    for k_start, k_end in keep_spans:
-        if spans_match(start, end, k_start, k_end):
-            return 'keep'
-    return own
-
-
 def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
     by_episode: dict[str, list[dict]] = {}
     for c in corrections:
@@ -90,7 +64,6 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
         if not isinstance(markers, list):
             continue
         episode_corrections = by_episode.get(row['episode_id'], [])
-        keep_spans = _keep_spans(markers)
         for marker in markers:
             if not isinstance(marker, dict):
                 continue
@@ -118,7 +91,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
                 'patternId': marker.get('pattern_id'),
                 'detectionStage': marker.get('detection_stage'),
                 'category': marker.get('category'),
-                'actionApplied': _keep_twin_action(marker, keep_spans),
+                'actionApplied': marker.get('action_applied'),
                 'reviewerVerdict': marker.get('reviewer_verdict'),
                 'reviewerOriginalStart': marker.get('reviewer_original_start'),
                 'reviewerOriginalEnd': marker.get('reviewer_original_end'),
