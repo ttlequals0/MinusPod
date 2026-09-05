@@ -11463,6 +11463,12 @@ components:
             pricingSourceMode:
               type: string
               enum: [auto, litellm, free]
+            notificationTimezone:
+              type: string
+              description: >-
+                IANA zone for timestamp_local in webhook/email payloads
+                (default UTC). Get/set via
+                /settings/notifications/timezone.
             openrouterBaseUrl:
               type: string
 

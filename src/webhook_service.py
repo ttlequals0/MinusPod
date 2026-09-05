@@ -63,9 +63,11 @@ def get_notification_timezone(db=None) -> str:
     except Exception:
         logger.debug("Could not read notification_timezone setting", exc_info=True)
     if isinstance(tz, str) and tz:
-        return tz
-    env_tz = os.environ.get('TZ')
-    return env_tz if env_tz and is_valid_timezone(env_tz) else 'UTC'
+        if is_valid_timezone(tz):
+            return tz
+        logger.warning("Ignoring invalid stored notification_timezone %r", tz)
+    from database.settings import registry_default  # deferred to avoid circular imports
+    return registry_default('notification_timezone')
 
 
 @dataclass

@@ -38,7 +38,7 @@ _SEED_ENV_VARS = (
     'VAD_GAP_DETECTION_ENABLED', 'VAD_GAP_START_MIN_SECONDS',
     'VAD_GAP_MID_MIN_SECONDS', 'VAD_GAP_TAIL_MIN_SECONDS',
     'TRANSCRIBE_MAX_CHUNK_SECONDS', 'TRANSCRIBE_CONCURRENT_CHUNKS',
-    'TRANSCRIBE_CHUNK_OVERLAP_SECONDS',
+    'TRANSCRIBE_CHUNK_OVERLAP_SECONDS', 'TZ',
 )
 
 # Snapshot of _seed_default_settings output captured from the pre-registry
@@ -397,6 +397,7 @@ class TestGetDefaults:
             'positionalPriorEnabled': False,
             'segmentCategoryActions': {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES},
             'communitySyncCategories': list(SEGMENT_CATEGORIES),
+            'notificationTimezone': 'UTC',
         }
         payload = {
             spec.payload_key: registry_get_default(key)
@@ -436,11 +437,12 @@ class TestGetDefaults:
         # settings have no payload keys (dedicated endpoint).
         # downloadUserAgent + feedUserAgent after that (101 -> 103),
         # then logDownloadQuery (103 -> 104).
+        # notificationTimezone added after that (104 -> 105).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 104
+        assert len(payload_keys) == 105
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 
@@ -448,6 +450,31 @@ class TestGetDefaults:
         assert registry_default('min_cut_confidence') == '0.80'
         assert registry_default('whisper_language') == 'en'
         assert registry_default('audio_cue_freq_max_hz') == '8000'
+
+
+class TestValidatorHook:
+    """SettingSpec.validator (Task: notification_timezone joins the registry)."""
+
+    def test_notification_timezone_defaults_to_utc(self, clean_env):
+        assert registry_default('notification_timezone') == 'UTC'
+
+    def test_valid_tz_env_is_used(self, clean_env, monkeypatch):
+        monkeypatch.setenv('TZ', 'America/New_York')
+        assert registry_default('notification_timezone') == 'America/New_York'
+
+    def test_invalid_tz_env_falls_back_to_utc_with_warning(self, clean_env, monkeypatch, caplog):
+        monkeypatch.setenv('TZ', 'Not/AZone')
+        with caplog.at_level('WARNING'):
+            assert registry_default('notification_timezone') == 'UTC'
+        assert any('Not/AZone' in r.message for r in caplog.records)
+
+    def test_entries_without_a_validator_are_unaffected(self, clean_env, monkeypatch):
+        # Spot-check two existing env-backed entries: a bogus env value is
+        # still passed through verbatim, exactly as before the validator hook.
+        monkeypatch.setenv('WHISPER_MODEL', 'not-a-real-model')
+        assert registry_default('whisper_model') == 'not-a-real-model'
+        monkeypatch.setenv('OPENAI_BASE_URL', 'not-a-real-url')
+        assert registry_default('openai_base_url') == 'not-a-real-url'
 
 
 class TestShippedPromptsTrackTheDefault:

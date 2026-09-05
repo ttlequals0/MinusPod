@@ -23,6 +23,7 @@ from webhook_service import (
     _prepare_and_dispatch,
     _format_duration,
     _format_cost,
+    get_notification_timezone,
     load_webhooks,
     fire_event,
     fire_test_event,
@@ -87,6 +88,44 @@ class TestRenderTemplatePreview:
 # ---------------------------------------------------------------------------
 # Context building tests
 # ---------------------------------------------------------------------------
+
+class TestGetNotificationTimezone:
+    """get_notification_timezone reads through SETTINGS_REGISTRY (notification_timezone)."""
+
+    def test_valid_stored_value_wins_over_env(self, monkeypatch):
+        monkeypatch.setenv('TZ', 'Europe/London')
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = 'America/New_York'
+        assert get_notification_timezone(mock_db) == 'America/New_York'
+
+    def test_env_wins_over_default(self, monkeypatch):
+        monkeypatch.setenv('TZ', 'Europe/London')
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = None
+        assert get_notification_timezone(mock_db) == 'Europe/London'
+
+    def test_no_stored_value_no_env_defaults_to_utc(self, monkeypatch):
+        monkeypatch.delenv('TZ', raising=False)
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = None
+        assert get_notification_timezone(mock_db) == 'UTC'
+
+    def test_invalid_stored_value_falls_back_to_utc_without_raising(self, monkeypatch, caplog):
+        monkeypatch.delenv('TZ', raising=False)
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = 'Not/AZone'
+        with caplog.at_level('WARNING'):
+            assert get_notification_timezone(mock_db) == 'UTC'
+        assert any('Not/AZone' in r.message for r in caplog.records)
+
+    def test_invalid_env_value_falls_back_to_utc_with_warning(self, monkeypatch, caplog):
+        monkeypatch.setenv('TZ', 'Not/AZone')
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = None
+        with caplog.at_level('WARNING'):
+            assert get_notification_timezone(mock_db) == 'UTC'
+        assert any('Not/AZone' in r.message for r in caplog.records)
+
 
 class TestBuildContext:
 

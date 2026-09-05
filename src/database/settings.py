@@ -37,6 +37,7 @@ from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
     SECRET_SETTING_KEYS,
 )
+from utils.time import is_valid_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,10 @@ class SettingSpec:
                     while the row is still flagged is_default, so an install
                     picks up later improvements to shipped prompt text. A
                     user-edited row (is_default = 0) is never touched.
+    validator:      checked against the resolved `env` value only; a failing
+                    value is ignored (falls back to `default`) with one
+                    WARNING log naming the bad value. No effect on keys that
+                    don't set it.
     """
     default: str | None = None
     env: str | None = None
@@ -182,6 +187,7 @@ class SettingSpec:
     payload_kind: str = 'str'
     payload_factory: Callable[[], Any] | None = None
     refresh_default: bool = False
+    validator: Callable[[str], bool] | None = None
 
 
 SETTINGS_REGISTRY: dict[str, SettingSpec] = {
@@ -620,6 +626,14 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'differential_hold_min_seconds': SettingSpec(
         default='10', seeded=True, in_ad_reset=True,
         payload_key='differentialHoldMinSeconds', payload_kind='float'),
+
+    # -- Notifications --
+    # IANA zone for timestamp_local in webhook/email payloads. Resolves from
+    # the container TZ env var when it names a valid zone; an invalid TZ
+    # falls back to UTC with a warning rather than rejecting notifications.
+    'notification_timezone': SettingSpec(
+        default='UTC', env='TZ', validator=is_valid_timezone,
+        payload_key='notificationTimezone'),
 }
 
 # Secrets: reset clears the row so env-var fallback takes over. Only the
@@ -674,8 +688,15 @@ def registry_default(key: str) -> str | None:
         return spec.factory()
     if spec.env is not None:
         if spec.env_blank_is_unset:
-            return os.environ.get(spec.env) or spec.default
-        return os.environ.get(spec.env, spec.default)
+            raw = os.environ.get(spec.env) or spec.default
+        else:
+            raw = os.environ.get(spec.env, spec.default)
+        if spec.validator is not None and not spec.validator(raw):
+            logger.warning(
+                "Ignoring invalid %s=%r for setting %r; using default %r",
+                spec.env, raw, key, spec.default)
+            return spec.default
+        return raw
     return spec.default
 
 
