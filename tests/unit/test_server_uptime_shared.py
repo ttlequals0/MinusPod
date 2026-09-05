@@ -1,10 +1,6 @@
-"""Uptime is one value per server run, not one per gunicorn worker.
-
-Each worker imports src/api separately, so a worker-local start stamp made
-the Settings page flip between two uptimes once a worker respawned after an
-OOM kill. The shared status file holds one stamp per server run, keyed on
-the run owner so a respawn keeps it and a new container replaces it.
-"""
+"""Uptime is one value per server run, not one per gunicorn worker: a worker-local
+stamp flipped the Settings page between two uptimes when a worker respawned after
+an OOM kill. The shared status file holds one stamp per run, keyed on the owner."""
 import os
 import tempfile
 
@@ -15,7 +11,7 @@ from tests.app_bootstrap import bootstrap  # noqa: E402
 
 _test_data_dir = bootstrap('server_uptime_test_')
 
-from status_service import StatusService, STATUS_FILE  # noqa: E402
+from status_service import StatusService  # noqa: E402
 
 
 def _svc():
@@ -56,6 +52,6 @@ def test_stamp_earlier_than_stored_replaces_it():
 
 def test_missing_stamp_reads_as_none():
     svc = _svc()
-    if os.path.exists(STATUS_FILE):
-        os.remove(STATUS_FILE)
+    if os.path.exists(svc.status_file):
+        os.remove(svc.status_file)
     assert svc.get_server_start_time() is None

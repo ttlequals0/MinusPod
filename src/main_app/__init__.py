@@ -10,6 +10,7 @@ import sys
 import threading
 import uuid
 from utils.session_defaults import _default_session_cookie_secure
+from utils.paths import resolve_data_dir
 from pathlib import Path
 
 import defusedxml
@@ -295,16 +296,9 @@ if not os.environ.get('OPENAI_API_KEY') and os.environ.get('ANTHROPIC_API_KEY'):
     )
 
 
-# Gunicorn workers are independent processes, so an OS-level flock is
-# what keeps concurrent first-boot races from minting two different
-# keys. Without it, a stray second winner invalidates sessions held by
-# the first winner's cookies.
-_SECRET_KEY_LOCKFILE = Path(
-    os.environ.get('DATA_DIR')
-    or os.environ.get('DATA_PATH')
-    or os.environ.get('MINUSPOD_DATA_DIR')
-    or '/app/data'
-) / '.secret_key.lock'
+def _secret_key_lockfile_path() -> Path:
+    """Secret-key lockfile location, resolved fresh so a relocated data dir is honoured."""
+    return resolve_data_dir() / '.secret_key.lock'
 
 
 class SecretKeyUnavailableError(RuntimeError):
@@ -332,12 +326,13 @@ def get_or_create_secret_key():
     if secret_key:
         return secret_key
 
+    lockfile = _secret_key_lockfile_path()
     try:
-        _SECRET_KEY_LOCKFILE.parent.mkdir(parents=True, exist_ok=True)
+        lockfile.parent.mkdir(parents=True, exist_ok=True)
     except OSError:
         pass
     try:
-        lock_fd = os.open(str(_SECRET_KEY_LOCKFILE), os.O_CREAT | os.O_RDWR, 0o600)
+        lock_fd = os.open(str(lockfile), os.O_CREAT | os.O_RDWR, 0o600)
     except OSError as exc:
         logger.warning("Secret-key lockfile unavailable (%s); proceeding without flock", exc)
         lock_fd = None
@@ -420,7 +415,7 @@ def _try_become_background_leader() -> bool:
     Only one Gunicorn worker should run background tasks (RSS refresh,
     queue processor) to avoid SQLite write contention.
     """
-    lock_path = Path(os.getenv('DATA_DIR', '/app/data')) / '.background_leader.lock'
+    lock_path = resolve_data_dir() / '.background_leader.lock'
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock_file = open(lock_path, 'a')

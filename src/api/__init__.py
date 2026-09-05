@@ -183,12 +183,11 @@ def get_storage():
 def get_database():
     """Get database instance."""
     from database import Database
-    data_dir = (
-        os.environ.get('DATA_DIR')
-        or os.environ.get('DATA_PATH')
-        or os.environ.get('MINUSPOD_DATA_DIR')
-    )
-    return Database(data_dir) if data_dir else Database()
+    # Explicit None, not a bare call: several test modules rebind
+    # Database.__init__.__defaults__ to their own temp dir for the rest of
+    # the session, and a bare Database() would silently inherit that stale
+    # default instead of resolving the current data dir.
+    return Database(None)
 
 
 def get_feed_auth_key(db):

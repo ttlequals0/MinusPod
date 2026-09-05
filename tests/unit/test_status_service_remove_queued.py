@@ -4,8 +4,6 @@ Regression: clicking Cancel on a queued episode returned 400 because the
 endpoint only accepted status='processing'. The dequeue helper added here
 gives the endpoint a way to drop a queued episode from the display queue.
 """
-import os
-
 import pytest
 
 
@@ -19,10 +17,7 @@ def status_service(temp_dir, monkeypatch):
     import status_service as status_service_mod
     monkeypatch.setattr(status_service_mod, '_get_soft_timeout', lambda: 3600)
     status_service_mod.StatusService._instance = None
-    monkeypatch.setattr(
-        status_service_mod, 'STATUS_FILE',
-        os.path.join(temp_dir, 'processing_status.json'),
-    )
+    monkeypatch.setenv('DATA_DIR', temp_dir)
     ss = status_service_mod.StatusService()
     yield ss
     status_service_mod.StatusService._instance = None

@@ -18,15 +18,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from utils.atomic_json import write_json_atomic
+from utils.paths import resolve_data_dir
 
-# Status file location - shared across all workers
-STATUS_FILE = os.path.join(
-    os.environ.get('DATA_DIR')
-    or os.environ.get('DATA_PATH')
-    or os.environ.get('MINUSPOD_DATA_DIR')
-    or '/app/data',
-    'processing_status.json'
-)
+
+def _status_file_path() -> str:
+    """Shared status file location, resolved fresh so a relocated data dir is honoured."""
+    return str(resolve_data_dir() / 'processing_status.json')
 
 # Staleness thresholds resolved from settings at read time.
 from processing_timeouts import get_soft_timeout as _get_soft_timeout
@@ -88,8 +85,9 @@ class StatusService:
         self._subscribers_lock = threading.Lock()
         self._subscribers: list[callable] = []
         self._lock_warned = False
+        self.status_file = _status_file_path()
         # Ensure status file directory exists
-        os.makedirs(os.path.dirname(STATUS_FILE), exist_ok=True)
+        os.makedirs(os.path.dirname(self.status_file), exist_ok=True)
 
     @contextmanager
     def _status_transaction(self):
@@ -98,12 +96,12 @@ class StatusService:
         threading.Lock covers only this process, so without the flock two
         workers interleave and one update is silently lost.
         """
-        # Lock path derives from STATUS_FILE so a relocated status file, as in
+        # Lock path derives from self.status_file so a relocated status file, as in
         # tests, cannot end up guarded by a lock somewhere else.
         with self._file_lock:
             fd = None
             try:
-                fd = os.open(STATUS_FILE + '.lock', os.O_CREAT | os.O_RDWR, 0o644)
+                fd = os.open(self.status_file + '.lock', os.O_CREAT | os.O_RDWR, 0o644)
                 fcntl.flock(fd, fcntl.LOCK_EX)
             except OSError as e:
                 # Some network mounts refuse flock. Degrade rather than kill a
@@ -130,11 +128,11 @@ class StatusService:
         is one-shot, and without it every later read logs the same warning.
         """
         try:
-            if not os.path.exists(STATUS_FILE):
+            if not os.path.exists(self.status_file):
                 return self._empty_status()
 
             # No flock here: every caller already holds the sidecar lock.
-            with open(STATUS_FILE, 'r') as f:
+            with open(self.status_file, 'r') as f:
                 content = f.read()
             if not content:
                 return self._empty_status()
@@ -203,7 +201,7 @@ class StatusService:
 
     def _write_status_file(self, status: dict):
         """Write status to the shared file. Best effort, never raises."""
-        write_json_atomic(STATUS_FILE, status)
+        write_json_atomic(self.status_file, status)
 
     def get_server_start_time(self) -> float | None:
         """Shared server start time, or None when it was never recorded."""
