@@ -12,6 +12,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from database import schema  # noqa: E402
+
 GATE = 'collapse_duplicate_ad_markers'
 
 
@@ -245,3 +247,22 @@ def test_an_unparseable_row_does_not_abort_the_prefilter(temp_db):
         "SELECT ad_markers_json FROM episode_details WHERE episode_id = ?",
         (bad_db_id,)).fetchone()
     assert row['ad_markers_json'] == '{not json'
+
+
+def test_a_run_spanning_several_batches_folds_every_row(temp_db, monkeypatch):
+    """One page per episode, so the writes of one page land before the next is
+    read: no row may be skipped, and the gate still closes the run."""
+    monkeypatch.setattr(schema, '_COLLAPSE_BATCH_ROWS', 1)
+    seeded = [_seed(temp_db, [_keep(), _held()], slug=f'collapse-batch-{i}',
+                    episode_id=f'batched00000{i}', pending_review_count=1)
+              for i in range(3)]
+
+    conn = _run(temp_db)
+
+    for slug, eid in seeded:
+        markers, pending = _stored(temp_db, slug, eid)
+        assert len(markers) == 1
+        assert markers[0]['action_applied'] == 'keep'
+        assert pending == 0
+    assert conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone() is not None

@@ -248,3 +248,21 @@ def test_index_episodes_chunks_beyond_the_sql_variable_limit():
     for ep_id in real_ids:
         assert any(e['episodeId'] == ep_id
                    for e in db.search_grouped('Perihelion')['episodes'])
+
+
+def test_guid_change_moves_the_index_row_to_the_new_id():
+    """A discovered episode whose feed reissues it under a new GUID keeps one index
+    row, under the new id: the old row would link to an episode that no longer exists."""
+    slug = _feed('guid-change')
+    old_id, new_id = _eid(), _eid()
+    ep = _episode(old_id, title='Peregrine Almanac', published='2026-02-02T00:00:00Z')
+    db.bulk_upsert_discovered_episodes(slug, [ep])
+    db.bulk_upsert_discovered_episodes(slug, [dict(ep, id=new_id)])
+
+    conn = db.get_connection()
+    ids = [r['content_id'] for r in conn.execute(
+        "SELECT content_id FROM search_index WHERE content_type = 'episode' "
+        "AND podcast_slug = ? AND content_id IN (?, ?)", (slug, old_id, new_id)).fetchall()]
+    assert ids == [new_id]
+    assert any(e['episodeId'] == new_id
+               for e in db.search_grouped('Peregrine')['episodes'])

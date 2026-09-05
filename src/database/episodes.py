@@ -1032,7 +1032,7 @@ class EpisodeMixin:
             newly_inserted_pairs = []
             for ep in episodes:
                 row_inserted, row_skipped = self._upsert_one_discovered_episode(
-                    conn, podcast_id, ep, existing_ids)
+                    conn, podcast_id, slug, ep, existing_ids)
                 inserted += row_inserted
                 skipped += row_skipped
                 if row_inserted:
@@ -1050,7 +1050,7 @@ class EpisodeMixin:
             )
         return inserted
 
-    def _upsert_one_discovered_episode(self, conn, podcast_id, ep, existing_ids):
+    def _upsert_one_discovered_episode(self, conn, podcast_id, slug, ep, existing_ids):
         """Upsert one discovered episode. Returns an (inserted, skipped) delta.
 
         Lock errors propagate so the whole batch fails and the caller retries the
@@ -1077,6 +1077,10 @@ class EpisodeMixin:
                                WHERE podcast_id = ? AND episode_id = ?""",
                             (ep['id'], podcast_id, existing['episode_id'])
                         )
+                        # The row moved to a new id, so its index row has to move with it:
+                        # the batched reindex below only covers newly inserted rows.
+                        self._delete_indexed_episodes(conn, [(existing['episode_id'], slug)])
+                        self.index_episodes([(ep['id'], slug)], conn=conn)
                     current_id = ep['id'] if existing['status'] == 'discovered' else existing['episode_id']
                     # Backfill episode_number on existing row if missing
                     if ep.get('episode_number') and not existing['episode_number']:

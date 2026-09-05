@@ -11,8 +11,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Rows read per fetch by the duplicate-marker collapse, so a large library
-# does not land in memory at once inside the startup schema lock.
+# Rows read per page by the duplicate-marker collapse, so a large library does
+# not land in memory at once inside the startup schema lock.
 _COLLAPSE_BATCH_ROWS = 500
 
 
@@ -3091,20 +3091,25 @@ class SchemaMixin:
         if gate is not None:
             return
         try:
-            # A row holding fewer than two markers cannot hold a pair, and an
-            # unparseable one has nothing to fold, so neither is read at all.
-            cursor = conn.execute(
-                "SELECT episode_id, ad_markers_json FROM episode_details "
-                "WHERE ad_markers_json IS NOT NULL AND (CASE WHEN "
-                "json_valid(ad_markers_json) "
-                "THEN json_array_length(ad_markers_json) ELSE 0 END) > 1"
-            )
             markers_folded = 0
             episodes_touched = 0
+            last_id = 0
             while True:
-                batch = cursor.fetchmany(_COLLAPSE_BATCH_ROWS)
+                # Paged by key so no cursor is open during the writes below: a
+                # row omitted from a SELECT stepped while its table is written
+                # would never be revisited, since the gate lands in this run.
+                # json_valid guards json_array_length, which raises on bad JSON.
+                batch = conn.execute(
+                    "SELECT episode_id, ad_markers_json FROM episode_details "
+                    "WHERE episode_id > ? AND ad_markers_json IS NOT NULL "
+                    "AND (CASE WHEN json_valid(ad_markers_json) "
+                    "THEN json_array_length(ad_markers_json) ELSE 0 END) > 1 "
+                    "ORDER BY episode_id LIMIT ?",
+                    (last_id, _COLLAPSE_BATCH_ROWS)
+                ).fetchall()
                 if not batch:
                     break
+                last_id = batch[-1]['episode_id']
                 for row in batch:
                     # Contained per row: one malformed marker must not block the
                     # cleanup for every other episode on every boot.
