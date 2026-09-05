@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- Focusing a field on a phone no longer makes iOS Safari zoom the page. Mobile Safari zooms any input under 16px, so every input, select and textarea is now 16px below the small breakpoint and unchanged above it. One stylesheet rule covers them all, rather than a class per field.
+- After a deploy, the app reloads itself once the new service worker takes control, instead of running the previously cached bundle until the next visit. That stale bundle is what produced "The type parameter was removed" on search after upgrading to 2.95.2.
+
 ## [2.95.2] - 2026-09-04
 
 ### Added

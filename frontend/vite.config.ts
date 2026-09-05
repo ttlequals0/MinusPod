@@ -10,6 +10,8 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // main.tsx registers via virtual:pwa-register so the page reloads on update; skip the plain injected script.
+      injectRegister: null,
       base: '/ui/',
       scope: '/ui/',
       workbox: {
