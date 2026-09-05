@@ -26,7 +26,7 @@ release notes.
 - The Copy Feed URL control on a feed's detail page is icon-only on mobile, so Reprocess, Refresh, and Delete stay on one row instead of wrapping.
 - Per-feed detection notes now save with an explicit Save button and a Clear button, replacing the old save-on-blur. A failed save is shown as an error instead of failing silently, and a draft in progress is no longer overwritten by a background refetch.
 - The notification timezone setting now appears in the general `GET /settings` response and follows the same reset path as other settings, instead of being handled on its own. An invalid stored or `TZ` value falls back to UTC with a logged warning instead of being accepted silently.
-- Searching a common word is about twice as fast on a large index. Each of the five result groups now narrows its full-text match by content type, instead of filtering the wrong types out afterwards. On a 4,000-episode index with 1,200 transcripts, a one-word search dropped from 55 ms to 25 ms. Results and their order are unchanged. A result whose description matched now shows the description snippet rather than repeating the title.
+- Searching a common word is about twice as fast on a large index. Each of the five result groups now narrows its full-text match by content type, so the shows, patterns and sponsors groups no longer walk the episode postings. Results and their order are unchanged. A result whose description matched now shows the description snippet rather than repeating the title.
 
 ### Fixed
 

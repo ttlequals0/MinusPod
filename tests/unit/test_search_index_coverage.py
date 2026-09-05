@@ -20,8 +20,10 @@ _counter = [0]
 
 
 def _eid() -> str:
+    # 'c' prefix keeps this module's ids disjoint from test_search_grouped's,
+    # which writes through get_database() and may land in this module's DB.
     _counter[0] += 1
-    return f"{_counter[0]:012x}"
+    return f"c{_counter[0]:011x}"
 
 
 def _episode(ep_id, title=None, description=None, published='2026-01-01T00:00:00Z'):

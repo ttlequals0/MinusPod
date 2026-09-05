@@ -18,8 +18,11 @@ _counter = [0]
 
 
 def _eid() -> str:
+    # 'a' prefix keeps this module's ids disjoint from test_search_index_coverage's:
+    # test_api_aliases_processed_status_to_completed writes through get_database(),
+    # which after collection may be that module's Database singleton.
     _counter[0] += 1
-    return f"{_counter[0]:012x}"
+    return f"a{_counter[0]:011x}"
 
 
 def _feed(slug, title='The Daily Tech Show'):
@@ -111,22 +114,6 @@ def test_groups_are_independent():
     assert result['transcripts'] == []
 
 
-def test_one_failing_group_does_not_blank_the_others(monkeypatch):
-    show_slug = _feed('isolation-show-zorblat', title='Zorblat Network')
-    ep_slug = _feed('isolation-episode-zorblat')
-    ep_id = _eid()
-    db.upsert_episode(ep_slug, ep_id, title='Zorblat Marmalade Hour')
-
-    def boom(*args, **kwargs):
-        raise RuntimeError('group failure')
-
-    monkeypatch.setattr(type(db), '_search_shows', boom)
-    result = db.search_grouped('Zorblat')
-    assert result['shows'] == []
-    assert any(e['episodeId'] == ep_id for e in result['episodes'])
-    assert not any(s['slug'] == show_slug for s in result['shows'])
-
-
 def test_show_title_substring_like_pass():
     slug = _feed('like-substring', title='Watchdog Weekly')
     result = db.search_grouped('atchdog')
@@ -202,3 +189,50 @@ def test_sponsors_group_matches_after_rebuild():
 def test_grouped_response_always_has_five_keys():
     result = db.search_grouped('an-unmatched-query-xyz')
     assert set(result.keys()) == {'shows', 'episodes', 'transcripts', 'patterns', 'sponsors'}
+
+
+def test_one_failing_group_does_not_blank_the_other_four(monkeypatch):
+    _feed('isolation-show-zorblat', title='Zorblat Network')
+    ep_slug = _feed('isolation-episode-zorblat')
+    ep_id = _eid()
+    db.upsert_episode(ep_slug, ep_id, title='Zorblat Marmalade Hour')
+    db.save_episode_details(ep_slug, ep_id, transcript_text='the host says zorblat repeatedly')
+    sponsor_id = db.create_known_sponsor('Zorblat Supply Co')
+    db.create_ad_pattern('global', text_template='this episode is brought to you by zorblat',
+                         sponsor_id=sponsor_id)
+    db.rebuild_search_index()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError('group failure')
+
+    monkeypatch.setattr(type(db), '_search_shows', boom)
+    result = db.search_grouped('Zorblat')
+    assert result['shows'] == []
+    assert any(e['episodeId'] == ep_id for e in result['episodes'])
+    assert any(t['episodeId'] == ep_id for t in result['transcripts'])
+    assert any(p['sponsor'] == 'Zorblat Supply Co' for p in result['patterns'])
+    assert any(sp['name'] == 'Zorblat Supply Co' for sp in result['sponsors'])
+
+
+def test_content_type_filter_does_not_reweight_show_ranking():
+    # bm25 divides a term's contribution by the row's length, so scoring the
+    # content_type term favours the shorter row and can invert a pair. The
+    # denser-but-longer row must stay ahead of the short one.
+    short = _feed('rank-alpha-short', title='Alphacorn')
+    long_ = _feed('rank-alpha-long', title='Alphacorn Alphacorn Alphacorn Alphacorn')
+    db.update_podcast(long_, description='filler word here ' * 5)
+    db.rebuild_search_index()
+    slugs = [s['slug'] for s in db.search_grouped('Alphacorn')['shows']]
+    assert slugs.index(long_) < slugs.index(short)
+
+
+def test_literal_mark_tag_in_a_description_is_not_read_as_a_highlight():
+    # The description is checked before the title and holds a literal <mark> tag
+    # without matching, so a substring test for "<mark>" would return it unhighlighted.
+    slug = _feed('literal-mark-tag')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, title='Flimflammery Hour',
+                      description='see <mark>the notes</mark> for details')
+    hit = next(e for e in db.search_grouped('flimflammery')['episodes']
+               if e['episodeId'] == ep_id)
+    assert '<mark>Flimflammery</mark>' in hit['snippet']
