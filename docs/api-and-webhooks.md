@@ -248,6 +248,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `hold_until` | string | The provider's reset time; the queue claims no new work until then |
+| `hold_until_local` | string | The same reset time in the notification_timezone setting, with UTC offset |
 | `ttl_hours` | int | Hours a held episode waits before it expires and fails |
 | `error_message` | string | The 429 response that triggered the hold |
 | `slug` | string | Feed slug of the episode that hit the limit |
@@ -451,6 +452,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "timestamp": "2026-04-12T00:15:42Z",
   "timestamp_local": "2026-04-12T00:15:42+00:00",
   "hold_until": "2026-01-01T12:30:00Z",
+  "hold_until_local": "2026-01-01T12:30:00+00:00",
   "ttl_hours": 24,
   "error_message": "rate_limit_exceeded: retry after 900 seconds",
   "slug": "my-podcast",

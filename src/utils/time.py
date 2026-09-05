@@ -34,6 +34,18 @@ def local_now_iso(tz_name) -> str:
     return datetime.now(tz).isoformat(timespec='seconds')
 
 
+def local_iso(value, tz_name) -> str | None:
+    """ISO 8601 UTC string rendered in tz_name with its UTC offset; None if value does not parse."""
+    dt = parse_iso_utc(value)
+    if dt is None:
+        return None
+    try:
+        tz = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError, TypeError):
+        tz = timezone.utc
+    return dt.astimezone(tz).isoformat(timespec='seconds')
+
+
 def epoch_to_iso(ts) -> str | None:
     """Epoch seconds as an ISO 8601 UTC string; None for falsy input."""
     if not ts:

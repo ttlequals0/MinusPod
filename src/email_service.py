@@ -244,9 +244,10 @@ def _fmt_update_available(ctx):
 
 
 def _fmt_queue_held(ctx):
-    subject = f"[MinusPod] Queue Held until {_value(ctx.get('hold_until'))}"
+    held_until = ctx.get('hold_until_local') or ctx.get('hold_until')
+    subject = f"[MinusPod] Queue Held until {_value(held_until)}"
     rows = [
-        ('Held until', _value(ctx.get('hold_until'))),
+        ('Held until', _value(held_until)),
         ('Hold TTL (hours)', _value(ctx.get('ttl_hours'))),
         ('Tripped by', _episode_ref(ctx)),
         ('Error', _value(ctx.get('error_message'))),

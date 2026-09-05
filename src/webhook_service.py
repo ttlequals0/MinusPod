@@ -17,7 +17,7 @@ from database import Database
 from database.settings import registry_current_value, registry_default
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
-from utils.time import format_duration, utc_now_iso, local_now_iso
+from utils.time import format_duration, utc_now_iso, local_now_iso, local_iso
 from utils.url import SSRFError
 import email_service
 
@@ -162,6 +162,7 @@ _ALERT_SAMPLE_CONTEXTS = {
     },
     EVENT_QUEUE_HELD: {
         'hold_until': '2026-01-01T12:30:00Z',
+        'hold_until_local': '2026-01-01T12:30:00+00:00',
         'ttl_hours': 24,
         'error_message': 'rate_limit_exceeded: retry after 900 seconds',
         'slug': 'my-podcast',
@@ -526,6 +527,7 @@ def fire_queue_held_event(hold_until, ttl_hours, error_message, slug, episode_id
     """Fire when a provider 429 pauses the queue (#696 hold)."""
     return _fire_alert_event(EVENT_QUEUE_HELD, {
         'hold_until': hold_until,
+        'hold_until_local': local_iso(hold_until, get_notification_timezone()),
         'ttl_hours': ttl_hours,
         'error_message': str(error_message),
         'slug': slug,

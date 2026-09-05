@@ -726,3 +726,16 @@ class TestQueueAndServiceAlerts:
         contexts = [c[0][1] for c in mock_dispatch.call_args_list]
         assert contexts[0]['requeued'] == 3 and contexts[0]['held_since'] == '2026-09-03T17:00:00Z'
         assert contexts[1]['service'] == 'whisper' and contexts[1]['requeued'] == 2
+
+
+def test_queue_held_event_carries_hold_until_local(monkeypatch):
+    import webhook_service
+    from utils.time import local_iso
+    monkeypatch.setattr(webhook_service, 'get_notification_timezone', lambda db=None: 'America/New_York')
+    captured = {}
+    monkeypatch.setattr(webhook_service, '_fire_alert_event', lambda event, ctx, note: captured.update(ctx))
+    webhook_service.fire_queue_held_event('2026-01-01T12:30:00Z', 24, 'rate limited', 'my-podcast', 'a1b2c3d4e5f6', 'My Podcast')
+    assert captured['hold_until'] == '2026-01-01T12:30:00Z'
+    assert captured['hold_until_local'] == '2026-01-01T07:30:00-05:00'
+    assert local_iso('not a date', 'UTC') is None
+    assert local_iso('2026-07-01T12:00:00Z', 'No/Such_Zone') == '2026-07-01T12:00:00+00:00'
