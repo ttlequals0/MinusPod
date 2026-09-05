@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import SearchResults, { UnifiedSearchGroups } from './SearchResults';
+import SearchResults, { buildSearchResultRows, UnifiedSearchGroups } from './SearchResults';
 
 const results: UnifiedSearchGroups = {
   shows: [{ slug: 'example-podcast', title: 'The Daily Tech Show', snippet: 'mentions <mark>batteries</mark>' }],
@@ -16,12 +16,14 @@ const results: UnifiedSearchGroups = {
   ],
 };
 
+const rows = buildSearchResultRows(results);
+
 function renderResults(activeIndex = 0) {
   const onHover = vi.fn();
   const onSelect = vi.fn();
   render(
     <ul role="listbox" aria-label="Results">
-      <SearchResults results={results} activeIndex={activeIndex} onHover={onHover} onSelect={onSelect} />
+      <SearchResults rows={rows} activeIndex={activeIndex} onHover={onHover} onSelect={onSelect} />
     </ul>,
   );
   return { onHover, onSelect };
@@ -48,7 +50,7 @@ describe('SearchResults', () => {
   it('renders a <mark> in a snippet as an element, not escaped text', () => {
     const { container } = render(
       <ul role="listbox">
-        <SearchResults results={results} activeIndex={0} onHover={vi.fn()} onSelect={vi.fn()} />
+        <SearchResults rows={rows} activeIndex={0} onHover={vi.fn()} onSelect={vi.fn()} />
       </ul>,
     );
     const marks = container.querySelectorAll('mark');

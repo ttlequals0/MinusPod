@@ -10,7 +10,6 @@ import SearchResults from '../components/SearchResults';
 import type { SearchResultRow } from '../components/SearchResults';
 import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
-import { useOutsideClick } from '../hooks/useOutsideClick';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import { formatDateTime } from '../utils/format';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
@@ -79,16 +78,11 @@ function Dashboard() {
   const sortedFeeds = useMemo(() => (feeds ? sortFeeds(feeds, sortBy) : []), [feeds, sortBy]);
 
   const navigate = useNavigate();
-  const searchRootRef = useRef<HTMLDivElement>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const { query, setQuery, debounced, ready, results, rows, current, setActive, onKeyDown } = useUnifiedSearch('');
+  const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown, open, close } = useUnifiedSearch('');
 
-  const goToResult = (row: SearchResultRow) => { setSearchOpen(false); navigate(row.to); };
+  const goToResult = (row: SearchResultRow) => { close(); navigate(row.to); };
 
-  // Close on an outside click/tap, same pattern DropdownMenu uses for its popover.
-  useOutsideClick(searchRootRef, searchOpen, () => setSearchOpen(false));
-
-  const showSearchPanel = searchOpen && query.length > 0;
+  const showSearchPanel = open && query.length > 0;
 
   if (isLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -220,10 +214,10 @@ function Dashboard() {
 
       <div
         className="relative mb-6"
-        ref={searchRootRef}
         onBlur={(e) => {
-          // Tab away closes the panel; the document listener above covers clicks.
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setSearchOpen(false);
+          // A tap or click outside always blurs the input first (relatedTarget
+          // lands outside this container), so this alone covers both cases.
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) close();
         }}
       >
         <div className="relative">
@@ -240,13 +234,10 @@ function Dashboard() {
             autoComplete="off"
             spellCheck={false}
             value={query}
-            onFocus={() => setSearchOpen(true)}
-            onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
+            onFocus={() => setQuery(query)}
+            onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') { setSearchOpen(false); return; }
-              // Focus never leaves the input on Escape, so onFocus won't refire to
-              // reopen it; gate arrows/Enter on the panel actually being visible.
-              if (!showSearchPanel) return;
+              if (e.key === 'Escape') { close(); return; }
               onKeyDown(e, goToResult);
             }}
             placeholder="Search shows, episodes and transcripts"
@@ -265,7 +256,7 @@ function Dashboard() {
             onMouseDown={(e) => e.preventDefault()}
           >
             <ul id="dashboard-search-results" role="listbox" aria-label="Results" className="max-h-[60vh] overflow-y-auto py-1">
-              <SearchResults results={results} activeIndex={current} onHover={setActive} onSelect={goToResult} ready={ready} />
+              <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={goToResult} ready={ready} />
             </ul>
             <div className="flex items-center justify-between gap-2 border-t border-border bg-secondary/50 px-4 py-2 text-sm">
               <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">

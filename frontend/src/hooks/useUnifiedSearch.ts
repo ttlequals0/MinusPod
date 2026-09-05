@@ -18,6 +18,7 @@ export function useUnifiedSearch(seed: string, limit = 8) {
   const [query, setQueryValue] = useState(seed);
   const [debounced, setDebounced] = useState(seed);
   const [active, setActive] = useState(0);
+  const [open, setOpen] = useState(true);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query), SEARCH_DEBOUNCE_MS);
@@ -44,9 +45,11 @@ export function useUnifiedSearch(seed: string, limit = 8) {
     if (id) document.getElementById(id)?.scrollIntoView?.({ block: 'nearest' });
   }, [current, rows]);
 
-  const setQuery = (value: string) => { setQueryValue(value); setActive(0); };
+  const setQuery = (value: string) => { setQueryValue(value); setActive(0); setOpen(true); };
+  const close = () => { setOpen(false); setActive(0); };
 
   const onKeyDown = (e: KeyboardEvent, onSelect: (row: SearchResultRow) => void) => {
+    if (!open) return;
     if (e.nativeEvent.isComposing) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -58,5 +61,5 @@ export function useUnifiedSearch(seed: string, limit = 8) {
     }
   };
 
-  return { query, setQuery, debounced, ready, results, rows, current, setActive, onKeyDown };
+  return { query, setQuery, debounced, ready, results, rows, current, setActive, onKeyDown, open, close };
 }

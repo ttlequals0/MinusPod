@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment } from 'react';
 import type { SearchEpisodeResult, SearchShowResult, SearchTranscriptResult } from '../api/search';
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
 import { formatDate, formatTimestamp } from '../utils/format';
@@ -31,8 +31,6 @@ const GROUP_LABELS: Record<SearchResultGroup, string> = {
   transcripts: 'In transcripts',
 };
 
-// Single row order for both rendering here and caller-side keyboard indexing
-// (callers index into rows built by this same function to clamp/select).
 export function buildSearchResultRows(results: UnifiedSearchGroups): SearchResultRow[] {
   return [
     ...results.shows.map((r) => ({
@@ -52,7 +50,7 @@ export function buildSearchResultRows(results: UnifiedSearchGroups): SearchResul
 }
 
 interface SearchResultsProps {
-  results: UnifiedSearchGroups;
+  rows: SearchResultRow[];
   activeIndex: number;
   // Mouse move onto a row: caller sets it active, matching the palette's existing model.
   onHover: (index: number) => void;
@@ -68,9 +66,7 @@ const NO_MATCHES_MESSAGE = 'No shows, episodes or transcripts match.';
 // Renders Shows/Episodes/In transcripts as <li role="option"> rows (plus
 // role="presentation" group headers and the two shared empty-state messages),
 // meant to sit inside a caller-supplied role="listbox". No layout container of its own.
-function SearchResults({ results, activeIndex, onHover, onSelect, ready = true }: SearchResultsProps) {
-  const rows = useMemo(() => buildSearchResultRows(results), [results]);
-
+function SearchResults({ rows, activeIndex, onHover, onSelect, ready = true }: SearchResultsProps) {
   if (!ready) {
     return <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">{HINT_MESSAGE}</li>;
   }
