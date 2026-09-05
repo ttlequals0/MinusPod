@@ -3344,9 +3344,16 @@ paths:
             Comma-separated subset of groups to compute. An unrequested
             group is still present in the response as an empty array
             rather than omitted. A blank or omitted value means all five.
+            Names are case-sensitive, empty tokens from a stray comma are
+            ignored, and duplicates are tolerated.
+          style: form
+          explode: false
           schema:
-            type: string
-            default: shows,episodes,transcripts,patterns,sponsors
+            type: array
+            items:
+              type: string
+              enum: [shows, episodes, transcripts, patterns, sponsors]
+            default: [shows, episodes, transcripts, patterns, sponsors]
           example: shows,episodes,transcripts
       responses:
         '200':

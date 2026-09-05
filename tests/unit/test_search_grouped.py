@@ -230,9 +230,14 @@ def test_content_type_filter_does_not_reweight_show_ranking():
 
 
 def test_groups_param_skips_unrequested_group_functions(monkeypatch):
+    orig_shows = type(db)._search_shows
     orig_patterns = type(db)._search_patterns
     orig_sponsors = type(db)._search_sponsors
-    calls = {'patterns': 0, 'sponsors': 0}
+    calls = {'shows': 0, 'patterns': 0, 'sponsors': 0}
+
+    def counting_shows(self, *a, **kw):
+        calls['shows'] += 1
+        return orig_shows(self, *a, **kw)
 
     def counting_patterns(self, *a, **kw):
         calls['patterns'] += 1
@@ -242,11 +247,37 @@ def test_groups_param_skips_unrequested_group_functions(monkeypatch):
         calls['sponsors'] += 1
         return orig_sponsors(self, *a, **kw)
 
+    monkeypatch.setattr(type(db), '_search_shows', counting_shows)
     monkeypatch.setattr(type(db), '_search_patterns', counting_patterns)
     monkeypatch.setattr(type(db), '_search_sponsors', counting_sponsors)
     result = db.search_grouped('Zorblat', groups=['shows', 'episodes', 'transcripts'])
-    assert calls == {'patterns': 0, 'sponsors': 0}
+    assert calls == {'shows': 1, 'patterns': 0, 'sponsors': 0}
     assert result['patterns'] == [] and result['sponsors'] == []
+
+    # A duplicated name collapses to one call: groups=shows,shows behaves as groups=shows.
+    calls['shows'] = 0
+    db.search_grouped('Zorblat', groups=['shows', 'shows'])
+    assert calls['shows'] == 1
+
+
+def test_groups_param_empty_token_between_commas_is_ignored():
+    client = _authed_client()
+    resp = client.get('/api/v1/search?q=test&groups=shows,,episodes')
+    assert resp.status_code == 200
+
+
+def test_groups_param_is_case_sensitive():
+    client = _authed_client()
+    resp = client.get('/api/v1/search?q=test&groups=Shows')
+    assert resp.status_code == 400 and 'Shows' in resp.get_json()['error']
+
+
+def test_groups_param_wire_format_is_one_comma_joined_value():
+    # openapi's style: form, explode: false means a single "?groups=a,b,c" query value,
+    # not repeated "?groups=a&groups=b&groups=c"; confirm Flask still sees it that way.
+    client = _authed_client()
+    resp = client.get('/api/v1/search?q=test&groups=shows,episodes,transcripts')
+    assert resp.status_code == 200
 
 
 def test_groups_param_requested_groups_still_compute():
