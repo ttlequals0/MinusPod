@@ -141,6 +141,14 @@ class SearchMixin:
             logger.error(f"Batch index failed for {len(pairs)} episode(s): {e}")
             return 0
 
+    def _pick_snippet(self, row, *keys):
+        """First of the named snippet columns that carries a highlight, sanitized."""
+        for key in keys:
+            value = row[key]
+            if value and '<mark>' in value:
+                return self._sanitize_snippet(value)
+        return None
+
     @staticmethod
     def _sanitize_snippet(snippet):
         """Sanitize FTS5 snippet HTML, allowing only <mark> highlight tags."""
@@ -235,6 +243,8 @@ class SearchMixin:
         like_pattern = f'%{escaped}%'
         like_prefix = f'{escaped}%'
 
+        # Each group's MATCH repeats content_type so FTS5 intersects doclists instead of
+        # scanning every posting for the term and filtering by content_type afterwards.
         # Each group is independent: one group's unexpected failure should not blank the others.
         groups = {
             'shows': lambda: self._search_shows(conn, fts_query, like_pattern, like_prefix, limit),
@@ -258,6 +268,9 @@ class SearchMixin:
         tokens = clean_query.split()
         quoted = [f'"{t}"' for t in tokens]
         quoted[-1] += '*'
+        # One token makes the phrase branch identical to the term branch; skip the duplicate OR.
+        if len(tokens) == 1:
+            return quoted[0]
         return f'"{clean_query}"* OR {" AND ".join(quoted)}'
 
     @staticmethod
@@ -278,10 +291,12 @@ class SearchMixin:
         """Shows: FTS over title+description, plus a title LIKE pass for substrings."""
         rows = conn.execute("""
             SELECT si.content_id AS slug, COALESCE(p.title_override, p.title) AS title,
-                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+                   snippet(search_index, 3, '<mark>', '</mark>', '...', 64) AS title_snippet,
+                   snippet(search_index, 4, '<mark>', '</mark>', '...', 64) AS body_snippet
             FROM search_index si
             JOIN podcasts p ON p.slug = si.content_id
-            WHERE si.content_type = 'podcast' AND search_index MATCH '{title body}:(' || ? || ')'
+            WHERE si.content_type = 'podcast'
+              AND search_index MATCH 'content_type:podcast AND {title body}:(' || ? || ')'
             ORDER BY bm25(search_index)
             LIMIT ?
         """, (fts_query, limit)).fetchall()
@@ -298,7 +313,7 @@ class SearchMixin:
         return self._merge_fts_and_like(
             rows, key_fn=lambda r: r['slug'],
             row_builder=lambda r: {'slug': r['slug'], 'title': r['title'],
-                                    'snippet': self._sanitize_snippet(r['snippet'])},
+                                    'snippet': self._pick_snippet(r, 'body_snippet', 'title_snippet')},
             like_fetch=like_fetch,
             like_row_builder=lambda r: {'slug': r['slug'], 'title': r['title'], 'snippet': None},
             limit=limit)
@@ -309,12 +324,13 @@ class SearchMixin:
             SELECT si.content_id AS episode_id, p.slug AS feed_slug,
                    COALESCE(p.title_override, p.title) AS feed_title,
                    e.title AS title, e.status AS status, e.published_at AS publish_date,
-                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+                   snippet(search_index, 3, '<mark>', '</mark>', '...', 64) AS title_snippet,
+                   snippet(search_index, 5, '<mark>', '</mark>', '...', 64) AS meta_snippet
             FROM search_index si
             JOIN podcasts p ON p.slug = si.podcast_slug
             JOIN episodes e ON e.episode_id = si.content_id AND e.podcast_id = p.id
             WHERE si.content_type = 'episode'
-              AND search_index MATCH '{title metadata}:(' || ? || ')'
+              AND search_index MATCH 'content_type:episode AND {title metadata}:(' || ? || ')'
             ORDER BY bm25(search_index)
             LIMIT ?
         """, (fts_query, limit)).fetchall()
@@ -333,7 +349,7 @@ class SearchMixin:
         def row_builder(r):
             return {'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'], 'episodeId': r['episode_id'],
                     'title': r['title'], 'status': r['status'], 'publishDate': r['publish_date'],
-                    'snippet': self._sanitize_snippet(r['snippet'])}
+                    'snippet': self._pick_snippet(r, 'meta_snippet', 'title_snippet')}
 
         def like_row_builder(r):
             return {'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'], 'episodeId': r['episode_id'],
@@ -349,42 +365,46 @@ class SearchMixin:
         """Transcripts: body-only word matches, capped at 3 episodes; timestamp is always None (no VTT offset)."""
         rows = conn.execute("""
             SELECT si.content_id AS episode_id, si.podcast_slug AS feed_slug, si.title AS title,
-                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+                   snippet(search_index, 4, '<mark>', '</mark>', '...', 64) AS body_snippet
             FROM search_index si
-            WHERE si.content_type = 'episode' AND search_index MATCH 'body:(' || ? || ')'
+            WHERE si.content_type = 'episode' AND search_index MATCH 'content_type:episode AND body:(' || ? || ')'
             ORDER BY bm25(search_index)
             LIMIT 3
         """, (fts_query,)).fetchall()
         return [{
             'feedSlug': r['feed_slug'], 'episodeId': r['episode_id'], 'title': r['title'],
-            'snippet': self._sanitize_snippet(r['snippet']), 'timestamp': None,
+            'snippet': self._pick_snippet(r, 'body_snippet'), 'timestamp': None,
         } for r in rows]
 
     def _search_patterns(self, conn, fts_query, limit):
         """Patterns: FTS over sponsor name + pattern text. Advanced-page-only group."""
         rows = conn.execute("""
             SELECT si.content_id AS id, si.podcast_slug AS scope, si.title AS sponsor,
-                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+                   snippet(search_index, 3, '<mark>', '</mark>', '...', 64) AS title_snippet,
+                   snippet(search_index, 4, '<mark>', '</mark>', '...', 64) AS body_snippet
             FROM search_index si
-            WHERE si.content_type = 'pattern' AND search_index MATCH '{title body}:(' || ? || ')'
+            WHERE si.content_type = 'pattern'
+              AND search_index MATCH 'content_type:pattern AND {title body}:(' || ? || ')'
             ORDER BY bm25(search_index)
             LIMIT ?
         """, (fts_query, limit)).fetchall()
         return [{'id': r['id'], 'scope': r['scope'], 'sponsor': r['sponsor'],
-                 'snippet': self._sanitize_snippet(r['snippet'])} for r in rows]
+                 'snippet': self._pick_snippet(r, 'body_snippet', 'title_snippet')} for r in rows]
 
     def _search_sponsors(self, conn, fts_query, limit):
         """Sponsors: FTS over name + aliases. Advanced-page-only group."""
         rows = conn.execute("""
             SELECT si.content_id AS id, si.title AS name,
-                   snippet(search_index, -1, '<mark>', '</mark>', '...', 64) AS snippet
+                   snippet(search_index, 3, '<mark>', '</mark>', '...', 64) AS title_snippet,
+                   snippet(search_index, 4, '<mark>', '</mark>', '...', 64) AS body_snippet
             FROM search_index si
-            WHERE si.content_type = 'sponsor' AND search_index MATCH '{title body}:(' || ? || ')'
+            WHERE si.content_type = 'sponsor'
+              AND search_index MATCH 'content_type:sponsor AND {title body}:(' || ? || ')'
             ORDER BY bm25(search_index)
             LIMIT ?
         """, (fts_query, limit)).fetchall()
         return [{'id': r['id'], 'name': r['name'],
-                 'snippet': self._sanitize_snippet(r['snippet'])} for r in rows]
+                 'snippet': self._pick_snippet(r, 'body_snippet', 'title_snippet')} for r in rows]
 
     def get_search_index_stats(self) -> dict[str, int]:
         """Get statistics about the search index."""

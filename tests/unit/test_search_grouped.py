@@ -111,6 +111,22 @@ def test_groups_are_independent():
     assert result['transcripts'] == []
 
 
+def test_one_failing_group_does_not_blank_the_others(monkeypatch):
+    show_slug = _feed('isolation-show-zorblat', title='Zorblat Network')
+    ep_slug = _feed('isolation-episode-zorblat')
+    ep_id = _eid()
+    db.upsert_episode(ep_slug, ep_id, title='Zorblat Marmalade Hour')
+
+    def boom(*args, **kwargs):
+        raise RuntimeError('group failure')
+
+    monkeypatch.setattr(type(db), '_search_shows', boom)
+    result = db.search_grouped('Zorblat')
+    assert result['shows'] == []
+    assert any(e['episodeId'] == ep_id for e in result['episodes'])
+    assert not any(s['slug'] == show_slug for s in result['shows'])
+
+
 def test_show_title_substring_like_pass():
     slug = _feed('like-substring', title='Watchdog Weekly')
     result = db.search_grouped('atchdog')
