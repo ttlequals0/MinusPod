@@ -33,6 +33,7 @@ from ad_reviewer import (
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
 from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
+from detection_review import _spans_match
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import clip_dai_core_spans, invalidate_tail_provenance
@@ -1440,6 +1441,73 @@ def _dedupe_pass2_markers(markers):
         seen.add(key)
         unique.append(m)
     return unique
+
+
+# Verdict fields the winning record owns on a fold, absences included.
+_PASS2_FOLD_VERDICT_FIELDS = ('action_applied', 'held_for_review', 'hold_reason')
+
+
+def _pass2_fold_target(all_ads, marker):
+    """The uncut pass-1 marker for the same span, at the shared 0.5s both-edges
+    tolerance. A cut marker on either side names audio that is already gone."""
+    if marker.get('was_cut'):
+        return None
+    return next(
+        (ad for ad in all_ads
+         if not ad.get('was_cut')
+         and _spans_match(ad.get('start'), ad.get('end'),
+                          marker.get('start'), marker.get('end'))),
+        None)
+
+
+def _fold_pass2_marker(pass1, pass2):
+    """Fold a pass-2 record into its pass-1 twin in place: a keep beats a hold
+    (the rule _partition_keep_ads applies within pass 1, retaining the
+    overridden reason), and the loser fills the fields the winner lacks."""
+    pass2_wins = (pass2.get('action_applied') == 'keep'
+                  and pass1.get('action_applied') != 'keep')
+    winner, loser = (pass2, pass1) if pass2_wins else (pass1, pass2)
+    cleared = loser.get('hold_reason') if loser.get('held_for_review') else None
+    merged = {k: v for k, v in loser.items() if v is not None}
+    merged.update({k: v for k, v in winner.items() if v is not None})
+    # Both records are uncut; _pass2_fold_target admits no other pair.
+    merged['was_cut'] = False
+    for field in _PASS2_FOLD_VERDICT_FIELDS:
+        if field in winner:
+            merged[field] = winner[field]
+        else:
+            merged.pop(field, None)
+    if cleared and not merged.get('held_for_review'):
+        merged.setdefault('hold_cleared_reason', cleared)
+    pass1.clear()
+    pass1.update(merged)
+
+
+def _merge_pass2_markers(all_ads, pass2_markers):
+    """Fold every pass-2 marker that repeats a pass-1 span into that marker.
+
+    Pass 2 rescans the audio pass 1 left in place, so a kept or held pass-1
+    span can come back as a pass-2 finding. Appending it stored one span
+    twice, which put it in two of the four mutually exclusive marker buckets
+    and double-counted pending reviews. Returns (to_append, folded_count).
+    """
+    to_append = []
+    folded = 0
+    for marker in pass2_markers:
+        twin = _pass2_fold_target(all_ads, marker)
+        if twin is None:
+            to_append.append(marker)
+            continue
+        audio_logger.info(
+            f"Pass-2 marker {marker['start']:.1f}s-{marker['end']:.1f}s repeats "
+            f"pass-1 marker {twin['start']:.1f}s-{twin['end']:.1f}s "
+            f"(actions {twin.get('action_applied')!r}/{marker.get('action_applied')!r}, "
+            f"holds {twin.get('hold_reason')!r}/{marker.get('hold_reason')!r}); "
+            f"folding into it"
+        )
+        _fold_pass2_marker(twin, marker)
+        folded += 1
+    return to_append, folded
 
 
 def _stamp_pass2_marker_categories(markers):
@@ -4856,9 +4924,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # mapping are never contaminated with uncut ads.
             merge_v = _dedupe_pass2_markers(
                 _stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held))
-            # Corroboration stamps mutated markers already in
+            # A pass-2 marker repeating a span pass 1 already persisted folds
+            # into that marker; appending it would store one span twice.
+            merge_v, folded_v = _merge_pass2_markers(
+                all_ads_with_validation, merge_v)
+            # Corroboration and folds mutate markers already in
             # all_ads_with_validation, so they need a re-save too.
-            if merge_v or v_corroborated_count:
+            if merge_v or folded_v or v_corroborated_count:
                 all_ads_with_validation = list(all_ads_with_validation) + merge_v
                 all_ads_with_validation.sort(key=lambda x: x['start'])
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)

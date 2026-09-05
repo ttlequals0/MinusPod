@@ -31,6 +31,7 @@ release notes.
 - Notification event checkboxes ran together with no space before their labels. The list is now a two-column grid, so twelve events read as twelve choices.
 - The recut and reprocess buttons on an episode page re-enabled for a moment after being clicked. The request only queues the run, so the button woke up again before the refetch reported the episode as processing, and a second click raced the lock.
 - A detection with a same-episode "keep" twin no longer shows up in the review queue asking for a decision the server would reject with a 409.
+- The verification pass no longer stores a second marker for a span pass 1 already recorded. Pass 2 rescans the audio pass 1 left in place, so a kept or held span could come back as a finding and be appended next to the original. That put one span in two of the four marker buckets on the episode page and counted a single pending review twice. A repeat finding now merges into the existing marker. A keep still wins over a hold, the reason it overrides is kept as `hold_cleared_reason`, and each record fills in the fields the other lacked. Markers stored by earlier versions are left alone; the review queue already hides the duplicates.
 
 ## [2.95.1] - 2026-09-04
 

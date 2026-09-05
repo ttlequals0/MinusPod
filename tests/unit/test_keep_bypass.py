@@ -43,7 +43,8 @@ def _cross_promo_ad():
 
 
 def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
-                  real_sweeps=False, audio_analysis_result=None, segments=None):
+                  real_sweeps=False, audio_analysis_result=None, segments=None,
+                  verification_return=None):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks for inspection.
 
@@ -54,6 +55,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
     keep-partition wiring against the real sweep functions.
     ``audio_analysis_result`` feeds the mocked _run_audio_analysis return
     value; ``segments`` overrides the module-level SEGMENTS fixture.
+    ``verification_return`` overrides the mocked _run_verification_pass
+    return tuple, to drive the pass-2 merge seam.
     """
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
@@ -108,7 +111,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
             p(processing, '_complete_cut_tails', side_effect=_pass_through_ads)
         local_ap_cls = p(processing, 'AudioProcessor')
         p(processing, '_run_verification_pass',
-          return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
+          return_value=(verification_return
+                        or (0, [], [], [], '/tmp/cut.mp3', 0, True, 0)))
         generate_assets = p(processing, '_generate_assets')
         finalize = p(processing, '_finalize_episode')
         p(processing.shutil, 'move')
@@ -165,6 +169,31 @@ class TestKeepBypass:
         sponsor_marker = by_span[(sponsor['start'], sponsor['end'])]
         assert sponsor_marker['was_cut'] is True
         assert sponsor_marker['action_applied'] == 'remove'
+
+    def test_pass2_rediscovery_of_a_kept_span_persists_one_marker(self):
+        """Pass 2 rescans audio the keep left in place, so it can re-detect a
+        kept span. Its finding folds into the kept marker instead of being
+        appended, which used to put one span in two API buckets."""
+        cross_promo = _cross_promo_ad()
+        segment_actions = {'sponsor': 'remove', 'cross_promo': 'keep',
+                           'self_promo': 'remove', 'interaction': 'remove',
+                           'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        conflict = {'start': 30.2, 'end': 39.8, 'was_cut': False,
+                    'held_for_review': True, 'sponsor': 'Acme',
+                    'hold_reason': HOLD_REASON_VERIFICATION_KEPT_CONFLICT}
+
+        m = _run_pipeline(
+            [cross_promo], segment_actions,
+            verification_return=(0, [], [], [conflict], '/tmp/cut.mp3', 0, True, 0))
+
+        assert m['result'] is True
+        saved = m['storage'].save_combined_ads.call_args.args[2]
+        assert len(saved) == 1
+        marker = saved[0]
+        assert marker['action_applied'] == 'keep'
+        assert count_pending_review(saved) == 0
+        assert marker['hold_cleared_reason'] == HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+        assert marker['sponsor'] == 'Acme'
 
     def test_all_remove_is_byte_identical(self):
         sponsor = _sponsor_ad()
