@@ -106,6 +106,70 @@ function Dashboard() {
 
   return (
     <div>
+      <div
+        className="relative mb-6"
+        ref={searchRootRef}
+        onBlur={(e) => {
+          // onBlur (desktop tab-away and most clicks) plus the document
+          // listener above (iOS Safari does not blur on a non-focusable tap).
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) close();
+        }}
+      >
+        <div className="relative">
+          <svg className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            role="combobox"
+            aria-expanded={showSearchPanel && rows.length > 0}
+            aria-controls={showSearchPanel ? 'dashboard-search-results' : undefined}
+            aria-activedescendant={showSearchPanel ? rows[current]?.key : undefined}
+            aria-autocomplete="list"
+            aria-label="Search shows, episodes and transcripts"
+            autoComplete="off"
+            spellCheck={false}
+            value={query}
+            onFocus={() => setQuery(query)}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { close(); return; }
+              onKeyDown(e, goToResult);
+            }}
+            placeholder="Search shows, episodes and transcripts"
+            className={`${inputBase} w-full py-2.5 pl-10 pr-16`}
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 gap-1 sm:flex">
+            <kbd className={kbdClass}>/</kbd>
+            <kbd className={kbdClass}>&#8984;K</kbd>
+          </span>
+        </div>
+        {showSearchPanel && (
+          <div
+            className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-lg"
+            // Rows are not focusable, so a plain mousedown would blur the input and
+            // the onBlur above would unmount them before their click could fire.
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <ul id="dashboard-search-results" role="listbox" aria-label="Results" className="max-h-[60vh] overflow-y-auto py-1">
+              <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={goToResult} ready={ready} />
+            </ul>
+            <div className="flex items-center justify-between gap-2 border-t border-border bg-secondary/50 px-4 py-2 text-sm">
+              <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                <kbd className={kbdClass}>&#8593;</kbd><kbd className={kbdClass}>&#8595;</kbd> move
+                <kbd className={kbdClass}>&#8629;</kbd> open
+                <kbd className={kbdClass}>esc</kbd> close
+              </span>
+              <Link
+                to={ready ? `/search?q=${encodeURIComponent(debounced)}` : '/search'}
+                className={`text-primary hover:underline ${focusRing}`}
+              >
+                Advanced search
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-wrap justify-between items-center gap-y-2 mb-6">
         <div className="w-full sm:w-auto flex flex-wrap items-baseline gap-x-3">
           <h1 className="text-2xl font-bold text-foreground">Feeds</h1>
@@ -217,70 +281,6 @@ function Dashboard() {
             <span className="hidden sm:inline">Add Feed</span>
           </Link>
         </div>
-      </div>
-
-      <div
-        className="relative mb-6"
-        ref={searchRootRef}
-        onBlur={(e) => {
-          // onBlur (desktop tab-away and most clicks) plus the document
-          // listener above (iOS Safari does not blur on a non-focusable tap).
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) close();
-        }}
-      >
-        <div className="relative">
-          <svg className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            role="combobox"
-            aria-expanded={showSearchPanel && rows.length > 0}
-            aria-controls={showSearchPanel ? 'dashboard-search-results' : undefined}
-            aria-activedescendant={showSearchPanel ? rows[current]?.key : undefined}
-            aria-autocomplete="list"
-            aria-label="Search shows, episodes and transcripts"
-            autoComplete="off"
-            spellCheck={false}
-            value={query}
-            onFocus={() => setQuery(query)}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') { close(); return; }
-              onKeyDown(e, goToResult);
-            }}
-            placeholder="Search shows, episodes and transcripts"
-            className={`${inputBase} w-full py-2.5 pl-10 pr-16`}
-          />
-          <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 gap-1 sm:flex">
-            <kbd className={kbdClass}>/</kbd>
-            <kbd className={kbdClass}>&#8984;K</kbd>
-          </span>
-        </div>
-        {showSearchPanel && (
-          <div
-            className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-lg"
-            // Rows are not focusable, so a plain mousedown would blur the input and
-            // the onBlur above would unmount them before their click could fire.
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <ul id="dashboard-search-results" role="listbox" aria-label="Results" className="max-h-[60vh] overflow-y-auto py-1">
-              <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={goToResult} ready={ready} />
-            </ul>
-            <div className="flex items-center justify-between gap-2 border-t border-border bg-secondary/50 px-4 py-2 text-sm">
-              <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-                <kbd className={kbdClass}>&#8593;</kbd><kbd className={kbdClass}>&#8595;</kbd> move
-                <kbd className={kbdClass}>&#8629;</kbd> open
-                <kbd className={kbdClass}>esc</kbd> close
-              </span>
-              <Link
-                to={ready ? `/search?q=${encodeURIComponent(debounced)}` : '/search'}
-                className={`text-primary hover:underline ${focusRing}`}
-              >
-                Advanced search
-              </Link>
-            </div>
-          </div>
-        )}
       </div>
 
       {!feeds || feeds.length === 0 ? (

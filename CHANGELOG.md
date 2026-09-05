@@ -11,6 +11,10 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- The Dashboard search field now sits above the Feeds heading and its controls, as in the design mockup. It searches shows, episodes and transcripts, not the feed list below it.
+
 ### Fixed
 
 - Focusing a field on a phone no longer makes iOS Safari zoom the page. Mobile Safari zooms any input under 16px, so every input, select and textarea is now 16px below the small breakpoint and unchanged above it. One stylesheet rule covers them all, rather than a class per field.
