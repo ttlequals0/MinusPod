@@ -402,3 +402,13 @@ def test_api_one_character_query_returns_five_empty_groups():
     assert body['query'] == 'a'
     assert all(body[name] == [] for name in
                ('shows', 'episodes', 'transcripts', 'patterns', 'sponsors'))
+
+
+def test_retired_type_param_is_rejected_naming_groups():
+    # /search validated and honoured type= before the grouped rewrite; silently ignoring
+    # it hands a client built against the old contract a different payload with no error.
+    client = _authed_client()
+    resp = client.get('/api/v1/search?q=zorblat&type=episode')
+    assert resp.status_code == 400
+    assert 'groups' in resp.get_json()['error']
+    assert client.get('/api/v1/search?q=zorblat').status_code == 200

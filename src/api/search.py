@@ -24,6 +24,12 @@ def search():
     if not query:
         return error_response('Search query (q) is required', 400)
 
+    # type= used to select one content type. Ignoring it silently would hand a client
+    # built against that contract a different payload shape with no error.
+    if request.args.get('type') is not None:
+        return error_response(
+            'The type parameter was removed; use groups= to pick result groups', 400)
+
     limit = _clamped_int(request.args.get('limit'), 50, 1, 100)
 
     # A blank groups= (or the param omitted) means "all five", same as before this param existed.

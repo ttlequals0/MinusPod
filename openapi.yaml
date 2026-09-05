@@ -3321,7 +3321,9 @@ paths:
         Every group honours the limit parameter. Patterns and sponsors are
         Advanced-page-only groups; the Dashboard box and keyboard palette
         ignore them and request only shows, episodes and transcripts via
-        the groups parameter.
+        the groups parameter. The former type parameter is gone: a request
+        that still sends it is rejected with 400 rather than served a
+        different payload shape, so use groups instead.
       operationId: search
       parameters:
         - name: q
