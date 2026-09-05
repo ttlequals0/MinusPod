@@ -11,6 +11,10 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- The feed detail action row (Copy URL, Reprocess, Refresh, Delete) fits on one line on phones from 360px up. The card and its buttons use tighter padding below the small breakpoint; the row previously wrapped on every common phone width.
+
 ## [2.95.3] - 2026-09-05
 
 ### Changed

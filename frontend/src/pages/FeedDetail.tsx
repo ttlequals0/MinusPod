@@ -325,7 +325,7 @@ function FeedDetail() {
         )}
       </div>
 
-      <div className="bg-card rounded-lg border border-border p-6 mb-6">
+      <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="w-32 h-32 shrink-0 mx-auto sm:mx-0">
             {feed.websiteUrl ? (
@@ -452,7 +452,7 @@ function FeedDetail() {
               triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : (
                 <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">Reprocess All</span></>
               )}
-              triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
+              triggerClassName={`px-2 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap`}
               disabled={reprocessAllMutation.isPending}
               title="Reprocess all processed episodes"
               align="left"
@@ -488,7 +488,7 @@ function FeedDetail() {
                 triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
                   <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh Feed</span></>
                 )}
-                triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
+                triggerClassName={`px-2 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap`}
                 disabled={refreshMutation.isPending}
                 title="Refresh feed"
                 items={[
@@ -509,7 +509,7 @@ function FeedDetail() {
             <button
               onClick={handleDeleteFeed}
               disabled={deleteMutation.isPending}
-              className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors ${focusRing}`}
+              className={`inline-flex items-center justify-center gap-2 px-2 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors ${focusRing}`}
               title="Delete feed"
               aria-label="Delete feed"
             >
