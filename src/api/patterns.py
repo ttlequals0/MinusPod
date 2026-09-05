@@ -9,6 +9,7 @@ from config import (
     count_pending_review, is_pending_review, normalize_segment_category,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
+from utils.markers import BOUNDS_TOLERANCE_S, spans_match
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
 from pattern_service import PatternService, compute_pattern_trust
@@ -1181,12 +1182,10 @@ def _load_markers(db, slug, episode_id):
         return None
 
 
-def _find_marker_in_list(markers, start, end, tol=0.5):
+def _find_marker_in_list(markers, start, end, tol=BOUNDS_TOLERANCE_S):
     """Bounds match within tolerance against an already-loaded marker list."""
     for m in markers or []:
-        m_start, m_end = m.get('start'), m.get('end')
-        if (m_start is not None and m_end is not None
-                and abs(m_start - start) <= tol and abs(m_end - end) <= tol):
+        if spans_match(m.get('start'), m.get('end'), start, end, tol):
             return m
     return None
 

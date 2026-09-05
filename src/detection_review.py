@@ -10,7 +10,7 @@ import json
 import math
 
 from config import SEGMENT_CATEGORIES, is_pending_review
-from utils.markers import BOUNDS_TOLERANCE_S, spans_match  # noqa: F401 BOUNDS_TOLERANCE_S re-exported
+from utils.markers import spans_match
 
 # Filter value and summary key for markers no stage classified. Not a member of
 # SEGMENT_CATEGORIES: unset is the absence of a category, not a category.

@@ -3112,13 +3112,18 @@ class SchemaMixin:
             markers_folded = 0
             episodes_touched = 0
             for row in rows:
+                # Contained per row: one malformed marker must not block the
+                # cleanup for every other episode on every boot.
                 try:
                     markers = json.loads(row['ad_markers_json'])
-                except (json.JSONDecodeError, TypeError):
+                    collapsed, folded = (
+                        collapse_duplicate_markers(markers)
+                        if isinstance(markers, list) else (markers, 0))
+                except Exception as e:
+                    logger.warning(
+                        f"Migration: duplicate ad-marker collapse skipped "
+                        f"episode_id={row['episode_id']}: {e}")
                     continue
-                if not isinstance(markers, list):
-                    continue
-                collapsed, folded = collapse_duplicate_markers(markers)
                 if not folded:
                     continue
                 conn.execute(
@@ -3141,7 +3146,10 @@ class SchemaMixin:
                 f"folded across {episodes_touched} episode(s)"
             )
         except Exception as e:
-            # Gate stays unset, so a failed run retries on the next boot.
+            # Discard the run's partial writes so the next migration's commit
+            # cannot flush them. The gate stays unset, so this retries on the
+            # next boot.
+            conn.rollback()
             logger.warning(f"Migration: duplicate ad-marker collapse failed: {e}")
 
     def _migrate_fingerprint_cascade(self, conn):

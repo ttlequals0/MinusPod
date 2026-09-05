@@ -6,6 +6,7 @@ pairs where both markers are uncut and both edges fall inside
 BOUNDS_TOLERANCE_S; anything else is left exactly as it was.
 """
 import json
+import logging
 import os
 import sys
 
@@ -138,3 +139,36 @@ def test_the_migration_runs_once(temp_db):
 
     markers, _pending = _stored(temp_db, slug, eid)
     assert len(markers) == 2
+
+
+def test_one_malformed_row_does_not_block_the_rest(temp_db, caplog):
+    """A marker with a non-numeric bound raises inside the span match. It is
+    skipped by episode, the other rows still collapse, and the gate is set."""
+    good_slug, good_eid = _seed(temp_db, [_keep(), _held()],
+                                pending_review_count=1)
+    _bad_slug, bad_eid = _seed(temp_db, [_keep()], slug='collapse-bad',
+                               episode_id='beefbeef0000', pending_review_count=0)
+    conn = temp_db.get_connection()
+    bad_raw = ('[{"start": 500.0, "end": 520.0, "was_cut": false}, '
+               '{"start": "not-a-number", "end": 519.8, "was_cut": false}]')
+    bad_db_id = conn.execute(
+        "SELECT id FROM episodes WHERE episode_id = ?", (bad_eid,)).fetchone()['id']
+    conn.execute(
+        "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
+        (bad_raw, bad_db_id))
+    conn.commit()
+
+    with caplog.at_level(logging.WARNING, logger='database.schema'):
+        _run(temp_db)
+    assert any(f'skipped episode_id={bad_db_id}' in r.message
+               for r in caplog.records)
+
+    good_markers, _pending = _stored(temp_db, good_slug, good_eid)
+    assert len(good_markers) == 1
+    row = conn.execute(
+        "SELECT ad_markers_json FROM episode_details WHERE episode_id = ?",
+        (bad_db_id,)).fetchone()
+    assert row['ad_markers_json'] == bad_raw
+    gate = conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+    assert gate is not None
