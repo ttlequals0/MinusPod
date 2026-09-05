@@ -121,6 +121,35 @@ class TestFlatten:
     def test_marker_with_none_start_is_skipped(self):
         assert flatten_detections([_row(markers=[{'start': None, 'end': 30.0}])], []) == []
 
+    def test_keep_twin_marks_undecided_span_as_kept(self):
+        undecided = {'start': 882.9, 'end': 906.0, 'category': 'self_promo',
+                     'held_for_review': True, 'was_cut': False}
+        kept = {'start': 882.9, 'end': 906.0, 'was_cut': False,
+                'category': 'self_promo', 'action_applied': 'keep'}
+        items = flatten_detections([_row(markers=[undecided, kept])], [])
+        by_action = {i['actionApplied'] for i in items}
+        assert by_action == {'keep'}
+
+    def test_span_without_keep_twin_keeps_its_own_action(self):
+        items = flatten_detections([_row(markers=[REJECTED])], [])
+        assert items[0]['actionApplied'] is None
+
+    def test_keep_twin_tolerance_applies_on_both_edges(self):
+        kept = {'start': 100.4, 'end': 130.4, 'was_cut': False,
+                'action_applied': 'keep'}
+        items = flatten_detections([_row(markers=[REJECTED, kept])], [])
+        undecided_item = next(i for i in items if i['start'] == 100.0)
+        assert undecided_item['actionApplied'] == 'keep'
+
+    def test_keep_twin_outside_tolerance_on_either_edge_does_not_match(self):
+        far_start = {'start': 100.6, 'end': 130.0, 'was_cut': False,
+                     'action_applied': 'keep'}
+        far_end = {'start': 100.0, 'end': 130.6, 'was_cut': False,
+                   'action_applied': 'keep'}
+        items = flatten_detections([_row(markers=[REJECTED, far_start, far_end])], [])
+        undecided_item = next(i for i in items if i['confidence'] == 0.4)
+        assert undecided_item['actionApplied'] is None
+
 
 class TestSummarize:
     def test_counts_by_status_and_resolution(self):
@@ -170,6 +199,15 @@ class TestFilter:
         refuses a verdict on it, so listing it as needing review would offer
         a decision nobody can make."""
         items = flatten_detections([_row(markers=[REJECTED, KEPT])], [])
+        out = filter_detections(items, status='needs_review')
+        assert [i['start'] for i in out] == [100.0]
+
+    def test_needs_review_excludes_span_with_keep_twin(self):
+        undecided = {'start': 882.9, 'end': 906.0, 'category': 'self_promo',
+                     'held_for_review': True, 'was_cut': False}
+        kept = {'start': 882.9, 'end': 906.0, 'was_cut': False,
+                'category': 'self_promo', 'action_applied': 'keep'}
+        items = flatten_detections([_row(markers=[REJECTED, undecided, kept])], [])
         out = filter_detections(items, status='needs_review')
         assert [i['start'] for i in out] == [100.0]
 

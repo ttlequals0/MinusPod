@@ -58,6 +58,27 @@ def _reviewer_moved_from_marker(marker: dict) -> bool:
             and marker.get('reviewer_original_end') is not None)
 
 
+def _keep_twin_action(marker: dict, markers: list[dict]) -> str | None:
+    """action_applied for this span, falling back to a same-episode keep twin so an undecided copy inherits its verdict."""
+    own = marker.get('action_applied')
+    if own == 'keep':
+        return own
+    start, end = marker.get('start'), marker.get('end')
+    if start is None or end is None:
+        return own
+    for other in markers:
+        if other is marker or not isinstance(other, dict):
+            continue
+        if other.get('action_applied') != 'keep':
+            continue
+        o_start, o_end = other.get('start'), other.get('end')
+        if (isinstance(o_start, (int, float)) and isinstance(o_end, (int, float))
+                and abs(o_start - start) <= BOUNDS_TOLERANCE_S
+                and abs(o_end - end) <= BOUNDS_TOLERANCE_S):
+            return 'keep'
+    return own
+
+
 def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
     by_episode: dict[str, list[dict]] = {}
     for c in corrections:
@@ -99,7 +120,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
                 'patternId': marker.get('pattern_id'),
                 'detectionStage': marker.get('detection_stage'),
                 'category': marker.get('category'),
-                'actionApplied': marker.get('action_applied'),
+                'actionApplied': _keep_twin_action(marker, markers),
                 'reviewerVerdict': marker.get('reviewer_verdict'),
                 'reviewerOriginalStart': marker.get('reviewer_original_start'),
                 'reviewerOriginalEnd': marker.get('reviewer_original_end'),
