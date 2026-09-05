@@ -356,3 +356,27 @@ def test_literal_mark_tag_in_a_description_is_not_read_as_a_highlight():
     hit = next(e for e in db.search_grouped('flimflammery')['episodes']
                if e['episodeId'] == ep_id)
     assert '<mark>Flimflammery</mark>' in hit['snippet']
+
+
+def test_episode_like_fallback_skipped_when_fts_found_a_row():
+    # The fallback is a leading-wildcard scan of the whole episodes table, and it ran
+    # whenever FTS returned fewer rows than the limit, which at limit=50 is almost always.
+    slug = _feed('like-gate')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, title='Chronosynclastic Infundibulum')
+    conn = db.get_connection()
+    statements = []
+    conn.set_trace_callback(statements.append)
+    try:
+        result = db.search_grouped('Chronosynclastic', limit=50)
+    finally:
+        conn.set_trace_callback(None)
+    assert any(e['episodeId'] == ep_id for e in result['episodes'])
+    assert not any('e.title LIKE' in s for s in statements), statements
+
+
+def test_episode_title_substring_still_found_when_fts_finds_nothing():
+    slug = _feed('like-episode-substring')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, title='Thundersnow Bulletin')
+    assert any(e['episodeId'] == ep_id for e in db.search_grouped('hundersnow')['episodes'])

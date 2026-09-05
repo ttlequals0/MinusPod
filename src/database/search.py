@@ -317,12 +317,16 @@ class SearchMixin:
         return f'"{clean_query}"* OR {" AND ".join(quoted)}'
 
     @staticmethod
-    def _merge_fts_and_like(fts_rows, key_fn, row_builder, like_fetch, like_row_builder, limit):
-        """FTS rows first, then a LIKE fallback (only run if still under limit) for
-        substring matches FTS tokenization misses; deduped by key_fn, capped at limit."""
+    def _merge_fts_and_like(fts_rows, key_fn, row_builder, like_fetch, like_row_builder,
+                            limit, like_when_empty=False):
+        """FTS rows first, then a LIKE fallback for substring matches FTS tokenization
+        misses; deduped by key_fn, capped at limit. like_when_empty holds the fallback
+        back unless FTS found nothing, so a leading-wildcard scan of a large table does
+        not run on nearly every search."""
         results = [row_builder(r) for r in fts_rows]
         seen = {key_fn(r) for r in fts_rows}
-        if len(results) < limit:
+        run_like = not results if like_when_empty else len(results) < limit
+        if run_like:
             for r in like_fetch():
                 key = key_fn(r)
                 if key not in seen:
@@ -399,10 +403,11 @@ class SearchMixin:
                     'title': r['title'], 'status': r['status'], 'publishDate': r['publish_date'],
                     'snippet': None}
 
+        # Episodes is the big table here, so its LIKE pass only runs on a total miss.
         return self._merge_fts_and_like(
             rows, key_fn=lambda r: (r['feed_slug'], r['episode_id']),
             row_builder=row_builder, like_fetch=like_fetch,
-            like_row_builder=like_row_builder, limit=limit)
+            like_row_builder=like_row_builder, limit=limit, like_when_empty=True)
 
     def _search_transcripts(self, conn, fts_query, limit):
         """Transcripts: body-only word matches. search_index holds one row per episode,
