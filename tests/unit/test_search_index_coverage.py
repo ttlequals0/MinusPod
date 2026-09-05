@@ -41,15 +41,15 @@ def _feed(slug):
     return slug
 
 
-def _episode_hit(results, ep_id):
-    return any(r['type'] == 'episode' and r['id'] == ep_id for r in results)
+def _episode_hit(rows, ep_id):
+    return any(r['episodeId'] == ep_id for r in rows)
 
 
 def test_discovered_episode_findable_by_title():
     slug = _feed('discovered-title')
     ep_id = _eid()
     db.bulk_upsert_discovered_episodes(slug, [_episode(ep_id, title='Quixotic Marmalade Hour')])
-    assert _episode_hit(db.search('Quixotic'), ep_id)
+    assert _episode_hit(db.search_grouped('Quixotic')['episodes'], ep_id)
 
 
 def test_discovered_episode_findable_by_description():
@@ -57,7 +57,7 @@ def test_discovered_episode_findable_by_description():
     ep_id = _eid()
     ep = _episode(ep_id, description='a deep dive into glorbnorf farming techniques')
     db.bulk_upsert_discovered_episodes(slug, [ep])
-    assert _episode_hit(db.search('glorbnorf'), ep_id)
+    assert _episode_hit(db.search_grouped('glorbnorf')['episodes'], ep_id)
 
 
 def test_processed_episode_still_findable_by_transcript():
@@ -67,14 +67,14 @@ def test_processed_episode_still_findable_by_transcript():
     db.upsert_episode(slug, ep_id, status='processed')
     db.save_episode_details(slug, ep_id, transcript_text='mentions targaryen dragons extensively')
     db.index_episode(ep_id, slug)
-    assert _episode_hit(db.search('targaryen'), ep_id)
+    assert _episode_hit(db.search_grouped('targaryen')['transcripts'], ep_id)
 
 
 def test_upsert_episode_new_row_is_indexed_immediately():
     slug = _feed('upsert-new-row')
     ep_id = _eid()
     db.upsert_episode(slug, ep_id, title='Vexillological Chronicles', description='flags and heraldry')
-    assert _episode_hit(db.search('Vexillological'), ep_id)
+    assert _episode_hit(db.search_grouped('Vexillological')['episodes'], ep_id)
 
 
 def test_reindex_scopes_by_podcast_slug_not_bare_episode_id():
