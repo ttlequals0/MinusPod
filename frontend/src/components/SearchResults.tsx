@@ -39,7 +39,7 @@ export function buildSearchResultRows(results: UnifiedSearchGroups): SearchResul
     })),
     ...results.episodes.map((r) => ({
       key: `episode-${r.feedSlug}-${r.episodeId}`, group: 'episodes' as const, title: r.title,
-      subtitle: r.publishDate ? `${r.feedTitle} · ${formatDate(r.publishDate)}` : r.feedTitle,
+      subtitle: r.publishDate ? `${r.feedTitle}, ${formatDate(r.publishDate)}` : r.feedTitle,
       status: r.status, snippet: r.snippet, to: `/feeds/${r.feedSlug}/episodes/${r.episodeId}`,
     })),
     ...results.transcripts.map((r, i) => ({
