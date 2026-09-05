@@ -91,11 +91,20 @@ function renderPanel(feed: Feed) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const result = render(
     <QueryClientProvider client={client}>
       <FeedSettingsPanel feed={feed} slug={feed.slug} />
     </QueryClientProvider>,
   );
+  // Re-render with a new feed object of the same shape, simulating a
+  // background refetch (new identity) that a real ['feed', slug] query
+  // would produce without the value actually having changed.
+  const rerenderWithFeed = (next: Feed) => result.rerender(
+    <QueryClientProvider client={client}>
+      <FeedSettingsPanel feed={next} slug={next.slug} />
+    </QueryClientProvider>,
+  );
+  return { ...result, rerenderWithFeed };
 }
 
 const SELECT_NAME = 'Fetch each episode twice to find inserted ads';
@@ -1076,6 +1085,12 @@ describe('FeedSettingsPanel detection notes', () => {
     expect(save.disabled).toBe(false);
   });
 
+  it('starts with Save disabled for a feed with no notes and an empty textarea', () => {
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const save = screen.getByRole('button', { name: 'Save detection notes' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+  });
+
   it('blur alone writes nothing', async () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ detectionNotes: null }));
@@ -1117,5 +1132,48 @@ describe('FeedSettingsPanel detection notes', () => {
     await user.click(screen.getByRole('button', { name: 'Save detection notes' }));
     expect(await screen.findByText('Detection notes could not be saved')).toBeDefined();
     expect(box.value).toBe('Intro has three parts.');
+  });
+
+  it('a background refetch does not clobber an unsaved draft', async () => {
+    const user = userEvent.setup();
+    const original = makeFeed({ detectionNotes: 'Old note.' });
+    const { rerenderWithFeed } = renderPanel(original);
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    await user.type(box, ' Plus this.');
+    expect(box.value).toBe('Old note. Plus this.');
+
+    // A new feed object with the same content, as a refetch would produce
+    // after staleTime elapses or another field's save invalidates the query.
+    rerenderWithFeed(makeFeed({ detectionNotes: 'Old note.' }));
+
+    expect(box.value).toBe('Old note. Plus this.');
+    expect((screen.getByRole('button', { name: 'Save detection notes' }) as HTMLButtonElement).disabled)
+      .toBe(false);
+  });
+
+  it('a background refetch reseeds the draft once it is no longer dirty', () => {
+    const original = makeFeed({ detectionNotes: 'Old note.' });
+    const { rerenderWithFeed } = renderPanel(original);
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    expect(box.value).toBe('Old note.');
+
+    // Not dirty (matches the saved value): a refetch reflecting a change
+    // made elsewhere (or by this same save) is free to reseed.
+    rerenderWithFeed(makeFeed({ detectionNotes: 'Edited elsewhere.' }));
+
+    expect(box.value).toBe('Edited elsewhere.');
+  });
+
+  it('clears a stale save error as soon as the user edits again', async () => {
+    mockUpdateFeed.mockRejectedValueOnce(new Error('Detection notes could not be saved'));
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const box = screen.getByLabelText('Detection notes');
+    await user.type(box, 'Intro has three parts.');
+    await user.click(screen.getByRole('button', { name: 'Save detection notes' }));
+    expect(await screen.findByText('Detection notes could not be saved')).toBeDefined();
+
+    await user.type(box, ' More.');
+    expect(screen.queryByText('Detection notes could not be saved')).toBeNull();
   });
 });

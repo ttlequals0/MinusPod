@@ -236,6 +236,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
       ? String(feed.retentionDaysOverride) : '');
 
+  const detectionNotesDirty = (editDetectionNotes.trim() || null) !== savedDetectionNotes;
+
   // Reseed inputs from the server feed object when it changes (e.g. after a
   // successful mutation or a background refetch). This mirrors useSyncFromQuery
   // applied to each field individually so that a mutation response immediately
@@ -253,8 +255,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     setSnapLagInput(s(f.cueSnapLagOverride));
     setMaxAdDurInput(s(f.maxAdDurationOverride));
     setMaxAdDurRejectInput(s(f.maxAdDurationRejectOverride));
-    setEditDetectionNotes(f.detectionNotes ?? '');
-    setSavedDetectionNotes(f.detectionNotes ?? null);
+    // Skip while dirty: a background refetch (staleTime elapsing, or any
+    // other field's save invalidating this query) must not clobber an
+    // unsaved draft. Save and Clear stay the only ways to change it.
+    if (!detectionNotesDirty) {
+      setEditDetectionNotes(f.detectionNotes ?? '');
+      setSavedDetectionNotes(f.detectionNotes ?? null);
+      setDetectionNotesError(null);
+    }
     setSegmentOverrides(f.segmentCategoryActions ?? {});
   });
 
@@ -387,8 +395,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       reset();
     }
   }
-
-  const detectionNotesDirty = (editDetectionNotes.trim() || null) !== savedDetectionNotes;
 
   const saveDetectionNotes = () => {
     const next = editDetectionNotes.trim() || null;
@@ -634,7 +640,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               value={editDetectionNotes}
               maxLength={1000}
               rows={3}
-              onChange={(e) => setEditDetectionNotes(e.target.value)}
+              onChange={(e) => {
+                setEditDetectionNotes(e.target.value);
+                setDetectionNotesError(null);
+              }}
               placeholder="What only this show does, e.g. host-read ads start right after 'a word from our sponsors'."
               className={`w-full px-2 py-1 bg-secondary text-foreground placeholder:text-muted-foreground border border-border rounded resize-y ${focusRing}`}
             />
