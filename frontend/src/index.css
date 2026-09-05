@@ -142,7 +142,7 @@ mark,
   color: hsl(var(--highlight-foreground));
 }
 
-/* iOS Safari zooms the page when a focused field is under 16px. Unlayered so it beats text-sm utilities on phones. */
-@media (max-width: 639px) {
+/* iOS Safari zooms the page when a focused field is under 16px. Gated on touch input, not width, so landscape phones count; unlayered so it beats text-sm utilities. */
+@media (pointer: coarse) {
   input, select, textarea { font-size: 16px; }
 }

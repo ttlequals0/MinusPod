@@ -335,7 +335,9 @@ def register_routes(app):
             return response
 
         response = send_from_directory(STATIC_DIR, path)
-        response.headers['Cache-Control'] = 'public, max-age=3600'
+        # The service worker script must always revalidate, or a cached copy delays update detection.
+        no_cache = path == 'sw.js'
+        response.headers['Cache-Control'] = 'no-cache, must-revalidate' if no_cache else 'public, max-age=3600'
         return response
 
     # /api/v1/docs and /api/v1/openapi.yaml are defined in

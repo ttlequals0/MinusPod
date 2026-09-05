@@ -5,8 +5,18 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './index.css';
 
-// Reload once a new service worker takes control, so a deploy is not left running the precached old bundle.
-registerSW({ immediate: true });
+// A new service worker means a deploy; reload to leave the precached old bundle, but only once the tab is
+// hidden so an edit in progress is not thrown away mid-keystroke.
+const applyUpdate = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    if (document.visibilityState === 'hidden') { void applyUpdate(true); return; }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') void applyUpdate(true);
+    }, { once: true });
+  },
+  onRegisterError(error) { console.error('Service worker registration failed', error); },
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
