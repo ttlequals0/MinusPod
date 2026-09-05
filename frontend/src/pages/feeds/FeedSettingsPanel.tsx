@@ -225,11 +225,12 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const snapLagField = useDraftField(s(feed.cueSnapLagOverride));
   const maxAdDurField = useDraftField(s(feed.maxAdDurationOverride));
   const maxAdDurRejectField = useDraftField(s(feed.maxAdDurationRejectOverride));
-  const [editDetectionNotes, setEditDetectionNotes] = useState(feed.detectionNotes ?? '');
-  // Tracks the last value confirmed saved, independent of the `feed` prop, so
-  // the Save button and confirmation update the instant the PATCH resolves
-  // rather than waiting on the parent's background refetch.
-  const [savedDetectionNotes, setSavedDetectionNotes] = useState(feed.detectionNotes ?? null);
+  // Notes commit on a Save click, not blur: markClean fires in that
+  // mutation's onSuccess so the Save button and badge update the instant
+  // the PATCH resolves, rather than waiting on the background refetch.
+  // Trim-aware dirty compare: a trailing/leading-whitespace-only edit is not
+  // dirty, since Save trims before sending and would produce no change.
+  const notesField = useDraftField(feed.detectionNotes ?? '', (v) => v.trim());
   const [detectionNotesSaved, setDetectionNotesSaved] = useState(false);
   const [detectionNotesError, setDetectionNotesError] = useState<string | null>(null);
   // Retention days edits stay local until blur. Committing per keystroke
@@ -238,8 +239,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const retentionDaysField = useDraftField(
     feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
       ? String(feed.retentionDaysOverride) : '');
-
-  const detectionNotesDirty = (editDetectionNotes.trim() || null) !== savedDetectionNotes;
 
   // Reseed inputs from the server feed object when it changes (e.g. after a
   // successful mutation or a background refetch). This mirrors useSyncFromQuery
@@ -264,9 +263,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     // Skip while dirty: a background refetch (staleTime elapsing, or any
     // other field's save invalidating this query) must not clobber an
     // unsaved draft. Save and Clear stay the only ways to change it.
-    if (!detectionNotesDirty) {
-      setEditDetectionNotes(f.detectionNotes ?? '');
-      setSavedDetectionNotes(f.detectionNotes ?? null);
+    notesField.sync(f.detectionNotes ?? '');
+    if (!notesField.dirty) {
       setDetectionNotesError(null);
     }
     setSegmentOverrides(f.segmentCategoryActions ?? {});
@@ -399,6 +397,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       if (v !== serverValue) {
         updateMutation.mutate({ [field]: v });
       }
+      // Normalizes the display (e.g. typed "20.0" over a server 20 becomes
+      // "20") even with no PATCH sent, matching what a reload would show.
       draftField.markClean(String(v));
     } else {
       draftField.markClean(serverValue != null ? String(serverValue) : '');
@@ -406,11 +406,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   }
 
   const saveDetectionNotes = () => {
-    const next = editDetectionNotes.trim() || null;
+    const next = notesField.value.trim() || null;
     setDetectionNotesError(null);
     updateMutation.mutate({ detectionNotes: next }, {
       onSuccess: () => {
-        setSavedDetectionNotes(next);
+        notesField.markClean(next ?? '');
         setDetectionNotesSaved(true);
       },
       onError: (e) => setDetectionNotesError(getErrorMessage(e, 'Failed to save detection notes')),
@@ -418,7 +418,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   };
 
   const clearDetectionNotes = () => {
-    setEditDetectionNotes('');
+    // Empties the draft without marking clean: Clear alone does not save,
+    // so the field stays dirty (and protected from a reseed) until Save.
+    notesField.setValue('');
     setDetectionNotesSaved(false);
     setDetectionNotesError(null);
   };
@@ -646,11 +648,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <label htmlFor="detection-notes" className="text-muted-foreground">Detection notes</label>
             <textarea
               id="detection-notes"
-              value={editDetectionNotes}
+              value={notesField.value}
               maxLength={1000}
               rows={3}
               onChange={(e) => {
-                setEditDetectionNotes(e.target.value);
+                notesField.setValue(e.target.value);
                 setDetectionNotesError(null);
               }}
               placeholder="What only this show does, e.g. host-read ads start right after 'a word from our sponsors'."
@@ -658,12 +660,12 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             />
             <p className="flex justify-between gap-2 text-xs text-muted-foreground">
               <span>Sent to the model with every episode of this feed.</span>
-              <span className="tabular-nums shrink-0">{editDetectionNotes.length} / 1000</span>
+              <span className="tabular-nums shrink-0">{notesField.value.length} / 1000</span>
             </p>
             <div className="flex items-center gap-2">
               <button
                 onClick={saveDetectionNotes}
-                disabled={!detectionNotesDirty || updateMutation.isPending}
+                disabled={!notesField.dirty || updateMutation.isPending}
                 aria-label="Save detection notes"
                 className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
               >
@@ -671,13 +673,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </button>
               <button
                 onClick={clearDetectionNotes}
-                disabled={editDetectionNotes === ''}
+                disabled={notesField.value === ''}
                 aria-label="Clear detection notes"
                 className={`px-2 py-1 text-xs ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
               >
                 Clear
               </button>
-              {detectionNotesSaved && !detectionNotesDirty && !detectionNotesError && <SavedBadge />}
+              {detectionNotesSaved && !notesField.dirty && !detectionNotesError && <SavedBadge />}
             </div>
             {detectionNotesError && (
               <p className="text-xs text-destructive">{detectionNotesError}</p>

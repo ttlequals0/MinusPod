@@ -1085,6 +1085,15 @@ describe('FeedSettingsPanel detection notes', () => {
     expect(save.disabled).toBe(false);
   });
 
+  it('a trailing-space-only edit stays clean; Save stays disabled', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: 'abc' }));
+    const box = screen.getByLabelText('Detection notes');
+    const save = screen.getByRole('button', { name: 'Save detection notes' }) as HTMLButtonElement;
+    await user.type(box, ' ');
+    expect(save.disabled).toBe(true);
+  });
+
   it('starts with Save disabled for a feed with no notes and an empty textarea', () => {
     renderPanel(makeFeed({ detectionNotes: null }));
     const save = screen.getByRole('button', { name: 'Save detection notes' }) as HTMLButtonElement;
