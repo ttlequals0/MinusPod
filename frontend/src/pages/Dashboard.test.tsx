@@ -124,4 +124,19 @@ describe('Dashboard search field', () => {
     await userEvent.keyboard('{Enter}');
     expect(mockNavigate).toHaveBeenCalledWith('/feeds/example-podcast');
   });
+
+  // Escape never blurs the input, so onFocus won't refire on its own: typing
+  // must reopen the panel, and a stale Enter must not act on hidden rows.
+  it('Escape closes the panel; Enter is inert until typing reopens it', async () => {
+    renderDashboard();
+    const input = await screen.findByRole('combobox');
+    await userEvent.type(input, 'ba');
+    await waitFor(() => screen.getByText('The Daily Tech Show'));
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByText('The Daily Tech Show')).toBeNull();
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    expect(mockNavigate).not.toHaveBeenCalled();
+    await userEvent.type(input, 't');
+    await waitFor(() => screen.getByText('The Daily Tech Show'));
+  });
 });

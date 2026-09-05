@@ -251,9 +251,12 @@ function Dashboard() {
             spellCheck={false}
             value={query}
             onFocus={() => setSearchOpen(true)}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') { setSearchOpen(false); return; }
+              // Focus never leaves the input on Escape, so onFocus won't refire to
+              // reopen it; gate arrows/Enter on the panel actually being visible.
+              if (!showSearchPanel) return;
               onKeyDown(e, goToResult);
             }}
             placeholder="Search shows, episodes and transcripts"
