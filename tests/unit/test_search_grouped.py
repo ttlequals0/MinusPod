@@ -226,6 +226,79 @@ def test_content_type_filter_does_not_reweight_show_ranking():
     assert slugs.index(long_) < slugs.index(short)
 
 
+# groups= restricts which of the five groups search_grouped actually queries (#717 task 15).
+
+
+def test_groups_param_skips_unrequested_group_functions(monkeypatch):
+    orig_patterns = type(db)._search_patterns
+    orig_sponsors = type(db)._search_sponsors
+    calls = {'patterns': 0, 'sponsors': 0}
+
+    def counting_patterns(self, *a, **kw):
+        calls['patterns'] += 1
+        return orig_patterns(self, *a, **kw)
+
+    def counting_sponsors(self, *a, **kw):
+        calls['sponsors'] += 1
+        return orig_sponsors(self, *a, **kw)
+
+    monkeypatch.setattr(type(db), '_search_patterns', counting_patterns)
+    monkeypatch.setattr(type(db), '_search_sponsors', counting_sponsors)
+    result = db.search_grouped('Zorblat', groups=['shows', 'episodes', 'transcripts'])
+    assert calls == {'patterns': 0, 'sponsors': 0}
+    assert result['patterns'] == [] and result['sponsors'] == []
+
+
+def test_groups_param_requested_groups_still_compute():
+    slug = _feed('groups-subset-show', title='Vulpine Broadcasting')
+    result = db.search_grouped('Vulpine', groups=['shows', 'episodes', 'transcripts'])
+    assert any(s['slug'] == slug for s in result['shows'])
+
+
+def test_groups_param_default_is_all_five():
+    result = db.search_grouped('an-unmatched-query-xyz', groups=None)
+    assert set(result.keys()) == {'shows', 'episodes', 'transcripts', 'patterns', 'sponsors'}
+
+
+def test_groups_param_unknown_value_returns_400_naming_it():
+    client = _authed_client()
+    resp = client.get('/api/v1/search?q=test&groups=shows,bogus')
+    assert resp.status_code == 400
+    assert 'bogus' in resp.get_json()['error']
+
+
+def test_groups_param_first_unknown_value_named_when_several_are_bad():
+    client = _authed_client()
+    resp = client.get('/api/v1/search?q=test&groups=firstbad,secondbad')
+    assert resp.status_code == 400
+    assert 'firstbad' in resp.get_json()['error']
+    assert 'secondbad' not in resp.get_json()['error']
+
+
+def test_groups_param_empty_value_defaults_to_all_five():
+    # get_database(), not module-level db: an unrelated test's temp_db fixture can reset
+    # the Database singleton before this runs, orphaning a captured reference.
+    live_db = get_database()
+    slug = f'groups-empty-default-{_eid()}'
+    live_db.create_podcast(slug, f'https://example.com/{slug}.xml', 'The Daily Tech Show')
+    ep_id = _eid()
+    live_db.upsert_episode(slug, ep_id, title='Empty Groups Param Cinnabar')
+    client = _authed_client()
+    body = client.get('/api/v1/search?q=Cinnabar&groups=').get_json()
+    assert any(e['episodeId'] == ep_id for e in body['episodes'])
+    assert 'patterns' in body and 'sponsors' in body
+
+
+def test_groups_param_via_api_only_requested_group_has_matches():
+    live_db = get_database()
+    sponsor_id = live_db.create_known_sponsor('Cinnabar Roasters Unique Co')
+    live_db.create_ad_pattern('global', text_template='mentions cinnabarroastersco ad copy', sponsor_id=sponsor_id)
+    live_db.rebuild_search_index()
+    client = _authed_client()
+    body = client.get('/api/v1/search?q=cinnabarroastersco&groups=shows,episodes').get_json()
+    assert body['patterns'] == [] and body['sponsors'] == []
+
+
 def test_literal_mark_tag_in_a_description_is_not_read_as_a_highlight():
     # The description is checked before the title and holds a literal <mark> tag
     # without matching, so a substring test for "<mark>" would return it unhighlighted.

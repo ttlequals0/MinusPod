@@ -73,6 +73,12 @@ describe('QuickSearch', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/feeds/example-podcast/episodes/a1b2c3d4e5f6');
   });
 
+  it('requests only shows, episodes and transcripts, the groups it renders', async () => {
+    renderPalette();
+    await waitFor(() => expect(mockQuickSearch).toHaveBeenCalled());
+    expect(mockQuickSearch.mock.calls[0]).toContain('shows,episodes,transcripts');
+  });
+
   it('offers an Advanced search link carrying the query', async () => {
     renderPalette();
     await waitFor(() => screen.getByText('Batteries again'));

@@ -27,6 +27,7 @@ release notes.
 - Per-feed detection notes now save with an explicit Save button and a Clear button, replacing the old save-on-blur. A failed save is shown as an error instead of failing silently, and a draft in progress is no longer overwritten by a background refetch.
 - The notification timezone setting now appears in the general `GET /settings` response and follows the same reset path as other settings, instead of being handled on its own. An invalid stored or `TZ` value falls back to UTC with a logged warning instead of being accepted silently.
 - Searching a common word is about twice as fast on a large index. Each of the five result groups now narrows its full-text match by content type, so the shows, patterns and sponsors groups no longer walk the episode postings. Results and their order are unchanged. A result whose description matched now shows the description snippet rather than repeating the title.
+- `GET /search` takes an optional `groups` parameter to compute only the requested result groups; the Dashboard field and keyboard palette now ask for shows, episodes and transcripts only, since they never showed pattern or sponsor matches anyway.
 
 ### Fixed
 

@@ -59,9 +59,10 @@ export interface SearchStats {
 export async function search(
   query: string,
   limit?: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  groups?: string
 ): Promise<SearchResponse> {
-  const qs = buildQueryString({ q: query, limit });
+  const qs = buildQueryString({ q: query, limit, groups });
   return apiRequest<SearchResponse>(`/search${qs}`, { signal });
 }
 

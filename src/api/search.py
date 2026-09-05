@@ -8,6 +8,7 @@ from api import (
     get_database,
 )
 from api.settings import _clamped_int
+from database.search import SEARCH_GROUP_NAMES
 from utils.constants import EpisodeStatus
 
 logger = logging.getLogger('podcast.api')
@@ -25,7 +26,17 @@ def search():
 
     limit = _clamped_int(request.args.get('limit'), 50, 1, 100)
 
-    result = get_database().search_grouped(query, limit=limit)
+    # A blank groups= (or the param omitted) means "all five", same as before this param existed.
+    groups_param = request.args.get('groups', '').strip()
+    groups = None
+    if groups_param:
+        requested = [g for g in (p.strip() for p in groups_param.split(',')) if g]
+        for name in requested:
+            if name not in SEARCH_GROUP_NAMES:
+                return error_response(f"Unknown search group: {name}", 400)
+        groups = requested or None
+
+    result = get_database().search_grouped(query, limit=limit, groups=groups)
     for ep in result['episodes']:
         ep['status'] = EpisodeStatus.to_api(ep['status'])
 

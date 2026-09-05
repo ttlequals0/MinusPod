@@ -9,6 +9,9 @@ logger = logging.getLogger(__name__)
 _HL_OPEN = '\x02'
 _HL_CLOSE = '\x03'
 
+# All groups search_grouped can compute; also the valid values for the /search groups= param.
+SEARCH_GROUP_NAMES = ('shows', 'episodes', 'transcripts', 'patterns', 'sponsors')
+
 
 class SearchMixin:
     """Full-text search (FTS5) methods."""
@@ -230,11 +233,12 @@ class SearchMixin:
             logger.error(f"Search error for query '{query}': {e}")
             return []
 
-    def search_grouped(self, query: str, limit: int = 50) -> dict:
+    def search_grouped(self, query: str, limit: int = 50, groups: list[str] | None = None) -> dict:
         """Grouped search: shows, episodes, transcripts, patterns, sponsors; each an independent FTS query.
 
-        Patterns and sponsors are always included so the endpoint has one shape regardless of
-        caller (Dashboard box, palette, or the Advanced page, which is their only consumer).
+        All five keys are always present in the result. groups restricts which are actually
+        queried; any name not in groups (default: all of SEARCH_GROUP_NAMES) comes back as an
+        empty list, same as a group whose query raised.
         """
         conn = self.get_connection()
         clean_query = query.replace('"', '""').strip()
@@ -247,11 +251,12 @@ class SearchMixin:
         escaped = needle.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
         like_pattern = f'%{escaped}%'
         like_prefix = f'{escaped}%'
+        wanted = set(SEARCH_GROUP_NAMES) if groups is None else set(groups)
 
         # Each group's MATCH repeats content_type so FTS5 intersects doclists instead of
         # scanning every posting for the term and filtering by content_type afterwards.
         # Each group is independent: one group's unexpected failure should not blank the others.
-        groups = {
+        group_fns = {
             'shows': lambda: self._search_shows(conn, fts_query, like_pattern, like_prefix, limit),
             'episodes': lambda: self._search_episodes(conn, fts_query, like_pattern, like_prefix, limit),
             'transcripts': lambda: self._search_transcripts(conn, fts_query),
@@ -259,7 +264,9 @@ class SearchMixin:
             'sponsors': lambda: self._search_sponsors(conn, fts_query, limit),
         }
         results = dict(empty)
-        for name, fn in groups.items():
+        for name, fn in group_fns.items():
+            if name not in wanted:
+                continue
             try:
                 results[name] = fn()
             except Exception as e:

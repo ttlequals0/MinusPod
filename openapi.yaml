@@ -3320,7 +3320,8 @@ paths:
         them; descriptions and transcripts match whole words only.
         Transcript results are capped at 3. Patterns and sponsors are
         Advanced-page-only groups; the Dashboard box and keyboard palette
-        ignore them.
+        ignore them and request only shows, episodes and transcripts via
+        the groups parameter.
       operationId: search
       parameters:
         - name: q
@@ -3337,6 +3338,16 @@ paths:
             minimum: 1
             maximum: 100
             default: 50
+        - name: groups
+          in: query
+          description: |
+            Comma-separated subset of groups to compute. An unrequested
+            group is still present in the response as an empty array
+            rather than omitted. A blank or omitted value means all five.
+          schema:
+            type: string
+            default: shows,episodes,transcripts,patterns,sponsors
+          example: shows,episodes,transcripts
       responses:
         '200':
           description: Grouped search results

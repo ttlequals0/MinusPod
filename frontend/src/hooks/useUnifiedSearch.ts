@@ -9,6 +9,8 @@ export const SEARCH_MIN_QUERY = 2;
 const SEARCH_DEBOUNCE_MS = 300;
 
 const EMPTY_GROUPS: UnifiedSearchGroups = { shows: [], episodes: [], transcripts: [] };
+// Dashboard field and palette only ever render these three; skip computing patterns/sponsors.
+const HOT_GROUPS = 'shows,episodes,transcripts';
 
 // Query + arrow/Enter keyboard-nav state shared by the header palette (QuickSearch)
 // and the Dashboard field, so both stay behaviorally identical against /search.
@@ -25,7 +27,7 @@ export function useUnifiedSearch(seed: string, limit = 8) {
   const ready = debounced.trim().length >= SEARCH_MIN_QUERY;
   const { data } = useQuery({
     queryKey: ['unifiedSearch', debounced, limit],
-    queryFn: ({ signal }) => search(debounced, limit, signal),
+    queryFn: ({ signal }) => search(debounced, limit, signal, HOT_GROUPS),
     enabled: ready,
     placeholderData: keepPreviousData,
   });

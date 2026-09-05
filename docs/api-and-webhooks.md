@@ -48,7 +48,7 @@ Key endpoints:
 - `GET /api/v1/patterns` - List ad patterns (filter by scope)
 - `GET /api/v1/patterns/stats` - Pattern database statistics
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
-- `GET /api/v1/search?q=query` - Full-text search across all content
+- `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted
 - `GET /api/v1/episodes/processing` - List episodes currently processing
 - `GET /api/v1/history` - Processing history with pagination and export
 - `GET /api/v1/stats/dashboard` - Aggregate stats (avg/min/max time saved, ads, cost, tokens) with optional podcast filter
