@@ -183,12 +183,22 @@ def _folded_validation(winner: dict, loser: dict) -> dict:
     return merged
 
 
+def _fold_rank(marker: dict) -> int:
+    """Fold precedence: a keep is a settled decision, a hold is an open question
+    a human still owes an answer to, and everything else is neither."""
+    if marker.get('action_applied') == 'keep':
+        return 2
+    if marker.get('held_for_review'):
+        return 1
+    return 0
+
+
 def fold_marker_pair(target: dict, other: dict) -> None:
     """Fold two markers stored for one span into target, in place. A keep verdict
-    wins over a hold; the loser fills any field the winner lacks, including a
-    hold reason with nowhere else to go, which becomes a validation flag."""
-    other_wins = (other.get('action_applied') == 'keep'
-                  and target.get('action_applied') != 'keep')
+    wins over a hold and a hold wins over a rejected or plain record; the loser
+    fills any field the winner lacks, including a hold reason with nowhere else
+    to go, which becomes a validation flag."""
+    other_wins = _fold_rank(other) > _fold_rank(target)
     winner, loser = (other, target) if other_wins else (target, other)
     cleared = loser.get('hold_reason') if loser.get('held_for_review') else None
     merged = {k: v for k, v in loser.items() if v is not None}

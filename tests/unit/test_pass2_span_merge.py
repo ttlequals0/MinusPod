@@ -21,8 +21,8 @@ from unittest.mock import patch  # noqa: E402
 import main_app.processing as processing  # noqa: E402
 from utils.markers import fold_marker_pair  # noqa: E402
 from config import (  # noqa: E402
-    HOLD_REASON_VERIFICATION_KEPT_CONFLICT, count_pending_review,
-    is_pending_review,
+    HOLD_REASON_VERIFICATION_KEPT_CONFLICT, HOLD_REASON_VERIFICATION_MISS,
+    count_pending_review, is_pending_review,
 )
 
 ACTIONS = {'sponsor': 'remove', 'cross_promo': 'remove', 'self_promo': 'remove',
@@ -224,3 +224,51 @@ def test_fold_does_not_invent_was_cut():
     fold_marker_pair(target, {'start': 500.2, 'end': 519.8})
 
     assert 'was_cut' not in target
+
+
+def test_a_pass2_hold_survives_a_fold_into_a_rejected_pass1_marker():
+    """Pass 1 rejected the span; pass 2 re-detected it above the hold floor. The
+    hold is the open question, so it must reach the review queue."""
+    rejected = {'start': 500.0, 'end': 520.0, 'was_cut': False,
+                'validation': {'decision': 'REJECT', 'flags': ['REJECT: no evidence']}}
+    proc = {'start': 401.2, 'end': 420.8, 'confidence': 0.62}
+    orig = {'start': 500.2, 'end': 519.8, 'confidence': 0.62, 'sponsor': 'Acme'}
+    _cut, ui, gated_held, _n = processing._gate_verification_ads_by_confidence(
+        [proc], [orig], 0.7, verification_miss_hold_min_confidence=0.5,
+        verification_miss_autocut_min_confidence=0.0)
+    assert gated_held == [orig]
+
+    saved, folded = _seam([rejected], ui, gated_held)
+
+    assert folded == 1
+    assert len(saved) == 1
+    marker = saved[0]
+    assert marker['held_for_review'] is True
+    assert marker['hold_reason'] == HOLD_REASON_VERIFICATION_MISS
+    assert 'hold_cleared_reason' not in marker
+    assert count_pending_review(saved) == 1
+
+
+def test_fold_verdict_precedence_is_keep_then_hold_then_plain():
+    def _record(kind, start=500.0, end=520.0):
+        marker = {'start': start, 'end': end, 'was_cut': False}
+        if kind == 'keep':
+            marker['action_applied'] = 'keep'
+        elif kind == 'hold':
+            marker.update(held_for_review=True, hold_reason=f'{kind}_reason')
+        else:
+            marker['validation'] = {'decision': 'REJECT'}
+        return marker
+
+    expected = {
+        ('keep', 'keep'): 'keep', ('keep', 'hold'): 'keep', ('keep', 'reject'): 'keep',
+        ('hold', 'keep'): 'keep', ('hold', 'hold'): 'hold', ('hold', 'reject'): 'hold',
+        ('reject', 'keep'): 'keep', ('reject', 'hold'): 'hold',
+        ('reject', 'reject'): 'reject',
+    }
+    for (target_kind, other_kind), winner in expected.items():
+        target = _record(target_kind)
+        fold_marker_pair(target, _record(other_kind, 500.2, 519.8))
+        assert (target.get('action_applied') == 'keep') is (winner == 'keep')
+        assert bool(target.get('held_for_review')) is (winner == 'hold')
+        assert ('hold_reason' in target) is (winner == 'hold')
