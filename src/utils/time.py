@@ -5,6 +5,7 @@ used across the ad detection, transcription, and chapters pipeline.
 """
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 ISO_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
@@ -12,6 +13,28 @@ ISO_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 def utc_now_iso() -> str:
     """Return current UTC time as ISO 8601 string (e.g. '2026-03-15T12:00:00Z')."""
     return datetime.now(timezone.utc).strftime(ISO_FORMAT)
+
+
+def is_valid_timezone(tz_name) -> bool:
+    """True when `tz_name` is a resolvable IANA zone name."""
+    try:
+        ZoneInfo(tz_name)
+        return True
+    except (ZoneInfoNotFoundError, ValueError, TypeError):
+        return False
+
+
+def local_now_iso(tz_name) -> str:
+    """Current time in `tz_name` as ISO 8601 with UTC offset (e.g. '2026-09-04T13:21:00-04:00').
+
+    Falls back to UTC (still offset-suffixed, '+00:00') for an unresolvable zone
+    so a bad stored setting never crashes a notification.
+    """
+    try:
+        tz = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError, TypeError):
+        tz = timezone.utc
+    return datetime.now(tz).isoformat(timespec='seconds')
 
 
 def epoch_to_iso(ts) -> str | None:

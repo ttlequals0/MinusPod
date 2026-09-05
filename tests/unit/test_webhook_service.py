@@ -115,6 +115,19 @@ class TestBuildContext:
         assert ctx['episode']['time_saved'] == '1:40'
         assert ctx['episode']['error_message'] is None
         assert 'timestamp' in ctx
+        assert ctx['timestamp'].endswith('Z')
+        assert 'timestamp_local' in ctx
+
+    def test_build_context_timestamp_local_carries_configured_offset(self):
+        """timestamp_local reflects notification_timezone with a UTC offset,
+        while timestamp is untouched and still Z-suffixed."""
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = 'America/New_York'
+        payload = _make_payload()
+        with patch('database.Database', return_value=mock_db):
+            ctx = _build_context(payload)
+        assert ctx['timestamp'].endswith('Z')
+        assert ctx['timestamp_local'].endswith(('-04:00', '-05:00'))
 
     def test_build_context_podcast_name_defaults_to_slug(self):
         """When podcast_name is not provided, podcast.name falls back to slug."""
@@ -386,6 +399,7 @@ class TestFireTestEvent:
         assert body['status_code'] == 401
         assert 'episode' not in body
         assert body['test'] is True
+        assert 'timestamp_local' in body
 
     @patch('webhook_service.safe_post')
     def test_three_events_across_families(self, mock_post):

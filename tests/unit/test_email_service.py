@@ -164,6 +164,18 @@ class TestFormatters:
         assert subject == '[MinusPod] Auth Failure: unknown / unknown'
         assert all(value == '-' for _, value in rows)
 
+    def test_timestamp_row_uses_local_time_for_a_non_utc_zone(self):
+        ctx = dict(ALERT_CTX, event='Auth Failure',
+                   timestamp_local='2026-07-11T20:00:00-04:00')
+        _, rows, _ = FORMATTERS['Auth Failure'](ctx)
+        assert ('Timestamp', '2026-07-11T20:00:00-04:00') in rows
+
+    def test_timestamp_row_falls_back_to_utc_for_the_utc_zone(self):
+        ctx = dict(ALERT_CTX, event='Auth Failure',
+                   timestamp_local='2026-07-12T00:00:00+00:00')
+        _, rows, _ = FORMATTERS['Auth Failure'](ctx)
+        assert ('Timestamp', ALERT_CTX['timestamp']) in rows
+
 
 class TestBuildMessage:
     def setup_method(self):

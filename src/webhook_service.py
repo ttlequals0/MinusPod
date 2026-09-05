@@ -15,7 +15,7 @@ from jinja2.sandbox import SandboxedEnvironment
 from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
-from utils.time import format_duration, utc_now_iso
+from utils.time import format_duration, utc_now_iso, local_now_iso, is_valid_timezone
 from utils.url import SSRFError
 import email_service
 
@@ -49,6 +49,23 @@ VALID_EVENTS = {
 }
 
 _sandbox_env = SandboxedEnvironment()
+
+
+def get_notification_timezone(db=None) -> str:
+    """Configured notification_timezone setting; falls back to a valid TZ env
+    or UTC. Never raises: a DB/settings failure must not cost a notification."""
+    tz = None
+    try:
+        if db is None:
+            from database import Database  # deferred to avoid circular imports
+            db = Database()
+        tz = db.get_setting('notification_timezone')
+    except Exception:
+        logger.debug("Could not read notification_timezone setting", exc_info=True)
+    if isinstance(tz, str) and tz:
+        return tz
+    env_tz = os.environ.get('TZ')
+    return env_tz if env_tz and is_valid_timezone(env_tz) else 'UTC'
 
 
 @dataclass
@@ -169,6 +186,7 @@ _ALERT_SAMPLE_CONTEXTS = {
 _DUMMY_CONTEXT = {
     'event': 'Episode Processed',
     'timestamp': '',  # overwritten at render time with current UTC
+    'timestamp_local': '',  # overwritten at render time with local time
     'podcast': {
         'name': 'Example Podcast',
         'slug': 'example-podcast',
@@ -208,6 +226,7 @@ def _build_context(payload: WebhookPayload) -> dict:
     return {
         'event': payload.event,
         'timestamp': utc_now_iso(),
+        'timestamp_local': local_now_iso(get_notification_timezone()),
         'podcast': {
             'name': payload.podcast_name or payload.slug,
             'slug': payload.slug,
@@ -418,7 +437,8 @@ def _fire_alert_event(event, context, log_detail, dedup_key=None):
     matching = [w for w in load_webhooks()
                 if w.get('enabled', False) and event in w.get('events', [])]
 
-    context = {'event': event, **context, 'timestamp': utc_now_iso()}
+    context = {'event': event, **context, 'timestamp': utc_now_iso(),
+               'timestamp_local': local_now_iso(get_notification_timezone())}
 
     def _dispatch():
         for wh in matching:
@@ -576,6 +596,7 @@ def render_template_preview(template_string):
     """
     context = dict(_DUMMY_CONTEXT)
     context['timestamp'] = utc_now_iso()
+    context['timestamp_local'] = local_now_iso(get_notification_timezone())
     return _render_template(template_string, context)
 
 
@@ -611,6 +632,7 @@ def _episode_test_context(event):
             logger.debug("Could not load real data for test webhook, using placeholders")
         context = dict(_DUMMY_CONTEXT)
         context['timestamp'] = utc_now_iso()
+        context['timestamp_local'] = local_now_iso(get_notification_timezone())
         return context
 
     payload = WebhookPayload(event=EVENT_EPISODE_FAILED, **_FAILED_SAMPLE)
@@ -627,7 +649,8 @@ def _build_test_context(event):
         # Unknown/legacy event value stored on the webhook; fall back to
         # the universal sample rather than dropping the test delivery.
         return _episode_test_context(EVENT_EPISODE_PROCESSED)
-    return {'event': event, **sample, 'timestamp': utc_now_iso()}
+    return {'event': event, **sample, 'timestamp': utc_now_iso(),
+            'timestamp_local': local_now_iso(get_notification_timezone())}
 
 
 def fire_test_event(webhook_config):

@@ -11,6 +11,10 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- Webhook and email notifications now include a `timestamp_local` field next to the existing UTC `timestamp`, computed in a configurable timezone (Settings > Notifications > Timezone; `GET`/`PUT /api/v1/settings/notifications/timezone`). It defaults to `UTC`, or the container's `TZ` env var when that names a valid zone.
+
 ### Fixed
 
 - Notification event checkboxes ran together with no space before their labels. The list is now a two-column grid, so twelve events read as twelve choices.

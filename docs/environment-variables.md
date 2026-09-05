@@ -38,6 +38,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 | `LOG_FORMAT` | `text` | `text` or `json`. JSON output works with log aggregators (Loki, CloudWatch). |
 | `DATA_DIR` | `/app/data` | Data storage directory. Aliases `DATA_PATH` and `MINUSPOD_DATA_DIR` are also honored. |
+| `TZ` | `UTC` | Container timezone (e.g. `America/New_York`). When set to a valid IANA zone, seeds the `notification_timezone` setting that computes `timestamp_local` in webhook and email notifications. Override the setting at Settings > Notifications, or `GET/PUT /api/v1/settings/notifications/timezone`, without touching `TZ`. |
 
 ## Security
 

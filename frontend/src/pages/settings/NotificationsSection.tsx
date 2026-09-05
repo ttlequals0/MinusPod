@@ -8,6 +8,7 @@ import {
 import type { Webhook, WebhookPayload, WebhookTestResult } from '../../api/settings';
 import { useTransientState } from '../../hooks/useTransientState';
 import EmailSettingsForm from './EmailSettingsForm';
+import TimezoneSettingsForm from './TimezoneSettingsForm';
 import { EVENT_OPTIONS } from './notificationEvents';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import Checkbox from '../../components/Checkbox';
@@ -430,6 +431,10 @@ function NotificationsSection() {
   return (
     <CollapsibleSection title="Notifications" storageKey="settings-section-notifications">
       <div className="space-y-6">
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-foreground">Timezone</h3>
+          <TimezoneSettingsForm />
+        </div>
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">Email</h3>
           <EmailSettingsForm />

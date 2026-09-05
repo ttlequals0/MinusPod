@@ -79,7 +79,10 @@ from utils.opml import modified_feed_url
 from utils.url import validate_base_url, validate_outbound_host, SSRFError
 from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from webhook_service import render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS
+from webhook_service import (
+    render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS,
+    get_notification_timezone,
+)
 import email_service
 from email.utils import parseaddr
 from db_backup_service import (
@@ -87,6 +90,7 @@ from db_backup_service import (
     validate_backup_dest,
 )
 from utils.cron import is_valid_expression
+from utils.time import is_valid_timezone
 
 # Every LLM provider the settings API accepts.
 VALID_LLM_PROVIDERS = (
@@ -2849,6 +2853,31 @@ def test_email_notifications():
             'success': False,
             'message': 'email test failed; see server logs for details',
         })
+
+
+# ========== Notification timezone ==========
+
+@api.route('/settings/notifications/timezone', methods=['GET'])
+@log_request
+def get_notification_timezone_setting():
+    """Return the IANA zone used for timestamp_local in webhook/email notifications."""
+    return json_response({'timezone': get_notification_timezone(get_database())})
+
+
+@api.route('/settings/notifications/timezone', methods=['PUT'])
+@log_request
+def update_notification_timezone_setting():
+    """Set the notification timezone; rejects a name zoneinfo cannot resolve."""
+    db = get_database()
+    data = request.get_json() or {}
+    tz = data.get('timezone')
+    if not isinstance(tz, str) or not tz.strip():
+        return error_response('timezone is required', 400)
+    tz = tz.strip()
+    if not is_valid_timezone(tz):
+        return error_response(f'unknown timezone: {tz}', 400)
+    db.set_setting('notification_timezone', tz, is_default=False)
+    return json_response({'timezone': tz})
 
 
 # ========== Ad Reviewer settings ==========

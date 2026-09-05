@@ -6257,6 +6257,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /settings/notifications/timezone:
+    get:
+      tags:
+        - Settings
+      summary: Get the notification timezone
+      description: Returns the IANA zone used to compute timestamp_local in webhook and email notifications. Defaults to UTC, or the container's TZ env var when it names a valid zone.
+      operationId: getNotificationTimezone
+      responses:
+        '200':
+          description: Notification timezone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTimezoneSettings'
+    put:
+      tags:
+        - Settings
+      summary: Set the notification timezone
+      description: Rejects a timezone name zoneinfo cannot resolve.
+      operationId: updateNotificationTimezone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationTimezoneSettings'
+      responses:
+        '200':
+          description: Updated timezone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTimezoneSettings'
+        '400':
+          description: Unknown timezone name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /settings/notifications/email:
     get:
       tags:
@@ -12092,6 +12132,14 @@ components:
           type: string
           description: Content type for webhook delivery
       description: Webhook configuration. Note -- the secret field is never returned in responses.
+
+    NotificationTimezoneSettings:
+      type: object
+      properties:
+        timezone:
+          type: string
+          description: IANA zone name (e.g. 'America/New_York'), or 'UTC'
+          example: UTC
 
     EmailNotificationSettings:
       type: object
