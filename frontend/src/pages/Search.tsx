@@ -10,6 +10,12 @@ import { renderSnippet } from '../utils/searchSnippet';
 type FilterType = 'all' | 'episode' | 'podcast' | 'transcript' | 'pattern' | 'sponsor';
 type ResultType = Exclude<FilterType, 'all'>;
 
+const FILTER_TYPES: FilterType[] = ['all', 'episode', 'podcast', 'transcript', 'pattern', 'sponsor'];
+
+function isFilterType(value: string | null): value is FilterType {
+  return value !== null && (FILTER_TYPES as string[]).includes(value);
+}
+
 interface NormalizedResult {
   type: ResultType;
   id: string;
@@ -24,7 +30,8 @@ function Search() {
   const queryClient = useQueryClient();
 
   const initialQuery = searchParams.get('q') || '';
-  const initialType = (searchParams.get('type') as FilterType) || 'all';
+  const typeParam = searchParams.get('type');
+  const initialType: FilterType = isFilterType(typeParam) ? typeParam : 'all';
 
   const [query, setQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
@@ -172,7 +179,7 @@ function Search() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {(['all', 'episode', 'podcast', 'transcript', 'pattern', 'sponsor'] as FilterType[]).map((type) => (
+        {FILTER_TYPES.map((type) => (
           <button
             key={type}
             onClick={() => setFilterType(type)}
