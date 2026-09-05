@@ -1,12 +1,5 @@
-"""search_index coverage: every episode status must be indexed, not just processed.
-
-rebuild_search_index and index_episode used to filter on status='processed', so a
-discovered/pending episode was invisible to search until it finished processing.
-These tests pin: (1) every status is indexed and searchable by title/description/
-transcript, and (2) the bulk discovery path indexes the whole batch in one
-transaction rather than committing per row (issue: refresh already logs 5-13s
-write-lock holds; N per-row commits would make that worse).
-"""
+"""search_index coverage: every episode status must be indexed, not just processed,
+since rebuild_search_index and index_episode used to filter on status='processed'."""
 
 from tests.app_bootstrap import bootstrap
 
@@ -78,13 +71,8 @@ def test_upsert_episode_new_row_is_indexed_immediately():
 
 
 def test_reindex_scopes_by_podcast_slug_not_bare_episode_id():
-    """Two podcasts can share an episode_id GUID; reindexing one must not lose the other's row.
-
-    index_episodes scopes its DELETE/SELECT by (episode_id, podcast_slug) pairs rather than a
-    bare episode_id, precisely so this case is safe: a naive bare-episode_id DELETE would sweep
-    up both podcasts' search_index rows, while a properly-scoped SELECT would only re-fetch and
-    reinsert the one requested, permanently dropping the other podcast's row from the index.
-    """
+    """Two podcasts can share an episode_id GUID; reindexing one must not lose the other's
+    row, so index_episodes scopes its DELETE/SELECT by (episode_id, podcast_slug) pairs."""
     slug_a = _feed('collide-a')
     slug_b = _feed('collide-b')
     shared_id = _eid()

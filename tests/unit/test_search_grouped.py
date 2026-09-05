@@ -1,9 +1,5 @@
 """Grouped /search: three independent groups (shows, episodes, transcripts).
-
-Word matching only for descriptions/transcripts (porter unicode61, no LIKE);
-titles additionally get a substring LIKE pass. Transcripts are capped since
-search_index holds one row per episode (see search_grouped design note).
-"""
+Titles get a substring LIKE pass in addition to porter unicode61 word matching."""
 from pathlib import Path
 
 import yaml

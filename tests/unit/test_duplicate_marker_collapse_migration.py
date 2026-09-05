@@ -1,10 +1,5 @@
-"""Tests for the 2.95.2 _collapse_duplicate_ad_markers migration.
-
-Pass 2 used to append a marker for a span pass 1 had already stored, so
-existing episodes carry two dicts for one span. The migration folds only
-pairs where both markers are uncut and both edges fall inside
-BOUNDS_TOLERANCE_S; anything else is left exactly as it was.
-"""
+"""Tests for the 2.95.2 _collapse_duplicate_ad_markers migration: it folds
+only pairs both uncut with edges inside BOUNDS_TOLERANCE_S, leaving the rest."""
 import json
 import logging
 import os

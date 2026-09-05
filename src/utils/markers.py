@@ -230,10 +230,7 @@ def fold_marker_pair(target: dict, other: dict) -> None:
 
 def collapse_duplicate_markers(markers):
     """Collapse markers stored twice for one span into one marker each.
-
-    Returns ``(markers, folded_count)``; the list is rebuilt only when
-    something folded, so a clean row is left untouched.
-    """
+    Returns ``(markers, folded_count)``; a clean list is left untouched."""
     collapsed = []
     folded = 0
     for marker in markers:

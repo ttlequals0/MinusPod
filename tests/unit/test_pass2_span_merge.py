@@ -1,12 +1,5 @@
-"""Pass-2 markers must not persist a second dict for a span pass 1 already stored.
-
-api/episodes.py buckets markers into four mutually exclusive lists, so a span
-showing up as both pending review and kept can only come from two stored
-dicts. Three pass-2 producers could hand the merge seam a marker for a span
-already in the pass-1 list: the kept-span conflict hold, the category-keep
-partition, and a validator hold over a pass-1 held span. Each is walked here
-through its real producer, then through the seam helper.
-"""
+"""Pass-2 markers must not persist a second dict for a span pass 1 already
+stored, since api/episodes.py buckets markers into mutually exclusive lists."""
 import os
 import sys
 import tempfile

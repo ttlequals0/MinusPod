@@ -1,9 +1,5 @@
-"""The rate limiter must not 500 a request when its expiry timer restarts.
-
-limits 5.8.0 restarts that timer with a check-then-start two threads can
-interleave, so the loser calls start() on an already-started thread. With
-8 gunicorn threads per worker this reached production as sporadic 500s.
-"""
+"""The rate limiter must not 500 a request when its expiry timer restarts:
+limits 5.8.0's check-then-start timer restart lets two threads interleave."""
 import os
 import sys
 import threading
@@ -72,12 +68,8 @@ def test_counting_still_works():
 
 
 def _force_interleave(storage, monkeypatch):
-    """Hold both threads inside Timer() so both assign before either starts.
-
-    The real window is a few instructions wide, so racing for it gives a
-    flaky test. Blocking in the constructor reproduces the same interleaving
-    every run: check, check, assign, assign, start, start.
-    """
+    """Hold both threads inside Timer() so both assign before either starts:
+    the real window is too narrow to race for reliably otherwise."""
     import limits.storage.memory as memory_mod
 
     gate = threading.Barrier(2)
@@ -112,12 +104,8 @@ def _force_interleave(storage, monkeypatch):
 
 
 def test_restart_is_serialized(monkeypatch):
-    """Only one thread may be restarting the timer at a time.
-
-    Stock storage lets both threads through, so both assign self.timer and
-    the second start() hits the object the first already started. Holding
-    the lock across check, assign, and start is what closes that window.
-    """
+    """Only one thread may be restarting the timer at a time: stock storage
+    lets both through, so the second start() hits an already-started object."""
     storage = ThreadSafeMemoryStorage()
     try:
         _stop_timer(storage)
@@ -128,11 +116,8 @@ def test_restart_is_serialized(monkeypatch):
 
 
 def test_starts_the_object_it_built(monkeypatch):
-    """The started timer must be the one just constructed, not a re-read.
-
-    Re-reading self.timer after assignment is the upstream defect: a second
-    thread can swap the attribute in between.
-    """
+    """The started timer must be the one just constructed, not a re-read of
+    self.timer, which a second thread can swap in between."""
     import limits.storage.memory as memory_mod
 
     built = []
