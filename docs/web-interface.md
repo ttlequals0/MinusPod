@@ -47,7 +47,7 @@ The server includes a web-based management UI at `/ui/`:
 - Global Defaults group in settings (Auto-Process, Max Feed Episodes, Only Expose Processed) that every feed inherits, with per-feed overrides on each feed's settings page; Queue priority boosts live in the Queue Control group
 - Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, and structural rate-limit hits, delivered by webhooks or native email (Settings > Notifications)
 - Podcast search via PodcastIndex.org
-- Quick search: start typing on any page, or press `/` or Ctrl+K, to open a search box that matches feed and episode titles of every status. Arrow keys and Enter jump to the result. The last row opens the full transcript search for the same query
+- Search: start typing on any page, or press `/` or Ctrl+K, to open a keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
 - Installable as Progressive Web App (PWA)
 

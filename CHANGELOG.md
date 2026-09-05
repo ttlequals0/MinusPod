@@ -11,18 +11,26 @@ release notes.
 
 ## [Unreleased]
 
+## [2.95.2] - 2026-09-04
+
 ### Added
 
+- Unified search: the keyboard palette (`/`, Ctrl+K, or type-to-open) still works everywhere, and the Dashboard now has the same search field built in, so it works on mobile too. Both return shows, episodes, and transcript matches together; the header magnifier, or the palette's own "Advanced search" link, opens a dedicated page with type filters plus pattern and sponsor matches. The search index now covers every episode regardless of status, not just processed ones, so a discovered, queued, or failed episode is findable by title and description too. Upgrading to this version reindexes automatically; there is no manual step. The `/quick-search` endpoint is removed; use `/search` instead.
 - Webhook and email notifications now include a `timestamp_local` field next to the existing UTC `timestamp`, computed in a configurable timezone (Settings > Notifications > Timezone; `GET`/`PUT /api/v1/settings/notifications/timezone`). It defaults to `UTC`, or the container's `TZ` env var when that names a valid zone.
+
+### Changed
+
+- The queue hold line in the status bar says when the pause began, and how long it ran once it lifts.
+- Feed cover art on the Dashboard now opens the feed, matching the title link (#718).
+- Feed card footers on the Dashboard grid line up across a row, instead of each card's Copy URL / Delete row settling at a different height depending on its status pills.
+- The Copy Feed URL control on a feed's detail page is icon-only on mobile, so Reprocess, Refresh, and Delete stay on one row instead of wrapping.
+- Per-feed detection notes now save with an explicit Save button and a Clear button, replacing the old save-on-blur. A failed save is shown as an error instead of failing silently, and a draft in progress is no longer overwritten by a background refetch.
 
 ### Fixed
 
 - Notification event checkboxes ran together with no space before their labels. The list is now a two-column grid, so twelve events read as twelve choices.
 - The recut and reprocess buttons on an episode page re-enabled for a moment after being clicked. The request only queues the run, so the button woke up again before the refetch reported the episode as processing, and a second click raced the lock.
-
-### Changed
-
-- The queue hold line in the status bar says when the pause began, and how long it ran once it lifts.
+- A detection with a same-episode "keep" twin no longer shows up in the review queue asking for a decision the server would reject with a 409.
 
 ## [2.95.1] - 2026-09-04
 
