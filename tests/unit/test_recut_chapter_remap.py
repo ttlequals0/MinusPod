@@ -27,11 +27,10 @@ BEEP = 2.0
 
 
 @pytest.fixture(autouse=True)
-def _isolate_db():
+def _isolate_db(monkeypatch):
     import database
     database.Database._instance = None
-    database.Database.__init__.__defaults__ = (_test_data_dir,)
-    database.Database.__new__.__defaults__ = (_test_data_dir,)
+    monkeypatch.setenv('DATA_DIR', _test_data_dir)
     yield
 
 

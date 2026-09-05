@@ -682,9 +682,10 @@ def _validate_registry():
 
 _validate_registry()
 
-# (key, bad_value) pairs already warned about, so a bad env value logs once
-# per distinct value instead of once per call (every notification, every GET).
-_warned_invalid_env_defaults: set[tuple[str, str]] = set()
+# (source, key, bad_value) triples already warned about, so a bad value logs
+# once per distinct value instead of once per call (every notification, every
+# GET); source ('env' vs 'stored') keeps the two paths from colliding.
+_warned_invalid_values: set[tuple[str, str, str]] = set()
 
 
 def registry_default(key: str) -> str | None:
@@ -701,9 +702,9 @@ def registry_default(key: str) -> str | None:
         else:
             raw = os.environ.get(spec.env, spec.default)
         if spec.validator is not None and not spec.validator(raw):
-            warn_key = (key, raw)
-            if warn_key not in _warned_invalid_env_defaults:
-                _warned_invalid_env_defaults.add(warn_key)
+            warn_key = ('env', key, raw)
+            if warn_key not in _warned_invalid_values:
+                _warned_invalid_values.add(warn_key)
                 logger.warning(
                     "Ignoring invalid %s=%r for setting %r; using default %r",
                     spec.env, raw, key, spec.default)
@@ -713,15 +714,17 @@ def registry_default(key: str) -> str | None:
 
 
 def registry_current_value(db, key: str) -> str | None:
-    """Stored value for `key` if present and valid per its SettingSpec.validator,
-    else the registry default. The single validated read path so every consumer
-    (settings API, notification code) applies the same rule."""
+    """Stored value for `key` if valid per its SettingSpec.validator, else the
+    registry default: the one validated read path every consumer shares."""
     spec = SETTINGS_REGISTRY[key]
     value = db.get_setting(key)
     if isinstance(value, str) and value:
         if spec.validator is None or spec.validator(value):
             return value
-        logger.warning("Ignoring invalid stored value %r for setting %r", value, key)
+        warn_key = ('stored', key, value)
+        if warn_key not in _warned_invalid_values:
+            _warned_invalid_values.add(warn_key)
+            logger.warning("Ignoring invalid stored value %r for setting %r", value, key)
     return registry_default(key)
 
 

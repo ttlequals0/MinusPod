@@ -9,6 +9,7 @@ compared via sha256 so the snapshot stays readable.
 import hashlib
 import os
 import sys
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +22,7 @@ from config import (
 from database import Database
 from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
-    registry_default, registry_get_default,
+    registry_current_value, registry_default, registry_get_default,
 )
 
 # Env vars that influence seed/reset defaults; cleared for determinism.
@@ -474,6 +475,15 @@ class TestValidatorHook:
             for _ in range(3):
                 assert registry_default('notification_timezone') == 'UTC'
         warnings = [r for r in caplog.records if 'CET-1CEST' in r.message]
+        assert len(warnings) == 1
+
+    def test_invalid_stored_value_warns_only_once_per_distinct_value(self, clean_env, caplog):
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = 'CST6CDT7'
+        with caplog.at_level('WARNING'):
+            for _ in range(3):
+                assert registry_current_value(mock_db, 'notification_timezone') == 'UTC'
+        warnings = [r for r in caplog.records if 'CST6CDT7' in r.message]
         assert len(warnings) == 1
 
     def test_entries_without_a_validator_are_unaffected(self, clean_env, monkeypatch):

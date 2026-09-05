@@ -409,13 +409,18 @@ def graceful_shutdown(signum, frame):
         logger.warning("subprocess_registry terminate_all failed: %s", exc)
 
 
+def _background_leader_lock_path() -> Path:
+    """Background-leader lockfile location, resolved fresh so a relocated data dir is honoured."""
+    return resolve_data_dir() / '.background_leader.lock'
+
+
 def _try_become_background_leader() -> bool:
     """Try to acquire exclusive lock for background thread ownership.
 
     Only one Gunicorn worker should run background tasks (RSS refresh,
     queue processor) to avoid SQLite write contention.
     """
-    lock_path = resolve_data_dir() / '.background_leader.lock'
+    lock_path = _background_leader_lock_path()
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock_file = open(lock_path, 'a')

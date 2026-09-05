@@ -179,16 +179,13 @@ def _reset_rss_circuit_breakers():
 
 
 @pytest.fixture(autouse=True)
-def _reset_warned_invalid_env_defaults():
-    """Clear the dedup set of already-warned bad env values between tests.
-
-    Module-global by design (Finding 8: warn once per distinct value for
-    the life of the process); without a reset, one test's bad value can
-    silently suppress a later test's warning assertion for the same value.
-    """
+def _reset_warned_invalid_values():
+    """Clear the dedup set of already-warned bad setting values between tests:
+    module-global by design, so one test's bad value cannot silently suppress
+    a later test's warning assertion for the same value."""
     yield
     try:
         import database.settings as settings_mod
-        settings_mod._warned_invalid_env_defaults.clear()
+        settings_mod._warned_invalid_values.clear()
     except ImportError:
         pass
