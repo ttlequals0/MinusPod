@@ -1,4 +1,4 @@
-"""API tests for the notification timezone setting (Task 7, unified search plan)."""
+"""API tests for the notification timezone setting."""
 import json
 
 import pytest

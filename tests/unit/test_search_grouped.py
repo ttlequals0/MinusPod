@@ -226,7 +226,7 @@ def test_content_type_filter_does_not_reweight_show_ranking():
     assert slugs.index(long_) < slugs.index(short)
 
 
-# groups= restricts which of the five groups search_grouped actually queries (#717 task 15).
+# groups= restricts which of the five groups search_grouped actually queries.
 
 
 def test_groups_param_skips_unrequested_group_functions(monkeypatch):
