@@ -204,7 +204,7 @@ def test_fold_does_not_shadow_a_hold_reason_already_cleared():
 
 
 def test_a_marker_without_was_cut_is_never_folded():
-    """No was_cut key means a pre-was_cut release wrote it and the span IS cut."""
+    """No was_cut key means a pre-was_cut release wrote it and the span was cut."""
     legacy = {'start': 500.0, 'end': 520.0, 'sponsor': 'Acme'}
     pass2_held = {'start': 500.2, 'end': 519.8, 'was_cut': False,
                   'held_for_review': True, 'hold_reason': 'cue_unproven'}

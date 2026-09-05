@@ -156,8 +156,8 @@ def spans_match(a_start, a_end, b_start, b_end,
 def foldable_twin(markers, marker):
     """The uncut marker in markers naming the same span as marker; a cut marker
     never folds since its record must keep describing the removed audio. A
-    marker with no was_cut key predates the field and counts as cut, the same
-    default is_pending_review and count_not_cut apply."""
+    marker with no was_cut key predates the field and counts as cut, matching
+    is_pending_review and count_not_cut."""
     if not isinstance(marker, dict) or marker.get('was_cut', True):
         return None
     return next(
@@ -184,8 +184,8 @@ def _folded_validation(winner: dict, loser: dict) -> dict:
 
 
 def _fold_rank(marker: dict) -> int:
-    """Fold precedence: a keep is a settled decision, a hold is an open question
-    a human still owes an answer to, and everything else is neither."""
+    """Fold precedence: a keep is a settled decision, a hold an open question a
+    human still owes an answer to, and a reject or plain record neither."""
     if marker.get('action_applied') == 'keep':
         return 2
     if marker.get('held_for_review'):
