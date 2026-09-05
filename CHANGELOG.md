@@ -29,6 +29,7 @@ release notes.
 - Searching a common word is about twice as fast on a large index. Each of the five result groups now narrows its full-text match by content type, so the shows, patterns and sponsors groups no longer walk the episode postings. Results and their order are unchanged. A result whose description matched now shows the description snippet rather than repeating the title.
 - `GET /search` takes an optional `groups` parameter to compute only the requested result groups; the Dashboard field and keyboard palette now ask for shows, episodes and transcripts only, since they never showed pattern or sponsor matches anyway.
 - Search needs at least two characters before it runs, and the transcripts group honours the limit you ask for rather than stopping at three. `GET /search` now rejects the removed `type` parameter with a 400 instead of ignoring it; use `groups` to choose result groups.
+- Storage and audio-processing paths now resolve `DATA_DIR` before `DATA_PATH`/`MINUSPOD_DATA_DIR`, matching every other path resolver in the app. An operator with `DATA_DIR` and a different `DATA_PATH` set will see storage and audio use the `DATA_DIR` value after upgrading.
 
 ### Fixed
 
