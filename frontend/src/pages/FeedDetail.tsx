@@ -431,10 +431,9 @@ function FeedDetail() {
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
               {feed.feedUrl}
             </code>
-            {/* Not hideLabelOnMobile: that prop's baseClass carries its own
-                sm:px-2 and unprefixed h-8, which tie with (and can beat) the
-                sm:px-0/sm:p-1.5 this call site needs for its own desktop
-                look. Hiding the label directly here avoids the tie. */}
+            {/* Not hideLabelOnMobile: its baseClass adds sm:px-2 and h-8, which
+                beat this call site's desktop padding because Tailwind orders
+                same-utility conflicts by scale, not by source order. */}
             <CopyButton
               text={feed.feedUrl}
               label="Copy Feed URL"
