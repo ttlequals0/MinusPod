@@ -197,11 +197,8 @@ class EpisodeMixin:
         return id_to_status, title_date_to_id
 
     def upsert_episode(self, slug: str, episode_id: str, defer_index: bool = False, **kwargs) -> int:
-        """Insert or update an episode. Returns episode database ID.
-
-        defer_index leaves a new row out of the search index so a caller inserting
-        many rows can index them in one batch.
-        """
+        """Insert or update an episode, returning its database ID. defer_index leaves a
+        new row out of the search index so a bulk caller can index the batch itself."""
         conn = self.get_connection()
 
         if kwargs.get('published_at'):

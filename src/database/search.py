@@ -154,11 +154,8 @@ class SearchMixin:
         return len(insert_values)
 
     def _delete_indexed_episodes(self, conn, pairs: list[tuple[str, str]]) -> None:
-        """Drop these episodes' search_index rows, resolving rowids with one MATCH.
-
-        FTS5 pushes no constraint down for `(content_id, podcast_slug) IN (VALUES ...)`,
-        so that predicate visits every stored row; a MATCH on content_id uses the index.
-        """
+        """Drop these episodes' search_index rows, resolving rowids with one MATCH: FTS5
+        pushes no constraint down for (content_id, podcast_slug) IN (VALUES ...)."""
         # unicode61 tokenizes on alphanumerics, so an id without one has no term to MATCH.
         matchable, unmatchable = [], []
         for pair in pairs:
@@ -175,11 +172,14 @@ class SearchMixin:
             wanted = set(matchable)
             rowids = [h['rowid'] for h in hits
                       if (h['content_id'], h['podcast_slug']) in wanted]
-            if rowids:
+            # Chunked too: duplicate index rows for one pair would otherwise let the
+            # rowid list outgrow the bound-variable limit a chunk of pairs stays under.
+            for start in range(0, len(rowids), _INDEX_CHUNK):
+                batch = rowids[start:start + _INDEX_CHUNK]
                 conn.execute(
                     "DELETE FROM search_index "  # noqa: S608
-                    f"WHERE rowid IN ({','.join('?' * len(rowids))})",
-                    rowids)
+                    f"WHERE rowid IN ({','.join('?' * len(batch))})",
+                    batch)
         if unmatchable:
             conn.execute(
                 "DELETE FROM search_index WHERE content_type = 'episode' "  # noqa: S608
@@ -187,11 +187,8 @@ class SearchMixin:
                 [v for pair in unmatchable for v in pair])
 
     def _pick_snippet(self, row, *keys):
-        """First of the named snippet columns FTS5 actually highlighted.
-
-        Escaping the raw text before the sentinels become tags is what keeps a literal
-        <mark> in indexed text from reading as a highlight; the client decodes the rest.
-        """
+        """First of the named snippet columns FTS5 highlighted, escaped before the
+        sentinels become tags so a literal <mark> in indexed text stays text."""
         for key in keys:
             value = row[key]
             if value and _HL_OPEN in value:
@@ -250,10 +247,8 @@ class SearchMixin:
     @staticmethod
     def _merge_fts_and_like(fts_rows, key_fn, row_builder, like_fetch, like_row_builder,
                             limit, like_when_empty=False):
-        """FTS rows first, then a LIKE fallback for substring matches FTS tokenization
-        misses; deduped by key_fn, capped at limit. like_when_empty holds the fallback
-        back unless FTS found nothing, so a leading-wildcard scan of a large table does
-        not run on nearly every search."""
+        """FTS rows, then a LIKE pass for substrings FTS tokenization misses, deduped by
+        key_fn and capped at limit. like_when_empty runs the pass only on a total miss."""
         results = [row_builder(r) for r in fts_rows]
         seen = {key_fn(r) for r in fts_rows}
         run_like = not results if like_when_empty else len(results) < limit
@@ -266,11 +261,8 @@ class SearchMixin:
         return results[:limit]
 
     def _fts_group(self, conn, content_type, cols, fts_query, limit, select=(), join=''):
-        """One group's FTS pass over the named columns, with a snippet for each.
-
-        Repeating content_type inside the MATCH makes FTS5 intersect doclists instead of
-        walking every posting for the term and filtering afterwards.
-        """
+        """One group's FTS pass over the named columns, with a snippet for each. The
+        content_type inside the MATCH makes FTS5 intersect doclists rather than filter."""
         snippets = [
             f"snippet(search_index, {_SNIPPET_COL[col]}, char({ord(_HL_OPEN)}), "
             f"char({ord(_HL_CLOSE)}), '...', 64) AS {col}_snippet" for col in cols

@@ -20,15 +20,15 @@ logger = logging.getLogger('podcast.api')
 @log_request
 def search():
     """Unified search: {query, shows, episodes, transcripts, patterns, sponsors}, covering episodes of any status."""
-    query = request.args.get('q', '').strip()
-    if not query:
-        return error_response('Search query (q) is required', 400)
-
-    # type= used to select one content type. Ignoring it silently would hand a client
-    # built against that contract a different payload shape with no error.
+    # Checked before q so a client built against the old contract is told what changed
+    # rather than being sent back to fix an unrelated parameter.
     if request.args.get('type') is not None:
         return error_response(
             'The type parameter was removed; use groups= to pick result groups', 400)
+
+    query = request.args.get('q', '').strip()
+    if not query:
+        return error_response('Search query (q) is required', 400)
 
     limit = _clamped_int(request.args.get('limit'), 50, 1, 100)
 

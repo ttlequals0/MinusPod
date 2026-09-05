@@ -1119,3 +1119,34 @@ def test_commit_indexes_every_entry_in_one_batch(db_storage, local_feed, real_mp
     assert sorted(pair[0] for pair in batches[0]) == ['s01e01', 's01e02', 's01e03']
     assert any(e['episodeId'] == 's01e01'
                for e in db.search_grouped('Perihelion')['episodes'])
+
+
+@requires_ffmpeg
+def test_entry_that_fails_after_upsert_is_still_indexed(db_storage, local_feed,
+                                                        real_mp3_bytes, monkeypatch):
+    """The row is committed by then, so skipping it leaves an episode that exists but
+    cannot be found by search until the next full rebuild."""
+    db, storage = db_storage
+    slug = local_feed
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    (src_dir / 'S01E01 - Anemochory.mp3').write_bytes(real_mp3_bytes)
+
+    plan = build_import_plan(slug, [src_dir / 'S01E01 - Anemochory.mp3'], existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+
+    def boom(_path):
+        raise OSError('ffprobe died')
+
+    monkeypatch.setattr(local_import, 'probe_chapters', boom)
+    _commit_synchronously(slug, plan, db, storage)
+
+    report = local_import.get_import_status(slug, storage)['report']
+    assert [item['episodeId'] for item in report['failed']] == ['s01e01']
+    assert db.get_episode(slug, 's01e01') is not None
+    # Asserted on the index row, not through search: the episodes group's LIKE fallback
+    # would find this title even with no index row at all.
+    indexed = db.get_connection().execute(
+        "SELECT 1 FROM search_index WHERE content_type = 'episode' "
+        "AND content_id = ? AND podcast_slug = ?", ('s01e01', slug)).fetchone()
+    assert indexed is not None

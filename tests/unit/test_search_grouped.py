@@ -87,7 +87,7 @@ def test_api_aliases_processed_status_to_completed():
 def test_transcripts_group_honours_the_callers_limit():
     # The group hard-coded LIMIT 3, so the Advanced page could never reach past the
     # first three body-only matches however high a limit it asked for.
-    slug = _feed('transcript-cap')
+    slug = _feed('transcript-limit')
     for _ in range(40):
         ep_id = _eid()
         db.upsert_episode(slug, ep_id, title=f'Episode {ep_id}')
@@ -98,8 +98,6 @@ def test_transcripts_group_honours_the_callers_limit():
 
 
 def test_transcripts_group_caps_hits_for_one_episode():
-    # search_index holds one row per episode, so a term repeated through a long
-    # transcript yields one hit and cannot crowd out the other episodes.
     slug = _feed('transcript-per-episode')
     ep_id = _eid()
     db.upsert_episode(slug, ep_id, title='Repetition Hour')
@@ -108,12 +106,13 @@ def test_transcripts_group_caps_hits_for_one_episode():
     db.index_episode(ep_id, slug)
     hits = [t for t in db.search_grouped('sesquipedalian', limit=50)['transcripts']
             if t['episodeId'] == ep_id]
-    assert len(hits) <= 3
+    # One index row per episode is what keeps a verbose episode from filling the group;
+    # a multi-row index would have to reintroduce a cap to keep this at 1.
+    assert len(hits) == 1
 
 
 def test_transcript_hit_has_no_invented_timestamp():
-    # Unique word: a shared term would collide with the cap test's 5 rows and
-    # could fall outside the top-3 LIMIT depending on bm25 tie-breaking.
+    # Unique word: a shared term would pull in the 40 rows the limit test seeds.
     slug = _feed('transcript-timestamp')
     ep_id = _eid()
     db.upsert_episode(slug, ep_id, title='Timestamp Show')
@@ -417,6 +416,9 @@ def test_retired_type_param_is_rejected_naming_groups():
     resp = client.get('/api/v1/search?q=zorblat&type=episode')
     assert resp.status_code == 400
     assert 'groups' in resp.get_json()['error']
+    # Without q it still names type=, not the missing q: the retired parameter is the
+    # thing the client has to change.
+    assert 'groups' in client.get('/api/v1/search?type=episode').get_json()['error']
     assert client.get('/api/v1/search?q=zorblat').status_code == 200
 
 

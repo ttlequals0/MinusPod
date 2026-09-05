@@ -876,10 +876,13 @@ def _clear_queue_row(db, slug: str, episode_id: str) -> None:
 
 
 def _commit_entry(slug: str, entry: dict, db, storage,
-                  overwrite: bool) -> tuple[str, object]:
+                  overwrite: bool, upserted: list) -> tuple[str, object]:
     """Commit one plan entry. Returns ('ok', result_dict) or
     ('error', message) -- never raises for an ordinary per-file problem, so
     the caller's loop can always move on to the next entry.
+
+    Appends this entry's episode id to ``upserted`` the moment the row exists, so the
+    caller's batched indexing still covers it if a later step here raises.
 
     Reads the plan's own resolved paths (``audioPath``/``descriptionPath``/
     ``artworkPath``/``sidecarPath``) rather than re-resolving files by
@@ -998,6 +1001,9 @@ def _commit_entry(slug: str, entry: dict, db, storage,
         # bare truthiness flag.
         original_file=f'episodes/{episode_id}-original.mp3',
     )
+    # Recorded before the chapter/artwork steps below, any of which can raise and
+    # leave a committed row the batched index pass would otherwise skip.
+    upserted.append(episode_id)
 
     chapters = probe_chapters(str(final_path))
     if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
@@ -1118,6 +1124,9 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
     # below; the report's own 'committed' list only exposes episodeId/
     # audioFile/warnings (see the docstring on the outer report shape).
     committed_internal: list[dict] = []
+    # Every episode id whose row reached the database, committed or not: what the one
+    # batched index pass after the loop covers.
+    upserted_ids: list[str] = []
     # Staging filenames belonging to an entry that ended in skip or error --
     # a fixable problem (bad sidecar JSON, a stale collision, etc.), not junk.
     # The sweep in the finally block below leaves these alone so fixing the
@@ -1141,7 +1150,8 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
             continue
 
         try:
-            status, result = _commit_entry(slug, entry, db, storage, overwrite)
+            status, result = _commit_entry(slug, entry, db, storage, overwrite,
+                                           upserted_ids)
         except Exception as exc:
             # Per-file failure must never abort the batch -- an unexpected
             # exception (disk-full mid-move, a DB error) is caught here the
@@ -1167,8 +1177,8 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
         _bump_processed(slug, storage)
 
     # One index pass for the whole batch: _commit_entry defers each row's own.
-    if committed_internal:
-        db.index_episodes([(item['episodeId'], slug) for item in committed_internal])
+    if upserted_ids:
+        db.index_episodes([(episode_id, slug) for episode_id in upserted_ids])
 
     try:
         podcast = db.get_podcast_by_slug(slug)
