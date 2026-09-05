@@ -19,6 +19,7 @@ import {
 } from '../../utils/segmentCategory';
 import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguages';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
+import { useDraftField, type DraftField } from '../../hooks/useDraftField';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
 import SavedBadge from '../settings/SavedBadge';
@@ -209,19 +210,21 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
   const s = (v: number | null | undefined) => (v != null ? String(v) : '');
 
-  // Per-field input state. useSyncFromQuery reseeds from the server value
+  // Per-field draft state. useSyncFromQuery reseeds from the server value
   // whenever the query object identity changes (same render-phase pattern
   // used by Settings.tsx), avoiding the one-frame stale UI of useEffect.
-  const [cueScoreInput, setCueScoreInput] = useState(
+  // Each blur-commit field is a useDraftField so an in-progress edit
+  // (dirty) is not overwritten by that reseed; see the sync callback below.
+  const cueScoreField = useDraftField(
     feed.cueTemplateScoreOverride != null ? String(feed.cueTemplateScoreOverride) : '');
-  const [pairMinInput, setPairMinInput] = useState(s(feed.cuePairMinBreakOverride));
-  const [pairMaxInput, setPairMaxInput] = useState(s(feed.cuePairMaxBreakOverride));
-  const [pairFracInput, setPairFracInput] = useState(s(feed.cuePairMaxBreakFractionOverride));
-  const [snapConfInput, setSnapConfInput] = useState(s(feed.cueSnapConfidenceOverride));
-  const [snapLeadInput, setSnapLeadInput] = useState(s(feed.cueSnapLeadOverride));
-  const [snapLagInput, setSnapLagInput] = useState(s(feed.cueSnapLagOverride));
-  const [maxAdDurInput, setMaxAdDurInput] = useState(s(feed.maxAdDurationOverride));
-  const [maxAdDurRejectInput, setMaxAdDurRejectInput] = useState(s(feed.maxAdDurationRejectOverride));
+  const pairMinField = useDraftField(s(feed.cuePairMinBreakOverride));
+  const pairMaxField = useDraftField(s(feed.cuePairMaxBreakOverride));
+  const pairFracField = useDraftField(s(feed.cuePairMaxBreakFractionOverride));
+  const snapConfField = useDraftField(s(feed.cueSnapConfidenceOverride));
+  const snapLeadField = useDraftField(s(feed.cueSnapLeadOverride));
+  const snapLagField = useDraftField(s(feed.cueSnapLagOverride));
+  const maxAdDurField = useDraftField(s(feed.maxAdDurationOverride));
+  const maxAdDurRejectField = useDraftField(s(feed.maxAdDurationRejectOverride));
   const [editDetectionNotes, setEditDetectionNotes] = useState(feed.detectionNotes ?? '');
   // Tracks the last value confirmed saved, independent of the `feed` prop, so
   // the Save button and confirmation update the instant the PATCH resolves
@@ -232,7 +235,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // Retention days edits stay local until blur. Committing per keystroke
   // would PATCH every intermediate digit (typing 365 sends 3, then 36) and
   // retention is the one field where an intermediate value deletes audio.
-  const [retentionDaysInput, setRetentionDaysInput] = useState(
+  const retentionDaysField = useDraftField(
     feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
       ? String(feed.retentionDaysOverride) : '');
 
@@ -242,19 +245,22 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // successful mutation or a background refetch). This mirrors useSyncFromQuery
   // applied to each field individually so that a mutation response immediately
   // reflects the persisted value without waiting for a second refetch.
+  // Each field's own sync/dirty check (see useDraftField) skips a reseed
+  // while that field has an unsaved edit in progress; segmentOverrides has
+  // no such window since every click commits immediately.
   useSyncFromQuery(feed, (f) => {
-    setRetentionDaysInput(
+    retentionDaysField.sync(
       f.retentionDaysOverride != null && f.retentionDaysOverride > 0
         ? String(f.retentionDaysOverride) : '');
-    setCueScoreInput(f.cueTemplateScoreOverride != null ? String(f.cueTemplateScoreOverride) : '');
-    setPairMinInput(s(f.cuePairMinBreakOverride));
-    setPairMaxInput(s(f.cuePairMaxBreakOverride));
-    setPairFracInput(s(f.cuePairMaxBreakFractionOverride));
-    setSnapConfInput(s(f.cueSnapConfidenceOverride));
-    setSnapLeadInput(s(f.cueSnapLeadOverride));
-    setSnapLagInput(s(f.cueSnapLagOverride));
-    setMaxAdDurInput(s(f.maxAdDurationOverride));
-    setMaxAdDurRejectInput(s(f.maxAdDurationRejectOverride));
+    cueScoreField.sync(f.cueTemplateScoreOverride != null ? String(f.cueTemplateScoreOverride) : '');
+    pairMinField.sync(s(f.cuePairMinBreakOverride));
+    pairMaxField.sync(s(f.cuePairMaxBreakOverride));
+    pairFracField.sync(s(f.cuePairMaxBreakFractionOverride));
+    snapConfField.sync(s(f.cueSnapConfidenceOverride));
+    snapLeadField.sync(s(f.cueSnapLeadOverride));
+    snapLagField.sync(s(f.cueSnapLagOverride));
+    maxAdDurField.sync(s(f.maxAdDurationOverride));
+    maxAdDurRejectField.sync(s(f.maxAdDurationRejectOverride));
     // Skip while dirty: a background refetch (staleTime elapsing, or any
     // other field's save invalidating this query) must not clobber an
     // unsaved draft. Save and Clear stay the only ways to change it.
@@ -369,20 +375,22 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     sourceUrlMutation.mutate(url);
   };
 
+  // markClean re-baselines the field the instant it commits (or reverts),
+  // rather than waiting on the refetch this mutation's onSettled triggers.
   function commitFloat(
-    raw: string,
+    draftField: DraftField,
     serverValue: number | null | undefined,
     field: keyof UpdateFeedPayload,
     lo: number,
     hi: number,
-    reset: () => void,
   ) {
-    const trimmed = raw.trim();
+    const trimmed = draftField.value.trim();
     if (trimmed === '') {
       // Clearing the field: only mutate if there was actually a server value.
       if (serverValue != null) {
         updateMutation.mutate({ [field]: null });
       }
+      draftField.markClean('');
       return;
     }
     const v = parseFloat(trimmed);
@@ -391,8 +399,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       if (v !== serverValue) {
         updateMutation.mutate({ [field]: v });
       }
+      draftField.markClean(String(v));
     } else {
-      reset();
+      draftField.markClean(serverValue != null ? String(serverValue) : '');
     }
   }
 
@@ -1085,13 +1094,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       max={MAX_RETENTION_DAYS}
                       step={1}
                       parse={parseOptionalNumber}
-                      onChange={(v) => setRetentionDaysInput(v != null ? String(v) : '')}
+                      onChange={(v) => retentionDaysField.setValue(v != null ? String(v) : '')}
                       onBlur={() => commitFloat(
-                        retentionDaysInput, feed.retentionDaysOverride,
-                        'retentionDaysOverride', 1, MAX_RETENTION_DAYS,
-                        () => setRetentionDaysInput(
-                          feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
-                            ? String(feed.retentionDaysOverride) : ''))}
+                        retentionDaysField, feed.retentionDaysOverride,
+                        'retentionDaysOverride', 1, MAX_RETENTION_DAYS)}
                       className="w-24 px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                       ariaLabel="Retention days"
                     />
@@ -1348,7 +1354,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <div className="flex flex-col gap-3 pt-1">
               {/* Cue match threshold */}
               <CueOverrideRow label="Cue threshold" min={CUE_SCORE_MIN} max={CUE_SCORE_MAX} step={0.01}
-                value={cueScoreInput} setValue={setCueScoreInput} feedValue={feed.cueTemplateScoreOverride}
+                value={cueScoreField.value} setValue={cueScoreField.setValue} feedValue={feed.cueTemplateScoreOverride}
                 hint="Empty = use global" formatOverride={(v) => v.toFixed(2)}
                 placeholder={
                   settings?.audioCueTemplateScore?.value != null
@@ -1356,9 +1362,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     : '0.75'
                 }
                 disabled={updateMutation.isPending}
-                onBlur={() => commitFloat(cueScoreInput, feed.cueTemplateScoreOverride,
-                  'cueTemplateScoreOverride', CUE_SCORE_MIN, CUE_SCORE_MAX,
-                  () => setCueScoreInput(feed.cueTemplateScoreOverride != null ? String(feed.cueTemplateScoreOverride) : ''))} />
+                onBlur={() => commitFloat(cueScoreField, feed.cueTemplateScoreOverride,
+                  'cueTemplateScoreOverride', CUE_SCORE_MIN, CUE_SCORE_MAX)} />
 
               {/* create-from-pairs tri-state. The badge trails the hint so the
                   select stays first in the column, sharing the left edge every
@@ -1383,47 +1388,41 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
 
               <CueOverrideRow label="Pair min break" min={1} max={600} step={1}
-                value={pairMinInput} setValue={setPairMinInput} feedValue={feed.cuePairMinBreakOverride}
+                value={pairMinField.value} setValue={pairMinField.setValue} feedValue={feed.cuePairMinBreakOverride}
                 hint="s, empty = global"
                 disabled={updateMutation.isPending}
-                onBlur={() => commitFloat(pairMinInput, feed.cuePairMinBreakOverride,
-                  'cuePairMinBreakOverride', 1, 600,
-                  () => setPairMinInput(s(feed.cuePairMinBreakOverride)))} />
+                onBlur={() => commitFloat(pairMinField, feed.cuePairMinBreakOverride,
+                  'cuePairMinBreakOverride', 1, 600)} />
               <CueOverrideRow label="Pair max break" min={1} max={3600} step={1}
-                value={pairMaxInput} setValue={setPairMaxInput} feedValue={feed.cuePairMaxBreakOverride}
+                value={pairMaxField.value} setValue={pairMaxField.setValue} feedValue={feed.cuePairMaxBreakOverride}
                 hint="s, empty = global"
                 disabled={updateMutation.isPending}
-                onBlur={() => commitFloat(pairMaxInput, feed.cuePairMaxBreakOverride,
-                  'cuePairMaxBreakOverride', 1, 3600,
-                  () => setPairMaxInput(s(feed.cuePairMaxBreakOverride)))} />
+                onBlur={() => commitFloat(pairMaxField, feed.cuePairMaxBreakOverride,
+                  'cuePairMaxBreakOverride', 1, 3600)} />
               <CueOverrideRow label="Pair max fraction" min={0} max={1} step={0.05}
-                value={pairFracInput} setValue={setPairFracInput} feedValue={feed.cuePairMaxBreakFractionOverride}
+                value={pairFracField.value} setValue={pairFracField.setValue} feedValue={feed.cuePairMaxBreakFractionOverride}
                 hint="0-1, empty = global"
                 disabled={updateMutation.isPending}
-                onBlur={() => commitFloat(pairFracInput, feed.cuePairMaxBreakFractionOverride,
-                  'cuePairMaxBreakFractionOverride', 0, 1,
-                  () => setPairFracInput(s(feed.cuePairMaxBreakFractionOverride)))} />
+                onBlur={() => commitFloat(pairFracField, feed.cuePairMaxBreakFractionOverride,
+                  'cuePairMaxBreakFractionOverride', 0, 1)} />
               <CueOverrideRow label="Snap confidence" min={0} max={1} step={0.01}
-                value={snapConfInput} setValue={setSnapConfInput} feedValue={feed.cueSnapConfidenceOverride}
+                value={snapConfField.value} setValue={snapConfField.setValue} feedValue={feed.cueSnapConfidenceOverride}
                 hint="0-1, empty = global"
                 disabled={updateMutation.isPending}
-                onBlur={() => commitFloat(snapConfInput, feed.cueSnapConfidenceOverride,
-                  'cueSnapConfidenceOverride', 0, 1,
-                  () => setSnapConfInput(s(feed.cueSnapConfidenceOverride)))} />
+                onBlur={() => commitFloat(snapConfField, feed.cueSnapConfidenceOverride,
+                  'cueSnapConfidenceOverride', 0, 1)} />
               <CueOverrideRow label="Snap lead" min={0.5} max={30} step={0.5}
-                value={snapLeadInput} setValue={setSnapLeadInput} feedValue={feed.cueSnapLeadOverride}
+                value={snapLeadField.value} setValue={snapLeadField.setValue} feedValue={feed.cueSnapLeadOverride}
                 hint="s, empty = global"
                 disabled={updateMutation.isPending}
-                onBlur={() => commitFloat(snapLeadInput, feed.cueSnapLeadOverride,
-                  'cueSnapLeadOverride', 0.5, 30,
-                  () => setSnapLeadInput(s(feed.cueSnapLeadOverride)))} />
+                onBlur={() => commitFloat(snapLeadField, feed.cueSnapLeadOverride,
+                  'cueSnapLeadOverride', 0.5, 30)} />
               <CueOverrideRow label="Snap lag" min={0.5} max={30} step={0.5}
-                value={snapLagInput} setValue={setSnapLagInput} feedValue={feed.cueSnapLagOverride}
+                value={snapLagField.value} setValue={snapLagField.setValue} feedValue={feed.cueSnapLagOverride}
                 hint="s, empty = global"
                 disabled={updateMutation.isPending}
-                onBlur={() => commitFloat(snapLagInput, feed.cueSnapLagOverride,
-                  'cueSnapLagOverride', 0.5, 30,
-                  () => setSnapLagInput(s(feed.cueSnapLagOverride)))} />
+                onBlur={() => commitFloat(snapLagField, feed.cueSnapLagOverride,
+                  'cueSnapLagOverride', 0.5, 30)} />
             </div>
           </CollapsibleSection>
 
@@ -1481,23 +1480,21 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Max ad duration override (Phase C held-for-review) */}
               <CueOverrideRow label="Max ad duration" min={1} max={3600} step={1}
-                value={maxAdDurInput} setValue={setMaxAdDurInput} feedValue={feed.maxAdDurationOverride}
+                value={maxAdDurField.value} setValue={maxAdDurField.setValue} feedValue={feed.maxAdDurationOverride}
                 hint="s, empty = no cap" placeholder="no cap"
                 disabled={updateMutation.isPending}
-                onBlur={() => commitFloat(maxAdDurInput, feed.maxAdDurationOverride,
-                  'maxAdDurationOverride', 1, 3600,
-                  () => setMaxAdDurInput(s(feed.maxAdDurationOverride)))}
+                onBlur={() => commitFloat(maxAdDurField, feed.maxAdDurationOverride,
+                  'maxAdDurationOverride', 1, 3600)}
                 description="Ads longer than this cap are held for review instead of cut. Changes apply on the next reprocess." />
 
               {/* Length past which an ad needs a confirmed sponsor */}
               <CueOverrideRow label="Sponsor needed over" min={30} max={3600} step={1}
-                value={maxAdDurRejectInput} setValue={setMaxAdDurRejectInput}
+                value={maxAdDurRejectField.value} setValue={maxAdDurRejectField.setValue}
                 feedValue={feed.maxAdDurationRejectOverride}
                 hint="s, empty = use global" placeholder="global"
                 disabled={updateMutation.isPending}
-                onBlur={() => commitFloat(maxAdDurRejectInput, feed.maxAdDurationRejectOverride,
-                  'maxAdDurationRejectOverride', 30, 3600,
-                  () => setMaxAdDurRejectInput(s(feed.maxAdDurationRejectOverride)))}
+                onBlur={() => commitFloat(maxAdDurRejectField, feed.maxAdDurationRejectOverride,
+                  'maxAdDurationRejectOverride', 30, 3600)}
                 description="Past this length an ad has to name a recognized sponsor to be cut; one that does not is held for review. Overrides the global setting for this feed." />
 
               {/* Splice-veto override. Tri-state so a feed can also be held

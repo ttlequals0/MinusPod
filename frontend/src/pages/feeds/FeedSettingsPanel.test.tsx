@@ -1177,3 +1177,63 @@ describe('FeedSettingsPanel detection notes', () => {
     expect(screen.queryByText('Detection notes could not be saved')).toBeNull();
   });
 });
+
+describe('FeedSettingsPanel draft protection for non-notes fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({ retentionDays: 30 });
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('an unsaved retention edit survives a background refetch and still commits on blur', async () => {
+    const user = userEvent.setup();
+    const { rerenderWithFeed } = renderPanel(makeFeed({ retentionDaysOverride: 7 }));
+    const days = await screen.findByLabelText('Retention days');
+
+    await user.clear(days);
+    await user.type(days, '45');
+
+    // Same content as the initial feed, a fresh object as a background
+    // refetch (staleTime elapsing, or another field's save) would produce.
+    rerenderWithFeed(makeFeed({ retentionDaysOverride: 7 }));
+
+    await user.tab();
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ retentionDaysOverride: 45 })));
+  });
+
+  it('a clean retention field resyncs to a new server value on refetch', async () => {
+    const { rerenderWithFeed } = renderPanel(makeFeed({ retentionDaysOverride: 7 }));
+    expect((await screen.findByLabelText('Retention days') as HTMLInputElement).value).toBe('7');
+
+    rerenderWithFeed(makeFeed({ retentionDaysOverride: 45 }));
+
+    await waitFor(() => expect(
+      (screen.getByLabelText('Retention days') as HTMLInputElement).value).toBe('45'));
+  });
+
+  it('an unsaved pair-min-break edit survives a background refetch and still commits on blur', async () => {
+    const user = userEvent.setup();
+    const { rerenderWithFeed } = renderPanel(makeFeed({ cuePairMinBreakOverride: 20 }));
+    const field = screen.getByLabelText('Pair min break');
+
+    await user.clear(field);
+    await user.type(field, '99');
+
+    rerenderWithFeed(makeFeed({ cuePairMinBreakOverride: 20 }));
+
+    await user.tab();
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ cuePairMinBreakOverride: 99 })));
+  });
+
+  it('a clean pair-min-break field resyncs to a new server value on refetch', async () => {
+    const { rerenderWithFeed } = renderPanel(makeFeed({ cuePairMinBreakOverride: 20 }));
+    expect((screen.getByLabelText('Pair min break') as HTMLInputElement).value).toBe('20');
+
+    rerenderWithFeed(makeFeed({ cuePairMinBreakOverride: 50 }));
+
+    await waitFor(() => expect(
+      (screen.getByLabelText('Pair min break') as HTMLInputElement).value).toBe('50'));
+  });
+});
