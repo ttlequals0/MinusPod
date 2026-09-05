@@ -211,13 +211,8 @@ class StatusService:
         return value if isinstance(value, (int, float)) else None
 
     def claim_server_start_time(self, start_time: float, owner: str) -> float:
-        """Record `start_time` for this server run and return the effective value.
-
-        A worker respawn (OOM kill, max_requests recycle) must not reset
-        uptime, so a stored stamp from the same `owner` wins. A new server
-        run has a different owner and overwrites, which is what makes
-        uptime reset on deploy even though the status file persists.
-        """
+        """Record start_time for this run; a stored stamp from the same owner wins
+        (a respawn keeps uptime), a new owner overwrites (a deploy resets it)."""
         with self._status_transaction():
             status = self._load()
             stored = status.get('server_start_time')

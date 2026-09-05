@@ -1314,11 +1314,8 @@ class SchemaMixin:
         # doesn't update what the editor displays for already-detected ads.
         self._cleanup_zyn_ad_markers(conn)
 
-        # 2.95.2: collapse two stored markers for one span into one. Pass 2
-        # used to append a marker for a span pass 1 had already stored, which
-        # put that span in two mutually exclusive API buckets and doubled
-        # pending_review_count. The write path no longer does it; this cleans
-        # up what earlier versions wrote.
+        # 2.95.2: one-shot fold of duplicate pass-1/pass-2 markers for the same span
+        # (they used to double-count pending_review_count); write path no longer produces them.
         self._collapse_duplicate_ad_markers(conn)
 
         # 2.5.7: retire kitchen-sink ad_patterns that name multiple foreign
@@ -2008,12 +2005,8 @@ class SchemaMixin:
         )
 
     def _run_reindex_search_all_episode_statuses(self, conn, already_rebuilt: bool = False):
-        """One-shot reindex of search_index to cover every episode status.
-
-        search_index is derived, so a full rebuild is safe to run once here.
-        already_rebuilt: True when this boot's auto-populate step (an empty
-        search_index) already rebuilt it, so this only needs to set the gate.
-        """
+        """One-shot reindex of search_index to cover every episode status; skips the
+        rebuild if this boot's auto-populate already did it."""
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'reindex_search_all_episode_statuses'"
         ).fetchone()
@@ -3084,13 +3077,8 @@ class SchemaMixin:
             logger.warning(f"Migration: ad-marker Zyn cleanup failed: {e}")
 
     def _collapse_duplicate_ad_markers(self, conn):
-        """One-shot: fold a second stored marker for one span into the first.
-
-        Only pairs where both markers are uncut and both edges fall inside
-        BOUNDS_TOLERANCE_S collapse, and the fold is additive, so the survivor
-        gains the other record's fields rather than replacing them. Gated by
-        `schema_migrations` so it runs once per database.
-        """
+        """One-shot: fold a second stored marker into the first when both are uncut and
+        within BOUNDS_TOLERANCE_S, merging fields into the survivor. Gated by schema_migrations."""
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'collapse_duplicate_ad_markers'"
         ).fetchone()

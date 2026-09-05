@@ -225,11 +225,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const snapLagField = useDraftField(s(feed.cueSnapLagOverride));
   const maxAdDurField = useDraftField(s(feed.maxAdDurationOverride));
   const maxAdDurRejectField = useDraftField(s(feed.maxAdDurationRejectOverride));
-  // Notes commit on a Save click, not blur: markClean fires in that
-  // mutation's onSuccess so the Save button and badge update the instant
-  // the PATCH resolves, rather than waiting on the background refetch.
-  // Trim-aware dirty compare: a trailing/leading-whitespace-only edit is not
-  // dirty, since Save trims before sending and would produce no change.
+  // Notes commit on Save, not blur: markClean runs in the mutation's onSuccess so
+  // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
   const notesField = useDraftField(feed.detectionNotes ?? '', (v) => v.trim());
   const [detectionNotesSaved, setDetectionNotesSaved] = useState(false);
   const [detectionNotesError, setDetectionNotesError] = useState<string | null>(null);

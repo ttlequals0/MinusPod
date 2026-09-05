@@ -144,11 +144,9 @@ describe('FeedDetail: local feed visibility matrix', () => {
   });
 });
 
-// #718: the copy control shrinks to an icon below sm so it stays in the left
-// group instead of wrapping onto its own row above Reprocess/Refresh/Delete.
-// Label is hidden directly rather than via hideLabelOnMobile: that prop's
-// baseClass adds sm:px-2 and h-8, which beat this call site's own desktop
-// padding because Tailwind orders same-utility conflicts by scale, not source.
+// #718: the copy control shrinks to an icon below sm to stay in the left group.
+// Label is hidden directly, not via hideLabelOnMobile: its sm:px-2/h-8 lose to
+// this call site's desktop padding since Tailwind orders same-utility conflicts by scale, not source.
 describe('FeedDetail: copy control mobile sizing', () => {
   it('does not carry the unprefixed px-4 py-2 padding that fights icon-only sizing', async () => {
     renderFeedDetail(makeFeed());

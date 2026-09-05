@@ -21,25 +21,15 @@ logger = logging.getLogger('podcast.api')
 # Track server start time for uptime calculation
 # Stored in shared file so all gunicorn workers report the same uptime
 def _server_run_owner():
-    """Identity shared by every worker of one server run.
-
-    Workers are forked by the gunicorn master, so the parent pid is the
-    same for all of them and survives a respawn; a new container gets a
-    new master. Falls back to this pid when running unforked (flask run).
-    """
+    """Pid shared by every worker of one server run: the gunicorn master's parent pid,
+    stable across a worker respawn; falls back to this pid when unforked."""
     parent = os.getppid()
     return str(parent if parent > 1 else os.getpid())
 
 
 def _init_server_start_time():
-    """Server start time for this run, shared across gunicorn workers.
-
-    Each worker imports this module separately, so a worker-local stamp
-    would make uptime flip between workers once one respawns. The shared
-    file keeps one value per server run. An exception reaching the file is
-    non-fatal (uptime falls back to worker-local) but is logged so
-    operators see the regression.
-    """
+    """Server start time for this run, shared across gunicorn workers so uptime doesn't
+    flip on a worker respawn; a write failure is logged but non-fatal."""
     start_time = time.time()
     try:
         from status_service import StatusService

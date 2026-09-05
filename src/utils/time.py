@@ -25,11 +25,8 @@ def is_valid_timezone(tz_name) -> bool:
 
 
 def local_now_iso(tz_name) -> str:
-    """Current time in `tz_name` as ISO 8601 with UTC offset (e.g. '2026-09-04T13:21:00-04:00').
-
-    Falls back to UTC (still offset-suffixed, '+00:00') for an unresolvable zone
-    so a bad stored setting never crashes a notification.
-    """
+    """Current time in tz_name as ISO 8601 with UTC offset; falls back to UTC for
+    an unresolvable zone so a bad setting never crashes a notification."""
     try:
         tz = ZoneInfo(tz_name)
     except (ZoneInfoNotFoundError, ValueError, TypeError):

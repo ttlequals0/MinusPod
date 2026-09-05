@@ -1,18 +1,6 @@
-"""Thread-safe in-memory rate-limit storage.
-
-limits 5.8.0 reschedules its expiry timer with a check-then-start that two
-request threads can interleave:
-
-    if not self.timer.is_alive():
-        self.timer = threading.Timer(...)
-        self.timer.start()
-
-Both threads see a dead timer, both assign ``self.timer``, then both call
-start() on whichever object landed last, and the loser raises RuntimeError
-into the request as a 500. gunicorn runs 8 threads per worker here, so it
-surfaced roughly twice a week. Serializing the restart closes the window and
-keeps the single-container default working without a Redis dependency.
-"""
+"""Thread-safe in-memory rate-limit storage: serializes limits' MemoryStorage
+expiry-timer restart, whose check-then-start race under gunicorn's threads can
+raise RuntimeError into a request."""
 import threading
 
 from limits.storage import MemoryStorage

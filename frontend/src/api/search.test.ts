@@ -1,7 +1,4 @@
-/**
- * search() omits groups by default (Advanced page: server computes all five) and
- * passes it through untouched when a caller (the unified hook) supplies one.
- */
+/** search() omits groups by default (server computes all five); passes a caller-supplied value through untouched. */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockApiRequest = vi.fn();

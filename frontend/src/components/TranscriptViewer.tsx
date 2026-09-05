@@ -32,10 +32,8 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// A toLowerCase-then-indexOf approach breaks on characters whose lowercase
-// form is a different length (e.g. Turkish 'I'), shifting the match off the
-// original string. Matching directly against `text` with a case-insensitive
-// regex avoids the drift.
+// Matches against `text` directly with a case-insensitive regex, not
+// toLowerCase+indexOf, which drifts on chars whose lowercase form changes length (e.g. Turkish 'I').
 function Highlight({ text, needle }: { text: string; needle: string }) {
   if (!needle) return <>{text}</>;
   const re = new RegExp(escapeRegExp(needle), 'gi');
@@ -97,10 +95,8 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
     enabled: original404,
   });
 
-  // Episodes processed before segments were stored only have the plain
-  // processed text, so that is what Processed falls back to, but only on
-  // an empty result or a 404; any other error (e.g. a 500) must still show
-  // as an error, not silently swap in stale plain text.
+  // Pre-segment-storage episodes only have plain processed text, so Processed
+  // falls back to it on an empty result or 404 only; any other error (e.g. 500) must still show as an error.
   const processedFallbackReady = source === 'processed'
     && ((query.isSuccess && segments.length === 0) || status === 404);
   const fallback = processedFallbackReady

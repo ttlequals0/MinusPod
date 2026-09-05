@@ -101,11 +101,8 @@ class SearchMixin:
         return self.index_episodes([(episode_id, slug)]) > 0
 
     def index_episodes(self, pairs: list[tuple[str, str]], conn=None) -> int:
-        """Batch (re)index episodes: one DELETE and one INSERT for the whole set.
-
-        pairs is [(episode_id, slug), ...]. When conn is passed, the caller owns
-        the transaction: this never commits or rolls back on that connection.
-        """
+        """Batch (re)index episodes as one DELETE+INSERT. pairs is [(episode_id, slug), ...];
+        if conn is passed, the caller owns the transaction."""
         pairs = list(dict.fromkeys(pairs))
         if not pairs:
             return 0
@@ -234,12 +231,9 @@ class SearchMixin:
             return []
 
     def search_grouped(self, query: str, limit: int = 50, groups: list[str] | None = None) -> dict:
-        """Grouped search: shows, episodes, transcripts, patterns, sponsors; each an independent FTS query.
-
-        All five keys are always present in the result. groups restricts which are actually
-        queried; any name not in groups (default: all of SEARCH_GROUP_NAMES) comes back as an
-        empty list, same as a group whose query raised.
-        """
+        """Grouped search: shows, episodes, transcripts, patterns, sponsors, each an independent
+        FTS query. All five keys are always present; a name outside groups (default: all) or a
+        group whose query raised comes back empty."""
         conn = self.get_connection()
         clean_query = query.replace('"', '""').strip()
         empty = {'shows': [], 'episodes': [], 'transcripts': [], 'patterns': [], 'sponsors': []}

@@ -154,11 +154,8 @@ def spans_match(a_start, a_end, b_start, b_end,
 
 
 def foldable_twin(markers, marker):
-    """The uncut marker in ``markers`` naming the same span as ``marker``.
-
-    A marker that was cut on either side names audio that is already gone, so
-    it never folds: its record has to keep describing what the cut removed.
-    """
+    """The uncut marker in markers naming the same span as marker; a cut marker
+    never folds since its record must keep describing the removed audio."""
     if not isinstance(marker, dict) or marker.get('was_cut'):
         return None
     return next(
@@ -184,14 +181,9 @@ def _folded_validation(winner: dict, loser: dict) -> dict:
 
 
 def fold_marker_pair(target: dict, other: dict) -> None:
-    """Fold two markers stored for one span into ``target``, in place.
-
-    A keep is the feed's category action, so it wins the verdict over a hold
-    and the reason it overrides is retained as hold_cleared_reason; otherwise
-    target's verdict stands. The losing record fills every field the winner
-    lacks, nested validation included, and a hold reason with nowhere left to
-    go is recorded as a validation flag rather than dropped.
-    """
+    """Fold two markers stored for one span into target, in place. A keep verdict
+    wins over a hold; the loser fills any field the winner lacks, including a
+    hold reason with nowhere else to go, which becomes a validation flag."""
     other_wins = (other.get('action_applied') == 'keep'
                   and target.get('action_applied') != 'keep')
     winner, loser = (other, target) if other_wins else (target, other)

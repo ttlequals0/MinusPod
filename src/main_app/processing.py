@@ -1444,13 +1444,8 @@ def _dedupe_pass2_markers(markers):
 
 
 def _merge_pass2_markers(all_ads, pass2_markers):
-    """Fold every pass-2 marker that repeats a pass-1 span into that marker.
-
-    Pass 2 rescans the audio pass 1 left in place, so a kept or held pass-1
-    span can come back as a pass-2 finding. Appending it stored one span
-    twice, which put it in two of the four mutually exclusive marker buckets
-    and double-counted pending reviews. Returns (to_append, folded_count).
-    """
+    """Fold a pass-2 marker into the pass-1 marker it repeats, since appending it
+    would double-count pending reviews. Returns (to_append, folded_count)."""
     to_append = []
     folded = 0
     for marker in pass2_markers:

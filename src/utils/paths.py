@@ -6,12 +6,8 @@ DEFAULT_DATA_DIR = '/app/data'
 
 
 def resolve_data_dir() -> Path:
-    """The data directory, read at call time.
-
-    Reading the environment on every call rather than at import keeps a
-    relocated MINUSPOD_DATA_DIR honoured no matter which module imported
-    first.
-    """
+    """The data directory, read fresh on every call so a relocated MINUSPOD_DATA_DIR
+    is honoured regardless of import order."""
     return Path(
         os.environ.get('DATA_DIR')
         or os.environ.get('DATA_PATH')
