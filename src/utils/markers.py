@@ -153,17 +153,21 @@ def spans_match(a_start, a_end, b_start, b_end,
     return abs(a_start - b_start) <= tol and abs(a_end - b_end) <= tol
 
 
+def _stayed_in_audio(marker: dict) -> bool:
+    """A marker is uncut only when it says so. A missing or null was_cut predates
+    the field and counts as cut, matching is_pending_review and count_not_cut."""
+    was_cut = marker.get('was_cut', True)
+    return was_cut is not None and not was_cut
+
+
 def foldable_twin(markers, marker):
     """The uncut marker in markers naming the same span as marker; a cut marker
-    never folds since its record must keep describing the removed audio. A
-    marker with no was_cut key predates the field and counts as cut, matching
-    is_pending_review and count_not_cut."""
-    if not isinstance(marker, dict) or marker.get('was_cut', True):
+    never folds since its record must keep describing the removed audio."""
+    if not isinstance(marker, dict) or not _stayed_in_audio(marker):
         return None
     return next(
         (m for m in markers
-         if isinstance(m, dict) and m is not marker
-         and not m.get('was_cut', True)
+         if isinstance(m, dict) and m is not marker and _stayed_in_audio(m)
          and spans_match(m.get('start'), m.get('end'),
                          marker.get('start'), marker.get('end'))),
         None)

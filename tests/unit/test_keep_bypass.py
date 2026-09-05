@@ -532,6 +532,28 @@ class TestLateKeepSafetyNet:
         assert master_twin['was_cut'] is False
         assert master_twin['action_applied'] == 'keep'
 
+    def test_a_caught_held_marker_is_no_longer_pending_review(self):
+        """A keep that stays held is a review nobody can action: the episode
+        page counts it pending, the review queue hides it, and the corrections
+        endpoint answers a verdict on it with a 409."""
+        actions_map = {'sponsor': 'keep', 'cross_promo': 'remove',
+                       'self_promo': 'remove', 'interaction': 'remove',
+                       'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        held = {'start': 90.0, 'end': 99.0, 'was_cut': True,
+                'held_for_review': True, 'hold_reason': 'max_duration'}
+        master_twin = dict(held)
+
+        result = processing._apply_late_keep_safety_net(
+            [held], [master_twin], actions_map)
+
+        assert result == []
+        for marker in (held, master_twin):
+            assert marker['action_applied'] == 'keep'
+            assert marker['held_for_review'] is False
+            assert marker['hold_cleared_reason'] == 'max_duration'
+            assert 'hold_reason' not in marker
+        assert count_pending_review([master_twin]) == 0
+
     def test_no_op_when_no_category_resolves_to_keep(self):
         actions_map = {'sponsor': 'remove', 'cross_promo': 'remove',
                        'self_promo': 'remove', 'interaction': 'remove',

@@ -272,3 +272,17 @@ def test_fold_verdict_precedence_is_keep_then_hold_then_plain():
         assert (target.get('action_applied') == 'keep') is (winner == 'keep')
         assert bool(target.get('held_for_review')) is (winner == 'hold')
         assert ('hold_reason' in target) is (winner == 'hold')
+
+
+def test_an_explicit_null_was_cut_is_read_as_cut():
+    """None is not a decision, so it defaults the same way a missing key does."""
+    null_cut = {'start': 500.0, 'end': 520.0, 'was_cut': None}
+    pass2_held = {'start': 500.2, 'end': 519.8, 'was_cut': False,
+                  'held_for_review': True, 'hold_reason': 'cue_unproven'}
+
+    saved, folded = _seam([null_cut], [], [pass2_held])
+    assert (folded, len(saved)) == (0, 2)
+
+    saved, folded = _seam([pass2_held], [], [{'start': 500.2, 'end': 519.8,
+                                              'was_cut': None}])
+    assert (folded, len(saved)) == (0, 2)

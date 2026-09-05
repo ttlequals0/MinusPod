@@ -978,6 +978,7 @@ def _commit_entry(slug: str, entry: dict, db, storage,
     # overwrite.
     db.upsert_episode(
         slug, episode_id,
+        defer_index=True,
         original_url=f'local://{episode_id}',
         status='discovered',
         title=entry['title'],
@@ -1164,6 +1165,10 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
             # audio is still sitting at its original staging path here.
             _preserve_entry_files(entry, staging_dir, preserved_leftovers)
         _bump_processed(slug, storage)
+
+    # One index pass for the whole batch: _commit_entry defers each row's own.
+    if committed_internal:
+        db.index_episodes([(item['episodeId'], slug) for item in committed_internal])
 
     try:
         podcast = db.get_podcast_by_slug(slug)

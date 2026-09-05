@@ -127,6 +127,14 @@ class TestFlatten:
         by_start = {i['start']: i['actionApplied'] for i in items}
         assert by_start == {100.0: None, 300.0: 'keep'}
 
+    def test_a_cut_or_legacy_marker_over_a_keep_span_is_not_read_as_kept(self):
+        """Neither one folds into the keep marker, so neither may borrow its
+        verdict: a cut span is not a span the feed policy left in the audio."""
+        cut = {'start': 300.0, 'end': 330.0, 'confidence': 0.9, 'was_cut': True}
+        legacy = {'start': 300.2, 'end': 329.8, 'confidence': 0.9}
+        items = flatten_detections([_row(markers=[cut, legacy, KEPT])], [])
+        assert [i['actionApplied'] for i in items] == [None, None, 'keep']
+
     def test_the_folded_keep_row_reads_as_kept_in_every_consumer(self):
         """An undecided copy of a kept span no longer reaches storage: the fold
         collapses the pair, so the listing, the badge count and the episode page

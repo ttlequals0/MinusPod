@@ -196,8 +196,12 @@ class EpisodeMixin:
                 title_date_to_id[(row['title'], row['published_at'])] = row['episode_id']
         return id_to_status, title_date_to_id
 
-    def upsert_episode(self, slug: str, episode_id: str, **kwargs) -> int:
-        """Insert or update an episode. Returns episode database ID."""
+    def upsert_episode(self, slug: str, episode_id: str, defer_index: bool = False, **kwargs) -> int:
+        """Insert or update an episode. Returns episode database ID.
+
+        defer_index leaves a new row out of the search index so a caller inserting
+        many rows can index them in one batch.
+        """
         conn = self.get_connection()
 
         if kwargs.get('published_at'):
@@ -297,8 +301,11 @@ class EpisodeMixin:
                 )
             )
             db_id = cursor.lastrowid
+            if not defer_index:
+                # Indexed on the open connection so the insert and its index row
+                # land in one transaction.
+                self.index_episodes([(episode_id, slug)], conn=conn)
             conn.commit()
-            self.index_episode(episode_id, slug)
 
         return db_id
 

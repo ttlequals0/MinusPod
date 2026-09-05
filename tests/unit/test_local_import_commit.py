@@ -1084,3 +1084,38 @@ def test_error_state_report_still_exposes_outcomes_before_crash(
     assert report['committed'][0]['episodeId'] == 's01e01'
     # The entry itself really did commit despite the later crash.
     assert db.get_episode(slug, 's01e01') is not None
+
+
+@requires_ffmpeg
+def test_commit_indexes_every_entry_in_one_batch(db_storage, local_feed, real_mp3_bytes,
+                                                 monkeypatch):
+    """Per-file indexing opened a write transaction per imported episode."""
+    db, storage = db_storage
+    slug = local_feed
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    names = ['S01E01 - Perihelion.mp3', 'S01E02 - Aphelion.mp3', 'S01E03 - Syzygy.mp3']
+    for name in names:
+        (src_dir / name).write_bytes(real_mp3_bytes)
+
+    plan = build_import_plan(slug, [src_dir / name for name in names], existing_ids=set(),
+                             overwrite=False, now_iso=NOW_ISO)
+
+    batches = []
+    real_index_episodes = db.index_episodes
+
+    def spy_index_episodes(pairs, conn=None):
+        batches.append(list(pairs))
+        return real_index_episodes(pairs, conn=conn)
+
+    singles = []
+    monkeypatch.setattr(db, 'index_episodes', spy_index_episodes)
+    monkeypatch.setattr(db, 'index_episode', lambda *a, **k: singles.append(a))
+
+    _commit_synchronously(slug, plan, db, storage)
+
+    assert singles == []
+    assert len(batches) == 1
+    assert sorted(pair[0] for pair in batches[0]) == ['s01e01', 's01e02', 's01e03']
+    assert any(e['episodeId'] == 's01e01'
+               for e in db.search_grouped('Perihelion')['episodes'])

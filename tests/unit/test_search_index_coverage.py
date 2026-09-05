@@ -266,3 +266,29 @@ def test_guid_change_moves_the_index_row_to_the_new_id():
     assert ids == [new_id]
     assert any(e['episodeId'] == new_id
                for e in db.search_grouped('Peregrine')['episodes'])
+
+
+def test_upsert_new_row_indexes_inside_the_insert_transaction(monkeypatch):
+    """The insert used to commit and then index, opening a second write transaction
+    per new episode."""
+    slug = _feed('upsert-one-commit')
+    ep_id = _eid()
+
+    class CommitCountingConn:
+        def __init__(self, conn):
+            self._conn = conn
+            self.commit_calls = 0
+
+        def commit(self):
+            self.commit_calls += 1
+            return self._conn.commit()
+
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+
+    proxy = CommitCountingConn(db.get_connection())
+    monkeypatch.setattr(db, 'get_connection', lambda: proxy)
+    db.upsert_episode(slug, ep_id, title='Solstice Reverie')
+
+    assert proxy.commit_calls == 1
+    assert any(e['episodeId'] == ep_id for e in db.search_grouped('Solstice')['episodes'])

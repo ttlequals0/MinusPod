@@ -1293,6 +1293,17 @@ def _keep_overridden_by_pattern(ad) -> bool:
     return False
 
 
+def _clear_hold_for_keep(marker) -> bool:
+    """Move a keep marker's hold to hold_cleared_reason: a kept span is never
+    force-cut by a stale hold. True when there was a hold to clear."""
+    if not marker.get('held_for_review'):
+        return False
+    marker['hold_cleared_reason'] = marker.get('hold_reason')
+    marker['held_for_review'] = False
+    marker.pop('hold_reason', None)
+    return True
+
+
 def _partition_keep_ads(all_ads, actions_map):
     """Split first-pass markers by resolved segment-category action.
 
@@ -1319,10 +1330,7 @@ def _partition_keep_ads(all_ads, actions_map):
                 continue
             ad['was_cut'] = False
             ad['action_applied'] = 'keep'
-            if ad.get('held_for_review'):
-                ad['hold_cleared_reason'] = ad.get('hold_reason')
-                ad['held_for_review'] = False
-                ad.pop('hold_reason', None)
+            if _clear_hold_for_keep(ad):
                 audio_logger.debug(
                     f"Keep resolution clears hold on marker "
                     f"{ad['start']:.1f}s-{ad['end']:.1f}s "
@@ -1346,8 +1354,8 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
     DEFAULT_SEGMENT_ACTION and still cut it.
 
     Stamps was_cut=False/action_applied='keep' on a caught marker (and its
-    all_ads_with_validation master) and removes it from the returned cut
-    list. Exception: a marker from a defined pattern stays in the cut list
+    all_ads_with_validation master), clears any hold the same way the keep
+    partition does, and removes it from the returned cut list. Exception: a marker from a defined pattern stays in the cut list
     with keep_overridden_by_pattern=True, never kept by keep maps.
     Returns ads_to_remove unchanged when no category resolves to 'keep'.
     """
@@ -1366,10 +1374,12 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
         else:
             ad['was_cut'] = False
             ad['action_applied'] = 'keep'
+            _clear_hold_for_keep(ad)
             master = _find_master(all_ads_with_validation, ad)
             if master is not None:
                 master['was_cut'] = False
                 master['action_applied'] = 'keep'
+                _clear_hold_for_keep(master)
             audio_logger.debug(
                 f"Late keep safety net: dropping synthesized marker "
                 f"{ad['start']:.1f}s-{ad['end']:.1f}s (category={category!r}) "
@@ -1510,10 +1520,7 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
             for marker in (processed, original):
                 marker['was_cut'] = False
                 marker['action_applied'] = 'keep'
-                if marker.get('held_for_review'):
-                    marker['hold_cleared_reason'] = marker.get('hold_reason')
-                    marker['held_for_review'] = False
-                    marker.pop('hold_reason', None)
+                _clear_hold_for_keep(marker)
             kept_processed.append(processed)
             kept_original.append(original)
             continue
