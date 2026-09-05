@@ -1133,52 +1133,59 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
     # sidecar and rescanning doesn't also require re-uploading the audio.
     preserved_leftovers: set[str] = set()
 
-    for entry in entries:
-        episode_id = entry['episodeId']
-        audio_file = entry.get('audioFile')
+    try:
+        for entry in entries:
+            episode_id = entry['episodeId']
+            audio_file = entry.get('audioFile')
 
-        # Any entry the planning half already flagged as non-committable
-        # (duplicate id, existing-id collision without overwrite, invalid
-        # sidecar, out-of-order publish dates) is skipped outright.
-        if entry.get('errors'):
-            report['skipped'].append({
-                'episodeId': episode_id, 'audioFile': audio_file,
-                'errors': entry['errors'],
-            })
-            _preserve_entry_files(entry, staging_dir, preserved_leftovers)
+            # Any entry the planning half already flagged as non-committable
+            # (duplicate id, existing-id collision without overwrite, invalid
+            # sidecar, out-of-order publish dates) is skipped outright.
+            if entry.get('errors'):
+                report['skipped'].append({
+                    'episodeId': episode_id, 'audioFile': audio_file,
+                    'errors': entry['errors'],
+                })
+                _preserve_entry_files(entry, staging_dir, preserved_leftovers)
+                _bump_processed(slug, storage)
+                continue
+
+            try:
+                status, result = _commit_entry(slug, entry, db, storage, overwrite,
+                                               upserted_ids)
+            except Exception as exc:
+                # Per-file failure must never abort the batch -- an unexpected
+                # exception (disk-full mid-move, a DB error) is caught here the
+                # same as the ordinary error paths _commit_entry returns, so
+                # every remaining entry still gets a chance to commit.
+                logger.exception(f"[{slug}:{episode_id}] import commit entry crashed")
+                status, result = 'error', str(exc)
+
+            if status == 'ok':
+                committed_internal.append(result)
+                report['committed'].append({
+                    'episodeId': episode_id, 'audioFile': audio_file,
+                    'warnings': result.get('warnings', []),
+                })
+            else:
+                report['failed'].append({
+                    'episodeId': episode_id, 'audioFile': audio_file, 'error': result,
+                })
+                # _commit_entry never returns 'error' after moving the audio
+                # (every error return in it happens before shutil.move), so the
+                # audio is still sitting at its original staging path here.
+                _preserve_entry_files(entry, staging_dir, preserved_leftovers)
             _bump_processed(slug, storage)
-            continue
-
-        try:
-            status, result = _commit_entry(slug, entry, db, storage, overwrite,
-                                           upserted_ids)
-        except Exception as exc:
-            # Per-file failure must never abort the batch -- an unexpected
-            # exception (disk-full mid-move, a DB error) is caught here the
-            # same as the ordinary error paths _commit_entry returns, so
-            # every remaining entry still gets a chance to commit.
-            logger.exception(f"[{slug}:{episode_id}] import commit entry crashed")
-            status, result = 'error', str(exc)
-
-        if status == 'ok':
-            committed_internal.append(result)
-            report['committed'].append({
-                'episodeId': episode_id, 'audioFile': audio_file,
-                'warnings': result.get('warnings', []),
-            })
-        else:
-            report['failed'].append({
-                'episodeId': episode_id, 'audioFile': audio_file, 'error': result,
-            })
-            # _commit_entry never returns 'error' after moving the audio
-            # (every error return in it happens before shutil.move), so the
-            # audio is still sitting at its original staging path here.
-            _preserve_entry_files(entry, staging_dir, preserved_leftovers)
-        _bump_processed(slug, storage)
-
-    # One index pass for the whole batch: _commit_entry defers each row's own.
-    if upserted_ids:
-        db.index_episodes([(episode_id, slug) for episode_id in upserted_ids])
+    finally:
+        # One index pass for the batch on every way out of the loop: the rows are
+        # committed by now, and _commit_entry deferred each one's own index write.
+        if upserted_ids:
+            try:
+                db.index_episodes([(ep_id, slug) for ep_id in upserted_ids])
+            except Exception:
+                # Logged, never raised: this runs in a finally, and a failed index pass
+                # must not replace whatever exception is already on its way out.
+                logger.exception(f"[{slug}] batched search index pass failed")
 
     try:
         podcast = db.get_podcast_by_slug(slug)
