@@ -11,6 +11,8 @@ release notes.
 
 ## [Unreleased]
 
+## [2.95.3] - 2026-09-05
+
 ### Changed
 
 - The Dashboard search field now sits above the Feeds heading and its controls, as in the design mockup. It searches shows, episodes and transcripts, not the feed list below it.
