@@ -4,11 +4,16 @@ Word matching only for descriptions/transcripts (porter unicode61, no LIKE);
 titles additionally get a substring LIKE pass. Transcripts are capped since
 search_index holds one row per episode (see search_grouped design note).
 """
+from pathlib import Path
+
+import yaml
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('search_grouped_')
 
 import database
+from database.search import SEARCH_GROUP_NAMES
 from main_app import app
 from api import get_database
 
@@ -245,41 +250,40 @@ def test_content_type_filter_does_not_reweight_show_ranking():
 # groups= restricts which of the five groups search_grouped actually queries.
 
 
+def _group_call_counts(monkeypatch):
+    """Counts, per group name, how many times search_grouped ran that group's query."""
+    calls = {}
+
+    def counting(name, original):
+        def wrapper(self, *a, **kw):
+            calls[name] = calls.get(name, 0) + 1
+            return original(self, *a, **kw)
+        return wrapper
+
+    for name in SEARCH_GROUP_NAMES:
+        attr = f'_search_{name}'
+        monkeypatch.setattr(type(db), attr, counting(name, getattr(type(db), attr)))
+    return calls
+
+
 def test_groups_param_skips_unrequested_group_functions(monkeypatch):
-    orig_shows = type(db)._search_shows
-    orig_patterns = type(db)._search_patterns
-    orig_sponsors = type(db)._search_sponsors
-    calls = {'shows': 0, 'patterns': 0, 'sponsors': 0}
-
-    def counting_shows(self, *a, **kw):
-        calls['shows'] += 1
-        return orig_shows(self, *a, **kw)
-
-    def counting_patterns(self, *a, **kw):
-        calls['patterns'] += 1
-        return orig_patterns(self, *a, **kw)
-
-    def counting_sponsors(self, *a, **kw):
-        calls['sponsors'] += 1
-        return orig_sponsors(self, *a, **kw)
-
-    monkeypatch.setattr(type(db), '_search_shows', counting_shows)
-    monkeypatch.setattr(type(db), '_search_patterns', counting_patterns)
-    monkeypatch.setattr(type(db), '_search_sponsors', counting_sponsors)
+    calls = _group_call_counts(monkeypatch)
     result = db.search_grouped('Zorblat', groups=['shows', 'episodes', 'transcripts'])
-    assert calls == {'shows': 1, 'patterns': 0, 'sponsors': 0}
+    assert calls == {'shows': 1, 'episodes': 1, 'transcripts': 1}
     assert result['patterns'] == [] and result['sponsors'] == []
 
     # A duplicated name collapses to one call: groups=shows,shows behaves as groups=shows.
-    calls['shows'] = 0
+    calls.clear()
     db.search_grouped('Zorblat', groups=['shows', 'shows'])
-    assert calls['shows'] == 1
+    assert calls == {'shows': 1}
 
 
-def test_groups_param_empty_token_between_commas_is_ignored():
+def test_groups_param_empty_token_between_commas_is_ignored(monkeypatch):
+    calls = _group_call_counts(monkeypatch)
     client = _authed_client()
     resp = client.get('/api/v1/search?q=test&groups=shows,,episodes')
     assert resp.status_code == 200
+    assert calls == {'shows': 1, 'episodes': 1}
 
 
 def test_groups_param_is_case_sensitive():
@@ -288,12 +292,14 @@ def test_groups_param_is_case_sensitive():
     assert resp.status_code == 400 and 'Shows' in resp.get_json()['error']
 
 
-def test_groups_param_wire_format_is_one_comma_joined_value():
+def test_groups_param_wire_format_is_one_comma_joined_value(monkeypatch):
     # openapi's style: form, explode: false means a single "?groups=a,b,c" query value,
     # not repeated "?groups=a&groups=b&groups=c"; confirm Flask still sees it that way.
+    calls = _group_call_counts(monkeypatch)
     client = _authed_client()
     resp = client.get('/api/v1/search?q=test&groups=shows,episodes,transcripts')
     assert resp.status_code == 200
+    assert calls == {'shows': 1, 'episodes': 1, 'transcripts': 1}
 
 
 def test_groups_param_requested_groups_still_compute():
@@ -426,3 +432,15 @@ def test_snippet_escapes_ampersands_and_literal_mark_tags():
     assert 'AT&amp;T' in hit['snippet']
     assert '&lt;mark&gt;fake&lt;/mark&gt;' in hit['snippet']
     assert '<mark>zibbleflux</mark>' in hit['snippet']
+
+
+def test_openapi_groups_enum_matches_the_server():
+    """The spec's enum and SEARCH_GROUP_NAMES have to name the same five groups: the
+    server rejects anything outside its own tuple, so drift is a 400 for every client."""
+    spec = Path(__file__).resolve().parents[2] / 'openapi.yaml'
+    with open(spec) as f:
+        doc = yaml.safe_load(f)
+    groups = next(p for p in doc['paths']['/search']['get']['parameters']
+                  if p['name'] == 'groups')
+    assert tuple(groups['schema']['items']['enum']) == SEARCH_GROUP_NAMES
+    assert tuple(groups['schema']['default']) == SEARCH_GROUP_NAMES
