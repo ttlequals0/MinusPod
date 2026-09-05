@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { getNotificationTimezone, updateNotificationTimezone } from '../../api/settings';
+import { getErrorMessage } from '../../api/client';
 import { btnPrimary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { focusRing, selectBase } from '../../components/fieldStyles';
 
 const FALLBACK_ZONES = [
   'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
@@ -22,8 +23,6 @@ function listTimezones(): string[] {
     return FALLBACK_ZONES;
   }
 }
-
-const selectClass = `w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`;
 
 function TimezoneSettingsForm() {
   const queryClient = useQueryClient();
@@ -71,7 +70,7 @@ function TimezoneSettingsForm() {
             id="notification-timezone"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className={selectClass}
+            className={`w-full ${selectBase}`}
           >
             {!zones.includes(draft) && <option value={draft}>{draft}</option>}
             {zones.map((zone) => (
@@ -89,7 +88,7 @@ function TimezoneSettingsForm() {
       </div>
       {saveMutation.isError && (
         <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {(saveMutation.error as Error)?.message || 'Failed to save timezone'}
+          {getErrorMessage(saveMutation.error, 'Failed to save timezone')}
         </div>
       )}
     </form>
