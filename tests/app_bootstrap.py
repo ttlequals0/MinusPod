@@ -62,7 +62,6 @@ def bootstrap(prefix, secret_key='test-secret', passphrase=None,
     database.Database._instance = None
     if reset_storage:
         storage_mod.Storage._instance = None
-    storage_mod.Storage.__init__.__defaults__ = (data_dir,)
 
     atexit.register(shutil.rmtree, data_dir, ignore_errors=True)
     return data_dir
