@@ -172,3 +172,51 @@ def test_one_malformed_row_does_not_block_the_rest(temp_db, caplog):
     gate = conn.execute(
         "SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
     assert gate is not None
+
+
+def _legacy(start=500.0, end=520.0):
+    """A marker persisted before was_cut existed: no key at all, which means cut."""
+    return {'start': start, 'end': end, 'sponsor': 'Acme', 'confidence': 0.9}
+
+
+def test_two_legacy_markers_for_one_span_are_left_alone(temp_db):
+    slug, eid = _seed(temp_db, [_legacy(), _legacy(500.2, 519.8)],
+                      pending_review_count=0)
+    conn = temp_db.get_connection()
+    before = conn.execute(
+        "SELECT ad_markers_json FROM episode_details").fetchone()['ad_markers_json']
+
+    _run(temp_db)
+
+    row = conn.execute("SELECT ad_markers_json FROM episode_details").fetchone()
+    assert row['ad_markers_json'] == before
+    markers, _pending = _stored(temp_db, slug, eid)
+    assert len(markers) == 2
+
+
+def test_a_legacy_marker_never_folds_with_an_explicitly_uncut_one(temp_db):
+    slug, eid = _seed(temp_db, [_legacy(), _held(500.2, 519.8)],
+                      pending_review_count=1)
+
+    _run(temp_db)
+
+    markers, pending = _stored(temp_db, slug, eid)
+    assert len(markers) == 2
+    assert pending == 1
+
+
+def test_only_the_uncut_pair_collapses_in_a_mixed_row(temp_db):
+    cut = dict(_keep(300.0, 330.0), was_cut=True, action_applied='remove')
+    cut_twin = dict(_keep(300.2, 329.8), was_cut=True, action_applied='remove')
+    slug, eid = _seed(temp_db, [_legacy(100.0, 130.0), _legacy(100.2, 129.8),
+                                cut, cut_twin, _keep(), _held()],
+                      pending_review_count=1)
+
+    _run(temp_db)
+
+    markers, pending = _stored(temp_db, slug, eid)
+    assert [(m['start'], m['end']) for m in markers] == [
+        (100.0, 130.0), (100.2, 129.8), (300.0, 330.0), (300.2, 329.8),
+        (500.0, 520.0)]
+    assert markers[-1]['action_applied'] == 'keep'
+    assert pending == 0

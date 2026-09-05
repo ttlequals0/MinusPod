@@ -201,3 +201,26 @@ def test_fold_does_not_shadow_a_hold_reason_already_cleared():
     assert (f'INFO: A second hold was cleared on this span '
             f'({HOLD_REASON_VERIFICATION_KEPT_CONFLICT})'
             in keep['validation']['flags'])
+
+
+def test_a_marker_without_was_cut_is_never_folded():
+    """No was_cut key means a pre-was_cut release wrote it and the span IS cut."""
+    legacy = {'start': 500.0, 'end': 520.0, 'sponsor': 'Acme'}
+    pass2_held = {'start': 500.2, 'end': 519.8, 'was_cut': False,
+                  'held_for_review': True, 'hold_reason': 'cue_unproven'}
+
+    saved, folded = _seam([legacy], [], [pass2_held])
+    assert (folded, len(saved)) == (0, 2)
+
+    uncut = {'start': 500.0, 'end': 520.0, 'was_cut': False,
+             'held_for_review': True, 'hold_reason': 'max_duration'}
+    saved, folded = _seam([uncut], [], [{'start': 500.2, 'end': 519.8}])
+    assert (folded, len(saved)) == (0, 2)
+
+
+def test_fold_does_not_invent_was_cut():
+    target = {'start': 500.0, 'end': 520.0, 'held_for_review': True,
+              'hold_reason': 'max_duration'}
+    fold_marker_pair(target, {'start': 500.2, 'end': 519.8})
+
+    assert 'was_cut' not in target

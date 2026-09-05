@@ -155,12 +155,15 @@ def spans_match(a_start, a_end, b_start, b_end,
 
 def foldable_twin(markers, marker):
     """The uncut marker in markers naming the same span as marker; a cut marker
-    never folds since its record must keep describing the removed audio."""
-    if not isinstance(marker, dict) or marker.get('was_cut'):
+    never folds since its record must keep describing the removed audio. A
+    marker with no was_cut key predates the field and counts as cut, the same
+    default is_pending_review and count_not_cut apply."""
+    if not isinstance(marker, dict) or marker.get('was_cut', True):
         return None
     return next(
         (m for m in markers
-         if isinstance(m, dict) and m is not marker and not m.get('was_cut')
+         if isinstance(m, dict) and m is not marker
+         and not m.get('was_cut', True)
          and spans_match(m.get('start'), m.get('end'),
                          marker.get('start'), marker.get('end'))),
         None)
@@ -190,8 +193,6 @@ def fold_marker_pair(target: dict, other: dict) -> None:
     cleared = loser.get('hold_reason') if loser.get('held_for_review') else None
     merged = {k: v for k, v in loser.items() if v is not None}
     merged.update({k: v for k, v in winner.items() if v is not None})
-    # Callers fold uncut pairs only; foldable_twin admits no other pair.
-    merged['was_cut'] = False
     for field in _FOLD_VERDICT_FIELDS:
         if field in winner:
             merged[field] = winner[field]
