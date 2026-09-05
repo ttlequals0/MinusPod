@@ -144,6 +144,20 @@ describe('FeedDetail: local feed visibility matrix', () => {
   });
 });
 
+// #718: the copy control shrinks to an icon below sm so it stays in the left
+// group instead of wrapping onto its own row above Reprocess/Refresh/Delete.
+describe('FeedDetail: copy control mobile sizing', () => {
+  it('does not carry the unprefixed px-4 py-2 padding that fights icon-only sizing', async () => {
+    renderFeedDetail(makeFeed());
+    await waitFor(() => {
+      expect(screen.getByText('Test Feed')).toBeDefined();
+    });
+    const copyButton = screen.getByTitle('Copy Feed URL');
+    expect(copyButton.className).not.toContain('px-4 py-2');
+    expect(copyButton.className).toContain('h-8 w-8');
+  });
+});
+
 describe('FeedDetail: notice from router state', () => {
   it('surfaces a notice left in router state (e.g. from AddFeed local mode) as a toast', async () => {
     mockLocationState = { notice: 'Feed created. Artwork upload failed. Retry from the feed page.' };

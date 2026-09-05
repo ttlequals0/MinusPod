@@ -23,15 +23,20 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
   const artworkUrl = feedArtworkSrc(feed.slug, feed.artworkUrl);
 
   return (
-    <div className="bg-card rounded-lg border border-border">
-      <div className="flex">
-        <div className="w-24 h-24 shrink-0 overflow-hidden rounded-tl-lg">
+    <div className="bg-card rounded-lg border border-border h-full flex flex-col">
+      <div className="flex flex-1">
+        <Link
+          to={`/feeds/${feed.slug}`}
+          tabIndex={-1}
+          aria-hidden="true"
+          className="block w-24 h-24 shrink-0 overflow-hidden rounded-tl-lg cursor-pointer"
+        >
           <Artwork
             src={artworkUrl}
             alt={feed.title}
             className="w-full h-full object-cover"
           />
-        </div>
+        </Link>
         <div className="flex-1 p-4 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <Link

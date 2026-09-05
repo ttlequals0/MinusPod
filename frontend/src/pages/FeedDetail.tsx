@@ -425,7 +425,7 @@ function FeedDetail() {
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-4 items-center justify-between">
+        <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-2 sm:gap-4 items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <span className="hidden sm:inline text-sm text-muted-foreground shrink-0">Feed URL:</span>
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
@@ -434,7 +434,8 @@ function FeedDetail() {
             <CopyButton
               text={feed.feedUrl}
               label="Copy Feed URL"
-              className={`px-4 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
+              hideLabelOnMobile
+              className={`sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
               copiedClassName="text-success bg-success/10 sm:bg-transparent"
               labelClassName="text-sm"
             />
