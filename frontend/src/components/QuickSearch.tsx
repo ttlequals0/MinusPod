@@ -1,10 +1,9 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-// Minimal glue onto the unified endpoint; the palette body itself is due a fuller rewrite.
-import { search } from '../api/search';
 import { modalBackdrop, modalPanel, useEscape, useFocusTrap } from './Modal';
-import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
+import SearchResults from './SearchResults';
+import type { SearchResultRow } from './SearchResults';
+import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
 
 interface Props {
   // Character that opened the palette, so the first keystroke is not lost.
@@ -13,10 +12,7 @@ interface Props {
   onClose: () => void;
 }
 
-interface Row { key: string; group: 'Feeds' | 'Episodes'; label: string; sub?: string; status?: string; to: string }
-
 const EDITABLE = 'input,textarea,select,[contenteditable="true"]';
-const MIN_QUERY = 2;
 
 // Global open trigger: a printable key, "/" or Ctrl/Cmd+K, outside editable fields and dialogs.
 export function useQuickSearchHotkey(onOpen: (seed: string) => void) {
@@ -37,60 +33,15 @@ export function useQuickSearchHotkey(onOpen: (seed: string) => void) {
 }
 
 function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
-  const [q, setQ] = useState(seed);
-  const [debounced, setDebounced] = useState(seed);
-  const [active, setActive] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { query, setQuery, debounced, ready, results, rows, current, setActive, onKeyDown } = useUnifiedSearch(seed);
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(q), 300);
-    return () => clearTimeout(t);
-  }, [q]);
   useEscape(onClose);
   useFocusTrap(panelRef);
 
-  const ready = debounced.trim().length >= MIN_QUERY;
-  const { data } = useQuery({
-    queryKey: ['quickSearch', debounced],
-    queryFn: ({ signal }) => search(debounced, 8, signal),
-    enabled: ready,
-    placeholderData: keepPreviousData,
-  });
+  const go = (row: SearchResultRow) => { onClose(); navigate(row.to); };
 
-  // Guard on ready: keepPreviousData would otherwise show stale rows under a too-short query.
-  const rows = useMemo<Row[]>(() => !ready || !data ? [] : [
-    ...data.shows.map((f) => ({
-      key: `qs-f-${f.slug}`, group: 'Feeds' as const, label: f.title, to: `/feeds/${f.slug}`,
-    })),
-    ...data.episodes.map((e) => ({
-      key: `qs-e-${e.feedSlug}-${e.episodeId}`, group: 'Episodes' as const, label: e.title,
-      sub: e.feedTitle, status: e.status, to: `/feeds/${e.feedSlug}/episodes/${e.episodeId}`,
-    })),
-  ], [data, ready]);
-
-  // Clamp: a shorter result set can swap in under a stale index.
-  const current = rows.length ? Math.min(active, rows.length - 1) : 0;
-
-  useEffect(() => {
-    const id = rows[current]?.key;
-    if (id) document.getElementById(id)?.scrollIntoView?.({ block: 'nearest' });
-  }, [current, rows]);
-
-  const go = (row: Row) => { onClose(); navigate(row.to); };
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.nativeEvent.isComposing) return;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (rows.length === 0) return;
-      setActive(e.key === 'ArrowDown' ? Math.min(current + 1, rows.length - 1) : Math.max(current - 1, 0));
-    } else if (e.key === 'Enter' && rows[current]) {
-      e.preventDefault();
-      go(rows[current]);
-    }
-  };
-
-  let lastGroup: Row['group'] | null = null;
   return (
     <div className={`${modalBackdrop} items-start pt-[12vh]`} onMouseDown={onClose}>
       <div
@@ -113,51 +64,20 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
             aria-autocomplete="list"
             autoComplete="off"
             spellCheck={false}
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setActive(0); }}
-            onKeyDown={onKeyDown}
-            placeholder="Jump to a feed or episode"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => onKeyDown(e, go)}
+            placeholder="Search shows, episodes and transcripts"
             className="w-full bg-transparent py-3 pl-12 pr-4 text-base text-foreground placeholder:text-muted-foreground outline-hidden"
           />
         </div>
         <ul id="quick-search-results" role="listbox" aria-label="Results" className="max-h-[50vh] overflow-y-auto py-1">
-          {rows.map((row, i) => {
-            const header = row.group !== lastGroup;
-            lastGroup = row.group;
-            const isActive = i === current;
-            return (
-              <Fragment key={row.key}>
-                {header && (
-                  <li role="presentation" className="px-4 pb-1 pt-2 text-xs font-medium text-muted-foreground">
-                    {row.group}
-                  </li>
-                )}
-                <li
-                  id={row.key}
-                  role="option"
-                  aria-selected={isActive}
-                  onMouseMove={() => setActive(i)}
-                  onClick={() => go(row)}
-                  className={`cursor-pointer border-l-2 px-4 py-2 ${isActive ? 'border-primary bg-accent font-medium text-accent-foreground' : 'border-transparent'}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">{row.label}</span>
-                    {row.status && (
-                      <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-normal ${EPISODE_STATUS_COLORS[row.status] || 'bg-muted text-muted-foreground'}`}>
-                        {EPISODE_STATUS_LABELS[row.status] || row.status}
-                      </span>
-                    )}
-                  </div>
-                  {row.sub && <div className="truncate text-xs font-normal text-muted-foreground">{row.sub}</div>}
-                </li>
-              </Fragment>
-            );
-          })}
+          <SearchResults results={results} activeIndex={current} onHover={setActive} onSelect={go} />
           {!ready && (
-            <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">Type two or more characters to match feed and episode titles.</li>
+            <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">Type two or more characters to search shows, episodes and transcripts.</li>
           )}
-          {ready && data && rows.length === 0 && (
-            <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">No feed or episode titles match.</li>
+          {ready && rows.length === 0 && (
+            <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">No shows, episodes or transcripts match.</li>
           )}
         </ul>
         <div className="border-t border-border bg-secondary/50 px-4 py-2 text-sm">
@@ -166,7 +86,7 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
             onClick={onClose}
             className="text-primary hover:underline"
           >
-            {ready ? `Search transcripts for "${debounced}"` : 'Open full search'}
+            {ready ? 'Advanced search' : 'Open full search'}
           </Link>
         </div>
       </div>

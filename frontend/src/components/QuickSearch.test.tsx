@@ -42,7 +42,7 @@ describe('QuickSearch', () => {
     renderPalette();
     expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('ba');
     await waitFor(() => expect(screen.getByText('Batteries again')).toBeTruthy());
-    expect(screen.getByText('Feeds')).toBeTruthy();
+    expect(screen.getByText('Shows')).toBeTruthy();
     expect(screen.getByText('Episodes')).toBeTruthy();
     expect(screen.getAllByRole('option')).toHaveLength(2);
   });
@@ -62,7 +62,7 @@ describe('QuickSearch', () => {
       query: 'ba', shows: [], episodes: [], transcripts: [], patterns: [], sponsors: [],
     });
     renderPalette();
-    await waitFor(() => screen.getByText('No feed or episode titles match.'));
+    await waitFor(() => screen.getByText('No shows, episodes or transcripts match.'));
     await userEvent.keyboard('{ArrowDown}{Enter}');
     expect(mockNavigate).not.toHaveBeenCalled();
     await userEvent.type(screen.getByRole('combobox'), 'n');
@@ -73,10 +73,10 @@ describe('QuickSearch', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/feeds/example-podcast/episodes/a1b2c3d4e5f6');
   });
 
-  it('offers a transcript search link', async () => {
+  it('offers an Advanced search link carrying the query', async () => {
     renderPalette();
     await waitFor(() => screen.getByText('Batteries again'));
-    const link = screen.getByRole('link', { name: /search transcripts/i });
+    const link = screen.getByRole('link', { name: 'Advanced search' });
     expect(link.getAttribute('href')).toBe('/search?q=ba');
   });
 
