@@ -1066,33 +1066,56 @@ describe('FeedSettingsPanel detection notes', () => {
     mockUpdateFeed.mockResolvedValue(makeFeed());
   });
 
-  it('saves detection notes on blur', async () => {
+  it('disables Save until the draft differs from the saved value', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: 'Keep the news roundup.' }));
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    const save = screen.getByRole('button', { name: 'Save detection notes' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    await user.type(box, ' Plus this.');
+    expect(save.disabled).toBe(false);
+  });
+
+  it('blur alone writes nothing', async () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ detectionNotes: null }));
     const box = screen.getByLabelText('Detection notes');
     await user.type(box, 'Intro has three parts.');
     await user.tab();
-    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
-      'test-feed', expect.objectContaining({ detectionNotes: 'Intro has three parts.' })));
-  });
-
-  it('does not PATCH on blur when the notes are unchanged', async () => {
-    const user = userEvent.setup();
-    renderPanel(makeFeed({ detectionNotes: 'Keep the news roundup.' }));
-    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
-    expect(box.value).toBe('Keep the news roundup.');
-    await user.click(box);
-    await user.tab();
     expect(mockUpdateFeed).not.toHaveBeenCalled();
   });
 
-  it('clearing the notes sends null', async () => {
+  it('Save writes detectionNotes and shows the saved confirmation', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const box = screen.getByLabelText('Detection notes');
+    await user.type(box, 'Intro has three parts.');
+    await user.click(screen.getByRole('button', { name: 'Save detection notes' }));
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
+      'test-feed', expect.objectContaining({ detectionNotes: 'Intro has three parts.' })));
+    expect(await screen.findByText('Saved')).toBeDefined();
+  });
+
+  it('Clear empties the field locally, then Save commits null', async () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ detectionNotes: 'Old note.' }));
-    const box = screen.getByLabelText('Detection notes');
-    await user.clear(box);
-    await user.tab();
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    await user.click(screen.getByRole('button', { name: 'Clear detection notes' }));
+    expect(box.value).toBe('');
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Save detection notes' }));
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith(
       'test-feed', expect.objectContaining({ detectionNotes: null })));
+  });
+
+  it('a rejected save shows an error and leaves the draft intact', async () => {
+    mockUpdateFeed.mockRejectedValueOnce(new Error('Detection notes could not be saved'));
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ detectionNotes: null }));
+    const box = screen.getByLabelText('Detection notes') as HTMLTextAreaElement;
+    await user.type(box, 'Intro has three parts.');
+    await user.click(screen.getByRole('button', { name: 'Save detection notes' }));
+    expect(await screen.findByText('Detection notes could not be saved')).toBeDefined();
+    expect(box.value).toBe('Intro has three parts.');
   });
 });

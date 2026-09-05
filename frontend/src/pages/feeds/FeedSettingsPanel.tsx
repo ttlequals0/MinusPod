@@ -21,6 +21,7 @@ import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguage
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
+import SavedBadge from '../settings/SavedBadge';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
@@ -222,6 +223,12 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [maxAdDurInput, setMaxAdDurInput] = useState(s(feed.maxAdDurationOverride));
   const [maxAdDurRejectInput, setMaxAdDurRejectInput] = useState(s(feed.maxAdDurationRejectOverride));
   const [editDetectionNotes, setEditDetectionNotes] = useState(feed.detectionNotes ?? '');
+  // Tracks the last value confirmed saved, independent of the `feed` prop, so
+  // the Save button and confirmation update the instant the PATCH resolves
+  // rather than waiting on the parent's background refetch.
+  const [savedDetectionNotes, setSavedDetectionNotes] = useState(feed.detectionNotes ?? null);
+  const [detectionNotesSaved, setDetectionNotesSaved] = useState(false);
+  const [detectionNotesError, setDetectionNotesError] = useState<string | null>(null);
   // Retention days edits stay local until blur. Committing per keystroke
   // would PATCH every intermediate digit (typing 365 sends 3, then 36) and
   // retention is the one field where an intermediate value deletes audio.
@@ -247,6 +254,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     setMaxAdDurInput(s(f.maxAdDurationOverride));
     setMaxAdDurRejectInput(s(f.maxAdDurationRejectOverride));
     setEditDetectionNotes(f.detectionNotes ?? '');
+    setSavedDetectionNotes(f.detectionNotes ?? null);
     setSegmentOverrides(f.segmentCategoryActions ?? {});
   });
 
@@ -379,6 +387,26 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       reset();
     }
   }
+
+  const detectionNotesDirty = (editDetectionNotes.trim() || null) !== savedDetectionNotes;
+
+  const saveDetectionNotes = () => {
+    const next = editDetectionNotes.trim() || null;
+    setDetectionNotesError(null);
+    updateMutation.mutate({ detectionNotes: next }, {
+      onSuccess: () => {
+        setSavedDetectionNotes(next);
+        setDetectionNotesSaved(true);
+      },
+      onError: (e) => setDetectionNotesError(getErrorMessage(e, 'Failed to save detection notes')),
+    });
+  };
+
+  const clearDetectionNotes = () => {
+    setEditDetectionNotes('');
+    setDetectionNotesSaved(false);
+    setDetectionNotesError(null);
+  };
 
   const startEditingNetwork = () => {
     const override = feed.networkIdOverride || '';
@@ -607,12 +635,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               maxLength={1000}
               rows={3}
               onChange={(e) => setEditDetectionNotes(e.target.value)}
-              onBlur={() => {
-                const next = editDetectionNotes.trim() || null;
-                if (next !== (feed.detectionNotes ?? null)) {
-                  updateMutation.mutate({ detectionNotes: next });
-                }
-              }}
               placeholder="What only this show does, e.g. host-read ads start right after 'a word from our sponsors'."
               className={`w-full px-2 py-1 bg-secondary text-foreground placeholder:text-muted-foreground border border-border rounded resize-y ${focusRing}`}
             />
@@ -620,6 +642,28 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               <span>Sent to the model with every episode of this feed.</span>
               <span className="tabular-nums shrink-0">{editDetectionNotes.length} / 1000</span>
             </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={saveDetectionNotes}
+                disabled={!detectionNotesDirty || updateMutation.isPending}
+                aria-label="Save detection notes"
+                className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+              >
+                {updateMutation.isPending ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={clearDetectionNotes}
+                disabled={editDetectionNotes === ''}
+                aria-label="Clear detection notes"
+                className={`px-2 py-1 text-xs ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
+              >
+                Clear
+              </button>
+              {detectionNotesSaved && !detectionNotesDirty && !detectionNotesError && <SavedBadge />}
+            </div>
+            {detectionNotesError && (
+              <p className="text-xs text-destructive">{detectionNotesError}</p>
+            )}
           </div>
 
           {/* Source RSS URL (#484): the feed MinusPod pulls from, not the
