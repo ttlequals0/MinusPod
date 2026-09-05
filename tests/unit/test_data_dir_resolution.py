@@ -1,10 +1,4 @@
-"""The data directory is resolved when it is needed, not when a module loads.
-
-A module-level constant captures whatever the environment held at import
-time, so the first test file whose import chain reached it decided where
-every later bare Database() would write. Resolving at call time removes the
-ordering dependency.
-"""
+"""The data directory is resolved at call time, so test import order cannot pin it."""
 import os
 import sys
 
