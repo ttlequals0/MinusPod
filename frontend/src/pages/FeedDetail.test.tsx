@@ -146,6 +146,10 @@ describe('FeedDetail: local feed visibility matrix', () => {
 
 // #718: the copy control shrinks to an icon below sm so it stays in the left
 // group instead of wrapping onto its own row above Reprocess/Refresh/Delete.
+// Label is hidden directly (not via CopyButton's hideLabelOnMobile) because
+// that prop's baseClass carries its own sm:px-2 and unprefixed h-8, which tie
+// with this call site's sm:px-0/sm:p-1.5 desktop classes and can win,
+// regressing desktop sizing (see task-8 fix report for the computed-style proof).
 describe('FeedDetail: copy control mobile sizing', () => {
   it('does not carry the unprefixed px-4 py-2 padding that fights icon-only sizing', async () => {
     renderFeedDetail(makeFeed());
@@ -154,7 +158,18 @@ describe('FeedDetail: copy control mobile sizing', () => {
     });
     const copyButton = screen.getByTitle('Copy Feed URL');
     expect(copyButton.className).not.toContain('px-4 py-2');
-    expect(copyButton.className).toContain('h-8 w-8');
+    expect(copyButton.className).not.toContain('sm:px-2');
+    expect(copyButton.className).not.toContain('h-8 w-8');
+  });
+
+  it('hides the label with a plain responsive class instead of hideLabelOnMobile', async () => {
+    renderFeedDetail(makeFeed());
+    await waitFor(() => {
+      expect(screen.getByText('Test Feed')).toBeDefined();
+    });
+    const label = screen.getByTitle('Copy Feed URL').querySelector('span');
+    expect(label?.className).toContain('hidden');
+    expect(label?.className).toContain('sm:inline');
   });
 });
 

@@ -431,13 +431,16 @@ function FeedDetail() {
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
               {feed.feedUrl}
             </code>
+            {/* Not hideLabelOnMobile: that prop's baseClass carries its own
+                sm:px-2 and unprefixed h-8, which tie with (and can beat) the
+                sm:px-0/sm:p-1.5 this call site needs for its own desktop
+                look. Hiding the label directly here avoids the tie. */}
             <CopyButton
               text={feed.feedUrl}
               label="Copy Feed URL"
-              hideLabelOnMobile
-              className={`sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
+              className={`px-2 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
               copiedClassName="text-success bg-success/10 sm:bg-transparent"
-              labelClassName="text-sm"
+              labelClassName="hidden sm:inline text-sm"
             />
           </div>
           {/* Wraps rather than overflowing: every child is whitespace-nowrap, so
