@@ -210,10 +210,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
   const s = (v: number | null | undefined) => (v != null ? String(v) : '');
 
-  // Per-field draft state. Each useDraftField reseeds itself from `feed`
-  // whenever its identity changes (same render-phase pattern used by
-  // Settings.tsx), avoiding the one-frame stale UI of useEffect, and skips
-  // that reseed while the field has an unsaved edit in progress (dirty).
+  // Per-field draft state; each useDraftField reseeds itself from `feed`
+  // via useSyncFromQuery, skipping the reseed while the field is dirty.
   const cueScoreField = useDraftField(feed, (f) =>
     f.cueTemplateScoreOverride != null ? String(f.cueTemplateScoreOverride) : '');
   const pairMinField = useDraftField(feed, (f) => s(f.cuePairMinBreakOverride));

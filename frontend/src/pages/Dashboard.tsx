@@ -10,6 +10,7 @@ import SearchResults from '../components/SearchResults';
 import type { SearchResultRow } from '../components/SearchResults';
 import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { useOutsideClick } from '../hooks/useOutsideClick';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import { formatDateTime } from '../utils/format';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
@@ -78,9 +79,15 @@ function Dashboard() {
   const sortedFeeds = useMemo(() => (feeds ? sortFeeds(feeds, sortBy) : []), [feeds, sortBy]);
 
   const navigate = useNavigate();
+  const searchRootRef = useRef<HTMLDivElement>(null);
   const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown, open, close } = useUnifiedSearch('');
 
   const goToResult = (row: SearchResultRow) => { close(); navigate(row.to); };
+
+  // Belt and suspenders: iOS Safari does not reliably blur a focused input
+  // when the tap lands on a non-focusable element, so onBlur alone can miss
+  // an outside tap; this document listener covers that case.
+  useOutsideClick(searchRootRef, open, close, { touch: true });
 
   const showSearchPanel = open && query.length > 0;
 
@@ -214,9 +221,10 @@ function Dashboard() {
 
       <div
         className="relative mb-6"
+        ref={searchRootRef}
         onBlur={(e) => {
-          // A tap or click outside always blurs the input first (relatedTarget
-          // lands outside this container), so this alone covers both cases.
+          // onBlur (desktop tab-away and most clicks) plus the document
+          // listener above (iOS Safari does not blur on a non-focusable tap).
           if (!e.currentTarget.contains(e.relatedTarget as Node)) close();
         }}
       >

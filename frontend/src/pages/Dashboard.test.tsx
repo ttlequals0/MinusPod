@@ -1,7 +1,7 @@
 // The Dashboard field is the mobile fix (#717): a real input the tap lands on
 // directly, since iOS only raises the keyboard for focus inside the gesture.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, renderHook, screen, waitFor } from '@testing-library/react';
+import { render, renderHook, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -138,5 +138,17 @@ describe('Dashboard search field', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
     await userEvent.type(input, 't');
     await waitFor(() => screen.getByText('The Daily Tech Show'));
+  });
+
+  // A mousedown outside the root must close the panel even without a blur:
+  // iOS Safari does not reliably blur a focused input for a tap that lands
+  // on a non-focusable element, so onBlur alone would miss this.
+  it('a mousedown outside the search root closes the panel', async () => {
+    renderDashboard();
+    const input = await screen.findByRole('combobox');
+    await userEvent.type(input, 'ba');
+    await waitFor(() => screen.getByText('The Daily Tech Show'));
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByText('The Daily Tech Show')).toBeNull();
   });
 });
