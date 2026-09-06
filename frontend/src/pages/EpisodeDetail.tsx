@@ -663,7 +663,6 @@ function EpisodeDetail() {
                   triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnSecondary} rounded flex items-center gap-1`}
                   chevronClassName="w-3 h-3"
                   title="Download audio"
-                  align="left"
                   items={downloadItems}
                 />
               )}
@@ -674,9 +673,6 @@ function EpisodeDetail() {
                 triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
                 chevronClassName="w-3 h-3"
                 disabled={reprocessMutation.isPending || episode.status === 'processing'}
-                // The button wraps to the row's left edge on phones; a
-                // right-aligned menu would clip off-screen there.
-                align="left"
                 items={[
                   { title: reprocessLabel, subtitle: 'Use patterns + AI',
                     tooltip: 'Use learned patterns + AI analysis',

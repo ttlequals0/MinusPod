@@ -16,7 +16,7 @@ release notes.
 ### Fixed
 
 - The status bar chip for a rate-limit pause now reads "Paused until HH:MM" instead of "Queue paused", and the expanded line leads with when the queue resumes, then when the pause began.
-- The episode page Download menu opens rightward, so it no longer clips off the left edge of a phone screen when the button wraps to the start of the row.
+- On phones, the episode page Download and Reprocess menus (and every other dropdown) open centered on the screen under their button instead of clipping off whichever edge the button wrapped to. On wider screens a menu opens toward the side that has room.
 
 ## [2.96.0] - 2026-09-05
 

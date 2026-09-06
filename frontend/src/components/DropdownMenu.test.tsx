@@ -14,4 +14,39 @@ describe('DropdownMenu', () => {
     rerender(<DropdownMenu triggerLabel="Act" triggerClassName="" items={items} disabled />);
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it('opens rightward when the trigger has no room on its left', async () => {
+    const { container } = render(
+      <DropdownMenu triggerLabel="Act" triggerClassName="" items={items} />);
+    const root = container.firstChild as HTMLElement;
+    root.getBoundingClientRect = () => ({ left: 10, right: 90 } as DOMRect);
+    await userEvent.click(screen.getByRole('button', { name: 'Act' }));
+    expect(screen.getByRole('menu').className).toContain('left-0');
+  });
+
+  it('opens leftward when the trigger sits at the right edge', async () => {
+    const { container } = render(
+      <DropdownMenu triggerLabel="Act" triggerClassName="" items={items} />);
+    const root = container.firstChild as HTMLElement;
+    root.getBoundingClientRect = () => ({ left: 300, right: 380 } as DOMRect);
+    await userEvent.click(screen.getByRole('button', { name: 'Act' }));
+    expect(screen.getByRole('menu').className).toContain('right-0');
+  });
+
+  it('centers on the screen under the trigger on a phone', async () => {
+    const width = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 });
+    try {
+      const { container } = render(
+        <DropdownMenu triggerLabel="Act" triggerClassName="" items={items} />);
+      const root = container.firstChild as HTMLElement;
+      root.getBoundingClientRect = () => ({ left: 200, right: 300, bottom: 120 } as DOMRect);
+      await userEvent.click(screen.getByRole('button', { name: 'Act' }));
+      const menu = screen.getByRole('menu');
+      expect(menu.className).toContain('fixed left-1/2 -translate-x-1/2');
+      expect(menu.style.top).toBe('124px');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    }
+  });
 });

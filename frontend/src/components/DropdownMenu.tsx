@@ -3,6 +3,13 @@ import { ChevronDown } from 'lucide-react';
 import { focusRing } from './fieldStyles';
 import { useOutsideClick } from '../hooks/useOutsideClick';
 
+// w-56 menu; keep it at least this far inside the viewport edge.
+const MENU_WIDTH_PX = 224;
+const VIEWPORT_MARGIN_PX = 8;
+// Below Tailwind's sm breakpoint the menu is centered on the screen under
+// the trigger's row: a row that wraps on a phone leaves no side with room.
+const PHONE_MAX_WIDTH_PX = 640;
+
 export interface DropdownMenuItem {
   title: string;
   subtitle?: string;
@@ -19,11 +26,11 @@ interface DropdownMenuProps {
   disabled?: boolean;
   title?: string;
   chevronClassName?: string;
-  /** Which edge of the menu aligns to the trigger. `right` (default)
-   * opens the menu leftward -- correct when the trigger sits on the
-   *  right side of a row. Use `left` for triggers on the left side so
-   *  the menu opens rightward and doesn't clip off-screen on mobile. */
-  align?: 'left' | 'right';
+  /** Which edge of the menu aligns to the trigger. `auto` (default)
+   *  opens leftward when the trigger has room on its left, otherwise
+   *  rightward, so a button that wraps to either end of a row on a
+   *  phone never clips off-screen. `left`/`right` force a side. */
+  align?: 'left' | 'right' | 'auto';
 }
 
 function DropdownMenu({
@@ -33,9 +40,11 @@ function DropdownMenu({
   disabled,
   title,
   chevronClassName = 'w-4 h-4',
-  align = 'right',
+  align = 'auto',
 }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
+  const [side, setSide] = useState<'left' | 'right'>('right');
+  const [phoneTop, setPhoneTop] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -82,11 +91,26 @@ function DropdownMenu({
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen]);
 
+  const toggle = () => {
+    if (!open) {
+      const rect = rootRef.current?.getBoundingClientRect();
+      setPhoneTop(rect && window.innerWidth < PHONE_MAX_WIDTH_PX ? rect.bottom + 4 : null);
+      if (align === 'auto') {
+        setSide(rect && rect.right - MENU_WIDTH_PX < VIEWPORT_MARGIN_PX ? 'left' : 'right');
+      }
+    }
+    setOpen(!open);
+  };
+  const resolvedSide = align === 'auto' ? side : align;
+  const placement = phoneTop !== null
+    ? 'fixed left-1/2 -translate-x-1/2'
+    : `absolute ${resolvedSide === 'left' ? 'left-0' : 'right-0'} mt-1`;
+
   return (
     <div className="relative" ref={rootRef}>
       <button
         ref={triggerRef}
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         onKeyDown={onTriggerKeyDown}
         disabled={disabled}
         className={`${triggerClassName} ${focusRing}`}
@@ -99,7 +123,8 @@ function DropdownMenu({
         <ChevronDown className={`${chevronClassName} transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       {isOpen && (
-        <div role="menu" className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} mt-1 w-56 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-lg z-10`}>
+        <div role="menu" style={phoneTop !== null ? { top: phoneTop } : undefined}
+          className={`${placement} w-56 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-lg z-10`}>
           {items.map((item, i) => {
             const isFirst = i === 0;
             const isLast = i === items.length - 1;
