@@ -22,6 +22,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from utils.db_backup import snapshot_database
+from utils.paths import resolve_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +48,6 @@ SECRET_SETTING_KEYS = frozenset(
         "email_smtp_password",
     }
 )
-
-BACKUP_DIR = Path(os.environ.get("MINUSPOD_DATA_DIR", "/app/data")) / "backups"
 
 _lock = threading.Lock()
 _dek_cache: bytes | None = None
@@ -309,7 +308,7 @@ def count_plaintext_secrets(db) -> int:
 
 
 def _create_pre_migration_backup(db) -> str:
-    """Snapshot the live SQLite database to ``BACKUP_DIR``.
+    """Snapshot the live SQLite database to the data dir's ``backups`` folder.
 
     Uses PID plus a short UUID suffix in the filename so two gunicorn
     workers racing at the same wall-clock second don't clobber each
@@ -318,10 +317,10 @@ def _create_pre_migration_backup(db) -> str:
     """
     ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     suffix = f"{os.getpid()}-{uuid.uuid4().hex[:6]}"
-    # Write under the live DB's data dir rather than the import-time BACKUP_DIR,
-    # which ignores a relocated MINUSPOD_DATA_DIR, so the snapshot lands beside
-    # the database it protects (secrets-storage-2).
-    base = Path(getattr(db, "data_dir", None) or BACKUP_DIR.parent)
+    # The live DB's data dir first, then the configured one read at call
+    # time, so the snapshot lands beside the database it protects
+    # (secrets-storage-2).
+    base = Path(getattr(db, "data_dir", None) or resolve_data_dir())
     backup_dir = base / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     backup_path = backup_dir / f"pre-secret-migration-{ts}-{suffix}.db"

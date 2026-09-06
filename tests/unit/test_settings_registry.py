@@ -9,6 +9,7 @@ compared via sha256 so the snapshot stays readable.
 import hashlib
 import os
 import sys
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +22,7 @@ from config import (
 from database import Database
 from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
-    registry_default, registry_get_default,
+    registry_current_value, registry_default, registry_get_default,
 )
 
 # Env vars that influence seed/reset defaults; cleared for determinism.
@@ -38,7 +39,7 @@ _SEED_ENV_VARS = (
     'VAD_GAP_DETECTION_ENABLED', 'VAD_GAP_START_MIN_SECONDS',
     'VAD_GAP_MID_MIN_SECONDS', 'VAD_GAP_TAIL_MIN_SECONDS',
     'TRANSCRIBE_MAX_CHUNK_SECONDS', 'TRANSCRIBE_CONCURRENT_CHUNKS',
-    'TRANSCRIBE_CHUNK_OVERLAP_SECONDS',
+    'TRANSCRIBE_CHUNK_OVERLAP_SECONDS', 'TZ',
 )
 
 # Snapshot of _seed_default_settings output captured from the pre-registry
@@ -68,10 +69,15 @@ SEED_SNAPSHOT = {
     'keep_original_audio': 'true',
     'learning_min_confidence': '0.85',
     'learning_min_confidence_long': '0.92',
+    'learning_min_pattern_duration': '15',
+    'learning_max_pattern_duration': '120',
     'llm_provider': 'anthropic',
     'max_feed_episodes': '300',
     'min_cut_confidence': '0.80',
     'offline_queue_enabled': 'false',
+    'llm_json_schema_enabled': 'false',
+    'rate_limit_hold_enabled': 'false',
+    'rate_limit_hold_ttl_hours': '48',
     'offline_queue_ttl_hours': '48',
     'omit_temperature': 'false',
     'only_expose_processed_default': 'false',
@@ -83,7 +89,7 @@ SEED_SNAPSHOT = {
     'retention_period_minutes': '1440',
     'review_max_boundary_shift': '60',
     'review_model': 'same_as_pass',
-    'review_prompt': ('sha256', '39a5e1808bec2b3036231a120e0fb6635f159eb7e1d33b0821dea178f95ce02f'),  # Updated for semantic is_ad schema line
+    'review_prompt': ('sha256', '0a30979273b7dd4f7447c40536383d0bb3a3e3c649b2ec07c4772ea47880035e'),  # Updated for the #695 example format
     'rss_refresh_interval_minutes': '15',
     'queue_manual_boost': '20',
     'queue_fresh_boost': '5',
@@ -151,6 +157,7 @@ EXPECTED_AD_RESET_KEYS = {
     'verification_miss_hold_min_confidence',
     'verification_miss_autocut_min_confidence',
     'learning_min_confidence', 'learning_min_confidence_long',
+    'learning_min_pattern_duration', 'learning_max_pattern_duration',
     'differential_measured_corr_max', 'differential_hold_min_seconds',
 }
 
@@ -391,6 +398,7 @@ class TestGetDefaults:
             'positionalPriorEnabled': False,
             'segmentCategoryActions': {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES},
             'communitySyncCategories': list(SEGMENT_CATEGORIES),
+            'notificationTimezone': 'UTC',
         }
         payload = {
             spec.payload_key: registry_get_default(key)
@@ -426,11 +434,16 @@ class TestGetDefaults:
         # textRecurrenceHints added after that (93 -> 94).
         # adAddressingMode added after that (94 -> 95).
         # queueManualBoost + queueFreshBoost + queueBulkBoost after that (95 -> 98).
+        # llmJsonSchemaEnabled after that (98 -> 99). The rate-limit hold
+        # settings have no payload keys (dedicated endpoint).
+        # downloadUserAgent + feedUserAgent after that (101 -> 103),
+        # then logDownloadQuery (103 -> 104).
+        # notificationTimezone added after that (104 -> 105).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 98
+        assert len(payload_keys) == 105
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 
@@ -438,6 +451,48 @@ class TestGetDefaults:
         assert registry_default('min_cut_confidence') == '0.80'
         assert registry_default('whisper_language') == 'en'
         assert registry_default('audio_cue_freq_max_hz') == '8000'
+
+
+class TestValidatorHook:
+    """SettingSpec.validator (Task: notification_timezone joins the registry)."""
+
+    def test_notification_timezone_defaults_to_utc(self, clean_env):
+        assert registry_default('notification_timezone') == 'UTC'
+
+    def test_valid_tz_env_is_used(self, clean_env, monkeypatch):
+        monkeypatch.setenv('TZ', 'America/New_York')
+        assert registry_default('notification_timezone') == 'America/New_York'
+
+    def test_invalid_tz_env_falls_back_to_utc_with_warning(self, clean_env, monkeypatch, caplog):
+        monkeypatch.setenv('TZ', 'Not/AZone')
+        with caplog.at_level('WARNING'):
+            assert registry_default('notification_timezone') == 'UTC'
+        assert any('Not/AZone' in r.message for r in caplog.records)
+
+    def test_invalid_tz_env_warns_only_once_per_distinct_value(self, clean_env, monkeypatch, caplog):
+        monkeypatch.setenv('TZ', 'CET-1CEST')
+        with caplog.at_level('WARNING'):
+            for _ in range(3):
+                assert registry_default('notification_timezone') == 'UTC'
+        warnings = [r for r in caplog.records if 'CET-1CEST' in r.message]
+        assert len(warnings) == 1
+
+    def test_invalid_stored_value_warns_only_once_per_distinct_value(self, clean_env, caplog):
+        mock_db = MagicMock()
+        mock_db.get_setting.return_value = 'CST6CDT7'
+        with caplog.at_level('WARNING'):
+            for _ in range(3):
+                assert registry_current_value(mock_db, 'notification_timezone') == 'UTC'
+        warnings = [r for r in caplog.records if 'CST6CDT7' in r.message]
+        assert len(warnings) == 1
+
+    def test_entries_without_a_validator_are_unaffected(self, clean_env, monkeypatch):
+        # Spot-check two existing env-backed entries: a bogus env value is
+        # still passed through verbatim, exactly as before the validator hook.
+        monkeypatch.setenv('WHISPER_MODEL', 'not-a-real-model')
+        assert registry_default('whisper_model') == 'not-a-real-model'
+        monkeypatch.setenv('OPENAI_BASE_URL', 'not-a-real-url')
+        assert registry_default('openai_base_url') == 'not-a-real-url'
 
 
 class TestShippedPromptsTrackTheDefault:

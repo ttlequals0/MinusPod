@@ -199,9 +199,12 @@ def create_cue_template(slug):
 
     Body:
         episodeId (str, required)
+        cueType   (str, optional) - defaults to the standard ad-break type
         startS    (float, required) - window start within episode (seconds)
         endS      (float, required) - window end within episode (seconds)
-        label     (str, required)
+
+    The display label is derived from cueType, not caller-supplied, so the
+    phrase fed to the LLM prompt is always one of the fixed type names.
     """
     db = get_database()
     storage = get_storage()

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate, Link } from 'react-router';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { addFeed, addLocalFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
@@ -405,14 +405,13 @@ function AddFeed() {
   const urlValidation = useMemo(() => isUrl ? validateUrl(inputValue) : { isValid: false, error: null, warning: null }, [inputValue, isUrl]);
   const [touched, setTouched] = useState(false);
 
-  // Settings query: search works via iTunes with no setup, or PodcastIndex when creds exist.
+  // Search is gated on any resolved provider; iTunes needs no keys.
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
   });
-  const podcastIndexConfigured = settings?.podcastIndexApiKeyConfigured ?? false;
   const searchProvider = settings?.podcastSearchProvider?.value ?? 'itunes';
-  const searchEnabled = searchProvider === 'itunes' || podcastIndexConfigured;
+  const searchEnabled = settings?.podcastSearchReady ?? false;
 
   // Existing feeds for "already added" detection
   const { data: feedsData } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
@@ -564,8 +563,7 @@ function AddFeed() {
 
       {mode === 'subscribe' && (
       <>
-      {/* PodcastIndex selected but credentials missing */}
-      {searchProvider === 'podcastindex' && !podcastIndexConfigured && (
+      {settings && !settings.podcastSearchReady && (
         <div className="mb-6 p-4 rounded-lg bg-accent/50 border border-border">
           <p className="text-sm text-muted-foreground">
             <Link to="/settings#podcast-index" className={`text-primary hover:underline font-medium ${focusRing}`}>

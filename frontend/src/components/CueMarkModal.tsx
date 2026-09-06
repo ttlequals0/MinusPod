@@ -8,7 +8,7 @@ import { snapToOnset } from './ad-editor/snapToOnset';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
-import { primaryBtn, ctrlBtn } from './ad-editor/controlStyles';
+import { primaryBtn, ctrlBtn, edgeBtn } from './ad-editor/controlStyles';
 import { useEscape } from './cueScanStyles';
 import {
   formatTime,
@@ -833,11 +833,11 @@ function CueMarkModal({
             <Checkbox id="cue-snap-onset" checked={snapEnabled} onChange={setSnapEnabled} ariaLabel="Snap to detected boundaries" />
             Snap to onset
           </label>
-          <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-success whitespace-nowrap ${focusRing}`} onClick={setStartAtPlayhead}>
+          <button type="button" className={`${edgeBtn} text-success ${focusRing}`} onClick={setStartAtPlayhead}>
             <span className="sm:hidden">Set START</span>
             <span className="hidden sm:inline">Set START at playhead</span>
           </button>
-          <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-destructive whitespace-nowrap ${focusRing}`} onClick={setEndAtPlayhead}>
+          <button type="button" className={`${edgeBtn} text-destructive ${focusRing}`} onClick={setEndAtPlayhead}>
             <span className="sm:hidden">Set END</span>
             <span className="hidden sm:inline">Set END at playhead</span>
           </button>

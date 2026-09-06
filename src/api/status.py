@@ -2,6 +2,7 @@
 import json
 import logging
 import queue
+import threading
 
 from flask import Response, session
 
@@ -9,8 +10,104 @@ from api import (
     api, log_request, json_response,
     get_database, get_status_service,
 )
+from config import DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER
+from offline_queue import get_probe_state
+from rate_limit_hold import (
+    RATE_LIMIT_DEFERRED_SERVICE, get_hold_since, get_hold_until, hold_is_active,
+)
+from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger('podcast.api')
+
+# Services the offline queue can park an episode on, in display order.
+OFFLINE_SERVICES = (DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER)
+
+# What a caller sees when nothing is held, and when the read fails.
+EMPTY_HOLD = {
+    'queuePaused': False, 'holdUntil': None, 'holdSince': None,
+    'rateLimitHeld': 0, 'offlineHeld': 0, 'offlineServices': [],
+}
+
+# The block is rebuilt per reader, so it is cached. The underlying state only
+# changes on the ~5-minute maintenance tick or a 429, so a short TTL is enough.
+_HOLD_CACHE_TTL_SECONDS = 15
+_hold_cache = TTLCache(ttl_seconds=_HOLD_CACHE_TTL_SECONDS)
+_hold_cache_lock = threading.Lock()
+_last_hold: dict = {}
+
+
+def _offline_service_view(db, service: str) -> dict | None:
+    """One offline-queue service's held count and last probe verdict, or None
+    when nothing is waiting on it."""
+    held = db.count_deferred_episodes(service=service)
+    if not held:
+        return None
+    reachable, checked_at = get_probe_state(db, service)
+    return {
+        'service': service, 'held': held,
+        'reachable': reachable, 'checkedAt': checked_at,
+    }
+
+
+def _build_hold_block(db) -> dict:
+    """Queue hold state: the rate-limit pause and any offline-queue waits.
+
+    Reports what the maintenance tick last observed. Nothing here probes a
+    service, so an open SSE stream cannot generate outbound traffic.
+    """
+    hold_until = get_hold_until(db)
+    return {
+        'queuePaused': hold_is_active(hold_until),
+        'holdUntil': hold_until,
+        # When the pause began, so the bar can show how long it ran.
+        'holdSince': get_hold_since(db),
+        'rateLimitHeld': db.count_deferred_episodes(
+            service=RATE_LIMIT_DEFERRED_SERVICE),
+        # Every non-rate-limit deferral, so the total agrees with
+        # /settings/offline-queue even for a service not broken out below.
+        'offlineHeld': db.count_deferred_episodes(
+            exclude_service=RATE_LIMIT_DEFERRED_SERVICE),
+        'offlineServices': [
+            v for v in (_offline_service_view(db, s) for s in OFFLINE_SERVICES) if v
+        ],
+    }
+
+
+def hold_block() -> dict:
+    """Cached _build_hold_block. Never raises and never queues: while one
+    thread rebuilds, or when the read fails, callers get the last good block
+    so a locked database cannot stall every status frame in the worker."""
+    cached = _hold_cache.get('hold')
+    if cached is not None:
+        return cached
+    if not _hold_cache_lock.acquire(blocking=False):
+        return _last_hold.get('block') or dict(EMPTY_HOLD)
+    try:
+        cached = _hold_cache.get('hold')
+        if cached is not None:
+            return cached
+        try:
+            block = _build_hold_block(get_database())
+        except Exception as e:
+            logger.warning(f"Could not read queue hold state: {e}")
+            block = _last_hold.get('block') or dict(EMPTY_HOLD)
+        _hold_cache.set('hold', block)
+        _last_hold['block'] = block
+        return block
+    finally:
+        _hold_cache_lock.release()
+
+
+def status_payload(status=None) -> dict:
+    """Status snapshot plus the queue hold block.
+
+    status_service is file-backed and imports no database on purpose, so the
+    hold state is merged here instead, where both the stream and the one-time
+    GET pick it up from the same place.
+    """
+    payload = get_status_service().to_dict(status)
+    payload['hold'] = hold_block()
+    return payload
 
 
 # ========== Status Stream Endpoint (SSE) ==========
@@ -57,20 +154,22 @@ def status_stream():
         update_queue = queue.Queue(maxsize=50)
 
         def on_update(status):
+            # Queue the raw snapshot: this runs on the pipeline's broadcast
+            # thread, which must not block on the hold block's DB reads.
             try:
-                update_queue.put_nowait(status_service.to_dict(status))
+                update_queue.put_nowait(status)
             except queue.Full:
                 pass  # Drop update if queue is full
 
         unsubscribe = status_service.subscribe(on_update)
 
         try:
-            yield f"data: {json.dumps(status_service.to_dict())}\n\n"
+            yield f"data: {json.dumps(status_payload())}\n\n"
 
             while True:
                 try:
                     status = update_queue.get(timeout=15)
-                    yield f"data: {json.dumps(status)}\n\n"
+                    yield f"data: {json.dumps(status_payload(status))}\n\n"
                 except queue.Empty:
                     yield ": keepalive\n\n"
         finally:
@@ -91,5 +190,4 @@ def status_stream():
 @log_request
 def get_status():
     """Get current processing status (one-time fetch, not streaming)."""
-    status_service = get_status_service()
-    return json_response(status_service.to_dict())
+    return json_response(status_payload())

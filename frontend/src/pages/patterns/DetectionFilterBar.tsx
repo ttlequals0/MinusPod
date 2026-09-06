@@ -1,5 +1,7 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import type { DetectionSort, DetectionStatusFilter } from '../../api/detections';
+import type {
+  DetectionReviewerFilter, DetectionSort, DetectionStatusFilter,
+} from '../../api/detections';
 import { SEGMENT_CATEGORY_FILTER_OPTIONS } from '../../utils/segmentCategory';
 import { selectBase } from '../../components/fieldStyles';
 import { focusRing } from '../../components/fieldStyles';
@@ -9,6 +11,12 @@ const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['date', 'Published'],
   ['confidence', 'Confidence'],
   ['podcast', 'Podcast'],
+];
+
+const REVIEWER_OPTIONS: Array<[DetectionReviewerFilter, string]> = [
+  ['', 'Any'],
+  ['adjusted', 'Adjusted'],
+  ['unadjusted', 'Not adjusted'],
 ];
 
 const SELECT_CLASS = `flex-1 sm:flex-none min-w-0 ${selectBase}`;
@@ -32,6 +40,8 @@ interface Props {
   onFeedChange: (next: string) => void;
   category: string;
   onCategoryChange: (next: string) => void;
+  reviewer: DetectionReviewerFilter;
+  onReviewerChange: (next: DetectionReviewerFilter) => void;
   q: string;
   onQChange: (next: string) => void;
   sort: DetectionSort;
@@ -48,7 +58,7 @@ interface Props {
 // constantly, so the layout is worth keeping in one place.
 export function DetectionFilterBar({
   idPrefix, feeds, feed, onFeedChange, category, onCategoryChange,
-  q, onQChange, sort, onSortChange, order, onOrderChange, status,
+  reviewer, onReviewerChange, q, onQChange, sort, onSortChange, order, onOrderChange, status,
 }: Props) {
   return (
     <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
@@ -91,6 +101,19 @@ export function DetectionFilterBar({
         >
           {SEGMENT_CATEGORY_FILTER_OPTIONS.map(([value, label]) => (
             <option key={value || 'all'} value={value}>{label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-2 w-full sm:w-auto">
+        <label htmlFor={`${idPrefix}-reviewer`} className="text-sm text-muted-foreground shrink-0">Reviewer</label>
+        <select
+          id={`${idPrefix}-reviewer`}
+          value={reviewer}
+          onChange={(e) => onReviewerChange(e.target.value as DetectionReviewerFilter)}
+          className={SELECT_CLASS}
+        >
+          {REVIEWER_OPTIONS.map(([value, label]) => (
+            <option key={value || 'any'} value={value}>{label}</option>
           ))}
         </select>
       </div>

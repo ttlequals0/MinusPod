@@ -283,15 +283,6 @@ elements it relies on are untouched. A basic podcast app sees a normal
 feed and plays the audio. Podcasting 2.0 apps see the additional tags.
 Nothing about this support breaks older clients.
 
-## Summary
-
-MinusPod aims to be as Podcasting 2.0 compliant as a re-cutting proxy
-honestly can be: it carries forward everything that stays true, it
-regenerates what it can produce correctly for the processed audio, it
-discloses that the audio was modified, and it refuses to emit tags
-that would describe audio that no longer exists. Being a good
-namespace citizen here includes not lying in the feed.
-
 ## References
 
 External Podcasting 2.0 documentation:

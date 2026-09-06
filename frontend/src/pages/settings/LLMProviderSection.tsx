@@ -6,6 +6,7 @@ import ConnectionTestButton from './ConnectionTestButton';
 import ProviderKeyField from './ProviderKeyField';
 import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
+import ToggleSwitch from '../../components/ToggleSwitch';
 import { selectBase } from '../../components/fieldStyles';
 
 interface LLMProviderSectionProps {
@@ -22,6 +23,8 @@ interface LLMProviderSectionProps {
   onConnectionTest: (provider: 'openai' | 'ollama' | 'anthropic' | 'openrouter', baseUrl?: string) => Promise<ConnectionTestResult>;
   ollamaNumCtx?: StageTunables['ollamaNumCtx'];
   onOllamaNumCtxUpdate?: (payload: UpdateSettingsPayload) => void;
+  llmJsonSchemaEnabled: boolean;
+  onLlmJsonSchemaEnabledChange: (enabled: boolean) => void;
 }
 
 const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
@@ -56,6 +59,8 @@ function LLMProviderSection({
   onConnectionTest,
   ollamaNumCtx,
   onOllamaNumCtxUpdate,
+  llmJsonSchemaEnabled,
+  onLlmJsonSchemaEnabledChange,
 }: LLMProviderSectionProps) {
   const keyProvider = keyProviderFor(llmProvider);
   const status = keyProvider && providersState ? providersState[keyProvider] : NONE_STATUS;
@@ -137,6 +142,28 @@ function LLMProviderSection({
             entry={ollamaNumCtx}
             onUpdate={onOllamaNumCtxUpdate}
           />
+        )}
+
+        {llmProvider === LLM_PROVIDERS.OPENAI_COMPATIBLE && (
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <ToggleSwitch
+                checked={llmJsonSchemaEnabled}
+                onChange={onLlmJsonSchemaEnabledChange}
+                ariaLabel="JSON schema response format"
+              />
+              <span className="text-sm font-medium text-foreground">
+                JSON schema response format
+              </span>
+            </label>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Asks the endpoint to enforce a JSON schema on detection and
+              review responses. Servers that implement it return cleaner
+              JSON. Not every OpenAI-compatible server does: the app probes
+              once and falls back to plain JSON mode, but verify that yours
+              supports response_format with type json_schema.
+            </p>
+          </div>
         )}
 
         <div>

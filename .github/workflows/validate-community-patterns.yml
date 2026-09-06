@@ -55,12 +55,14 @@ jobs:
           python-version: '3.12'
           cache: pip
 
-      - name: Install lightweight deps
+      - name: Install validator deps
         if: steps.changed.outputs.files != ''
         run: |
           python -m pip install --upgrade pip
-          # The validator imports only stdlib + utils/community_tags, which
-          # itself uses stdlib only. No requirements.txt install required.
+          # The validator reaches app code, and importing any utils submodule
+          # runs utils/__init__, which pulls storage and artwork_watermark in.
+          # This is the minimum set; the full lock would install faster-whisper.
+          python -m pip install Pillow flask requests defusedxml brotli
 
       - name: Run validator
         if: steps.changed.outputs.files != ''
@@ -104,6 +106,13 @@ jobs:
       - name: Fail job on rejection
         if: steps.changed.outputs.files != '' && steps.validate.outputs.exit != '0'
         run: |
-          echo "Community pattern validation rejected one or more files."
-          echo "See the job summary or PR comment for details."
+          # A crash and a rejection both exit non-zero, but only a rejection
+          # writes a report. Saying which one happened saves a log dig.
+          if [ -s /tmp/pattern-validation/comment.md ]; then
+            echo "Community pattern validation rejected one or more files."
+            echo "See the job summary or PR comment for details."
+          else
+            echo "The validator exited without writing a report, so it crashed"
+            echo "rather than rejecting a file. See the Run validator step log."
+          fi
           exit 1

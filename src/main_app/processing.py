@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 from dataclasses import replace
+from datetime import timedelta
 
 import requests
 import requests.exceptions
@@ -34,13 +35,15 @@ from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import clip_dai_core_spans, invalidate_tail_provenance
+from utils.markers import (clip_dai_core_spans, fold_marker_pair,
+                           foldable_twin, invalidate_tail_provenance)
 from utils.time import (
-    adjust_timestamp, merge_cut_spans, overlap_ratio,
-    ranges_overlap, span_inside_any_cut, utc_now_iso,
+    adjust_timestamp, epoch_to_iso, ISO_FORMAT, merge_cut_spans, overlap_ratio,
+    ranges_overlap, span_inside_any_cut, utc_now, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
+    log_download_query_enabled,
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
@@ -83,6 +86,7 @@ from config import (
     resolve_differential_fetch_setting,
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
+    resolve_splice_veto_enabled,
     ModelNotConfiguredError,
     coerce_bool_setting,
 )
@@ -98,18 +102,25 @@ from llm_capabilities import (
 from llm_client import (
     is_retryable_error, is_llm_api_error, is_rate_limit_error,
     is_limit_exceeded_error, is_auth_error, LimitExceededError,
+    ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
 )
-from offline_queue import is_offline_queue_enabled
+from offline_queue import is_offline_queue_enabled, record_probe_state
+from rate_limit_hold import (
+    RATE_LIMIT_DEFERRED_SERVICE, get_rate_limit_hold_ttl_hours,
+    is_rate_limit_hold_enabled, record_hold_until,
+)
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
 from text_recurrence import find_recurring_spans
 import run_log
 from reprocess_modes import (
-    REPROCESS_MODE_NEEDS_TRANSCRIPT, clear_episode_for_mode,
+    REPROCESS_MODE_NEEDS_TRANSCRIPT,
+    FORCE_TRANSCRIBE_MODES, clear_episode_for_mode,
 )
 from splice_calibration import compute_splice_calibration
-from transcriber import extract_audio_chunk
+from transcriber import CDN_REFUSED_PREFIX, extract_audio_chunk
+from user_agent import download_user_agent, feed_user_agent
 from utils.constants import (
     CANCELED_ERROR_MESSAGE, EpisodeStatus, PIPELINE_REPROCESS_SOURCES,
     REPROCESS_SOURCE_DEGRADED, REPROCESS_SOURCE_POLICY,
@@ -117,13 +128,15 @@ from utils.constants import (
 from utils.episode_paths import episode_relative_path
 from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionTimeout
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
+from utils.http import safe_url_for_log
 from utils.language import get_feed_language_override
 from utils.text import (
     parse_transcript_segments,
 )
 from webhook_service import (
     fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED,
-    fire_cue_template_quiet_event,
+    fire_cue_template_quiet_event, fire_queue_held_event,
+    fire_service_offline_event,
 )
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -190,6 +203,12 @@ def is_transient_error(error: Exception) -> bool:
     if is_limit_exceeded_error(error):
         return False
 
+    # Held 429s (#696) are transient throttles: the hold-enabled branch in
+    # _handle_processing_failure intercepts them first; disabled, they fall
+    # through to the legacy rate-limited retry path.
+    if isinstance(error, ProviderRateLimitedError):
+        return True
+
     # Oversized enclosures never shrink on retry; the operator can raise
     # MAX_AUDIO_DOWNLOAD_MB and reprocess (#493).
     if isinstance(error, AudioTooLargeError):
@@ -233,9 +252,11 @@ def is_transient_error(error: Exception) -> bool:
     if any(pattern in error_msg for pattern in oom_patterns):
         return False
 
-    # CDN errors are transient
+    # CDN errors are transient. A refusal of one User-Agent is not, and is
+    # matched below; a 403 that ignores the identifier is a block that lifts.
     transient_patterns = [
         'cdn not ready', 'cdn timeout', 'cdn server error', 'cdn check failed',
+        'cdn blocked',
     ]
     if any(pattern in error_msg for pattern in transient_patterns):
         return True
@@ -247,6 +268,8 @@ def is_transient_error(error: Exception) -> bool:
         'invalid audio', 'unsupported format', 'corrupt',
         'authentication', 'unauthorized', 'forbidden',
         '400 ', '401 ', '403 ',
+        # A refusal answers the same way on every retry.
+        CDN_REFUSED_PREFIX.lower(),
         # Local feeds have no upstream to retry against: a missing retained
         # original never recovers on its own, so retrying just burns the
         # full ladder before landing on permanently_failed anyway.
@@ -438,13 +461,37 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
     return segments + tail_segments, True
 
 
+CDN_BLOCKED_MESSAGE = 'CDN blocked the request (403) with both User-Agents'
+
+
 def _download_episode_audio(episode_url):
     """Check CDN availability and download the enclosure. Returns the temp
     audio path; raises on either failure."""
+    url_for_log = safe_url_for_log(
+        episode_url, keep_path=True, keep_query=log_download_query_enabled())
+    user_agent = None
     available, cdn_error = transcriber.check_audio_availability(episode_url)
+    if not available and cdn_error.startswith(CDN_REFUSED_PREFIX):
+        # A 403 is either a User-Agent floor, which answers the same way on
+        # every retry, or a block that ignores the identifier and lifts on its
+        # own. One probe with the other configured string tells them apart.
+        alternate = feed_user_agent()
+        accepted, _ = transcriber.check_audio_availability(episode_url, user_agent=alternate)
+        if accepted:
+            audio_logger.warning(
+                f"Host at {url_for_log} refuses the download User-Agent "
+                f"'{download_user_agent()}' but accepts the feed User-Agent "
+                f"'{alternate}'. Downloading with the feed string. Update the "
+                f"download User-Agent in Settings > Outbound Requests.")
+            available, cdn_error, user_agent = True, None, alternate
+        else:
+            cdn_error = CDN_BLOCKED_MESSAGE
     if not available:
-        raise Exception(f"CDN not ready: {cdn_error}")
-    audio_path = transcriber.download_audio(episode_url)
+        # Without the host the failure is unattributable: the download log
+        # line below never runs on this path.
+        audio_logger.warning(f"Audio unavailable at {url_for_log}: {cdn_error}")
+        raise Exception(cdn_error)
+    audio_path = transcriber.download_audio(episode_url, user_agent=user_agent)
     if not audio_path:
         raise Exception("Failed to download audio")
     return audio_path
@@ -463,12 +510,41 @@ def _next_processed_version(episode_data):
     return previous_version + 1 if is_reprocess else 0
 
 
+def _forced_transcription_already_done(slug, episode_id, requested_at) -> bool:
+    """True when an earlier attempt of this same reprocess saved a transcript.
+
+    The forced clear deletes and recreates the details row, so a row newer
+    than the reprocess request holds this request's transcript, not the stale
+    pre-request one, and a retry after a transient failure may reuse it.
+    """
+    if not requested_at:
+        return False
+    # Reuse only when the retry will read the same audio file the transcript
+    # came from. Without a retained original it re-downloads, and on a DAI
+    # feed the fresh file's ad inlays shift, so reused timestamps cut content.
+    if not storage.get_original_path(slug, episode_id).exists():
+        return False
+    transcribed_at = db.get_transcribed_details_created_at(slug, episode_id)
+    if transcribed_at and transcribed_at > requested_at:
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Reusing transcript from an earlier "
+            f"attempt of this reprocess (saved {transcribed_at})")
+        return True
+    return False
+
+
 def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
-                              skip_transcription=False, podcast=None):
+                              skip_transcription=False, podcast=None,
+                              force_transcription=False):
     """Pipeline stage: Download audio and get/create transcript segments.
 
     ``skip_transcription``: cue_only preset opt-out; goes straight to
     audio acquisition and returns (audio_path, []) without transcribing.
+
+    ``force_transcription``: full/reprocess reruns (#692). Transcribes fresh
+    instead of reusing the saved transcript; the stale details row (old
+    transcript plus detection data) is wiped only once the fresh transcript
+    exists in memory, so a crash cannot lose both.
 
     ``podcast``: the caller's already-fetched podcast row (avoids a
     redundant db.get_podcast_by_slug here), matching the pattern used by
@@ -486,10 +562,14 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
         else:
             audio_path = _download_episode_audio(episode_url)
         audio_logger.info(f"[{slug}:{episode_id}] Transcription skipped (per-feed setting)")
+        if force_transcription:
+            # The rerun will not write a transcript, so the stale row must
+            # go now to keep the pre-existing behavior for this combination.
+            db.clear_episode_details(slug, episode_id)
         return audio_path, []
 
     segments = None
-    transcript_text = storage.get_transcript(slug, episode_id)
+    transcript_text = None if force_transcription else storage.get_transcript(slug, episode_id)
 
     if transcript_text:
         # Prefer the saved whisper segments (with word-level timestamps) over
@@ -582,6 +662,11 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
             language_override)
 
         transcript_text = transcriber.segments_to_text(segments)
+        if force_transcription:
+            # Wipe the stale row (old transcript, markers, write-once
+            # originals) only now that the fresh transcript exists in
+            # memory (#692); the saves below recreate it.
+            db.clear_episode_details(slug, episode_id)
         storage.save_transcript(slug, episode_id, transcript_text)
         storage.save_original_transcript(slug, episode_id, transcript_text)
         storage.save_original_segments(slug, episode_id, segments)
@@ -806,22 +891,31 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     if ad_detection_status == 'failed':
         error_msg = ad_result.get('error', 'Unknown error')
         audio_logger.error(f"[{slug}:{episode_id}] Ad detection failed: {error_msg}")
-        if ad_result.get('connectivity'):
-            # Endpoint unreachable rather than a bad response: typed so the
-            # offline queue (#482) can defer instead of failing the episode.
-            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
-            raise ServiceUnavailableError('llm', f"Ad detection failed: {error_msg}")
-        if ad_result.get('limit_exceeded'):
-            # Typed so the failure handler sees a terminal limit error instead
-            # of re-classifying the stringified 429 text as transient (#491).
-            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
-            raise LimitExceededError(f"Ad detection failed: {error_msg}")
-        if ad_result.get('model_not_configured'):
-            # Typed so is_transient_error sees ModelNotConfiguredError instead of
-            # a bare Exception, which defaults to transient and burns the retry
+        # Each typed re-raise below marks the stage failed first; the type is
+        # what _handle_processing_failure routes on.
+        typed = None
+        if ad_result.get('rate_limited_hold'):
+            # Held 429 (#696): defers the episode and pauses the queue until
+            # the provider's reset.
+            typed = ProviderRateLimitedError(
+                f"Ad detection failed: {error_msg}",
+                retry_after_seconds=float(ad_result.get('retry_after_seconds') or 0),
+            )
+        elif ad_result.get('connectivity'):
+            # Endpoint unreachable rather than a bad response, so the offline
+            # queue (#482) can defer instead of failing the episode.
+            typed = ServiceUnavailableError('llm', f"Ad detection failed: {error_msg}")
+        elif ad_result.get('limit_exceeded'):
+            # Terminal limit error, not the stringified 429 text that
+            # re-classifies as transient (#491).
+            typed = LimitExceededError(f"Ad detection failed: {error_msg}")
+        elif ad_result.get('model_not_configured'):
+            # A bare Exception would default to transient and burn the retry
             # ladder. error_msg is already the exact resolver message.
+            typed = ModelNotConfiguredError('claude_model', error_msg)
+        if typed is not None:
             db.upsert_episode(slug, episode_id, ad_detection_status='failed')
-            raise ModelNotConfiguredError('claude_model', error_msg)
+            raise typed
         # Degraded continue: a transient, non-auth failure that still left
         # pattern/cross-fetch markers publishes those instead of failing the
         # episode. Auth-class failures and zero markers still raise.
@@ -1029,13 +1123,16 @@ def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=No
                                                   barriers=all_ads + list(keep_ads or []))
     if all_ads:
         all_ads = snap_early_ads_to_zero(all_ads)
+    min_content = _setting_float(db, 'min_content_between_ads_seconds',
+                                 MIN_CONTENT_BETWEEN_ADS_SECONDS,
+                                 allow_zero=True) if db else MIN_CONTENT_BETWEEN_ADS_SECONDS
     if all_ads and segments:
+        # Same threshold as the filler-gap pass below: one operator setting
+        # decides how much speech makes a gap real show content.
         all_ads = merge_same_sponsor_ads(all_ads, segments,
-                                         podcast_name=podcast_name)
+                                         podcast_name=podcast_name,
+                                         min_content_seconds=min_content)
     if all_ads:
-        min_content = _setting_float(db, 'min_content_between_ads_seconds',
-                                     MIN_CONTENT_BETWEEN_ADS_SECONDS,
-                                     allow_zero=True) if db else MIN_CONTENT_BETWEEN_ADS_SECONDS
         all_ads = merge_ads_across_short_content_gaps(
             all_ads, segments or [],
             min_content_seconds=min_content,
@@ -1162,8 +1259,9 @@ def _build_validator(episode_duration, segments, episode_description, *,
     splice_kwargs = {}
     if splice_veto:
         splice_kwargs = {
-            'splice_veto_enabled': db.get_setting_bool('splice_veto_enabled',
-                                                       default=True),
+            'splice_veto_enabled': resolve_splice_veto_enabled(
+                db, podcast_id,
+                db.get_setting_bool('splice_veto_enabled', default=True)),
             'veto_min_cut_seconds': db.get_setting_float('veto_min_cut_seconds',
                                                          VETO_MIN_CUT_SECONDS),
         }
@@ -1195,6 +1293,17 @@ def _keep_overridden_by_pattern(ad) -> bool:
     return False
 
 
+def _clear_hold_for_keep(marker) -> bool:
+    """Move a keep marker's hold to hold_cleared_reason: a kept span is never
+    force-cut by a stale hold. True when there was a hold to clear."""
+    if not marker.get('held_for_review'):
+        return False
+    marker['hold_cleared_reason'] = marker.get('hold_reason')
+    marker['held_for_review'] = False
+    marker.pop('hold_reason', None)
+    return True
+
+
 def _partition_keep_ads(all_ads, actions_map):
     """Split first-pass markers by resolved segment-category action.
 
@@ -1221,10 +1330,7 @@ def _partition_keep_ads(all_ads, actions_map):
                 continue
             ad['was_cut'] = False
             ad['action_applied'] = 'keep'
-            if ad.get('held_for_review'):
-                ad['hold_cleared_reason'] = ad.get('hold_reason')
-                ad['held_for_review'] = False
-                ad.pop('hold_reason', None)
+            if _clear_hold_for_keep(ad):
                 audio_logger.debug(
                     f"Keep resolution clears hold on marker "
                     f"{ad['start']:.1f}s-{ad['end']:.1f}s "
@@ -1248,9 +1354,10 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
     DEFAULT_SEGMENT_ACTION and still cut it.
 
     Stamps was_cut=False/action_applied='keep' on a caught marker (and its
-    all_ads_with_validation master) and removes it from the returned cut
-    list. Exception: a marker from a defined pattern stays in the cut list
-    with keep_overridden_by_pattern=True, never kept by keep maps.
+    all_ads_with_validation master), clears any hold the same way the keep
+    partition does, and removes it from the returned cut list.
+    Exception: a marker from a defined pattern stays in the cut list with
+    keep_overridden_by_pattern=True, never kept by keep maps.
     Returns ads_to_remove unchanged when no category resolves to 'keep'.
     """
     if not any(action == 'keep' for action in actions_map.values()):
@@ -1268,10 +1375,12 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
         else:
             ad['was_cut'] = False
             ad['action_applied'] = 'keep'
+            _clear_hold_for_keep(ad)
             master = _find_master(all_ads_with_validation, ad)
             if master is not None:
                 master['was_cut'] = False
                 master['action_applied'] = 'keep'
+                _clear_hold_for_keep(master)
             audio_logger.debug(
                 f"Late keep safety net: dropping synthesized marker "
                 f"{ad['start']:.1f}s-{ad['end']:.1f}s (category={category!r}) "
@@ -1345,6 +1454,28 @@ def _dedupe_pass2_markers(markers):
     return unique
 
 
+def _merge_pass2_markers(all_ads, pass2_markers):
+    """Fold a pass-2 marker into the pass-1 marker it repeats, since appending it
+    would double-count pending reviews. Returns (to_append, folded_count)."""
+    to_append = []
+    folded = 0
+    for marker in pass2_markers:
+        twin = foldable_twin(all_ads, marker)
+        if twin is None:
+            to_append.append(marker)
+            continue
+        audio_logger.info(
+            f"Pass-2 marker {marker['start']:.1f}s-{marker['end']:.1f}s repeats "
+            f"pass-1 marker {twin['start']:.1f}s-{twin['end']:.1f}s "
+            f"(actions {twin.get('action_applied')!r}/{marker.get('action_applied')!r}, "
+            f"holds {twin.get('hold_reason')!r}/{marker.get('hold_reason')!r}); "
+            f"folding into it"
+        )
+        fold_marker_pair(twin, marker)
+        folded += 1
+    return to_append, folded
+
+
 def _stamp_pass2_marker_categories(markers):
     """Validate the category on pass-2 markers at save time.
 
@@ -1390,10 +1521,7 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
             for marker in (processed, original):
                 marker['was_cut'] = False
                 marker['action_applied'] = 'keep'
-                if marker.get('held_for_review'):
-                    marker['hold_cleared_reason'] = marker.get('hold_reason')
-                    marker['held_for_review'] = False
-                    marker.pop('hold_reason', None)
+                _clear_hold_for_keep(marker)
             kept_processed.append(processed)
             kept_original.append(original)
             continue
@@ -1907,6 +2035,7 @@ def _apply_reviewer_verdict_to_ad(ad, v):
             ad['reviewer_proposed_end'] = v.adjusted_end
         return
     if v.verdict == 'adjust':
+        ad['reviewer_moved'] = True
         ad['reviewer_original_start'] = v.original_start
         ad['reviewer_original_end'] = v.original_end
         invalidate_tail_provenance(ad, v.adjusted_end)
@@ -2623,6 +2752,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
         v_status = verification_result.get('status')
         if v_status in ('no_segments', 'transcription_failed', 'detection_failed'):
+            if verification_result.get('rate_limited_hold'):
+                raise ProviderRateLimitedError(
+                    f"Verification failed: {verification_result.get('error')}",
+                    retry_after_seconds=float(
+                        verification_result.get('retry_after_seconds') or 0))
             v_error = verification_result.get('error')
             detail = f": {v_error}" if v_error else ""
             audio_logger.warning(
@@ -3133,11 +3267,14 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
 
 def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
-                            processed_version, detection_degraded=None):
+                            processed_version, detection_degraded=None,
+                            run_started_iso=None):
     """Upsert the processed episode row and update related DB state.
 
     ``detection_degraded``: the sanitized reason string when this run
     degraded, else None to clear a flag left by an earlier failure.
+    ``run_started_iso``: when the run began; only pending-recut stamps from
+    before then are cleared, so a decision recorded mid-run survives.
     """
     original_final = storage.get_original_path(slug, episode_id)
     original_file_rel = f"episodes/{episode_id}-original.mp3" if original_final.exists() else None
@@ -3164,6 +3301,11 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         # degraded run re-stamps its own reason so this unconditional
         # write does not clobber the flag detection just set.
         detection_degraded=detection_degraded)
+
+    # A completed run cuts from the markers it loaded, so only decisions
+    # waiting when it started are now in the audio; a stamp from mid-run
+    # stays for the next apply.
+    db.clear_episode_pending_recut(slug, episode_id, before=run_started_iso)
 
     try:
         removed = storage.cleanup_stale_audio_versions(
@@ -3478,7 +3620,8 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
     _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
                             processed_version,
-                            detection_degraded=(run_stats or {}).get('detection_degraded'))
+                            detection_degraded=(run_stats or {}).get('detection_degraded'),
+                            run_started_iso=epoch_to_iso(start_time))
     _refresh_rss_for_slug(slug, episode_id)
 
     processing_time = time.time() - start_time
@@ -4006,6 +4149,42 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
 
     status_service.fail_job()
 
+    # Rate-limit hold (#696): a 429 with a reset defers instead of failing
+    # and pauses new claims. Runs before the offline-queue branch because a
+    # held 429 is throttling, not an outage. retry_count untouched.
+    if isinstance(error, ProviderRateLimitedError) and is_rate_limit_hold_enabled(db):
+        # Fresh clock unless this row is already in the hold lifecycle: a
+        # deferred_at kept from an earlier offline deferral would pre-age
+        # the hold's TTL clock (requeue keeps deferred_at by design).
+        prior_service = (episode_data or {}).get('deferred_service')
+        if prior_service == RATE_LIMIT_DEFERRED_SERVICE:
+            first_deferred_at = (episode_data or {}).get('deferred_at') or utc_now_iso()
+        else:
+            first_deferred_at = utc_now_iso()
+        hold_until = utc_now() + timedelta(
+            seconds=max(0.0, float(error.retry_after_seconds)))
+        hold_until_iso = hold_until.strftime(ISO_FORMAT)
+        effective_until = record_hold_until(db, hold_until_iso)
+        db.upsert_episode(
+            slug, episode_id,
+            status=EpisodeStatus.DEFERRED.value,
+            error_message=f"Paused (LLM rate limit until {effective_until}): {error}",
+            deferred_at=first_deferred_at,
+            deferred_service=RATE_LIMIT_DEFERRED_SERVICE,
+        )
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Rate-limit hold: paused until "
+            f"{hold_until_iso} (provider reset)")
+        # A shorter reset under an active hold changes nothing; only a new
+        # or extended hold is worth an alert.
+        if effective_until == hold_until_iso:
+            fire_queue_held_event(
+                hold_until=effective_until,
+                ttl_hours=get_rate_limit_hold_ttl_hours(db),
+                error_message=error, slug=slug, episode_id=episode_id,
+                podcast_name=podcast_name)
+        return
+
     # Offline queue (#482): endpoint-down failures defer instead of failing.
     # Only typed exceptions qualify -- never string matching -- so genuine
     # errors keep today's retry/permanent path. retry_count is untouched so a
@@ -4030,12 +4209,19 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             f"[{slug}:{episode_id}] Offline queue: deferred until the "
             f"{service} endpoint is reachable again"
         )
+        # Seed the outage verdict so the next tick's True probe reads as a
+        # recovery and fires Service Reachable.
+        record_probe_state(db, service, False)
+        fire_service_offline_event(
+            service=service, error_message=error, slug=slug,
+            episode_id=episode_id, podcast_name=podcast_name)
         return
 
     transient = is_transient_error(error)
     current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
 
-    # 429 retries don't burn retry_count (#238).
+    # 429 retries don't burn retry_count (#238); the held-429 type counts too,
+    # so with the hold disabled it rides the legacy rate-limited path.
     rate_limited = is_rate_limit_error(error)
 
     # Auth outages are operator-fixable and can outlast any retry ladder, so
@@ -4069,7 +4255,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     else:
         new_status = EpisodeStatus.PERMANENTLY_FAILED.value
         new_retry_count = current_retry
-        audio_logger.warning(f"[{slug}:{episode_id}] Permanent error, not retrying: {type(error).__name__}")
+        audio_logger.warning(f"[{slug}:{episode_id}] Permanent error, not retrying: {type(error).__name__}: {error}")
 
     db.upsert_episode(slug, episode_id, status=new_status,
         retry_count=new_retry_count, error_message=str(error))
@@ -4098,6 +4284,17 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             )
         except Exception as wh_err:
             audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")
+
+
+def build_podcast_context(podcast_settings):
+    """Podcast description plus operator detection notes (#709), or None."""
+    if not podcast_settings:
+        return None
+    description = podcast_settings.get('description') or ''
+    notes = podcast_settings.get('detection_notes')
+    if not notes:
+        return description or None
+    return f"{description}\n\nOperator notes for this show:\n{notes}".strip()
 
 
 def process_episode(slug: str, episode_id: str, episode_url: str,
@@ -4138,7 +4335,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                               episode_description, start_time, cancel_event)
 
     podcast_settings = db.get_podcast_by_slug(slug)
-    podcast_description = podcast_settings.get('description') if podcast_settings else None
+    podcast_description = build_podcast_context(podcast_settings)
+    notes = (podcast_settings or {}).get('detection_notes')
+    if notes:
+        audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(notes)} chars)")
 
     # Effective per-feed mode, resolved once from the row above. The
     # precedence (passthrough > skip-detection > keep-content > cue_only > standard)
@@ -4215,17 +4415,26 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             upsert_kwargs['published_at'] = episode_published_at
         db.upsert_episode(slug, episode_id, **upsert_kwargs)
 
-        # A policy rerun keeps the episode served until this point, so its
-        # per-mode clear happens here rather than when the rerun was queued.
+        # A policy rerun keeps the episode served until this point; its
+        # ad-data clear happens here rather than when the rerun was queued.
+        # 'details' modes clear later, inside the transcribe stage (#692).
         if (reprocess_mode
                 and (episode_data or {}).get('reprocess_source') == REPROCESS_SOURCE_POLICY):
             clear_episode_for_mode(db, slug, episode_id, reprocess_mode)
 
-        # Stage 1: Download and transcribe
+        # Stage 1: Download and transcribe. A retry of a full/reprocess run
+        # reuses the transcript an earlier attempt of the same request saved,
+        # instead of paying the Whisper run again.
+        force_transcription = (
+            reprocess_mode in FORCE_TRANSCRIBE_MODES
+            and not _forced_transcription_already_done(
+                slug, episode_id,
+                (episode_data or {}).get('reprocess_requested_at')))
         audio_path, segments = _download_and_transcribe(
             slug, episode_id, episode_url, podcast_name,
             skip_transcription=skip_transcription_active,
-            podcast=podcast_settings)
+            podcast=podcast_settings,
+            force_transcription=force_transcription)
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
@@ -4678,9 +4887,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # mapping are never contaminated with uncut ads.
             merge_v = _dedupe_pass2_markers(
                 _stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held))
-            # Corroboration stamps mutated markers already in
+            # A pass-2 marker repeating a span pass 1 already persisted folds
+            # into that marker; appending it would store one span twice.
+            merge_v, folded_v = _merge_pass2_markers(
+                all_ads_with_validation, merge_v)
+            # Corroboration and folds mutate markers already in
             # all_ads_with_validation, so they need a re-save too.
-            if merge_v or v_corroborated_count:
+            if merge_v or folded_v or v_corroborated_count:
                 all_ads_with_validation = list(all_ads_with_validation) + merge_v
                 all_ads_with_validation.sort(key=lambda x: x['start'])
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)

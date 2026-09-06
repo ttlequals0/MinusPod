@@ -66,6 +66,28 @@ SEGMENT_ACTIONS = ('remove', 'beep', 'keep')
 DEFAULT_SEGMENT_ACTION = 'remove'
 
 
+# Spelled-out forms a model reaches for instead of the canonical category.
+SEGMENT_CATEGORY_ALIASES = {
+    'self_promotion': 'self_promo',
+    'selfpromo': 'self_promo',
+    'cross_promotion': 'cross_promo',
+    'crosspromo': 'cross_promo',
+    'sponsorship': 'sponsor',
+}
+
+
+def repair_segment_category(value):
+    """A known category from any spelling, or None. Spacing, case and hyphens
+    vary between providers ("Cross-Promo"); the vocabulary does not. A position
+    word like "pre-roll", or a bare "ad", is not a category and stays rejected.
+    """
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip().lower().replace('-', '_').replace(' ', '_')
+    candidate = SEGMENT_CATEGORY_ALIASES.get(candidate, candidate)
+    return candidate if candidate in SEGMENT_CATEGORIES else None
+
+
 def normalize_segment_category(value: Any) -> str:
     """Return value if it is a known segment category, else 'sponsor'.
 
@@ -338,6 +360,15 @@ RSS_REFRESH_INTERVAL = 900      # Seconds between RSS refreshes (15 min)
 # gates lastRefreshError on the threshold so the UI marker matches.
 FEED_REFRESH_FAILURE_ALERT_THRESHOLD = 3
 FEED_REFRESH_FAILURE_COUNT_INTERVAL = 600  # Seconds between counted failures
+
+# ============================================================
+# Deferred-episode services
+# ============================================================
+# episodes.deferred_service names which hold owns a deferred row.
+# NULL reads as DEFER_SERVICE_LLM.
+DEFER_SERVICE_LLM = 'llm'
+DEFER_SERVICE_WHISPER = 'whisper'
+DEFER_SERVICE_RATE_LIMIT = 'llm_rate_limit'
 
 # ============================================================
 # Text Pattern Matching Thresholds
@@ -996,6 +1027,17 @@ def resolve_max_ad_duration(db, podcast_id) -> float:
         return MAX_AD_DURATION
 
 
+def resolve_splice_veto_enabled(db, podcast_id, global_default: bool) -> bool:
+    """Whether the zero-splice-evidence veto applies to this feed.
+
+    Per-feed override wins; NULL inherits `global_default`. The escape hatch
+    exists for feeds that structurally cannot produce splice evidence, such as
+    a host-read archive where nothing was ever dynamically inserted.
+    """
+    override = _resolve_override(db, podcast_id, 'splice_veto_enabled', bool, None)
+    return global_default if override is None else override
+
+
 def resolve_max_ad_duration_confirmed(db) -> float:
     """Hard ceiling that even a confirmed sponsor cannot pass. Global only."""
     try:
@@ -1370,14 +1412,19 @@ class ModelNotConfiguredError(ValueError):
 # ============================================================
 # User-Agent Strings
 # ============================================================
-# Browser-like UA for downloading audio from CDNs that block bots
+# Fallback defaults only; the live values are settings resolved through
+# user_agent.py. Some CDNs refuse browser UAs below a rolling version floor,
+# so this string ages out and needs bumping here and in the env-var docs.
 BROWSER_USER_AGENT = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
     'AppleWebKit/537.36 (KHTML, like Gecko) '
-    'Chrome/120.0.0.0 Safari/537.36'
+    'Chrome/153.0.0.0 Safari/537.36'
 )
 # Application UA for RSS feeds and API requests
 APP_USER_AGENT = 'PodcastAdRemover/1.0'
+
+# Header-safe bound for an operator-supplied User-Agent.
+USER_AGENT_MAX_LENGTH = 512
 
 
 # ============================================================
@@ -1831,6 +1878,17 @@ def _validate_episode_log_level(value: str) -> bool:
     return value in EPISODE_LOG_LEVELS
 
 
+def validate_user_agent(value: str) -> bool:
+    """Non-empty printable ASCII within the length bound. CR/LF are rejected:
+    this value is operator-supplied and goes straight into a request header."""
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    if not stripped or len(stripped) > USER_AGENT_MAX_LENGTH:
+        return False
+    return all(' ' <= ch <= '~' for ch in stripped)
+
+
 def _validate_badge_position(value: str) -> bool:
     from artwork_watermark import BADGE_POSITIONS  # lazy: keeps Pillow out of config import
     return value in BADGE_POSITIONS
@@ -1917,6 +1975,14 @@ def _db_setting(key: str):
         # UI-customized value to its env/default for this call.
         _tunable_logger.warning("Could not read setting %s from DB, using env/default: %s", key, e)
         return None
+
+
+def log_download_query_enabled() -> bool:
+    """Whether download logs may include URL query strings. Off by default."""
+    raw = _db_setting('log_download_query')
+    if raw is None or str(raw).strip() == '':
+        raw = resolve_env_backed_default('log_download_query')
+    return coerce_bool_setting(raw)
 
 
 def get_env_backed_int(key: str, *, floor: int = None, ceiling: int = None,
@@ -2008,6 +2074,13 @@ ENV_BACKED_SETTINGS = (
     # Automatic response to a low-ad-yield pipeline run; per-feed overridable.
     ('low_ad_yield_action', 'LOW_AD_YIELD_ACTION', LOW_AD_YIELD_ACTION_NOTHING,
      _validate_low_ad_yield_action),
+    # Two strings because hosts disagree: see user_agent.py.
+    ('download_user_agent', 'DOWNLOAD_USER_AGENT', BROWSER_USER_AGENT,
+     validate_user_agent),
+    ('feed_user_agent', 'FEED_USER_AGENT', APP_USER_AGENT, validate_user_agent),
+    # Off by default: an enclosure query string regularly carries a signed CDN
+    # token or a per-listener tracking id, and logs outlive both.
+    ('log_download_query', 'LOG_DOWNLOAD_QUERY', 'false', _validate_bool_string),
     # Episode run logs (#660): retention 0 turns the subsystem off.
     ('episode_log_retention_days', 'EPISODE_LOG_RETENTION_DAYS',
      str(EPISODE_LOG_RETENTION_DAYS_DEFAULT), _validate_episode_log_retention_days),

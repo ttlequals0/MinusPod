@@ -93,12 +93,37 @@ def test_pagination_limits(app_client, seeded_detections):
 
 
 @pytest.mark.parametrize('query', [
-    'status=bogus', 'sort=bogus', 'order=sideways',
+    'status=bogus', 'sort=bogus', 'order=sideways', 'reviewer=bogus',
 ])
 def test_invalid_params_return_400(app_client, seeded_detections, query):
     _csrf(app_client)
     r = app_client.get(f'/api/v1/detections?{query}')
     assert r.status_code == 400
+
+
+def test_reviewer_filter_narrows_rows_and_cut_summary(app_client, seeded_detections):
+    _csrf(app_client)
+    db = seeded_detections['db']
+    slug = seeded_detections['slug']
+    db.save_episode_details(slug, 'det-ep-1', ad_markers=[
+        {'start': 10.0, 'end': 40.0, 'confidence': 0.9, 'sponsor': 'Acme',
+         'reviewer_verdict': 'adjust', 'reviewer_original_start': 8.0,
+         'reviewer_original_end': 41.0},
+        {'start': 100.0, 'end': 130.0, 'confidence': 0.8, 'sponsor': 'Bolt',
+         'reviewer_verdict': 'confirmed'},
+    ])
+    body = app_client.get(
+        '/api/v1/detections?status=all&reviewer=adjusted').get_json()
+    assert body['total'] == 1
+    assert body['cutSummary']['count'] == 1
+    d = body['detections'][0]
+    assert d['reviewerVerdict'] == 'adjust'
+    assert d['reviewerOriginalStart'] == 8.0
+    assert d['reviewerOriginalEnd'] == 41.0
+    body = app_client.get(
+        '/api/v1/detections?status=all&reviewer=unadjusted').get_json()
+    assert [d['start'] for d in body['detections']] == [100.0]
+    assert body['detections'][0]['reviewerOriginalStart'] is None
 
 
 def test_resolved_detection_leaves_needs_review(app_client, seeded_detections):

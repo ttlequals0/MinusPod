@@ -30,12 +30,101 @@ interface FeedRefresh {
   startedAt: number;
 }
 
+interface OfflineService {
+  service: string;
+  held: number;
+  // null until the maintenance tick has probed once.
+  reachable: boolean | null;
+  checkedAt: string | null;
+}
+
+interface QueueHold {
+  queuePaused: boolean;
+  holdUntil: string | null;
+  holdSince: string | null;
+  rateLimitHeld: number;
+  offlineHeld: number;
+  offlineServices: OfflineService[];
+}
+
 interface StatusData {
   currentJob: ProcessingJob | null;
   queueLength: number;
   queuedEpisodes: QueuedEpisode[];
   feedRefreshes: FeedRefresh[];
+  hold?: QueueHold;
   lastUpdated: number;
+}
+
+const SERVICE_LABELS: Record<string, string> = {
+  llm: 'LLM provider',
+  whisper: 'Whisper endpoint',
+};
+
+function serviceLabel(service: string): string {
+  return SERVICE_LABELS[service] ?? service;
+}
+
+function countLabel(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
+/** Clock time without seconds: the precision is noise on a wait of minutes. */
+function formatClock(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+/** "in 12m" / "in 2h 5m", or null once the time has passed. */
+function formatRelative(iso: string): string | null {
+  const seconds = (new Date(iso).getTime() - Date.now()) / 1000;
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  if (seconds < 60) return 'in under a minute';
+  const mins = Math.floor(seconds / 60);
+  if (mins < 60) return `in ${mins}m`;
+  return `in ${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+/** When the queue resumes, as one sentence. */
+function resumesText(iso: string | null): string {
+  if (!iso) return 'Resumes once the provider window resets.';
+  const relative = formatRelative(iso);
+  return `Resumes ${formatClock(iso)}${relative ? ` (${relative})` : ''}.`;
+}
+
+/** "1h 15m" between two stamps, or null when either is missing. */
+function spanText(fromIso: string | null, toIso: string | null): string | null {
+  if (!fromIso || !toIso) return null;
+  const mins = Math.round(
+    (new Date(toIso).getTime() - new Date(fromIso).getTime()) / 60000);
+  if (!Number.isFinite(mins) || mins < 1) return null;
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+/** The rate-limit line: how long the pause has run and when it ends. */
+function rateLimitText(hold: QueueHold): string {
+  const started = hold.holdSince ? ` since ${formatClock(hold.holdSince)}` : '';
+  if (hold.queuePaused) {
+    return `Provider rate limit${started}. ${resumesText(hold.holdUntil)}`;
+  }
+  const ran = spanText(hold.holdSince, hold.holdUntil);
+  const lifted = hold.holdUntil ? ` at ${formatClock(hold.holdUntil)}` : '';
+  return `Provider rate limit lifted${lifted}${ran ? ` after ${ran}` : ''}. `
+    + 'Held episodes requeue shortly.';
+}
+
+/** Short summary for the collapsed bar, or null when nothing is held. */
+function holdSummary(hold: QueueHold | undefined): string | null {
+  if (!hold) return null;
+  if (hold.queuePaused) return 'Queue paused';
+  if (hold.offlineHeld > 0) {
+    const down = hold.offlineServices.filter((s) => s.reachable === false);
+    return down.length === 1
+      ? `${serviceLabel(down[0].service)} unreachable`
+      : 'Waiting on a service';
+  }
+  if (hold.rateLimitHeld > 0) return 'Episodes held';
+  return null;
 }
 
 
@@ -179,8 +268,12 @@ function GlobalStatusBar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Don't show if no activity
-  const hasActivity = status?.currentJob || (status?.queueLength ?? 0) > 0 || (status?.feedRefreshes?.length ?? 0) > 0;
+  // A hold counts as activity: an idle queue that is paused or waiting on a
+  // service looks identical to an empty one, which is the case worth surfacing.
+  const hold = status?.hold;
+  const summary = holdSummary(hold);
+  const hasActivity = status?.currentJob || (status?.queueLength ?? 0) > 0
+    || (status?.feedRefreshes?.length ?? 0) > 0 || summary !== null;
   if (!hasActivity) {
     return null;
   }
@@ -236,7 +329,14 @@ function GlobalStatusBar() {
           </>
         ) : (
           <span className="text-xs text-muted-foreground">
-            Processing queue active
+            {summary ?? 'Processing queue active'}
+          </span>
+        )}
+
+        {/* Hold badge: amber so a stalled queue reads differently from a busy one */}
+        {summary && currentJob && (
+          <span className="px-1.5 py-0.5 text-xs font-medium bg-warning/10 text-warning rounded shrink-0">
+            {summary}
           </span>
         )}
 
@@ -293,6 +393,35 @@ function GlobalStatusBar() {
                   style={{ width: `${currentJob.progress}%` }}
                 />
               </div>
+            </div>
+          )}
+
+          {/* Queue holds: why work is not moving, and when it resumes */}
+          {summary && hold && (
+            <div className="py-2 border-b border-border/30">
+              <p className="text-xs font-medium text-warning mb-1">{summary}</p>
+              <ul className="space-y-1">
+                {(hold.queuePaused || hold.rateLimitHeld > 0) && (
+                  <li className="text-xs text-foreground">
+                    {rateLimitText(hold)}
+                    {hold.rateLimitHeld > 0
+                      && ` ${countLabel(hold.rateLimitHeld, 'episode')} waiting.`}
+                  </li>
+                )}
+                {hold.offlineServices.map((svc) => (
+                  <li key={svc.service} className="text-xs text-foreground">
+                    {serviceLabel(svc.service)}{' '}
+                    {svc.reachable === false ? 'unreachable'
+                      : svc.reachable === true ? 'reachable at last check'
+                      : 'not checked yet'}.{' '}
+                    {countLabel(svc.held, 'episode')} waiting
+                    {svc.checkedAt
+                      ? `, last checked ${formatClock(svc.checkedAt)}`
+                      : ''}
+                    . Others keep processing.
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

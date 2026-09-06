@@ -15,7 +15,7 @@ import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import TextSelectionPanel from './ad-editor/TextSelectionPanel';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
-import { ghostBtn, primaryBtn } from './ad-editor/controlStyles';
+import { edgeBtn, ghostBtn, primaryBtn } from './ad-editor/controlStyles';
 import {
   formatTime,
   commitTimeInput,
@@ -49,13 +49,19 @@ export interface AdReviewItem {
   detectionStage: string | null;
   patternId: number | null;
   correctedBounds: { start: number; end: number } | null;
+  // Null when the detector left it uncategorized (resolves as Sponsor).
+  category?: SegmentCategory | null;
+  // 'keep' when the feed's category action leaves this span in the audio.
+  actionApplied?: string | null;
 }
 
 export interface AdReviewSubmit {
-  kind: 'confirm' | 'reject' | 'adjust';
+  kind: 'confirm' | 'reject' | 'adjust' | 'recategorize';
   adjustedStart?: number;
   adjustedEnd?: number;
   sponsor?: string;
+  // recategorize only; null clears the category back to uncategorized.
+  category?: SegmentCategory | null;
 }
 
 export interface AdCreateSubmit {
@@ -264,6 +270,10 @@ function AdReviewModal({
   const [textTemplateInput, setTextTemplateInput] = useState('');
   const [scopeInput, setScopeInput] = useState<'podcast' | 'global'>('podcast');
   const [categoryInput, setCategoryInput] = useState<SegmentCategory | ''>('');
+  // Review-mode category is held locally so the pick stays on screen; the
+  // prop only catches up when the list refetches.
+  const [reviewCategory, setReviewCategory] = useState<SegmentCategory | ''>(
+    (item.category ?? '') as SegmentCategory | '');
   const [reasonInput, setReasonInput] = useState('');
   // 'audio' uses the waveform + pins, 'text' uses transcript selection.
   // adStart/adEnd are shared across modes so toggling preserves work.
@@ -713,6 +723,25 @@ function AdReviewModal({
     commitTimeInput(endInput, adEnd, episodeDuration ?? Number.POSITIVE_INFINITY,
       setAdEnd, setEndInput, setWindowCenter);
 
+  // Place a boundary at the playhead. Dragging a pin is unreachable on a
+  // phone once zoomed, so this is the only way in. The opposite edge is
+  // pushed just enough to keep the span legal; anything outside the detected
+  // span still surfaces through boundaryError rather than being clamped away.
+  const maxTime = episodeDuration ?? Number.POSITIVE_INFINITY;
+  // The requested edge is held far enough from the episode bounds to leave
+  // room for the other one, so a tap always lands a legal span rather than a
+  // zero-length one the Save button would then refuse.
+  const setStartAtPlayhead = () => {
+    const t = Math.min(Math.max(0, currentTime), maxTime - MIN_AD_DURATION);
+    setAdStart(t);
+    if (adEnd - t < MIN_AD_DURATION) setAdEnd(t + MIN_AD_DURATION);
+  };
+  const setEndAtPlayhead = () => {
+    const t = Math.max(Math.min(currentTime, maxTime), MIN_AD_DURATION);
+    setAdEnd(t);
+    if (t - adStart < MIN_AD_DURATION) setAdStart(t - MIN_AD_DURATION);
+  };
+
   const boundariesMoved =
     Math.abs(adStart - item.start) > 0.05 || Math.abs(adEnd - item.end) > 0.05;
 
@@ -734,9 +763,14 @@ function AdReviewModal({
   // With Confirm hidden (Detected Ads), an unmoved-boundary save would emit
   // a plain confirm the host discards, so the button and C shortcut go inert.
   const confirmInert = hideConfirm && !boundariesMoved;
+  // A keep marker's fate is decided by its category, and the corrections
+  // endpoint refuses a verdict on one. Offering Save and Not an ad here only
+  // produced a 409, so the category picker is the action instead.
+  const keptByCategory = item.actionApplied === 'keep';
 
   const handleConfirm = () => {
-    if (confirmInert) return;
+    // Guards the C shortcut too; the buttons are hidden but the key is not.
+    if (confirmInert || keptByCategory) return;
     onSubmit(
       boundariesMoved
         ? {
@@ -750,6 +784,7 @@ function AdReviewModal({
   };
 
   const handleReject = () => {
+    if (keptByCategory) return;
     onSubmit({ kind: 'reject' });
   };
 
@@ -831,6 +866,9 @@ function AdReviewModal({
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Review ad"
         className="bg-card rounded-lg border border-border w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -1277,9 +1315,29 @@ function AdReviewModal({
             onPlaySelection={playSelection}
           />
 
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <button
+              type="button"
+              className={`${edgeBtn} text-success ${focusRing}`}
+              onClick={setStartAtPlayhead}
+            >
+              <span className="sm:hidden">Set START</span>
+              <span className="hidden sm:inline">Set START at playhead</span>
+            </button>
+            <button
+              type="button"
+              className={`${edgeBtn} text-destructive ${focusRing}`}
+              onClick={setEndAtPlayhead}
+            >
+              <span className="sm:hidden">Set END</span>
+              <span className="hidden sm:inline">Set END at playhead</span>
+            </button>
+          </div>
+
           <div className="mt-2 text-xs text-muted-foreground">
-            Drag the <span className="text-success font-semibold">START</span> /{' '}
-            <span className="text-destructive font-semibold">END</span> pins above the waveform.{' '}
+            <span className="text-success font-semibold">Set START</span> /{' '}
+            <span className="text-destructive font-semibold">Set END</span> put a boundary at the
+            playhead; the pins above the waveform drag to the same place.{' '}
             <kbd>Space</kbd> play • <kbd>,</kbd>/<kbd>.</kbd> expand window • mouse-wheel to zoom • <kbd>C</kbd> confirm • <kbd>R</kbd> not an ad • <kbd>S</kbd> skip
           </div>
         </div>
@@ -1362,10 +1420,44 @@ function AdReviewModal({
             />
           </div>
         ) : (
+          <div className="px-6 py-2 border-t border-border text-xs text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span>
+              Sponsor: <span className="text-foreground">{item.sponsor}</span>{' '}
+              <button type="button" onClick={() => setShowSponsorPrompt(true)}
+                className={`ml-2 underline transition-colors hover:text-foreground ${focusRing}`}>edit</button>
+            </span>
+          </div>
+        )}
+
+        {/* Category sits outside the sponsor branch above: a span with no
+            sponsor shows the sponsor prompt there, and those are exactly the
+            outro/self-promo reads whose category needs changing. It decides
+            which segment action applies, so it is the lever for a span the
+            feed is currently keeping. */}
+        {mode !== 'create' && (
           <div className="px-6 py-2 border-t border-border text-xs text-muted-foreground">
-            Sponsor: <span className="text-foreground">{item.sponsor}</span>{' '}
-            <button type="button" onClick={() => setShowSponsorPrompt(true)}
-              className={`ml-2 underline transition-colors hover:text-foreground ${focusRing}`}>edit</button>
+            <label className="flex flex-wrap items-center gap-2">
+              Category:
+              <select
+                aria-label="Segment category"
+                value={reviewCategory}
+                onChange={(e) => {
+                  const next = e.target.value === ''
+                    ? null : (e.target.value as SegmentCategory);
+                  setReviewCategory(next ?? '');
+                  onSubmit({ kind: 'recategorize', category: next });
+                }}
+                className={selectBase}
+              >
+                <option value="">Uncategorized (counts as Sponsor)</option>
+                {SEGMENT_CATEGORIES.map((c) => (
+                  <option key={c} value={c} title={SEGMENT_CATEGORY_DESCRIPTIONS[c]}>
+                    {SEGMENT_CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+              <span>Decides whether this span is cut, beeped, or left in.</span>
+            </label>
           </div>
         )}
 
@@ -1418,11 +1510,13 @@ function AdReviewModal({
                   Split
                 </button>
                 <div className="text-xs text-muted-foreground">
-                  {boundariesMoved
-                    ? 'Confirm will save adjusted boundaries.'
-                    : hideConfirm
-                      ? 'This ad is already cut. Move a boundary to save an adjustment.'
-                      : 'Confirm will record this ad as-detected.'}
+                  {keptByCategory
+                    ? 'Left in by its category. Change it above to cut this span.'
+                    : boundariesMoved
+                      ? 'Confirm will save adjusted boundaries.'
+                      : hideConfirm
+                        ? 'This ad is already cut. Move a boundary to save an adjustment.'
+                        : 'Confirm will record this ad as-detected.'}
                 </div>
               </div>
               {/* Equal-width buttons across viewports. Short labels
@@ -1435,22 +1529,26 @@ function AdReviewModal({
                   <span className="sm:hidden">Skip</span>
                   <span className="hidden sm:inline">{hasNext ? 'Skip & Next' : 'Skip'}</span>
                 </button>
-                <button type="button" onClick={handleReject}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
-                  title="Mark as not an ad (R)">
-                  <span className="sm:hidden">Not an ad</span>
-                  <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
-                </button>
-                <button type="button" onClick={handleConfirm}
-                  disabled={boundaryError !== null || confirmInert}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
-                  title={boundaryError
-                    ?? (confirmInert
-                      ? 'Already cut. Move a boundary to save an adjustment.'
-                      : 'Save changes (C)')}>
-                  <span className="sm:hidden">Save</span>
-                  <span className="hidden sm:inline">{hasNext ? 'Save & Next' : 'Save'}</span>
-                </button>
+                {!keptByCategory && (
+                  <button type="button" onClick={handleReject}
+                    className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
+                    title="Mark as not an ad (R)">
+                    <span className="sm:hidden">Not an ad</span>
+                    <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
+                  </button>
+                )}
+                {!keptByCategory && (
+                  <button type="button" onClick={handleConfirm}
+                    disabled={boundaryError !== null || confirmInert}
+                    className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
+                    title={boundaryError
+                      ?? (confirmInert
+                        ? 'Already cut. Move a boundary to save an adjustment.'
+                        : 'Save changes (C)')}>
+                    <span className="sm:hidden">Save</span>
+                    <span className="hidden sm:inline">{hasNext ? 'Save & Next' : 'Save'}</span>
+                  </button>
+                )}
               </div>
             </>
           )}

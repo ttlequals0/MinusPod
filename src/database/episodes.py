@@ -196,8 +196,9 @@ class EpisodeMixin:
                 title_date_to_id[(row['title'], row['published_at'])] = row['episode_id']
         return id_to_status, title_date_to_id
 
-    def upsert_episode(self, slug: str, episode_id: str, **kwargs) -> int:
-        """Insert or update an episode. Returns episode database ID."""
+    def upsert_episode(self, slug: str, episode_id: str, defer_index: bool = False, **kwargs) -> int:
+        """Insert or update an episode, returning its database ID. defer_index leaves a
+        new row out of the search index so a bulk caller can index the batch itself."""
         conn = self.get_connection()
 
         if kwargs.get('published_at'):
@@ -237,7 +238,8 @@ class EpisodeMixin:
                                'published_at', 'episode_number',
                                'deferred_at', 'deferred_service', 'detection_degraded',
                                'low_yield_rerun_at', 'reprocess_source',
-                               'season_number', 'p20_item_json'):
+                               'season_number', 'p20_item_json',
+                               'pending_recut_at'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -296,6 +298,10 @@ class EpisodeMixin:
                 )
             )
             db_id = cursor.lastrowid
+            if not defer_index:
+                # Indexed on the open connection so the insert and its index row
+                # land in one transaction.
+                self.index_episodes([(episode_id, slug)], conn=conn)
             conn.commit()
 
         return db_id
@@ -709,6 +715,23 @@ class EpisodeMixin:
         ).fetchone()
         return row['dai_differential_json'] if row else None
 
+    def get_transcribed_details_created_at(self, slug: str, episode_id: str) -> str | None:
+        """created_at of the details row, when it holds a transcript.
+
+        A forced re-transcription deletes and recreates the row, so a row
+        newer than the reprocess request carries that request's transcript
+        and a retry may reuse it instead of transcribing again.
+        """
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            return None
+        row = self.get_connection().execute(
+            """SELECT created_at FROM episode_details
+               WHERE episode_id = ? AND transcript_text IS NOT NULL""",
+            (db_episode_id,)
+        ).fetchone()
+        return row['created_at'] if row else None
+
     def clear_episode_details(self, slug: str, episode_id: str):
         """Clear transcript and ad markers for an episode."""
         conn = self.get_connection()
@@ -1010,11 +1033,19 @@ class EpisodeMixin:
                 ).fetchall()
             }
 
+            newly_inserted_pairs = []
             for ep in episodes:
                 row_inserted, row_skipped = self._upsert_one_discovered_episode(
-                    conn, podcast_id, ep, existing_ids)
+                    conn, podcast_id, slug, ep, existing_ids)
                 inserted += row_inserted
                 skipped += row_skipped
+                if row_inserted:
+                    newly_inserted_pairs.append((ep['id'], slug))
+
+            # Batched inside this same transaction: one DELETE + INSERT for the
+            # whole discovery, never index_episode() per row (that commits per call).
+            if newly_inserted_pairs:
+                self.index_episodes(newly_inserted_pairs, conn=conn)
 
         if skipped:
             logger.warning(
@@ -1023,7 +1054,7 @@ class EpisodeMixin:
             )
         return inserted
 
-    def _upsert_one_discovered_episode(self, conn, podcast_id, ep, existing_ids):
+    def _upsert_one_discovered_episode(self, conn, podcast_id, slug, ep, existing_ids):
         """Upsert one discovered episode. Returns an (inserted, skipped) delta.
 
         Lock errors propagate so the whole batch fails and the caller retries the
@@ -1050,6 +1081,10 @@ class EpisodeMixin:
                                WHERE podcast_id = ? AND episode_id = ?""",
                             (ep['id'], podcast_id, existing['episode_id'])
                         )
+                        # The row moved to a new id, so its index row has to move with it:
+                        # the batched reindex below only covers newly inserted rows.
+                        self._delete_indexed_episodes(conn, [(existing['episode_id'], slug)])
+                        self.index_episodes([(ep['id'], slug)], conn=conn)
                     current_id = ep['id'] if existing['status'] == 'discovered' else existing['episode_id']
                     # Backfill episode_number on existing row if missing
                     if ep.get('episode_number') and not existing['episode_number']:

@@ -7,3 +7,7 @@ export const focusRing = 'focus-visible:outline-hidden focus-visible:ring-2 focu
 
 // Selects are the one field on a secondary fill at 4px radius.
 export const selectBase = `px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm ${focusRing}`;
+
+// Single-line text input: the same chrome AIModelsSection and the settings
+// User-Agent fields were each spelling out inline.
+export const inputBase = `px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`;

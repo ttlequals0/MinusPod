@@ -59,6 +59,8 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
     sponsor: 'Acme', reason: 'sponsor read',
     patternId: null, detectionStage: 'first_pass',
     category: 'sponsor', actionApplied: 'remove',
+    reviewerVerdict: null, reviewerOriginalStart: null, reviewerOriginalEnd: null,
+    reviewerMoved: false,
     status: 'accepted', resolution: 'unresolved',
     ...over,
   };
@@ -137,15 +139,28 @@ describe('DetectedAdsTab', () => {
     expect(screen.queryAllByRole('button', { name: 'Edit' })).not.toHaveLength(0);
   });
 
-  it('rejecting a cut ad triggers a recut so the audio comes back', async () => {
+  it('rejecting a cut ad records the decision without recutting on the spot', async () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
     await user.click(screen.getAllByRole('button', { name: 'Not an ad' })[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalled());
     expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({ type: 'reject' });
-    await waitFor(() => expect(mockReprocess).toHaveBeenCalledWith(
-      'example-podcast', 'a1b2c3d4e5f6', 'recut'));
+    // The server stamps the episode; the Apply bar puts the audio back in one
+    // pass, so several rejects on one episode do not recut it several times.
+    expect(mockReprocess).not.toHaveBeenCalled();
+  });
+
+  it('sends the selected reviewer filter', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.selectOptions(screen.getByLabelText('Reviewer'), 'unadjusted');
+    await waitFor(() => {
+      expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
+        reviewer: 'unadjusted', page: 1,
+      });
+    });
   });
 
   it('sends the selected category', async () => {
@@ -221,6 +236,28 @@ describe('DetectedAdsTab', () => {
     await waitFor(() => expect(reviewModalProps.current).not.toBeNull());
     expect(reviewModalProps.current?.hideConfirm).toBe(true);
     expect(typeof reviewModalProps.current?.onSplitSaved).toBe('function');
+  });
+
+  it('hands the modal the category and applied action', async () => {
+    // Without these the modal cannot enter kept-by-category mode and shows
+    // the wrong current category.
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({ category: 'outro', actionApplied: 'keep' })],
+      total: 1, page: 1, totalPages: 1, limit: 20,
+      counts: {
+        total: 1, needsReview: 0, pending: 0, rejected: 0,
+        accepted: 1, confirmed: 0, dismissed: 0,
+      },
+      cutSummary: SUMMARY,
+    });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+    await waitFor(() => expect(reviewModalProps.current).not.toBeNull());
+    const item = reviewModalProps.current?.item as Record<string, unknown>;
+    expect(item.category).toBe('outro');
+    expect(item.actionApplied).toBe('keep');
   });
 
   it('shows a beeped marker as beeped rather than as a plain cut', async () => {

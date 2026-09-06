@@ -20,6 +20,7 @@ import {
 } from '../utils/adReviewHelpers';
 import { btnGhost, btnOutline, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
+import { edgeBtn } from './ad-editor/controlStyles';
 
 // Matches MIN_AD_DURATION in src/config.py. A piece shorter than this is not an
 // ad the validator would accept, so the server rejects it too.
@@ -176,6 +177,18 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
     setDivInputs(null);
   };
 
+  // `at` must fall inside pieceIndex and leave both halves above the floor.
+  const insertDivider = (at: number, pieceIndex: number) => {
+    setDividers([...effectiveDividers, at].sort((a, b) => a - b));
+    setDivInputs(null);
+    // The piece splits in two; its new second half has no override yet.
+    setSponsors((prev) => {
+      const next = [...prev];
+      next.splice(pieceIndex + 1, 0, undefined);
+      return next;
+    });
+  };
+
   const addDivider = () => {
     // Drop it in the middle of the longest piece, which is where another ad is
     // most likely hiding and where there is room for one.
@@ -183,15 +196,20 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
     pieces.forEach((p, i) => {
       if (p.end - p.start > pieces[best].end - pieces[best].start) best = i;
     });
-    const mid = (pieces[best].start + pieces[best].end) / 2;
-    setDividers([...effectiveDividers, mid].sort((a, b) => a - b));
-    setDivInputs(null);
-    // Piece `best` splits in two; its new second half has no override yet.
-    setSponsors((prev) => {
-      const next = [...prev];
-      next.splice(best + 1, 0, undefined);
-      return next;
-    });
+    insertDivider((pieces[best].start + pieces[best].end) / 2, best);
+  };
+
+  // Placing a divider by dragging is unreachable on a phone once the waveform
+  // is zoomed, so this puts one where you are listening. Falls back to the
+  // midpoint rule when the playhead sits too close to an existing boundary.
+  const addDividerAtPlayhead = () => {
+    const at = playheadRef.current;
+    const i = pieces.findIndex((p) => at > p.start && at < p.end);
+    const fits = i >= 0
+      && at - pieces[i].start >= MIN_PIECE_SECONDS
+      && pieces[i].end - at >= MIN_PIECE_SECONDS;
+    if (fits) insertDivider(at, i);
+    else addDivider();
   };
 
   const removeDivider = (i: number) => {
@@ -266,7 +284,8 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Split ad block</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Drag a divider to set where one ad ends and the next begins.
+            Drag a divider, or add one where you are listening, to set where
+            one ad ends and the next begins.
           </p>
         </div>
 
@@ -433,6 +452,14 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                 className={`px-3 py-1.5 text-sm rounded ${btnOutline} ${focusRing}`}
               >
                 Add divider
+              </button>
+              <button
+                type="button"
+                onClick={addDividerAtPlayhead}
+                className={`${edgeBtn} ${focusRing}`}
+              >
+                <span className="sm:hidden">At playhead</span>
+                <span className="hidden sm:inline">Add divider at playhead</span>
               </button>
               <button
                 type="button"

@@ -76,6 +76,7 @@ export interface Feed {
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
   titleOverride?: string | null;
+  detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   // Per-feed auto-process queue priority (#625). Server always resolves to
@@ -92,6 +93,7 @@ export interface Feed {
   cueSnapLeadOverride?: number | null;
   cueSnapLagOverride?: number | null;
   silenceSnapEnabled?: boolean | null;
+  spliceVetoEnabled?: boolean | null;
   transitionSnapEnabled?: boolean | null;
   maxAdDurationOverride?: number | null;
   maxAdDurationRejectOverride?: number | null;
@@ -510,6 +512,9 @@ export interface Settings {
   lowAdYieldAction: SettingValue;
   episodeLogRetentionDays: SettingValueNumber;
   episodeLogLevel: SettingValue;
+  downloadUserAgent: SettingValue;
+  feedUserAgent: SettingValue;
+  logDownloadQuery: SettingValueBoolean;
   feedAuthEnabled: SettingValueBoolean;
   feedAuthKey: string | null;
   // User agents served original audio instead of triggering JIT processing.
@@ -559,6 +564,8 @@ export interface Settings {
   verificationMissAutocutMinConfidence: SettingValueNumber;
   learningMinConfidence: SettingValueNumber;
   learningMinConfidenceLong: SettingValueNumber;
+  learningMinPatternDuration: SettingValueNumber;
+  learningMaxPatternDuration: SettingValueNumber;
   differentialMeasuredCorrMax: SettingValueNumber;
   differentialHoldMinSeconds: SettingValueNumber;
   vttTranscriptsEnabled: SettingValueBoolean;
@@ -572,11 +579,14 @@ export interface Settings {
   whisperComputeType: SettingValue;
   llmProvider: SettingValue;
   omitTemperature: SettingValueBoolean;
+  llmJsonSchemaEnabled: SettingValueBoolean;
   openaiBaseUrl: SettingValue;
   pricingSourceMode: SettingValue;
   apiKeyConfigured: boolean;
   podcastIndexApiKeyConfigured: boolean;
   podcastSearchProvider: SettingValue;
+  // Whether podcastSearchProvider's resolved value can actually run search.
+  podcastSearchReady: boolean;
   openrouterBaseUrl: string;
   retentionDays: number;
   stageTunables: StageTunables;
@@ -617,6 +627,7 @@ export interface Settings {
     minCutConfidence: number;
     llmProvider: LlmProvider;
     omitTemperature: boolean;
+    llmJsonSchemaEnabled: boolean;
     openaiBaseUrl: string;
     pricingSourceMode: string;
     openrouterBaseUrl: string;
@@ -668,6 +679,8 @@ export interface Settings {
     verificationMissAutocutMinConfidence: number;
     learningMinConfidence: number;
     learningMinConfidenceLong: number;
+    learningMinPatternDuration: number;
+    learningMaxPatternDuration: number;
     differentialMeasuredCorrMax: number;
     differentialHoldMinSeconds: number;
   };
@@ -715,6 +728,9 @@ export interface UpdateSettingsPayload {
   lowAdYieldAction?: LowAdYieldAction;
   episodeLogRetentionDays?: number;
   episodeLogLevel?: EpisodeLogLevel;
+  downloadUserAgent?: string;
+  feedUserAgent?: string;
+  logDownloadQuery?: boolean;
   feedAuthEnabled?: boolean;
   jitBlockedUserAgents?: string[];
   audioBitrate?: string;
@@ -760,6 +776,8 @@ export interface UpdateSettingsPayload {
   verificationMissAutocutMinConfidence?: number;
   learningMinConfidence?: number;
   learningMinConfidenceLong?: number;
+  learningMinPatternDuration?: number;
+  learningMaxPatternDuration?: number;
   differentialMeasuredCorrMax?: number;
   differentialHoldMinSeconds?: number;
   vttTranscriptsEnabled?: boolean;
@@ -807,6 +825,7 @@ export interface UpdateSettingsPayload {
   windowSizeSeconds?: number | null;
   windowOverlapSeconds?: number | null;
   omitTemperature?: boolean;
+  llmJsonSchemaEnabled?: boolean;
 }
 
 export type ReasoningLevel = 'none' | 'low' | 'medium' | 'high';
@@ -901,6 +920,7 @@ export interface Sponsor {
   name: string;
   aliases: string[];
   category: string | null;
+  segment_category: SegmentCategory | null;
   common_ctas: string[];
   tags: string[];
   is_active: boolean;

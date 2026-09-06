@@ -209,12 +209,19 @@ class TestCompletionPathWiring:
                 'wiring-feed', 'ep1', 'https://example.com/ep1.mp3')
         return result, finalize, hook, db
 
-    def test_a_policy_rerun_clears_when_it_starts_processing(self):
+    def test_a_policy_llm_rerun_clears_ad_data_when_it_starts_processing(self):
         _, _, _, db = self._run_pipeline(
-            episode_row={'reprocess_mode': 'reprocess', 'reprocess_source': 'policy',
+            episode_row={'reprocess_mode': 'llm', 'reprocess_source': 'policy',
                          'reprocess_requested_at': '2026-01-01T00:00:00Z'})
 
-        db.clear_episode_details.assert_called_once_with('wiring-feed', 'ep1')
+        db.clear_episode_ad_data.assert_called_once_with('wiring-feed', 'ep1')
+
+    def test_a_policy_full_rerun_keeps_details_until_the_transcribe_stage(self):
+        _, _, _, db = self._run_pipeline(
+            episode_row={'reprocess_mode': 'full', 'reprocess_source': 'policy',
+                         'reprocess_requested_at': '2026-01-01T00:00:00Z'})
+
+        db.clear_episode_details.assert_not_called()
 
     def test_an_ordinary_run_clears_nothing_up_front(self):
         _, _, _, db = self._run_pipeline()
@@ -289,11 +296,13 @@ class TestClearEpisodeForMode:
         db.clear_episode_ad_data.assert_called_once_with('a-feed', 'ep1')
         db.clear_episode_details.assert_not_called()
 
-    def test_reprocess_and_full_wipe_the_details_row(self):
+    def test_reprocess_and_full_defer_the_details_clear(self):
+        # The transcribe stage owns this wipe now (#692): prior results
+        # survive until the fresh transcript exists.
         for mode in ('reprocess', 'full'):
             db = MagicMock()
             clear_episode_for_mode(db, 'a-feed', 'ep1', mode)
-            db.clear_episode_details.assert_called_once_with('a-feed', 'ep1')
+            db.clear_episode_details.assert_not_called()
 
     def test_recut_clears_nothing(self):
         db = MagicMock()

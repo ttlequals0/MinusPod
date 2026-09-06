@@ -13,9 +13,11 @@ from jinja2 import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
 from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
+from database import Database
+from database.settings import registry_current_value, registry_default
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
-from utils.time import format_duration, utc_now_iso
+from utils.time import format_duration, utc_now_iso, local_now_iso, local_iso
 from utils.url import SSRFError
 import email_service
 
@@ -29,6 +31,10 @@ EVENT_LIMIT_EXCEEDED = 'Limit Exceeded'
 EVENT_FEED_REFRESH_FAILED = 'Feed Refresh Failed'
 EVENT_UPDATE_AVAILABLE = 'Update Available'
 EVENT_CUE_TEMPLATE_QUIET = 'Cue Template Quiet'
+EVENT_QUEUE_HELD = 'Queue Held'
+EVENT_QUEUE_RESUMED = 'Queue Resumed'
+EVENT_SERVICE_OFFLINE = 'Service Offline'
+EVENT_SERVICE_REACHABLE = 'Service Reachable'
 VALID_EVENTS = {
     EVENT_EPISODE_PROCESSED,
     EVENT_EPISODE_FAILED,
@@ -38,9 +44,31 @@ VALID_EVENTS = {
     EVENT_FEED_REFRESH_FAILED,
     EVENT_UPDATE_AVAILABLE,
     EVENT_CUE_TEMPLATE_QUIET,
+    EVENT_QUEUE_HELD,
+    EVENT_QUEUE_RESUMED,
+    EVENT_SERVICE_OFFLINE,
+    EVENT_SERVICE_REACHABLE,
 }
 
 _sandbox_env = SandboxedEnvironment()
+
+
+def get_notification_timezone(db=None) -> str:
+    """Configured notification_timezone setting; falls back to a valid TZ env
+    or UTC. Never raises: a DB/settings failure must not cost a notification."""
+    try:
+        if db is None:
+            db = Database()
+        return registry_current_value(db, 'notification_timezone')
+    except Exception:
+        logger.debug("Could not read notification_timezone setting", exc_info=True)
+        return registry_default('notification_timezone')
+
+
+def _timestamp_fields() -> dict:
+    """UTC and local timestamp fields shared by every context builder."""
+    return {'timestamp': utc_now_iso(),
+            'timestamp_local': local_now_iso(get_notification_timezone())}
 
 
 @dataclass
@@ -132,12 +160,37 @@ _ALERT_SAMPLE_CONTEXTS = {
         'template': {'id': 3, 'label': 'break stinger'},
         'last_match_at': '2026-03-01T00:00:00Z',
     },
+    EVENT_QUEUE_HELD: {
+        'hold_until': '2026-01-01T12:30:00Z',
+        'hold_until_local': '2026-01-01T12:30:00+00:00',
+        'ttl_hours': 24,
+        'error_message': 'rate_limit_exceeded: retry after 900 seconds',
+        'slug': 'my-podcast',
+        'episode_id': 'a1b2c3d4e5f6',
+        'podcast_name': 'My Podcast',
+    },
+    EVENT_QUEUE_RESUMED: {
+        'held_since': '2026-01-01T12:15:00Z',
+        'requeued': 3,
+    },
+    EVENT_SERVICE_OFFLINE: {
+        'service': 'llm',
+        'error_message': 'Connection refused',
+        'slug': 'my-podcast',
+        'episode_id': 'a1b2c3d4e5f6',
+        'podcast_name': 'My Podcast',
+    },
+    EVENT_SERVICE_REACHABLE: {
+        'service': 'llm',
+        'requeued': 3,
+    },
 }
 
 
 _DUMMY_CONTEXT = {
     'event': 'Episode Processed',
     'timestamp': '',  # overwritten at render time with current UTC
+    'timestamp_local': '',  # overwritten at render time with local time
     'podcast': {
         'name': 'Example Podcast',
         'slug': 'example-podcast',
@@ -176,7 +229,7 @@ def _build_context(payload: WebhookPayload) -> dict:
 
     return {
         'event': payload.event,
-        'timestamp': utc_now_iso(),
+        **_timestamp_fields(),
         'podcast': {
             'name': payload.podcast_name or payload.slug,
             'slug': payload.slug,
@@ -387,9 +440,12 @@ def _fire_alert_event(event, context, log_detail, dedup_key=None):
     matching = [w for w in load_webhooks()
                 if w.get('enabled', False) and event in w.get('events', [])]
 
-    context = {'event': event, **context, 'timestamp': utc_now_iso()}
+    context = {'event': event, **context}
 
     def _dispatch():
+        # Timezone is a DB read; resolve it here, on the background thread,
+        # not on the caller's hot path, and only for an alert someone gets.
+        context.update(_timestamp_fields())
         for wh in matching:
             try:
                 _prepare_and_dispatch(wh, context)
@@ -467,6 +523,47 @@ def fire_structural_rate_limit_event(provider, model, limit, used, requested, er
     }, f"provider={provider}, limit={limit}, requested={requested}")
 
 
+def fire_queue_held_event(hold_until, ttl_hours, error_message, slug, episode_id, podcast_name):
+    """Fire when a provider 429 pauses the queue (#696 hold)."""
+    return _fire_alert_event(EVENT_QUEUE_HELD, {
+        'hold_until': hold_until,
+        'hold_until_local': local_iso(hold_until, get_notification_timezone()),
+        'ttl_hours': ttl_hours,
+        'error_message': str(error_message),
+        'slug': slug,
+        'episode_id': episode_id,
+        'podcast_name': podcast_name,
+    }, f"hold_until={hold_until}")
+
+
+def fire_queue_resumed_event(held_since, requeued):
+    """Fire when the rate-limit hold clears and held episodes re-queue."""
+    return _fire_alert_event(EVENT_QUEUE_RESUMED, {
+        'held_since': held_since,
+        'requeued': requeued,
+    }, f"requeued={requeued}")
+
+
+def fire_service_offline_event(service, error_message, slug, episode_id, podcast_name):
+    """Fire when an episode defers because `service` is unreachable; one alert per service per 5 min."""
+    return _fire_alert_event(EVENT_SERVICE_OFFLINE, {
+        'service': service,
+        'error_message': str(error_message),
+        'slug': slug,
+        'episode_id': episode_id,
+        'podcast_name': podcast_name,
+    }, f"service={service}", dedup_key=f"{EVENT_SERVICE_OFFLINE}:{service}")
+
+
+def fire_service_reachable_event(service, requeued):
+    """Fire when a probe finds `service` back up and deferred episodes re-queue."""
+    return _fire_alert_event(EVENT_SERVICE_REACHABLE, {
+        'service': service,
+        'requeued': requeued,
+    }, f"service={service}, requeued={requeued}",
+        dedup_key=f"{EVENT_SERVICE_REACHABLE}:{service}")
+
+
 def fire_update_available_event(version, channel, release_date, url):
     """Fire an update-available webhook.
 
@@ -504,7 +601,7 @@ def render_template_preview(template_string):
     templates so callers can surface the error to the user.
     """
     context = dict(_DUMMY_CONTEXT)
-    context['timestamp'] = utc_now_iso()
+    context.update(_timestamp_fields())
     return _render_template(template_string, context)
 
 
@@ -539,7 +636,7 @@ def _episode_test_context(event):
         except Exception:
             logger.debug("Could not load real data for test webhook, using placeholders")
         context = dict(_DUMMY_CONTEXT)
-        context['timestamp'] = utc_now_iso()
+        context.update(_timestamp_fields())
         return context
 
     payload = WebhookPayload(event=EVENT_EPISODE_FAILED, **_FAILED_SAMPLE)
@@ -556,7 +653,7 @@ def _build_test_context(event):
         # Unknown/legacy event value stored on the webhook; fall back to
         # the universal sample rather than dropping the test delivery.
         return _episode_test_context(EVENT_EPISODE_PROCESSED)
-    return {'event': event, **sample, 'timestamp': utc_now_iso()}
+    return {'event': event, **sample, **_timestamp_fields()}
 
 
 def fire_test_event(webhook_config):

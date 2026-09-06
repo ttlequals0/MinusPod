@@ -1,22 +1,19 @@
 /**
- * Component tests for AddFeed's local-feed mode: the mode toggle, the local
- * form fields, and the addLocalFeed submit path. The existing subscribe-mode
- * (URL/search/OPML) behavior is exercised elsewhere; these tests cover only
- * what Task 12 adds.
+ * Component tests for AddFeed: the mode toggle, podcast search gating, the
+ * local form fields, and the addLocalFeed submit path.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import AddFeed from './AddFeed';
 
 const mockNavigate = vi.fn();
 
-vi.mock('react-router', () => ({
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
   useNavigate: () => mockNavigate,
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
-  ),
 }));
 
 const mockAddFeed = vi.fn();
@@ -52,16 +49,21 @@ function makeClient() {
   });
 }
 
-function renderAddFeed(settingsOverrides: Record<string, unknown> = {}) {
-  mockGetSettings.mockResolvedValue({
-    podcastIndexApiKeyConfigured: false,
-    podcastSearchProvider: { value: 'itunes', isDefault: true },
-    ...settingsOverrides,
-  });
+const defaultSettings = {
+  podcastIndexApiKeyConfigured: false,
+  podcastSearchProvider: { value: 'itunes', isDefault: true },
+  podcastSearchReady: true,
+};
+
+function renderAddFeed(settings: unknown = defaultSettings) {
+  mockGetSettings.mockResolvedValue(settings);
+
   mockGetFeedsResponse.mockResolvedValue({ feeds: [], lastRefreshCompletedAt: null });
   return render(
     <QueryClientProvider client={makeClient()}>
-      <AddFeed />
+      <MemoryRouter>
+        <AddFeed />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -107,6 +109,65 @@ describe('AddFeed: mode toggle', () => {
 
     expect(screen.getByLabelText('Podcast RSS Feed URL')).toBeDefined();
     expect(screen.queryByLabelText('Search podcasts')).toBeNull();
+  });
+});
+
+describe('AddFeed: podcast search gating', () => {
+  it('searches through iTunes with no PodcastIndex credentials and shows no banner', async () => {
+    const user = userEvent.setup();
+    mockSearchPodcasts.mockResolvedValue([
+      { id: 1, title: 'The Daily Tech Show', description: '', artworkUrl: '', feedUrl: 'https://example.com/feed.xml', author: 'Acme', link: '' },
+    ]);
+    renderAddFeed();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Search podcasts')).toBeDefined();
+    });
+    expect(screen.queryByText('Configure PodcastIndex API credentials')).toBeNull();
+
+    await user.type(screen.getByLabelText('Search podcasts'), 'daily');
+
+    await waitFor(() => {
+      expect(mockSearchPodcasts).toHaveBeenCalledWith('daily', expect.any(AbortSignal));
+    });
+    await waitFor(() => {
+      expect(screen.getByText('The Daily Tech Show')).toBeDefined();
+    });
+  });
+
+  it('does not search when the user switches to RSS URL mode', async () => {
+    const user = userEvent.setup();
+    renderAddFeed();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Search podcasts')).toBeDefined();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Enter RSS URL' }));
+    await user.type(screen.getByLabelText('Podcast RSS Feed URL'), 'https://example.com/feed.xml');
+
+    await new Promise((r) => setTimeout(r, 500));
+    expect(mockSearchPodcasts).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the URL-only label until settings report a provider', async () => {
+    renderAddFeed(new Promise(() => {}));
+    expect(screen.getByLabelText('Podcast RSS Feed URL')).toBeDefined();
+    expect(screen.queryByText('Configure PodcastIndex API credentials')).toBeNull();
+  });
+
+  it('shows a banner and does not search when PodcastIndex is selected but not ready', async () => {
+    const user = userEvent.setup();
+    renderAddFeed({
+      podcastIndexApiKeyConfigured: false,
+      podcastSearchProvider: { value: 'podcastindex', isDefault: false },
+      podcastSearchReady: false,
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Configure PodcastIndex API credentials/)).toBeDefined();
+    });
+
+    await user.type(screen.getByLabelText('Podcast RSS Feed URL'), 'daily');
+    await new Promise((r) => setTimeout(r, 500));
+    expect(mockSearchPodcasts).not.toHaveBeenCalled();
   });
 });
 
@@ -306,7 +367,9 @@ describe('AddFeed: podcast search', () => {
 
   it('shows a credentials banner when PodcastIndex is selected without API keys', async () => {
     renderAddFeed({
+      podcastIndexApiKeyConfigured: false,
       podcastSearchProvider: { value: 'podcastindex', isDefault: false },
+      podcastSearchReady: false,
     });
     await waitFor(() => {
       expect(screen.getByText(/Configure PodcastIndex API credentials/)).toBeDefined();

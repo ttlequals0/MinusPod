@@ -21,11 +21,12 @@ from llm_client import (
     is_rate_limit_error, is_limit_exceeded_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
-    StructuralRateLimitError,
+    StructuralRateLimitError, ProviderRateLimitedError,
 )
 from run_log import run_in_worker_thread
+from sponsor_normalize import segment_category_for
 from utils.language import get_pattern_language
-from utils.llm_call import call_llm, call_llm_for_window
+from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.markers import (
     DAI_CORE_SPANS,
     mark_distinct_merge,
@@ -73,7 +74,7 @@ from config import (
 from ad_detector.cue_boundary_snap import _cue_role
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
-from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2, supports_json_schema
+from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
 from text_pattern_matcher import is_defined_pattern
 from text_recurrence import format_recurrence_hint
@@ -127,7 +128,9 @@ from .prompts import (
     CATEGORY_REPAIR_SYSTEM_PROMPT,
     CATEGORY_REPAIR_JSON_SCHEMA,
     CATEGORY_REPAIR_MAX_TOKENS,
+    AD_DETECTION_JSON_SCHEMA,
     format_category_repair_prompt,
+    log_assembled_system_prompt,
     parse_category_repair_response,
     SEGMENT_ID_SYSTEM_SECTION,
 )
@@ -335,14 +338,19 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
     not_found_hint = _model_not_found_hint(last_error, model)
     if not_found_hint:
         parts.append(not_found_hint)
+    # Held 429 (#696): the provider reported a reset time; processing raises
+    # a typed error so the episode defers and the queue pauses until then.
+    rate_limited_hold = isinstance(last_error, ProviderRateLimitedError)
     return {
         "ads": [],
         "status": "failed",
         "error": "".join(parts),
-        "retryable": not not_found_hint and not limit_exceeded,
+        "retryable": not not_found_hint and not limit_exceeded and not rate_limited_hold,
         # Lets processing raise a typed LimitExceededError so the episode
         # fails permanently instead of re-queuing on the 429 string (#491).
         "limit_exceeded": limit_exceeded,
+        "rate_limited_hold": rate_limited_hold,
+        "retry_after_seconds": getattr(last_error, 'retry_after_seconds', None),
         # Lets the pipeline tell "endpoint down" apart from a bad response so
         # the offline queue (#482) defers only genuine outages. Includes
         # CircuitBreakerOpen, which reaches here as last_error because
@@ -920,33 +928,63 @@ class AdDetector:
             return ""
         try:
             patterns = self.db.get_ad_patterns(podcast_id=podcast_slug)
+            sponsor_categories = self.db.get_sponsor_segment_categories()
         except Exception as e:
             logger.warning(f"Could not fetch patterns for hint ({podcast_slug}): {e}")
             return ""
         junk = ('unknown', 'advertisement detected', '')
-        tier1, names = [], set()
+        tier1, tier1_keys, names = [], set(), {}
         for p in patterns:
             sponsor = p.get('sponsor')
-            if not sponsor or sponsor.lower() in junk:
+            key = (sponsor or '').strip().lower()
+            if key in junk:
                 continue
             if is_defined_pattern(p) and len(tier1) < self._HINT_TIER1_CAP:
                 snippet = truncate(p.get('intro_text') or p.get('outro_text') or '', self._HINT_SNIPPET_CHARS)
-                category = p.get('category') or 'sponsor'
+                category = sponsor_categories.get(key) or p.get('category') or 'sponsor'
                 line = f"- {sponsor} ({category} read)."
                 if snippet:
                     line += f' Opens like: "{snippet}"'
                 tier1.append(line)
-            names.add(sponsor)
+                tier1_keys.add(key)
+            names.setdefault(key, sponsor)
         if not names:
             return ""
+        # A sponsor-level category still reaches the prompt when every pattern
+        # naming it is auto-learned, which the tier above leaves nameless.
+        categorized = [
+            f"- {name} ({sponsor_categories[key]} read)."
+            for key, name in sorted(names.items())
+            if key in sponsor_categories and key not in tier1_keys
+        ]
+        leftovers = sorted(name for key, name in names.items() if key not in sponsor_categories)
         parts = []
-        if tier1:
-            parts.append("Known recurring ads on this feed:\n" + "\n".join(tier1))
-        leftovers = sorted(names)
-        parts.append(f"Previously detected sponsors for this podcast: {', '.join(leftovers)}")
+        if tier1 or categorized:
+            parts.append("Known recurring ads on this feed:\n" + "\n".join(tier1 + categorized))
+        if leftovers:
+            parts.append(f"Previously detected sponsors for this podcast: {', '.join(leftovers)}")
         parts.append("Reads for the sponsors above are ads on this feed; "
                      "report them with the stated category.")
         return "\n".join(parts) + "\n"
+
+    def _apply_sponsor_segment_categories(self, ads, slug, episode_id):
+        """Stamp the operator's per-sponsor segment category onto ads naming that sponsor."""
+        if not ads or not self.db:
+            return ads
+        try:
+            overrides = self.db.get_sponsor_segment_categories()
+        except Exception as e:
+            logger.warning(f"[{slug}:{episode_id}] Could not load sponsor categories: {e}")
+            return ads
+        for ad in ads:
+            category = segment_category_for(ad.get('sponsor'), overrides)
+            if category and ad.get('category') != category:
+                logger.info(
+                    f"[{slug}:{episode_id}] Sponsor category: {ad.get('sponsor')} "
+                    f"{ad.get('category') or 'unset'} -> {category} "
+                    f"@ {ad['start']:.1f}s-{ad['end']:.1f}s")
+                ad['category'] = category
+        return ads
 
     def _call_llm_for_window(self, *, model, system_prompt, prompt, llm_timeout,
                               max_retries, slug, episode_id, window_label, pass_name):
@@ -979,6 +1017,9 @@ class AdDetector:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            response_format=schema_format_for(
+                model, 'ad_detection', AD_DETECTION_JSON_SCHEMA,
+                'Ad segments detected in this window.'),
         )
 
     def _process_single_window(self, *, window_idx, window, total_windows,
@@ -1342,11 +1383,17 @@ class AdDetector:
         )
 
         category_repaired = 0
+        hold_error = None
         addressing = AddressingStats()
         for result in window_results:
             if result.failed:
                 failed_windows += 1
                 last_error = result.last_error
+                # A held 429 in ANY window defers the whole episode (#696):
+                # proceeding with the surviving windows would silently skip
+                # the throttled span from ad coverage.
+                if isinstance(result.last_error, ProviderRateLimitedError):
+                    hold_error = result.last_error
                 continue
             if result.compliant is not None:
                 addressing.windows_judged += 1
@@ -1381,6 +1428,13 @@ class AdDetector:
                 f"[{slug}:{episode_id}] {failed_windows}/{len(windows)} windows "
                 f"failed during {pass_label.lower()}"
             )
+        if hold_error is not None:
+            failure = _windows_failed_response(
+                pass_label.lower(), failed_windows, len(windows),
+                hold_error, model)
+            return ([], all_raw_responses, failed_windows, failure,
+                    0, 0, 0, AddressingStats())
+
         failure_ratio = failed_windows / len(windows) if windows else 0.0
         if failed_windows >= len(windows) or (
                 failure_ratio > _resolve_max_failed_window_ratio()):
@@ -1396,6 +1450,7 @@ class AdDetector:
         category_missing = sum(1 for ad in all_window_ads if 'category' not in ad)
 
         # Deduplicate ads across windows
+        self._apply_sponsor_segment_categories(all_window_ads, slug, episode_id)
         final_ads = deduplicate_window_ads(all_window_ads, action_map=action_map)
         return (final_ads, all_raw_responses, failed_windows, None,
                 category_missing, category_total, category_repaired,
@@ -1418,18 +1473,6 @@ class AdDetector:
 
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
 
-        if supports_json_schema(get_effective_provider()):
-            response_format = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "segment_categories",
-                    "description": "Category for each listed segment.",
-                    "schema": CATEGORY_REPAIR_JSON_SCHEMA,
-                },
-            }
-        else:
-            response_format = {"type": "json_object"}
-
         response, error = call_llm(
             llm_client=self._llm_client,
             model=model,
@@ -1441,7 +1484,10 @@ class AdDetector:
             slug=slug,
             episode_id=episode_id,
             call_label=f"{window_label} category repair",
-            response_format=response_format,
+            response_format=schema_format_for(
+                model, 'segment_categories', CATEGORY_REPAIR_JSON_SCHEMA,
+                'Category for each listed segment.',
+                allow_provider_schema=True),
         )
         if response is None:
             logger.warning(
@@ -1538,7 +1584,7 @@ class AdDetector:
             model = self.get_model()
 
             logger.info(f"[{slug}:{episode_id}] Using model: {model}")
-            logger.debug(f"[{slug}:{episode_id}] System prompt ({len(system_prompt)} chars)")
+            log_assembled_system_prompt(slug, episode_id, system_prompt)
 
             # Prepare description section (shared across windows)
             description_section = ""
@@ -2421,7 +2467,7 @@ class AdDetector:
         Returns True if a pattern was successfully created.
         """
         try:
-            pattern_id = self.text_pattern_matcher.create_pattern_from_ad(
+            pattern_ids = self.text_pattern_matcher.create_patterns_from_ad(
                 segments=segments,
                 start=ad['start'],
                 end=ad['end'],
@@ -2432,23 +2478,28 @@ class AdDetector:
                 category=ad.get('category')
             )
 
-            if pattern_id:
+            if pattern_ids:
                 logger.info(
-                    f"Created pattern {pattern_id} from Claude detection: "
+                    f"Created {len(pattern_ids)} pattern(s) from Claude detection: "
                     f"{ad['start']:.1f}s-{ad['end']:.1f}s, sponsor={sponsor}"
                 )
 
-                # Store audio fingerprint alongside the text pattern
-                if audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
-                    try:
-                        self.audio_fingerprinter.store_fingerprint(
-                            pattern_id=pattern_id,
-                            audio_path=audio_path,
-                            start=ad['start'],
-                            end=ad['end']
-                        )
-                    except Exception as fp_e:
-                        logger.debug(f"Could not store fingerprint for pattern {pattern_id}: {fp_e}")
+                # Each pattern is fingerprinted against its own piece, so a
+                # split span's audio still matches the pattern that covers it.
+                if (audio_path and self.audio_fingerprinter
+                        and self.audio_fingerprinter.is_available()):
+                    for created in pattern_ids:
+                        try:
+                            self.audio_fingerprinter.store_fingerprint(
+                                pattern_id=created['id'],
+                                audio_path=audio_path,
+                                start=created['start'],
+                                end=created['end'],
+                            )
+                        except Exception as fp_e:
+                            logger.debug(
+                                f"Could not store fingerprint for pattern "
+                                f"{created['id']}: {fp_e}")
                 return True
         except Exception as e:
             logger.warning(f"Failed to create pattern from detection: {e}")
@@ -2942,6 +2993,8 @@ class AdDetector:
                        f"for {total_duration/60:.1f}min processed audio")
 
             system_prompt = self.get_verification_prompt()
+            log_assembled_system_prompt(slug, episode_id, system_prompt,
+                                        label="Verification system")
             if addressing_mode == 'segment_ids':
                 system_prompt = f"{system_prompt}{SEGMENT_ID_SYSTEM_SECTION}"
             model = self.get_verification_model()

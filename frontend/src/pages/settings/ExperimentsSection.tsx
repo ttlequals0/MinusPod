@@ -78,7 +78,9 @@ function ExperimentsSection({
             <option value="random">Random (A/B test)</option>
           </select>
           <p className="mt-2 text-sm text-muted-foreground">
-            How the detector points at ads in the transcript. Timestamps asks the model for start and end times; segment IDs asks it to name numbered transcript lines instead, which removes made-up timestamps but is still being evaluated. Benchmark results decide the future default. Random picks one of the two per run and records which one, so the stats page can compare them over time.
+            How the detector points at ads. Timestamps asks for start and end times; segment
+            IDs asks it to name numbered transcript lines, which removes invented timestamps.
+            Random alternates so the Stats page can compare them.
           </p>
         </div>
       </CollapsibleSection>
@@ -236,7 +238,7 @@ function ExperimentsSection({
               rows={3}
               helpText={
                 <>
-                  Optional. Added to the review prompt at run time; leave blank for the default. Put <code>{'{override}'}</code> in a customized prompt above to control placement.
+                  Optional. Appended to the review prompt at run time. Put <code>{'{override}'}</code> in a customized prompt above to change where it goes.
                 </>
               }
             />
@@ -262,7 +264,7 @@ function ExperimentsSection({
               rows={3}
               helpText={
                 <>
-                  Optional. Added to the resurrect prompt at run time; leave blank for the default. Put <code>{'{override}'}</code> in a customized prompt above to control placement.
+                  Optional. Appended to the resurrect prompt at run time. Put <code>{'{override}'}</code> in a customized prompt above to change where it goes.
                 </>
               }
             />

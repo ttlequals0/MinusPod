@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, setQueuePriority, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
 import type { PromptName } from '../api/settings';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
@@ -16,7 +16,7 @@ import DataManagementSection from './settings/DataManagementSection';
 import NotificationsSection from './settings/NotificationsSection';
 import AuthenticatedFeedsSection from './settings/AuthenticatedFeedsSection';
 import SecuritySection from './settings/SecuritySection';
-import ProcessingQueueSection from './settings/ProcessingQueueSection';
+import ProcessingQueueSection, { QUEUE_PAGE_SIZE } from './settings/ProcessingQueueSection';
 import ConfirmResetButton from './settings/ConfirmResetButton';
 import AppearanceSection from './settings/AppearanceSection';
 import PodcastIndexSection from './settings/PodcastIndexSection';
@@ -39,6 +39,7 @@ import AudioSection from './settings/AudioSection';
 import CoverArtSection from './settings/CoverArtSection';
 import { refreshAllArtwork } from '../api/feeds';
 import AdDetectionSection from './settings/AdDetectionSection';
+import TranscriptNormalizationSection from './settings/TranscriptNormalizationSection';
 import SeedSponsorsSection from './settings/SeedSponsorsSection';
 import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import SegmentActionsSection from './settings/SegmentActionsSection';
@@ -49,7 +50,8 @@ import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
 import PositionalPriorSection from './settings/PositionalPriorSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import DatabaseBackupSection from './settings/DatabaseBackupSection';
-import OfflineQueueSection from './settings/OfflineQueueSection';
+import QueueControlSection from './settings/QueueControlSection';
+import OutboundRequestsSection from './settings/OutboundRequestsSection';
 import { Search, X } from 'lucide-react';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
 import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
@@ -261,6 +263,8 @@ function Settings() {
   const [verificationMissAutocutMinConfidence, setVerificationMissAutocutMinConfidence] = useState(0);
   const [learningMinConfidence, setLearningMinConfidence] = useState(0.85);
   const [learningMinConfidenceLong, setLearningMinConfidenceLong] = useState(0.92);
+  const [learningMinPatternDuration, setLearningMinPatternDuration] = useState(15);
+  const [learningMaxPatternDuration, setLearningMaxPatternDuration] = useState(120);
   const [differentialMeasuredCorrMax, setDifferentialMeasuredCorrMax] = useState(0.6);
   const [differentialHoldMinSeconds, setDifferentialHoldMinSeconds] = useState(10);
   // Neutral placeholder (cast); replaced by hydration before the form renders.
@@ -345,9 +349,16 @@ function Settings() {
     queryFn: getSystemStatus,
   });
 
+  // Page state lives here, not in ProcessingQueueSection: that panel remounts
+  // on idle<->active transitions, which would reset a local useState.
+  const [queuePage, setQueuePage] = useState(1);
   const { data: processingEpisodes } = useQuery({
-    queryKey: ['processing-episodes'],
-    queryFn: getProcessingEpisodes,
+    queryKey: ['processing-episodes', queuePage],
+    queryFn: () => getProcessingEpisodes({
+      queueOffset: (queuePage - 1) * QUEUE_PAGE_SIZE,
+      queueLimit: QUEUE_PAGE_SIZE,
+    }),
+    placeholderData: keepPreviousData,
     refetchInterval: 5000,
   });
 
@@ -422,6 +433,15 @@ function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
       queryClient.invalidateQueries({ queryKey: ['status'] });
+    },
+  });
+
+  const priorityMutation = useMutation({
+    mutationFn: ({ slug, episodeId, ...change }:
+      { slug: string; episodeId: string; priority?: number; delta?: number }) =>
+      setQueuePriority(slug, episodeId, change),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
     },
   });
 
@@ -519,6 +539,8 @@ function Settings() {
     { key: 'verificationMissAutocutMinConfidence', kind: 'val', useDefault: true, literal: 0, value: verificationMissAutocutMinConfidence, set: setVerificationMissAutocutMinConfidence },
     { key: 'learningMinConfidence', kind: 'val', useDefault: true, literal: 0.85, value: learningMinConfidence, set: setLearningMinConfidence },
     { key: 'learningMinConfidenceLong', kind: 'val', useDefault: true, literal: 0.92, value: learningMinConfidenceLong, set: setLearningMinConfidenceLong },
+    { key: 'learningMinPatternDuration', kind: 'val', useDefault: true, literal: 15, value: learningMinPatternDuration, set: setLearningMinPatternDuration },
+    { key: 'learningMaxPatternDuration', kind: 'val', useDefault: true, literal: 120, value: learningMaxPatternDuration, set: setLearningMaxPatternDuration },
     { key: 'differentialMeasuredCorrMax', kind: 'val', useDefault: true, literal: 0.6, value: differentialMeasuredCorrMax, set: setDifferentialMeasuredCorrMax },
     { key: 'differentialHoldMinSeconds', kind: 'val', useDefault: true, literal: 10, value: differentialHoldMinSeconds, set: setDifferentialHoldMinSeconds },
     // Audio cue detection (nested `audioCue` state)
@@ -811,6 +833,10 @@ function Settings() {
         cancelingKey={cancelMutation.variables
           ? `${cancelMutation.variables.slug}:${cancelMutation.variables.episodeId}`
           : null}
+        queuePage={queuePage}
+        onQueuePage={setQueuePage}
+        onPriorityChange={(params) => priorityMutation.mutate(params)}
+        priorityIsPending={priorityMutation.isPending}
       />
 
       {/* Settings search: filters the configurable sections below by matching a
@@ -896,20 +922,12 @@ function Settings() {
         onAutoProcessEnabledChange={setAutoProcessEnabled}
         rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
         onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
-        queueManualBoost={queueManualBoost}
-        onQueueManualBoostChange={setQueueManualBoost}
-        queueFreshBoost={queueFreshBoost}
-        onQueueFreshBoostChange={setQueueFreshBoost}
-        queueBulkBoost={queueBulkBoost}
-        onQueueBulkBoostChange={setQueueBulkBoost}
         podpingEnabled={podpingEnabled}
         onPodpingEnabledChange={setPodpingEnabled}
         maxFeedEpisodes={maxFeedEpisodes}
         onMaxFeedEpisodesChange={setMaxFeedEpisodes}
         onlyExposeProcessedDefault={onlyExposeProcessedDefault}
         onOnlyExposeProcessedDefaultChange={setOnlyExposeProcessedDefault}
-        processNewEpisodesFirst={settings?.processNewEpisodesFirst?.value ?? settings?.defaults?.processNewEpisodesFirst ?? true}
-        onProcessNewEpisodesFirstChange={(v) => tunableMutation.mutate({ processNewEpisodesFirst: v })}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
         episodeLogRetentionDays={episodeLogRetentionDays}
@@ -918,6 +936,17 @@ function Settings() {
         onEpisodeLogLevelChange={setEpisodeLogLevel}
         textRecurrenceHints={settings?.textRecurrenceHints?.value ?? settings?.defaults?.textRecurrenceHints ?? false}
         onTextRecurrenceHintsChange={(v) => tunableMutation.mutate({ textRecurrenceHints: v })}
+      />
+
+      <QueueControlSection
+        processNewEpisodesFirst={settings?.processNewEpisodesFirst?.value ?? settings?.defaults?.processNewEpisodesFirst ?? true}
+        onProcessNewEpisodesFirstChange={(v) => tunableMutation.mutate({ processNewEpisodesFirst: v })}
+        queueManualBoost={queueManualBoost}
+        onQueueManualBoostChange={setQueueManualBoost}
+        queueFreshBoost={queueFreshBoost}
+        onQueueFreshBoostChange={setQueueFreshBoost}
+        queueBulkBoost={queueBulkBoost}
+        onQueueBulkBoostChange={setQueueBulkBoost}
       />
 
       <SegmentActionsSection
@@ -947,6 +976,8 @@ function Settings() {
         onConnectionTest={testLlmConnection}
         ollamaNumCtx={settings?.stageTunables?.ollamaNumCtx}
         onOllamaNumCtxUpdate={(payload) => tunableMutation.mutate(payload)}
+        llmJsonSchemaEnabled={settings?.llmJsonSchemaEnabled?.value ?? settings?.defaults?.llmJsonSchemaEnabled ?? false}
+        onLlmJsonSchemaEnabledChange={(v) => tunableMutation.mutate({ llmJsonSchemaEnabled: v })}
       />
 
       <AIModelsSection
@@ -1021,6 +1052,8 @@ function Settings() {
         timeoutsError={timeoutsError}
       />
 
+      <TranscriptNormalizationSection />
+
       <AdDetectionSection
         minCutConfidence={minCutConfidence}
         onMinCutConfidenceChange={setMinCutConfidence}
@@ -1037,6 +1070,10 @@ function Settings() {
         learningMinConfidence={learningMinConfidence}
         onLearningMinConfidenceChange={setLearningMinConfidence}
         learningMinConfidenceLong={learningMinConfidenceLong}
+        onLearningMinPatternDurationChange={setLearningMinPatternDuration}
+        learningMinPatternDuration={learningMinPatternDuration}
+        onLearningMaxPatternDurationChange={setLearningMaxPatternDuration}
+        learningMaxPatternDuration={learningMaxPatternDuration}
         onLearningMinConfidenceLongChange={setLearningMinConfidenceLong}
         differentialMeasuredCorrMax={differentialMeasuredCorrMax}
         onDifferentialMeasuredCorrMaxChange={setDifferentialMeasuredCorrMax}
@@ -1147,6 +1184,8 @@ function Settings() {
 
       <SettingsGroupHeader title="Data & Security" />
 
+      <OutboundRequestsSection />
+
       <StorageRetentionSection
         keepOriginalAudio={keepOriginalAudio}
         onKeepOriginalAudioChange={(enabled) => {
@@ -1175,8 +1214,6 @@ function Settings() {
         maxRssBytes={maxRssBytes}
         onMaxRssBytesChange={setMaxRssBytes}
       />
-
-      <OfflineQueueSection />
 
       <DatabaseBackupSection />
 

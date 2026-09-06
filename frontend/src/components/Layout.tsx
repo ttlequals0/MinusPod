@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { btnGhost, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import UpdateBanner from './UpdateBanner';
+import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Dashboard' },
@@ -49,6 +50,10 @@ function Layout() {
   const { logout, isPasswordSet } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchSeed, setSearchSeed] = useState<string | null>(null);
+  const openSearch = useCallback((seed: string) => setSearchSeed(seed), []);
+  const closeSearch = useCallback(() => setSearchSeed(null), []);
+  useQuickSearchHotkey(openSearch);
 
   const handleLogout = async () => {
     await logout();
@@ -191,6 +196,7 @@ function Layout() {
         <UpdateBanner />
         <Outlet />
       </main>
+      <QuickSearch seed={searchSeed} onClose={closeSearch} />
     </div>
   );
 }

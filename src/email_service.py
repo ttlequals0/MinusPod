@@ -31,6 +31,7 @@ VALID_SECURITY = ('none', 'starttls', 'ssl')
 DEFAULT_EVENTS = [
     'Episode Failed', 'Auth Failure', 'Limit Exceeded', 'Rate Limit Structural',
     'Feed Refresh Failed', 'Update Available', 'Cue Template Quiet',
+    'Queue Held', 'Queue Resumed', 'Service Offline', 'Service Reachable',
 ]
 # Repo layout: <root>/src/email_service.py and <root>/static/ui/logo.png.
 # Container layout: /app/src/email_service.py and /app/static/ui/logo.png.
@@ -100,6 +101,19 @@ def _value(v) -> str:
     return '-' if v is None or v == '' else str(v)
 
 
+def _display_timestamp(ctx) -> str:
+    """Timestamp row value: local time, falling back to the UTC value when
+    the configured zone is UTC (offset '+00:00') so it is not shown twice."""
+    local = ctx.get('timestamp_local')
+    if local and not local.endswith('+00:00'):
+        return _value(local)
+    return _value(ctx.get('timestamp'))
+
+
+def _episode_ref(ctx):
+    return f"{_value(ctx.get('podcast_name'))} ({_value(ctx.get('slug'))}:{_value(ctx.get('episode_id'))})"
+
+
 def _fmt_episode_processed(ctx):
     podcast = ctx.get('podcast', {})
     episode = ctx.get('episode', {})
@@ -119,7 +133,7 @@ def _fmt_episode_processed(ctx):
         rows.append(('Detections not cut', _value(episode.get('ads_not_cut'))))
     rows += [
         ('URL', _value(episode.get('url'))),
-        ('Timestamp', _value(ctx.get('timestamp'))),
+        ('Timestamp', _display_timestamp(ctx)),
     ]
     return subject, rows, None
 
@@ -137,7 +151,7 @@ def _fmt_episode_failed(ctx):
         ('Error', _value(episode.get('error_message'))),
         ('Processing time', _value(episode.get('processing_time'))),
         ('LLM cost', _value(episode.get('llm_cost_display'))),
-        ('Timestamp', _value(ctx.get('timestamp'))),
+        ('Timestamp', _display_timestamp(ctx)),
     ]
     return subject, rows, None
 
@@ -148,7 +162,7 @@ def _provider_alert_rows(ctx):
         ('Model', _value(ctx.get('model'))),
         ('Status code', _value(ctx.get('status_code'))),
         ('Error', _value(ctx.get('error_message'))),
-        ('Timestamp', _value(ctx.get('timestamp'))),
+        ('Timestamp', _display_timestamp(ctx)),
     ]
 
 
@@ -177,7 +191,7 @@ def _fmt_rate_limit_structural(ctx):
         ('Used this minute', _value(ctx.get('used'))),
         ('Requested', _value(ctx.get('requested'))),
         ('Error', _value(ctx.get('error_message'))),
-        ('Timestamp', _value(ctx.get('timestamp'))),
+        ('Timestamp', _display_timestamp(ctx)),
     ]
     return subject, rows, ('Retrying will not help. Shrink the detection window '
                            'or move to a higher provider tier.')
@@ -190,7 +204,7 @@ def _fmt_feed_refresh_failed(ctx):
         ('Feed URL', _value(ctx.get('feed_url'))),
         ('Consecutive failures', _value(ctx.get('failure_count'))),
         ('Error', _value(ctx.get('error_message'))),
-        ('Timestamp', _value(ctx.get('timestamp'))),
+        ('Timestamp', _display_timestamp(ctx)),
     ]
     return subject, rows, ('Check the podcast feed URL in the feed settings. '
                            'The publisher may have moved the feed, or their '
@@ -208,7 +222,7 @@ def _fmt_cue_template_quiet(ctx):
         ('Template', _value(template.get('label'))),
         ('Template ID', _value(template.get('id'))),
         ('Last matched', _value(ctx.get('last_match_at'))),
-        ('Timestamp', _value(ctx.get('timestamp'))),
+        ('Timestamp', _display_timestamp(ctx)),
     ]
     return subject, rows, ('This cue template has stopped matching recent '
                            'episodes on a cue-only feed. The publisher may '
@@ -229,6 +243,54 @@ def _fmt_update_available(ctx):
                            'selected channel. Pull the new image to update.')
 
 
+def _fmt_queue_held(ctx):
+    held_until = ctx.get('hold_until_local') or ctx.get('hold_until')
+    subject = f"[MinusPod] Queue Held until {_value(held_until)}"
+    rows = [
+        ('Held until', _value(held_until)),
+        ('Hold TTL (hours)', _value(ctx.get('ttl_hours'))),
+        ('Tripped by', _episode_ref(ctx)),
+        ('Error', _value(ctx.get('error_message'))),
+        ('Timestamp', _display_timestamp(ctx)),
+    ]
+    return subject, rows, ('The LLM provider returned a rate limit with a reset time. '
+                           'Processing resumes on its own when it passes. Play or '
+                           'Reprocess on an episode bypasses the hold.')
+
+
+def _fmt_queue_resumed(ctx):
+    subject = f"[MinusPod] Queue Resumed: {_value(ctx.get('requeued'))} episodes re-queued"
+    rows = [
+        ('Held since', _value(ctx.get('held_since'))),
+        ('Episodes re-queued', _value(ctx.get('requeued'))),
+        ('Timestamp', _display_timestamp(ctx)),
+    ]
+    return subject, rows, None
+
+
+def _fmt_service_offline(ctx):
+    subject = f"[MinusPod] Service Offline: {_value(ctx.get('service'))}"
+    rows = [
+        ('Service', _value(ctx.get('service'))),
+        ('Tripped by', _episode_ref(ctx)),
+        ('Error', _value(ctx.get('error_message'))),
+        ('Timestamp', _display_timestamp(ctx)),
+    ]
+    return subject, rows, ('Episodes defer instead of failing while the service is down. '
+                           'The offline queue probes it every few minutes and re-queues '
+                           'them when it answers.')
+
+
+def _fmt_service_reachable(ctx):
+    subject = f"[MinusPod] Service Reachable: {_value(ctx.get('service'))}"
+    rows = [
+        ('Service', _value(ctx.get('service'))),
+        ('Episodes re-queued', _value(ctx.get('requeued'))),
+        ('Timestamp', _display_timestamp(ctx)),
+    ]
+    return subject, rows, None
+
+
 FORMATTERS = {
     'Episode Processed': _fmt_episode_processed,
     'Episode Failed': _fmt_episode_failed,
@@ -238,6 +300,10 @@ FORMATTERS = {
     'Feed Refresh Failed': _fmt_feed_refresh_failed,
     'Update Available': _fmt_update_available,
     'Cue Template Quiet': _fmt_cue_template_quiet,
+    'Queue Held': _fmt_queue_held,
+    'Queue Resumed': _fmt_queue_resumed,
+    'Service Offline': _fmt_service_offline,
+    'Service Reachable': _fmt_service_reachable,
 }
 
 

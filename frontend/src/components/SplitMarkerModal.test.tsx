@@ -74,6 +74,18 @@ describe('SplitMarkerModal', () => {
     expect(await screen.findByRole('button', { name: 'Split into 3 ads' })).toBeTruthy();
   });
 
+  it('adds a divider at the playhead, which is the only route on a phone', async () => {
+    // Dragging is unreachable once the waveform is zoomed, so the button has
+    // to place one. The playhead starts mid-block, well clear of both edges.
+    renderModal();
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    const button = screen.getByRole('button', { name: /Add divider at playhead/ });
+    expect(button.className).toContain('min-h-[44px]');
+    await user.click(button);
+    expect(await screen.findByRole('button', { name: 'Split into 3 ads' })).toBeTruthy();
+  });
+
   it('a piece under the floor blocks the split and names it', async () => {
     mockGetCandidates.mockResolvedValue({
       episodeId: TARGET.episodeId, start: 100, end: 190,

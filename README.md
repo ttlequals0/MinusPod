@@ -43,14 +43,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 
 ## How it works
 
-1. **Transcription** - Whisper converts audio to text with timestamps (local GPU via faster-whisper, or remote API via OpenAI-compatible endpoint)
-2. **Ad Detection** - An LLM analyzes the transcript to identify ad segments, with an automatic verification pass
-3. **Audio Processing** - FFmpeg removes detected ads and inserts short audio markers
-4. **Serving** - Flask serves modified RSS feeds and processed audio files
-
-Processing happens on-demand when you play an episode, or automatically when new episodes appear. An episode is processed once; processing time depends on episode length, hardware, and chosen models. After processing, the output is stored on disk and served directly on subsequent plays.
-
-Full pipeline detail (verification pass, sliding windows, pattern learning, audio analysis) is in [docs/how-it-works.md](docs/how-it-works.md).
+Whisper transcribes the episode, an LLM finds the ad segments in the transcript, FFmpeg cuts them, and Flask serves the modified feed and audio. Full pipeline detail (verification pass, sliding windows, pattern learning, audio analysis) is in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Requirements
 

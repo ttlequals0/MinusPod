@@ -24,7 +24,7 @@ from utils.constants import (
 from config import (
     LOW_CONFIDENCE, CONFIDENCE_STRING_MAP,
     CONTENT_DURATION_THRESHOLD, LOW_EVIDENCE_WARN_THRESHOLD,
-    get_stage_tunable, SEGMENT_CATEGORIES,
+    get_stage_tunable, SEGMENT_CATEGORIES, repair_segment_category,
 )
 
 logger = logging.getLogger('podcast.claude')
@@ -736,6 +736,66 @@ CATEGORY_REPAIR_JSON_SCHEMA = {
     "required": ["categories"],
 }
 
+# Detection-window schema (#694). Wrapped under "ads" because a json_schema
+# response must be an object; every property stays optional so both
+# addressing modes and partial fields validate.
+def log_assembled_system_prompt(slug, episode_id, system_prompt, label="System"):
+    """DEBUG-log the final composed system prompt, not just its length.
+
+    Dynamic sections (show segments, segment-id addressing) are appended
+    after the stored setting, so the settings UI cannot show what was
+    actually sent; the episode run log is where prompt debugging happens.
+    """
+    logger.debug(
+        f"[{slug}:{episode_id}] {label} prompt ({len(system_prompt)} chars):\n"
+        f"{system_prompt}"
+    )
+
+
+# Shared by every sponsor alias in the detection schema. The aliases exist so
+# a key-stripping backend cannot discard whichever one a model volunteers.
+SPONSOR_ALIAS_FIELD_DESCRIPTION = (
+    "The advertiser being promoted, when the segment names one. "
+    "Fill at most one of the sponsor fields; omit them all otherwise."
+)
+
+AD_DETECTION_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ads": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "start": {"type": "number"},
+                    "end": {"type": "number"},
+                    "start_id": {"type": "integer"},
+                    "end_id": {"type": "integer"},
+                    # The prompt requires end_text on every segment and the
+                    # sponsor extractors read these names; a schema-enforcing
+                    # decoder would silently strip anything absent here.
+                    "end_text": {"type": "string"},
+                    # Same enum as the repair schema above: an enforcing
+                    # decoder cannot emit a synonym the repair map translates.
+                    "category": {"type": "string", "enum": list(SEGMENT_CATEGORIES)},
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                    "note": {"type": "string"},
+                    # Described on the extractor's first-choice field only:
+                    # the model follows the schema here, so repeating it on all
+                    # seven adds tokens and invites the multi-fill it warns off.
+                    **{name: ({"type": "string",
+                               "description": SPONSOR_ALIAS_FIELD_DESCRIPTION}
+                              if name == SPONSOR_PRIORITY_FIELDS[0]
+                              else {"type": "string"})
+                       for name in SPONSOR_PRIORITY_FIELDS},
+                },
+            },
+        },
+    },
+    "required": ["ads"],
+}
+
 # Small fixed budget: the repair call only ever emits a short JSON array,
 # not full-length ad detection. Not user-tunable; this is an internal call.
 CATEGORY_REPAIR_MAX_TOKENS = 1024
@@ -782,30 +842,15 @@ def _repair_index(value):
 # Spelled-out forms of the exact vocabulary: the model reaches for
 # "self-promotion" as readily as "self_promo". A position word like "pre-roll"
 # or a bare "ad" is still refused.
-_CATEGORY_ALIASES = {
-    'self_promotion': 'self_promo',
-    'selfpromo': 'self_promo',
-    'cross_promotion': 'cross_promo',
-    'crosspromo': 'cross_promo',
-    'sponsorship': 'sponsor',
-}
-
 # Keys a category can arrive under. Only Anthropic enforces the schema, so on
 # every other provider the model names fields freely; the rest of this parser
 # already tolerates that for start, end and sponsor.
 _CATEGORY_KEY_HINTS = ('categor', 'segment_type', 'classification', 'type')
 
 
-def _repair_category(value):
-    """A known category from any field, or None. Spacing, case and hyphens
-    vary between providers ("Cross-Promo"); the vocabulary does not, so only
-    formatting and the spelled-out forms are normalized. A position word like
-    "pre-roll", or a bare "ad", is not a category and stays rejected."""
-    if not isinstance(value, str):
-        return None
-    candidate = value.strip().lower().replace('-', '_').replace(' ', '_')
-    candidate = _CATEGORY_ALIASES.get(candidate, candidate)
-    return candidate if candidate in SEGMENT_CATEGORIES else None
+# Shared with sanitize_sponsor_label, which rejects a category name in the
+# sponsor slot; one vocabulary, one normalizer.
+_repair_category = repair_segment_category
 
 
 def resolve_ad_category(ad: dict):

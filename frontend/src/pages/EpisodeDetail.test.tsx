@@ -77,7 +77,8 @@ const mockUploadLocalEpisodeArtwork = vi.fn();
 vi.mock('../api/feeds', () => ({
   getEpisode: vi.fn(),
   getFeed: vi.fn(),
-  getOriginalTranscript: vi.fn(),
+  getOriginalSegments: vi.fn(),
+  getFinalSegments: vi.fn(),
   reprocessEpisode: (...args: unknown[]) => mockReprocessEpisode(...args),
   regenerateChapters: (...args: unknown[]) => mockRegenerateChapters(...args),
   episodeOriginalUrl: (slug: string, episodeId: string) =>
@@ -738,6 +739,35 @@ describe('Held for Review: apply bar guards', () => {
     await screen.findByTestId('held-for-review-section');
     const applyBtn = screen.getByTestId('apply-approved-recut');
     expect(applyBtn).toHaveProperty('disabled', true);
+  });
+
+  it('apply button stays disabled after submit, until the refetch lands', async () => {
+    // The POST only queues the run. Before the refetch, the cached status
+    // still reads idle, so an un-awaited invalidate re-enabled the button
+    // and a second click raced the processing lock.
+    let releaseGet: () => void = () => {};
+    const episode = makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [{ ...heldMarker, approved: true }, secondHeldMarker],
+      corrections: [confirmedHeldCorrection],
+    });
+    renderDetail(episode);
+    await screen.findByTestId('held-for-review-section');
+    const applyBtn = await screen.findByTestId('apply-approved-recut');
+
+    // Hold the refetch open so the window under test stays observable.
+    (getEpisode as ReturnType<typeof vi.fn>).mockImplementation(
+      () => new Promise((resolve) => {
+        releaseGet = () => resolve({ ...episode, status: 'processing' });
+      }));
+    applyBtn.click();
+
+    await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(applyBtn).toHaveProperty('disabled', true));
+    releaseGet();
+    // Still disabled once the refetch reports the episode as processing.
+    await waitFor(() => expect(applyBtn).toHaveProperty('disabled', true));
+    expect(mockReprocessEpisode).toHaveBeenCalledTimes(1);
   });
 
   it('legacy confirmed hold without the approved flag still counts', async () => {

@@ -26,6 +26,17 @@ from db_backup_service import backup_now, BackupInProgressError
 
 logger = logging.getLogger('podcast.api')
 
+
+def _server_start_time() -> float:
+    """Shared start time so both workers report one uptime, respawns included."""
+    try:
+        from status_service import StatusService
+        shared = StatusService().get_server_start_time()
+    except Exception:
+        shared = None
+    return shared if shared is not None else _start_time
+
+
 # Repo root (same file layout as main_app.routes.ROOT_DIR): parents[2]
 # resolves /app from /app/src/api/system.py on the shipped image, and
 # the equivalent checkout root in dev.
@@ -105,7 +116,7 @@ def get_system_status():
     return json_response({
         'status': 'running',
         'version': _get_version(),
-        'uptime': int(time.time() - _start_time),
+        'uptime': int(time.time() - _server_start_time()),
         'feeds': {
             'total': stats['podcast_count']
         },

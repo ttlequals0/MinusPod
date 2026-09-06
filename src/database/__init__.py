@@ -1,6 +1,7 @@
 """SQLite database package for MinusPod."""
 import sqlite3
 import threading
+import time
 import logging
 from pathlib import Path
 
@@ -19,10 +20,76 @@ from database.queue import QueueMixin
 from database.search import SearchMixin
 from database.auth_lockout import AuthLockoutMixin
 from database.podping_hosts import PodpingHostMixin
+from utils.paths import resolve_data_dir
 
 logger = logging.getLogger(__name__)
 
+# Statements that wait this long on the lock, and write transactions held open
+# this long, are logged so a "database is locked" burst names its holder.
+SLOW_SQLITE_SECONDS = 5.0
+
+
+class TracedConnection(sqlite3.Connection):
+    """sqlite3.Connection that logs slow lock waits and long-held write transactions."""
+
+    _tx_started = None
+    _tx_opener = None
+
+    def execute(self, sql, *args):
+        return self._traced(super().execute, sql, *args)
+
+    def executemany(self, sql, *args):
+        return self._traced(super().executemany, sql, *args)
+
+    def _traced(self, run, sql, *args):
+        was_in_tx = self.in_transaction
+        started = time.monotonic()
+        try:
+            return run(sql, *args)
+        finally:
+            self._note_statement(sql, started, was_in_tx)
+
+    def commit(self):
+        self._note_transaction_end('commit')
+        super().commit()
+
+    def rollback(self):
+        self._note_transaction_end('rollback')
+        super().rollback()
+
+    def _note_statement(self, sql, started, was_in_tx):
+        elapsed = time.monotonic() - started
+        if elapsed >= SLOW_SQLITE_SECONDS:
+            logger.warning(
+                "SQLite statement took %.1fs on thread %s: %s",
+                elapsed, threading.current_thread().name, _sql_head(sql))
+        if not self.in_transaction:
+            # Autocommit, or a C-level commit (`with conn:`, executescript) ended it.
+            self._tx_started = self._tx_opener = None
+        elif not was_in_tx:
+            self._tx_started = started
+            self._tx_opener = _sql_head(sql)
+
+    def _note_transaction_end(self, how):
+        if self._tx_started is None:
+            return
+        if not self.in_transaction:
+            self._tx_started = self._tx_opener = None
+            return
+        held = time.monotonic() - self._tx_started
+        if held >= SLOW_SQLITE_SECONDS:
+            logger.warning(
+                "SQLite write transaction held %.1fs before %s on thread %s; opened by: %s",
+                held, how, threading.current_thread().name, self._tx_opener)
+        self._tx_started = None
+        self._tx_opener = None
+
+
+def _sql_head(sql):
+    return truncate(' '.join(str(sql).split()), 120)
+
 from utils.constants import DEFAULT_SYSTEM_PROMPT  # re-exported for backward compat
+from utils.text import truncate
 
 # Verification pass prompt - runs on processed audio to catch missed ads
 DEFAULT_VERIFICATION_PROMPT = """You are reviewing a podcast episode that has ALREADY had advertisements removed. The audio has been processed -- detected ads were cut and replaced with a brief transition tone. Your job is to find anything that was MISSED or only partially removed.
@@ -152,6 +219,7 @@ Your job is to return the corrected ad segment, OR an empty array if it is not a
 KEEP THE AD (return one segment): The candidate is a real-world advertisement that should be cut. Use the original start and end if they are already correct. Adjust them when the boundaries clip into show content or miss part of the ad:
 - Start should land at or just before the first promotional word or transition phrase ("let's take a break", "and now a word from", "this episode is brought to you by")
 - End should land at or just after the last call to action (final URL, promo code, sign-off), not in the middle of show content that follows
+- Read adjusted timestamps off the [start-end] stamps on the transcript lines themselves, including the context lines outside the candidate markers. Never interpolate a boundary
 - Adjusted boundaries must stay within {max_boundary_shift_seconds} seconds of the original boundaries in either direction
 
 PARTIAL SPAN: if any part of the candidate span is not ad content (show content before the ad starts or after it ends), you MUST return adjusted start and end timestamps covering only the ad portion. Never return the original boundaries and describe the trim only in the "reason" text: the reason is prose for a human, and only the start and end numbers control the cut.
@@ -189,31 +257,40 @@ Set "is_ad" true only when the span is a real advertisement to cut. Set it false
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
 
 EXAMPLE - KEEP UNCHANGED (boundaries are correct):
-Original detection: 1245.0s - 1320.5s, sponsor: BetterHelp
-[1245.5s] This episode is brought to you by BetterHelp.
-[1248.0s] BetterHelp is the largest online therapy platform...
-[1315.0s] Visit betterhelp.com slash podcast.
-[1318.0s] That's betterhelp.com slash podcast.
-[1322.0s] Anyway, back to what we were talking about.
+Original boundaries: 1245.00s - 1320.50s.
+[1240.0s-1245.0s] We will pick that thread back up in a minute.
+>>> CANDIDATE AD START [1245.0s] >>>
+[1245.0s-1248.0s] This episode is brought to you by BetterHelp.
+[1248.0s-1315.0s] BetterHelp is the largest online therapy platform...
+[1315.0s-1320.5s] Visit betterhelp.com slash podcast. That's betterhelp.com slash podcast.
+<<< CANDIDATE AD END [1320.5s] <<<
+[1320.5s-1325.0s] Anyway, back to what we were talking about.
 
 Output: [{{"is_ad": true, "start": 1245.0, "end": 1320.5, "confidence": 0.95, "reason": "Confirmed BetterHelp host-read sponsor with clean boundaries"}}]
 
 EXAMPLE - ADJUST BOUNDARIES (start was late, end was early):
-Original detection: 100.0s - 130.0s, sponsor: AG1
-[92.0s] So that wraps up our discussion. Let's take a quick break.
-[95.0s] This episode is brought to you by Athletic Greens.
-[100.0s] AG1 is the daily foundational nutrition supplement...
-[128.0s] Go to athleticgreens.com slash podcast.
-[130.5s] That's athleticgreens.com slash podcast.
-[133.0s] Now, back to our conversation.
+Original boundaries: 100.00s - 130.00s.
+[92.0s-95.0s] So that wraps up our discussion. Let's take a quick break.
+[95.0s-100.0s] This episode is brought to you by Athletic Greens.
+>>> CANDIDATE AD START [100.0s] >>>
+[100.0s-128.0s] AG1 is the daily foundational nutrition supplement...
+[128.0s-130.0s] Go to athleticgreens.com slash podcast.
+<<< CANDIDATE AD END [130.0s] <<<
+[130.0s-132.0s] That's athleticgreens.com slash podcast.
+[132.0s-135.0s] Now, back to our conversation.
 
-Output: [{{"is_ad": true, "start": 95.0, "end": 132.0, "confidence": 0.92, "reason": "Adjusted start back to capture transition; extended end past final URL repetition"}}]
+Both adjusted timestamps are read straight off context lines: 95.0 starts the line before the marker, 132.0 ends the line after it.
+
+Output: [{{"is_ad": true, "start": 95.0, "end": 132.0, "confidence": 0.92, "reason": "Started at the transition line at 95.0s; ended at 132.0s after the repeated URL"}}]
 
 EXAMPLE - DROP (host mentioning a brand editorially, not an ad):
-Original detection: 50.0s - 70.0s, sponsor: Apple
-[48.0s] Have you been following the Apple antitrust case?
-[55.0s] The DOJ argued that Apple's app store policies harm developers.
-[68.0s] What's your take on the proposed remedies?
+Original boundaries: 50.00s - 70.00s.
+[45.0s-50.0s] Have you been following the Apple antitrust case?
+>>> CANDIDATE AD START [50.0s] >>>
+[50.0s-62.0s] The DOJ argued that Apple's app store policies harm developers.
+[62.0s-70.0s] They want the court to force a change to the commission structure.
+<<< CANDIDATE AD END [70.0s] <<<
+[70.0s-74.0s] What's your take on the proposed remedies?
 
 Output: []{sponsor_database}"""
 
@@ -299,7 +376,7 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls, data_dir: str = "/app/data"):
+    def __new__(cls, data_dir: str = None):
         """Singleton pattern for database instance."""
         if cls._instance is None:
             with cls._lock:
@@ -308,11 +385,14 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                     cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, data_dir: str = "/app/data"):
+    def __init__(self, data_dir: str = None):
         if self._initialized:
             return
 
-        self.data_dir = Path(data_dir)
+        # Resolved at call time, not from an import-time constant: a bare
+        # Database() after the singleton is reset must land in the configured
+        # data dir, not the packaged default.
+        self.data_dir = Path(data_dir or resolve_data_dir())
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "podcast.db"
         self._local = threading.local()
@@ -354,7 +434,8 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
             self._local.connection = sqlite3.connect(
                 str(self.db_path),
                 check_same_thread=False,
-                timeout=30.0
+                timeout=30.0,
+                factory=TracedConnection,
             )
             self._local.connection.row_factory = sqlite3.Row
             self._local.connection.execute("PRAGMA busy_timeout = 30000")

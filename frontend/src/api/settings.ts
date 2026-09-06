@@ -84,14 +84,63 @@ export interface ProcessingEpisode {
   priority?: number | null;
 }
 
-export async function getProcessingEpisodes(): Promise<ProcessingEpisode[]> {
-  return apiRequest<ProcessingEpisode[]>('/episodes/processing');
+export async function getProcessingEpisodes(params?: {
+  queueOffset?: number;
+  queueLimit?: number;
+}): Promise<ProcessingEpisode[]> {
+  const search = new URLSearchParams();
+  if (params?.queueOffset) search.set('offset', String(params.queueOffset));
+  if (params?.queueLimit) search.set('limit', String(params.queueLimit));
+  const qs = search.toString();
+  return apiRequest<ProcessingEpisode[]>(`/episodes/processing${qs ? `?${qs}` : ''}`);
+}
+
+export interface PendingRecut {
+  slug: string;
+  episodeId: string;
+  title: string;
+  podcast: string;
+  pendingSince: string;
+  /** An apply would queue this row now: its recut inputs exist and no run
+      of its own is queued or underway. */
+  recutReady: boolean;
+  /** The episode's own queued or running pass will apply the decisions. */
+  inFlight: boolean;
+}
+
+/** Episodes holding review decisions that are not in the audio yet.
+ *  `slug` scopes the list to one feed. */
+export async function getPendingRecuts(slug?: string): Promise<{
+  count: number; episodes: PendingRecut[];
+}> {
+  const query = slug ? `?slug=${encodeURIComponent(slug)}` : '';
+  return apiRequest(`/episodes/pending-recuts${query}`);
+}
+
+/** Recut every pending episode once, or one feed's when `slug` is given. */
+export async function applyPendingRecuts(slug?: string): Promise<{
+  queued: number; skipped: number;
+}> {
+  return apiRequest('/episodes/pending-recuts/apply', {
+    method: 'POST',
+    body: slug ? { slug } : {},
+  });
 }
 
 export async function cancelProcessing(slug: string, episodeId: string): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/feeds/${slug}/episodes/${episodeId}/cancel`, {
     method: 'POST',
   });
+}
+
+/** Pass `priority` to set an exact value, or `delta` to nudge the stored one. */
+export async function setQueuePriority(
+  slug: string, episodeId: string, change: { priority?: number; delta?: number },
+): Promise<{ message: string; priority: number }> {
+  return apiRequest<{ message: string; priority: number }>(
+    `/feeds/${slug}/episodes/${episodeId}/queue-priority`,
+    { method: 'POST', body: change },
+  );
 }
 
 export async function getRetention(): Promise<RetentionSettings> {
@@ -235,6 +284,27 @@ export async function updateOfflineQueueSettings(
   });
 }
 
+export interface RateLimitHoldSettings {
+  enabled: boolean;
+  ttlHours: number;
+  /** ISO timestamp until which new queue claims pause, or null when idle. */
+  holdUntil: string | null;
+  holdCount: number;
+}
+
+export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings> {
+  return apiRequest<RateLimitHoldSettings>('/settings/rate-limit-hold');
+}
+
+export async function updateRateLimitHoldSettings(
+  args: Partial<Pick<RateLimitHoldSettings, 'enabled' | 'ttlHours'>>,
+): Promise<RateLimitHoldSettings> {
+  return apiRequest<RateLimitHoldSettings>('/settings/rate-limit-hold', {
+    method: 'PUT',
+    body: args,
+  });
+}
+
 export async function runDatabaseBackupNow(): Promise<DatabaseBackupRunSummary> {
   return apiRequest<DatabaseBackupRunSummary>('/system/db-backup/run', {
     method: 'POST',
@@ -275,6 +345,25 @@ export async function validateTemplate(template: string): Promise<TemplateValida
   return apiRequest<TemplateValidationResult>('/settings/webhooks/validate-template', {
     method: 'POST',
     body: { template },
+  });
+}
+
+// Notification timezone
+
+export interface NotificationTimezoneSettings {
+  timezone: string;
+}
+
+export async function getNotificationTimezone(): Promise<NotificationTimezoneSettings> {
+  return apiRequest<NotificationTimezoneSettings>('/settings/notifications/timezone');
+}
+
+export async function updateNotificationTimezone(
+  timezone: string,
+): Promise<NotificationTimezoneSettings> {
+  return apiRequest<NotificationTimezoneSettings>('/settings/notifications/timezone', {
+    method: 'PUT',
+    body: { timezone },
   });
 }
 

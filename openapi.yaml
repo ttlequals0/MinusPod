@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.93.3
+  version: 2.95.3
   contact:
     name: MinusPod
   license:
@@ -603,6 +603,12 @@ paths:
                     - 'null'
                   maxLength: 500
                   description: Per-feed display title shown to subscribers in the generated RSS feed (issue 375). Survives RSS refreshes. Null or empty clears it and falls back to the source feed title.
+                detectionNotes:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 1000
+                  description: Operator hints about this show appended to the LLM ad-detection and review prompts (issue 709). Survives RSS refreshes. Null or empty clears it.
                 detectionMode:
                   type:
                     - string
@@ -744,6 +750,14 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed opt-in for snapping cut boundaries to content-transition cues. Simple flag, not tri-state; null and false both read as off.
+                spliceVetoEnabled:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: >-
+                    Per-feed splice check. Tri-state: null inherits the global
+                    splice_veto_enabled setting, true forces the check on, false lets
+                    long cuts through without splice evidence.
                 maxAdDurationOverride:
                   type:
                     - number
@@ -2126,6 +2140,76 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /feeds/{slug}/episodes/{episode_id}/queue-priority:
+    post:
+      tags:
+        - Processing
+      summary: Change a queued episode's priority
+      description: >-
+        Direct per-row write on the pending auto_process_queue row (#696).
+        Send `priority` for an absolute value or `delta` to nudge the stored
+        one; a delta is applied in SQL so a stepper cannot lose a click to a
+        stale read. Exactly one of the two is required. Unlike the monotonic
+        MAX() rule on re-enqueue, either can raise or lower, and both clamp
+        to [-1000, 1000]. A later feed-level queuePriority change restamps
+        the row and overwrites this value.
+      operationId: setEpisodeQueuePriority
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              maxProperties: 1
+              properties:
+                priority:
+                  type: integer
+                  minimum: -1000
+                  maximum: 1000
+                  description: New dequeue priority; higher processes sooner.
+                delta:
+                  type: integer
+                  minimum: -1000
+                  maximum: 1000
+                  description: >-
+                    Amount to add to the stored priority. Applied server-side,
+                    then clamped to the same bounds.
+      responses:
+        '200':
+          description: Priority updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  episodeId:
+                    type: string
+                  slug:
+                    type: string
+                  priority:
+                    type: integer
+                    description: The priority now stored, after clamping.
+        '400':
+          description: >-
+            Body is not a JSON object, neither or both of priority/delta were
+            given, or the value is not an integer within bounds
+        '404':
+          description: Feed not found, or the episode has no pending queue row
+
   /feeds/{slug}/episodes/{episode_id}/cancel:
     post:
       tags:
@@ -2167,6 +2251,102 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /episodes/pending-recuts:
+    get:
+      tags:
+        - Episodes
+      summary: Episodes with review decisions not yet cut into the audio
+      description: >-
+        Review is bulk work, so a correction that changes the audio stamps its
+        episode instead of re-cutting it. An episode collecting several
+        decisions is listed once and cut once.
+      operationId: getPendingRecuts
+      parameters:
+        - name: slug
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Limit the list to one feed's episodes.
+      responses:
+        '200':
+          description: Pending episodes, oldest stamp first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  episodes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        slug:
+                          type: string
+                        episodeId:
+                          type: string
+                        title:
+                          type: string
+                        podcast:
+                          type: string
+                        pendingSince:
+                          type: string
+                          description: When the episode first went stale.
+                        recutReady:
+                          type: boolean
+                          description: >-
+                            An apply would queue this row now. False when the
+                            retained original audio, saved segments, or
+                            markers are missing (the decision then waits for
+                            a full reprocess) or while the episode's own run
+                            is queued or underway.
+                        inFlight:
+                          type: boolean
+                          description: >-
+                            The episode's own queued or running pass will
+                            apply the decisions itself.
+
+  /episodes/pending-recuts/apply:
+    post:
+      tags:
+        - Episodes
+      summary: Recut every episode holding unapplied review decisions
+      description: >-
+        Queues one recut per pending episode, using the same recut path and
+        preconditions as the per-feed segment re-render. An episode missing
+        its retained original audio, or whose own run is queued or underway
+        (that run applies the decisions), is skipped and keeps its stamp, so
+        its decisions are not lost.
+      operationId: applyPendingRecuts
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slug:
+                  type: string
+                  description: >-
+                    Recut only this feed's pending episodes. Omit to cover
+                    every feed.
+      responses:
+        '200':
+          description: How many recuts were queued and how many were skipped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queued:
+                    type: integer
+                  skipped:
+                    type: integer
+        '429':
+          description: Rate limited (5 per minute)
 
   /episodes/{slug}/{episode_id}/corrections:
     post:
@@ -2263,9 +2443,28 @@ paths:
       summary: List processing and queued episodes
       description: >-
         Returns the episodes currently processing across all feeds, followed by
-        the full pending queue in dequeue order (priority first, then age).
-        Queued entries carry stage=queued and a 1-based queuePosition.
+        the pending queue in dequeue order (priority first, then age). Queued
+        entries carry stage=queued and a 1-based offset-aware queuePosition.
+        The waiting list is paginated:
+        offset/limit page over the DB-backed rows, with display-only entries
+        trailing after them.
       operationId: listProcessingEpisodes
+      parameters:
+        - name: offset
+          in: query
+          description: Waiting-list rows to skip (0-based). Defaults to 0.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          description: Maximum waiting-list rows to return. Defaults to 200, capped at 1000.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 200
       responses:
         '200':
           description: List of processing episodes
@@ -3113,36 +3312,56 @@ paths:
     get:
       tags:
         - Search
-      summary: Full-text search
+      summary: Unified search
       description: |
-        Search across all content including episodes, podcasts, patterns,
-        and sponsors. Returns ranked results with relevance scores and
-        text snippets.
+        Word-match search across shows, episodes, transcripts, patterns and
+        sponsors, returned as five independent groups. Show and episode
+        titles also get a substring match so a mid-word fragment still finds
+        them; descriptions and transcripts match whole words only.
+        Every group honours the limit parameter. Patterns and sponsors are
+        Advanced-page-only groups; the Dashboard box and keyboard palette
+        ignore them and request only shows, episodes and transcripts via
+        the groups parameter. The former type parameter is gone: a request
+        that still sends it is rejected with 400 rather than served a
+        different payload shape, so use groups instead.
       operationId: search
       parameters:
         - name: q
           in: query
           required: true
-          description: Search query
+          description: |
+            Search query. A query shorter than two characters after trimming
+            returns all five groups empty without running a search.
           schema:
             type: string
-        - name: type
-          in: query
-          description: Filter by content type
-          schema:
-            type: string
-            enum: [episode, podcast, pattern, sponsor]
         - name: limit
           in: query
-          description: Maximum results to return
+          description: Maximum results per group
           schema:
             type: integer
             minimum: 1
             maximum: 100
             default: 50
+        - name: groups
+          in: query
+          description: |
+            Comma-separated subset of groups to compute. An unrequested
+            group is still present in the response as an empty array
+            rather than omitted. A blank or omitted value means all five.
+            Names are case-sensitive, empty tokens from a stray comma are
+            ignored, and duplicates are tolerated.
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [shows, episodes, transcripts, patterns, sponsors]
+            default: [shows, episodes, transcripts, patterns, sponsors]
+          example: shows,episodes,transcripts
       responses:
         '200':
-          description: Search results
+          description: Grouped search results
           content:
             application/json:
               schema:
@@ -3150,12 +3369,26 @@ paths:
                 properties:
                   query:
                     type: string
-                  results:
+                  shows:
                     type: array
                     items:
-                      $ref: '#/components/schemas/SearchResult'
-                  total:
-                    type: integer
+                      $ref: '#/components/schemas/SearchShowResult'
+                  episodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchEpisodeResult'
+                  transcripts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchTranscriptResult'
+                  patterns:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchPatternResult'
+                  sponsors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchSponsorResult'
         '400':
           $ref: '#/components/responses/BadRequest'
 
@@ -3273,6 +3506,12 @@ paths:
                 category:
                   type: string
                   description: Sponsor category
+                segment_category:
+                  type:
+                    - string
+                    - 'null'
+                  enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+                  description: Segment category applied to every read naming this sponsor
       responses:
         '201':
           description: Sponsor created
@@ -3335,6 +3574,12 @@ paths:
                     type: string
                 category:
                   type: string
+                segment_category:
+                  type:
+                    - string
+                    - 'null'
+                  enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+                  description: Segment category applied to every read naming this sponsor; null clears it
                 tags:
                   type: array
                   items:
@@ -3574,12 +3819,9 @@ paths:
               schema:
                 type: string
                 description: |
-                  Authenticated stream: `data:` frames with JSON payload:
-                  - processing: boolean
-                  - episode: object with title, slug, episodeId
-                  - stage: current processing stage
-                  - progress: percentage (0-100)
-                  - queue_depth: number of pending episodes
+                  Authenticated stream: `data:` frames carrying the same
+                  JSON as `GET /status` (the `ProcessingStatus` schema),
+                  including the `hold` block.
 
                   Unauthenticated stream: single frame
                   `event: auth-failed\ndata: {}\n\n` then close.
@@ -3639,6 +3881,15 @@ paths:
           schema:
             type: string
             enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, none]
+        - name: reviewer
+          in: query
+          description: >-
+            Filter by whether the span was moved (see ReviewDetection.reviewerMoved).
+            adjusted keeps moved rows; unadjusted keeps everything else. Omit
+            for no filter. Applies to the cutSummary totals as well.
+          schema:
+            type: string
+            enum: [adjusted, unadjusted]
       responses:
         '200':
           description: Paginated detection list
@@ -4474,6 +4725,25 @@ paths:
                   type: string
                   enum: [debug, info]
                   description: Minimum level kept in a run log (issue 660). Defaults to debug.
+                downloadUserAgent:
+                  type: string
+                  maxLength: 512
+                  description: >-
+                    User-Agent sent when fetching audio, artwork, and chapters. Printable
+                    ASCII on a single line. Send an empty string to restore the default.
+                feedUserAgent:
+                  type: string
+                  maxLength: 512
+                  description: >-
+                    User-Agent sent when fetching RSS feeds. Printable ASCII on a single
+                    line. Send an empty string to restore the default.
+                logDownloadQuery:
+                  type: boolean
+                  description: >-
+                    Include URL query strings in download logs. Off by default: an
+                    enclosure query string regularly carries a signed CDN token or a
+                    listener tracking id, and logs outlive both. The path and redirect
+                    chain are logged either way.
                 feedAuthEnabled:
                   type: boolean
                   description: Require the global feed auth key on all public feed and episode URLs. Enabling generates the key if absent.
@@ -4556,6 +4826,13 @@ paths:
                     to reject it or anything learned at runtime from a prior rejection. Use
                     ahead of a newly-released model that rejects temperature, without waiting
                     for a failed call or a code change. Off by default.
+                llmJsonSchemaEnabled:
+                  type: boolean
+                  description: |
+                    Opt-in (#693): send response_format json_schema on detection, review,
+                    category-repair, and trim-recovery calls to OpenAI-compatible endpoints,
+                    for each model that passes the probe. Support is tracked per model, not
+                    per endpoint; unsupported models fall back to json_object. Off by default.
                 openaiBaseUrl:
                   type: string
                   description: Base URL for OpenAI-compatible API endpoint (only used when provider is not anthropic)
@@ -4723,6 +5000,24 @@ paths:
                     Same floor as learningMinConfidence for ads longer than
                     90 seconds (default 0.92).
                   example: 0.92
+                learningMinPatternDuration:
+                  type: integer
+                  minimum: 1
+                  maximum: 600
+                  description: >-
+                    Shortest span, in seconds, that can teach the pattern
+                    matcher. Below this a span is usually a fragment or a host
+                    mention rather than a read (default 15).
+                  example: 15
+                learningMaxPatternDuration:
+                  type: integer
+                  minimum: 1
+                  maximum: 1800
+                  description: >-
+                    Longest span, in seconds, learned as a single pattern.
+                    A longer span is split at its ad transitions and each piece
+                    is learned separately (default 120).
+                  example: 120
                 differentialMeasuredCorrMax:
                   type: number
                   format: float
@@ -5511,6 +5806,80 @@ paths:
                   deferredCount:
                     type: integer
 
+  /settings/rate-limit-hold:
+    get:
+      tags:
+        - Settings
+      summary: Get rate-limit hold configuration
+      description: >-
+        Rate-limit queue hold (#696). When enabled, a provider 429 carrying a
+        reset time defers the episode and pauses new queue claims until the
+        reset instead of failing the job.
+      operationId: getRateLimitHoldSettings
+      responses:
+        '200':
+          description: Rate-limit hold settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  ttlHours:
+                    type: integer
+                    minimum: 1
+                    maximum: 720
+                    description: Hours a held episode waits before being marked permanently failed.
+                  holdUntil:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
+                    description: Until when new queue claims pause; null when no hold is active.
+                  holdCount:
+                    type: integer
+                    description: Episodes currently held by the rate-limit hold.
+    put:
+      tags:
+        - Settings
+      summary: Update rate-limit hold configuration
+      operationId: updateRateLimitHoldSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  description: Pause the queue on a provider 429 with a reset time longer than five minutes. Off by default; setting false clears an active pause and releases held episodes.
+                ttlHours:
+                  type: integer
+                  minimum: 1
+                  maximum: 720
+                  description: Hours a held episode waits before being marked permanently failed.
+      responses:
+        '200':
+          description: Rate-limit hold settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  ttlHours:
+                    type: integer
+                  holdUntil:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
+                  holdCount:
+                    type: integer
+
   /settings/update-check:
     get:
       tags:
@@ -5737,7 +6106,11 @@ paths:
                       - Feed Refresh Failed
                       - Update Available
                       - Cue Template Quiet
-                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes.
+                      - Queue Held
+                      - Queue Resumed
+                      - Service Offline
+                      - Service Reachable
+                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes. `Queue Held` fires when a provider rate limit pauses the queue; `Queue Resumed` when that hold clears. `Service Offline` fires when an episode defers because the LLM or Whisper endpoint is unreachable; `Service Reachable` when the probe finds it back up.
                 enabled:
                   type: boolean
                   description: Whether the webhook is active
@@ -5901,6 +6274,46 @@ paths:
                     description: Error message (when invalid)
         '429':
           description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /settings/notifications/timezone:
+    get:
+      tags:
+        - Settings
+      summary: Get the notification timezone
+      description: Returns the IANA zone used to compute timestamp_local in webhook and email notifications. Defaults to UTC, or the container's TZ env var when it names a valid zone.
+      operationId: getNotificationTimezone
+      responses:
+        '200':
+          description: Notification timezone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTimezoneSettings'
+    put:
+      tags:
+        - Settings
+      summary: Set the notification timezone
+      description: Rejects a timezone name zoneinfo cannot resolve.
+      operationId: updateNotificationTimezone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationTimezoneSettings'
+      responses:
+        '200':
+          description: Updated timezone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTimezoneSettings'
+        '400':
+          description: Unknown timezone name
           content:
             application/json:
               schema:
@@ -8919,6 +9332,11 @@ components:
             - string
             - 'null'
           description: Per-feed display title shown to subscribers in the generated RSS feed (issue 375); null falls back to the source feed title.
+        detectionNotes:
+          type:
+            - string
+            - 'null'
+          description: Operator hints about this show appended to the LLM ad-detection and review prompts (issue 709); null when unset.
         detectionMode:
           type:
             - string
@@ -9053,6 +9471,13 @@ components:
             - boolean
             - 'null'
           description: Per-feed opt-in for snapping cut boundaries to content-transition cues. null and false both read as off.
+        spliceVetoEnabled:
+          type:
+            - boolean
+            - 'null'
+          description: >-
+            Per-feed splice check. null inherits the global setting, true forces the
+            check on, false lets long cuts through without splice evidence.
         maxAdDurationOverride:
           type:
             - number
@@ -9851,6 +10276,29 @@ components:
           nullable: true
           description: Action the category resolved to for this marker
           enum: [remove, beep, keep, null]
+        reviewerVerdict:
+          type: string
+          nullable: true
+          description: >-
+            Ad reviewer verdict on this marker, or null when the reviewer did
+            not run. adjust alone does not mean the span moved: a held
+            contradiction keeps the pass-1 bounds and a split piece drops the
+            originals, and neither records reviewerOriginalStart/End.
+          enum: [confirmed, adjust, reject, resurrect, failure, null]
+        reviewerOriginalStart:
+          type: number
+          nullable: true
+          description: Start of the span before the reviewer moved it; present only when the reviewer moved the span
+        reviewerOriginalEnd:
+          type: number
+          nullable: true
+          description: End of the span before the reviewer moved it; present only when the reviewer moved the span
+        reviewerMoved:
+          type: boolean
+          description: >-
+            Whether the span was moved from its pass-1 bounds, by the
+            reviewer or by a human approving a trimmed boundary. Use this
+            instead of inferring a move from reviewerVerdict/reviewerOriginalStart/End.
         status:
           type: string
           enum: [accepted, rejected, pending]
@@ -10346,6 +10794,22 @@ components:
               format: float
             isDefault:
               type: boolean
+        learningMinPatternDuration:
+          type: object
+          description: Shortest span in seconds that can teach the pattern matcher (default 15).
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        learningMaxPatternDuration:
+          type: object
+          description: Longest span in seconds learned as one pattern; longer spans are split (default 120).
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
         differentialMeasuredCorrMax:
           type: object
           description: >-
@@ -10691,6 +11155,30 @@ components:
               description: Minimum level kept in a run log (issue 660).
             isDefault:
               type: boolean
+        downloadUserAgent:
+          type: object
+          properties:
+            value:
+              type: string
+              description: User-Agent sent when fetching audio, artwork, and chapters.
+            isDefault:
+              type: boolean
+        feedUserAgent:
+          type: object
+          properties:
+            value:
+              type: string
+              description: User-Agent sent when fetching RSS feeds.
+            isDefault:
+              type: boolean
+        logDownloadQuery:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether download logs include URL query strings.
+            isDefault:
+              type: boolean
         feedAuthEnabled:
           type: object
           properties:
@@ -10770,6 +11258,14 @@ components:
           properties:
             value:
               type: boolean
+        llmJsonSchemaEnabled:
+          type: object
+          description: |
+            Opt-in structured output (#693): json_schema response format for
+            OpenAI-compatible endpoints, per model that passes the probe. Off by default.
+          properties:
+            value:
+              type: boolean
             isDefault:
               type: boolean
         openaiBaseUrl:
@@ -10795,6 +11291,12 @@ components:
         openrouterApiKeyConfigured:
           type: boolean
           description: Whether an OpenRouter API key is configured (read-only)
+        podcastSearchReady:
+          type: boolean
+          description: >-
+            Whether the resolved podcast search provider (podcastSearchProvider)
+            can run right now: iTunes always is; PodcastIndex needs both API
+            credentials saved (read-only).
         openrouterBaseUrl:
           type: string
           description: OpenRouter API base URL (read-only)
@@ -10925,6 +11427,8 @@ components:
               type: boolean
             omitTemperature:
               type: boolean
+            llmJsonSchemaEnabled:
+              type: boolean
             segmentCategoryActions:
               type: object
               additionalProperties:
@@ -10948,6 +11452,12 @@ components:
             episodeLogLevel:
               type: string
               enum: [debug, info]
+            downloadUserAgent:
+              type: string
+            feedUserAgent:
+              type: string
+            logDownloadQuery:
+              type: boolean
             feedAuthEnabled:
               type: boolean
             minCutConfidence:
@@ -10975,6 +11485,12 @@ components:
             pricingSourceMode:
               type: string
               enum: [auto, litellm, free]
+            notificationTimezone:
+              type: string
+              description: >-
+                IANA zone for timestamp_local in webhook/email payloads
+                (default UTC). Get/set via
+                /settings/notifications/timezone.
             openrouterBaseUrl:
               type: string
 
@@ -11085,19 +11601,20 @@ components:
           description: When the episode was added to the queue (queued entries only)
         queuePosition:
           type: integer
-          description: 1-based position in the pending queue (queued entries only)
+          description: 1-based offset-aware position in the pending queue (queued entries only)
         queueTotal:
           type: integer
           description: >-
-            Total pending episodes, which can exceed the number of queued
-            entries returned (the row list is capped)
+            Total pending episodes across the whole backlog, not just the
+            requested page. Stamped on every entry, active ones included, so
+            a page whose queued rows all deduped away still reports it.
         priority:
           type:
             - integer
             - 'null'
           description: >-
             Dequeue priority of the queue row; null for a display-queue entry
-            with no auto-process queue row
+            with no auto-process queue row (its reorder control is disabled)
 
     Pattern:
       type: object
@@ -11199,7 +11716,7 @@ components:
       properties:
         type:
           type: string
-          enum: [confirm, reject, adjust, create, split]
+          enum: [confirm, reject, adjust, create, split, recategorize]
           description: |
             - confirm: Mark detection as correct (creates/updates pattern).
               Optionally pass adjusted_start/adjusted_end to approve a trimmed
@@ -11212,6 +11729,11 @@ components:
               start/end/sponsor/text_template, no original_ad)
             - split: Replace one marker with N single-sponsor markers (see the
               endpoint description)
+            - recategorize: Set this marker's segment category, which decides
+              whether the span is cut, beeped, or left in. Scoped to this
+              episode's marker; a linked pattern keeps its own category. The
+              only type accepted on a marker whose action resolved to keep,
+              since it is how that verdict is changed.
         original_ad:
           type: object
           description: >-
@@ -11269,34 +11791,124 @@ components:
     ProcessingStatus:
       type: object
       properties:
-        processing:
-          type: boolean
-          description: Whether an episode is currently being processed
-        episode:
+        currentJob:
           type:
             - object
             - 'null'
+          description: The episode being processed, or null when nothing is running
           properties:
-            title:
-              type: string
             slug:
               type: string
             episodeId:
               type: string
-          description: Currently processing episode details
-        stage:
+            title:
+              type: string
+            podcastName:
+              type: string
+            stage:
+              type: string
+              description: Current processing stage (e.g. pass1:transcribing)
+            progress:
+              type: number
+              description: Progress percentage (0-100)
+            startedAt:
+              type: number
+              description: Unix timestamp the job started
+            elapsed:
+              type: number
+              description: Seconds since the job started
+        queueLength:
+          type: integer
+          description: Number of episodes waiting to be processed
+        queuedEpisodes:
+          type: array
+          items:
+            type: object
+            properties:
+              slug:
+                type: string
+              episodeId:
+                type: string
+              title:
+                type: string
+              podcastName:
+                type: string
+              queuedAt:
+                type: number
+        feedRefreshes:
+          type: array
+          items:
+            type: object
+            properties:
+              slug:
+                type: string
+              podcastName:
+                type: string
+              newEpisodes:
+                type: integer
+              startedAt:
+                type: number
+        hold:
+          $ref: '#/components/schemas/QueueHold'
+        lastUpdated:
+          type: number
+          description: Unix timestamp of the last status change
+
+    QueueHold:
+      type: object
+      description: |
+        Why the queue is not moving. Reports what the maintenance tick last
+        observed; reading it never probes a service.
+      properties:
+        queuePaused:
+          type: boolean
+          description: |
+            True only while a rate-limit hold is stopping new claims. An
+            offline wait parks specific episodes and leaves the rest of the
+            queue running, so it never sets this.
+        holdUntil:
           type:
             - string
             - 'null'
-          description: Current processing stage (e.g., transcribing, detecting_ads)
-        progress:
+          format: date-time
+          description: The provider's own rate-limit reset time, or null
+        holdSince:
           type:
-            - number
+            - string
             - 'null'
-          description: Progress percentage (0-100)
-        queue_depth:
+          format: date-time
+          description: When the current pause began, or null when nothing is held
+        rateLimitHeld:
           type: integer
-          description: Number of episodes waiting to be processed
+          description: Episodes held by the rate-limit hold
+        offlineHeld:
+          type: integer
+          description: |
+            Every episode deferred on a service other than the rate-limit
+            hold, including any service not broken out in offlineServices.
+        offlineServices:
+          type: array
+          description: Per-service breakdown of offline-queue waits
+          items:
+            type: object
+            properties:
+              service:
+                type: string
+                enum: [llm, whisper]
+              held:
+                type: integer
+              reachable:
+                type:
+                  - boolean
+                  - 'null'
+                description: |
+                  Verdict of the last probe. Null until the tick has probed
+                  once, meaning "not checked yet" rather than "up".
+              checkedAt:
+                type:
+                  - string
+                  - 'null'
+                format: date-time
 
     ProcessingHistoryEntry:
       type: object
@@ -11384,6 +11996,15 @@ components:
             - string
             - 'null'
           description: Sponsor category
+        segment_category:
+          type:
+            - string
+            - 'null'
+          enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+          description: >-
+            Segment category every read naming this sponsor is filed under,
+            in detection, the pass-1 prompt hint, and learned patterns.
+            Null leaves the detector's own category in place.
         common_ctas:
           type: array
           items:
@@ -11433,30 +12054,84 @@ components:
           type: string
           format: date-time
 
-    SearchResult:
+    SearchShowResult:
       type: object
       properties:
-        type:
+        slug:
           type: string
-          enum: [episode, podcast, pattern, sponsor]
-          description: Type of matched content
-        id:
+        title:
           type: string
-          description: Identifier of the matched item
-        podcastSlug:
+        snippet:
           type:
             - string
             - 'null'
-          description: Podcast slug (for episode results)
+          description: Highlighted match context; null for a title-only substring match
+    SearchEpisodeResult:
+      type: object
+      properties:
+        feedSlug:
+          type: string
+        feedTitle:
+          type: string
+        episodeId:
+          type: string
         title:
           type: string
-          description: Title or name of the matched item
+        status:
+          type: string
+        publishDate:
+          type:
+            - string
+            - 'null'
+        snippet:
+          type:
+            - string
+            - 'null'
+          description: Highlighted match context; null for a title-only substring match
+    SearchTranscriptResult:
+      type: object
+      properties:
+        feedSlug:
+          type: string
+        episodeId:
+          type: string
+        title:
+          type: string
         snippet:
           type: string
-          description: Text snippet showing the match context
-        score:
-          type: number
-          description: Relevance score
+          description: Highlighted transcript match context
+        timestamp:
+          type:
+            - number
+            - 'null'
+          description: Always null; the search index has no offset back into the transcript timing
+    SearchPatternResult:
+      type: object
+      description: Advanced-page-only group; not shown in the Dashboard box or palette.
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+          description: Pattern scope (podcast slug, or "global")
+        sponsor:
+          type: string
+        snippet:
+          type:
+            - string
+            - 'null'
+    SearchSponsorResult:
+      type: object
+      description: Advanced-page-only group; not shown in the Dashboard box or palette.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        snippet:
+          type:
+            - string
+            - 'null'
 
     Webhook:
       type: object
@@ -11486,6 +12161,14 @@ components:
           description: Content type for webhook delivery
       description: Webhook configuration. Note -- the secret field is never returned in responses.
 
+    NotificationTimezoneSettings:
+      type: object
+      properties:
+        timezone:
+          type: string
+          description: IANA zone name (e.g. 'America/New_York'), or 'UTC'
+          example: UTC
+
     EmailNotificationSettings:
       type: object
       properties:
@@ -11504,6 +12187,10 @@ components:
               - Feed Refresh Failed
               - Update Available
               - Cue Template Quiet
+              - Queue Held
+              - Queue Resumed
+              - Service Offline
+              - Service Reachable
         smtpHost:
           type: string
         smtpPort:

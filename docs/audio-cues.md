@@ -15,13 +15,9 @@ Audio cue detection is off by default. Turn it on under Settings > Experiments >
 Audio Cue Detection. It applies only to episodes processed after you enable it.
 
 **Cross-fetch differential detection is significantly more accurate on feeds
-with cue templates configured.** A matched cue corroborates a differential
-region so it cuts instead of holding for review, helps bound DAI slots, and
-anchors the comparison timeline against fetch-to-fetch timing drift. If a
-feed carries heavy dynamic ad insertion, setting up a cue template is the
-recommended first step, before tuning the differential thresholds
-themselves. See [Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
-for how the two stages combine.
+with cue templates configured.** See
+[Cross-Fetch Differential](how-it-works.md#cross-fetch-differential) for how
+the two stages combine.
 
 ## How it finds the cue
 
@@ -55,20 +51,9 @@ Silence snap is per-feed and off by default. Enable it with the **Snap cuts to
 silence** toggle in Feed settings on the feed detail page. Any edge already moved
 by cue snap is skipped.
 
-Three tunables under Settings > Experiments > Audio Cue Detection > Ad cutting
-shape the detector:
-
-- **Silence threshold (dBFS)** - audio quieter than this counts as silence
-  (-90 to -20, default -50). Raise it if the feed's ad-break gaps carry room tone
-  that never drops below the default; lower it if ordinary speech pauses count as
-  silence.
-- **Silence minimum duration (s)** - shortest quiet span that qualifies
-  (0.1 to 5, default 0.3). Raise it if short natural pauses qualify as splice
-  silences.
-- **Silence snap max distance (s)** - farthest an ad edge may move to reach a
-  detected silence (0.25 to 10, default 2). Widen it if edges consistently land
-  farther than 2 s from the real splice; a wider window risks snapping to a
-  pause inside the ad.
+Three tunables (silence threshold, minimum duration, and snap max distance)
+shape the detector; their ranges and defaults are listed under
+[Ad cutting](#ad-cutting) below.
 
 Two guards are always active: a snap that would shrink an ad below the removal
 minimum is reverted, and a snap that would close the gap to a neighboring ad
@@ -103,13 +88,12 @@ move:
 
 ## Marking a cue
 
-Open the feed and expand Audio Cue Templates, then click `+ Mark cue` and pick a
-recent episode whose original audio is still retained. The picker only lists
-episodes that still have their original, since a cue can sit inside a removed ad.
+`+ Mark cue` in the feed's Audio Cue Templates panel opens an episode picker
+that only lists episodes with their original audio still retained, since a cue
+can sit inside a removed ad.
 
-The mark dialog uses the same waveform as the ad editor. Drag the green and red
-pins to bracket the cue (0.2 to 10 seconds by default, up to 60 for a show intro or outro), or play to the sound and use
-Set START / Set END at the playhead. The Snap to onset assist nudges an edge to
+The mark dialog uses the same waveform as the ad editor to bracket the cue
+(0.2 to 10 seconds by default, up to 60 for a show intro or outro). The Snap to onset assist nudges an edge to
 the nearest sharp amplitude rise so a short ding is easy to bracket tightly; turn
 it off for a ramped sound with no clean attack. Pick a cue type, then Save, or
 Save and preview to see every place the cue matches on that episode before it
@@ -281,11 +265,16 @@ Uses accepted cues to snap ad edges or build ads from cue pairs.
   the boundary.
 - **Silence threshold (dBFS)** - audio quieter than this counts as silence for
   silence snap (-90 to -20, default -50). Applies only on feeds with the
-  per-feed **Snap cuts to silence** toggle enabled.
+  per-feed **Snap cuts to silence** toggle enabled. Raise it if the feed's
+  ad-break gaps carry room tone that never drops below the default; lower it
+  if ordinary speech pauses count as silence.
 - **Silence minimum duration (s)** - shortest quiet span that counts as a
-  silence (0.1 to 5, default 0.3).
+  silence (0.1 to 5, default 0.3). Raise it if short natural pauses qualify
+  as splice silences.
 - **Silence snap max distance (s)** - farthest an ad edge may move to reach a
-  detected silence (0.25 to 10, default 2).
+  detected silence (0.25 to 10, default 2). Widen it if edges consistently
+  land more than 2 s from the real splice; a wider window risks snapping to a
+  pause inside the ad.
 - **Cue-pair confidence floor** - minimum cue confidence to synthesize an ad from
   a cue pair. Higher than the snap floor because this creates an ad rather than
   refining one.
@@ -303,10 +292,6 @@ Uses accepted cues to snap ad edges or build ads from cue pairs.
   since both can cut audio on cue evidence the LLM never reviewed.
 
 ## Cue-only preset
-
-Cue-only is experimental, and the Processing mode select labels it that way.
-It is the one mode that can cut audio no language model has read, so treat the
-first episodes on a new feed as something to spot-check rather than trust.
 
 `cue_only` is a per-feed **Processing mode** that cuts from cue pairs and
 previously learned ad patterns: the model never sees the transcript.
@@ -397,9 +382,7 @@ processed after the change.
 ## Requirements and notes
 
 Marking a cue requires the source episode's retained original audio, because a
-cue can sit inside a removed ad. `keep_original_audio` is on by default; there is
-no backfill, so only episodes processed after upgrading to 2.9.0 can be used to
-mark a cue. If you set a shorter `original_retention_days` than `retention_days`,
+cue can sit inside a removed ad. `keep_original_audio` is on by default. If you set a shorter `original_retention_days` than `retention_days`,
 originals age out earlier and those episodes drop out of the cue picker even
 though the processed audio remains. Each template stores its own raw audio, so a
 saved cue keeps working after its source episode's original is gone.

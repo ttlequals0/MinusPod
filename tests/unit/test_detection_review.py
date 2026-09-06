@@ -1,11 +1,12 @@
 """Tests for the pure cross-episode detection aggregation logic."""
 import pytest
 
-from config import SEGMENT_CATEGORIES
+from config import SEGMENT_CATEGORIES, count_pending_review, is_pending_review
 from detection_review import (
     filter_detections, flatten_detections, paginate, sort_detections,
     summarize_cut_detections, summarize_detections,
 )
+from utils.markers import collapse_duplicate_markers
 import json
 
 
@@ -27,6 +28,10 @@ REJECTED = {'start': 100.0, 'end': 130.0, 'confidence': 0.4, 'was_cut': False,
             'validation': {'decision': 'REJECT'}}
 HELD = {'start': 200.0, 'end': 230.0, 'confidence': 0.6,
         'held_for_review': True, 'was_cut': False}
+# Left in by the feed's category action. Uncut and undecided like a reject,
+# but no verdict can be recorded against it.
+KEPT = {'start': 300.0, 'end': 330.0, 'confidence': 1.0, 'was_cut': False,
+        'category': 'outro', 'action_applied': 'keep'}
 KEPT_OUTRO = {'start': 400.0, 'end': 420.0, 'confidence': 0.7,
               'category': 'outro', 'action_applied': 'keep', 'was_cut': False}
 
@@ -119,6 +124,36 @@ class TestFlatten:
     def test_marker_with_none_start_is_skipped(self):
         assert flatten_detections([_row(markers=[{'start': None, 'end': 30.0}])], []) == []
 
+    def test_a_marker_reports_its_own_stored_action(self):
+        items = flatten_detections([_row(markers=[REJECTED, KEPT])], [])
+        by_start = {i['start']: i['actionApplied'] for i in items}
+        assert by_start == {100.0: None, 300.0: 'keep'}
+
+    def test_a_cut_or_legacy_marker_over_a_keep_span_is_not_read_as_kept(self):
+        """Neither one folds into the keep marker, so neither may borrow its
+        verdict: a cut span is not a span the feed policy left in the audio."""
+        cut = {'start': 300.0, 'end': 330.0, 'confidence': 0.9, 'was_cut': True}
+        legacy = {'start': 300.2, 'end': 329.8, 'confidence': 0.9}
+        items = flatten_detections([_row(markers=[cut, legacy, KEPT])], [])
+        assert [i['actionApplied'] for i in items] == [None, None, 'keep']
+
+    def test_the_folded_keep_row_reads_as_kept_in_every_consumer(self):
+        """An undecided copy of a kept span no longer reaches storage: the fold
+        collapses the pair, so the listing, the badge count and the episode page
+        all read one keep marker."""
+        undecided = {'start': 882.9, 'end': 906.0, 'category': 'self_promo',
+                     'held_for_review': True, 'was_cut': False}
+        kept = {'start': 882.9, 'end': 906.0, 'was_cut': False,
+                'category': 'self_promo', 'action_applied': 'keep'}
+        markers, folded = collapse_duplicate_markers([undecided, kept])
+        assert folded == 1
+
+        items = flatten_detections([_row(markers=markers)], [])
+        assert [i['actionApplied'] for i in items] == ['keep']
+        assert filter_detections(items, status='needs_review') == []
+        assert count_pending_review(markers) == 0
+        assert is_pending_review(markers[0]) is False
+
 
 class TestSummarize:
     def test_counts_by_status_and_resolution(self):
@@ -133,6 +168,12 @@ class TestSummarize:
             'total': 3, 'needsReview': 1, 'pending': 1, 'rejected': 1,
             'accepted': 1, 'confirmed': 0, 'dismissed': 1,
         }
+
+    def test_keeps_are_not_counted_as_needing_review(self):
+        counts = summarize_detections(
+            flatten_detections([_row(markers=[REJECTED, KEPT])], []))
+        assert counts['needsReview'] == 1
+        assert counts['rejected'] == 2
 
     def test_empty(self):
         assert summarize_detections([]) == {
@@ -157,15 +198,18 @@ class TestFilter:
         out = filter_detections(items, status='needs_review')
         assert [i['start'] for i in out] == [200.0]
 
-    def test_needs_review_excludes_deliberate_keeps(self):
-        items = flatten_detections([_row(markers=[REJECTED, KEPT_OUTRO])], [])
+    def test_needs_review_excludes_category_keeps(self):
+        """A keep is settled by feed policy and the corrections endpoint
+        refuses a verdict on it, so listing it as needing review would offer
+        a decision nobody can make."""
+        items = flatten_detections([_row(markers=[REJECTED, KEPT])], [])
         out = filter_detections(items, status='needs_review')
         assert [i['start'] for i in out] == [100.0]
 
-    def test_needs_review_count_excludes_deliberate_keeps(self):
-        items = flatten_detections([_row(markers=[REJECTED, KEPT_OUTRO])], [])
-        counts = summarize_detections(items)
-        assert counts['needsReview'] == 1
+    def test_kept_markers_still_listed_under_their_cut_status(self):
+        items = flatten_detections([_row(markers=[KEPT])], [])
+        assert [i['start'] for i in filter_detections(items, status='all')] == [300.0]
+        assert [i['start'] for i in filter_detections(items, status='rejected')] == [300.0]
 
     def test_single_status_filters(self):
         out = filter_detections(self._items(), status='accepted')
@@ -339,3 +383,67 @@ class TestCutSummary:
         s = summarize_cut_detections([{'start': 0, 'end': 5, 'category': 'brand_new'}])
         assert s['byCategory']['brand_new'] == 1
         assert s['count'] == 1
+
+
+class TestReviewerFields:
+    ADJUSTED = dict(ACCEPTED, reviewer_verdict='adjust',
+                    reviewer_original_start=8.0, reviewer_original_end=41.0)
+
+    def test_flatten_exposes_reviewer_fields(self):
+        item = flatten_detections([_row(markers=[self.ADJUSTED])], [])[0]
+        assert item['reviewerVerdict'] == 'adjust'
+        assert item['reviewerOriginalStart'] == 8.0
+        assert item['reviewerOriginalEnd'] == 41.0
+
+    def test_unreviewed_marker_has_null_reviewer_fields(self):
+        item = flatten_detections([_row(markers=[ACCEPTED])], [])[0]
+        assert item['reviewerVerdict'] is None
+        assert item['reviewerOriginalStart'] is None
+        assert item['reviewerOriginalEnd'] is None
+        assert item['reviewerMoved'] is False
+
+    def test_legacy_marker_without_flag_infers_moved(self):
+        """No reviewer_moved field (written before it existed): adjust verdict
+        plus recorded originals is inferred as moved."""
+        item = flatten_detections([_row(markers=[self.ADJUSTED])], [])[0]
+        assert item['reviewerMoved'] is True
+
+    def test_human_approved_marker_flag_false_overrides_inference(self):
+        """_mark_held_marker_approved stamps reviewer_moved=False even when
+        it also writes originals, so the explicit flag must win over the
+        legacy heuristic (which would otherwise say True here)."""
+        marker = dict(self.ADJUSTED, reviewer_moved=False)
+        item = flatten_detections([_row(markers=[marker])], [])[0]
+        assert item['reviewerMoved'] is False
+
+    def test_reviewer_stamped_marker_flag_true_is_moved(self):
+        marker = dict(ACCEPTED, reviewer_moved=True)
+        item = flatten_detections([_row(markers=[marker])], [])[0]
+        assert item['reviewerMoved'] is True
+
+    def _items(self):
+        base = {'status': 'accepted', 'feedSlug': 'a', 'sponsor': '', 'reason': '',
+                'reviewerOriginalStart': None, 'reviewerOriginalEnd': None}
+        return [
+            dict(base, reviewerVerdict='adjust', reviewerOriginalStart=8.0,
+                 reviewerOriginalEnd=41.0, reviewerMoved=True),
+            # Held contradiction or split piece: verdict kept, no move recorded.
+            dict(base, reviewerVerdict='adjust', reviewerMoved=False),
+            dict(base, reviewerVerdict='confirmed', reviewerMoved=False),
+            dict(base, reviewerVerdict='reject', reviewerMoved=False),
+            dict(base, reviewerVerdict='failure', reviewerMoved=False),
+            dict(base, reviewerVerdict=None, reviewerMoved=False),
+        ]
+
+    def test_adjusted_requires_verdict_and_original_span(self):
+        out = filter_detections(self._items(), status='all', reviewer='adjusted')
+        assert [i['reviewerOriginalStart'] for i in out] == [8.0]
+
+    def test_unadjusted_keeps_adjust_without_span_and_other_verdicts(self):
+        out = filter_detections(self._items(), status='all', reviewer='unadjusted')
+        assert [i['reviewerVerdict'] for i in out] == [
+            'adjust', 'confirmed', 'reject', 'failure', None]
+
+    def test_empty_and_absent_reviewer_are_no_ops(self):
+        assert len(filter_detections(self._items(), status='all', reviewer='')) == 6
+        assert len(filter_detections(self._items(), status='all')) == 6

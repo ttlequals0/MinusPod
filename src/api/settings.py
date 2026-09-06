@@ -40,6 +40,7 @@ from config import (
     LOW_AD_YIELD_ACTIONS,
     EPISODE_LOG_LEVELS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
+    USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
@@ -48,7 +49,7 @@ from config import (
 # podcast_search only pulls names api/__init__ defines before its submodule
 # imports. A reorder that gives podcast_search a top-level dependency on
 # settings would break boot -- keep this the only cross-submodule import.
-from api.podcast_search import resolve_search_provider
+from api.podcast_search import resolve_search_provider, search_provider_ready
 from ad_detector import AdDetector
 from artwork_watermark import BADGE_POSITIONS
 from audio_processor import NORMALIZE_PRESETS
@@ -56,14 +57,21 @@ from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
     registry_default, registry_get_default,
 )
+from user_agent import invalidate_cache as invalidate_user_agent_cache
 from offline_queue import (
     get_offline_queue_ttl_hours, is_offline_queue_enabled,
     TTL_HOURS_MIN, TTL_HOURS_MAX,
 )
+from rate_limit_hold import (
+    get_hold_until, get_rate_limit_hold_ttl_hours,
+    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE, clear_hold,
+)
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
-    get_llm_client, create_client_for_provider, _JSON_FORMAT_SETTING_KEY,
+    get_llm_client, create_client_for_provider,
+    _JSON_FORMAT_SETTING_KEY, _JSON_SCHEMA_SETTING_KEY,
+    invalidate_provider_cache, reset_schema_probe_memo,
 )
 from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
 from utils.language import LANGUAGE_CODE_RE
@@ -71,7 +79,10 @@ from utils.opml import modified_feed_url
 from utils.url import validate_base_url, validate_outbound_host, SSRFError
 from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from webhook_service import render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS
+from webhook_service import (
+    render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS,
+    get_notification_timezone,
+)
 import email_service
 from email.utils import parseaddr
 from db_backup_service import (
@@ -238,6 +249,12 @@ def get_settings():
         settings=settings)
     episode_log_level = _setting_value(
         settings, 'episode_log_level', registry_default('episode_log_level'))
+    download_user_agent = _setting_value(
+        settings, 'download_user_agent', registry_default('download_user_agent'))
+    feed_user_agent = _setting_value(
+        settings, 'feed_user_agent', registry_default('feed_user_agent'))
+    log_download_query = coerce_bool_setting(_setting_value(
+        settings, 'log_download_query', registry_default('log_download_query')))
     feed_auth_enabled = coerce_bool_setting(
         _setting_value(settings, 'feed_auth_enabled',
                        registry_default('feed_auth_enabled')))
@@ -282,6 +299,8 @@ def get_settings():
 
     omit_temperature = coerce_bool_setting(_setting_value(
         settings, 'omit_temperature', registry_default('omit_temperature')))
+    llm_json_schema_enabled = coerce_bool_setting(_setting_value(
+        settings, 'llm_json_schema_enabled', registry_default('llm_json_schema_enabled')))
 
     segment_category_actions = resolve_segment_category_actions_map(
         _setting_value(settings, 'segment_category_actions',
@@ -408,6 +427,10 @@ def get_settings():
         except (ValueError, TypeError):
             return default
 
+    learning_min_pattern_duration = _db_int(
+        'learning_min_pattern_duration', registry_get_default('learning_min_pattern_duration'))
+    learning_max_pattern_duration = _db_int(
+        'learning_max_pattern_duration', registry_get_default('learning_max_pattern_duration'))
     whisper_api_timeout_seconds = _db_int(
         'whisper_api_timeout_seconds', registry_get_default('whisper_api_timeout_seconds'))
     transcribe_max_chunk_seconds = _db_int(
@@ -574,6 +597,9 @@ def get_settings():
         'episodeLogRetentionDays': _sv(
             'episode_log_retention_days', episode_log_retention_days),
         'episodeLogLevel': _sv('episode_log_level', episode_log_level),
+        'downloadUserAgent': _sv('download_user_agent', download_user_agent),
+        'feedUserAgent': _sv('feed_user_agent', feed_user_agent),
+        'logDownloadQuery': _sv('log_download_query', log_download_query),
         'feedAuthEnabled': _sv('feed_auth_enabled', feed_auth_enabled),
         'feedAuthKey': feed_auth_key,
         'opmlModifiedUrl': opml_modified_url,
@@ -584,6 +610,7 @@ def get_settings():
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
         'omitTemperature': _sv('omit_temperature', omit_temperature),
+        'llmJsonSchemaEnabled': _sv('llm_json_schema_enabled', llm_json_schema_enabled),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
         'pricingSourceMode': _sv('pricing_source_mode', pricing_source_mode),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
@@ -593,6 +620,9 @@ def get_settings():
         # else iTunes. isDefault marks a derived value; saving from the UI
         # makes the choice explicit.
         'podcastSearchProvider': _search_provider_setting(settings),
+        # Whether the resolved provider can actually run search right now
+        # (AddFeed gates its search UI on this, not just a resolved name).
+        'podcastSearchReady': search_provider_ready(),
         'openrouterBaseUrl': OPENROUTER_BASE_URL,
         'whisperBackend': _sv('whisper_backend', whisper_backend),
         'whisperApiBaseUrl': _sv('whisper_api_base_url', whisper_api_base_url),
@@ -637,6 +667,8 @@ def get_settings():
             'verification_miss_autocut_min_confidence', verification_miss_autocut_min_confidence),
         'learningMinConfidence': _sv('learning_min_confidence', learning_min_confidence),
         'learningMinConfidenceLong': _sv('learning_min_confidence_long', learning_min_confidence_long),
+        'learningMinPatternDuration': _sv('learning_min_pattern_duration', learning_min_pattern_duration),
+        'learningMaxPatternDuration': _sv('learning_max_pattern_duration', learning_max_pattern_duration),
         'differentialMeasuredCorrMax': _sv('differential_measured_corr_max', differential_measured_corr_max),
         'differentialHoldMinSeconds': _sv('differential_hold_min_seconds', differential_hold_min_seconds),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
@@ -717,6 +749,7 @@ def update_ad_detection_settings():
         _apply_segment_category_actions,
         _apply_community_sync_categories,
         _apply_jit_blocked_user_agents,
+        _apply_user_agent_fields,
     )
     for phase in phases:
         err = phase(db, data)
@@ -847,6 +880,60 @@ def _apply_size_caps(db, data):
         logger.info(f"Updated {db_key} to: {n}")
 
 
+def _apply_user_agent_fields(db, data):
+    """Persist the outbound User-Agent strings.
+
+    Validates both before writing either, so a 400 never leaves half the
+    payload persisted. An empty string resets the field to its default.
+    """
+    fields = (
+        ('downloadUserAgent', 'download_user_agent'),
+        ('feedUserAgent', 'feed_user_agent'),
+    )
+    writes = []
+    for payload_key, db_key in fields:
+        if payload_key not in data:
+            continue
+        value = data[payload_key]
+        if not isinstance(value, str):
+            return error_response(f'{payload_key} must be a string', 400)
+        value = value.strip()
+        if value and not validate_user_agent(value):
+            return error_response(
+                f'{payload_key} must be printable ASCII on a single line, '
+                f'at most {USER_AGENT_MAX_LENGTH} characters', 400)
+        writes.append((db_key, value))
+    if 'logDownloadQuery' in data:
+        if not isinstance(data['logDownloadQuery'], bool):
+            return error_response('logDownloadQuery must be a boolean', 400)
+        db.set_setting('log_download_query',
+                       'true' if data['logDownloadQuery'] else 'false',
+                       is_default=False)
+        logger.info(f"Updated log_download_query: {data['logDownloadQuery']}")
+
+    for db_key, value in writes:
+        if value:
+            db.set_setting(db_key, value, is_default=False)
+            logger.info(f"Updated {db_key}")
+        else:
+            # clear, not reset_setting: that writes the default resolved right
+            # now into a row, and _resolve prefers a stored row. A later image
+            # bumping the shipped UA past a CDN version floor, or the operator
+            # setting the env var, would then be ignored on this install.
+            db.clear_setting(db_key)
+            logger.info(f"Reset {db_key} to the default")
+    if writes:
+        invalidate_user_agent_cache()
+
+
+def _clear_format_probes(db) -> None:
+    """Forget every response_format probe answer, stored and in-process."""
+    db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
+    db.clear_setting(_JSON_SCHEMA_SETTING_KEY)
+    reset_schema_probe_memo()
+    invalidate_provider_cache()
+
+
 def _apply_processing_flags(db, data):
     """Persist boolean processing toggles and the maxFeedEpisodes clamp."""
     if 'autoProcessEnabled' in data:
@@ -865,15 +952,16 @@ def _apply_processing_flags(db, data):
         logger.info(f"Updated max feed episodes to: {max_ep}")
 
     if 'onlyExposeProcessedDefault' in data:
-        new_enabled = bool(data['onlyExposeProcessedDefault'])
-        old_enabled = db.get_setting('only_expose_processed_default') == 'true'
-        value = 'true' if new_enabled else 'false'
+        value = 'true' if data['onlyExposeProcessedDefault'] else 'false'
+        changed = (db.get_setting('only_expose_processed_default') or 'false') != value
         db.set_setting('only_expose_processed_default', value, is_default=False)
-        if old_enabled != new_enabled:
-            # Served RSS embeds the processed_only render mode; without
-            # invalidating validators every feed would 304-skip until the
-            # next upstream change, leaving hidden episodes invisible.
+        if changed:
+            # Inheriting feeds 304-skip the rebuild that would hide or show
+            # unprocessed episodes; force the next refresh to fetch in full.
             db.clear_all_podcast_etags()
+            # Served RSS embeds the processed_only render mode; rebuild so
+            # hidden episodes become visible (or vice versa) without waiting
+            # for the next upstream change.
             import threading
             from main_app.feeds import rebuild_all_served_feeds
 
@@ -1013,6 +1101,14 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['omitTemperature'] else 'false'
         db.set_setting('omit_temperature', value, is_default=False)
         logger.info(f"Updated omit_temperature to: {value}")
+
+    if 'llmJsonSchemaEnabled' in data:
+        value = 'true' if data['llmJsonSchemaEnabled'] else 'false'
+        db.set_setting('llm_json_schema_enabled', value, is_default=False)
+        # Re-probe on the next endpoint verification now that the opt-in
+        # changed.
+        _clear_format_probes(db)
+        logger.info(f"Updated llm_json_schema_enabled to: {value}")
     return None
 
 
@@ -1306,8 +1402,10 @@ def _apply_provider_fields(db, data):
         provider_changed = True
 
     if provider_changed:
-        # Clear cached json_format probe so the new endpoint gets re-probed
-        db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
+        # Clear the cached probe answers so the new endpoint gets re-probed:
+        # a stored false against a model name the new endpoint also serves
+        # would otherwise pin it to the fallback format forever.
+        _clear_format_probes(db)
         client = get_llm_client(force_new=True)
         if hasattr(client, 'probe_json_format_support'):
             client.probe_json_format_support()
@@ -1588,9 +1686,9 @@ def _apply_audio_cue_fields(db, data):
 
 
 def _apply_detection_tuning_fields(db, data):
-    """Persist the six detection-tuning tunables (2.76.0): verification-miss
-    hold/autocut confidence, learning confidence floors, and differential
-    correlation/hold thresholds.
+    """Persist the detection-tuning tunables (2.76.0): verification-miss
+    hold/autocut confidence, learning confidence floors and length bounds, and
+    differential correlation/hold thresholds.
 
     Validates every field (ranges and the autocut disable-or-range special
     case) BEFORE writing anything, so an invalid field cannot leave a
@@ -1627,6 +1725,37 @@ def _apply_detection_tuning_fields(db, data):
         if not math.isfinite(value) or value < lo or value > hi:
             return json_response({'error': f'{field_name} must be between {lo} and {hi}'}, 400)
         writes.append((db_key, str(value)))
+
+    # Separate from the float loop above because these are read back through
+    # _db_int, whose bare int() rejects a stored "20.0" and silently falls back
+    # to the default.
+    bounds = {}
+    for field_name, db_key, lo, hi in (
+        ('learningMinPatternDuration', 'learning_min_pattern_duration', 1, 600),
+        ('learningMaxPatternDuration', 'learning_max_pattern_duration', 1, 1800),
+    ):
+        if field_name not in data:
+            continue
+        try:
+            seconds = int(data[field_name])
+        except (TypeError, ValueError):
+            return json_response({'error': f'{field_name} must be an integer'}, 400)
+        if seconds < lo or seconds > hi:
+            return json_response({'error': f'{field_name} must be between {lo} and {hi}'}, 400)
+        bounds[db_key] = seconds
+        writes.append((db_key, str(seconds)))
+
+    if bounds:
+        def bound(key):
+            return bounds.get(key) or db.get_setting_int(
+                key, int(registry_get_default(key)))
+
+        low = bound('learning_min_pattern_duration')
+        high = bound('learning_max_pattern_duration')
+        if low >= high:
+            return json_response(
+                {'error': 'learningMinPatternDuration must be below '
+                          'learningMaxPatternDuration'}, 400)
 
     for db_key, str_value in writes:
         db.set_setting(db_key, str_value, is_default=False)
@@ -1863,7 +1992,7 @@ def reset_ad_detection_settings():
 
     for key in AD_RESET_SETTING_KEYS:
         db.reset_setting(key)
-    db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
+    _clear_format_probes(db)
 
     # Recreate LLM client with reset settings
     client = get_llm_client(force_new=True)
@@ -2171,7 +2300,8 @@ def _offline_queue_view(db) -> dict:
     return {
         'enabled': is_offline_queue_enabled(db),
         'ttlHours': get_offline_queue_ttl_hours(db),
-        'deferredCount': db.count_deferred_episodes(),
+        'deferredCount': db.count_deferred_episodes(
+            exclude_service=RATE_LIMIT_DEFERRED_SERVICE),
     }
 
 
@@ -2193,17 +2323,30 @@ def update_offline_queue_settings():
     marked permanently failed.
     """
     data = request.get_json()
+    db = get_database()
+    error = _apply_toggle_ttl_update(db, data, 'offline_queue')
+    if error:
+        return error
+    view = _offline_queue_view(db)
+    logger.info(f"Updated offline_queue_enabled: {view['enabled']}")
+    return json_response(view)
+
+
+def _apply_toggle_ttl_update(db, data, prefix: str):
+    """Validate and store {enabled, ttlHours} for a deferral feature.
+
+    `prefix` is the settings key stem ('offline_queue', 'rate_limit_hold').
+    Returns an error response on invalid input, else None. Shared by the
+    offline-queue and rate-limit-hold PUT handlers (#482, #696).
+    """
     if not isinstance(data, dict) or not data:
         return error_response('No data provided', 400)
-
-    db = get_database()
 
     if 'enabled' in data:
         if not isinstance(data['enabled'], bool):
             return error_response('enabled must be a boolean', 400)
-        db.set_setting('offline_queue_enabled',
+        db.set_setting(f'{prefix}_enabled',
                        'true' if data['enabled'] else 'false', is_default=False)
-        logger.info(f"Updated offline_queue_enabled to {data['enabled']}")
 
     if 'ttlHours' in data:
         ttl = data['ttlHours']
@@ -2211,10 +2354,49 @@ def update_offline_queue_settings():
                 or ttl < TTL_HOURS_MIN or ttl > TTL_HOURS_MAX:
             return error_response(
                 f'ttlHours must be an integer between {TTL_HOURS_MIN} and {TTL_HOURS_MAX}', 400)
-        db.set_setting('offline_queue_ttl_hours', str(ttl), is_default=False)
-        logger.info(f"Updated offline_queue_ttl_hours to {ttl}")
+        db.set_setting(f'{prefix}_ttl_hours', str(ttl), is_default=False)
+    return None
 
-    return json_response(_offline_queue_view(db))
+
+def _rate_limit_hold_view(db) -> dict:
+    """Rate-limit hold settings payload shared by GET and PUT (#696)."""
+    return {
+        'enabled': is_rate_limit_hold_enabled(db),
+        'ttlHours': get_rate_limit_hold_ttl_hours(db),
+        'holdUntil': get_hold_until(db),
+        'holdCount': db.count_deferred_episodes(service=RATE_LIMIT_DEFERRED_SERVICE),
+    }
+
+
+@api.route('/settings/rate-limit-hold', methods=['GET'])
+@log_request
+def get_rate_limit_hold_settings():
+    """Get rate-limit hold configuration (#696)."""
+    return json_response(_rate_limit_hold_view(get_database()))
+
+
+@api.route('/settings/rate-limit-hold', methods=['PUT'])
+@log_request
+def update_rate_limit_hold_settings():
+    """Update rate-limit hold configuration (#696).
+
+    When enabled, a provider 429 carrying a reset time defers the episode
+    and pauses new queue claims until the reset instead of failing the job.
+    ttlHours bounds how long a held episode waits before being marked
+    permanently failed.
+    """
+    data = request.get_json()
+    db = get_database()
+    error = _apply_toggle_ttl_update(db, data, 'rate_limit_hold')
+    if error:
+        return error
+    if data.get('enabled') is False:
+        # Escape hatch: lifting the hold releases the pause and lets the
+        # tick requeue every held episode on its next pass.
+        clear_hold(db)
+    view = _rate_limit_hold_view(db)
+    logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
+    return json_response(view)
 
 
 # ========== Update check settings ==========
@@ -2693,6 +2875,31 @@ def test_email_notifications():
             'success': False,
             'message': 'email test failed; see server logs for details',
         })
+
+
+# ========== Notification timezone ==========
+
+@api.route('/settings/notifications/timezone', methods=['GET'])
+@log_request
+def get_notification_timezone_setting():
+    """Return the IANA zone used for timestamp_local in webhook/email notifications."""
+    return json_response({'timezone': get_notification_timezone(get_database())})
+
+
+@api.route('/settings/notifications/timezone', methods=['PUT'])
+@log_request
+def update_notification_timezone_setting():
+    """Set the notification timezone; rejects a name zoneinfo cannot resolve."""
+    db = get_database()
+    data = request.get_json() or {}
+    tz = data.get('timezone')
+    if not isinstance(tz, str) or not tz.strip():
+        return error_response('timezone is required', 400)
+    tz = tz.strip()
+    if not SETTINGS_REGISTRY['notification_timezone'].validator(tz):
+        return error_response(f'unknown timezone: {tz}', 400)
+    db.set_setting('notification_timezone', tz, is_default=False)
+    return json_response({'timezone': tz})
 
 
 # ========== Ad Reviewer settings ==========

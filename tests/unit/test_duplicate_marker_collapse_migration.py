@@ -1,0 +1,263 @@
+"""Tests for the 2.95.2 _collapse_duplicate_ad_markers migration: it folds
+only pairs both uncut with edges inside BOUNDS_TOLERANCE_S, leaving the rest."""
+import json
+import logging
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+from database import schema  # noqa: E402
+
+GATE = 'collapse_duplicate_ad_markers'
+
+
+def _seed(temp_db, markers, slug='collapse-test', episode_id='abcdef012345',
+          pending_review_count=None):
+    temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Collapse Test')
+    temp_db.upsert_episode(slug=slug, episode_id=episode_id,
+                           original_url='https://example.com/ep.mp3',
+                           title='Test Episode', original_duration=3600.0)
+    temp_db.save_episode_details(slug, episode_id, ad_markers=markers,
+                                 pending_review_count=pending_review_count)
+    return slug, episode_id
+
+
+def _run(temp_db):
+    """Clear the gate the boot-time run set, then run the migration."""
+    conn = temp_db.get_connection()
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
+    conn.commit()
+    temp_db._collapse_duplicate_ad_markers(conn)
+    return conn
+
+
+def _stored(temp_db, slug, episode_id):
+    ep = temp_db.get_episode(slug, episode_id)
+    return json.loads(ep['ad_markers_json']), ep.get('pending_review_count')
+
+
+def _keep(start=500.0, end=520.0):
+    return {'start': start, 'end': end, 'category': 'recap', 'was_cut': False,
+            'action_applied': 'keep', 'confidence': 0.9,
+            'detection_stage': 'llm'}
+
+
+def _held(start=500.2, end=519.8, reason='verification_kept_conflict'):
+    return {'start': start, 'end': end, 'was_cut': False, 'sponsor': 'Acme',
+            'held_for_review': True, 'hold_reason': reason,
+            'validation': {'decision': 'REVIEW', 'flags': ['HOLD: kept span']}}
+
+
+def test_a_duplicate_pair_collapses_and_keeps_the_richer_fields(temp_db):
+    slug, eid = _seed(temp_db, [_keep(), _held()], pending_review_count=1)
+
+    _run(temp_db)
+
+    markers, pending = _stored(temp_db, slug, eid)
+    assert len(markers) == 1
+    marker = markers[0]
+    assert marker['action_applied'] == 'keep'
+    assert marker['was_cut'] is False
+    assert 'held_for_review' not in marker
+    assert marker['hold_cleared_reason'] == 'verification_kept_conflict'
+    # Fields only the folded record carried survive.
+    assert marker['sponsor'] == 'Acme'
+    assert marker['category'] == 'recap'
+    assert marker['validation']['flags'] == ['HOLD: kept span']
+    assert pending == 0
+
+
+def test_two_holds_for_one_span_stop_double_counting(temp_db):
+    first = _held(500.0, 520.0, reason='max_duration')
+    second = _held(500.2, 519.8, reason='cue_unproven')
+    slug, eid = _seed(temp_db, [first, second], pending_review_count=2)
+
+    _run(temp_db)
+
+    markers, pending = _stored(temp_db, slug, eid)
+    assert len(markers) == 1
+    assert markers[0]['hold_reason'] == 'max_duration'
+    assert ('INFO: Pass 2 also held this span (cue_unproven)'
+            in markers[0]['validation']['flags'])
+    assert pending == 1
+
+
+def test_an_adjacent_pair_outside_tolerance_is_left_alone(temp_db):
+    # 0.6s past the 0.5s both-edges tolerance on the end edge.
+    slug, eid = _seed(temp_db, [_keep(), _held(500.2, 520.6)],
+                      pending_review_count=1)
+
+    _run(temp_db)
+
+    markers, pending = _stored(temp_db, slug, eid)
+    assert len(markers) == 2
+    assert pending == 1
+
+
+def test_a_pair_with_a_cut_marker_is_left_alone(temp_db):
+    cut = dict(_keep(), was_cut=True, action_applied='remove')
+    slug, eid = _seed(temp_db, [cut, _held()], pending_review_count=1)
+
+    _run(temp_db)
+
+    markers, _pending = _stored(temp_db, slug, eid)
+    assert len(markers) == 2
+
+
+def test_a_row_without_duplicates_is_not_rewritten(temp_db):
+    slug, eid = _seed(temp_db, [_keep(), _held(900.0, 930.0)],
+                      pending_review_count=1)
+    conn = temp_db.get_connection()
+    # Hand-formatted JSON: a rewrite would come back as json.dumps output.
+    raw = '[ {"start": 500.0, "end": 520.0, "was_cut": false} ]'
+    conn.execute("UPDATE episode_details SET ad_markers_json = ?", (raw,))
+    conn.commit()
+
+    _run(temp_db)
+
+    row = conn.execute(
+        "SELECT ad_markers_json FROM episode_details").fetchone()
+    assert row['ad_markers_json'] == raw
+
+
+def test_the_migration_runs_once(temp_db):
+    slug, eid = _seed(temp_db, [_keep(), _held()], pending_review_count=1)
+
+    conn = _run(temp_db)
+    gate = conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+    assert gate is not None
+
+    # A second call is a no-op even with a fresh duplicate in the row.
+    temp_db.save_episode_details(slug, eid, ad_markers=[_keep(), _held()],
+                                 pending_review_count=1)
+    temp_db._collapse_duplicate_ad_markers(conn)
+
+    markers, _pending = _stored(temp_db, slug, eid)
+    assert len(markers) == 2
+
+
+def test_one_malformed_row_does_not_block_the_rest(temp_db, caplog):
+    """A marker with a non-numeric bound raises inside the span match. It is
+    skipped by episode, the other rows still collapse, and the gate is set."""
+    good_slug, good_eid = _seed(temp_db, [_keep(), _held()],
+                                pending_review_count=1)
+    _bad_slug, bad_eid = _seed(temp_db, [_keep()], slug='collapse-bad',
+                               episode_id='beefbeef0000', pending_review_count=0)
+    conn = temp_db.get_connection()
+    bad_raw = ('[{"start": 500.0, "end": 520.0, "was_cut": false}, '
+               '{"start": "not-a-number", "end": 519.8, "was_cut": false}]')
+    bad_db_id = conn.execute(
+        "SELECT id FROM episodes WHERE episode_id = ?", (bad_eid,)).fetchone()['id']
+    conn.execute(
+        "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
+        (bad_raw, bad_db_id))
+    conn.commit()
+
+    with caplog.at_level(logging.WARNING, logger='database.schema'):
+        _run(temp_db)
+    assert any(f'skipped episode_id={bad_db_id}' in r.message
+               for r in caplog.records)
+
+    good_markers, _pending = _stored(temp_db, good_slug, good_eid)
+    assert len(good_markers) == 1
+    row = conn.execute(
+        "SELECT ad_markers_json FROM episode_details WHERE episode_id = ?",
+        (bad_db_id,)).fetchone()
+    assert row['ad_markers_json'] == bad_raw
+    gate = conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+    assert gate is not None
+
+
+def _legacy(start=500.0, end=520.0):
+    """A marker persisted before was_cut existed: no key at all, which means cut."""
+    return {'start': start, 'end': end, 'sponsor': 'Acme', 'confidence': 0.9}
+
+
+def test_two_legacy_markers_for_one_span_are_left_alone(temp_db):
+    slug, eid = _seed(temp_db, [_legacy(), _legacy(500.2, 519.8)],
+                      pending_review_count=0)
+    conn = temp_db.get_connection()
+    before = conn.execute(
+        "SELECT ad_markers_json FROM episode_details").fetchone()['ad_markers_json']
+
+    _run(temp_db)
+
+    row = conn.execute("SELECT ad_markers_json FROM episode_details").fetchone()
+    assert row['ad_markers_json'] == before
+    markers, _pending = _stored(temp_db, slug, eid)
+    assert len(markers) == 2
+
+
+def test_a_legacy_marker_never_folds_with_an_explicitly_uncut_one(temp_db):
+    slug, eid = _seed(temp_db, [_legacy(), _held(500.2, 519.8)],
+                      pending_review_count=1)
+
+    _run(temp_db)
+
+    markers, pending = _stored(temp_db, slug, eid)
+    assert len(markers) == 2
+    assert pending == 1
+
+
+def test_only_the_uncut_pair_collapses_in_a_mixed_row(temp_db):
+    cut = dict(_keep(300.0, 330.0), was_cut=True, action_applied='remove')
+    cut_twin = dict(_keep(300.2, 329.8), was_cut=True, action_applied='remove')
+    slug, eid = _seed(temp_db, [_legacy(100.0, 130.0), _legacy(100.2, 129.8),
+                                cut, cut_twin, _keep(), _held()],
+                      pending_review_count=1)
+
+    _run(temp_db)
+
+    markers, pending = _stored(temp_db, slug, eid)
+    assert [(m['start'], m['end']) for m in markers] == [
+        (100.0, 130.0), (100.2, 129.8), (300.0, 330.0), (300.2, 329.8),
+        (500.0, 520.0)]
+    assert markers[-1]['action_applied'] == 'keep'
+    assert pending == 0
+
+
+def test_an_unparseable_row_does_not_abort_the_prefilter(temp_db):
+    """The row prefilter runs in SQL, so an unparseable value must not raise
+    there and take the whole cleanup down with it."""
+    good_slug, good_eid = _seed(temp_db, [_keep(), _held()],
+                                pending_review_count=1)
+    _bad_slug, bad_eid = _seed(temp_db, [_keep()], slug='collapse-unparseable',
+                               episode_id='beefbeef0001', pending_review_count=0)
+    conn = temp_db.get_connection()
+    bad_db_id = conn.execute(
+        "SELECT id FROM episodes WHERE episode_id = ?", (bad_eid,)).fetchone()['id']
+    conn.execute(
+        "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
+        ('{not json', bad_db_id))
+    conn.commit()
+
+    _run(temp_db)
+
+    good_markers, _pending = _stored(temp_db, good_slug, good_eid)
+    assert len(good_markers) == 1
+    row = conn.execute(
+        "SELECT ad_markers_json FROM episode_details WHERE episode_id = ?",
+        (bad_db_id,)).fetchone()
+    assert row['ad_markers_json'] == '{not json'
+
+
+def test_a_run_spanning_several_batches_folds_every_row(temp_db, monkeypatch):
+    """One page per episode, so the writes of one page land before the next is
+    read: no row may be skipped, and the gate still closes the run."""
+    monkeypatch.setattr(schema, '_COLLAPSE_BATCH_ROWS', 1)
+    seeded = [_seed(temp_db, [_keep(), _held()], slug=f'collapse-batch-{i}',
+                    episode_id=f'batched00000{i}', pending_review_count=1)
+              for i in range(3)]
+
+    conn = _run(temp_db)
+
+    for slug, eid in seeded:
+        markers, pending = _stored(temp_db, slug, eid)
+        assert len(markers) == 1
+        assert markers[0]['action_applied'] == 'keep'
+        assert pending == 0
+    assert conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone() is not None

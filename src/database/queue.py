@@ -2,7 +2,8 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from utils.time import ISO_FORMAT, utc_now
+from config import DEFER_SERVICE_LLM
+from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +16,25 @@ MANUAL_REQUEST_BOOST = 20
 BULK_REQUEST_BOOST = 0
 FRESH_WINDOW_HOURS = 48
 
+# Bounds for a hand-set row priority (#696). Wide enough to clear a feed's
+# base priority plus every boost, tight enough that a typo cannot park a row
+# beyond anything the queue will ever enqueue.
+QUEUE_PRIORITY_MIN = -1000
+QUEUE_PRIORITY_MAX = 1000
+
 _BOOST_SETTINGS = (
     ('queue_manual_boost', MANUAL_REQUEST_BOOST),
     ('queue_fresh_boost', FRESH_EPISODE_BOOST),
     ('queue_bulk_boost', BULK_REQUEST_BOOST),
 )
+
+
+def _resolve_boost(key: str, fallback: int) -> int:
+    from database import Database
+    try:
+        return int(Database().get_setting(key))
+    except Exception:
+        return fallback
 
 
 def resolve_queue_boosts() -> dict[str, int]:
@@ -28,22 +43,13 @@ def resolve_queue_boosts() -> dict[str, int]:
     Inline import: database.queue is part of the Database mixin family, so a
     module-level Database import would be circular.
     """
-    from database import Database
-    resolved = {}
-    for key, fallback in _BOOST_SETTINGS:
-        try:
-            resolved[key] = int(Database().get_setting(key))
-        except (TypeError, ValueError):
-            resolved[key] = fallback
-        except Exception:
-            resolved[key] = fallback
-    return resolved
+    return {key: _resolve_boost(key, fallback) for key, fallback in _BOOST_SETTINGS}
 
 # Bound on the row-level detail returned by get_queue_status.
 _QUEUE_STATUS_ITEMS_LIMIT = 100
 
 # Bound on the pending rows returned by get_pending_queued_episodes.
-_PENDING_QUEUE_LIMIT = 200
+PENDING_QUEUE_LIMIT = 200
 
 
 def compute_queue_priority(feed_priority, published_at_iso, manual=False,
@@ -210,14 +216,16 @@ class QueueMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_pending_queued_episodes(self, limit: int = _PENDING_QUEUE_LIMIT) -> list[dict]:
+    def get_pending_queued_episodes(self, limit: int = PENDING_QUEUE_LIMIT,
+                                    offset: int = 0) -> list[dict]:
         """Pending queue rows in dequeue order (same ORDER BY as the claim).
 
         Feeds the Processing Queue panel, which showed only the active job plus
         the display queue and so hid the auto-process backlog entirely. Capped
-        at `limit` rows; each row carries total_pending (the uncapped count,
-        via a window function evaluated before the LIMIT) so a caller can say
-        how much of the backlog it is showing.
+        at `limit` rows with an optional `offset` for pagination; each row
+        carries total_pending (the uncapped count, via a window function
+        evaluated before the LIMIT) so a caller can say how much of the
+        backlog it is showing.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -228,13 +236,110 @@ class QueueMixin:
                JOIN podcasts p ON q.podcast_id = p.id
                WHERE q.status = 'pending'
                ORDER BY q.priority DESC, q.created_at ASC
-               LIMIT ?""",
-            (limit,)
+               LIMIT ? OFFSET ?""",
+            (limit, offset)
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def claim_next_queued_episode(self) -> dict | None:
+    def set_queue_row_priority(self, slug: str, episode_id: str,
+                               priority: int | None = None,
+                               delta: int | None = None) -> int | None:
+        """Set or nudge one pending row's priority; returns the stored value,
+        or None when the episode has no pending row.
+
+        Direct write: unlike the MAX() monotonic rule in
+        upsert_episode_for_processing, this can raise or lower. A delta is
+        applied in SQL so two nudges racing on a stale read cannot cancel
+        each other out. Re-enqueueing (MAX rule) and a feed-level
+        queuePriority change (restamp_pending_priorities) still override it.
+        """
+        expr, value = ('?', priority) if delta is None else ('priority + ?', delta)
+        where = ("""WHERE episode_id = ? AND status = 'pending'
+                      AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)""")
+        conn = self.get_connection()
+        cursor = conn.execute(
+            f"""UPDATE auto_process_queue
+                SET priority = MAX(?, MIN(?, {expr})),
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                {where}""",  # noqa: S608
+            (QUEUE_PRIORITY_MIN, QUEUE_PRIORITY_MAX, int(value), episode_id, slug)
+        )
+        if not cursor.rowcount:
+            # An UPDATE that matched nothing still opens a transaction; close
+            # it rather than leave one for the #566 leak guard to find.
+            conn.rollback()
+            return None
+        if delta is None:
+            conn.commit()
+            return max(QUEUE_PRIORITY_MIN, min(QUEUE_PRIORITY_MAX, int(value)))
+        # A relative write is the only case whose result we cannot predict.
+        row = conn.execute(
+            f"SELECT priority FROM auto_process_queue {where}",  # noqa: S608
+            (episode_id, slug)
+        ).fetchone()
+        conn.commit()
+        return row['priority'] if row else None
+
+    def count_pending_queued_episodes(self) -> int:
+        """Uncapped pending-row count for the paginated queue view: the
+        window-function total rides on the page's rows, which vanish past
+        the last page."""
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM auto_process_queue WHERE status = 'pending'"
+        ).fetchone()
+        return row['n'] if row else 0
+
+    def has_user_requested_pending_row(self) -> bool:
+        """True when a pending row's episode carries reprocess_requested_at.
+
+        The rate-limit pause gate uses this to wave through work the user
+        asked for by hand instead of parking a Play behind a provider backoff
+        window. Reads the same user-intent mark the auto-process gate does,
+        rather than inferring intent from a priority number: a stored priority
+        is base + boosts, so it cannot tell a manual request from a high-
+        priority feed, and a manual boost of 0 would match every row.
+        Same user-intent predicate as claim_next_queued_episode's filter;
+        change them together or paused claims deadlock against this gate.
+        """
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT 1 FROM auto_process_queue q
+               JOIN episodes e ON e.podcast_id = q.podcast_id
+                                AND e.episode_id = q.episode_id
+               WHERE q.status = 'pending'
+                 AND e.reprocess_requested_at IS NOT NULL
+               LIMIT 1"""
+        ).fetchone()
+        return row is not None
+
+    def get_pending_queue_keys(self, episode_ids: list[str]) -> set:
+        """(podcast_slug, episode_id) for pending rows among `episode_ids`.
+
+        Lets GET /episodes/processing dedup StatusService's display extras
+        (a handful of ids) against the pending backlog without a full scan.
+        """
+        if not episode_ids:
+            return set()
+        conn = self.get_connection()
+        placeholders = ','.join('?' * len(episode_ids))
+        cursor = conn.execute(
+            f"""SELECT p.slug as podcast_slug, q.episode_id
+                FROM auto_process_queue q
+                JOIN podcasts p ON q.podcast_id = p.id
+                WHERE q.status = 'pending' AND q.episode_id IN ({placeholders})""",  # noqa: S608
+            episode_ids
+        )
+        return {(r['podcast_slug'], r['episode_id']) for r in cursor.fetchall()}
+
+    def claim_next_queued_episode(self, user_requested_only: bool = False) -> dict | None:
         """Atomically claim the next pending episode, marking it 'processing'.
+
+        ``user_requested_only`` claims only rows whose episode carries the
+        user-intent mark (reprocess_requested_at); the rate-limit pause uses
+        it so a Play or Reprocess runs mid-hold without the rest of the
+        backlog being fired into a throttled provider. Same predicate as
+        has_user_requested_pending_row; change them together.
 
         Closes the SELECT-then-mark gap in get_next_queued_episode: the
         conditional ``UPDATE ... WHERE status='pending'`` plus the rowcount
@@ -250,8 +355,14 @@ class QueueMixin:
                    FROM auto_process_queue q
                    JOIN podcasts p ON q.podcast_id = p.id
                    WHERE q.status = 'pending'
+                     AND (? = 0 OR EXISTS (
+                         SELECT 1 FROM episodes e
+                         WHERE e.podcast_id = q.podcast_id
+                           AND e.episode_id = q.episode_id
+                           AND e.reprocess_requested_at IS NOT NULL))
                    ORDER BY q.priority DESC, q.created_at ASC
-                   LIMIT 1"""
+                   LIMIT 1""",
+                (1 if user_requested_only else 0,)
             ).fetchone()
             if row is None:
                 return None
@@ -527,50 +638,182 @@ class QueueMixin:
             logger.info(f"Reset failed queue item for retry: id={row['id']}, episode_id={row['episode_id']}")
         return len(reset_items)
 
-    # -- Offline queue (#482): deferred-episode lifecycle --
+    # Pending recuts: review decisions recorded but not yet cut into audio.
 
-    def get_deferred_episodes(self) -> list[dict]:
-        """All episodes waiting in the offline queue, oldest deferral first."""
+    def mark_episode_pending_recut(self, slug: str, episode_id: str) -> None:
+        """Stamp an episode as having unapplied review decisions.
+
+        Idempotent and first-write-wins: the stamp marks when the episode
+        first went stale, so several edits over an afternoon still recut once.
+        On an episode mid-run the stamp is bumped to now instead, so the
+        run's completion (which clears only stamps older than its own start)
+        cannot swallow a decision its cut list never saw.
+        """
+        now = utc_now_iso()
         conn = self.get_connection()
+        conn.execute(
+            """UPDATE episodes
+               SET pending_recut_at = CASE WHEN status = 'processing'
+                                           THEN ?
+                                           ELSE COALESCE(pending_recut_at, ?) END
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)""",
+            (now, now, episode_id, slug)
+        )
+        conn.commit()
+
+    def clear_episode_pending_recut(self, slug: str, episode_id: str,
+                                    before: str | None = None) -> None:
+        """Drop the stamp once a recut has applied the decisions.
+
+        `before` clears only a stamp at or before that time, so a completed
+        run cannot swallow a decision recorded after it started.
+        """
+        conn = self.get_connection()
+        conn.execute(
+            """UPDATE episodes SET pending_recut_at = NULL
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                 AND (? IS NULL OR pending_recut_at <= ?)""",
+            (episode_id, slug, before, before)
+        )
+        conn.commit()
+
+    def get_episodes_pending_recut(self, limit: int = 1000,
+                                   slug: str | None = None) -> list[dict]:
+        """Episodes with unapplied review decisions, oldest stamp first.
+
+        `slug` scopes the result to one feed, so a feed page can apply its own
+        pending recuts without touching the rest of the queue.
+        """
+        conn = self.get_connection()
+        # has_segments/has_markers mirror the recut preconditions cheaply
+        # (string tests, not JSON parses: this backs a polled endpoint and
+        # segments run to hundreds of KB): segments must be a non-empty list,
+        # markers only present ('[]' recuts fine, restoring the original).
+        # has_queue_row separates an episode whose own run is coming from one
+        # left 'pending' by a cleared queue, which nothing will run.
         cursor = conn.execute(
-            """SELECT e.*, p.slug AS podcast_slug, p.title AS podcast_title
+            """SELECT e.episode_id, e.title, e.status, e.original_url,
+                      e.pending_recut_at, p.slug AS podcast_slug,
+                      p.title AS podcast_title,
+                      d.original_segments_json IS NOT NULL
+                          AND d.original_segments_json != '[]' AS has_segments,
+                      d.ad_markers_json IS NOT NULL AS has_markers,
+                      EXISTS (SELECT 1 FROM auto_process_queue q
+                              WHERE q.podcast_id = e.podcast_id
+                                AND q.episode_id = e.episode_id
+                                AND q.status IN ('pending', 'processing'))
+                          AS has_queue_row
                FROM episodes e
                JOIN podcasts p ON e.podcast_id = p.id
-               WHERE e.status = 'deferred'
-               ORDER BY e.deferred_at ASC"""
+               LEFT JOIN episode_details d ON d.episode_id = e.id
+               WHERE e.pending_recut_at IS NOT NULL
+                 AND (? IS NULL OR p.slug = ?)
+               ORDER BY e.pending_recut_at ASC
+               LIMIT ?""",
+            (slug, slug, limit)
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def count_deferred_episodes(self) -> int:
-        """Number of episodes waiting in the offline queue."""
+    def count_episodes_pending_recut(self, slug: str | None = None) -> int:
+        """How many episodes are waiting for an apply, optionally one feed's.
+
+        The unscoped count stays single-table: joining podcasts would drop an
+        episode whose feed row is missing, changing a number nothing asked to
+        change.
+        """
+        if slug is None:
+            row = self.get_connection().execute(
+                "SELECT COUNT(*) AS n FROM episodes "
+                "WHERE pending_recut_at IS NOT NULL"
+            ).fetchone()
+        else:
+            row = self.get_connection().execute(
+                """SELECT COUNT(*) AS n
+                   FROM episodes e
+                   JOIN podcasts p ON e.podcast_id = p.id
+                   WHERE e.pending_recut_at IS NOT NULL AND p.slug = ?""",
+                (slug,)
+            ).fetchone()
+        return row['n'] if row else 0
+
+    # Deferred-episode lifecycle: offline queue (#482), rate-limit hold (#696)
+
+    @staticmethod
+    def _deferred_service_clause(service, exclude_service, col):
+        """WHERE fragment and params selecting one deferred_service, or every
+        service but one. NULL reads as DEFER_SERVICE_LLM."""
+        if service is not None:
+            return f"AND COALESCE({col}, '{DEFER_SERVICE_LLM}') = ?", [service]
+        if exclude_service is not None:
+            return f"AND COALESCE({col}, '{DEFER_SERVICE_LLM}') != ?", [exclude_service]
+        return "", []
+
+    def get_deferred_episodes(self, service: str | None = None,
+                              exclude_service: str | None = None) -> list[dict]:
+        """Deferred episodes, oldest deferral first.
+
+        Pass `service` for one owner, `exclude_service` for everything but
+        one, neither for every deferred row.
+        """
+        clause, params = self._deferred_service_clause(
+            service, exclude_service, 'e.deferred_service')
+        conn = self.get_connection()
+        cursor = conn.execute(
+            f"""SELECT e.*, p.slug AS podcast_slug, p.title AS podcast_title
+                FROM episodes e
+                JOIN podcasts p ON e.podcast_id = p.id
+                WHERE e.status = 'deferred'
+                  {clause}
+                ORDER BY e.deferred_at ASC""",  # noqa: S608
+            params
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def count_deferred_episodes(self, service: str | None = None,
+                                exclude_service: str | None = None) -> int:
+        """Number of deferred episodes; filters as get_deferred_episodes."""
+        clause, params = self._deferred_service_clause(
+            service, exclude_service, 'deferred_service')
         conn = self.get_connection()
         row = conn.execute(
-            "SELECT COUNT(*) AS n FROM episodes WHERE status = 'deferred'"
+            f"""SELECT COUNT(*) AS n FROM episodes
+                WHERE status = 'deferred'
+                  {clause}""",  # noqa: S608
+            params
         ).fetchone()
         return row['n'] if row else 0
 
-    def expire_deferred_episodes(self, ttl_hours: int) -> list[dict]:
-        """Fail offline-queue episodes whose TTL has run out.
+    def expire_deferred_episodes(self, ttl_hours: int,
+                                 service: str | None = None,
+                                 exclude_service: str | None = None,
+                                 label: str = 'Offline queue') -> list[dict]:
+        """Fail deferred episodes whose TTL has run out, in the caller's scope.
 
-        Marked permanently_failed (a plain 'failed' would be resurrected by
-        the reset_failed_queue_items retry ladder) with an explicit TTL
-        message; the matching auto_process_queue row is closed the same way.
-        Returns the expired rows so the caller can fire failure webhooks.
+        Filters as get_deferred_episodes; `label` names the owner in the
+        message and the log. Rows are marked permanently_failed (a plain
+        'failed' would be resurrected by the reset_failed_queue_items retry
+        ladder) and the matching auto_process_queue row is closed the same
+        way. Returns the expired rows so the caller can fire failure webhooks.
         """
+        clause, params = self._deferred_service_clause(
+            service, exclude_service, 'e.deferred_service')
         conn = self.get_connection()
         rows = conn.execute(
-            """SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
-                      p.slug AS podcast_slug, p.title AS podcast_title
-               FROM episodes e
-               JOIN podcasts p ON e.podcast_id = p.id
-               WHERE e.status = 'deferred'
-                 AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
-            (ttl_hours,)
+            f"""SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
+                       p.slug AS podcast_slug, p.title AS podcast_title
+                FROM episodes e
+                JOIN podcasts p ON e.podcast_id = p.id
+                WHERE e.status = 'deferred'
+                  {clause}
+                  AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",  # noqa: S608
+            params + [ttl_hours]
         ).fetchall()
         expired = []
         for row in rows:
             row = dict(row)
-            message = (f"Offline queue TTL expired after {ttl_hours} hours: "
+            message = (f"{label} TTL expired after {ttl_hours} hours: "
                        f"{row['error_message'] or 'service unreachable'}")
             row['error_message'] = message
             cursor = conn.execute(
@@ -598,19 +841,23 @@ class QueueMixin:
                 (message, row['podcast_id'], row['episode_id'])
             )
             logger.warning(
-                "Offline queue TTL expired for %s:%s after %dh; marking permanently_failed",
-                row['podcast_slug'], row['episode_id'], ttl_hours,
+                "%s TTL expired for %s:%s after %dh; marking permanently_failed",
+                label, row['podcast_slug'], row['episode_id'], ttl_hours,
             )
             expired.append(row)
         conn.commit()
         return expired
 
     def requeue_deferred_episodes(self, services: set[str]) -> int:
-        """Flip deferred episodes back to pending for reachable services.
+        """Flip deferred episodes back to pending for the given services.
+
+        Callers pass exactly the set they own: the offline tick passes
+        probe-derived reachable services (never 'llm_rate_limit', whose
+        release waits on the hold's reset tick instead of a probe).
 
         Each episode gets its auto_process_queue row upserted to pending (the
         background processor's atomic claim drives it from there).
-        deferred_service NULL is treated as 'llm'. deferred_at is deliberately
+        deferred_service NULL reads as llm. deferred_at is deliberately
         KEPT: it marks the first entry into the offline queue, so the TTL
         keeps ticking across re-drive cycles (success and TTL expiry clear
         it). Episodes on auto-process-disabled feeds without a user-initiated
@@ -619,7 +866,7 @@ class QueueMixin:
         """
         requeued = 0
         for episode in self.get_deferred_episodes():
-            service = episode.get('deferred_service') or 'llm'
+            service = episode.get('deferred_service') or DEFER_SERVICE_LLM
             if service not in services:
                 continue
             slug = episode['podcast_slug']
@@ -637,7 +884,7 @@ class QueueMixin:
                 status='pending', error_message=None,
             )
             logger.info(
-                "Offline queue: %s reachable again, re-queued %s:%s",
+                "%s released, re-queued %s:%s",
                 service, slug, episode['episode_id'],
             )
             requeued += 1

@@ -495,8 +495,8 @@ def _should_backfill_claude_defaults(db, provider: str) -> bool:
     """
     if provider == PROVIDER_ANTHROPIC:
         return True
-    for setting_key in ('claude_model', 'verification_model',
-                        'review_model', 'chapters_model'):
+    from llm_capabilities import STAGE_MODEL_SETTING_KEYS
+    for setting_key in STAGE_MODEL_SETTING_KEYS:
         try:
             value = db.get_setting(setting_key)
         except Exception:

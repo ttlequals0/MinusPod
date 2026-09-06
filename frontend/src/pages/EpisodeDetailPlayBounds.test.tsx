@@ -28,7 +28,6 @@ vi.mock('../api/feeds', async (importOriginal) => {
     ...mod,
     getEpisode: vi.fn(),
     getFeed: vi.fn().mockResolvedValue({ slug: 'test-feed', title: 'Feed', artworkUrl: null }),
-    getOriginalTranscript: vi.fn(),
   };
 });
 vi.mock('../components/AdEditor', () => ({

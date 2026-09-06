@@ -9,6 +9,7 @@ from pathlib import Path
 from utils.audio import AudioMetadata, get_audio_duration
 from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
 from utils.subprocess_registry import tracked_run
+from utils.paths import resolve_data_dir
 from config import (
     FFMPEG_LONG_TIMEOUT,
     MIN_AD_DURATION_FOR_REMOVAL, POST_ROLL_TRIM_THRESHOLD, MERGE_GAP_SECONDS,
@@ -26,12 +27,8 @@ REPLACE_AUDIO_FILENAME = "replace.mp3"
 
 
 def get_data_dir() -> Path:
-    """Root of the writable data volume, mirroring Storage's resolution."""
-    return Path(
-        os.environ.get("DATA_PATH")
-        or os.environ.get("MINUSPOD_DATA_DIR")
-        or "/app/data"
-    )
+    """Root of the writable data volume."""
+    return resolve_data_dir()
 
 
 def get_uploaded_replace_audio_path() -> Path:

@@ -16,7 +16,6 @@ from werkzeug.exceptions import NotFound
 from werkzeug.utils import safe_join
 
 from config import (
-    APP_USER_AGENT,
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_API,
     JIT_RETRY_COOLDOWN_SECONDS,
@@ -29,6 +28,7 @@ from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
 from main_app.feeds import is_served_rss_stale
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
+from user_agent import download_user_agent
 from utils.constants import EpisodeStatus, REPROCESS_SOURCE_JIT
 from utils.safe_http import URLTrust, safe_head
 from utils.time import parse_iso_datetime, utc_now_iso
@@ -215,7 +215,7 @@ def _head_upstream(slug, episode_id, original_url):
             # Real-world podcast CDNs (Megaphone, Art19, Acast, simplecast)
             # chain 6-8 redirects per asset request.
             max_redirects=HTTP_MAX_REDIRECTS_FEED,
-            headers={'User-Agent': APP_USER_AGENT},
+            headers={'User-Agent': download_user_agent()},
         )
     except SSRFError as e:
         feed_logger.warning(f"[{slug}:{episode_id}] SSRF blocked in HEAD upstream: {e}")
@@ -336,7 +336,9 @@ def register_routes(app):
             return response
 
         response = send_from_directory(STATIC_DIR, path)
-        response.headers['Cache-Control'] = 'public, max-age=3600'
+        # The service worker script must always revalidate, or a cached copy delays update detection.
+        no_cache = path == 'sw.js'
+        response.headers['Cache-Control'] = 'no-cache, must-revalidate' if no_cache else 'public, max-age=3600'
         return response
 
     # /api/v1/docs and /api/v1/openapi.yaml are defined in

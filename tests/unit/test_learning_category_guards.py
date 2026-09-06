@@ -398,7 +398,7 @@ class TestKeptMarkersStillLearn:
         det.db.get_active_pattern_sponsors = MagicMock(return_value=set())
         det.db.get_setting_float = MagicMock(side_effect=lambda key, default: default)
         det.text_pattern_matcher = MagicMock()
-        det.text_pattern_matcher.create_pattern_from_ad = MagicMock(return_value=1)
+        det.text_pattern_matcher.create_patterns_from_ad = MagicMock(return_value=[1])
         det.sponsor_service = MagicMock()
         det.sponsor_service.get_sponsors = MagicMock(return_value=[])
         det.sponsor_service.find_sponsor_in_text = MagicMock(return_value='OurOwnShow')
@@ -415,8 +415,8 @@ class TestKeptMarkersStillLearn:
             podcast_id='podA', episode_id='ep1',
         )
         assert learned == 1
-        det.text_pattern_matcher.create_pattern_from_ad.assert_called_once()
-        assert (det.text_pattern_matcher.create_pattern_from_ad
+        det.text_pattern_matcher.create_patterns_from_ad.assert_called_once()
+        assert (det.text_pattern_matcher.create_patterns_from_ad
                 .call_args.kwargs['category']) == 'cross_promo'
 
     def test_learn_from_kept_ads_calls_learn_from_detections(self):

@@ -59,7 +59,7 @@ export interface AdPattern {
 }
 
 export interface PatternCorrection {
-  type: 'confirm' | 'reject' | 'adjust' | 'create' | 'split';
+  type: 'confirm' | 'reject' | 'adjust' | 'create' | 'split' | 'recategorize';
   original_ad?: {
     start: number;
     end: number;

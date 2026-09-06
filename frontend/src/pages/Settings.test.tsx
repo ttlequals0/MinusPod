@@ -47,7 +47,8 @@ vi.mock('./settings/AudioCueDetectionSection', () => ({ default: () => null }));
 vi.mock('./settings/PositionalPriorSection', () => ({ default: () => null }));
 vi.mock('./settings/CommunityPatternsSection', () => ({ default: () => null }));
 vi.mock('./settings/DatabaseBackupSection', () => ({ default: () => null }));
-vi.mock('./settings/OfflineQueueSection', () => ({ default: () => null }));
+vi.mock('./settings/QueueControlSection', () => ({ default: () => null }));
+vi.mock('./settings/TranscriptNormalizationSection', () => ({ default: () => null }));
 
 const mockGetSettings = vi.fn();
 const mockResetPrompt = vi.fn();
@@ -64,6 +65,15 @@ vi.mock('../api/settings', () => ({
   runCleanup: vi.fn(),
   getProcessingEpisodes: vi.fn().mockResolvedValue([]),
   cancelProcessing: vi.fn(),
+  setQueuePriority: vi.fn(),
+  getOfflineQueueSettings: vi.fn().mockResolvedValue({
+    enabled: false, ttlHours: 48, deferredCount: 0,
+  }),
+  updateOfflineQueueSettings: vi.fn(),
+  getRateLimitHoldSettings: vi.fn().mockResolvedValue({
+    enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+  }),
+  updateRateLimitHoldSettings: vi.fn(),
   refreshModels: vi.fn(),
   getRetention: vi.fn().mockResolvedValue({ retentionDays: 30, originalRetentionDays: 30, enabled: true }),
   updateRetention: vi.fn(),

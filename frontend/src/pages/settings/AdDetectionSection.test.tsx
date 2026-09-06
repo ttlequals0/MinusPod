@@ -19,6 +19,8 @@ interface TunablesState {
   verificationMissAutocutMinConfidence: number;
   learningMinConfidence: number;
   learningMinConfidenceLong: number;
+  learningMinPatternDuration: number;
+  learningMaxPatternDuration: number;
   differentialMeasuredCorrMax: number;
   differentialHoldMinSeconds: number;
 }
@@ -33,6 +35,8 @@ function defaultState(): TunablesState {
     verificationMissAutocutMinConfidence: 0,
     learningMinConfidence: 0.85,
     learningMinConfidenceLong: 0.92,
+    learningMinPatternDuration: 15,
+    learningMaxPatternDuration: 120,
     differentialMeasuredCorrMax: 0.6,
     differentialHoldMinSeconds: 10,
   };
@@ -64,6 +68,10 @@ function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
         onLearningMinConfidenceChange={patch('learningMinConfidence')}
         learningMinConfidenceLong={state.learningMinConfidenceLong}
         onLearningMinConfidenceLongChange={patch('learningMinConfidenceLong')}
+        learningMinPatternDuration={state.learningMinPatternDuration}
+        onLearningMinPatternDurationChange={patch('learningMinPatternDuration')}
+        learningMaxPatternDuration={state.learningMaxPatternDuration}
+        onLearningMaxPatternDurationChange={patch('learningMaxPatternDuration')}
         differentialMeasuredCorrMax={state.differentialMeasuredCorrMax}
         onDifferentialMeasuredCorrMaxChange={patch('differentialMeasuredCorrMax')}
         differentialHoldMinSeconds={state.differentialHoldMinSeconds}
@@ -157,6 +165,16 @@ describe('AdDetectionSection: commit fires the batched save payload with camelCa
     await user.type(holdMinSeconds, '20');
     holdMinSeconds.blur();
 
+    const minSpan = screen.getByLabelText('Learning minimum length (s)');
+    await user.clear(minSpan);
+    await user.type(minSpan, '20');
+    minSpan.blur();
+
+    const maxSpan = screen.getByLabelText('Learning maximum length (s)');
+    await user.clear(maxSpan);
+    await user.type(maxSpan, '300');
+    maxSpan.blur();
+
     await user.click(screen.getByRole('button', { name: 'Commit' }));
 
     expect(committed).toEqual({
@@ -168,6 +186,8 @@ describe('AdDetectionSection: commit fires the batched save payload with camelCa
       verificationMissAutocutMinConfidence: 0.8,
       learningMinConfidence: 0.9,
       learningMinConfidenceLong: 0.95,
+      learningMinPatternDuration: 20,
+      learningMaxPatternDuration: 300,
       differentialMeasuredCorrMax: 0.4,
       differentialHoldMinSeconds: 20,
     });

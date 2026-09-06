@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getDetections,
   type CutSummary,
+  type DetectionReviewerFilter,
   type DetectionSort,
   type ReviewDetection,
 } from '../../api/detections';
@@ -22,6 +23,7 @@ import SplitMarkerModal from '../../components/SplitMarkerModal';
 import { DetectionRows } from './DetectionRows';
 import { DetectionFilterBar } from './DetectionFilterBar';
 import { useDetectionCorrections } from './useDetectionCorrections';
+import { PendingRecutsBar } from './PendingRecutsBar';
 
 function StatFigure({ label, value, lead = false }: {
   label: string;
@@ -92,6 +94,7 @@ export default function DetectedAdsTab() {
   const [page, setPage] = useState(1);
   const [feed, setFeed] = useState('');
   const [category, setCategory] = useState('');
+  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
@@ -113,7 +116,7 @@ export default function DetectedAdsTab() {
   }, [q]);
 
   const {
-    dismiss, adjust, triggerRecut, busy, actionError,
+    dismiss, recategorize, adjust, triggerRecut, busy, actionError,
   } = useDetectionCorrections({
     stopAudition: audition.stop,
     onSettled: () => setEditing(null),
@@ -135,12 +138,13 @@ export default function DetectedAdsTab() {
     };
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['detections', 'cut', page, feed, category, debouncedQ, sort, order],
+    queryKey: ['detections', 'cut', page, feed, category, reviewer, debouncedQ, sort, order],
     queryFn: () => getDetections({
       page,
       status: 'accepted',
       feed: feed || undefined,
       category: category || undefined,
+      reviewer: reviewer || undefined,
       q: debouncedQ || undefined,
       sort,
       order,
@@ -164,6 +168,8 @@ export default function DetectedAdsTab() {
         onFeedChange={(v) => { setFeed(v); setPage(1); }}
         category={category}
         onCategoryChange={(v) => { setCategory(v); setPage(1); }}
+        reviewer={reviewer}
+        onReviewerChange={(v) => { setReviewer(v); setPage(1); }}
         q={q}
         onQChange={setQ}
         sort={sort}
@@ -172,6 +178,7 @@ export default function DetectedAdsTab() {
         onOrderChange={(v) => { setOrder(v); setPage(1); }}
       />
 
+      <PendingRecutsBar />
       {actionError && (
         <div className="text-destructive text-sm mb-3">{actionError}</div>
       )}
@@ -186,7 +193,7 @@ export default function DetectedAdsTab() {
       )}
       {!isLoading && !error && data && (data.total === 0 ? (
         <div className="text-muted-foreground text-sm py-8 text-center">
-          {feed || category || debouncedQ
+          {feed || category || reviewer || debouncedQ
             ? 'No cut ads match the current filters.'
             : 'No ads have been cut yet.'}
         </div>
@@ -197,7 +204,8 @@ export default function DetectedAdsTab() {
             audition={audition}
             actions={{
               // These ads were cut, so rejecting one has to put the audio back.
-              onDismiss: (d) => { setNotice(null); dismiss(d, d.hasOriginalAudio); },
+              onDismiss: (d) => { setNotice(null); dismiss(d); },
+              onCategory: recategorize,
               onEdit: (d) => { setNotice(null); setEditing(d); },
               onSplit: (d) => { setNotice(null); setSplitting(d); },
               busy,
@@ -234,6 +242,8 @@ export default function DetectedAdsTab() {
             detectionStage: editing.detectionStage,
             patternId: editing.patternId,
             correctedBounds: null,
+            category: editing.category as AdReviewItem['category'],
+            actionApplied: editing.actionApplied,
           } satisfies AdReviewItem}
           episodeDuration={editing.episodeDuration ?? 0}
           hasOriginal={editing.hasOriginalAudio}
@@ -248,7 +258,9 @@ export default function DetectedAdsTab() {
             if (s.kind === 'adjust') {
               adjust(d, s.adjustedStart, s.adjustedEnd, s.sponsor);
             } else if (s.kind === 'reject') {
-              dismiss(d, d.hasOriginalAudio);
+              dismiss(d);
+            } else if (s.kind === 'recategorize') {
+              recategorize(d, s.category ?? null);
             }
           }}
         />

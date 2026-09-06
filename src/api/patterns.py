@@ -5,9 +5,11 @@ from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
 from config import (
-    MIN_AD_DURATION, SEGMENT_CATEGORIES, count_pending_review,
-    is_pending_review, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    DEFAULT_SEGMENT_ACTION, MIN_AD_DURATION, SEGMENT_CATEGORIES,
+    count_pending_review, is_pending_review, normalize_segment_category,
+    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
+from utils.markers import BOUNDS_TOLERANCE_S, spans_match
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
 from pattern_service import PatternService, compute_pattern_trust
@@ -19,7 +21,7 @@ from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S, extract_timed_spans_in_range,
     parse_transcript_segments,
 )
-from text_pattern_matcher import split_template_text, MAX_PATTERN_CHARS
+from text_pattern_matcher import split_template_text, MAX_PATTERN_CHARS, TextPatternMatcher
 
 from flask import Response, request
 
@@ -211,16 +213,18 @@ def get_contaminated_patterns():
     Returns patterns containing multiple ad transition phrases, indicating
     they may contain merged multi-sponsor ads that should be split.
     """
-    from text_pattern_matcher import AD_TRANSITION_PHRASES
+    from text_pattern_matcher import find_transition_offsets
 
     db = get_database()
     patterns = db.get_ad_patterns(active_only=True)
     contaminated = []
 
     for pattern in patterns:
-        text = (pattern.get('text_template') or '').lower()
-        # Count ad transition phrases
-        transition_count = sum(1 for phrase in AD_TRANSITION_PHRASES if phrase in text)
+        text = pattern.get('text_template') or ''
+        # Positions, not phrase-list entries: nested phrases scored a clean
+        # pattern as contaminated, and the split it then recommended returned
+        # "nothing to split", so the list never emptied.
+        transition_count = len(find_transition_offsets(text))
 
         if transition_count > 1:
             contaminated.append({
@@ -247,7 +251,6 @@ def split_pattern(pattern_id):
     phrases and create individual single-sponsor patterns. The original pattern
     is disabled after successful split.
     """
-    from text_pattern_matcher import TextPatternMatcher
 
     db = get_database()
     matcher = TextPatternMatcher(db=db)
@@ -932,13 +935,13 @@ def _resolve_or_create_pattern_from_text(
     pattern to link the correction row to; all_ids is every pattern touched
     (created or reused via dedup), in segment order.
 
-    This is the path that bypasses create_pattern_from_ad's guards (duration,
-    char cap, single-transition-phrase check), so contaminated multi-sponsor
-    text used to become one oversized pattern (issue #563). ad_text is now
-    run through split_template_text first: a single segment behaves exactly
-    as before; multiple segments each get their own pattern (deduped and
-    capped like the auto path), and only the sponsor-matched segment (or the
-    first created, if none match) becomes primary.
+    ad_text is run through split_template_text first: multiple segments each
+    get their own pattern (deduped and capped like the auto path), and only
+    the sponsor-matched segment (or the first created, if none match) becomes
+    primary. A single segment goes through create_pattern_from_ad's guards
+    (duration, char cap, transition count, brand placement); this path used
+    to skip them, which is how a confirmed 176s span whose first 87s were
+    show content became a pattern keyed on that content.
 
     `label` is 'confirmed' or 'adjusted', for log messages.
     """
@@ -971,18 +974,27 @@ def _resolve_or_create_pattern_from_text(
     segments = split_template_text(ad_text)
 
     if len(segments) == 1:
-        # Single-segment path is byte-identical to pre-#563 behavior.
-        sponsor_id = get_or_create_known_sponsor(db, sponsor)
-        intro_variants, outro_variants = derive_intro_outro(ad_text)
-        new_pattern_id = db.create_ad_pattern(
+        # Gated exactly like the auto-learning path. Confirming a span that
+        # runs past the ad still records the correction for this episode;
+        # what it must not do is mint a pattern whose template opens on show
+        # content, which then drags the same overshoot onto every future
+        # episode. ad_text is passed so no transcript refetch is needed.
+        new_pattern_id = TextPatternMatcher(db=db).create_pattern_from_ad(
+            segments=[],
+            start=float(original_ad.get('start') or 0),
+            end=float(original_ad.get('end') or 0),
+            sponsor=sponsor,
             scope='podcast',
             podcast_id=podcast_id_str,
-            text_template=ad_text,
-            sponsor_id=sponsor_id,
-            intro_variants=intro_variants,
-            outro_variants=outro_variants,
-            created_from_episode_id=episode_id,
+            episode_id=episode_id,
+            ad_text=ad_text,
         )
+        if not new_pattern_id:
+            logger.info(
+                f"No pattern created for {label} ad in {slug}/{episode_id}: "
+                f"the span did not pass the learning gates (see warning above)"
+            )
+            return None, []
         logger.info(
             f"Created new pattern {new_pattern_id} (sponsor: {sponsor}) from {label} ad in {slug}/{episode_id}"
         )
@@ -1170,14 +1182,41 @@ def _load_markers(db, slug, episode_id):
         return None
 
 
-def _find_marker_in_list(markers, start, end, tol=0.5):
+def _find_marker_in_list(markers, start, end, tol=BOUNDS_TOLERANCE_S):
     """Bounds match within tolerance against an already-loaded marker list."""
     for m in markers or []:
-        m_start, m_end = m.get('start'), m.get('end')
-        if (m_start is not None and m_end is not None
-                and abs(m_start - start) <= tol and abs(m_end - end) <= tol):
+        if spans_match(m.get('start'), m.get('end'), start, end, tol):
             return m
     return None
+
+
+def _correction_changes_audio(db, slug, correction_type, marker, data) -> bool:
+    """True when a correction's outcome differs from what the audio holds.
+
+    Drives the pending-recut stamp: a decision that matches the current cut
+    (confirming an already-cut ad, rejecting one that was never cut) needs no
+    audio work, so it must not queue one.
+    """
+    if correction_type == 'create':
+        return True
+    if marker is None:
+        # Client bounds can trail a recut or reprocess past the match
+        # tolerance. With no marker to compare against, stamp: an unneeded
+        # recut is idempotent, a skipped one silently drops the decision.
+        return correction_type in ('confirm', 'reject', 'adjust', 'split')
+    was_cut = bool(marker.get('was_cut'))
+    if correction_type == 'confirm':
+        return not was_cut
+    if correction_type == 'reject':
+        return was_cut
+    if correction_type in ('adjust', 'split'):
+        return True
+    if correction_type == 'recategorize':
+        actions = db.resolve_segment_actions(slug)
+        new_action = actions.get(
+            normalize_segment_category(data.get('category')), DEFAULT_SEGMENT_ACTION)
+        return new_action != marker.get('action_applied')
+    return False
 
 
 def _find_marker_by_bounds(db, slug, episode_id, start, end, tol=0.5):
@@ -1190,6 +1229,41 @@ def _find_marker_by_bounds(db, slug, episode_id, start, end, tol=0.5):
     """
     return _find_marker_in_list(
         _load_markers(db, slug, episode_id), start, end, tol)
+
+
+def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
+    """Handle correction_type='recategorize': set one marker's category.
+
+    Scoped to this episode's marker. A linked pattern keeps its own category,
+    edited in the pattern detail modal, so one episode cannot silently
+    recategorize every future match.
+    """
+    category = data.get('category')
+    if category is not None and category not in SEGMENT_CATEGORIES:
+        return error_response('Invalid category', 400)
+
+    start = original_ad.get('start')
+    end = original_ad.get('end')
+    markers = _load_markers(db, slug, episode_id)
+    marker = _find_marker_in_list(markers, start, end) if markers else None
+    if marker is None:
+        return error_response('No detected ad matches those boundaries', 404)
+
+    previous = marker.get('category')
+    if category is None:
+        marker.pop('category', None)
+    else:
+        marker['category'] = category
+    db.save_episode_details(slug, episode_id, ad_markers=markers,
+                            pending_review_count=count_pending_review(markers))
+    logger.info(
+        f"CORRECTION: type=recategorize, episode={slug}/{episode_id}, "
+        f"{start:.1f}-{end:.1f}, category={previous!r} -> {category!r}")
+    return json_response({
+        'message': 'Category updated',
+        'category': category,
+        'previousCategory': previous,
+    })
 
 
 def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
@@ -1248,6 +1322,7 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
                 m['start'] = new_start
                 m['end'] = new_end
             m['approved'] = True
+            m['reviewer_moved'] = False
             changed = True
 
     if not changed:
@@ -1408,7 +1483,8 @@ def submit_correction(slug, episode_id):
         return error_response('No data provided', 400)
 
     correction_type = data.get('type')
-    if correction_type not in ('confirm', 'reject', 'adjust', 'create', 'split'):
+    if correction_type not in ('confirm', 'reject', 'adjust', 'create', 'split',
+                               'recategorize'):
         return error_response('Invalid correction type', 400)
 
     # Get pattern service for recording corrections
@@ -1418,7 +1494,10 @@ def submit_correction(slug, episode_id):
     # and metadata are top-level, not under `original_ad`. Branch out early
     # so the existing review-flow validation below stays simple.
     if correction_type == 'create':
-        return _submit_correction_create(db, slug, episode_id, data)
+        response = _submit_correction_create(db, slug, episode_id, data)
+        if getattr(response, 'status_code', 500) < 400:
+            db.mark_episode_pending_recut(slug, episode_id)
+        return response
 
     original_ad = data.get('original_ad', {})
     original_start = original_ad.get('start')
@@ -1432,35 +1511,49 @@ def submit_correction(slug, episode_id):
     except (TypeError, ValueError):
         return error_response('Original ad boundaries must be numbers', 400)
 
-    # A keep-resolved marker is a final per-feed decision to leave the
-    # segment in; it's never pending review, so this guard only catches a
-    # stale client payload. Must never create a correction row or
-    # cross-episode false-positive text for it.
+    # A keep-resolved marker is left in on purpose by the feed's category
+    # action, so confirm/reject/adjust would record a decision the cut can
+    # never honor. Recategorizing changes that verdict, so it is exempt.
     target_marker = _find_marker_by_bounds(db, slug, episode_id, original_start, original_end)
-    if target_marker is not None and target_marker.get('action_applied') == 'keep':
+    if (correction_type != 'recategorize'
+            and target_marker is not None
+            and target_marker.get('action_applied') == 'keep'):
         return error_response(
-            'This segment is kept for this feed and cannot be corrected', 409
+            'This segment is kept for this feed. Change its category to correct it.',
+            409
         )
 
     if correction_type == 'confirm':
-        return _handle_confirm_correction(
+        response = _handle_confirm_correction(
             db, pattern_service, slug, episode_id, original_ad, data
         )
     elif correction_type == 'reject':
-        return _handle_reject_correction(db, slug, episode_id, original_ad)
+        response = _handle_reject_correction(db, slug, episode_id, original_ad)
     elif correction_type == 'adjust':
-        return _handle_adjust_correction(
+        response = _handle_adjust_correction(
             db, pattern_service, slug, episode_id, original_ad, data
         )
     elif correction_type == 'split':
-        return _submit_correction_split(
+        response = _submit_correction_split(
             db, pattern_service, slug, episode_id, original_ad, data
         )
+    elif correction_type == 'recategorize':
+        response = _handle_recategorize_correction(
+            db, slug, episode_id, original_ad, data
+        )
+    else:
+        # Unreachable: the guard above restricts the value. Kept so a future
+        # type added to validation but not here returns 400, not a 500.
+        return error_response('Invalid correction type', 400)
 
-    # Exhaustive above: the earlier correction_type guard restricts values to
-    # create/confirm/reject/adjust/split. Kept as a defensive backstop so a future
-    # type added to validation but not to this dispatch returns 400, not a 500.
-    return error_response('Invalid correction type', 400)
+    # Stamp the episode for a later bulk apply rather than recutting now: one
+    # episode often collects several decisions, and each should not rewrite
+    # its audio.
+    if (getattr(response, 'status_code', 500) < 400
+            and _correction_changes_audio(
+                db, slug, correction_type, target_marker, data)):
+        db.mark_episode_pending_recut(slug, episode_id)
+    return response
 
 
 # ========== Import/Export Endpoints ==========

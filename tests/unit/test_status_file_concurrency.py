@@ -16,10 +16,7 @@ def status_service(temp_dir, monkeypatch):
     import status_service as status_service_mod
     monkeypatch.setattr(status_service_mod, '_get_soft_timeout', lambda: 3600)
     status_service_mod.StatusService._instance = None
-    monkeypatch.setattr(
-        status_service_mod, 'STATUS_FILE',
-        os.path.join(temp_dir, 'processing_status.json'),
-    )
+    monkeypatch.setenv('DATA_DIR', temp_dir)
     ss = status_service_mod.StatusService()
     yield ss
     status_service_mod.StatusService._instance = None
@@ -34,9 +31,10 @@ def test_the_lock_file_lands_beside_the_patched_status_file(status_service, temp
 
 def _queue_in_child(status_path, index):
     """Runs in a separate process, so it gets its own singleton and lock."""
+    import os
     import status_service as status_service_mod
     status_service_mod._get_soft_timeout = lambda: 3600
-    status_service_mod.STATUS_FILE = status_path
+    os.environ['DATA_DIR'] = os.path.dirname(status_path)
     status_service_mod.StatusService._instance = None
     ss = status_service_mod.StatusService()
     for n in range(10):

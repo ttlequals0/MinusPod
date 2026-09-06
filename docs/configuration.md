@@ -10,10 +10,7 @@ All configuration is in the web UI or REST API. No config files needed.
 
 ### Adding Feeds
 
-1. Open `http://your-server:8000/ui/`
-2. Click "Add Feed"
-3. Enter the podcast RSS URL
-4. Optionally set a custom slug (URL path)
+Add a feed from the dashboard at `/ui/` (Add Feed, RSS URL, optional custom slug) or with `POST /api/v1/feeds` (see [API & Webhooks](api-and-webhooks.md#api)).
 
 ### Ad Detection Settings
 
@@ -53,6 +50,8 @@ Settings > Ad Detection has two grouped subsections for tuning how aggressively 
 | Autocut | off (0) | 0.5 - 1.0, or off | When enabled, cuts a standalone catch automatically once it reaches this confidence, instead of holding it for review. Off by default, so catches only ever hold or drop. |
 | Pattern-learning floor | 0.85 | 0.5 - 1.0 | Minimum confidence before a detection can teach the pattern matcher a new sponsor. Applies to ads up to 90 seconds. |
 | Pattern-learning floor, long ads | 0.92 | 0.5 - 1.0 | Same floor for ads longer than 90 seconds. Higher by default, since a long span is costlier to learn wrong. |
+| Learning minimum length | 15s | 1 - 600s | Below this, a detection is usually a fragment or a passing mention rather than an ad, so nothing is learned from it. |
+| Learning maximum length | 120s | 1 - 1800s | A longer detection is split at its ad transitions and each read is learned separately. Raise this for feeds whose ad blocks run long. |
 
 A held standalone catch carries a `verification_miss` hold reason and shows a "Verification catch" chip in the Held for Review section; it gets the same waveform editor and approve/dismiss flow as any other held ad. See [Held for Review](how-it-works.md#held-for-review) and [Verification Pass](how-it-works.md#verification-pass).
 
@@ -114,7 +113,7 @@ When the provider returns a 429 because a single window's request exceeds the pe
 
 Whisper uses Voice Activity Detection to skip regions it classifies as silence or non-speech. Sped-up legal disclaimers at the tail of DIA ads, distorted interstitials, and some ad intros fall into that bucket and never make it into the transcript. Since MinusPod's Claude, text-pattern, and roll detectors all run against the transcript, these regions are invisible to them and can leak into the processed output, usually at the very start or end of an episode.
 
-The VAD gap detector (added in 2.0.7) runs after the other stages and treats untranscribed spans as ad candidates:
+The VAD gap detector runs after the other stages and treats untranscribed spans as ad candidates:
 
 - **Head gap** at the top of the episode: cut whenever the first transcribed segment starts more than `VAD_GAP_START_MIN_SECONDS` (default 3s) into the audio and nothing already covers it.
 - **Mid gap** between segments: if the span is adjacent to a detected ad, the ad's boundary is extended in place. Otherwise, the gap must be at least `VAD_GAP_MID_MIN_SECONDS` (default 8s) AND have ad-signoff language before it or show-resume language after it. Neutral content pauses are left alone.
@@ -135,6 +134,12 @@ Two things have to be in place first:
 
 If the passphrase is missing, the key inputs collapse to a "Setup required" note, the API returns `409 provider_crypto_unavailable`, and env-var credentials keep working. GET responses never include key values, only booleans plus a `db`/`env`/`none` source marker.
 
+### JSON schema response format
+
+OpenAI-compatible endpoints only. When on, MinusPod asks the endpoint to enforce a JSON schema on detection, review, category repair, and trim-recovery responses instead of only asking for JSON, which cuts malformed replies. Off by default; the toggle is in **Settings > LLM Provider**.
+
+Support varies by model, not just by server. MinusPod probes each model the ad pipeline is configured to use, once, after the endpoint verifies, and stores one answer per model. Plain JSON mode is remembered the same way, so one model's rejection no longer speaks for the others on that endpoint. A model that rejects the schema falls back to plain JSON mode, and so does a model that passes the probe but rejects a real request. Check that your server implements `response_format` with `type: json_schema` before relying on it. Anthropic, OpenRouter, and Ollama call sites are unaffected by this toggle.
+
 ### Cover art badge
 
 Settings > Cover Art has an **Overlay MinusPod badge on cover art** toggle, off by default. When on, MinusPod adds a small badge to a corner of each served feed's cover art, so the filtered version is easy to tell apart from the original in your podcast app. **Badge position** picks the corner: bottom-right (default), bottom-left, top-right, or top-left, which helps when the show's own logo sits under the badge. `ARTWORK_BADGE_POSITION` seeds it on a fresh deploy. The badged image is served at `/<slug>/cover-minuspod.jpg`. A **Refresh all artwork** button in the same section re-renders every feed's cover art, which you run after toggling the setting or swapping the badge asset.
@@ -149,11 +154,7 @@ The served feed URL does not change, which is the point: your app keeps pulling 
 
 ### Segment categories
 
-Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
-
-Opt-in, two ways: every category defaults to remove, so upgrading changes no feed's output on its own. Intro, outro, and recap markers are produced only for feeds where show-segments detection resolves to on (see below); a feed where it resolves to off has no intro/outro/recap markers to apply a keep or beep action to, no matter what its action map says. If a feed's action map was previously worked around by editing the global first-pass prompt override to force intro/outro removal, remove that override; it applies to every feed and will keep fighting a per-feed keep setting.
-
-A **defined** pattern (one you created, or one synced in from the community pattern list) always cuts its matched segment, overriding whatever action the category resolves to. Only auto-learned patterns respect segment actions. A pattern's category can be set when creating it (the manual ad editor's Category select, or `category` on import) and edited on the pattern detail modal, so a miscategorized auto-learned pattern that keeps protecting an ad can be corrected in place. See [How It Works > Segment Categories](how-it-works.md#segment-categories).
+Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). A pattern's category is set on creation (the Category select, or `category` on import) and can be changed on the pattern detail modal. See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
 
 | Category | Covers | Detected by default |
 |---|---|---|
@@ -177,13 +178,13 @@ Resolution order: a per-feed override, if set, wins; otherwise the global defaul
 
 Show-segments detection (whether intro, outro, and recap markers get produced at all) has its own global default alongside the global action map on the **Segment actions** card, off by default, and saves immediately when toggled. A feed inherits that default until it sets its own value: the feed settings page exposes an explicit **Inherit / On / Off** choice (`detectShowSegments` on `PATCH /api/v1/feeds/{slug}`; `null` means inherit) and shows the effective value while inheriting. With detection off, the LLM never produces intro/outro/recap markers for that feed, so those rows of the action map have nothing to act on regardless of how they are set. With it on, intro/outro/recap detection is added to that feed's LLM detection windows; the other four categories are detected regardless of this setting.
 
-Changing an action map only affects episodes processed after the change. To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`), which recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
+To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`). It recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
 
 ### Queue priority
 
 Each feed has a **Queue priority**: High, Normal (default), or Low, set on the feed's settings page. High processes ahead of other queued episodes; Low runs only once nothing else is waiting.
 
-Three automatic boosts stack on top of a feed's base priority, and the size of each is a setting under **Settings > Global Defaults > Queue priority**:
+Three automatic boosts stack on top of a feed's base priority, and the size of each is a setting under **Settings > AI & Processing > Queue Control > Queue priority**:
 
 | Boost | Default | When it applies |
 |---|---|---|
@@ -191,9 +192,11 @@ Three automatic boosts stack on top of a feed's base priority, and the size of e
 | New episode | 5 | The episode's publish date is within 48 hours of now, and the global **Process new episodes first** toggle (on by default) is on. |
 | Reprocess All | 0 | Bulk work: Reprocess All on a feed, or segment re-renders. The default of 0 keeps a backlog run behind everything else. |
 
-The defaults encode one rule: a request you make right now beats backlog work, always. Before 2.92.1, Reprocess All stamped every episode with the full manual boost, so a 93-episode backfill could pin a just-published episode 94th in line for two days. Raise the Reprocess All boost only if you want backfills to compete with new releases.
+The defaults encode one rule: a request you make right now beats backlog work, always. Raise the Reprocess All boost only if you want backfills to compete with new releases.
 
-A queued episode's priority can rise but never fall: pressing play on an episode that is already sitting in the queue lifts it to the play boost, while background refreshes can never knock a boosted episode back down.
+Automatic changes only ever raise a queued episode's priority: pressing play on an episode already sitting in the queue lifts it to the play boost, and background refreshes can never knock a boosted episode back down.
+
+You can override that by hand. The **Processing Queue** panel's waiting list gives each row a priority field with -/+ buttons beside it, which writes the row's priority directly and can lower it as well as raise it (`POST /api/v1/feeds/{slug}/episodes/{episodeId}/queue-priority`). Re-enqueueing the episode with a higher computed priority still overwrites a hand-set value, and so does a change to the feed's own Queue priority.
 
 Changing a feed's queue priority restamps every episode of that feed still pending in the queue with the new base priority. API: `queuePriority` on `PATCH /api/v1/feeds/{slug}` (`high`, `normal`, or `low`); the boost sizes are `queueManualBoost`, `queueFreshBoost`, and `queueBulkBoost` (0-100) and the toggle is `processNewEpisodesFirst`, all on `PUT /api/v1/settings`.
 
@@ -294,7 +297,11 @@ If you customized your system or verification prompt before this release, the up
 
 ### Per-pass prompt overrides
 
-Each pass (first, verification, reviewer, resurrect) has an optional **Override** field in Settings, empty by default. Text there is added to that pass at run time, so you can apply a tweak (e.g. "keep this show's news roundup") without editing the built-in prompt, which stays intact. It is inserted at the prompt's `{override}` placeholder if present, otherwise appended under an "additional instructions" header. An empty override changes nothing.
+Each pass (first, verification, reviewer, resurrect) has an optional **Override** field in Settings, empty by default. Text there is appended to that pass's prompt at run time, so you can add a tweak (e.g. "keep this show's news roundup") without editing the built-in prompt. To put it somewhere other than the end, add `{override}` to a customized prompt where you want it. An empty override changes nothing.
+
+### Per-feed detection notes
+
+The global overrides apply to every feed. For one show, use **Detection notes** on the feed's settings page (up to 1000 characters). The text is appended to the podcast description the model already sees, so it reaches the first pass and the reviewer. Use it for things only that show does: how its intro is structured, how host-read ads usually start, a recurring segment to keep. API: `detectionNotes` on `PATCH /api/v1/feeds/{slug}`.
 
 ### Audio Cue Detection
 
@@ -316,12 +323,6 @@ Reprocessing an episode re-runs detection without re-fetching it from the source
 MinusPod can share and receive ad patterns from a community-maintained seed list. Patterns describe recognized ad reads (sponsor scripts, host-read pre-rolls, etc.) so new MinusPod instances skip the LLM detection step for ads that have already been identified elsewhere.
 
 The feature is **opt-in** and **off by default**. When enabled, your MinusPod instance pulls a manifest of community patterns from this repo on a schedule you control. To submit your own patterns back, open the Patterns page Export dialog and pick **Submit to community**: the app runs quality gates over your selection, shows what will pass, and downloads a single bundle file. Drop it into your fork of `patterns/community/` and open one PR.
-
-### What you get when enabled
-
-- Faster ad detection for sponsors other MinusPod users have already identified
-- New patterns appear automatically as the community contributes them
-- Local patterns you build stay private unless you choose to submit them
 
 ### What you control
 
@@ -346,11 +347,25 @@ You retain everything locally. Submission is a copy, not a move.
 
 See [`patterns/README.md`](../patterns/README.md) for the technical reference (sync mechanics, file formats, tag vocabulary) and [`patterns/CONTRIBUTING.md`](../patterns/CONTRIBUTING.md) for what happens when you submit a pattern.
 
+### Splice check
+
+A long cut is held for review unless the audio carries evidence of an insertion point near its edges. See [How It Works > Held for Review](how-it-works.md#held-for-review) for what counts as evidence, and why a feed whose ads are read straight through in one take has every long cut held.
+
+The per-feed **Splice check** setting, under Advanced on the feed's settings page, is the way out. It overrides the global either way, so a feed that can never satisfy the check stops being held by it without changing anything for your other feeds.
+
+| Setting | Effect |
+|---|---|
+| Use global | Follows the global `splice_veto_enabled` setting, on unless an operator changed it |
+| Hold cuts without splice evidence | Forces the check on for this feed |
+| Cut without splice evidence | Turns it off for this feed, so long cuts are judged on the other validation rules alone |
+
+Turning it off gives up a safety net, so it suits a feed you have already watched cut correctly. Held ads are never lost either way: they stay in the audio and wait on the episode page.
+
 ## Offline Queue
 
 If your LLM or Whisper server only runs part of the day (a desktop PC that hosts Ollama, for example), episodes that arrive while it is off normally retry a few times, trip the circuit breaker, and end up permanently failed until you reprocess them by hand. The offline queue changes that: an episode that fails because the endpoint is unreachable is parked with a "queued (offline)" status instead. Every few minutes MinusPod probes the endpoint, and once it answers again the parked episodes go back into the processing queue on their own.
 
-The feature is off by default. Configure it in **Settings > Offline Queue**.
+The feature is off by default. Configure it in **Settings > AI & Processing > Queue Control**.
 
 | Setting | Default | Notes |
 |---|---|---|
@@ -358,6 +373,44 @@ The feature is off by default. Configure it in **Settings > Offline Queue**.
 | Give up after | 48 hours | Episodes still waiting after this long are marked failed and logged. Range 1-720 hours. |
 
 Only connection-level failures qualify: connection refused, DNS errors, timeouts, and repeated 5xx responses. Auth errors, rate limits, and bad responses still fail normally, so a wrong API key does not sit in the queue looking healthy. Turning the toggle off stops new episodes from being parked, but anything already waiting keeps being probed and expired so nothing is stranded. You can also reprocess a parked episode by hand at any time.
+
+## Rate-Limit Hold
+
+Hosted LLM providers answer a 429 with the time their limit resets. Without this feature an episode that hits one burns its retries against a provider that will not answer for another hour, and every episode behind it does the same. The rate-limit hold parks the episode instead and stops the queue from claiming new work until the reset time passes, then carries on by itself.
+
+The feature is off by default. Configure it in **Settings > AI & Processing > Queue Control**.
+
+| Setting | Default | Notes |
+|---|---|---|
+| Enabled | off | Pause the queue when the provider reports a 429 with a reset time. |
+| Give up after | 48 hours | Episodes still held after this long are marked failed and logged. Range 1-720 hours. |
+
+Only a reset further out than five minutes triggers a hold. Shorter ones keep the existing in-process retry, so a single throttled window recovers without pausing the queue. The hold covers detection, review, and verification, so a throttle part-way through a run defers the whole episode rather than skipping that stage. Anything you ask for by hand carries the manual queue boost, so Play and Reprocess still run during a pause. Turning the toggle off lifts the pause and releases held episodes on the next maintenance pass, within about five minutes.
+
+Held episodes sit under their own service name, so the offline queue's endpoint probes and give-up window never touch them, and a held episode does not inherit the clock of an earlier offline deferral.
+
+## Outbound Requests
+
+MinusPod identifies itself with two User-Agent strings, and hosts treat them differently. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship. A string that worked last year starts drawing a 403 on download, even though the file is there. Other feed hosts do the reverse and answer only a declared podcast client. One string cannot satisfy both, so there are two.
+
+Both ship with working defaults and are editable in **Settings > Data & Security > Outbound Requests**. A host that starts refusing yours is fixed by pasting in a new string rather than by waiting for a release.
+
+| Setting | Default | Sent when |
+|---|---|---|
+| Audio, artwork, and chapters | a current Chrome string | Downloading media, feed artwork, and upstream chapter files. |
+| RSS feeds | `PodcastAdRemover/1.0` | Fetching and validating RSS. |
+
+A value must be printable ASCII on a single line, at most 512 characters. Carriage returns and line feeds are rejected, since the value goes straight into a request header. Reset returns a field to its default.
+
+### What the download logs record
+
+Every download and availability check logs the URL it requested, including the path, followed by each redirect hop with its status code and the final URL it landed on. That is usually enough to see which file was asked for and where the host sent it.
+
+Query strings are left out. On a podcast enclosure that is where a signed CDN token or a per-listener tracking id lives, and a log outlives both. The "Log query strings on downloads" toggle in the same settings section adds them when you are debugging a refusal that depends on one. Turn it back off afterwards.
+
+### Diagnosing a refusal
+
+When the availability probe draws a 403, MinusPod probes once more with the feed User-Agent. If that string is accepted, the host is gating on the browser identifier: the episode downloads with the feed string and a warning names both strings, so the download User-Agent is the one to change. Try the User-Agent your own browser sends. If both strings draw a 403, the host is blocking regardless of identifier, which is what bot mitigation and rate limits look like. The episode then retries on the normal ladder as `CDN blocked the request (403) with both User-Agents`. A 404 also retries, since a freshly published episode can 404 briefly while its host provisions the media URL.
 
 ## Scheduled Database Backups
 

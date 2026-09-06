@@ -1,5 +1,6 @@
 {
   "scope": "global",
+  "category": "sponsor",
   "text_template": "Zerotrust is clearly the future as threats get faster, quieter, and harder to detect. But implementing it shouldn't disrupt the business. ThreatLocker enforces default deny and execution in a way that remains enterprise ready, scalable, and operationally clean. Unknown software is stopped cold, trusted apps stay contained, and drift is locked down across the environment. It's zero trust that works in real enterprises and prepares you for the threats ahead. See why CISOs are adopting it at .com forward slash ThreatLocker.",
   "intro_variants": [
     "Zerotrust is clearly the future as threats get faster, quieter, and harder to detect. But implementing it shouldn't disrupt the business. ThreatLocker enforces default deny and execution in a way that"

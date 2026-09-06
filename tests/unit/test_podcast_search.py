@@ -110,6 +110,32 @@ class TestSearchProviderResolution:
         self._clear_provider_setting()
 
 
+class TestPodcastSearchReady:
+    """GET /settings podcastSearchReady mirrors search_provider_ready()."""
+
+    def _clear_provider_setting(self):
+        from api.podcast_search import get_database
+        get_database().set_setting('podcast_search_provider', '')
+
+    def test_false_when_podcastindex_selected_without_credentials(self, client):
+        from api.podcast_search import get_database
+        get_database().set_setting('podcast_search_provider', 'podcastindex')
+        try:
+            with patch('api.podcast_search._get_podcast_index_credentials',
+                       return_value=('', '')):
+                g = client.get('/api/v1/settings')
+        finally:
+            self._clear_provider_setting()
+        assert g.get_json()['podcastSearchReady'] is False
+
+    def test_true_for_itunes(self, client):
+        self._clear_provider_setting()
+        with patch('api.podcast_search._get_podcast_index_credentials',
+                   return_value=('', '')):
+            g = client.get('/api/v1/settings')
+        assert g.get_json()['podcastSearchReady'] is True
+
+
 class TestItunesSearch:
     """iTunes provider: keyless search mapped to the shared result shape."""
 

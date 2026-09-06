@@ -33,10 +33,13 @@ Each entry in `patterns[]` includes:
 - Pattern scope and matching parameters
 - A fresh UUID (`community_id`)
 - Version number (starts at 1)
+- Segment category (`category`), when the pattern has one set
 - Submission timestamp
 - App version that submitted the pattern
 
 The bundle does not include any data identifying you, your podcasts, or your listening habits. The PR-side validator handles bundle files natively (one validation per entry), and the manifest builder flattens them into per-pattern entries in `patterns/community/index.json`, so the maintainer does not have to split them on merge.
+
+`category` says what kind of segment the pattern matches: one of `sponsor`, `cross_promo`, `self_promo`, `interaction`, `intro`, `outro`, or `recap`. It is optional, and patterns contributed before categories existed do not carry one. Installs decide per category whether to cut, beep, or keep a match, and they can refuse to import categories they do not want. An accurate value means fewer people have to correct the pattern locally. A pattern with no category is treated as a sponsor read.
 
 Each entry also supports an optional `last_confirmed_at` field (ISO 8601 UTC string). It has nothing to do with the initial `submitted_at` timestamp: set it when you re-verify that a pattern you already contributed still airs, for example while updating a PR after the sponsor read changed slightly. MinusPod installs use it, alongside how recently the pattern has matched locally, to badge a pattern as stale in the Patterns UI once it goes a long time unmatched and unconfirmed.
 

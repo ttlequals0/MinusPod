@@ -11,6 +11,13 @@ interface NumberInputProps {
   step?: number;
   parse?: (s: string) => number;
   className?: string;
+  disabled?: boolean;
+  /**
+   * 'edit' (default) commits on every parseable keystroke, for drafts a Save
+   * button later persists. 'blur' commits only on blur or Enter, for fields
+   * wired straight to a write.
+   */
+  commitOn?: 'edit' | 'blur';
 }
 
 /**
@@ -24,6 +31,7 @@ interface NumberInputProps {
  */
 export default function NumberInput({
   value, min, max, fallback, onCommit, id, ariaLabel, step,
+  disabled = false, commitOn = 'edit',
   parse = parseFloat,
   className = 'w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring',
 }: NumberInputProps) {
@@ -47,12 +55,14 @@ export default function NumberInput({
       min={min}
       max={max}
       step={step}
+      disabled={disabled}
       className={className}
       onFocus={(e) => { focused.current = true; e.target.select(); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
       onChange={(e) => {
         const raw = e.target.value;
         setText(raw);
-        if (raw !== '') {
+        if (commitOn === 'edit' && raw !== '') {
           const v = parse(raw);
           if (Number.isFinite(v)) onCommit(clamp(v));
         }

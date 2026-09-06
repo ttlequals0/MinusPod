@@ -103,6 +103,18 @@ export function getErrorMessage(err: unknown, fallback = 'Request failed'): stri
   return err instanceof Error ? err.message : fallback;
 }
 
+// Thrown by apiRequest on a non-ok response, carrying the HTTP status so
+// callers can branch on it (e.g. treat 404 as "not found" vs any other error)
+// without string-matching the message.
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 // Redirect to login on 401, preserving the current path. Throws so callers stop.
 function handleUnauthorized(endpoint: string): void {
   const currentPath = window.location.pathname;
@@ -150,7 +162,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
           continue;
         }
         const error = await response.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(extractErrorMessage(error, response.status));
+        throw new ApiError(extractErrorMessage(error, response.status), response.status);
       }
 
       const contentType = response.headers.get('content-type');

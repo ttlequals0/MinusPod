@@ -55,6 +55,8 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
     sponsor: 'Acme', reason: 'sponsor read',
     patternId: null, detectionStage: 'first_pass',
     category: null, actionApplied: null,
+    reviewerVerdict: null, reviewerOriginalStart: null, reviewerOriginalEnd: null,
+    reviewerMoved: false,
     status: 'rejected', resolution: 'unresolved',
     ...over,
   };
@@ -91,7 +93,8 @@ describe('AdReviewTab', () => {
     const row = link.closest('[data-testid="detection-row"]') as HTMLElement;
     expect(within(row).getByText('Feed A')).toBeTruthy();
     expect(within(row).getByText('Not cut')).toBeTruthy();
-    expect(within(row).getByText('Unresolved')).toBeTruthy();
+    // No chip for an undecided row; a recorded decision still gets one.
+    expect(within(row).queryByText('Not reviewed')).toBeNull();
     // The second meta line carries what the old table columns did.
     expect(within(row).getByText(/2026/)).toBeTruthy();
     expect(within(row).getByText(/\(30s\)/)).toBeTruthy();
@@ -156,14 +159,22 @@ describe('AdReviewTab', () => {
     const cards = screen.getByTestId('detections-cards');
     expect(within(cards).getByRole('link', { name: 'Episode One' })).toBeTruthy();
     expect(within(cards).getByText('Acme')).toBeTruthy();
-    // All actions share one line: play | Confirm ad | Not an ad | Edit.
-    // The decision buttons grow but never shrink below their nowrap labels,
-    // so neither can wrap into a taller button than its neighbor.
+    // Cards lay out in two deliberate rows rather than by wrap order: the
+    // verdict pair on top at equal width, adjustments below.
     const confirm = within(cards).getByRole('button', { name: 'Confirm ad' });
+    const notAnAd = within(cards).getByRole('button', { name: 'Not an ad' });
     const edit = within(cards).getByRole('button', { name: 'Edit' });
-    expect(edit.parentElement).toBe(confirm.parentElement);
-    expect(confirm.className).toContain('grow');
-    expect(confirm.className).toContain('whitespace-nowrap');
+    const category = within(cards).getByRole('combobox', { name: /^Category for/ });
+    expect(notAnAd.parentElement).toBe(confirm.parentElement);
+    expect(edit.parentElement).toBe(category.parentElement);
+    expect(edit.parentElement).not.toBe(confirm.parentElement);
+    for (const b of [confirm, notAnAd]) {
+      expect(b.className).toContain('grow');
+      expect(b.className).toContain('basis-0');
+      expect(b.className).toContain('whitespace-nowrap');
+      // The tap-target floor from the design guide.
+      expect(b.className).toContain('min-h-[44px]');
+    }
     expect(edit.className).not.toContain('grow');
   });
 
@@ -194,7 +205,7 @@ describe('AdReviewTab', () => {
 });
 
 describe('AdReviewTab row actions', () => {
-  it('approve submits a confirm correction and triggers recut', async () => {
+  it('approve submits a confirm correction without recutting on the spot', async () => {
     renderTab();
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
@@ -205,19 +216,8 @@ describe('AdReviewTab row actions', () => {
       type: 'confirm',
       original_ad: { start: 100, end: 130 },
     });
-    await waitFor(() =>
-      expect(mockReprocess).toHaveBeenCalledWith('feed-a', 'ep-1', 'recut'));
-  });
-
-  it('approve without original audio skips the recut', async () => {
-    mockGetDetections.mockResolvedValue({
-      detections: [detection({ hasOriginalAudio: false })],
-      total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
-    });
-    renderTab();
-    const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
-    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
+    // Review is bulk work: the server stamps the episode and the Apply bar
+    // cuts it once, so a decision must not start its own recut.
     expect(mockReprocess).not.toHaveBeenCalled();
   });
 
@@ -282,20 +282,6 @@ describe('AdReviewTab row actions', () => {
     expect(mockReprocess).not.toHaveBeenCalled();
     errSpy.mockRestore();
   });
-
-  it('shows recut-failure banner when correction succeeds but reprocess fails', async () => {
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mockReprocess.mockRejectedValueOnce(new Error('recut boom'));
-    renderTab();
-    const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
-    expect(
-      await screen.findByText(
-        'Saved, but the recut did not start. The change applies on the next reprocess.',
-      ),
-    ).toBeTruthy();
-    errSpy.mockRestore();
-  });
 });
 
 describe('AdReviewTab category filter', () => {
@@ -324,5 +310,54 @@ describe('AdReviewTab category filter', () => {
     renderTab();
     await waitFor(() => expect(mockGetDetections).toHaveBeenCalled());
     expect(mockGetDetections.mock.calls[0][0].category).toBeUndefined();
+  });
+});
+
+describe('AdReviewTab reviewer filter', () => {
+  it('omits the reviewer param by default and sends the selection with page 1', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    expect(mockGetDetections.mock.calls[0][0].reviewer).toBeUndefined();
+    await user.selectOptions(screen.getByLabelText('Reviewer'), 'adjusted');
+    await waitFor(() => {
+      expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
+        reviewer: 'adjusted', page: 1,
+      });
+    });
+  });
+
+  it('badges a reviewer-adjusted row with the original span in both layouts', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({
+        reviewerVerdict: 'adjust', reviewerOriginalStart: 98, reviewerOriginalEnd: 131,
+        reviewerMoved: true,
+      })],
+      total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
+    });
+    renderTab();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    for (const id of ['detections-rows', 'detections-cards']) {
+      const badge = within(screen.getByTestId(id)).getByText('Adjusted');
+      expect(badge.getAttribute('title')).toBe('Reviewer moved this from 1:38 - 2:11');
+    }
+  });
+
+  it('shows no badge for a confirmed, unreviewed, or unmoved adjust row', async () => {
+    mockGetDetections.mockResolvedValue({
+      // The third row is a held contradiction: verdict kept, no move recorded.
+      detections: [
+        detection({ reviewerVerdict: 'confirmed' }),
+        detection(),
+        detection({ reviewerVerdict: 'adjust' }),
+      ],
+      total: 3, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
+    });
+    renderTab();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    // Scope to the lists: the Reviewer select also offers an "Adjusted" option.
+    for (const id of ['detections-rows', 'detections-cards']) {
+      expect(within(screen.getByTestId(id)).queryByText('Adjusted')).toBeNull();
+    }
   });
 });

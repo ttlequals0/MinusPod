@@ -52,6 +52,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     auto_process_override TEXT,
     language_override TEXT,
     title_override TEXT,
+    detection_notes TEXT,
     detection_mode TEXT,
     cue_template_score_override REAL,
     cue_create_from_pairs_override INTEGER,
@@ -69,6 +70,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Phase C held-for-review per-feed settings
     max_ad_duration_override REAL,
     max_ad_duration_reject_override REAL,
+    -- Splice-veto override (NULL = inherit the global, 0 = off, 1 = on)
+    splice_veto_enabled INTEGER,
     cue_gated_approval INTEGER DEFAULT 0,
     skip_second_pass INTEGER DEFAULT 0,
     skip_transcription INTEGER,
@@ -130,6 +133,7 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     ads_removed_firstpass INTEGER DEFAULT 0,
     ads_removed_secondpass INTEGER DEFAULT 0,
     pending_review_count INTEGER NOT NULL DEFAULT 0,
+    pending_recut_at TEXT,
     error_message TEXT,
     -- Offline queue (#482): when the episode FIRST entered the offline queue
     -- and which service ('llm' or 'whisper') was unreachable. deferred_at
@@ -262,6 +266,7 @@ TABLE_DDL['known_sponsors'] = """CREATE TABLE IF NOT EXISTS known_sponsors (
     name TEXT UNIQUE NOT NULL,
     aliases TEXT DEFAULT '[]',
     category TEXT,
+    segment_category TEXT,
     common_ctas TEXT DEFAULT '[]',
     is_active INTEGER DEFAULT 1,
     tags TEXT NOT NULL DEFAULT '[]',

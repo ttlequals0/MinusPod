@@ -1,5 +1,6 @@
 """Tests for the ad reviewer."""
 import logging
+import re
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
@@ -165,6 +166,7 @@ def test_array_with_shifted_boundaries_yields_adjust():
     assert out['end'] == 185.0
     assert out['reviewer_original_start'] == 120.0
     assert out['reviewer_original_end'] == 180.0
+    assert out['reviewer_moved'] is True
 
 
 def test_corrected_start_keys_are_applied_as_adjust():
@@ -346,8 +348,10 @@ def _dillon_segments():
 
 
 def test_user_prompt_candidate_lines_are_timestamped():
-    """Every candidate line carries its segment start/end so the model can
-    quote an exact boundary for any sentence it names."""
+    """Every line (context and candidate) carries its segment start/end so
+    the model can quote an exact boundary for any sentence it names (#695):
+    the system prompt's adjust-boundaries examples derive their answers from
+    timestamped context lines."""
     reviewer = _build_reviewer({'review_prompt': 'review'})
     prompt = reviewer._build_user_prompt(
         ad={'start': 120.0, 'end': 180.0},
@@ -358,8 +362,12 @@ def test_user_prompt_candidate_lines_are_timestamped():
     assert '[120.0s-180.0s] ad sponsor pitch' in prompt
     assert '>>> CANDIDATE AD START [120.0s] >>>' in prompt
     assert '<<< CANDIDATE AD END [180.0s] <<<' in prompt
-    # Context blocks keep the stripped single-anchor form.
-    assert '[60.0s] show content' in prompt
+    # Context blocks are per-segment timestamped like the candidate body.
+    assert '[60.0s-120.0s] before ad' in prompt
+    assert '[180.0s-240.0s] after ad' in prompt
+    assert re.search(r'lines? carry \[start-end\] second timestamps', prompt)
+    # The old stripped single-anchor context form is gone.
+    assert '[60.0s] show content' not in prompt
 
 
 def test_resurrect_prompt_candidate_lines_are_timestamped():
@@ -469,6 +477,81 @@ def test_adjust_without_prose_figures_does_not_warn(caplog):
                 if 'prose/number mismatch' in r.message]
 
 
+def _review_one(reviewer, ad, caplog):
+    with caplog.at_level(logging.WARNING, logger='ad_reviewer'):
+        result = reviewer.review(
+            accepted_ads=[ad], resurrection_eligible=[],
+            segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+            pass_num=1, pass_model='claude-test',
+        )
+    return result, [r for r in caplog.records
+                    if 'prose/number mismatch' in r.message]
+
+
+def _wide_reviewer(response):
+    """Reviewer whose shift cap is wide enough not to clamp the fixtures."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '600',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(response)
+    return reviewer
+
+
+def test_prose_figure_naming_the_other_edge_is_context(caplog):
+    """"through 4143.8s" trips the end regex but names the emitted start.
+
+    Production shape: the reviewer described where the trimmed lead-in ended,
+    which is where the ad begins. Warning on it discards a correct start trim.
+    """
+    reviewer = _wide_reviewer(
+        '[{"start": 4144.55, "end": 4225.9, "confidence": 0.9, '
+        '"reason": "Trimmed leading show content (autorun registry discussion '
+        'through 4143.8s); ad portion is the GRC plug and outro"}]'
+    )
+    _, warnings = _review_one(
+        reviewer, {'start': 4120.4, 'end': 4225.9, 'confidence': 0.9}, caplog)
+    assert not warnings
+
+
+def test_prose_figure_naming_an_original_bound_is_context(caplog):
+    """A figure landing on the pre-adjust boundary restates the input span."""
+    reviewer = _wide_reviewer(
+        '[{"start": 1818.04, "end": 2258.6, "confidence": 0.9, '
+        '"reason": "Sponsor read; the block ends at 1793.1s in the original '
+        'marker, start moved to 1818.0 to exclude the lead-in"}]'
+    )
+    _, warnings = _review_one(
+        reviewer, {'start': 1793.1, 'end': 2258.6, 'confidence': 0.9}, caplog)
+    assert not warnings
+
+
+def test_prose_start_figure_explaining_an_end_trim_is_context(caplog):
+    """"show content starts at 59.7s" is the reason for the end trim."""
+    reviewer = _wide_reviewer(
+        '[{"start": 0.0, "end": 57.52, "confidence": 0.9, '
+        '"reason": "Sponsor billboard; trimmed end at 57.5s since show '
+        'content starts at 59.7s"}]'
+    )
+    _, warnings = _review_one(
+        reviewer, {'start': 0.0, 'end': 84.9, 'confidence': 0.9}, caplog)
+    assert not warnings
+
+
+def test_prose_figure_matching_no_boundary_still_warns(caplog):
+    """The one genuine shape in the sample: an end named 8.75s off every
+    boundary, so it is a real self-contradiction rather than context."""
+    reviewer = _wide_reviewer(
+        '[{"start": 4610.7, "end": 4699.05, "confidence": 0.9, '
+        '"reason": "Promotional read; trimmed to exclude outro chatter and '
+        'end at 4690.3s before the show resumes"}]'
+    )
+    _, warnings = _review_one(
+        reviewer, {'start': 4610.7, 'end': 4707.6, 'confidence': 0.9}, caplog)
+    assert len(warnings) == 1
+    assert '4690.3' in warnings[0].message
+
+
 # ---------- Resurrection pool ----------
 
 def test_array_with_element_yields_resurrect():
@@ -556,10 +639,16 @@ def test_per_ad_failure_does_not_block_other_ads():
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
     })
-    reviewer._llm_client.messages_create.side_effect = [
-        _resp('not json'),  # ad 1 unparseable -> failure
-        _resp('[{"start": 200.0, "end": 220.0, "confidence": 0.9}]'),  # ad 2 confirmed
-    ]
+    # Keyed on the prompt, not call order: the two ads are reviewed on separate
+    # threads, so a sequential side_effect list handed the unparseable response
+    # to whichever thread called first and the test failed at random.
+    def _by_ad(*args, **kwargs):
+        payload = repr(args) + repr(kwargs)
+        if '100.0' in payload:
+            return _resp('not json')  # ad 1 unparseable -> failure
+        return _resp('[{"start": 200.0, "end": 220.0, "confidence": 0.9}]')
+
+    reviewer._llm_client.messages_create.side_effect = _by_ad
     ads = [
         {'start': 100.0, 'end': 120.0, 'confidence': 0.9},
         {'start': 200.0, 'end': 220.0, 'confidence': 0.9},

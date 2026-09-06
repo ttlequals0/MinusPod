@@ -39,7 +39,7 @@ class PatternMixin:
         # Join with podcasts for podcast name + known_sponsors for sponsor name
         # (podcast_id stores slugs since v0.1.194; sponsor moved to FK in v2.2.0)
         query = """
-            SELECT ap.*, ks.name AS sponsor,
+            SELECT ap.*, ks.name AS sponsor, ks.segment_category AS sponsor_segment_category,
                    p.title as podcast_name, p.slug as podcast_slug
             FROM ad_patterns ap
             LEFT JOIN podcasts p ON ap.podcast_id = p.slug
@@ -102,7 +102,7 @@ class PatternMixin:
         """Get a single ad pattern by ID with podcast info."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT ap.*, ks.name AS sponsor,
+            """SELECT ap.*, ks.name AS sponsor, ks.segment_category AS sponsor_segment_category,
                       p.title as podcast_name, p.slug as podcast_slug
                FROM ad_patterns ap
                LEFT JOIN podcasts p ON ap.podcast_id = p.slug
@@ -122,7 +122,7 @@ class PatternMixin:
         placeholders = ','.join('?' * len(pattern_ids))
         conn = self.get_connection()
         cursor = conn.execute(
-            f"""SELECT ap.*, ks.name AS sponsor,
+            f"""SELECT ap.*, ks.name AS sponsor, ks.segment_category AS sponsor_segment_category,
                       p.title as podcast_name, p.slug as podcast_slug
                FROM ad_patterns ap
                LEFT JOIN podcasts p ON ap.podcast_id = p.slug
@@ -137,7 +137,7 @@ class PatternMixin:
         conn = self.get_connection()
         if podcast_id:
             cursor = conn.execute(
-                """SELECT ap.*, ks.name AS sponsor
+                """SELECT ap.*, ks.name AS sponsor, ks.segment_category AS sponsor_segment_category
                    FROM ad_patterns ap
                    LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
                    WHERE ap.text_template = ? AND ap.podcast_id = ?""",
@@ -145,7 +145,7 @@ class PatternMixin:
             )
         else:
             cursor = conn.execute(
-                """SELECT ap.*, ks.name AS sponsor
+                """SELECT ap.*, ks.name AS sponsor, ks.segment_category AS sponsor_segment_category
                    FROM ad_patterns ap
                    LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
                    WHERE ap.text_template = ? AND ap.podcast_id IS NULL""",

@@ -112,7 +112,7 @@ class TestRecordVerificationMissesAutoCreate:
         # to the no-aliases sponsor_row and just counts the sponsor string.
         svc.db.get_known_sponsor_by_name.return_value = None
         fake_matcher = MagicMock()
-        fake_matcher.create_pattern_from_ad.return_value = 555
+        fake_matcher.create_patterns_from_ad.return_value = [555]
         svc._text_pattern_matcher = fake_matcher
 
         # Window text must mention the sponsor at least twice to pass the
@@ -125,7 +125,7 @@ class TestRecordVerificationMissesAutoCreate:
             segments=segments,
         )
 
-        fake_matcher.create_pattern_from_ad.assert_called_once_with(
+        fake_matcher.create_patterns_from_ad.assert_called_once_with(
             segments=segments,
             start=100,
             end=160,
@@ -145,13 +145,13 @@ class TestRecordVerificationMissesAutoCreate:
             "slug", "ep1",
             [{"sponsor": "NewSponsor", "start": 0, "end": 60, "confidence": 0.95, "reason": "NewSponsor ad"}],
         )
-        fake_matcher.create_pattern_from_ad.assert_not_called()
+        fake_matcher.create_patterns_from_ad.assert_not_called()
 
     def test_logs_declined_when_validator_rejects(self):
         svc = _make_service(patterns=[])
         svc.db.get_known_sponsor_by_name.return_value = None
         fake_matcher = MagicMock()
-        fake_matcher.create_pattern_from_ad.return_value = None
+        fake_matcher.create_patterns_from_ad.return_value = []
         svc._text_pattern_matcher = fake_matcher
 
         # Make the verification miss pass the 2.5.13 confidence + occurrence
@@ -183,7 +183,7 @@ class TestRecordVerificationMissesAutoCreate:
         svc.record_pattern_match.assert_called_once_with(
             77, episode_id="ep1", observed_duration=60,
         )
-        fake_matcher.create_pattern_from_ad.assert_not_called()
+        fake_matcher.create_patterns_from_ad.assert_not_called()
 
     def test_matched_sponsor_boosts_not_auto_creates(self):
         patterns = [{"id": 42, "sponsor": "Acme"}]
@@ -199,4 +199,4 @@ class TestRecordVerificationMissesAutoCreate:
         svc.record_pattern_match.assert_called_once_with(
             42, episode_id="ep1", observed_duration=60,
         )
-        fake_matcher.create_pattern_from_ad.assert_not_called()
+        fake_matcher.create_patterns_from_ad.assert_not_called()

@@ -3,8 +3,12 @@ import type { ReviewDetection } from '../../api/detections';
 import { episodeOriginalUrl } from '../../api/feeds';
 import type { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../../components/AuditionPlayButton';
+import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles';
 import { StageBadge } from '../../components/StageBadge';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
+import {
+  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
+} from '../../utils/segmentCategory';
 import { formatTimestamp, formatDate } from '../../utils/format';
 import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
@@ -18,8 +22,10 @@ export const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> =
   pending: ['Pending', 'bg-warning/10 text-warning'],
 };
 
+// STATUS_BADGE says what the audio did; this says what a person decided.
+// Only a recorded decision gets a chip: undecided is the default here.
 export const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> = {
-  unresolved: ['Unresolved', 'bg-secondary text-muted-foreground'],
+  unresolved: ['Not reviewed', 'bg-secondary text-muted-foreground'],
   confirmed: ['Confirmed', 'bg-success/10 text-success'],
   dismissed: ['Not an ad', 'bg-secondary text-muted-foreground'],
 };
@@ -45,6 +51,7 @@ function DetectionStatusBadge({ status }: { status: ReviewDetection['status'] })
 }
 
 function ResolutionBadge({ resolution }: { resolution: ReviewDetection['resolution'] }) {
+  if (resolution === 'unresolved') return null;
   const [label, cls] = RESOLUTION_BADGE[resolution];
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
 }
@@ -56,14 +63,23 @@ function ActionBadge({ action }: { action: string | null }) {
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
 }
 
+function ReviewerBadge({ d }: { d: ReviewDetection }) {
+  if (!d.reviewerMoved || d.reviewerOriginalStart == null || d.reviewerOriginalEnd == null) return null;
+  const title = `Reviewer moved this from ${formatTimestamp(d.reviewerOriginalStart)} - ${formatTimestamp(d.reviewerOriginalEnd)}`;
+  return (
+    <span className="px-2 py-0.5 rounded text-xs whitespace-nowrap bg-c-blue/10 text-c-blue-on-tint" title={title}>
+      Adjusted
+    </span>
+  );
+}
+
 function DetectionBadges({ d, showCategory }: { d: ReviewDetection; showCategory: boolean }) {
   return (
     <div className="flex gap-1.5 shrink-0">
       <DetectionStatusBadge status={d.status} />
       <ResolutionBadge resolution={d.resolution} />
-      {(showCategory || d.actionApplied === 'keep') && (
-        <ActionBadge action={d.actionApplied} />
-      )}
+      <ReviewerBadge d={d} />
+      {showCategory && <ActionBadge action={d.actionApplied} />}
     </div>
   );
 }
@@ -103,7 +119,35 @@ export interface DetectionRowActions {
   onDismiss?: (d: ReviewDetection) => void;
   onEdit: (d: ReviewDetection) => void;
   onSplit?: (d: ReviewDetection) => void;
+  // Review is bulk work, so the category is editable inline: it is what
+  // decides whether a span is cut, and reaching it should not need the editor.
+  onCategory?: (d: ReviewDetection, category: SegmentCategory | null) => void;
   busy: boolean;
+}
+
+function CategorySelect({ d, onCategory, busy, className = '' }: {
+  d: ReviewDetection;
+  onCategory: (d: ReviewDetection, category: SegmentCategory | null) => void;
+  busy: boolean;
+  className?: string;
+}) {
+  // The pick shows immediately because the mutation patches the cached list;
+  // no local copy to drift out of sync.
+  return (
+    <select
+      aria-label={`Category for ${d.episodeTitle}`}
+      value={(d.category ?? '') as string}
+      disabled={busy}
+      onChange={(e) => onCategory(
+        d, e.target.value === '' ? null : (e.target.value as SegmentCategory))}
+      className={`rounded bg-secondary text-secondary-foreground border border-border disabled:opacity-50 ${focusRing} ${className}`}
+    >
+      <option value="">Uncategorized</option>
+      {SEGMENT_CATEGORIES.map((c) => (
+        <option key={c} value={c}>{SEGMENT_CATEGORY_LABELS[c]}</option>
+      ))}
+    </select>
+  );
 }
 
 // One set of row actions rendered in two densities: compact at the end of
@@ -119,29 +163,62 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   // One line everywhere: play | Confirm ad | Not an ad | Split | Edit. The
   // decision buttons grow from their content width (never below it, so labels
   // cannot wrap lopsidedly); Edit stays compact. Below 370px the labels drop to
-  // text-xs with tighter padding so the row still fits a 320px screen;
-  // max-w-full + overflow-hidden keep a pathologically zoomed label from
-  // forcing page scroll.
-  const btn = isCard
-    ? 'px-2 py-2.5 text-xs min-[370px]:px-2.5 min-[370px]:text-sm rounded touch-manipulation whitespace-nowrap text-center max-w-full overflow-hidden'
-    : 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
-  // Deliberate keeps are final per-feed decisions; the API rejects corrections.
-  const undecided = d.resolution === 'unresolved' && d.actionApplied !== 'keep';
-  // grow exists to balance the Confirm/Not-an-ad pair on review cards. With
-  // no Confirm (Detected Ads), a lone grow turns Not an ad into a full-width
-  // slab, so the buttons stay content-sized there.
-  const growCls = isCard && actions.onApprove ? 'grow ' : '';
-  return (
-    <div className={isCard ? 'flex flex-wrap items-center gap-1.5 min-[370px]:gap-2 pt-1' : 'flex items-center gap-1.5'}>
+  // Card sizing is shared with the play button beside it so the two stay the
+  // same height; max-w-full + overflow-hidden in that recipe keep a
+  // pathologically zoomed label from forcing page scroll.
+  const btn = isCard ? cardActionBtn : tableActionBtn;
+  const undecided = d.resolution === 'unresolved';
+  // Its category resolves to keep, so confirm/reject would record a verdict
+  // the cut can never honor (the endpoint 409s them). Edit is the way
+  // through: the modal's category picker changes this span's fate.
+  if (d.actionApplied === 'keep') {
+    const kept = (
+      <>
+        {d.hasOriginalAudio && (
+          <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'table'} />
+        )}
+        <p className="text-xs text-muted-foreground min-w-0">Left in by its category</p>
+      </>
+    );
+    const adjust = (
+      <>
+        {actions.onCategory && (
+          <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
+            className={isCard ? `${btn} grow min-w-0` : 'px-2 py-1 text-xs'} />
+        )}
+        <button
+          type="button"
+          onClick={() => actions.onEdit(d)}
+          disabled={actions.busy}
+          className={`${btn} ${isCard ? '' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
+        >
+          Edit
+        </button>
+      </>
+    );
+    if (!isCard) {
+      return <div className="flex items-center gap-2">{kept}{adjust}</div>;
+    }
+    return (
+      <div className="flex flex-col gap-2 pt-1">
+        <div className="flex items-center gap-2">{kept}</div>
+        <div className="flex items-center gap-2">{adjust}</div>
+      </div>
+    );
+  }
+  // Cards use two fixed rows rather than wrap order: verdict pair on top at
+  // equal width (basis-0 grow), category and Edit below. Table rows stay on one.
+  const verdicts = (
+    <>
       {d.hasOriginalAudio && (
-        <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
+        <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'table'} />
       )}
       {actions.onApprove && undecided && (
         <button
           type="button"
           onClick={() => actions.onApprove?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${growCls}${btnPrimary} disabled:opacity-50 ${focusRing}`}
+          className={`${btn} ${isCard ? 'grow basis-0 ' : ''}${btnPrimary} disabled:opacity-50 ${focusRing}`}
         >
           Confirm ad
         </button>
@@ -151,13 +228,22 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           type="button"
           onClick={() => actions.onDismiss?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${growCls}${btnDestructive} disabled:opacity-50 ${focusRing}`}
+          className={`${btn} ${isCard && actions.onApprove ? 'grow basis-0 ' : ''}${btnDestructive} disabled:opacity-50 ${focusRing}`}
         >
           Not an ad
         </button>
       )}
-      {/* On review cards a fourth button would shrink the grow pair, and the
-          editor's Split covers them; content-sized cards have the room. */}
+    </>
+  );
+
+  const secondary = (
+    <>
+      {actions.onCategory && (
+        <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
+          className={isCard ? `${btn} grow min-w-0` : 'px-2 py-1 text-xs'} />
+      )}
+      {/* On review cards a fourth button would shrink the verdict pair, and
+          the editor's Split covers them; content-sized cards have the room. */}
       {actions.onSplit && (!isCard || !actions.onApprove) && (
         <button
           type="button"
@@ -168,16 +254,26 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           Split
         </button>
       )}
-      {d.actionApplied !== 'keep' && (
-        <button
-          type="button"
-          onClick={() => actions.onEdit(d)}
-          disabled={actions.busy}
-          className={`${btn} ${isCard ? 'ml-auto ' : ''}${btnOutline} disabled:opacity-50 ${focusRing}`}
-        >
-          Edit
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => actions.onEdit(d)}
+        disabled={actions.busy}
+        className={`${btn} ${isCard ? '' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
+      >
+        Edit
+      </button>
+    </>
+  );
+
+  if (!isCard) {
+    return (
+      <div className="flex items-center gap-1.5">{verdicts}{secondary}</div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1.5 min-[370px]:gap-2 pt-1">
+      <div className="flex items-center gap-1.5 min-[370px]:gap-2">{verdicts}</div>
+      <div className="flex items-center gap-1.5 min-[370px]:gap-2">{secondary}</div>
     </div>
   );
 }

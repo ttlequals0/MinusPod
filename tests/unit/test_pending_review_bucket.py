@@ -37,18 +37,17 @@ atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
 db = None
 
 
-def _pin_db():
-    """Force the Database/Storage singletons back to this module's dir."""
+def _pin_db(monkeypatch):
+    """Force the Database singleton back to this module's dir."""
     database.Database._instance = None
-    database.Database.__init__.__defaults__ = (_test_data_dir,)
-    database.Database.__new__.__defaults__ = (_test_data_dir,)
+    monkeypatch.setenv('DATA_DIR', _test_data_dir)
     return database.Database()
 
 
 @pytest.fixture(autouse=True)
-def _isolate_db():
+def _isolate_db(monkeypatch):
     global db
-    db = _pin_db()
+    db = _pin_db(monkeypatch)
     yield
 
 
@@ -352,7 +351,6 @@ def test_save_combined_ads_choke_point_arithmetic():
     eid = _seed(slug)
     # Reset singleton so it picks up the test DATA_DIR env var
     storage_mod.Storage._instance = None
-    storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
     st = storage_mod.Storage()
 
     markers = [

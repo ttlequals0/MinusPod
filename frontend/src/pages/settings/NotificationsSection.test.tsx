@@ -15,6 +15,8 @@ const mockUpdateEmail = vi.fn();
 const mockSendTest = vi.fn();
 const mockGetWebhooks = vi.fn();
 const mockTestWebhook = vi.fn();
+const mockGetTimezone = vi.fn();
+const mockUpdateTimezone = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   getWebhooks: (...a: unknown[]) => mockGetWebhooks(...a),
@@ -26,6 +28,8 @@ vi.mock('../../api/settings', () => ({
   getEmailNotificationSettings: (...a: unknown[]) => mockGetEmail(...a),
   updateEmailNotificationSettings: (...a: unknown[]) => mockUpdateEmail(...a),
   sendTestEmail: (...a: unknown[]) => mockSendTest(...a),
+  getNotificationTimezone: (...a: unknown[]) => mockGetTimezone(...a),
+  updateNotificationTimezone: (...a: unknown[]) => mockUpdateTimezone(...a),
 }));
 
 function makeSettings(overrides: Partial<EmailNotificationSettings> = {}): EmailNotificationSettings {
@@ -67,6 +71,7 @@ beforeEach(() => {
     { id: 'wh1', url: 'http://hook.example.com/x', events: ['Episode Failed'],
       enabled: true, payloadTemplate: null, contentType: 'application/json' },
   ]);
+  mockGetTimezone.mockResolvedValue({ timezone: 'UTC' });
 });
 
 describe('NotificationsSection', () => {
@@ -79,7 +84,20 @@ describe('NotificationsSection', () => {
     expect((screen.getByLabelText('Recipients') as HTMLInputElement).value).toBe('op@example.com');
     expect(screen.getByRole('heading', { name: 'Email' })).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Webhooks' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Timezone' })).toBeDefined();
     expect(screen.getByText('http://hook.example.com/x')).toBeDefined();
+  });
+
+  it('loads and saves the notification timezone', async () => {
+    mockUpdateTimezone.mockResolvedValue({ timezone: 'America/New_York' });
+    renderSection();
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect((screen.getByLabelText('Timezone') as HTMLSelectElement).value).toBe('UTC');
+    });
+    await user.selectOptions(screen.getByLabelText('Timezone'), 'America/New_York');
+    await user.click(screen.getByRole('button', { name: 'Save timezone' }));
+    await waitFor(() => expect(mockUpdateTimezone).toHaveBeenCalledWith('America/New_York'));
   });
 
   it('saves the draft without smtpPassword when the field is empty', async () => {

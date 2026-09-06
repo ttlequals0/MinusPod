@@ -197,22 +197,39 @@ def extract_text_from_segments(
     Returns:
         Extracted text content, joined with spaces
     """
+    spans = timed_spans_from_segments(segments, start, end)
+    if not max_words:
+        return ' '.join(span['text'] for span in spans)
     words: list[str] = []
+    for span in spans:
+        words.extend(span['text'].split())
+        if len(words) >= max_words:
+            break
+    return ' '.join(words[:max_words])
+
+
+def timed_spans_from_segments(
+    segments: list[dict],
+    start: float,
+    end: float,
+) -> list[dict]:
+    """The spans extract_text_from_segments joins, with their char offsets.
+
+    Segments-shaped sibling of extract_timed_spans_in_range, so callers holding
+    segment dicts can map a character position back to a timestamp.
+    extract_text_from_segments joins this, so the two cannot drift apart.
+    """
+    spans: list[dict] = []
+    offset = 0
     for seg in segments:
         seg_start = seg.get('start', 0)
         seg_end = seg.get('end', 0)
-
-        # Include segment if it overlaps with the range
-        if seg_end >= start and seg_start <= end:
-            text = seg.get('text', '').strip()
-            if text:
-                if max_words:
-                    words.extend(text.split())
-                    if len(words) >= max_words:
-                        break
-                else:
-                    words.append(text)
-
-    if max_words:
-        return ' '.join(words[:max_words])
-    return ' '.join(words)
+        if seg_end < start or seg_start > end:
+            continue
+        text = (seg.get('text') or '').strip()
+        if not text:
+            continue
+        spans.append({'start': seg_start, 'end': seg_end,
+                      'text': text, 'offset': offset})
+        offset += len(text) + 1
+    return spans

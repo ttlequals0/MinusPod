@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   getDetections,
+  type DetectionReviewerFilter,
   type DetectionSort,
   type DetectionStatusFilter,
   type ReviewDetection,
@@ -19,6 +20,7 @@ import {
 } from './DetectionRows';
 import { DetectionFilterBar } from './DetectionFilterBar';
 import { useDetectionCorrections } from './useDetectionCorrections';
+import { PendingRecutsBar } from './PendingRecutsBar';
 import { sortFeeds } from '../../utils/feedSort';
 
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
@@ -34,6 +36,7 @@ export default function AdReviewTab() {
   const [status, setStatus] = useState<DetectionStatusFilter>('needs_review');
   const [feed, setFeed] = useState('');
   const [category, setCategory] = useState('');
+  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
@@ -52,19 +55,20 @@ export default function AdReviewTab() {
   }, [q]);
 
   const {
-    approve, dismiss, adjust, busy, actionError,
+    approve, dismiss, recategorize, adjust, busy, actionError,
   } = useDetectionCorrections({
     stopAudition: audition.stop,
     onSettled: () => setEditing(null),
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['detections', page, status, feed, category, debouncedQ, sort, order],
+    queryKey: ['detections', page, status, feed, category, reviewer, debouncedQ, sort, order],
     queryFn: () => getDetections({
       page,
       status,
       feed: feed || undefined,
       category: category || undefined,
+      reviewer: reviewer || undefined,
       q: debouncedQ || undefined,
       sort,
       order,
@@ -122,6 +126,8 @@ export default function AdReviewTab() {
         onFeedChange={(v) => { setFeed(v); setPage(1); }}
         category={category}
         onCategoryChange={(v) => { setCategory(v); setPage(1); }}
+        reviewer={reviewer}
+        onReviewerChange={(v) => { setReviewer(v); setPage(1); }}
         q={q}
         onQChange={setQ}
         sort={sort}
@@ -135,6 +141,7 @@ export default function AdReviewTab() {
         }}
       />
 
+      <PendingRecutsBar />
       {actionError && (
         <div className="text-destructive text-sm mb-3">{actionError}</div>
       )}
@@ -157,8 +164,9 @@ export default function AdReviewTab() {
             audition={audition}
             actions={{
               onApprove: approve,
-              onDismiss: (d) => dismiss(d, false),
+              onDismiss: dismiss,
               onEdit: setEditing,
+              onCategory: recategorize,
               busy,
             }}
           />
@@ -180,6 +188,8 @@ export default function AdReviewTab() {
             detectionStage: editing.detectionStage,
             patternId: editing.patternId,
             correctedBounds: null,
+            category: editing.category as AdReviewItem['category'],
+            actionApplied: editing.actionApplied,
           } satisfies AdReviewItem}
           episodeDuration={editing.episodeDuration ?? 0}
           hasOriginal={editing.hasOriginalAudio}
@@ -193,8 +203,10 @@ export default function AdReviewTab() {
               adjust(d, s.adjustedStart, s.adjustedEnd, s.sponsor);
             } else if (s.kind === 'confirm') {
               approve(d);
+            } else if (s.kind === 'recategorize') {
+              recategorize(d, s.category ?? null);
             } else {
-              dismiss(d, false);
+              dismiss(d);
             }
           }}
         />

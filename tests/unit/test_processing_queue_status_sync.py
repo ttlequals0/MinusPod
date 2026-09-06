@@ -1,5 +1,4 @@
 """Orphan clear in ProcessingQueue should also clear StatusService current_job."""
-import os
 import time
 
 import pytest
@@ -13,11 +12,6 @@ def queue_and_status(temp_dir, monkeypatch):
     import status_service
     processing_queue.ProcessingQueue._instance = None
     status_service.StatusService._instance = None
-    # Rebind STATUS_FILE for this test run.
-    monkeypatch.setattr(
-        status_service, 'STATUS_FILE',
-        os.path.join(temp_dir, 'processing_status.json'),
-    )
     pq = processing_queue.ProcessingQueue()
     ss = status_service.StatusService()
     yield pq, ss

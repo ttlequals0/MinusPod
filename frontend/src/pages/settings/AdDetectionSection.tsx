@@ -19,6 +19,10 @@ interface AdDetectionSectionProps {
   onLearningMinConfidenceChange: (value: number) => void;
   learningMinConfidenceLong: number;
   onLearningMinConfidenceLongChange: (value: number) => void;
+  learningMinPatternDuration: number;
+  onLearningMinPatternDurationChange: (value: number) => void;
+  learningMaxPatternDuration: number;
+  onLearningMaxPatternDurationChange: (value: number) => void;
   differentialMeasuredCorrMax: number;
   onDifferentialMeasuredCorrMaxChange: (value: number) => void;
   differentialHoldMinSeconds: number;
@@ -69,6 +73,10 @@ function AdDetectionSection({
   onLearningMinConfidenceChange,
   learningMinConfidenceLong,
   onLearningMinConfidenceLongChange,
+  learningMinPatternDuration,
+  onLearningMinPatternDurationChange,
+  learningMaxPatternDuration,
+  onLearningMaxPatternDurationChange,
   differentialMeasuredCorrMax,
   onDifferentialMeasuredCorrMaxChange,
   differentialHoldMinSeconds,
@@ -118,7 +126,8 @@ function AdDetectionSection({
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <p className="mt-2 text-sm text-muted-foreground">
-            Consecutive ads separated by less than this many seconds of speech content are merged into one cut. Set to 0 to disable.
+            Ads separated by less than this much speech merge into one cut. Above
+            it they stay separate, so the talking between them survives. 0 disables.
           </p>
         </div>
         <div>
@@ -136,7 +145,8 @@ function AdDetectionSection({
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <p className="mt-2 text-sm text-muted-foreground">
-            Past this length an ad has to name a sponsor MinusPod recognizes, in the episode description or in its own audio, or be detected with very high confidence. One that does not is held for review rather than cut, so a long ad break is never dropped without you seeing it. Raise this on shows with long ad blocks.
+            Past this length an ad must name a recognized sponsor or score very high to be
+            cut; anything else is held for review. Raise it on shows with long ad blocks.
           </p>
         </div>
         <div>
@@ -205,6 +215,18 @@ function AdDetectionSection({
               learningMinConfidenceLong, onLearningMinConfidenceLongChange,
               'learningMinConfidenceLong', 'Pattern-learning floor, long ads', 0.5, 1, 0.05, 0.92,
               'Same floor for ads longer than 90 seconds. Higher by default, since a long span is costlier to learn wrong.',
+            )}
+
+            {numRow(
+              learningMinPatternDuration, onLearningMinPatternDurationChange,
+              'learningMinPatternDuration', 'Learning minimum length (s)', 1, 600, 5, 15,
+              'Below this, a detection is usually a fragment or a passing mention rather than an ad, so nothing is learned from it.',
+            )}
+
+            {numRow(
+              learningMaxPatternDuration, onLearningMaxPatternDurationChange,
+              'learningMaxPatternDuration', 'Learning maximum length (s)', 1, 1800, 30, 120,
+              'A longer detection is split at its ad transitions and each read is learned separately. Raise this for feeds whose ad blocks run long.',
             )}
           </div>
         </div>

@@ -42,6 +42,15 @@ def resolve_search_provider() -> str:
             else SEARCH_PROVIDER_ITUNES)
 
 
+def search_provider_ready() -> bool:
+    """Whether the effective provider (resolve_search_provider) can actually
+    run: iTunes needs no key, PodcastIndex needs both credentials saved."""
+    if resolve_search_provider() != SEARCH_PROVIDER_PODCASTINDEX:
+        return True
+    api_key, api_secret = _get_podcast_index_credentials()
+    return bool(api_key and api_secret)
+
+
 def _podcast_index_headers(api_key: str, api_secret: str) -> dict:
     """Signed auth headers for a PodcastIndex request. Shared by the real
     search route and the connection test so the two cannot drift."""

@@ -8,7 +8,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Ad Reviewer** - An optional second LLM that double-checks each planned cut before it happens and can confirm, adjust, reject, or resurrect a detection. Off by default. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
-**Addressing mode** - An experimental detector setting where the LLM names numbered transcript lines (`segment_ids`) instead of inventing start and end timestamps (`timestamps`), or where `random` draws one of the two per run. Timestamps stays the default while results decide whether that changes. The Stats page compares the modes on contract compliance and on ad yield (proposed vs kept, with drop reasons). [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
+**Addressing mode** - An experimental detector setting where the LLM names numbered transcript lines (`segment_ids`) instead of inventing start and end timestamps (`timestamps`), or where `random` draws one of the two per run. [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
 
 **Archive mode** - A per-feed retention setting that keeps every processed episode indefinitely, ignoring the global retention window and the "Clear all processed audio" action. Set it on shows you never want swept, such as ones that have stopped publishing. [Configuration > Per-feed retention](configuration.md#per-feed-retention)
 
@@ -50,7 +50,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Deferred** - An episode parked because the LLM or transcription endpoint was unreachable. It retries automatically when the endpoint comes back instead of burning through its retry budget. [Configuration > Offline Queue](configuration.md#offline-queue)
 
-**Differential hold** - An uncorroborated cross-fetch differential candidate: the two fetches measurably differ, but no other stage, overlap, or matched audio cue backs it as an ad. Held for review rather than cut, unless it is shorter than the differential hold-minimum-length setting, in which case it is dropped instead. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
+**Differential hold** - An uncorroborated cross-fetch differential candidate: the two fetches measurably differ, but no other stage, overlap, or matched audio cue backs it as an ad. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
 
 **Dry-run import plan** - The preview a bulk archive-import scan returns before anything is written: every file matched to an episode, every rejected file with a reason, and the publish date each episode would get. Committing re-checks the same files and refuses if anything changed underneath the plan. [Local Feeds > Scan, then commit](local-feeds.md#scan-then-commit)
 
@@ -60,7 +60,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## F
 
-**False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. Rejecting a differential detection, held or not, does not create this text (it was only ever a candidate, never a confirmed false positive from a real detector), though the same-episode region is still blocked from resurfacing. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
+**False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
 **Fingerprint** - An acoustic signature of a known ad, matched against new episodes without any transcript. One of the pattern types MinusPod learns from confirmed cuts. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
@@ -70,13 +70,15 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Held for Review** - An ad that detection wanted to cut but a per-feed guard (max ad duration, cue-gated approval, a reviewer contradiction, or a verification conflict) stopped. The audio stays intact until you approve or dismiss it. [Web Interface > Held for Review](web-interface.md#held-for-review)
 
+**Hold (queue)** - Any reason the queue is waiting rather than working: a rate-limit pause that stops new claims outright, or an offline-queue wait that parks specific episodes while the rest keep processing. The status bar names which one is in effect, and `GET /api/v1/status` reports it in a `hold` block. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
+
 ## I
 
 **Import directory** - The user-managed folder for a local feed's archive import, `<data>/import/<slug>/`. You place audio and sidecar files there yourself; on a successful commit MinusPod moves the audio out and deletes that episode's sidecars along with it, leaving a rejected or errored file's sidecars in place to fix and re-scan. [Local Feeds > Bulk import](local-feeds.md#bulk-import)
 
 ## K
 
-**Keep action** - A per-category segment action that leaves a detected span in the audio untouched. A kept marker bypasses validator hold rules and reviewer boundary checks, is dropped instead of re-flagged if pass-2 verification finds it again, and never creates a correction or false-positive text, though it still teaches the pattern learner its category. [How It Works > Segment Categories](how-it-works.md#segment-categories)
+**Keep action** - A per-category segment action that leaves a detected span in the audio untouched. [How It Works > Segment Categories](how-it-works.md#segment-categories)
 
 ## L
 
@@ -87,6 +89,12 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 ## N
 
 **Normalization** - A rule that maps sponsor name variants ("betterhelp.com slash pod", "Better Help") onto one sponsor so patterns and history stay tidy. [Web Interface > Sponsors and Normalizations](web-interface.md#sponsors-and-normalizations)
+
+## O
+
+**Offline queue** - An opt-in hold that parks an episode when the LLM provider or Whisper endpoint is unreachable, probes the service every few minutes, and re-queues the episode once it answers. It does not stop the queue: everything not waiting on that service keeps processing. [Configuration > Offline Queue](configuration.md#offline-queue)
+
+**Outbound Requests** - The settings section holding the two User-Agent strings MinusPod sends: one for audio, artwork, and chapters, one for RSS. Editable so a host that starts refusing ours can be worked around without a new release. [Configuration > Outbound Requests](configuration.md#outbound-requests)
 
 ## P
 
@@ -110,6 +118,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## R
 
+**Rate-limit hold** - An opt-in hold that parks an episode when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming new work until that time passes. Unlike the offline queue it pauses everything, though anything you ask for by hand still runs. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
+
 **Recut** - Re-cutting the retained original audio using the current ad markers, with no download, transcription, or LLM involved. What "Approve & Recut" does. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
 
 **Reprocess modes** - *Patterns + AI* (the default, everything), *AI Only* (skip the learned-pattern DB), *Re-detect Ads* (reuse the saved transcript, rerun detection), and *Recut*. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
@@ -126,18 +136,15 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Sidecar file** - An optional file next to an archive-import audio file, sharing its exact basename: a `.txt` description, a `.jpg`/`.jpeg`/`.png` cover, or a `.json` file overriding title, description, publish date, season, and episode. A JSON sidecar overrides everything else, including the filename's sNNeNN token. [Local Feeds > JSON sidecar](local-feeds.md#json-sidecar)
 
-**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep), set per feed or globally on the **Segment actions** card and defaulting to remove until changed. Intro, outro, and recap are only detected on feeds where show-segments detection resolves to on (a per-feed Inherit/On/Off choice, falling back to the global default); the other four categories are always detected. A defined pattern's match always cuts regardless of the resolved action. [How It Works > Segment Categories](how-it-works.md#segment-categories)
-  - Sponsor - Paid ads, including dynamically inserted ones
-  - Cross-promo - Promos for other shows and the network
-  - Self-promo - The show's own Patreon, merch, and subscribe asks
-  - Interaction - Follow, rate, and review reminders
-  - Intro - Opening theme and welcome
-  - Outro - Closing credits and sign-off
-  - Recap - Previews and coming-up bumpers
+**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep). [How It Works > Segment Categories](how-it-works.md#segment-categories)
 
 **Silence snap** - Nudging a cut boundary to the nearest silence so the edit lands between words instead of inside one. [Audio Cues > Silence snap](audio-cues.md#silence-snap)
 
 **Sliding windows** - Long transcripts are fed to the LLM in overlapping chunks so nothing is missed at chunk edges; the Windows column in Processing stats counts these. [How It Works > Sliding Window Processing](how-it-works.md#sliding-window-processing)
+
+**Splice check** - The rule that holds a long cut for review unless the audio shows an edit point near its edges. Feeds whose ads are never joined into the audio can turn it off on their own settings page. [Configuration > Splice check](configuration.md#splice-check)
+
+**Splice evidence** - A mark in the audio where something was joined: a transition pair, an ad-break cue, a sharp volume step, or a detected splice event. Server-inserted and edited-in ads leave these; an ad spoken straight through in a single take does not. [How It Works > Held for Review](how-it-works.md#held-for-review)
 
 **sNNeNN naming token** - The `s01e01`-style prefix a local feed's archive-import files must start with to be matched: case-insensitive, zero-padded to at least 2 digits for both season and episode. Mints the episode's id and is what sidecar files are matched against. [Local Feeds > Naming scheme](local-feeds.md#naming-scheme)
 
@@ -157,6 +164,10 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Transcript (VTT)** - The Podcasting 2.0 transcript MinusPod generates for the processed audio, with cut regions accounted for. [Podcasting 2.0](podcasting-2.0.md)
 
+## U
+
+**User-Agent** - The string MinusPod sends to identify itself on an outbound request; there are two, because hosts disagree about what they will answer. [Configuration > Outbound Requests](configuration.md#outbound-requests)
+
 ## V
 
 **Validation** - The rule-based gate every detection passes before cutting: duration limits, confidence, overlap with your corrections, cue evidence, splice checks. [How It Works > Post-Detection Validation](how-it-works.md#post-detection-validation)
@@ -171,7 +182,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Waveform Ad Editor** - The visual editor for a single detection: waveform, transcript context, and draggable boundaries, with the original audio for reference. [Web Interface > Waveform Ad Editor](web-interface.md#waveform-ad-editor)
 
-**Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
+**Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet, Queue Held, Queue Resumed, Service Offline, Service Reachable. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
 
 ---
 

@@ -5,6 +5,7 @@ export type DetectionResolution = 'unresolved' | 'confirmed' | 'dismissed';
 export type DetectionStatusFilter =
   | 'needs_review' | 'pending' | 'rejected' | 'accepted' | 'all';
 export type DetectionSort = 'date' | 'confidence' | 'podcast';
+export type DetectionReviewerFilter = '' | 'adjusted' | 'unadjusted';
 
 export interface ReviewDetection {
   feedSlug: string;
@@ -23,6 +24,16 @@ export interface ReviewDetection {
   detectionStage: string | null;
   category: string | null;
   actionApplied: string | null;
+  // Set by the ad reviewer stage. The original span is present only when the
+  // reviewer moved the span; held contradictions and split pieces keep the
+  // 'adjust' verdict without it.
+  reviewerVerdict: string | null;
+  reviewerOriginalStart: number | null;
+  reviewerOriginalEnd: number | null;
+  // Whether the span was actually moved (by the reviewer or a human
+  // approving a trimmed boundary); use this instead of inferring a move
+  // from reviewerVerdict/reviewerOriginalStart/End.
+  reviewerMoved: boolean;
   episodeDuration: number | null;
   status: DetectionStatus;
   resolution: DetectionResolution;
@@ -67,6 +78,7 @@ export type DetectionListParams = {
   sort?: DetectionSort;
   order?: 'asc' | 'desc';
   category?: string;
+  reviewer?: DetectionReviewerFilter;
 };
 
 export async function getDetections(

@@ -180,6 +180,9 @@ def client():
     flask_app.config['TESTING'] = True
     with flask_app.test_client() as c:
         yield c, db, get_storage()
+    # The CSRF tests below set a real app_password; clear it so a later
+    # test module reading this same singleton does not inherit a locked db.
+    db.set_setting('app_password', '')
 
 
 def _seed_episode(db, storage, slug, episode_id, *, status='processed',

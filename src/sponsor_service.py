@@ -427,9 +427,10 @@ class SponsorService:
     # ========== CRUD Wrappers ==========
 
     def add_sponsor(self, name: str, aliases: list[str] = None,
-                    category: str = None) -> int:
+                    category: str = None, segment_category: str = None) -> int:
         """Add a new sponsor. Returns sponsor ID."""
-        sponsor_id = self.db.create_known_sponsor(name, aliases, category)
+        sponsor_id = self.db.create_known_sponsor(
+            name, aliases, category, segment_category=segment_category)
         self.invalidate_cache()
         return sponsor_id
 

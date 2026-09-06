@@ -175,6 +175,20 @@ def model_omits_temperature(
 _JSON_SCHEMA_SUPPORTED_PROVIDERS = frozenset({PROVIDER_ANTHROPIC})
 
 
+# Settings holding a model the pipeline sends JSON calls with. review_model
+# may hold the 'same_as_pass' sentinel rather than a model name.
+STAGE_MODEL_SETTING_KEYS = (
+    'claude_model', 'verification_model', 'review_model', 'chapters_model',
+)
+SAME_AS_PASS = 'same_as_pass'
+
+
+def configured_stage_models(get_setting) -> list[str]:
+    """Distinct model names configured across the pipeline stages, in order."""
+    names = [get_setting(key) for key in STAGE_MODEL_SETTING_KEYS]
+    return list(dict.fromkeys(n for n in names if n and n != SAME_AS_PASS))
+
+
 def supports_json_schema(provider: str) -> bool:
     """True when ``provider`` has a proven, enforced structured-output path.
 

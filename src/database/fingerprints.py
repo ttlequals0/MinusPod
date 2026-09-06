@@ -26,7 +26,7 @@ class FingerprintMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT af.pattern_id, af.fingerprint, af.duration, ks.name AS sponsor,
-                      ap.category AS category
+                      COALESCE(ks.segment_category, ap.category) AS category
                FROM audio_fingerprints af
                JOIN ad_patterns ap ON af.pattern_id = ap.id
                LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id

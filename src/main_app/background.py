@@ -129,10 +129,13 @@ def background_queue_processor():
     """
     from main_app.processing import start_background_processing
     from offline_queue import offline_queue_tick
+    from rate_limit_hold import (
+        is_queue_paused, rate_limit_hold_tick)
     from processing_queue import ProcessingQueue
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
     orphan_check_interval = 0  # Counter for orphan check (every 10 iterations)
+    rate_limit_pause_logged = False
     while not shutdown_event.is_set():
         # Guard point for issue #566 (see Database.rollback_open_transaction).
         db.clear_leaked_transaction(refresh_logger, 'queue processor')
@@ -158,8 +161,28 @@ def background_queue_processor():
                 # TTL and re-queue the rest once their service is reachable.
                 _run_tick(offline_queue_tick, 'offline_queue_tick')
 
+                # Rate-limit hold (#696): release held episodes once the
+                # provider's reset time has passed; expire past the TTL.
+                _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
+
+            # Rate-limit pause gate (#696); held episodes resume via the tick
+            # above.
+            paused = is_queue_paused(db)
+            if paused and not db.has_user_requested_pending_row():
+                if not rate_limit_pause_logged:
+                    refresh_logger.info(
+                        "Queue paused: LLM provider rate limit; waiting for reset")
+                    rate_limit_pause_logged = True
+                shutdown_event.wait(timeout=30)
+                continue
+            rate_limit_pause_logged = False
+
             # Atomically claim the next queued episode (marks it 'processing').
-            queued = db.claim_next_queued_episode()
+            # Mid-pause only user-requested rows are claimed: the gate above
+            # waves them through, and letting the whole backlog claim by
+            # priority would burn one throttled call per row ahead of them.
+            queued = db.claim_next_queued_episode(
+                user_requested_only=paused)
 
             if queued:
                 queue_id = queued['id']
@@ -245,6 +268,14 @@ def background_queue_processor():
                                     f"the lock after {waited}s; treating as orphaned"
                                 )
                                 break
+
+                        # The job writes its status before its finally block drops
+                        # the lock; wait that gap out so the next claim does not trip
+                        # acquire's same-process rejection and the 30 s backoff.
+                        for _ in range(60):
+                            if shutdown_event.is_set() or not queue.is_processing(slug, episode_id):
+                                break
+                            shutdown_event.wait(timeout=0.5)
 
                         # Check final status
                         episode = db.get_episode(slug, episode_id)

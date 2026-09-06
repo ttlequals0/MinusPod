@@ -7,7 +7,8 @@ import { getErrorMessage } from '../api/client';
 import { btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
 import Checkbox from './Checkbox';
-import { focusRing } from './fieldStyles';
+import { focusRing, selectBase } from './fieldStyles';
+import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../utils/segmentCategory';
 
 interface Props {
   // null = create a new sponsor
@@ -23,6 +24,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
   const [name, setName] = useState(sponsor?.name ?? '');
   const [aliasesText, setAliasesText] = useState((sponsor?.aliases ?? []).join(', '));
   const [category, setCategory] = useState(sponsor?.category ?? '');
+  const [segmentCategory, setSegmentCategory] = useState<SegmentCategory | ''>(sponsor?.segment_category ?? '');
   const [tags, setTags] = useState<string[]>(sponsor?.tags ?? []);
   const [isActive, setIsActive] = useState(sponsor?.is_active ?? true);
   const [error, setError] = useState<string | null>(null);
@@ -41,15 +43,17 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
       if (!trimmed) throw new Error('Name is required');
       const aliases = parseAliases();
       const cat = category.trim() || undefined;
+      const segment = segmentCategory || null;
 
       if (isNew) {
-        const created = await addSponsor({ name: trimmed, aliases, category: cat });
+        const created = await addSponsor({ name: trimmed, aliases, category: cat, segment_category: segment });
         if (tags.length > 0) await updateSponsorTags(created.id, tags);
       } else {
         await updateSponsor(sponsor!.id, {
           name: trimmed,
           aliases,
           category: cat,
+          segment_category: segment,
           is_active: isActive,
         });
         await updateSponsorTags(sponsor!.id, tags);
@@ -112,6 +116,26 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
             className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
             placeholder="e.g. technology"
           />
+        </div>
+
+        <div>
+          <label htmlFor="sponsor-segment-category" className="block text-sm font-medium text-foreground mb-1">
+            Segment category
+          </label>
+          <select
+            id="sponsor-segment-category"
+            value={segmentCategory}
+            onChange={(e) => setSegmentCategory(e.target.value as SegmentCategory | '')}
+            className={`w-full ${selectBase}`}
+          >
+            <option value="">Let detection decide</option>
+            {SEGMENT_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{SEGMENT_CATEGORY_LABELS[c]}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Every read that names this sponsor is filed under this category, whatever the detector called it.
+          </p>
         </div>
 
         <div>

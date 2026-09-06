@@ -28,20 +28,41 @@ from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from run_log import run_in_worker_thread
 from llm_client import (
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
-    StructuralRateLimitError,
+    ProviderRateLimitedError, StructuralRateLimitError,
 )
-from utils.llm_call import call_llm, call_llm_for_window
+from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import dai_core_bounds, invalidate_tail_provenance
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S,
     get_timestamped_transcript_for_range,
-    get_transcript_text_for_range,
 )
 
 
 Verdict = Literal["confirmed", "adjust", "reject", "resurrect", "failure"]
+
+# Structured-output schema for review calls (#694), gated like detection.
+# Wrapped under "ads" so extract_json_ads_array parses the envelope unchanged.
+AD_REVIEW_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ads": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "is_ad": {"type": "boolean"},
+                    "start": {"type": "number"},
+                    "end": {"type": "number"},
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                },
+            },
+        },
+    },
+    "required": ["ads"],
+}
 
 logger = logging.getLogger(__name__)
 
@@ -170,8 +191,18 @@ _TRIM_RECOVERY_SYSTEM_PROMPT = (
     "Return ONLY strict JSON, no explanation, no markdown:\n"
     '{"ad_start": FLOAT_SECONDS, "ad_end": FLOAT_SECONDS}\n'
     "Both values must be numeric seconds inside the original span. If the "
-    "reasoning does not identify a specific ad sub-span, return null instead."
+    "reasoning does not identify a specific ad sub-span, return "
+    '{"ad_start": null, "ad_end": null}.'
 )
+
+# #694: nullable and not required so the no-sub-span answer still validates.
+TRIM_RECOVERY_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ad_start": {"type": ["number", "null"]},
+        "ad_end": {"type": ["number", "null"]},
+    },
+}
 
 
 def reasoning_affirms_ad(reasoning: str | None) -> bool:
@@ -240,6 +271,7 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     updated["start"] = start
     updated["end"] = end
     updated["reviewer_verdict"] = "adjust"
+    updated["reviewer_moved"] = True
     updated["reviewer_original_start"] = original_start
     updated["reviewer_original_end"] = original_end
     updated["reviewer_reasoning"] = reasoning
@@ -341,6 +373,8 @@ def _warn_prose_boundary_mismatch(
     start: float,
     end: float,
     *,
+    original_start: float | None = None,
+    original_end: float | None = None,
     slug: str | None,
     episode_id: str | None,
 ) -> None:
@@ -348,6 +382,10 @@ def _warn_prose_boundary_mismatch(
     number (the-tim-dillon-show a55cb5b8216d: reasoning named the ad's final
     sentence near 28.4s while the emitted end was 20.0s). Observability only:
     auto-arbitrating between two model numbers would be guesswork.
+
+    The regexes key on boundary words, not the sentence's subject, so "show
+    content starts at 59.7s" given as the reason for an end trim read as a
+    claim about the ad. A figure landing on any real boundary is context.
     """
     if not reasoning:
         return
@@ -357,14 +395,16 @@ def _warn_prose_boundary_mismatch(
     ):
         for match in regex.finditer(reasoning):
             figure = float(match.group(1))
-            if abs(figure - boundary) > _PROSE_BOUNDARY_WARN_GAP_S:
-                logger.warning(
-                    f"[{slug}:{episode_id}] Reviewer adjust prose/number "
-                    f"mismatch: reasoning names {side} {figure:.1f}s but "
-                    f"emitted {side} is {boundary:.1f}s "
-                    f"(reasoning: {reasoning[:120]!r})"
-                )
-                return
+            if any(b is not None and abs(figure - b) <= _PROSE_BOUNDARY_WARN_GAP_S
+                   for b in (start, end, original_start, original_end)):
+                continue
+            logger.warning(
+                f"[{slug}:{episode_id}] Reviewer adjust prose/number "
+                f"mismatch: reasoning names {side} {figure:.1f}s but "
+                f"emitted {side} is {boundary:.1f}s "
+                f"(reasoning: {reasoning[:120]!r})"
+            )
+            return
 
 
 def _first_num(d: dict, keys: tuple, default: float) -> float:
@@ -717,6 +757,8 @@ class AdReviewer:
                 accepted_ads, resurrection_eligible, segments,
                 episode_meta, pass_num, pass_model,
             )
+        except ProviderRateLimitedError:
+            raise
         except Exception as e:
             logger.error(
                 f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
@@ -1000,10 +1042,16 @@ class AdReviewer:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            response_format=schema_format_for(
+                model, 'ad_review', AD_REVIEW_JSON_SCHEMA,
+                'Review verdicts for the candidate ad.'),
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
 
         if response is None:
+            if isinstance(error, ProviderRateLimitedError):
+                # A held 429 must defer the episode, not skip the review.
+                raise error
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} "
                 f"@ {original_start:.1f}s failed: {error}. Falling through "
@@ -1129,6 +1177,7 @@ class AdReviewer:
         if verdict == "adjust":
             _warn_prose_boundary_mismatch(
                 reason, clamped_start, clamped_end,
+                original_start=original_start, original_end=original_end,
                 slug=slug, episode_id=episode_id,
             )
             updated = _adjusted_ad_copy(
@@ -1292,6 +1341,9 @@ class AdReviewer:
                 episode_id=episode_id,
                 call_label=call_label,
                 pass_name=pass_name,
+                response_format=schema_format_for(
+                    model, 'trim_recovery', TRIM_RECOVERY_JSON_SCHEMA,
+                    'Ad sub-span inside the original candidate.'),
             )
         except Exception as e:
             # call_llm never raises by contract; belt-and-braces so a bug
@@ -1391,20 +1443,16 @@ class AdReviewer:
         """
         start = float(ad.get("start", 0.0))
         end = float(ad.get("end", 0.0))
-        before_text = get_transcript_text_for_range(
+        # Per-segment timestamps everywhere, context included (#695): the
+        # system prompt's examples read trim boundaries out of context lines.
+        before_text = get_timestamped_transcript_for_range(
             segments, max(0.0, start - 60.0), start
         )
-        # Per-segment timestamped lines so every candidate sentence carries
-        # its boundary: with only the two span-edge anchors the model cannot
-        # emit an exact trim timestamp for a sentence it names (the-tim-dillon-
-        # show a55cb5b8216d trimmed to an interpolated 20.0s when the ad's
-        # final sentence ended at 28.4s). Context blocks stay stripped: they
-        # are boundary-adjacent only and can be long.
         ad_text = get_timestamped_transcript_for_range(segments, start, end)
         if not ad_text:
             fallback = ad.get("end_text", "") or ""
             ad_text = f"[{start:.1f}s-{end:.1f}s] {fallback}" if fallback else ""
-        after_text = get_transcript_text_for_range(segments, end, end + 60.0)
+        after_text = get_timestamped_transcript_for_range(segments, end, end + 60.0)
 
         podcast_name = episode_meta.get("podcast_name", "Unknown")
         episode_title = episode_meta.get("episode_title", "Unknown")
@@ -1457,13 +1505,13 @@ class AdReviewer:
             f"{description_section}\n"
             f"{framing}\n"
             f"{cue_section}"
-            f"Transcript (60s before, the candidate ad, 60s after; candidate "
-            f"lines carry [start-end] second timestamps):\n"
-            f"[{max(0.0, start - 60.0):.1f}s] {before_text}\n"
+            f"Transcript (60s before, the candidate ad, 60s after; all lines "
+            f"carry [start-end] second timestamps):\n"
+            f"{before_text}\n"
             f">>> CANDIDATE AD START [{start:.1f}s] >>>\n"
             f"{ad_text}\n"
             f"<<< CANDIDATE AD END [{end:.1f}s] <<<\n"
-            f"[{end:.1f}s] {after_text}\n"
+            f"{after_text}\n"
         )
 
     def _render_review_prompt(self, max_shift: int, sponsor_block: str) -> str:

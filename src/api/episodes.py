@@ -2,7 +2,6 @@
 import json
 import logging
 import re
-from datetime import datetime, timezone
 
 from flask import Response, redirect, request, send_file, abort, url_for
 
@@ -21,7 +20,10 @@ from audio_peaks import compute_peaks, PeaksError
 from audio_processor import get_replacement_duration
 from chapters_generator import ChaptersGenerator
 from database.podcasts import is_local_feed
-from database.queue import compute_queue_priority
+from database.queue import (
+    compute_queue_priority, PENDING_QUEUE_LIMIT,
+    QUEUE_PRIORITY_MAX, QUEUE_PRIORITY_MIN,
+)
 from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
 from processing_queue import ProcessingQueue
@@ -35,7 +37,7 @@ from utils.episode_paths import episode_public_url
 from utils.text import (
     extract_timed_spans_in_range, parse_transcript_segments,
 )
-from utils.time import ISO_FORMAT, utc_now_iso
+from utils.time import epoch_to_iso, utc_now_iso
 
 logger = logging.getLogger('podcast.api')
 
@@ -102,6 +104,10 @@ REPROCESS_MODE_SPECS = {
         'preconditions': _check_recut_preconditions,
     },
 }
+
+# Waiting-list pagination for GET /episodes/processing (#696).
+_QUEUE_PAGE_DEFAULT_LIMIT = PENDING_QUEUE_LIMIT
+_QUEUE_PAGE_MAX_LIMIT = 1000
 
 
 def _mode_allowed(mode, context):
@@ -1397,25 +1403,24 @@ def retry_ad_detection(slug, episode_id):
 
 # ========== Processing Queue Endpoints ==========
 
-def _epoch_to_iso(ts):
-    """Epoch seconds (StatusService's display queue) as an ISO string, so every
-    queuedAt in the response has the same shape as the DB's created_at."""
-    if not ts:
-        return None
-    return datetime.fromtimestamp(ts, timezone.utc).strftime(ISO_FORMAT)
-
-
 @api.route('/episodes/processing', methods=['GET'])
 @log_request
 def get_processing_episodes():
-    """Episodes processing now, then the full pending queue in dequeue order.
+    """Episodes processing now, then the pending queue in dequeue order.
 
     Sources: the DB's 'processing' rows plus StatusService.current_job for the
     active job; auto_process_queue pending rows plus StatusService's display
-    queue for the backlog. Issue #236.
+    queue for the backlog. Issue #236. The waiting list is paginated with the
+    `offset`/`limit` query params (limit default 200, cap 1000); rows carry an
+    offset-aware `queuePosition` so the panel can page through a long backlog
+    (#696).
     """
     db = get_database()
     conn = db.get_connection()
+
+    offset = max(0, request.args.get('offset', 0, type=int))
+    limit = min(max(request.args.get('limit', _QUEUE_PAGE_DEFAULT_LIMIT, type=int), 1),
+                _QUEUE_PAGE_MAX_LIMIT)
 
     cursor = conn.execute("""
         SELECT e.episode_id, e.title, p.slug, p.title as podcast
@@ -1455,13 +1460,16 @@ def get_processing_episodes():
 
     # Append the waiting queue after the active job(s). The auto_process_queue
     # rows are the real backlog, so they come first and in dequeue order
-    # (priority DESC, created_at ASC, the same ORDER BY the worker claims by);
-    # StatusService's display queue only holds entries an enqueue path added by
-    # hand, so it contributes just the rows the DB does not already cover.
+    # (priority DESC, created_at ASC, the ORDER BY the worker claims by),
+    # sliced to the requested page. StatusService's display queue only holds
+    # hand-enqueued entries, so it trails the DB backlog with the rest.
     seen = {(e['slug'], e['episodeId']) for e in episodes}
     queued = []
-    pending_rows = db.get_pending_queued_episodes()
-    pending_total = pending_rows[0]['total_pending'] if pending_rows else 0
+    pending_rows = db.get_pending_queued_episodes(limit=limit, offset=offset)
+    # An empty page means either an empty backlog (offset 0) or a page past
+    # its end, and only the latter needs the count query.
+    pending_total = (pending_rows[0]['total_pending'] if pending_rows
+                     else (db.count_pending_queued_episodes() if offset else 0))
     for row in pending_rows:
         key = (row['podcast_slug'], row['episode_id'])
         if key in seen:
@@ -1478,26 +1486,41 @@ def get_processing_episodes():
             'stage': 'queued',
         })
 
+    # Extras trail the DB backlog at virtual positions pending_total.., so
+    # they dedup against the whole backlog, not just this page: `seen` covers
+    # the active job and display-queue repeats, get_pending_queue_keys the rest.
+    candidates = []
     for q in status.queued_episodes:
         key = (q['slug'], q['episode_id'])
         if key in seen:
             continue
         seen.add(key)
+        candidates.append(q)
+    pending_keys = (db.get_pending_queue_keys([q['episode_id'] for q in candidates])
+                    if candidates else set())
+    valid_extras = [q for q in candidates
+                    if (q['slug'], q['episode_id']) not in pending_keys]
+    start = max(0, offset - pending_total)
+    page_extras = valid_extras[start:start + limit - len(pending_rows)]
+    for q in page_extras:
         queued.append({
             'episodeId': q['episode_id'],
             'slug': q['slug'],
             'title': q.get('title') or 'Unknown',
             'podcast': q.get('podcast_name') or q['slug'],
             'startedAt': None,
-            'queuedAt': _epoch_to_iso(q.get('queued_at')),
+            'queuedAt': epoch_to_iso(q.get('queued_at')),
             'priority': None,
             'stage': 'queued',
         })
 
-    # queueTotal counts the whole backlog even when the row list is capped, so
-    # the panel's "Waiting (N)" does not silently under-report a long queue.
-    queue_total = (pending_total - len(pending_rows)) + len(queued)
-    for position, entry in enumerate(queued, start=1):
+    # queueTotal is the whole backlog, not the page. Stamped on every entry,
+    # active ones included, so a page whose rows all deduped away still
+    # reports it instead of collapsing the pager to one page.
+    queue_total = pending_total + len(valid_extras)
+    for entry in episodes:
+        entry['queueTotal'] = queue_total
+    for position, entry in enumerate(queued, start=offset + 1):
         entry['queuePosition'] = position
         entry['queueTotal'] = queue_total
 
@@ -1580,6 +1603,163 @@ def cancel_episode_processing(slug, episode_id):
         'episodeId': episode_id,
         'slug': slug
     })
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/queue-priority', methods=['POST'])
+@log_request
+def set_episode_queue_priority(slug, episode_id):
+    """Change a queued episode's priority (#696).
+
+    Body: {"priority": int} to set an absolute value, or {"delta": int} to
+    nudge the stored one (applied in SQL, so a stepper cannot lose a click
+    to a stale read). Either way the write can raise or lower, unlike the
+    monotonic MAX() rule on re-enqueue, and a later feed-level queuePriority
+    change restamps the row.
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return error_response('Body must be a JSON object', 400)
+    priority, delta = data.get('priority'), data.get('delta')
+    if (priority is None) == (delta is None):
+        return error_response('Provide exactly one of priority or delta', 400)
+    given = priority if delta is None else delta
+    if not isinstance(given, int) or isinstance(given, bool):
+        return error_response('priority and delta must be integers', 400)
+    if not QUEUE_PRIORITY_MIN <= given <= QUEUE_PRIORITY_MAX:
+        return error_response(
+            f'Value must be between {QUEUE_PRIORITY_MIN} and {QUEUE_PRIORITY_MAX}', 400)
+
+    db = get_database()
+    if not db.get_podcast_by_slug(slug):
+        return error_response('Feed not found', 404)
+    stored = db.set_queue_row_priority(slug, episode_id, priority=priority, delta=delta)
+    if stored is None:
+        return error_response('No pending queue row for this episode', 404)
+    logger.info(f"Queue priority set to {stored} for {slug}:{episode_id}")
+    return json_response({
+        'message': 'Queue priority updated',
+        'episodeId': episode_id,
+        'slug': slug,
+        'priority': stored,
+    })
+
+
+def _recut_handled_by_own_run(row) -> bool:
+    """Whether a pending-recut row's episode has its own run coming.
+
+    Such a run reads the recorded decisions itself, and upserting a recut
+    over it would downgrade a queued full/llm rerun. An episode left
+    'pending' with no queue row (a cleared queue) has no run coming, so a
+    recut is the only path for its decisions. Shared by the apply loop and
+    the readiness flags so the button never counts rows apply would skip.
+    """
+    return bool(
+        row['status'] == EpisodeStatus.PROCESSING.value
+        or (row['status'] == EpisodeStatus.PENDING.value and row['has_queue_row']))
+
+
+@api.route('/episodes/pending-recuts', methods=['GET'])
+@log_request
+def get_pending_recuts():
+    """Episodes carrying review decisions that are not in the audio yet.
+
+    Review is bulk work, so decisions are recorded as they are made and cut
+    in one pass per episode when the operator applies them.
+    """
+    db = get_database()
+    slug = request.args.get('slug') or None
+    episodes = db.get_episodes_pending_recut(slug=slug)
+    storage = get_storage()
+
+    def entry(e):
+        running = _recut_handled_by_own_run(e)
+        # Mirrors _check_recut_preconditions, so the UI can say which rows
+        # an apply will rebuild now, which are mid-run, and which wait for
+        # a full reprocess.
+        data_ok = bool(
+            e['has_segments'] and e['has_markers']
+            and storage.get_original_path(
+                e['podcast_slug'], e['episode_id']).exists())
+        return {
+            'slug': e['podcast_slug'],
+            'episodeId': e['episode_id'],
+            'title': e['title'],
+            'podcast': e['podcast_title'],
+            'pendingSince': e['pending_recut_at'],
+            'recutReady': data_ok and not running,
+            'inFlight': running,
+        }
+
+    return json_response({
+        'count': len(episodes),
+        'episodes': [entry(e) for e in episodes],
+    })
+
+
+@api.route('/episodes/pending-recuts/apply', methods=['POST'])
+@limiter.limit("5 per minute")
+@log_request
+def apply_pending_recuts():
+    """Recut every episode holding unapplied review decisions, once each.
+
+    Same recut path and preconditions as the per-feed segment re-render, so
+    there is still one recut queue. An episode failing them is left stamped
+    rather than silently cleared, so its decisions are not lost.
+    """
+    db = get_database()
+    from main_app.processing import start_background_processing
+
+    payload = request.get_json(silent=True)
+    scope = (payload.get('slug') or None) if isinstance(payload, dict) else None
+    queued, skipped = 0, 0
+    for row in db.get_episodes_pending_recut(slug=scope):
+        slug, episode_id = row['podcast_slug'], row['episode_id']
+        episode = db.get_episode(slug, episode_id)
+        podcast = db.get_podcast_by_slug(slug)
+        if not episode or not podcast:
+            skipped += 1
+            continue
+        if _recut_handled_by_own_run(row):
+            skipped += 1
+            continue
+        if _check_recut_preconditions(db, slug, episode_id, episode) is not None:
+            skipped += 1
+            continue
+        try:
+            db.upsert_episode(
+                slug, episode_id,
+                status=EpisodeStatus.PENDING.value,
+                reprocess_mode='recut',
+                reprocess_requested_at=utc_now_iso(),
+                retry_count=0,
+                error_message=None,
+            )
+            started, _reason = start_background_processing(
+                slug, episode_id, episode.get('original_url'),
+                episode.get('title', 'Unknown'), podcast.get('title', slug),
+                episode.get('description'), None, episode.get('published_at'),
+            )
+            if not started:
+                priority = compute_queue_priority(
+                    podcast.get('queue_priority'), episode.get('published_at'),
+                    manual=True)
+                db.upsert_episode_for_processing(
+                    slug, episode_id, episode.get('original_url'),
+                    episode.get('title', 'Unknown'),
+                    episode.get('published_at'), episode.get('description'),
+                    priority=priority,
+                )
+                get_status_service().queue_episode(
+                    slug, episode_id, episode.get('title', 'Unknown'),
+                    podcast.get('title', slug))
+            queued += 1
+        except Exception:
+            logger.exception(
+                f"[{slug}:{episode_id}] Failed to queue pending-recut apply")
+            skipped += 1
+
+    logger.info(f"Apply pending recuts: {queued} queued, {skipped} skipped")
+    return json_response({'queued': queued, 'skipped': skipped})
 
 
 # ========== Episode Reprocessing Endpoint ==========

@@ -9,6 +9,7 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, get_sponsor_service,
 )
+from config import SEGMENT_CATEGORIES
 
 logger = logging.getLogger('podcast.api')
 
@@ -90,6 +91,10 @@ def add_sponsor():
     if not data or not data.get('name'):
         return error_response('Name is required', 400)
 
+    segment = data.get('segment_category')
+    if segment is not None and segment not in SEGMENT_CATEGORIES:
+        return error_response('Invalid segment_category', 400)
+
     service = get_sponsor_service()
 
     # Check if sponsor already exists
@@ -100,7 +105,8 @@ def add_sponsor():
     sponsor_id = service.add_sponsor(
         name=data['name'],
         aliases=data.get('aliases', []),
-        category=data.get('category')
+        category=data.get('category'),
+        segment_category=data.get('segment_category'),
     )
 
     return json_response({
@@ -132,6 +138,9 @@ def update_sponsor(sponsor_id):
     data = request.get_json()
     if not data:
         return error_response('No data provided', 400)
+    segment = data.get('segment_category')
+    if segment is not None and segment not in SEGMENT_CATEGORIES:
+        return error_response('Invalid segment_category', 400)
 
     service = get_sponsor_service()
 
