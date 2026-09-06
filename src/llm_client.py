@@ -25,6 +25,8 @@ import logging
 import os
 import socket
 import threading
+import uuid
+from urllib.parse import urlparse
 from types import SimpleNamespace
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -1497,6 +1499,19 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
         return _cached_client
 
 
+# OpenCode Go and Zen route a session's requests to one backend for prompt
+# caching and reject requests without the session header (#719). One id per
+# process: every MinusPod call shares the same system prompts.
+_OPENCODE_SESSION_ID = uuid.uuid4().hex
+
+
+def _opencode_headers(base_url: str) -> dict[str, str]:
+    host = (urlparse(base_url).hostname or '').lower()
+    if host != 'opencode.ai' and not host.endswith('.opencode.ai'):
+        return {}
+    return {'x-opencode-session': _OPENCODE_SESSION_ID, 'x-opencode-client': 'minuspod'}
+
+
 def _build_client(provider: str) -> LLMClient | None:
     """Build an LLM client for a given provider without caching."""
     if provider == PROVIDER_ANTHROPIC:
@@ -1520,7 +1535,8 @@ def _build_client(provider: str) -> LLMClient | None:
             api_key = get_effective_ollama_api_key() or 'not-needed'
         else:
             api_key = get_effective_openai_api_key()
-        return OpenAICompatibleClient(base_url=base_url, api_key=api_key)
+        return OpenAICompatibleClient(base_url=base_url, api_key=api_key,
+                                      extra_headers=_opencode_headers(base_url))
     return None
 
 

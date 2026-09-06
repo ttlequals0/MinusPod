@@ -59,18 +59,20 @@ def get_hold_until(db) -> str | None:
         return None
 
 
-def record_hold_until(db, retry_at_iso: str) -> str:
+def record_hold_until(db, retry_at_iso: str) -> tuple[str, bool]:
     """Stamp the pause marker, keeping whichever reset is later so a second
     429 can extend an active pause but never cut it short. Returns the
-    effective hold_until; equal to `retry_at_iso` when this call set it."""
+    effective hold_until and whether this call started a new pause (as
+    opposed to extending or falling inside an active one)."""
     current = get_hold_until(db)
     if current and parse_iso_utc(current) and parse_iso_utc(current) > parse_iso_utc(retry_at_iso):
-        return current
+        return current, False
     # Extending an active pause keeps its start; only a fresh pause stamps it.
-    if not hold_is_active(current):
+    started = not hold_is_active(current)
+    if started:
         db.set_setting(HOLD_SINCE_KEY, utc_now_iso())
     db.set_setting(HOLD_UNTIL_KEY, retry_at_iso)
-    return retry_at_iso
+    return retry_at_iso, started
 
 
 def get_hold_since(db) -> str | None:

@@ -1,6 +1,7 @@
 """Transcription using Faster Whisper."""
 import io
 import json
+from datetime import timedelta
 import logging
 import math
 import struct
@@ -20,7 +21,7 @@ from utils.errors import (
     ServiceUnavailableError, AudioTooLargeError, AudioExtractionError,
     AudioExtractionTimeout,
 )
-from utils.time import format_vtt_timestamp
+from utils.time import format_vtt_timestamp, parse_iso_utc, utc_now, utc_now_iso
 from utils.gpu import (clear_gpu_memory, get_available_memory_gb,
                        get_gpu_device_name, get_gpu_memory_info)
 from utils.url import SSRFError
@@ -96,90 +97,16 @@ BATCH_SIZE_TIERS = [
     (120 * 60, 8),      # 90-120 min: batch_size=8
 ]
 
-# Podcast-aware initial prompt with sponsor vocabulary. Whisper sometimes
-# regurgitates its own initial_prompt into silent gaps, so every term in this
-# list is also the scrubber's vocabulary: VOCABULARY_HALLUCINATION_PATTERNS
-# below derives from it, so a term cannot be seeded without being scrubbable.
-# (The podcast name, also interpolated into the prompt by get_initial_prompt,
-# is not a fixed vocabulary term and is intentionally not covered here.)
-# Do NOT add bare words that also occur in ordinary editorial speech: a seeded
-# term that is common English (GLP-1 drug names like Wegovy/Ozempic/Mounjaro;
-# words like calm/indeed/audible) gets hallucinated into gaps AND makes the
-# scrubber delete real speech. Keep only distinctive brand spellings.
-AD_VOCABULARY_TERMS = [
-    "promo code", "discount code", "use code",
-    "sponsored by", "brought to you by",
-    "Athletic Greens", "AG1", "BetterHelp", "Squarespace", "NordVPN",
-    "ExpressVPN", "HelloFresh", "Masterclass", "ZipRecruiter",
-    "Raycon", "Manscaped", "Stamps.com", "LinkedIn",
-    "SimpliSafe", "Casper", "Helix Sleep", "Brooklinen", "Bombas",
-    "Headspace", "Mint Mobile", "Dollar Shave Club",
-]
-AD_VOCABULARY = ", ".join(AD_VOCABULARY_TERMS)
-
-# Hallucination patterns to filter out (Whisper artifacts)
+# Whisper artifacts on silence and music. Matched after trailing punctuation
+# is stripped, so a bare phrase or bare punctuation is an artifact.
 HALLUCINATION_PATTERNS = re.compile(
-    r'^(thanks for watching|thank you for watching|please subscribe|'
-    r'like and subscribe|see you next time|bye\.?|'
+    r'^(?:thanks for watching|thank you for watching|please subscribe|'
+    r'like and subscribe|see you next time|bye|'
     r'subtitles by the amara\.org community|'
-    r'\[music\]|\[applause\]|\[laughter\]|\[silence\]|'
-    r'\.+|\s*|you)$',
+    r'\[music\]|\[applause\]|\[laughter\]|\[silence\]|you)?$',
     re.IGNORECASE
 )
-
-# Vocabulary hallucination scrubbing (Whisper sometimes outputs the initial
-# prompt). The pattern derives from AD_VOCABULARY_TERMS so the scrubber always
-# covers exactly what we seed; _is_vocabulary_regurgitation (used by
-# filter_hallucinations) then decides whether a matching segment is a bare
-# vocabulary list (drop it) or real speech around a brand (keep it).
-def _compile_vocabulary_pattern(terms):
-    """Alternation over the seeded terms, or a never-match pattern when empty.
-
-    An empty term list must NOT compile to ``()``: that matches every string
-    and would blank the transcript.
-    """
-    if not terms:
-        return re.compile(r'(?!x)x')  # matches nothing
-    return re.compile(
-        "(?:" + "|".join(re.escape(term) for term in terms) + ")",
-        re.IGNORECASE,
-    )
-
-
-VOCABULARY_HALLUCINATION_PATTERNS = _compile_vocabulary_pattern(AD_VOCABULARY_TERMS)
-
-# Max fraction of a segment's letters that may remain after removing seeded
-# terms for it to still count as regurgitation (a bare vocabulary list) rather
-# than real speech that merely names a sponsor.
-_VOCAB_REGURGITATION_MAX_RESIDUE = 0.15
-
-
-def _letter_count(text):
-    """Count alphabetic characters, Unicode-aware so non-Latin speech counts.
-
-    A regex like ``[^a-z]`` would treat Chinese/Cyrillic/etc. as non-letters
-    and undercount the residue, wrongly scrubbing real non-English speech.
-    """
-    return sum(1 for c in text if c.isalpha())
-
-
-def _is_vocabulary_regurgitation(text):
-    """True when a segment is essentially a list of seeded vocabulary terms.
-
-    Whisper echoing its initial_prompt produces runs of sponsor names with no
-    connective speech. Strip the seeded terms; if almost no alphabetic content
-    remains, it is regurgitation, however long. A genuine sponsor mention keeps
-    real words around the brand and is left alone. Length-independent, so a long
-    multi-brand run is caught as readily as a single echoed term.
-    """
-    # Cheap reject first: most segments contain no seeded term at all.
-    if not VOCABULARY_HALLUCINATION_PATTERNS.search(text):
-        return False
-    total = _letter_count(text)
-    if not total:
-        return False
-    residue = _letter_count(VOCABULARY_HALLUCINATION_PATTERNS.sub(' ', text))
-    return residue <= _VOCAB_REGURGITATION_MAX_RESIDUE * total
+TRAILING_PUNCTUATION = '.!?,;:\u2026'
 
 
 # Filter chain preprocess_audio applies; also folded into chunk extraction
@@ -1104,7 +1031,6 @@ class Transcriber:
     def _transcribe_via_api(
         self,
         audio_path: str,
-        podcast_name: str = None,
         whisper_settings: dict[str, str] = None,
         language_override: str | None = None,
         preprocessed: bool = False,
@@ -1116,7 +1042,6 @@ class Transcriber:
 
         Args:
             audio_path: Path to the audio file to transcribe.
-            podcast_name: Optional podcast name for context-aware prompting.
             whisper_settings: Pre-fetched settings dict from _get_whisper_settings().
             preprocessed: The file already went through the preprocess filter
                 chain (extract_audio_chunk(preprocess=True)); skip the
@@ -1171,7 +1096,6 @@ class Transcriber:
 
             # Build request
             url = _transcription_url(base_url)
-            initial_prompt = self.get_initial_prompt(podcast_name)
 
             headers = _bearer_headers(api_key)
 
@@ -1182,8 +1106,6 @@ class Transcriber:
             language = _effective_language(language_override, whisper_settings)
             if language and language != 'auto':
                 form_data_base['language'] = language
-            if initial_prompt:
-                form_data_base['prompt'] = initial_prompt
 
             # Defensive: refuse to upload tiny or missing files. Avoids
             # remote "empty audio" / decode failures when preprocessing
@@ -1331,12 +1253,6 @@ class Transcriber:
             _unlink_quiet(preprocessed_path)
             _unlink_quiet(flac_path)
 
-    def get_initial_prompt(self, podcast_name: str = None) -> str:
-        """Generate a podcast-aware initial prompt for Whisper."""
-        if podcast_name:
-            return f"Podcast: {podcast_name}. {AD_VOCABULARY}"
-        return f"This is a podcast episode. {AD_VOCABULARY}"
-
     def filter_hallucinations(self, segments: list[dict]) -> list[dict]:
         """Filter out common Whisper hallucinations and artifacts."""
         filtered = []
@@ -1344,14 +1260,8 @@ class Transcriber:
             text = seg.get('text', '').strip()
             if not text:
                 continue
-            if HALLUCINATION_PATTERNS.match(text):
+            if HALLUCINATION_PATTERNS.match(text.rstrip(TRAILING_PUNCTUATION)):
                 logger.debug("Filtered hallucination segment (%d chars)", len(text))
-                continue
-            # Whisper sometimes echoes its initial_prompt vocabulary into a
-            # silent gap. Drop a segment that is essentially a list of seeded
-            # terms (any length); a genuine sponsor mention keeps real speech.
-            if _is_vocabulary_regurgitation(text):
-                logger.debug("Filtered vocabulary hallucination (%d chars)", len(text))
                 continue
             # Skip repeated segments (Whisper loop artifacts)
             if filtered and text == filtered[-1].get('text', '').strip():
@@ -1437,17 +1347,21 @@ class Transcriber:
         return duration
 
     # Largest batch size proven to fit this device's VRAM: recorded when a run
-    # completes after an OOM downshift, so later episodes start at a size that fits.
+    # completes below the duration tier, so later episodes start at a size that
+    # fits. After the TTL the next run probes one size up, so a transient OOM
+    # cannot pin every later episode for good.
     BATCH_CEILING_SETTING = 'transcribe_batch_size_ceiling'
+    BATCH_CEILING_TTL_DAYS = 2
 
     @staticmethod
     def _batch_ceiling_device() -> str:
         """Device name the stored ceiling applies to; VRAM differs per GPU model."""
         return get_gpu_device_name()
 
-    def _batch_size_ceiling(self) -> int | None:
-        """Stored ceiling as a positive int, or None when unset, malformed, or
-        recorded for a different device."""
+    def _read_ceiling(self) -> dict | None:
+        """Stored ceiling for this device as {'size', 'recorded_at'}, or None
+        when unset, malformed, or recorded for a different device. recorded_at
+        is None for pre-2.96.0 payloads, which read as expired."""
         # Inline import: see _get_whisper_settings above, Database would be a
         # circular import at module level.
         from database import Database
@@ -1462,47 +1376,65 @@ class Transcriber:
             parsed = json.loads(raw)
         except (TypeError, ValueError):
             parsed = None
-        if isinstance(parsed, dict):
-            if parsed.get('device') != self._batch_ceiling_device():
-                return None
-            size = parsed.get('size')
-        else:
-            # Legacy bare int from an earlier build: valid for the current
-            # device, rewritten in the new format on the next persist.
-            size = raw
-        try:
-            return max(1, int(size))
-        except (TypeError, ValueError):
+        if not isinstance(parsed, dict) or parsed.get('device') != self._batch_ceiling_device():
             return None
+        try:
+            size = max(1, int(parsed['size']))
+        except (KeyError, TypeError, ValueError):
+            return None
+        return {'size': size, 'recorded_at': parsed.get('recorded_at')}
+
+    def _ceiling_expired(self, entry: dict) -> bool:
+        recorded_at = parse_iso_utc(entry['recorded_at'])
+        return (recorded_at is None
+                or utc_now() - recorded_at > timedelta(days=self.BATCH_CEILING_TTL_DAYS))
+
+    def _batch_size_ceiling(self) -> int | None:
+        """Unexpired stored ceiling as a positive int, else None."""
+        entry = self._read_ceiling()
+        if entry is None or self._ceiling_expired(entry):
+            return None
+        return entry['size']
 
     def record_batch_size_ceiling(self, batch_size: int) -> None:
         """Persist batch_size as this device's ceiling. Called only after a
-        completed run, since only completion proves a size fits; ratchets down.
+        completed run, since only completion proves a size fits; ratchets down
+        against an unexpired ceiling and keeps its timestamp so it still ages out.
         """
         from database import Database
         candidate = max(1, int(batch_size))
-        existing = self._batch_size_ceiling()
-        value = min(existing, candidate) if existing else candidate
-        payload = json.dumps({'device': self._batch_ceiling_device(), 'size': value})
+        entry = self._read_ceiling()
+        live = entry if entry and not self._ceiling_expired(entry) else None
+        value = min(live['size'], candidate) if live else candidate
+        recorded_at = live['recorded_at'] if live and value == live['size'] else utc_now_iso()
+        payload = json.dumps({
+            'device': self._batch_ceiling_device(), 'size': value, 'recorded_at': recorded_at,
+        })
         try:
             Database().set_setting(self.BATCH_CEILING_SETTING, payload)
         except Exception as e:
             logger.debug(f"Could not persist batch size ceiling: {e}")
 
-    def get_batch_size_for_duration(self, duration_seconds: float | None) -> int:
-        """Get optimal batch size based on audio duration to prevent CUDA OOM."""
+    @staticmethod
+    def _tier_batch_size(duration_seconds: float | None) -> int:
+        """Batch size from audio duration alone; longer episodes need smaller batches."""
         if duration_seconds is None:
-            # Default to conservative batch size if duration unknown
-            tier = 8
-        else:
-            tier = 4  # Fallback for very long episodes (> 120 min)
-            for threshold, batch_size in BATCH_SIZE_TIERS:
-                if duration_seconds < threshold:
-                    tier = batch_size
-                    break
+            return 8
+        for threshold, batch_size in BATCH_SIZE_TIERS:
+            if duration_seconds < threshold:
+                return batch_size
+        return 4
 
-        ceiling = self._batch_size_ceiling()
-        return min(tier, ceiling) if ceiling else tier
+    def get_batch_size_for_duration(self, duration_seconds: float | None) -> int:
+        """Duration tier, clamped by an unexpired ceiling; an expired one is
+        probed one size up."""
+        tier = self._tier_batch_size(duration_seconds)
+        entry = self._read_ceiling()
+        if entry is None:
+            return tier
+        if self._ceiling_expired(entry):
+            return min(tier, entry['size'] * 2)
+        return min(tier, entry['size'])
 
     def clear_cuda_cache(self):
         """Clear CUDA cache to free GPU memory.
@@ -1696,7 +1628,6 @@ class Transcriber:
     def transcribe(
         self,
         audio_path: str,
-        podcast_name: str = None,
         language_override: str | None = None,
         vad_filter: bool = True,
         preprocessed: bool = False,
@@ -1726,7 +1657,7 @@ class Transcriber:
                 # its own upload, which is the intended effect (spec 1.2).
                 logger.info("vad_filter=False not forwardable to API backend; sending audio as-is")
             return self._transcribe_via_api(
-                audio_path, podcast_name, whisper_settings,
+                audio_path, whisper_settings,
                 language_override=language_override,
                 preprocessed=preprocessed,
             )
@@ -1756,9 +1687,6 @@ class Transcriber:
                 audio_duration = (self.get_audio_duration(preprocessed_path)
                                   or audio_duration)
 
-            # Create podcast-aware prompt with sponsor vocabulary
-            initial_prompt = self.get_initial_prompt(podcast_name)
-
             # Adjust batch size based on device and audio duration
             device = resolve_whisper_device()
             if device == "cuda":
@@ -1769,8 +1697,7 @@ class Transcriber:
             else:
                 batch_size = 8  # Smaller batch for CPU
 
-            # Success-time ceiling recording needs the pre-downshift start size.
-            initial_batch_size = batch_size
+            tier_batch_size = self._tier_batch_size(audio_duration)
 
             # Retry logic for CUDA OOM errors
             max_retries = 3
@@ -1795,7 +1722,6 @@ class Transcriber:
                     segments_generator, info = model.transcribe(
                         transcribe_path,
                         language=transcribe_language,
-                        initial_prompt=initial_prompt,
                         beam_size=5,
                         batch_size=batch_size,
                         word_timestamps=True,  # Enable word-level timestamps for boundary refinement
@@ -1893,27 +1819,33 @@ class Transcriber:
                     duration_min = result[-1]['end'] / 60 if result else 0
                     logger.info(f"Transcription completed: {len(result)} segments, {duration_min:.1f} minutes")
 
-                    if device == "cuda" and batch_size < initial_batch_size:
-                        # Completing at the downshifted size proves it fits;
-                        # failures never persist anything.
+                    if device == "cuda" and batch_size < tier_batch_size:
+                        # Completing below the tier (downshift, clamp, or probe)
+                        # proves the size fits; failures never persist anything.
                         self.record_batch_size_ceiling(batch_size)
 
                     return result
 
                 except Exception as inner_e:
                     error_str = str(inner_e).lower()
-                    is_oom = 'out of memory' in error_str or 'cuda' in error_str
+                    is_oom = 'out of memory' in error_str
 
-                    if is_oom and retry_count < max_retries - 1:
+                    if ('cuda' in error_str or is_oom) and retry_count < max_retries - 1:
                         retry_count += 1
-                        # Reduce batch size for retry
-                        old_batch_size = batch_size
-                        batch_size = max(1, batch_size // 2)
-                        logger.warning(
-                            f"CUDA OOM detected (attempt {retry_count}/{max_retries}). "
-                            f"Reducing batch size: {old_batch_size} -> {batch_size}"
-                        )
-                        # Clear cache and retry
+                        if is_oom:
+                            old_batch_size = batch_size
+                            batch_size = max(1, batch_size // 2)
+                            logger.warning(
+                                f"CUDA OOM detected (attempt {retry_count}/{max_retries}). "
+                                f"Reducing batch size: {old_batch_size} -> {batch_size}"
+                            )
+                        else:
+                            # Only an OOM says the size does not fit; anything
+                            # else is retried as-is so it cannot pin a ceiling.
+                            logger.warning(
+                                f"CUDA error (attempt {retry_count}/{max_retries}), "
+                                f"retrying at batch size {batch_size}: {inner_e}"
+                            )
                         self.clear_cuda_cache()
                         continue
                     # Non-OOM error or max retries reached
@@ -1942,7 +1874,6 @@ class Transcriber:
     def _transcribe_chunked_parallel_api(
         self,
         audio_path: str,
-        podcast_name: str | None,
         duration: float,
         whisper_settings: dict[str, str],
         language_override: str | None = None,
@@ -1965,7 +1896,7 @@ class Transcriber:
                 f"Audio duration {duration/60:.1f}min fits in one chunk "
                 f"({chunk_duration}s), single-shot API transcription"
             )
-            return self.transcribe(audio_path, podcast_name, language_override=language_override)
+            return self.transcribe(audio_path, language_override=language_override)
 
         # Build chunk plan: list of (idx, start, end_with_overlap)
         plan: list[tuple[int, float, float]] = []
@@ -2021,7 +1952,7 @@ class Transcriber:
                 return chunk_idx, None
             try:
                 segs = self._transcribe_via_api(
-                    chunk_path, podcast_name, whisper_settings,
+                    chunk_path, whisper_settings,
                     language_override=language_override,
                     preprocessed=True,
                 )
@@ -2152,7 +2083,6 @@ class Transcriber:
     def transcribe_chunked(
         self,
         audio_path: str,
-        podcast_name: str = None,
         language_override: str | None = None,
     ) -> list[dict]:
         """Transcribe audio files with dynamic chunking to prevent OOM errors.
@@ -2165,7 +2095,6 @@ class Transcriber:
 
         Args:
             audio_path: Path to the audio file to transcribe
-            podcast_name: Optional podcast name for context-aware prompting
             language_override: Optional per-feed language; when set, takes
                 precedence over the global whisper_language setting for this
                 call only (forwarded to each chunk's transcribe()).
@@ -2184,7 +2113,7 @@ class Transcriber:
         whisper_settings = _get_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
             return self._transcribe_chunked_parallel_api(
-                audio_path, podcast_name, duration, whisper_settings,
+                audio_path, duration, whisper_settings,
                 language_override=language_override,
             )
 
@@ -2205,7 +2134,7 @@ class Transcriber:
                 f"({chunk_duration/60:.0f}min), trying regular transcription"
             )
             try:
-                result = self.transcribe(audio_path, podcast_name, language_override=language_override)
+                result = self.transcribe(audio_path, language_override=language_override)
                 if result is not None:
                     return result
                 # If transcribe returns None but didn't raise, fall through to chunked
@@ -2302,7 +2231,7 @@ class Transcriber:
                 try:
                     # Transcribe chunk (will handle its own batch sizing and retries)
                     chunk_segments = self.transcribe(
-                        chunk_path, podcast_name,
+                        chunk_path,
                         language_override=language_override, preprocessed=True,
                     )
 

@@ -851,6 +851,19 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_chapters_json_for_podcast(self, podcast_id: int) -> dict[str, str]:
+        """{episode_id: chapters_json} for a feed's processed episodes; one
+        query instead of a full-row join per served item. Processed only:
+        the timestamps are on the cut timeline, so they must not be listed
+        against original audio."""
+        cursor = self.get_connection().execute(
+            """SELECT e.episode_id, d.chapters_json
+               FROM episodes e JOIN episode_details d ON d.episode_id = e.id
+               WHERE e.podcast_id = ? AND e.status = 'processed'
+                     AND d.chapters_json IS NOT NULL""",
+            (podcast_id,))
+        return {row['episode_id']: row['chapters_json'] for row in cursor.fetchall()}
+
     _EPISODE_JSON_COLS = frozenset({'ad_markers_json', 'audio_analysis_json',
                                     'original_segments_json'})
 

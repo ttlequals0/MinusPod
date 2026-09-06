@@ -4,6 +4,7 @@ import logging
 import hashlib
 import os
 import re
+from chapter_notes import append_chapters
 from datetime import datetime, timezone
 from email.utils import format_datetime, parsedate_to_datetime
 import requests
@@ -881,7 +882,8 @@ class RSSParser:
                     watermark_artwork: bool = False,
                     feed_auth_key: str | None = None,
                     own_episode_guids: bool = False,
-                    hide_title_patterns: str | None = None) -> str:
+                    hide_title_patterns: str | None = None,
+                    chapter_notes: dict[str, str] | None = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -905,6 +907,8 @@ class RSSParser:
                 skips the internal parse_feed call - the caller will have
                 already paid that cost. Passing a None here re-parses
                 feed_content for backwards compatibility.
+            chapter_notes: {episode_id: chapters_json} to append to
+                descriptions (#720); empty or None appends nothing.
             feed_auth_key: Global feed auth key (authenticated feeds). When
                 set, enclosure/vtt/chapters URLs carry ``?key=`` and the
                 badged cover embeds it in the path token (image URLs must
@@ -1024,9 +1028,11 @@ class RSSParser:
             modified_url = episode_public_url(self._resolved_base_url(), slug,
                                               episode_id, key=feed_auth_key)
 
+            description = append_chapters(self._get_episode_description(entry),
+                                          (chapter_notes or {}).get(episode_id))
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
-            lines.append(f'  <description><![CDATA[{self._escape_cdata(self._get_episode_description(entry))}]]></description>')
+            lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
             lines.append(f'  <link>{self._escape_xml(entry.get("link", ""))}</link>')
             # Per-feed GUID scheme (#598): our stable episode id matches the
             # DB-appended items; otherwise upstream's id passes through.
@@ -1083,7 +1089,8 @@ class RSSParser:
                 if title_matches_skip_patterns(ep.get('title', ''), hide_title_patterns):
                     continue
                 self._append_db_episode_item(lines, slug, ep, storage,
-                                             feed_auth_key)
+                                             feed_auth_key,
+                                             chapter_notes=chapter_notes)
                 appended_count += 1
 
         lines.append('</channel>')
@@ -1110,16 +1117,17 @@ class RSSParser:
             lines.append(f'  <podcast:chapters url="{chapters_url}" type="application/json+chapters" />')
 
     def _append_db_episode_item(self, lines: list, slug: str, ep: dict, storage,
-                                feed_auth_key=None) -> None:
+                                feed_auth_key=None, chapter_notes=None) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
         modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
                                            ep.get('processed_version'),
                                            key=feed_auth_key)
+        description = append_chapters(ep.get('description'), (chapter_notes or {}).get(ep_id))
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
-        if ep.get('description'):
-            lines.append(f'  <description><![CDATA[{self._escape_cdata(ep["description"])}]]></description>')
+        if description:
+            lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
         lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg" />')
         lines.append(f'  <guid isPermaLink="false">{ep_id}</guid>')
         if ep.get('published_at'):

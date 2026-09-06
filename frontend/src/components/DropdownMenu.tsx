@@ -7,6 +7,9 @@ export interface DropdownMenuItem {
   title: string;
   subtitle?: string;
   onClick: () => void;
+  disabled?: boolean;
+  /** Native tooltip on the item. */
+  tooltip?: string;
 }
 
 interface DropdownMenuProps {
@@ -65,16 +68,19 @@ function DropdownMenu({
     });
   };
 
-  useOutsideClick(rootRef, open, () => setOpen(false));
+  // A trigger that becomes disabled (a mutation started elsewhere) must
+  // not leave an open menu with live items behind it.
+  const isOpen = open && !disabled;
+  useOutsideClick(rootRef, isOpen, () => setOpen(false));
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [isOpen]);
 
   return (
     <div className="relative" ref={rootRef}>
@@ -87,18 +93,19 @@ function DropdownMenu({
         title={title}
         aria-label={title}
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={isOpen}
       >
         {triggerLabel}
-        <ChevronDown className={`${chevronClassName} transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`${chevronClassName} transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
+      {isOpen && (
         <div role="menu" className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} mt-1 w-56 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-lg z-10`}>
           {items.map((item, i) => {
             const isFirst = i === 0;
             const isLast = i === items.length - 1;
             const cls = [
               'w-full px-4 py-2 text-left hover:bg-accent transition-colors',
+              'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent',
               isFirst ? 'rounded-t-lg' : '',
               isLast ? 'rounded-b-lg' : '',
               isFirst ? '' : 'border-t border-border',
@@ -108,6 +115,8 @@ function DropdownMenu({
                 key={item.title}
                 ref={(el) => { itemRefs.current[i] = el; }}
                 role="menuitem"
+                disabled={item.disabled}
+                title={item.tooltip}
                 onClick={() => {
                   close();
                   item.onClick();

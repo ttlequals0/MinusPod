@@ -72,6 +72,7 @@ const mockSubmitCorrection = vi.fn();
 const mockReprocessEpisode = vi.fn();
 const mockRegenerateChapters = vi.fn();
 const mockUpdateLocalEpisode = vi.fn();
+const mockDownloadEpisodeAudio = vi.fn();
 const mockUploadLocalEpisodeArtwork = vi.fn();
 
 vi.mock('../api/feeds', () => ({
@@ -83,6 +84,7 @@ vi.mock('../api/feeds', () => ({
   regenerateChapters: (...args: unknown[]) => mockRegenerateChapters(...args),
   episodeOriginalUrl: (slug: string, episodeId: string) =>
     `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`,
+  downloadEpisodeAudio: (...args: unknown[]) => mockDownloadEpisodeAudio(...args),
   updateLocalEpisode: (...args: unknown[]) => mockUpdateLocalEpisode(...args),
   uploadLocalEpisodeArtwork: (...args: unknown[]) => mockUploadLocalEpisodeArtwork(...args),
 }));
@@ -1260,5 +1262,40 @@ describe('Process vs Reprocess label (single episode)', () => {
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     await user.click(screen.getByRole('button', { name: 'Process' }));
     expect(screen.getAllByText('Process').length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('Download menu', () => {
+  beforeEach(() => {
+    mockDownloadEpisodeAudio.mockReset();
+    mockDownloadEpisodeAudio.mockResolvedValue(undefined);
+  });
+
+  it('offers cut and original audio and downloads the chosen one', async () => {
+    renderDetail(makeEpisode());
+    await userEvent.click(await screen.findByRole('button', { name: /download audio/i }));
+    expect(screen.getByText('Cut audio')).toBeTruthy();
+    await userEvent.click(screen.getByText('Original audio'));
+    await waitFor(() => expect(mockDownloadEpisodeAudio).toHaveBeenCalledWith('test-feed', 'ep-1', 'original'));
+  });
+
+  it('keeps the last cut available while a reprocess is in flight', async () => {
+    renderDetail(makeEpisode({ status: 'processing' }));
+    await userEvent.click(await screen.findByRole('button', { name: /download audio/i }));
+    expect(screen.getByText('Cut audio')).toBeTruthy();
+  });
+
+  it('shows the API error instead of leaving the page', async () => {
+    mockDownloadEpisodeAudio.mockRejectedValueOnce(new Error('Original audio not retained for this episode'));
+    renderDetail(makeEpisode());
+    await userEvent.click(await screen.findByRole('button', { name: /download audio/i }));
+    await userEvent.click(screen.getByText('Original audio'));
+    expect(await screen.findByText('Original audio not retained for this episode')).toBeTruthy();
+  });
+
+  it('hides the button when nothing is downloadable', async () => {
+    renderDetail(makeEpisode({ hasOriginalAudio: false, processedAt: null, status: 'pending' }));
+    await screen.findByText('Test Episode');
+    expect(screen.queryByRole('button', { name: /download audio/i })).toBeNull();
   });
 });

@@ -1020,3 +1020,17 @@ class TestQueueBoostSettings:
             content_type='application/json',
         )
         assert resp.status_code == 400
+
+
+class TestChaptersInNotes:
+    def test_round_trips_and_rebuilds_served_feeds(self, client):
+        assert client.get('/api/v1/settings').get_json()['chaptersInNotes']['value'] is False
+        with patch('main_app.feeds.rebuild_all_served_feeds') as rebuild:
+            resp = client.put('/api/v1/settings/ad-detection',
+                              data=json.dumps({'chaptersInNotes': True}),
+                              content_type='application/json')
+        assert resp.status_code == 200, resp.data
+        rebuild.assert_called_once()
+        assert database.Database().get_setting('chapters_in_notes') == 'true'
+        assert client.get('/api/v1/settings').get_json()['chaptersInNotes']['value'] is True
+        database.Database().set_setting('chapters_in_notes', 'false', is_default=True)

@@ -254,6 +254,7 @@ function Settings() {
   const [maxAudioDownloadMb, setMaxAudioDownloadMb] = useState(500);
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
+  const [chaptersInNotes, setChaptersInNotes] = useState(false);
   const [chaptersModel, setChaptersModel] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0);
   const [minContentBetweenAdsSeconds, setMinContentBetweenAdsSeconds] = useState(12);
@@ -523,6 +524,7 @@ function Settings() {
     { key: 'episodeLogLevel', kind: 'str', useDefault: true, value: episodeLogLevel, set: (v) => setEpisodeLogLevel(v as EpisodeLogLevel) },
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
     { key: 'chaptersEnabled', kind: 'val', useDefault: true, value: chaptersEnabled, set: setChaptersEnabled },
+    { key: 'chaptersInNotes', kind: 'val', useDefault: true, value: chaptersInNotes, set: setChaptersInNotes },
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
     { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
     { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },
@@ -1153,8 +1155,10 @@ function Settings() {
       <Podcasting20Section
         vttTranscriptsEnabled={vttTranscriptsEnabled}
         chaptersEnabled={chaptersEnabled}
+        chaptersInNotes={chaptersInNotes}
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
+        onChaptersInNotesChange={setChaptersInNotes}
         geometry={
           settings?.stageTunables && settings?.stageTunableDefaults
             ? {

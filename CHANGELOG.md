@@ -11,6 +11,22 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.0] - 2026-09-05
+
+### Added
+
+- The episode page has a Download menu next to Reprocess with the cut (ad-free) audio and, when retained, the original. `GET /feeds/{slug}/episodes/{id}/processed.mp3` is new: it serves the current cut under the normal session auth (the public feed route needs a feed key) and stays available while a reprocess runs. `?download=1` on it, or on the existing `original.mp3`, sends the file as an attachment named after the episode title. The Reprocess menu now uses the shared dropdown, so it closes on outside click and Escape like the other menus.
+
+- Generated chapters can be listed in episode descriptions (#720), for apps that only surface chapters during playback. A "List chapters in episode descriptions" toggle under Transcripts & Chapters (`chaptersInNotes`, default off) appends a `Chapters` block to each episode's description in the served feed and in the episode API: one `mm:ss Title` line per chapter, `h:mm:ss` past an hour. Each feed can override it on its settings page (`chaptersInNotes`: `on`, `off`, or null for the global value). The block is rendered when the description is served and never written to the stored description. Regenerating chapters re-renders the cached feed so the new list shows on the next fetch.
+
+### Fixed
+
+- Transcripts no longer lose 7-17% of each episode. Whisper was seeded with a 312-character sponsor-vocabulary `initial_prompt`, and the batched pipeline prepends it to every VAD clip with no decode fallback. On roughly one clip in ten, large-v3 answered the prompt instead of the audio: the vocabulary list, "Thanks for watching!", or an early stop. The rest of that clip was dropped, sponsor reads included. Measured on stored transcripts, coverage was 83-93% of the audio; the same audio with no prompt covers 97%. The prompt and the scrubber that existed only to clean up its echoes are gone, on both the local and API backends. Sponsor spellings are still normalized after transcription by the existing corrections table.
+- The Queue Held alert fires once per pause. A user-requested episode claimed during a hold (Play and Reprocess bypass the pause on purpose) hits the same 429 and pushes the reset time out, and each of those extensions re-sent the alert. Extensions are now silent; the next alert comes after the pause lifts and a new one starts.
+- OpenAI-compatible calls to OpenCode Go or Zen (`opencode.ai` base URLs) send the `x-opencode-session` header the provider requires from 2026-09-06, plus `x-opencode-client`. The session id is stable for the life of the process so the provider can route every call to the same backend for prompt caching (#719).
+- Bare closing-phrase hallucinations with trailing punctuation ("Thanks for watching!", "Bye.") are now filtered like their unpunctuated forms.
+- The transcription batch-size ceiling no longer sticks forever. It only ever ratcheted down, and any error mentioning CUDA counted as an OOM, so one transient error had pinned it at 1 and every later episode decoded one clip at a time, about 30% slower than the duration tier. Now only an actual out-of-memory error lowers the size (other CUDA errors retry at the same size), and after two days the next run probes one size up: a genuine ceiling costs one OOM retry and is re-recorded, a bogus one climbs back to the tier. Ceilings recorded by earlier versions carry no timestamp and are probed from on upgrade.
+
 ## [2.95.3] - 2026-09-05
 
 ### Added

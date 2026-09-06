@@ -14,6 +14,7 @@ from config import (
 from database.episodes import normalize_published_at
 from database.podcasts import is_local_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
+from chapter_notes import chapter_notes_for
 from local_feed_builder import rebuild_local_feed
 from utils.http import safe_url_for_log
 from utils.time import parse_iso_utc, utc_now_iso
@@ -523,6 +524,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     # None while feed auth is disabled, so serving reverts to keyless URLs
     # even though the stored key is retained for re-enable.
     feed_auth_key = active_feed_key(db)
+    chapter_notes = chapter_notes_for(db, podcast)
     # 'hide' drops title-blacklisted episodes from the served feed entirely;
     # 'serve_original'/NULL (the default) leaves them in place.
     hide_title_patterns = None
@@ -538,7 +540,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           watermark_artwork=watermark_artwork,
                                           feed_auth_key=feed_auth_key,
                                           own_episode_guids=(podcast or {}).get('own_episode_guids'),
-                                          hide_title_patterns=hide_title_patterns)
+                                          hide_title_patterns=hide_title_patterns,
+                                          chapter_notes=chapter_notes)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
     # A re-render means the upstream feed moved, so any episode lookups

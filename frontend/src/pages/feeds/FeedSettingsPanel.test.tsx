@@ -1246,3 +1246,29 @@ describe('FeedSettingsPanel draft protection for non-notes fields', () => {
       (screen.getByLabelText('Pair min break') as HTMLInputElement).value).toBe('50'));
   });
 });
+
+describe('FeedSettingsPanel chapters in description control', () => {
+  const NAME = 'Chapters in descriptions';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders the global default when unset', () => {
+    renderPanel(makeFeed());
+    expect((screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement).value).toBe('');
+  });
+
+  it('selecting On fires updateFeed with chaptersInNotes on', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), 'on');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersInNotes: 'on' });
+  });
+
+  it('selecting the default clears the override', async () => {
+    renderPanel(makeFeed({ chaptersInNotes: 'off' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersInNotes: null });
+  });
+});

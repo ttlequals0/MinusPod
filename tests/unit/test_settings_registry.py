@@ -53,6 +53,7 @@ SEED_SNAPSHOT = {
     'audio_normalize_intensity': 'normal',
     'auto_process_enabled': 'true',
     'chapters_enabled': 'true',
+    'chapters_in_notes': 'false',
     'community_sync_categories': DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     'detect_show_segments': '0',
     'seed_sponsors_detection': 'true',
@@ -115,7 +116,7 @@ SEED_SNAPSHOT = {
 EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
-    'chapters_enabled', 'chapters_model',
+    'chapters_enabled', 'chapters_in_notes', 'chapters_model',
     'min_cut_confidence', 'auto_process_enabled', 'audio_bitrate',
     'audio_normalize_enabled', 'audio_normalize_intensity',
     'whisper_api_timeout_seconds',
@@ -438,12 +439,13 @@ class TestGetDefaults:
         # settings have no payload keys (dedicated endpoint).
         # downloadUserAgent + feedUserAgent after that (101 -> 103),
         # then logDownloadQuery (103 -> 104).
-        # notificationTimezone added after that (104 -> 105).
+        # notificationTimezone added after that (104 -> 105), then
+        # chaptersInNotes (105 -> 106).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 105
+        assert len(payload_keys) == 106
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

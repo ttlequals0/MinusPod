@@ -17,7 +17,7 @@ from config import (
     PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE,
 )
 from database import Database
-from llm_client import get_effective_base_url, _normalize_base_url_for_provider
+from llm_client import get_effective_base_url, _normalize_base_url_for_provider, _opencode_headers
 from secrets_crypto import CryptoUnavailableError, is_available as crypto_available, rotate as rotate_passphrase
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
 from utils.http import safe_url_for_log
@@ -248,6 +248,7 @@ def _models_request(base_url: str, api_key: str):
     by /test and /test-connection so the discovery contract lives once."""
     url = base_url.rstrip('/') + '/models'
     headers = {'Authorization': f'Bearer {api_key}'} if api_key else {}
+    headers.update(_opencode_headers(base_url))
     return url, headers
 
 

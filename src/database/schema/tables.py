@@ -34,6 +34,9 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- when enough survive the cut, else generate; 'generate' = always
     -- generate; 'off' = no chapter step
     chapters_mode TEXT,
+    -- Chapter list in served descriptions (#720): NULL = global setting,
+    -- 'on'/'off' = per-feed override
+    chapters_in_notes TEXT,
     -- Served-feed GUID scheme (#598): NULL/0 = pass upstream GUIDs through,
     -- 1 = serve MinusPod episode ids. New feeds are created with 1.
     own_episode_guids INTEGER,

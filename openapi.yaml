@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.95.3
+  version: 2.96.0
   contact:
     name: MinusPod
   license:
@@ -628,6 +628,15 @@ paths:
                     - 'off'
                     - null
                   description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null resets to the default 'auto' behavior.
+                chaptersInNotes:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - 'on'
+                    - 'off'
+                    - null
+                  description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
                 queuePriority:
                   type:
                     - string
@@ -2129,9 +2138,37 @@ paths:
       parameters:
         - $ref: '#/components/parameters/slug'
         - $ref: '#/components/parameters/episode_id'
+        - $ref: '#/components/parameters/audio_download'
       responses:
         '200':
           description: Original audio stream
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episode_id}/processed.mp3:
+    get:
+      tags:
+        - Episodes
+      summary: Stream the current cut (ad-free) audio
+      description: |
+        Returns the current processed version of the episode under the
+        session auth the UI already has. The public feed route serves the
+        same file but needs a feed key when authenticated feeds are on.
+        404 when the episode has not been processed or the file is missing.
+        Supports Range requests.
+      operationId: serveProcessedAudio
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+        - $ref: '#/components/parameters/audio_download'
+      responses:
+        '200':
+          description: Processed audio stream
           content:
             audio/mpeg:
               schema:
@@ -4762,6 +4799,10 @@ paths:
                   type: boolean
                   description: Generate podcast:chapters JSON for each processed episode.
                   example: true
+                chaptersInNotes:
+                  type: boolean
+                  description: Append the generated chapter list to served episode descriptions and the episode API description. Feeds can override per feed.
+                  example: false
                 audioBitrate:
                   type: string
                   enum: ['64k', '96k', '128k', '192k', '256k']
@@ -8675,6 +8716,17 @@ components:
         type: string
         example: my-podcast
 
+    audio_download:
+      name: download
+      in: query
+      required: false
+      description: >-
+        When `1`, the file is sent as an attachment named after the episode
+        title (`<Title>-original.mp3` or `<Title>-cut.mp3`) instead of
+        streamed inline.
+      schema:
+        type: string
+        enum: ['1']
     episode_id:
       name: episode_id
       in: path
@@ -9356,6 +9408,15 @@ components:
             - 'off'
             - null
           description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null means not set, which resolves to 'auto'.
+        chaptersInNotes:
+          type:
+            - string
+            - 'null'
+          enum:
+            - 'on'
+            - 'off'
+            - null
+          description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
         queuePriority:
           type: string
           enum:
@@ -11219,6 +11280,14 @@ components:
         chaptersEnabled:
           type: object
           description: Generate podcast:chapters JSON for each processed episode.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        chaptersInNotes:
+          type: object
+          description: Append the generated chapter list to served episode descriptions and the episode API description.
           properties:
             value:
               type: boolean

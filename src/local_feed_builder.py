@@ -19,6 +19,7 @@ but rendered as a nested container of remoteItem children instead (see
 import json
 import logging
 
+from chapter_notes import append_chapters, chapter_notes_for
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
@@ -161,13 +162,15 @@ def _enclosure_length_attr(slug: str, ep: dict, storage_, version) -> str:
 
 
 def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
-                               storage_, feed_auth_key: str | None) -> None:
+                               storage_, feed_auth_key: str | None,
+                               chapter_notes: dict[str, str]) -> None:
     ep_id = ep['episode_id']
     item_json = _load_json_dict(ep.get('p20_item_json'))
+    description = append_chapters(ep.get('description'), chapter_notes.get(ep_id))
 
     lines.append('<item>')
     lines.append(f'  <title>{rss_parser._escape_xml(ep.get("title") or "")}</title>')
-    lines.append(f'  <description><![CDATA[{rss_parser._escape_cdata(ep.get("description") or "")}]]></description>')
+    lines.append(f'  <description><![CDATA[{rss_parser._escape_cdata(description)}]]></description>')
     lines.append(f'  <guid isPermaLink="false">{ep_id}</guid>')
 
     published_at = ep.get('published_at') or ep.get('created_at')
@@ -222,6 +225,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
     """Render a local feed's RSS from DB rows only. No upstream fetch."""
     slug = podcast['slug']
     base = rss_parser._resolved_base_url()
+    chapter_notes = chapter_notes_for(db, podcast)
     feed_auth_key = active_feed_key(db)
     channel_json = _load_json_dict(podcast.get('p20_channel_json'))
 
@@ -298,7 +302,8 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
     lines.append('<podcast:txt purpose="ai-content">true</podcast:txt>')
 
     for ep in episodes:
-        _append_local_episode_item(lines, slug, ep, base, storage, feed_auth_key)
+        _append_local_episode_item(lines, slug, ep, base, storage, feed_auth_key,
+                                   chapter_notes=chapter_notes)
 
     lines.append('</channel>')
     lines.append('</rss>')

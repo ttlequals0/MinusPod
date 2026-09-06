@@ -134,6 +134,21 @@ chapters with generated ones is what prompted issue #560.
 
 ## What MinusPod does not support, and why
 
+
+### Chapters in episode descriptions
+
+Most apps only show `podcast:chapters` once playback starts. To make the
+list readable while browsing, turn on **List chapters in episode
+descriptions** under Settings > Transcripts & Chapters (`chaptersInNotes`,
+off by default). Each episode's description in the served feed, and on the
+episode page, then ends with a `Chapters` block: one `mm:ss Title` line per
+chapter, `h:mm:ss` past an hour. It is built from the same generated
+chapters the JSON carries. The block is rendered when the description is served and
+is never written into the stored description, so turning the setting off
+removes it and regenerating chapters updates it. Each feed can override the
+global value from its Feed Settings page (`chaptersInNotes`: `on`, `off`,
+or unset to follow the global setting).
+
 ### Deliberately stripped
 
 These describe the original audio's timeline or bytes. After ad

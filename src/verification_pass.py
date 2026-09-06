@@ -100,7 +100,7 @@ class VerificationPass:
                 progress_callback("transcribing", 85)
             logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio")
             try:
-                verification_segments = self._transcribe_verification(processed_audio_path, podcast_name, slug=slug)
+                verification_segments = self._transcribe_verification(processed_audio_path, slug=slug)
             except (ServiceUnavailableError, AudioExtractionError) as e:
                 # Verification is best-effort: a Whisper outage (or a chunk
                 # extraction failure, #556) here must not fail or defer an
@@ -219,7 +219,6 @@ class VerificationPass:
         }
 
     def _transcribe_verification(self, audio_path: str,
-                                 podcast_name: str = None,
                                  slug: str = None) -> list[dict]:
         """Re-transcribe for verification using the shared Transcriber.
 
@@ -233,7 +232,7 @@ class VerificationPass:
         """
         language_override = get_feed_language_override(self.db, slug)
         return self.transcriber.transcribe_chunked(
-            audio_path, podcast_name, language_override=language_override,
+            audio_path, language_override=language_override,
         )
 
 

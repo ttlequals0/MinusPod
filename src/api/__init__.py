@@ -285,7 +285,7 @@ def error_response(message, status=400, details=None):
     return json_response(data, status)
 
 
-def _resolve_original_audio(db, storage, slug, episode_id, self_heal=False):
+def _resolve_original_audio(db, storage, slug, episode_id, self_heal=False, episode=None):
     """Resolve an episode's retained original audio path.
 
     Returns ``(audio_path, None)`` on success or ``(None, error_response)`` when
@@ -295,9 +295,11 @@ def _resolve_original_audio(db, storage, slug, episode_id, self_heal=False):
     file also clears the stale ``original_file`` column (original-only retention
     sweeps before 2.52.0 could leave it set) so the UI stops offering actions
     that can only 404. Cue-template routes leave self-heal off: a transiently
-    unreadable file must not permanently NULL the column.
+    unreadable file must not permanently NULL the column. Pass ``episode``
+    when the caller already holds the row.
     """
-    episode = db.get_episode(slug, episode_id)
+    if episode is None:
+        episode = db.get_episode(slug, episode_id)
     if not episode or not episode.get('original_file'):
         return None, error_response('Original audio not retained for this episode', 404)
     audio_path = storage.get_original_path(slug, episode_id)

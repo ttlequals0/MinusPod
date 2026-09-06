@@ -96,12 +96,12 @@ class TestTranscribeStageClear:
         with patch('main_app.processing.transcriber.transcribe_chunked',
                    return_value=new_segments), \
              patch('main_app.processing._retranscribe_tail_no_vad',
-                   side_effect=lambda slug, ep, audio, segs, name, lang: (segs, 0)), \
+                   side_effect=lambda slug, ep, audio, segs, lang: (segs, 0)), \
              patch('main_app.processing._download_episode_audio',
                    return_value='/tmp/fake-audio.mp3'), \
              patch('main_app.processing.status_service'):
             return _download_and_transcribe(
-                SLUG, episode_id, 'https://example.com/ep1.mp3', 'Reprocess Protect',
+                SLUG, episode_id, 'https://example.com/ep1.mp3',
                 force_transcription=True)
 
     def test_forced_run_clears_then_saves_fresh(self, seeded_episode):
@@ -122,7 +122,7 @@ class TestTranscribeStageClear:
                    return_value='/tmp/fake-audio.mp3'), \
              patch('main_app.processing.status_service'):
             audio_path, segments = _download_and_transcribe(
-                SLUG, seeded_episode, 'https://example.com/ep1.mp3', 'Reprocess Protect')
+                SLUG, seeded_episode, 'https://example.com/ep1.mp3')
         mock_tx.assert_not_called()
         assert segments
         assert _details_row(seeded_episode)['transcript_text'] == 'old transcript'
@@ -132,7 +132,7 @@ class TestTranscribeStageClear:
                    return_value='/tmp/fake-audio.mp3'), \
              patch('main_app.processing.status_service'):
             _download_and_transcribe(
-                SLUG, seeded_episode, 'https://example.com/ep1.mp3', 'Reprocess Protect',
+                SLUG, seeded_episode, 'https://example.com/ep1.mp3',
                 skip_transcription=True, force_transcription=True)
         row = _details_row(seeded_episode)
         assert row is None

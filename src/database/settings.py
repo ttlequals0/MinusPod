@@ -360,6 +360,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'chapters_enabled': SettingSpec(
         default='true', seeded=True, in_ad_reset=True,
         payload_key='chaptersEnabled', payload_kind='bool'),
+    'chapters_in_notes': SettingSpec(
+        default='false', seeded=True, in_ad_reset=True,
+        payload_key='chaptersInNotes', payload_kind='bool'),
     'pricing_source_mode': SettingSpec(
         default='auto', in_ad_reset=True,
         payload_key='pricingSourceMode'),

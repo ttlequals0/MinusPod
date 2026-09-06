@@ -1,4 +1,4 @@
-import { apiRequest, buildQueryString } from './client';
+import { apiFileRequest, apiRequest, buildQueryString } from './client';
 import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
@@ -9,6 +9,18 @@ export const CUE_SCORE_MAX = 0.99;
 // with the session cookie (GET needs no CSRF).
 export function episodeOriginalUrl(slug: string, episodeId: string): string {
   return `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`;
+}
+
+// Saves the original or the current cut. A HEAD preflight surfaces a 401
+// (login redirect) or 404 as an error; the navigation itself then streams
+// the attachment to disk without buffering the file in memory.
+export async function downloadEpisodeAudio(
+  slug: string, episodeId: string, kind: 'original' | 'cut',
+): Promise<void> {
+  const file = kind === 'cut' ? 'processed' : 'original';
+  const path = `/feeds/${slug}/episodes/${episodeId}/${file}.mp3?download=1`;
+  await apiFileRequest(path, { method: 'HEAD' });
+  window.location.assign(`/api/v1${path}`);
 }
 
 // Direct URL for a run's raw JSONL log; the browser downloads it with the
@@ -291,6 +303,7 @@ export interface UpdateFeedPayload {
   detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
+  chaptersInNotes?: 'on' | 'off' | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;

@@ -538,6 +538,7 @@ class TestHoldAlerts:
         assert kwargs['slug'] == SLUG
         assert kwargs['episode_id'] == seeded_episode
         assert kwargs['ttl_hours'] == get_rate_limit_hold_ttl_hours(db)
+        assert kwargs['hold_until'] == db.get_setting('rate_limit_hold_until')
         assert db.get_setting('rate_limit_hold_since')
 
     @patch('main_app.processing.fire_queue_held_event')
@@ -550,12 +551,23 @@ class TestHoldAlerts:
         assert db.get_setting('rate_limit_hold_until') == first_until
 
     @patch('main_app.processing.fire_queue_held_event')
-    def test_longer_reset_extends_hold_and_fires(self, mock_fire, seeded_episode):
+    def test_longer_reset_extends_hold_without_firing_again(self, mock_fire, seeded_episode):
+        """One alert per pause: a user-requested episode claimed during the
+        hold 429s too and pushes the reset out, which is not a new pause."""
         _set_hold_enabled(True)
         _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=900))
+        first_until = db.get_setting('rate_limit_hold_until')
         _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=1800))
+        assert mock_fire.call_count == 1
+        assert db.get_setting('rate_limit_hold_until') > first_until
+
+    @patch('main_app.processing.fire_queue_held_event')
+    def test_hold_after_the_previous_one_lapsed_fires_again(self, mock_fire, seeded_episode):
+        _set_hold_enabled(True)
+        _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=900))
+        db.set_setting('rate_limit_hold_until', '2026-01-01T00:00:00Z')
+        _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=900))
         assert mock_fire.call_count == 2
-        assert mock_fire.call_args.kwargs['hold_until'] == db.get_setting('rate_limit_hold_until')
 
     def test_second_hold_keeps_first_hold_since(self, seeded_episode):
         _set_hold_enabled(True)

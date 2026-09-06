@@ -4,6 +4,7 @@ import logging
 import re
 
 from flask import Response, redirect, request, send_file, abort, url_for
+from werkzeug.utils import secure_filename
 
 from api import (
     api, limiter, log_request, json_response, error_response,
@@ -12,7 +13,7 @@ from api import (
     _resolve_original_audio,
 )
 from config import (
-    is_pending_review, resolve_feed_processing_mode,
+    is_pending_review, resolve_chapters_in_notes, resolve_feed_processing_mode,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
 from ad_yield import latest_completed_run, low_ad_yield
@@ -32,6 +33,7 @@ from reprocess_modes import (
     clear_episode_for_mode, reset_episode_for_reprocess,
 )
 from split_planning import build_split_candidates, build_split_pieces
+from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
 from utils.text import (
@@ -408,6 +410,10 @@ def get_episode(slug, episode_id):
             dai_differential = None
 
     base = _episode_base_json(episode, slug=slug, is_local=is_local, storage=storage)
+    # Separate from description: the local-episode editor round-trips that
+    # field, and the block must never be written back (#720).
+    base['chapterNotes'] = (format_chapter_block(episode.get('chapters_json'))
+                            if resolve_chapters_in_notes(db, podcast) else '')
     status = base['status']
 
     # Get file size and Podcasting 2.0 asset availability if processed
@@ -585,6 +591,28 @@ def get_final_segments(slug, episode_id):
     })
 
 
+def _wants_download():
+    return request.args.get('download') == '1'
+
+
+def _download_name(title, episode_id, suffix):
+    """`<Title_words>-<suffix>.mp3`, title capped so the name stays under
+    filesystem limits; falls back to the episode id."""
+    return f"{secure_filename(title or '')[:120] or episode_id}-{suffix}.mp3"
+
+
+def _audio_response(path, download_name=None):
+    """Stream an mp3, or send it as an attachment when a name is given."""
+    response = send_file(path, mimetype='audio/mpeg', conditional=True,
+                         as_attachment=download_name is not None,
+                         download_name=download_name)
+    # Advertise byte-range support so the wavesurfer-based AdEditor can seek
+    # without re-downloading the file. Without this header some clients
+    # download serially and refuse to seek past the buffered tail.
+    response.headers['Accept-Ranges'] = 'bytes'
+    return response
+
+
 @api.route('/feeds/<slug>/episodes/<episode_id>/original.mp3', methods=['GET'])
 @log_request
 def serve_original_audio(slug, episode_id):
@@ -595,16 +623,29 @@ def serve_original_audio(slug, episode_id):
     """
     # Blueprint url_value_preprocessor validated `slug` and `episode_id`.
     db = get_database()
-    storage = get_storage()
-    path, err = _resolve_original_audio(db, storage, slug, episode_id, self_heal=True)
+    episode = db.get_episode(slug, episode_id)
+    path, err = _resolve_original_audio(db, get_storage(), slug, episode_id,
+                                        self_heal=True, episode=episode)
     if err is not None:
         return err
-    response = send_file(path, mimetype='audio/mpeg', conditional=True)
-    # Advertise byte-range support so the wavesurfer-based AdEditor can seek
-    # without re-downloading the file. Without this header some clients
-    # download serially and refuse to seek past the buffered tail.
-    response.headers['Accept-Ranges'] = 'bytes'
-    return response
+    name = _download_name(episode.get('title'), episode_id, 'original') if _wants_download() else None
+    return _audio_response(path, name)
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/processed.mp3', methods=['GET'])
+@log_request
+def serve_processed_audio(slug, episode_id):
+    """Serve the current cut under session auth; keyed on the file, not the
+    status, so the last cut stays downloadable during a reprocess."""
+    episode = get_database().get_episode(slug, episode_id)
+    if not episode:
+        return error_response('Episode not found', 404)
+    path = get_storage().get_episode_path(
+        slug, episode_id, version=episode.get('processed_version') or 0)
+    if not path.exists():
+        return error_response('Processed audio not available for this episode', 404)
+    name = _download_name(episode.get('title'), episode_id, 'cut') if _wants_download() else None
+    return _audio_response(path, name)
 
 
 # Straight from the stdlib so warning/critical aliases cannot drift from what
@@ -1011,6 +1052,10 @@ def regenerate_chapters(slug, episode_id):
                 slug, episode_id, version=current.get('processed_version'))
             if processed_path.exists():
                 embedded = embed_chapters(str(processed_path), chapters['chapters'])
+            # Same seam a finished run uses, so the served feed (which may
+            # list the chapters, #720) picks up the new set.
+            from main_app.processing import _refresh_rss_for_slug
+            _refresh_rss_for_slug(slug, episode_id)
             return json_response({
                 'message': 'Chapters regenerated',
                 'episodeId': episode_id,

@@ -22,6 +22,7 @@ from cancel import cancel_processing
 from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
+    CHAPTERS_IN_NOTES_VALUES,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     PODPING_HOST_ACTIVE_DAYS,
     VALID_CHAPTERS_MODES,
@@ -313,6 +314,15 @@ def _normalize_low_ad_yield_action(value):
     if value in LOW_AD_YIELD_ACTIONS:
         return value, None
     return None, f"lowAdYieldAction must be one of: {', '.join(LOW_AD_YIELD_ACTIONS)}"
+
+
+def _normalize_override(value, allowed, key):
+    """Enum-or-null per-feed override: None clears it (stored NULL)."""
+    if value is None:
+        return None, None
+    if value in allowed:
+        return value, None
+    return None, f"{key} must be one of: {', '.join(allowed)}"
 
 
 def _normalize_episode_logs(value):
@@ -862,6 +872,7 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'p20': _deserialize_p20_channel(podcast.get('p20_channel_json')),
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
+        'chaptersInNotes': podcast.get('chapters_in_notes'),
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
         'episodeLogs': podcast.get('episode_logs'),
@@ -1611,6 +1622,13 @@ def update_feed(slug):
             return error_response(chapters_err, 400)
         updates['chapters_mode'] = chapters_val
 
+    if 'chaptersInNotes' in data:
+        notes_val, notes_err = _normalize_override(
+            data['chaptersInNotes'], CHAPTERS_IN_NOTES_VALUES, 'chaptersInNotes')
+        if notes_err:
+            return error_response(notes_err, 400)
+        updates['chapters_in_notes'] = notes_val
+
     if 'queuePriority' in data:
         qp_val, qp_err = _normalize_queue_priority(data['queuePriority'])
         if qp_err:
@@ -1763,7 +1781,8 @@ def update_feed(slug):
                 or 'title_skip_action' in updates
                 or 'title' in updates or 'author' in updates
                 or 'explicit' in updates or 'categories' in updates
-                or 'p20_channel_json' in updates or 'description' in updates):
+                or 'p20_channel_json' in updates or 'description' in updates
+                or 'chapters_in_notes' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed

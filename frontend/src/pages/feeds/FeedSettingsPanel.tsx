@@ -956,6 +956,30 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
+          {/* Per-feed chapter list in descriptions (#720) */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapter list:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <select
+                value={feed.chaptersInNotes ?? ''}
+                onChange={(e) => updateMutation.mutate({
+                  chaptersInNotes: e.target.value === '' ? null : e.target.value as 'on' | 'off',
+                })}
+                disabled={updateMutation.isPending}
+                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                aria-label="Chapters in descriptions"
+              >
+                <option value="">Use global ({settings?.chaptersInNotes?.value ? 'on' : 'off'})</option>
+                <option value="on">On</option>
+                <option value="off">Off</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Append the chapter list to each episode&apos;s description in this
+                feed, so apps show it without starting playback.
+              </p>
+            </div>
+          </div>
+
           {/* Per-feed auto-process queue priority (#625) */}
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Queue priority:</span>

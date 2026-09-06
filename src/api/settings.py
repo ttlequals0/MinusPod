@@ -211,6 +211,8 @@ def get_settings():
     chapters_value = _setting_value(
         settings, 'chapters_enabled', registry_default('chapters_enabled'))
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
+    chapters_in_notes = coerce_bool_setting(_setting_value(
+        settings, 'chapters_in_notes', registry_default('chapters_in_notes')))
     only_expose_processed_value = _setting_value(
         settings, 'only_expose_processed_default',
         registry_default('only_expose_processed_default'))
@@ -606,6 +608,7 @@ def get_settings():
         'opmlOriginalUrl': opml_original_url,
         'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
+        'chaptersInNotes': _sv('chapters_in_notes', chapters_in_notes),
         'chaptersModel': _sv('chapters_model', chapters_model),
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
@@ -1073,6 +1076,20 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['chaptersEnabled'] else 'false'
         db.set_setting('chapters_enabled', value, is_default=False)
         logger.info(f"Updated chapters generation to: {value}")
+
+    if 'chaptersInNotes' in data:
+        value = 'true' if data['chaptersInNotes'] else 'false'
+        changed = (db.get_setting('chapters_in_notes') or 'false') != value
+        db.set_setting('chapters_in_notes', value, is_default=False)
+        logger.info(f"Updated chapters in descriptions to: {value}")
+        if changed:
+            # Re-render now (local feeds included) rather than wait for a
+            # scheduled refresh that would 304-skip the change.
+            from main_app.feeds import rebuild_all_served_feeds
+            try:
+                rebuild_all_served_feeds()
+            except Exception as e:
+                logger.warning(f"Served feed rebuild after chaptersInNotes change failed: {e}")
 
     if 'omitTemperature' in data:
         value = 'true' if data['omitTemperature'] else 'false'

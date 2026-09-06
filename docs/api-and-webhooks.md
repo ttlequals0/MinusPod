@@ -130,7 +130,7 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Feed Refresh Failed` | A feed's upstream RSS fetch fails 3 times in a row. One alert per feed per 5 minutes, with a shared burst cap so an outage that breaks every feed at once sends one alert, not one per feed. |
 | `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
 | `Cue Template Quiet` | An enabled audio cue template on a `cue_only` feed has matched before but has zero above-threshold matches across the feed's last 5 telemetry-recorded episodes. Rate-limited to one alert per template per 5 minutes. |
-| `Queue Held` | A provider 429 with a reset time paused the queue (Queue Control > Rate-limit hold). One alert per 5 minutes. |
+| `Queue Held` | A provider 429 with a reset time paused the queue (Queue Control > Rate-limit hold). One alert per pause; a later 429 that extends the pause is silent. |
 | `Queue Resumed` | The rate-limit hold cleared and held episodes went back to the queue. One alert per 5 minutes. |
 | `Service Offline` | An episode deferred because the LLM or Whisper endpoint was unreachable (Offline queue). One alert per service per 5 minutes. |
 | `Service Reachable` | The offline probe found a service back up and re-queued its deferred episodes. One alert per service per 5 minutes. |

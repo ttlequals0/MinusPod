@@ -233,7 +233,7 @@ class TestWorkerThreadRegistration:
             with patch.object(transcriber_mod, 'extract_audio_chunk',
                               return_value='/tmp/does-not-exist.flac'):
                 transcriber_mod.Transcriber._transcribe_chunked_parallel_api(
-                    fake, '/tmp/audio.mp3', 'Show', 1800.0,
+                    fake, '/tmp/audio.mp3', 1800.0,
                     {'skip_flac_compression': 'true'})
         finally:
             recorder.detach()

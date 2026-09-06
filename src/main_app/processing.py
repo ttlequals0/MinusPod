@@ -381,7 +381,7 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
 
 
 def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
-                              podcast_name, language_override):
+                              language_override):
     """Re-transcribe the untranscribed episode tail without VAD (spec 1.2).
 
     Whisper's VAD drops quiet DAI post-rolls, so the transcript can end well
@@ -419,8 +419,7 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
         return segments, False
     try:
         tail_segments = transcriber.transcribe(
-            chunk_path, podcast_name=podcast_name,
-            language_override=language_override, vad_filter=False)
+            chunk_path, language_override=language_override, vad_filter=False)
     except Exception as e:
         # Tail pass is best-effort: a failure here must not kill the episode.
         audio_logger.warning(
@@ -533,7 +532,7 @@ def _forced_transcription_already_done(slug, episode_id, requested_at) -> bool:
     return False
 
 
-def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
+def _download_and_transcribe(slug, episode_id, episode_url,
                               skip_transcription=False, podcast=None,
                               force_transcription=False):
     """Pipeline stage: Download audio and get/create transcript segments.
@@ -607,8 +606,7 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
             audio_path = _download_episode_audio(episode_url)
         language_override = get_feed_language_override(db, slug)
         segments, tail_added = _retranscribe_tail_no_vad(
-            slug, episode_id, audio_path, segments, podcast_name,
-            language_override)
+            slug, episode_id, audio_path, segments, language_override)
         if tail_added:
             # save_original_* stores are write-once records of the first
             # pre-cut transcription (database/episodes.py:410-431 COALESCE);
@@ -636,7 +634,7 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
         language_override = get_feed_language_override(db, slug)
         segments = transcriber.transcribe_chunked(
-            audio_path, podcast_name=podcast_name, language_override=language_override,
+            audio_path, language_override=language_override,
         )
         if not segments:
             raise Exception("Failed to transcribe audio")
@@ -658,8 +656,7 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
         audio_logger.info(f"[{slug}:{episode_id}] Transcription complete: {len(segments)} segments, {duration_min:.1f} min")
 
         segments, _tail_added = _retranscribe_tail_no_vad(
-            slug, episode_id, audio_path, segments, podcast_name,
-            language_override)
+            slug, episode_id, audio_path, segments, language_override)
 
         transcript_text = transcriber.segments_to_text(segments)
         if force_transcription:
@@ -4164,7 +4161,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         hold_until = utc_now() + timedelta(
             seconds=max(0.0, float(error.retry_after_seconds)))
         hold_until_iso = hold_until.strftime(ISO_FORMAT)
-        effective_until = record_hold_until(db, hold_until_iso)
+        effective_until, hold_started = record_hold_until(db, hold_until_iso)
         db.upsert_episode(
             slug, episode_id,
             status=EpisodeStatus.DEFERRED.value,
@@ -4175,9 +4172,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         audio_logger.warning(
             f"[{slug}:{episode_id}] Rate-limit hold: paused until "
             f"{hold_until_iso} (provider reset)")
-        # A shorter reset under an active hold changes nothing; only a new
-        # or extended hold is worth an alert.
-        if effective_until == hold_until_iso:
+        # One alert per pause: later 429s under it (user-requested episodes
+        # bypass the claim gate) only move the reset out.
+        if hold_started:
             fire_queue_held_event(
                 hold_until=effective_until,
                 ttl_hours=get_rate_limit_hold_ttl_hours(db),
@@ -4431,7 +4428,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id,
                 (episode_data or {}).get('reprocess_requested_at')))
         audio_path, segments = _download_and_transcribe(
-            slug, episode_id, episode_url, podcast_name,
+            slug, episode_id, episode_url,
             skip_transcription=skip_transcription_active,
             podcast=podcast_settings,
             force_transcription=force_transcription)

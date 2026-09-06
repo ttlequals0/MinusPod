@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  episodeOriginalUrl, getEpisode, getFeed, reprocessEpisode, regenerateChapters,
+  downloadEpisodeAudio, episodeOriginalUrl, getEpisode, getFeed, reprocessEpisode, regenerateChapters,
   updateLocalEpisode, uploadLocalEpisodeArtwork,
 } from '../api/feeds';
 import type { LocalEpisodePatch } from '../api/feeds';
@@ -38,6 +38,7 @@ import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import EpisodeLogsCard from '../components/EpisodeLogsCard';
 import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
+import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
 import { focusRing } from '../components/fieldStyles';
 
 function btnLabel(status: string, idle: string): string {
@@ -242,7 +243,7 @@ function EpisodeDetail() {
   // Transient banner for a rejected correction or reprocess; the backend's
   // own message is shown verbatim.
   const [correctionError, setCorrectionError] = useState<string | null>(null);
-  const [showReprocessMenu, setShowReprocessMenu] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [editorSelectedAdIndex, setEditorSelectedAdIndex] = useState(0);
   // Held/rejected row currently open in the standalone waveform editor
   // (issue #563). Independent of showEditor/AdEditor state.
@@ -280,7 +281,6 @@ function EpisodeDetail() {
     // only queues the run, so returning early would re-enable the button while
     // the cached status still said the episode was idle.
     onSuccess: async () => {
-      setShowReprocessMenu(false);
       await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
     // Processing is serialized by a lock, so a stale cached status leaves the
@@ -495,6 +495,23 @@ function EpisodeDetail() {
   const neverProcessed = !episode.processedAt;
   const reprocessLabel = neverProcessed ? 'Process' : 'Reprocess';
 
+  // Fetch-then-save rather than a plain link, so a 401 or a swept file
+  // shows an error here instead of replacing the page with the JSON body.
+  const downloadTo = (kind: 'original' | 'cut') => () => {
+    setDownloadError(null);
+    downloadEpisodeAudio(slug!, episodeId!, kind)
+      .catch((e: unknown) => setDownloadError(getErrorMessage(e, 'Download failed')));
+  };
+  const downloadItems: DropdownMenuItem[] = [];
+  if (episode?.processedAt) {
+    downloadItems.push({ title: 'Cut audio', subtitle: 'Ads removed, current version',
+      onClick: downloadTo('cut') });
+  }
+  if (episode?.hasOriginalAudio) {
+    downloadItems.push({ title: 'Original audio', subtitle: 'As published, before any cuts',
+      onClick: downloadTo('original') });
+  }
+
   // Detected-Ads header row 2: pass counts and time saved.
   const showPassCounts = episode.adsRemovedFirstPass !== undefined
     && episode.adsRemovedVerification !== undefined
@@ -640,83 +657,59 @@ function EpisodeDetail() {
                   LLM: ${episode.llmCost.toFixed(2)} ({episode.inputTokens != null && episode.inputTokens >= 1000 ? `${(episode.inputTokens / 1000).toFixed(1)}K` : episode.inputTokens ?? 0} in / {episode.outputTokens != null && episode.outputTokens >= 1000 ? `${(episode.outputTokens / 1000).toFixed(1)}K` : episode.outputTokens ?? 0} out)
                 </span>
               )}
-              <div className="relative">
-                <button
-                  onClick={() => setShowReprocessMenu(!showReprocessMenu)}
-                  disabled={reprocessMutation.isPending || episode.status === 'processing'}
-                  className={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ${focusRing}`}
-                >
-                  {reprocessMutation.isPending
-                    ? (neverProcessed ? 'Processing...' : 'Reprocessing...')
-                    : reprocessLabel}
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {showReprocessMenu && !reprocessMutation.isPending && episode.status !== 'processing' && (
-                  <div className="absolute top-full right-0 mt-1 w-52 bg-card border border-border rounded-lg shadow-lg z-10 overflow-hidden">
-                    <button
-                      onClick={() => reprocessMutation.mutate('reprocess')}
-                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent ${focusRing}`}
-                      title="Use learned patterns + AI analysis"
-                    >
-                      <div className="font-medium">{reprocessLabel}</div>
-                      <div className="text-xs text-muted-foreground">Use patterns + AI</div>
-                    </button>
-                    <button
-                      onClick={() => reprocessMutation.mutate('full')}
-                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border ${focusRing}`}
-                      title="Skip pattern DB, AI analyzes everything fresh"
-                    >
-                      <div className="font-medium">Full Analysis</div>
-                      <div className="text-xs text-muted-foreground">Skip patterns, AI only</div>
-                    </button>
-                    {episode.hasOriginalAudio && (
-                      <button
-                        onClick={() => reprocessMutation.mutate('recut')}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border ${focusRing}`}
-                        title="Re-cut the original audio from your current ad edits (no transcription or AI)"
-                      >
-                        <div className="font-medium">Recut Audio</div>
-                        <div className="text-xs text-muted-foreground">Apply edits, no AI</div>
-                      </button>
-                    )}
-                    {episode.transcriptAvailable && (
-                      <button
-                        onClick={() => reprocessMutation.mutate('llm')}
-                        disabled={REDETECT_DISABLED_MODES.has(feed?.processingMode)}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent ${focusRing}`}
-                        title={feed?.processingMode && REDETECT_DISABLED_MODES.has(feed.processingMode)
-                          ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
-                          : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)'}
-                      >
-                        <div className="font-medium">Re-detect Ads</div>
-                        <div className="text-xs text-muted-foreground">Keep transcript, re-cut</div>
-                      </button>
-                    )}
-                    {episode.transcriptVttAvailable && (
-                      <button
-                        onClick={() => {
-                          regenerateChaptersMutation.mutate();
-                          setShowReprocessMenu(false);
-                        }}
-                        disabled={regenerateChaptersMutation.isPending}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border disabled:opacity-50 ${focusRing}`}
-                        title="Regenerate chapters from existing transcript"
-                      >
-                        <div className="font-medium">Regenerate Chapters</div>
-                        <div className="text-xs text-muted-foreground">Use existing transcript</div>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              {downloadItems.length > 0 && (
+                <DropdownMenu
+                  triggerLabel="Download"
+                  triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnSecondary} rounded flex items-center gap-1`}
+                  chevronClassName="w-3 h-3"
+                  title="Download audio"
+                  items={downloadItems}
+                />
+              )}
+              <DropdownMenu
+                triggerLabel={reprocessMutation.isPending
+                  ? (neverProcessed ? 'Processing...' : 'Reprocessing...')
+                  : reprocessLabel}
+                triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
+                chevronClassName="w-3 h-3"
+                disabled={reprocessMutation.isPending || episode.status === 'processing'}
+                // The button wraps to the row's left edge on phones; a
+                // right-aligned menu would clip off-screen there.
+                align="left"
+                items={[
+                  { title: reprocessLabel, subtitle: 'Use patterns + AI',
+                    tooltip: 'Use learned patterns + AI analysis',
+                    onClick: () => reprocessMutation.mutate('reprocess') },
+                  { title: 'Full Analysis', subtitle: 'Skip patterns, AI only',
+                    tooltip: 'Skip pattern DB, AI analyzes everything fresh',
+                    onClick: () => reprocessMutation.mutate('full') },
+                  ...(episode.hasOriginalAudio ? [{
+                    title: 'Recut Audio', subtitle: 'Apply edits, no AI',
+                    tooltip: 'Re-cut the original audio from your current ad edits (no transcription or AI)',
+                    onClick: () => reprocessMutation.mutate('recut') }] : []),
+                  ...(episode.transcriptAvailable ? [{
+                    title: 'Re-detect Ads', subtitle: 'Keep transcript, re-cut',
+                    disabled: REDETECT_DISABLED_MODES.has(feed?.processingMode),
+                    tooltip: feed?.processingMode && REDETECT_DISABLED_MODES.has(feed.processingMode)
+                      ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
+                      : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)',
+                    onClick: () => reprocessMutation.mutate('llm') }] : []),
+                  ...(episode.transcriptVttAvailable ? [{
+                    title: 'Regenerate Chapters', subtitle: 'Use existing transcript',
+                    disabled: regenerateChaptersMutation.isPending,
+                    tooltip: 'Regenerate chapters from existing transcript',
+                    onClick: () => regenerateChaptersMutation.mutate() }] : []),
+                ]}
+              />
             </div>
           </div>
         </div>
 
         {verificationVerdict && (
           <p className="mt-2 text-xs text-muted-foreground">{verificationVerdict}</p>
+        )}
+        {downloadError && (
+          <p className="mt-2 text-xs text-destructive">{downloadError}</p>
         )}
 
         {regenerateChaptersMutation.isPending && (
@@ -820,9 +813,9 @@ function EpisodeDetail() {
           </div>
         )}
 
-        {episode.description && (
+        {(episode.description || episode.chapterNotes) && (
           <RichText
-            html={episode.description}
+            html={(episode.description ?? '') + (episode.chapterNotes ?? '')}
             className="mt-4 block text-muted-foreground wrap-break-word"
           />
         )}

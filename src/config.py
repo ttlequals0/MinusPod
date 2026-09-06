@@ -858,6 +858,18 @@ def resolve_chapters_mode(podcast_row):
     return mode if mode in VALID_CHAPTERS_MODES else CHAPTERS_MODE_AUTO
 
 
+# Chapter list in served descriptions (#720): per-feed 'on'/'off', NULL
+# follows the global chapters_in_notes setting.
+CHAPTERS_IN_NOTES_VALUES = EPISODE_LOGS_VALUES
+
+
+def resolve_chapters_in_notes(db, podcast_row) -> bool:
+    override = (podcast_row or {}).get('chapters_in_notes')
+    if override in CHAPTERS_IN_NOTES_VALUES:
+        return override == 'on'
+    return db.get_setting_bool('chapters_in_notes', False)
+
+
 def resolve_cue_template_score_with_source(db, podcast_id):
     """Per-feed cue match threshold with source tag ('override' or 'global')."""
     try:

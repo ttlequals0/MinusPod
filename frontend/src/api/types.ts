@@ -79,6 +79,8 @@ export interface Feed {
   detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
+  // Chapter list in served descriptions (#720): null follows the global setting.
+  chaptersInNotes?: 'on' | 'off' | null;
   // Per-feed auto-process queue priority (#625). Server always resolves to
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
@@ -221,6 +223,8 @@ export interface EpisodeDetail extends Episode {
   processedUrl?: string;
   hasOriginalAudio?: boolean;
   originalAudioUrl?: string;
+  // Chapter list rendered for the description when enabled (#720); empty otherwise.
+  chapterNotes?: string;
   transcript?: string;
   originalTranscriptAvailable?: boolean;
   transcriptAvailable?: boolean;
@@ -562,6 +566,7 @@ export interface Settings {
   differentialHoldMinSeconds: SettingValueNumber;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
+  chaptersInNotes: SettingValueBoolean;
   chaptersModel: SettingValue;
   minCutConfidence: SettingValueNumber;
   whisperBackend: SettingValue;
@@ -774,6 +779,7 @@ export interface UpdateSettingsPayload {
   differentialHoldMinSeconds?: number;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
+  chaptersInNotes?: boolean;
   chaptersModel?: string;
   minCutConfidence?: number;
   llmProvider?: LlmProvider;
