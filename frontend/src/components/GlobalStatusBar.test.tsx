@@ -94,7 +94,8 @@ describe('GlobalStatusBar queue holds', () => {
     renderBar(makeStatus({
       hold: emptyHold({ queuePaused: true, holdUntil, rateLimitHeld: 4 }),
     }));
-    expect(screen.getByText('Queue paused')).toBeDefined();
+    // The chip says when the pause lifts, not that it started.
+    expect(screen.getByText(/^Paused until \d{1,2}:\d{2}/)).toBeDefined();
   });
 
   it('lists held episodes after the pause lifts, before the requeue tick', () => {
@@ -133,10 +134,10 @@ describe('GlobalStatusBar queue holds', () => {
     act(() => {
       screen.getByRole('button', { name: 'Expand status bar' }).click();
     });
-    const detail = holdRow('Provider rate limit since');
-    // Both stamps render: when the pause began, and when it lifts.
-    expect(detail.textContent).toMatch(/since \d{1,2}:\d{2}/);
-    expect(detail.textContent).toContain('Resumes');
+    const detail = holdRow('Provider rate limit');
+    // The reset time leads; when the pause began follows it.
+    expect(detail.textContent).toMatch(/^Provider rate limit\. Resumes \d{1,2}:\d{2}/);
+    expect(detail.textContent).toMatch(/Paused since \d{1,2}:\d{2}/);
   });
 
   it('names the unreachable service rather than only counting held episodes', () => {

@@ -101,11 +101,11 @@ function spanText(fromIso: string | null, toIso: string | null): string | null {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
-/** The rate-limit line: how long the pause has run and when it ends. */
+/** The rate-limit line: when the pause ends first, then when it began. */
 function rateLimitText(hold: QueueHold): string {
-  const started = hold.holdSince ? ` since ${formatClock(hold.holdSince)}` : '';
   if (hold.queuePaused) {
-    return `Provider rate limit${started}. ${resumesText(hold.holdUntil)}`;
+    const started = hold.holdSince ? ` Paused since ${formatClock(hold.holdSince)}.` : '';
+    return `Provider rate limit. ${resumesText(hold.holdUntil)}${started}`;
   }
   const ran = spanText(hold.holdSince, hold.holdUntil);
   const lifted = hold.holdUntil ? ` at ${formatClock(hold.holdUntil)}` : '';
@@ -116,7 +116,9 @@ function rateLimitText(hold: QueueHold): string {
 /** Short summary for the collapsed bar, or null when nothing is held. */
 function holdSummary(hold: QueueHold | undefined): string | null {
   if (!hold) return null;
-  if (hold.queuePaused) return 'Queue paused';
+  if (hold.queuePaused) {
+    return hold.holdUntil ? `Paused until ${formatClock(hold.holdUntil)}` : 'Queue paused';
+  }
   if (hold.offlineHeld > 0) {
     const down = hold.offlineServices.filter((s) => s.reachable === false);
     return down.length === 1

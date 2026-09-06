@@ -663,6 +663,7 @@ function EpisodeDetail() {
                   triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnSecondary} rounded flex items-center gap-1`}
                   chevronClassName="w-3 h-3"
                   title="Download audio"
+                  align="left"
                   items={downloadItems}
                 />
               )}
