@@ -259,7 +259,7 @@ describe('AdReviewTab row actions', () => {
     expect(screen.queryByRole('button', { name: /play/i })).toBeNull();
   });
 
-  it('kept segments show no review actions', async () => {
+  it('kept segments show no verdict actions', async () => {
     mockGetDetections.mockResolvedValue({
       detections: [detection({ actionApplied: 'keep', status: 'rejected' })],
       total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
@@ -268,8 +268,10 @@ describe('AdReviewTab row actions', () => {
     await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: 'Confirm ad' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Not an ad' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
-    expect(screen.getAllByText('Kept').length).toBeGreaterThan(0);
+    // Edit stays available so the category (and thus keep vs cut) can change.
+    const cards = screen.getByTestId('detections-cards');
+    expect(within(cards).getByRole('button', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getAllByText('Left in by its category').length).toBeGreaterThan(0);
   });
 
   it('shows error banner when correction fails and does not call reprocess', async () => {

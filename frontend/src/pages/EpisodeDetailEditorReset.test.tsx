@@ -79,7 +79,7 @@ function renderEpisode() {
 describe('Ad editor selected index resets on reopen', () => {
   it('reopens on the first ad after ending a session on the last', async () => {
     renderEpisode();
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit ads' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Fine-tune in waveform' }));
     expect(screen.getByTestId('ad-editor').getAttribute('data-selected-index')).toBe('0');
 
     fireEvent.click(screen.getByRole('button', { name: 'select last ad' }));
@@ -88,7 +88,7 @@ describe('Ad editor selected index resets on reopen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'close editor' }));
     expect(screen.queryByTestId('ad-editor')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit ads' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fine-tune in waveform' }));
     expect(screen.getByTestId('ad-editor').getAttribute('data-selected-index')).toBe('0');
   });
 });
