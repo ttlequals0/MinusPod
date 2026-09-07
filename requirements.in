@@ -37,7 +37,7 @@ huggingface_hub>=1.28.0
 
 # Cross-episode ad training (fingerprinting + text matching)
 pyacoustid>=1.2.0
-rapidfuzz>=3.0.0
+rapidfuzz>=3.14.6
 scikit-learn>=1.9.0
 
 # Security
