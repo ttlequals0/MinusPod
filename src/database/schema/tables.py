@@ -103,8 +103,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     only_expose_processed_episodes INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',
     user_tags TEXT NOT NULL DEFAULT '[]',
-    -- Local feeds: 'subscribed' (upstream RSS) or 'local' (imported
-    -- archive with no upstream). Immutable after creation.
+    -- 'subscribed' (upstream RSS), 'local' (imported archive), or
+    -- 'recents' (the combined feed, #721). Immutable after creation.
     feed_type TEXT NOT NULL DEFAULT 'subscribed',
     p20_channel_json TEXT,
     author TEXT,

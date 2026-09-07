@@ -851,6 +851,26 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_recent_processed_episodes(self, since_iso: str, limit: int | None = None,
+                                      offset: int = 0) -> tuple[list[dict], int]:
+        """Processed episodes across subscribed and local feeds published on or
+        after `since_iso`, newest first (#721). Publish date only: a backlog
+        episode processed later keeps its old date and stays out."""
+        conn = self.get_connection()
+        where = ("FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+                 "LEFT JOIN episode_details d ON d.episode_id = e.id "
+                 "WHERE e.status = 'processed' AND e.processed_file IS NOT NULL "
+                 "AND p.feed_type IN ('subscribed', 'local') "
+                 "AND e.published_at IS NOT NULL AND e.published_at >= ?")
+        total = conn.execute(f"SELECT COUNT(*) {where}", (since_iso,)).fetchone()[0]
+        query = (f"SELECT e.*, p.slug AS source_slug, p.title AS source_title, "
+                 f"d.chapters_json {where} ORDER BY e.published_at DESC")
+        params = [since_iso]
+        if limit:
+            query += " LIMIT ? OFFSET ?"
+            params += [limit, offset]
+        return [dict(r) for r in conn.execute(query, params).fetchall()], total
+
     def get_chapters_json_for_podcast(self, podcast_id: int) -> dict[str, str]:
         """{episode_id: chapters_json} for a feed's processed episodes; one
         query instead of a full-row join per served item. Processed only:

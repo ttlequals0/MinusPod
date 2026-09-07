@@ -58,6 +58,14 @@ def is_local_feed(podcast: dict | None) -> bool:
     return bool(podcast) and podcast.get('feed_type') == 'local'
 
 
+# Combined feed of recent processed episodes (#721): one row, fixed slug.
+RECENTS_SLUG = 'recents'
+
+
+def is_recents_feed(podcast: dict | None) -> bool:
+    return bool(podcast) and podcast.get('feed_type') == 'recents'
+
+
 class PodcastMixin:
     """Podcast management methods."""
 
@@ -224,6 +232,11 @@ class PodcastMixin:
         )
         conn.commit()
         return cursor.lastrowid
+
+    def get_recents_feed(self) -> dict | None:
+        row = self.get_connection().execute(
+            "SELECT * FROM podcasts WHERE feed_type = 'recents' LIMIT 1").fetchone()
+        return dict(row) if row else None
 
     def update_podcast(self, slug: str, **kwargs) -> bool:
         """Update podcast fields."""
