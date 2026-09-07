@@ -115,14 +115,15 @@ Key endpoints:
     "capacity": 4,
     "inFlight": 2,
     "transcribingEpisodes": 1,
-    "maxEpisodes": {"configured": 2, "effective": 2}
+    "maxEpisodes": {"configured": 2, "effective": 2},
+    "leader": true
   }
 }
 ```
 
 `queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time and `holdSince` is when the pause began, both null once the reset has passed. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
 
-`jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight.
+`jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight. Pool counters are per gunicorn worker, so `inFlight` and `transcribingEpisodes` are only meaningful when `leader` is true; a non-leader worker always reports those as 0.
 
 ### Public feed-domain routes
 

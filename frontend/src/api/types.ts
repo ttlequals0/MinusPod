@@ -456,6 +456,7 @@ export interface WhisperCapacity {
   chunkWorkers: { configured: number; effective: number };
   worstCaseInFlight: number;
   exceedsCapacity: boolean;
+  leader: boolean;
 }
 
 export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter';

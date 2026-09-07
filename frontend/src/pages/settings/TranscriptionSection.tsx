@@ -107,7 +107,7 @@ function TranscriptionSection({
   const whisperStatus = providersState?.whisper ?? NONE_STATUS;
   const cryptoReady = providersState?.cryptoReady ?? false;
   return (
-    <CollapsibleSection title="Transcription">
+    <CollapsibleSection title="Transcription" unmountWhenClosed>
       <div className="space-y-4">
         <div>
           <label htmlFor="whisperBackend" className="block text-sm font-medium text-foreground mb-2">
@@ -450,7 +450,7 @@ function WhisperCapacityLine({ enabled }: { enabled: boolean }) {
     <p className={`text-xs ${tone}`}>
       Up to {data.worstCaseInFlight} requests in flight against a cap of {data.capacity}.
       {data.exceedsCapacity && ` The pool holds them to ${data.capacity}, so raise the cap or lower the dials.`}
-      {' '}Currently {data.inFlight} in flight, {data.transcribingEpisodes} transcribing.
+      {data.leader && <> Currently {data.inFlight} in flight, {data.transcribingEpisodes} transcribing.</>}
     </p>
   );
 }

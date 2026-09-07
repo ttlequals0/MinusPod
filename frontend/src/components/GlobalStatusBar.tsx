@@ -113,6 +113,11 @@ function holdSummary(hold: QueueHold | undefined): string | null {
 }
 
 
+/** Server elapsed plus seconds ticked locally since the frame carrying it arrived. */
+function jobElapsed(job: ProcessingJob, now: number, receivedAt: number): number {
+  return job.elapsed + (now - receivedAt) / 1000;
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) {
     return `${Math.floor(seconds)}s`;
@@ -132,6 +137,10 @@ function GlobalStatusBar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // When the current status frame arrived: elapsed is the server's own
+  // job.elapsed plus seconds ticked locally since this frame landed, so a
+  // client clock skewed from the server's never shows a wrong duration.
+  const [receivedAt, setReceivedAt] = useState(() => Date.now());
   const [, setReconnectAttempt] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -179,6 +188,7 @@ function GlobalStatusBar() {
           const data = JSON.parse(event.data) as StatusData;
           setStatus(data);
           setNow(Date.now());
+          setReceivedAt(Date.now());
 
           // Invalidate React Query caches on status transitions so
           // pages (FeedDetail, EpisodeDetail, Dashboard) pick up
@@ -300,7 +310,7 @@ function GlobalStatusBar() {
 
             {/* Elapsed time */}
             <span className="text-xs text-muted-foreground shrink-0 w-14 text-right">
-              {formatDuration(now / 1000 - currentJob.startedAt)}
+              {formatDuration(jobElapsed(currentJob, now, receivedAt))}
             </span>
           </>
         ) : (
@@ -361,7 +371,7 @@ function GlobalStatusBar() {
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-sm font-medium text-primary">{getStageLabel(j.stage)}</p>
-                  <p className="text-xs text-muted-foreground">{formatDuration(now / 1000 - j.startedAt)}</p>
+                  <p className="text-xs text-muted-foreground">{formatDuration(jobElapsed(j, now, receivedAt))}</p>
                 </div>
               </div>
               <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">

@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TranscriptionSection from './TranscriptionSection';
+import { getWhisperCapacity } from '../../api/settings';
 
 vi.mock('../../api/settings', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/settings')>()),
@@ -10,7 +11,7 @@ vi.mock('../../api/settings', async (importOriginal) => ({
     capacity: 3, inFlight: 0, transcribingEpisodes: 0,
     maxEpisodes: { configured: 2, effective: 2 },
     chunkWorkers: { configured: 4, effective: 3 },
-    worstCaseInFlight: 8, exceedsCapacity: true,
+    worstCaseInFlight: 8, exceedsCapacity: true, leader: true,
   }),
 }));
 
@@ -37,10 +38,17 @@ function renderSection(overrides: Partial<React.ComponentProps<typeof Transcript
     ...overrides,
   } as React.ComponentProps<typeof TranscriptionSection>;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}><TranscriptionSection {...props} /></QueryClientProvider>);
+  const result = render(<QueryClientProvider client={client}><TranscriptionSection {...props} /></QueryClientProvider>);
+  // Section is unmountWhenClosed and starts collapsed; open it so content mounts.
+  fireEvent.click(screen.getByRole('button', { name: 'Transcription' }));
+  return result;
 }
 
 describe('TranscriptionSection whisper pool', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('renders the toggle and both dials for the remote backend', async () => {
     renderSection();
     expect(screen.getByRole('switch', { name: 'Whisper pool toggle' })).toBeTruthy();
@@ -57,5 +65,18 @@ describe('TranscriptionSection whisper pool', () => {
   it('hides the block on the local backend', () => {
     renderSection({ whisperBackend: 'local' });
     expect(screen.queryByRole('switch', { name: 'Whisper pool toggle' })).toBeNull();
+  });
+
+  it('omits the "Currently" sentence on a non-leader worker', async () => {
+    vi.mocked(getWhisperCapacity).mockResolvedValueOnce({
+      enabled: true, backend: 'openai-api', active: true, inactiveReason: null,
+      capacity: 3, inFlight: 0, transcribingEpisodes: 0,
+      maxEpisodes: { configured: 2, effective: 2 },
+      chunkWorkers: { configured: 4, effective: 3 },
+      worstCaseInFlight: 8, exceedsCapacity: true, leader: false,
+    });
+    renderSection();
+    expect(await screen.findByText(/Up to 8 requests in flight against a cap of 3/)).toBeTruthy();
+    expect(screen.queryByText(/Currently/)).toBeNull();
   });
 });

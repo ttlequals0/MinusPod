@@ -5983,6 +5983,12 @@ paths:
                     type: integer
                   exceedsCapacity:
                     type: boolean
+                  leader:
+                    type: boolean
+                    description: >-
+                      Whether this process is the background leader that runs
+                      transcriptions. inFlight/transcribingEpisodes are only
+                      meaningful when true; other workers always report 0.
 
   /settings/update-check:
     get:
@@ -12129,6 +12135,12 @@ components:
               type: integer
             effective:
               type: integer
+        leader:
+          type: boolean
+          description: >-
+            Whether this process is the background leader that runs
+            transcriptions. inFlight/transcribingEpisodes are only
+            meaningful when true; other workers always report 0.
 
     ProcessingHistoryEntry:
       type: object
