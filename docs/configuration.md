@@ -438,6 +438,12 @@ setting. The probe always reads `{base}/health` (e.g.
 `https://your-whisper-host/v1/health`), so a server that exposes health at
 its root rather than under the API path reports nothing.
 
+For a worked example of a multi-replica backend, including the health
+endpoint this reads, see
+[whisper-pool](https://github.com/ttlequals0/whisper-pool). MinusPod works
+with any OpenAI-compatible Whisper server. That one happens to expose the
+fields described above.
+
 ## Outbound Requests
 
 MinusPod identifies itself with two User-Agent strings, and hosts treat them differently. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship. A string that worked last year starts drawing a 403 on download, even though the file is there. Other feed hosts do the reverse and answer only a declared podcast client. One string cannot satisfy both, so there are two.
