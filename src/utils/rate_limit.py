@@ -123,14 +123,12 @@ _GOOGLE_RETRY_IN_RE = re.compile(r"retry in\s+(\d+(?:\.\d+)?)\s*s", re.IGNORECAS
 _DURATION_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*s$", re.IGNORECASE)
 
 
-def _coerce_google_error(body: Any) -> dict | None:
-    """Normalize a Google 429 body to its inner ``error`` dict (or the payload).
+def _coerce_error_dict(body: Any) -> dict | None:
+    """Normalize a body to its inner ``error`` dict (or the payload itself).
 
-    Accepts a dict, a list wrapping it, or a JSON string. Plain non-JSON strings
-    return None so callers can fall back to a regex over ``str(body)``. When the
-    error is proxied through OpenRouter, the upstream Google error (with its
-    ``details``/``status``) is a JSON string under ``error.metadata.raw``; descend
-    into it so the daily-quota / retry-delay parsers see the real fields.
+    Shared by the Google coercer and ``parse_upstream_reset``: accepts a dict,
+    a list wrapping one, or a JSON string, and descends into an ``error`` key
+    when present. Any parse failure returns None.
     """
     payload = body
     if isinstance(payload, str):
@@ -143,7 +141,21 @@ def _coerce_google_error(body: Any) -> dict | None:
     if not isinstance(payload, dict):
         return None
     err = payload.get("error")
-    err = err if isinstance(err, dict) else payload
+    return err if isinstance(err, dict) else payload
+
+
+def _coerce_google_error(body: Any) -> dict | None:
+    """Normalize a Google 429 body to its inner ``error`` dict (or the payload).
+
+    Accepts a dict, a list wrapping it, or a JSON string. Plain non-JSON strings
+    return None so callers can fall back to a regex over ``str(body)``. When the
+    error is proxied through OpenRouter, the upstream Google error (with its
+    ``details``/``status``) is a JSON string under ``error.metadata.raw``; descend
+    into it so the daily-quota / retry-delay parsers see the real fields.
+    """
+    err = _coerce_error_dict(body)
+    if not isinstance(err, dict):
+        return None
     if "details" not in err and "status" not in err:
         meta = err.get("metadata")
         raw = meta.get("raw") if isinstance(meta, dict) else None
@@ -185,6 +197,47 @@ def parse_google_retry_delay(body: Any, *, max_seconds: float = 300.0) -> float 
     if seconds is None:
         return None
     return min(max(seconds, 0.0), max_seconds)
+
+
+def parse_upstream_reset(body: Any, *, max_seconds: float = 300.0) -> float | None:
+    """Seconds until a provider's own stated reset time, or None.
+
+    Reads, in order, ``seconds_until_reset`` (already relative), ``resets_at``
+    (epoch seconds) and ``resets_at_iso`` (ISO 8601 with offset), skipping any
+    field that is missing or unparseable. Clamped to ``[0, max_seconds]``.
+    """
+    err = _coerce_error_dict(body)
+    if not isinstance(err, dict):
+        return None
+
+    seconds = err.get("seconds_until_reset")
+    if seconds is not None:
+        try:
+            return min(max(float(seconds), 0.0), max_seconds)
+        except (TypeError, ValueError):
+            pass
+
+    resets_at = err.get("resets_at")
+    if resets_at is not None:
+        try:
+            delta = float(resets_at) - datetime.now(timezone.utc).timestamp()
+            return min(max(delta, 0.0), max_seconds)
+        except (TypeError, ValueError):
+            pass
+
+    resets_at_iso = err.get("resets_at_iso")
+    if resets_at_iso is not None:
+        try:
+            target = datetime.fromisoformat(str(resets_at_iso))
+        except (TypeError, ValueError):
+            target = None
+        if target is not None:
+            if target.tzinfo is None:
+                target = target.replace(tzinfo=timezone.utc)
+            delta = (target - datetime.now(timezone.utc)).total_seconds()
+            return min(max(delta, 0.0), max_seconds)
+
+    return None
 
 
 def parse_google_daily_quota(body: Any) -> dict | None:

@@ -92,6 +92,36 @@ class TestCallLlmHold:
         assert calls['n'] == 1  # fail fast: no retry attempts
         assert sleeps == []  # worker thread never blocked
 
+    def test_hold_uses_body_reset_over_generic_hour_header(self, monkeypatch):
+        """A generic Retry-After: 3600 header next to a body carrying the true,
+        farther-out reset must hold for the body's reset, not the header (#696)."""
+        from utils import llm_call
+        _set_hold_enabled(True)
+        body = {
+            "error": {
+                "message": "Upstream rate limit exceeded",
+                "type": "upstream_api_error",
+                "code": "assistant_rate_limit",
+                "rate_limit_type": "session_limit",
+                "resets_at": 1788804000,
+                "resets_at_iso": "2026-09-07T18:00:00+00:00",
+                "seconds_until_reset": 8129,
+            }
+        }
+        err = _FakeRateLimitError(
+            body=body, response=FakeResponse(headers={'Retry-After': '3600'}))
+
+        class _Client:
+            def messages_create(self, **kw):
+                raise err
+
+        monkeypatch.setattr(llm_call.time, 'sleep', lambda s: None)
+        response, last_error = call_window(_Client(), max_retries=5)
+
+        assert response is None
+        assert isinstance(last_error, ProviderRateLimitedError)
+        assert last_error.retry_after_seconds == 8129.0
+
     def test_hold_disabled_keeps_sleep_loop(self, monkeypatch):
         from utils import llm_call
         _set_hold_enabled(False)

@@ -38,7 +38,7 @@ import requests
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.rate_limit import (
-    parse_retry_after, parse_groq_rate_limit_body,
+    parse_retry_after, parse_groq_rate_limit_body, parse_upstream_reset,
     parse_google_retry_delay, parse_google_daily_quota,
 )
 from utils.http import safe_url_for_log
@@ -1978,22 +1978,31 @@ def classify_daily_quota_exhaustion(error: Exception) -> dict | None:
 def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> float | None:
     """Pull a recommended wait (seconds) from a provider rate-limit exception.
 
-    Reads the `Retry-After` header off the attached ``httpx.Response`` first; when
-    that is absent (Google/Gemini, including via OpenRouter, put the wait in the
-    body instead), falls back to the body's RetryInfo ``retryDelay`` / "retry in
-    Ns" hint. Returns ``None`` when neither is present so callers fall through to
-    their existing backoff curve.
+    Takes the larger of the `Retry-After` header and any body-carried reset
+    (``seconds_until_reset`` / ``resets_at`` / ``resets_at_iso``): some providers
+    send a generic hourly header alongside a body with the true, farther-out
+    reset, and waiting longer than either recommends is always safe while
+    waiting less risks resuming into a still-limited provider. Falls back to
+    Google/Gemini's body-only RetryInfo ``retryDelay`` / "retry in Ns" hint when
+    neither the header nor a reset field is present. Returns ``None`` when
+    nothing is usable so callers fall through to their existing backoff curve.
     """
     response = getattr(error, 'response', None)
     headers = getattr(response, 'headers', None) if response is not None else None
+    header_seconds = None
     if headers is not None:
         raw = headers.get('Retry-After') or headers.get('retry-after')
-        parsed = parse_retry_after(raw, max_seconds=max_seconds)
-        if parsed is not None:
-            return parsed
-    # No usable header: Google/Gemini (incl. via OpenRouter) put the recommended
-    # wait in the body (RetryInfo.retryDelay / "retry in Ns"). Fall back to the
-    # exception's str when no body is reachable but its text carries the hint
-    # (mirrors the classify_* helpers' `or str(error)` guard).
-    return parse_google_retry_delay(
-        extract_error_body(error) or str(error), max_seconds=max_seconds)
+        header_seconds = parse_retry_after(raw, max_seconds=max_seconds)
+
+    body = extract_error_body(error) or str(error)
+    reset_seconds = parse_upstream_reset(body, max_seconds=max_seconds)
+
+    if header_seconds is not None and reset_seconds is not None:
+        return max(header_seconds, reset_seconds)
+    if reset_seconds is not None:
+        return reset_seconds
+    if header_seconds is not None:
+        return header_seconds
+    # No header and no reset field: Google/Gemini (incl. via OpenRouter) put a
+    # retry delay in the body instead (RetryInfo.retryDelay / "retry in Ns").
+    return parse_google_retry_delay(body, max_seconds=max_seconds)

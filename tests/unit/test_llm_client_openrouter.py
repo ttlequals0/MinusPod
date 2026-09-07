@@ -235,6 +235,51 @@ class TestExtractRetryAfter(unittest.TestCase):
         self.assertEqual(extract_retry_after(err, max_seconds=300.0), 300.0)
 
 
+# A generic provider's 429 body: a one-hour Retry-After header sits next to a
+# body carrying the true, farther-out reset.
+_PRODUCTION_RESET_BODY = {
+    "error": {
+        "message": "Upstream rate limit exceeded",
+        "type": "upstream_api_error",
+        "code": "assistant_rate_limit",
+        "rate_limit_type": "session_limit",
+        "resets_at": 1788804000,
+        "resets_at_iso": "2026-09-07T18:00:00+00:00",
+        "seconds_until_reset": 8129,
+    }
+}
+
+
+class TestExtractRetryAfterUpstreamReset(unittest.TestCase):
+    """A body-carried reset must win over a shorter generic header (#696 regression)."""
+
+    def test_body_reset_beats_generic_hour_header(self):
+        from llm_client import extract_retry_after
+        err = Exception("rate limit (429)")
+        err.body = _PRODUCTION_RESET_BODY
+        err.response = _FakeResponse({"Retry-After": "3600"})
+        self.assertEqual(extract_retry_after(err, max_seconds=86400), 8129.0)
+
+    def test_body_reset_without_header(self):
+        from llm_client import extract_retry_after
+        err = Exception("rate limit (429)")
+        err.body = _PRODUCTION_RESET_BODY
+        self.assertEqual(extract_retry_after(err, max_seconds=86400), 8129.0)
+
+    def test_header_fallback_intact_when_body_has_no_reset(self):
+        from llm_client import extract_retry_after
+        err = Exception("rate limit (429)")
+        err.body = {"error": {"message": "slow down"}}
+        err.response = _FakeResponse({"Retry-After": "45"})
+        self.assertEqual(extract_retry_after(err), 45.0)
+
+    def test_max_seconds_clamps_body_derived_value(self):
+        from llm_client import extract_retry_after
+        err = Exception("rate limit (429)")
+        err.body = {"error": {"seconds_until_reset": 99999}}
+        self.assertEqual(extract_retry_after(err, max_seconds=300.0), 300.0)
+
+
 class TestCircuitBreakerSkipsOn429(unittest.TestCase):
     """A 429 from the provider must not trip the circuit breaker."""
 

@@ -4,7 +4,7 @@ from email.utils import format_datetime
 
 import pytest
 
-from utils.rate_limit import parse_retry_after
+from utils.rate_limit import parse_retry_after, parse_upstream_reset
 
 
 class TestParseRetryAfterDeltaSeconds:
@@ -116,3 +116,64 @@ class TestParseGroqRateLimitBody:
         body = {"error": {"message": "TPM: Limit 6000, Used 0, Requested ~7500", "type": "tokens"}}
         result = parse_groq_rate_limit_body(body)
         assert result == {"limit": 6000, "used": 0, "requested": 7500}
+
+
+# A generic provider's 429 body: a one-hour Retry-After header sits next to a
+# body carrying the true, farther-out reset (issue: the header alone caused
+# the queue hold to release an hour early).
+PRODUCTION_RESET_BODY = {
+    "error": {
+        "message": "Upstream rate limit exceeded",
+        "type": "upstream_api_error",
+        "code": "assistant_rate_limit",
+        "rate_limit_type": "session_limit",
+        "resets_at": 1788804000,
+        "resets_at_iso": "2026-09-07T18:00:00+00:00",
+        "seconds_until_reset": 8129,
+    }
+}
+
+
+class TestParseUpstreamReset:
+    def test_seconds_until_reset_is_exact(self):
+        assert parse_upstream_reset(PRODUCTION_RESET_BODY, max_seconds=86400) == 8129.0
+
+    def test_json_string_body(self):
+        import json
+        assert parse_upstream_reset(json.dumps(PRODUCTION_RESET_BODY), max_seconds=86400) == 8129.0
+
+    def test_list_wrapped_body(self):
+        assert parse_upstream_reset([PRODUCTION_RESET_BODY], max_seconds=86400) == 8129.0
+
+    def test_resets_at_only(self):
+        future_epoch = datetime.now(timezone.utc).timestamp() + 900
+        body = {"error": {"resets_at": future_epoch}}
+        result = parse_upstream_reset(body, max_seconds=86400)
+        assert result is not None
+        assert 890.0 <= result <= 905.0
+
+    def test_resets_at_iso_only(self):
+        future = datetime.now(timezone.utc) + timedelta(seconds=900)
+        body = {"error": {"resets_at_iso": future.isoformat()}}
+        result = parse_upstream_reset(body, max_seconds=86400)
+        assert result is not None
+        assert 890.0 <= result <= 905.0
+
+    def test_reset_in_the_past_clamps_to_zero(self):
+        from rate_limit_hold import MIN_HOLD_RESET_SECONDS
+        past = datetime.now(timezone.utc) - timedelta(minutes=5)
+        body = {"error": {"resets_at_iso": past.isoformat()}}
+        result = parse_upstream_reset(body, max_seconds=86400)
+        assert result == 0.0
+        assert not (result > MIN_HOLD_RESET_SECONDS)  # hold gate does not fire
+
+    def test_clamps_to_max_seconds(self):
+        body = {"error": {"seconds_until_reset": 99999}}
+        assert parse_upstream_reset(body, max_seconds=300.0) == 300.0
+
+    def test_no_reset_fields_returns_none(self):
+        assert parse_upstream_reset({"error": {"message": "slow down"}}) is None
+
+    @pytest.mark.parametrize("body", [None, "", "garbage", {}, 12345])
+    def test_unparseable_inputs_return_none(self, body):
+        assert parse_upstream_reset(body) is None
