@@ -131,3 +131,60 @@ def test_snapshot_shape():
         'maxEpisodes': {'configured': 2, 'effective': 2},
         'leader': whisper_pool.is_background_leader(),
     }
+
+
+class _StubDb:
+    """Settings reader stand-in: only the keys a test seeds are stored."""
+
+    def __init__(self, values=None):
+        self.values = values or {}
+
+    def get_setting(self, key):
+        return self.values.get(key)
+
+    def get_setting_int(self, key, default=0):
+        try:
+            return int(self.values[key])
+        except (KeyError, TypeError, ValueError):
+            return default
+
+
+def _read_with(monkeypatch, values):
+    import database
+    monkeypatch.setattr(database, 'Database', lambda *a, **kw: _StubDb(values))
+    return whisper_pool._db_settings_reader()()
+
+
+def test_backend_falls_back_to_the_registry_default(monkeypatch):
+    """whisper_backend is not a seeded row, so an install configured only by
+    WHISPER_BACKEND has nothing stored for the reader to find."""
+    monkeypatch.setenv('WHISPER_BACKEND', 'openai-api')
+    value = _read_with(monkeypatch, {'whisper_pool_enabled': 'true'})
+    assert value['backend'] == 'openai-api'
+    assert WhisperPool(lambda: dict(value)).active is True
+
+
+def test_bad_numeric_env_falls_back_without_disabling_the_pool(monkeypatch):
+    monkeypatch.setenv('WHISPER_BACKEND', 'openai-api')
+    monkeypatch.setenv('WHISPER_POOL_MAX_REQUESTS', 'abc')
+    value = _read_with(monkeypatch, {'whisper_pool_enabled': 'true'})
+    assert value['enabled'] is True
+    assert value['max_requests'] == 4
+
+
+def test_stored_numeric_is_clamped_to_its_range(monkeypatch):
+    value = _read_with(monkeypatch, {'whisper_pool_max_requests': '999',
+                                     'whisper_pool_max_episodes': '0'})
+    assert value['max_requests'] == 64
+    assert value['max_episodes'] == 1
+
+
+def test_unreadable_settings_leave_the_pool_off(monkeypatch):
+    import database
+
+    def boom(*a, **kw):
+        raise RuntimeError('no database')
+
+    monkeypatch.setattr(database, 'Database', boom)
+    assert whisper_pool._db_settings_reader()() == {
+        'enabled': False, 'backend': 'local', 'max_requests': 4, 'max_episodes': 1}

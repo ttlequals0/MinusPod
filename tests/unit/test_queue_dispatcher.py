@@ -1,4 +1,5 @@
 """Dispatcher keeps up to max_episodes runs in flight; API workers enqueue while the pool is active."""
+import os
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -10,6 +11,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('dispatcher_test_')
 from main_app import background, db
 from main_app.processing import start_background_processing
+from processing_queue import ProcessingQueue
 import whisper_pool
 from whisper_pool import WhisperPool
 
@@ -25,7 +27,9 @@ def _pool(enabled, max_episodes):
 @pytest.fixture
 def feed():
     db.create_podcast(SLUG, 'https://example.com/feed.xml', title='Dispatch')
+    ProcessingQueue().clear_all()
     yield
+    ProcessingQueue().clear_all()
     db.delete_podcast(SLUG)
     db.get_connection().execute("DELETE FROM auto_process_queue")
     db.get_connection().commit()
@@ -43,12 +47,19 @@ def _run_dispatcher(monkeypatch, pool_factory, sleep=0.2, on_claim=None,
     that sleeps `sleep` seconds per claim, tracking peak concurrency.
 
     on_claim(call_number), if given, runs once per claim (1-based) before the
-    sleep, under the same lock as the peak update -- used to mutate pool
+    sleep, under the same lock as the peak update, so it can mutate pool
     state mid-run. Returns the observed peak concurrency.
     """
     monkeypatch.setattr(background, 'get_pool', pool_factory)
-    monkeypatch.setattr('main_app.processing.start_background_processing',
-                        lambda *a, **k: (True, 'started'))
+    registry = ProcessingQueue()
+
+    def fake_start(slug, episode_id, *a, **k):
+        # The dispatcher bounds itself on the registry, so a fake start has to
+        # take a real slot the way start_background_processing does.
+        registry.acquire(slug, episode_id, limit=99)
+        return True, 'started'
+
+    monkeypatch.setattr('main_app.processing.start_background_processing', fake_start)
     running = {'n': 0, 'peak': 0}
     calls = {'n': 0}
     lock = threading.Lock()
@@ -62,6 +73,7 @@ def _run_dispatcher(monkeypatch, pool_factory, sleep=0.2, on_claim=None,
         time.sleep(sleep)
         with lock:
             running['n'] -= 1
+        ProcessingQueue().release(slug, episode_id)
         db.close_claimed_queue_row(queue_id, 'completed')
 
     monkeypatch.setattr(background, '_wait_for_claimed_episode', fake_wait)
@@ -172,3 +184,47 @@ def test_start_outside_leader_runs_when_inactive(feed, monkeypatch):
     thread.assert_called_once()
     from processing_queue import ProcessingQueue
     ProcessingQueue().release(SLUG, 'ep-play')
+
+
+def test_dispatcher_leaves_room_for_a_run_it_did_not_start(feed, monkeypatch):
+    """A Play or Reprocess on the leader holds a registry slot the dispatcher
+    never saw, so the bound has to come from the registry, not its own set."""
+    _queue(3)
+    ProcessingQueue()._seed_slot('other-feed', 'ep-play',
+                                 started_at=time.time(), pid=os.getpid())
+    peak = _run_dispatcher(monkeypatch, lambda: _pool(True, 2), sleep=0.1)
+    assert peak == 1
+
+
+def test_orphan_sweep_leaves_a_row_whose_slot_is_live(feed):
+    """updated_at is only written at a stage change, so a long transcription
+    looks stale while its run is very much alive."""
+    db.upsert_episode(SLUG, 'ep-live', title='Live', original_url='https://example.com/e.mp3')
+    queue_id = db.upsert_episode_for_processing(
+        SLUG, 'ep-live', 'https://example.com/e.mp3', title='Live')
+    db.claim_next_queued_episode()
+    conn = db.get_connection()
+    conn.execute("UPDATE auto_process_queue SET updated_at = datetime('now', '-120 minutes')"
+                 " WHERE id = ?", (queue_id,))
+    conn.commit()
+
+    assert db.reset_orphaned_queue_items(
+        stuck_minutes=65, exclude_running=[(SLUG, 'ep-live')]) == (0, 0)
+    assert db.get_queue_row_status(queue_id) == 'processing'
+
+    assert db.reset_orphaned_queue_items(stuck_minutes=65) == (1, 0)
+    assert db.get_queue_row_status(queue_id) == 'pending'
+
+
+def test_start_refreshes_the_pool_before_the_leader_gate(feed, monkeypatch):
+    """A non-leader worker never refreshes on a loop, so the toggle it saw at
+    boot would decide every start it handled."""
+    state = {'enabled': False, 'backend': 'openai-api',
+             'max_requests': 4, 'max_episodes': 2}
+    pool = WhisperPool(lambda: dict(state))
+    monkeypatch.setattr('main_app.processing.get_pool', lambda: pool)
+    monkeypatch.setattr(whisper_pool, '_is_leader', False)
+    state['enabled'] = True
+    started, reason = start_background_processing(
+        SLUG, 'ep-flip', 'https://example.com/e.mp3', 'E', 'P', None, None)
+    assert (started, reason) == (False, 'queue_only')

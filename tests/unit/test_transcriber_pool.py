@@ -1,4 +1,5 @@
 """Transcriber uses the Whisper pool for admission and sizing."""
+import contextlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -105,3 +106,47 @@ def test_chunk_pool_size_comes_from_the_pool(pool, monkeypatch):
     with pool.transcribing():
         t._transcribe_chunked_parallel_api('x.wav', 25.0, _whisper_settings())
     assert sizes == [2]  # capacity 2, one transcribing episode, configured 8
+
+
+class _SlowPermitPool:
+    """Pool whose permit takes `wait` fake seconds to grant."""
+
+    active = True
+
+    def __init__(self, clock, wait):
+        self.clock = clock
+        self.wait = wait
+
+    @contextlib.contextmanager
+    def slot(self):
+        self.clock['t'] += self.wait
+        yield
+
+
+def test_permit_wait_does_not_consume_the_429_window(tmp_path, monkeypatch):
+    """Queuing behind our own admission control is not the provider throttling
+    us, so a long permit wait must not spend the retry deadline."""
+    audio = tmp_path / 'a.wav'; audio.write_bytes(b'0' * 4096)
+    clock = {'t': 0.0}
+    monkeypatch.setattr(transcriber, 'get_pool',
+                        lambda: _SlowPermitPool(clock, wait=100.0))
+    monkeypatch.setattr(transcriber.time, 'monotonic', lambda: clock['t'])
+    monkeypatch.setattr(transcriber.time, 'sleep',
+                        lambda s: clock.__setitem__('t', clock['t'] + s))
+    monkeypatch.setattr(transcriber, '_api_timeout', lambda settings: 30.0)
+    posts = []
+
+    def fake_post(*a, **k):
+        r = MagicMock()
+        if not posts:
+            r.status_code = 429; r.headers = {'Retry-After': '1'}; r.text = 'busy'
+        else:
+            r.status_code = 200; r.headers = {}
+            r.json.return_value = {'segments': [{'start': 0, 'end': 1, 'text': 'hi'}]}
+        posts.append(r)
+        return r
+
+    with patch('transcriber.safe_post', side_effect=fake_post):
+        segs = transcriber.Transcriber()._transcribe_via_api(
+            str(audio), _whisper_settings(), preprocessed=True)
+    assert segs and len(posts) == 2

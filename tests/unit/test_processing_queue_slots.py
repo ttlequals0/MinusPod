@@ -94,6 +94,25 @@ def test_is_processing_false_for_dead_pid_without_rewriting_state(queue, monkeyp
     assert queue._state_file_path.stat().st_mtime_ns == before_mtime
 
 
+def test_slot_with_a_recycled_pid_is_pruned(queue):
+    """A container restart can hand this pid to a new process, so a slot whose
+    recorded process start time no longer matches is dead."""
+    import processing_queue
+    queue.acquire('a', '1', limit=2)
+    stale_start = (processing_queue._pid_start_time(os.getpid()) or 0.0) + 1.0
+    queue._seed_slot('b', '2', started_at=time.time() - 10, pid=os.getpid(),
+                     pid_start=stale_start)
+    assert queue.is_processing('b', '2') is False
+    assert queue.get_current() == [('a', '1')]
+
+
+def test_clear_all_drops_every_slot(queue):
+    queue.acquire('a', '1', limit=2)
+    queue.acquire('b', '2', limit=2)
+    assert queue.clear_all() == 2
+    assert queue.get_current() == []
+
+
 def test_hard_timeout_force_clears_only_that_slot(queue, monkeypatch):
     monkeypatch.setattr('processing_queue.get_hard_timeout', lambda: 60)
     queue.acquire('a', '1', limit=2)

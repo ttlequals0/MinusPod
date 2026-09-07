@@ -15,6 +15,7 @@ _test_data_dir = bootstrap('rate_limit_hold_test_')
 from llm_client import (
     ProviderRateLimitedError, is_connectivity_error, is_retryable_error,
 )
+from database.queue import compute_queue_priority
 from main_app import db
 from main_app.processing import (
     _handle_processing_failure, is_transient_error, start_background_processing,
@@ -291,6 +292,31 @@ class TestFailureHandlerHold:
         assert row['status'] == 'pending'
         assert row['priority'] > 0
 
+    def test_hold_on_a_run_without_a_row_marks_user_intent(self, seeded_episode):
+        """Only Play and Reprocess start outside the queue, so the new row is a
+        manual one and the episode carries the mark the drainer's gate reads."""
+        _set_hold_enabled(True)
+        db.get_connection().execute("DELETE FROM auto_process_queue")
+        db.get_connection().commit()
+        _fail(seeded_episode, self._hold_error())
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['reprocess_requested_at']
+        assert episode['reprocess_source'] == 'jit'
+        row = self._queue_row(seeded_episode)
+        assert row['status'] == 'pending'
+        assert row['priority'] == compute_queue_priority(None, None, manual=True)
+
+    def test_hold_keeps_an_existing_reprocess_mark(self, seeded_episode):
+        _set_hold_enabled(True)
+        db.upsert_episode(SLUG, seeded_episode, reprocess_requested_at='2026-01-01T00:00:00Z',
+                          reprocess_source='user')
+        db.get_connection().execute("DELETE FROM auto_process_queue")
+        db.get_connection().commit()
+        _fail(seeded_episode, self._hold_error())
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['reprocess_requested_at'] == '2026-01-01T00:00:00Z'
+        assert episode['reprocess_source'] == 'user'
+
     def test_hold_with_no_prior_row_reads_the_row_the_run_wrote(self, seeded_episode):
         """A JIT play can start before the episode row exists, so the
         handler gets episode_data=None and must not queue a null URL."""
@@ -435,6 +461,18 @@ class TestTick:
         rate_limit_hold_tick(db)
         assert db.get_setting('rate_limit_hold_until') is None
         assert is_queue_paused(db) is False
+
+    def test_tick_keeps_a_marker_restamped_under_it(self, seeded_episode):
+        """A 429 that lands between the tick's read and its clear owns a newer
+        marker; clearing that one would resume straight into the limit."""
+        past = (datetime.now(timezone.utc) - timedelta(seconds=5)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        future = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)
+        reads = iter([past, future])
+        with patch('rate_limit_hold.get_hold_until', side_effect=lambda _db: next(reads)):
+            rate_limit_hold_tick(db)
+        assert db.get_setting('rate_limit_hold_until') == future
+        assert is_queue_paused(db) is True
 
     def test_tick_keeps_marker_until_reset(self, seeded_episode):
         future = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')

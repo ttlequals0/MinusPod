@@ -59,6 +59,10 @@ class TestWaiterOrphanDetection:
         }
         mock_queue = MagicMock()
         mock_queue.is_processing.return_value = queue_says_processing
+        # The dispatcher bounds its claims on the registry and hands the sweep
+        # the running set, so both have to answer with real values.
+        mock_queue.slot_count.return_value = 0
+        mock_queue.get_current.return_value = []
         mock_db = MagicMock()
         mock_db.claim_next_queued_episode.side_effect = [queue_row, None]
         mock_db.is_auto_process_enabled_for_podcast.return_value = True
