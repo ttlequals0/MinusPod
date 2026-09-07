@@ -2461,10 +2461,9 @@ def get_whisper_capacity():
     configured = _get_chunk_settings()['concurrent_chunks']
     effective = pool.chunk_workers(configured)
     worst = snap['maxEpisodes']['effective'] * configured
-    try:
-        health = probe_whisper_health(samples=3)
-    except Exception:
-        health = {'available': False}
+    # Probe only while the pool points at a remote backend, so switching
+    # back to local stops polling a stale URL.
+    health = probe_whisper_health() if snap['active'] else {'available': False}
     snap.update({
         'chunkWorkers': {'configured': configured, 'effective': effective},
         'worstCaseInFlight': worst,

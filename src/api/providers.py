@@ -435,11 +435,19 @@ def test_provider_connection(provider):
             base, api_key=api_key, model=model,
             skip_flac_compression=skip_flac)
         if result.get('ok'):
-            try:
-                result['health'] = transcriber.probe_whisper_health(
-                    base_url=base, samples=3)
-            except Exception:
-                result['health'] = {'available': False}
+            # use_cache=False: this test exists to check the backend right
+            # now, not to report a stale cached probe.
+            health = transcriber.probe_whisper_health(
+                base_url=base, api_key=api_key, use_cache=False)
+            result['health'] = health
+            if health.get('available'):
+                instances = health.get('instances') or []
+                count = len(instances)
+                model_name = instances[0].get('model') if instances else None
+                if count and model_name:
+                    noun = 'instance' if count == 1 else 'instances'
+                    result['detail'] = (
+                        f"{result['detail']} {count} {noun} reporting {model_name}.")
     else:
         # The real client appends /v1 for Ollama; the probe must match or a
         # URL that works for episodes would fail the test and vice versa.

@@ -35,6 +35,7 @@ from utils.safe_http import (
 )
 from utils.rate_limit import parse_retry_after
 from utils.subprocess_registry import tracked_run
+from utils.ttl_cache import TTLCache
 from whisper_pool import get_pool
 from config import (
     API_CHUNK_DURATION_SECONDS,
@@ -524,69 +525,109 @@ _HEALTH_INSTANCE_FIELDS = (
     'model', 'device', 'compute_type', 'batch_size', 'max_concurrent', 'vad_filter',
 )
 
+# Cached probe results, keyed by base URL, so a 15s settings-page poll loop
+# does not fire fresh outbound requests every tick.
+_HEALTH_CACHE_TTL_SECONDS = 120.0
+_health_cache = TTLCache(ttl_seconds=_HEALTH_CACHE_TTL_SECONDS)
 
-def probe_whisper_health(base_url: str = None, samples: int = 5,
-                         timeout: float = 5.0) -> dict:
+
+def _coerce_hashable(value):
+    """Stringify a list/dict health field so the mismatch set comprehension stays hashable."""
+    return str(value) if isinstance(value, (list, dict)) else value
+
+
+def _clamped_concurrency(value) -> int:
+    """One instance's usable max_concurrent: real ints floored at 1, anything else counts as 1."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return max(1, value)
+    return 1
+
+
+def probe_whisper_health(base_url: str | None = None, samples: int = 8,
+                         timeout: float = 5.0, api_key: str | None = None,
+                         use_cache: bool = True) -> dict:
     """Sample a self-hosted Whisper backend's optional /health endpoint.
 
     Behind a load balancer, repeated calls round-robin across replicas,
     revealing the replica count and total concurrency accepted. Stops early
-    after two consecutive already-seen instances. Never raises: any failure
-    (unreachable, 404, non-JSON) returns {'available': False} alone.
+    after three consecutive already-seen instances. Results are cached per
+    base URL for 120s; pass use_cache=False for an on-demand check such as
+    the connection test. Never raises: an unusable sample is skipped, and a
+    probe that finds nothing returns {'available': False} alone.
     """
+    settings = None
     if base_url is None:
-        base_url = _get_whisper_settings()['api_base_url']
+        settings = _get_whisper_settings()
+        base_url = settings['api_base_url']
     if not base_url:
         return {'available': False}
-    url = f"{base_url.rstrip('/')}/health"
+    if api_key is None:
+        api_key = settings['api_key'] if settings else ''
+
+    cache_key = base_url.rstrip('/')
+    if use_cache:
+        cached = _health_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+    url = f"{cache_key}/health"
+    headers = _bearer_headers(api_key)
 
     bodies: dict[str, dict] = {}
-    order: list[str] = []
     repeat_streak = 0
+    saw_repeat = False
     for _ in range(max(1, samples)):
         try:
-            response = safe_get(url, trust=URLTrust.OPERATOR_CONFIGURED, timeout=timeout)
+            response = safe_get(url, trust=URLTrust.OPERATOR_CONFIGURED,
+                                timeout=timeout, headers=headers)
             if response.status_code != 200:
                 continue
             body = response.json()
         except Exception as e:
             logger.debug(f"Whisper health probe failed: {e}")
             continue
-        if not isinstance(body, dict) or 'instance' not in body:
+        if not isinstance(body, dict) or not isinstance(body.get('instance'), str):
             continue
 
         instance = body['instance']
         if instance in bodies:
             repeat_streak += 1
+            saw_repeat = True
         else:
             repeat_streak = 0
             bodies[instance] = body
-            order.append(instance)
-        if repeat_streak >= 2:
+        if repeat_streak >= 3:
             break
 
     if not bodies:
-        return {'available': False}
+        result = {'available': False}
+        if use_cache:
+            _health_cache.set(cache_key, result)
+        return result
 
     instances = [
-        {'instance': inst, **{f: bodies[inst].get(f) for f in _HEALTH_INSTANCE_FIELDS}}
-        for inst in order
+        {'instance': inst,
+         **{f: _coerce_hashable(bodies[inst].get(f)) for f in _HEALTH_INSTANCE_FIELDS}}
+        for inst in bodies
     ]
-    suggested = sum(
-        inst['max_concurrent'] if isinstance(inst['max_concurrent'], int) else 1
-        for inst in instances
-    )
+    suggested = sum(_clamped_concurrency(inst['max_concurrent']) for inst in instances)
     mismatch = [
         field for field in ('model', 'compute_type', 'device')
         if len({inst[field] for inst in instances}) > 1
     ]
 
-    return {
+    result = {
         'available': True,
         'instances': instances,
         'suggested_max_requests': suggested,
         'mismatch': mismatch,
+        # No replica ever repeated, so the sampling never wrapped around:
+        # the count is a lower bound, not the confirmed replica set.
+        'sampled_floor': not saw_repeat,
     }
+    if use_cache:
+        _health_cache.set(cache_key, result)
+    return result
 
 
 def _transcription_url(base_url: str) -> str:
