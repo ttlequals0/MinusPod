@@ -22,21 +22,19 @@ def queue_and_status(temp_dir, monkeypatch):
 def test_orphan_clear_also_clears_matching_status(queue_and_status):
     pq, ss = queue_and_status
     ss.start_job('slug-a', 'ep-1', 'Title', 'Pod')
-    # Seed queue state with no live flock holder -> orphaned.
-    pq._write_state('slug-a', 'ep-1', time.time() - 10)
+    # Seed a slot for a process that does not exist -> orphaned.
+    pq._seed_slot('slug-a', 'ep-1', time.time() - 10, pid=2 ** 22)
 
-    cleared = pq._clear_stale_state()
-
-    assert cleared is True
+    assert pq.get_current() == []
     assert ss.get_status().current_job is None
 
 
 def test_orphan_clear_leaves_unmatched_status_alone(queue_and_status):
     pq, ss = queue_and_status
     ss.start_job('slug-b', 'ep-2', 'Other', 'Pod')
-    pq._write_state('slug-a', 'ep-1', time.time() - 10)
+    pq._seed_slot('slug-a', 'ep-1', time.time() - 10, pid=2 ** 22)
 
-    pq._clear_stale_state()
+    pq.get_current()
 
     job = ss.get_status().current_job
     assert job is not None

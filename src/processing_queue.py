@@ -1,15 +1,14 @@
 """
-Processing Queue - Cross-process singleton to prevent concurrent episode processing.
+Processing Queue - Cross-process N-slot registry limiting concurrent episode processing.
 
-Only one episode can be processed at a time across ALL Gunicorn workers to prevent
-OOM issues from multiple Whisper transcriptions running simultaneously on the GPU.
-
-Uses fcntl.flock() for cross-process file locking instead of threading.Lock which
-only works within a single process.
+Slot liveness is tracked by pid (os.kill(pid, 0)), not by a held lock; the
+flock only serializes each read-modify-write of the shared state file.
 """
+import contextlib
 import fcntl
 import json
 import logging
+import os
 import threading
 import time
 
@@ -35,12 +34,13 @@ def _sync_status_clear(slug: str, episode_id: str) -> None:
 
 
 class ProcessingQueue:
-    """Cross-process single-episode processing queue to prevent OOM from concurrent processing.
+    """Cross-process N-slot registry coordinating concurrent episode processing.
 
-    Uses file-based locking (fcntl.flock) to coordinate across Gunicorn workers.
-    Each worker process gets its own instance, but they all share the same lock file.
+    Uses file-based locking (fcntl.flock) to serialize state reads/writes
+    across Gunicorn workers; each worker process gets its own instance.
     """
 
+    # Keys are "slug:episode_id"; neither side contains ':'
     _instance = None
     _instance_lock = threading.Lock()
 
@@ -61,207 +61,106 @@ class ProcessingQueue:
 
         self._lock_file_path = data_dir / '.processing_queue.lock'
         self._state_file_path = data_dir / '.processing_queue_state.json'
-        self._lock_fd = None
-        self._fd_lock = threading.Lock()  # Protect _lock_fd access across threads
+        self._fd_lock = threading.Lock()  # Protect flock file handle across threads
         self._initialized = True
 
-    def _read_state(self) -> dict:
-        """Read current processing state from shared file."""
+    def _read_slots(self) -> dict:
         try:
             if self._state_file_path.exists():
                 content = self._state_file_path.read_text()
                 if content.strip():
-                    return json.loads(content)
+                    return json.loads(content).get('slots', {}) or {}
         except (json.JSONDecodeError, OSError) as e:
             logger.debug(f"Could not read state file: {e}")
-        return {'current_episode': None, 'acquired_at': None}
+        return {}
 
-    def _write_state(self, slug: str | None, episode_id: str | None, acquired_at: float | None):
-        """Write processing state to the shared file atomically."""
-        try:
-            state = {
-                'current_episode': [slug, episode_id] if slug and episode_id else None,
-                'acquired_at': acquired_at
-            }
-            if not write_json_atomic(self._state_file_path, state):
-                logger.warning("Could not write state file")
-        except OSError as e:
-            logger.warning(f"Could not write state file: {e}")
+    def _write_slots(self, slots: dict) -> None:
+        if not write_json_atomic(self._state_file_path, {'slots': slots}):
+            logger.warning("Could not write state file")
 
-    def _is_stale(self, state: dict) -> bool:
-        """Check if current job has exceeded max duration."""
-        if state.get('current_episode') is None or state.get('acquired_at') is None:
-            return False
-        return (time.time() - state['acquired_at']) > get_soft_timeout()
+    def _seed_slot(self, slug, episode_id, started_at, pid):
+        """Test helper: write a slot as another process would have."""
+        with self._flock():
+            slots = self._read_slots()
+            slots[f"{slug}:{episode_id}"] = {'started_at': started_at, 'pid': pid}
+            self._write_slots(slots)
 
-    def _clear_stale_state(self) -> bool:
-        """Clear stale or orphaned state. Returns True if cleared.
-
-        Clears state in two cases:
-        1. No process holds the flock (crashed worker left orphaned state)
-        2. Job exceeded MAX_JOB_DURATION and lock is not held by this process
-
-        Uses a non-blocking flock probe to detect orphaned state without
-        waiting for the time-based staleness threshold.
-        """
-        state = self._read_state()
-        if state.get('current_episode') is None:
-            return False
-
-        current = state.get('current_episode')
-        elapsed = time.time() - (state.get('acquired_at') or time.time())
-
-        # If THIS process holds the lock, the job is still alive -- unless
-        # it has exceeded the force-clear threshold (stuck processing thread).
-        if self._lock_fd is not None:
-            hard_limit = get_hard_timeout()
-            if elapsed > hard_limit:
-                logger.error(
-                    f"Force-clearing stuck job: {current[0]}:{current[1]} "
-                    f"({elapsed/60:.0f} min exceeds hard timeout {hard_limit/60:.0f} min) "
-                    f"- releasing lock. Raise 'processing_hard_timeout_seconds' if this was premature."
-                )
-                self.release()
-                _sync_status_clear(current[0], current[1])
-                return True
-            if self._is_stale(state):
-                logger.warning(
-                    f"Long-running job: {current[0]}:{current[1]} "
-                    f"({elapsed/60:.0f} min) - still in progress, not clearing"
-                )
-            return False
-
-        # This process doesn't hold the lock. Probe if ANY process does.
-        # If we can acquire an exclusive flock, no one holds it -> orphaned.
-        try:
-            # Context manager closes the probe fd on every exit path, including
-            # a non-BlockingIOError OSError from flock (the inner except only
-            # catches BlockingIOError, so that case would otherwise leak the fd).
-            with open(self._lock_file_path, 'w') as probe_fd:
+    @contextlib.contextmanager
+    def _flock(self):
+        """Serialize read-modify-write of the state file across processes."""
+        with self._fd_lock:
+            with open(self._lock_file_path, 'a') as fd:
+                fcntl.flock(fd, fcntl.LOCK_EX)
                 try:
-                    fcntl.flock(probe_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    # Lock acquired -> no process was holding it -> state is orphaned
-                    fcntl.flock(probe_fd, fcntl.LOCK_UN)
-                    logger.warning(
-                        f"Clearing orphaned queue state: {current[0]}:{current[1]} "
-                        f"({elapsed/60:.0f} min, no process holds lock)"
-                    )
-                    self._write_state(None, None, None)
-                    _sync_status_clear(current[0], current[1])
-                    return True
-                except BlockingIOError:
-                    # Another process holds the lock -> job is running in another worker
-                    if self._is_stale(state):
-                        logger.warning(
-                            f"Long-running job in another worker: {current[0]}:{current[1]} "
-                            f"({elapsed/60:.0f} min)"
-                        )
-                    return False
-        except OSError as e:
-            logger.debug(f"Could not probe lock file: {e}")
-            # Fall back to time-based staleness only
-            if self._is_stale(state):
-                logger.warning(
-                    f"Clearing stale queue state: {current[0]}:{current[1]} "
-                    f"({elapsed/60:.0f} min)"
-                )
-                self._write_state(None, None, None)
-                _sync_status_clear(current[0], current[1])
-                return True
+                    yield
+                finally:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+
+    @staticmethod
+    def _pid_alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
             return False
+        except PermissionError:
+            return True
+        return True
 
-    def acquire(self, slug: str, episode_id: str, timeout: float = 0) -> bool:
-        """
-        Try to acquire processing lock for an episode.
+    def _prune(self, slots: dict) -> dict:
+        """Drop slots whose process is gone or whose run passed the hard timeout."""
+        now = time.time()
+        hard = get_hard_timeout()
+        kept = {}
+        for key, slot in slots.items():
+            slug, _, episode_id = key.partition(':')
+            elapsed = now - (slot.get('started_at') or now)
+            if not self._pid_alive(int(slot.get('pid') or 0)):
+                logger.warning(f"Clearing orphaned queue slot: {key} ({elapsed/60:.0f} min, process gone)")
+                _sync_status_clear(slug, episode_id)
+                continue
+            if elapsed > hard:
+                logger.error(
+                    f"Force-clearing stuck job: {key} ({elapsed/60:.0f} min exceeds hard "
+                    f"timeout {hard/60:.0f} min). Raise 'processing_hard_timeout_seconds' if premature.")
+                _sync_status_clear(slug, episode_id)
+                continue
+            if elapsed > get_soft_timeout():
+                logger.warning(f"Long-running job: {key} ({elapsed/60:.0f} min), still in progress")
+            kept[key] = slot
+        return kept
 
-        Uses fcntl.flock() for cross-process coordination. Only one worker
-        across all Gunicorn processes can hold this lock at a time.
-
-        Thread-safe within a single process via _fd_lock.
-
-        Args:
-            slug: Podcast slug
-            episode_id: Episode ID
-            timeout: How long to wait for lock (0 = non-blocking)
-
-        Returns:
-            True if lock acquired, False if busy
-        """
-        with self._fd_lock:
-            # If this process already holds the lock, reject new acquire
-            # This prevents the fd overwrite bug where opening a new fd would
-            # orphan the existing one and allow double-acquisition
-            if self._lock_fd is not None:
-                current = self._read_state().get('current_episode')
-                current_str = f"{current[0]}:{current[1]}" if current else "unknown"
-                logger.warning(
-                    f"ProcessingQueue rejecting acquire for {slug}:{episode_id} - "
-                    f"already holding lock for {current_str}"
-                )
+    def acquire(self, slug: str, episode_id: str, limit: int = 1, timeout: float = 0) -> bool:
+        """Take a slot. False when this episode already holds one or the
+        registry is at `limit`. `timeout` waits that long for a free slot."""
+        key = f"{slug}:{episode_id}"
+        deadline = time.time() + max(0.0, timeout)
+        while True:
+            with self._flock():
+                slots = self._prune(self._read_slots())
+                if key in slots:
+                    logger.warning(f"ProcessingQueue rejecting acquire for {key}: already running")
+                    self._write_slots(slots)
+                    return False
+                if len(slots) < max(1, limit):
+                    slots[key] = {'started_at': time.time(), 'pid': os.getpid()}
+                    self._write_slots(slots)
+                    logger.info(f"ProcessingQueue slot acquired for {key} ({len(slots)}/{limit})")
+                    return True
+                self._write_slots(slots)
+            if time.time() >= deadline:
                 return False
+            time.sleep(0.1)
 
-            # Clear stale state before attempting to acquire
-            self._clear_stale_state()
-
-            try:
-                # Open lock file (create if doesn't exist)
-                self._lock_fd = open(self._lock_file_path, 'w')
-
-                # Try to acquire exclusive lock
-                if timeout > 0:
-                    # Blocking with timeout - use LOCK_EX (would block forever)
-                    # fcntl doesn't support timeout directly, so we poll
-                    start = time.time()
-                    while (time.time() - start) < timeout:
-                        try:
-                            fcntl.flock(self._lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                            break
-                        except BlockingIOError:
-                            time.sleep(0.1)
-                    else:
-                        # Timeout expired
-                        self._lock_fd.close()
-                        self._lock_fd = None
-                        return False
-                else:
-                    # Non-blocking
-                    fcntl.flock(self._lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-                # Lock acquired - write state
-                self._write_state(slug, episode_id, time.time())
-                logger.info(f"ProcessingQueue lock acquired for {slug}:{episode_id}")
-                return True
-
-            except BlockingIOError:
-                # Lock is held by another process
-                if self._lock_fd:
-                    self._lock_fd.close()
-                    self._lock_fd = None
-                return False
-            except OSError as e:
-                logger.error(f"ProcessingQueue lock error: {e}")
-                if self._lock_fd:
-                    self._lock_fd.close()
-                    self._lock_fd = None
-                return False
-
-    def release(self):
-        """Release processing lock. Thread-safe via _fd_lock."""
-        with self._fd_lock:
-            try:
-                if self._lock_fd is not None:
-                    fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
-                    self._lock_fd.close()
-                    self._lock_fd = None
-                    logger.info("ProcessingQueue lock released")
-            except OSError as e:
-                logger.warning(f"Error releasing ProcessingQueue lock: {e}")
-
-            # Clear state file
-            self._write_state(None, None, None)
+    def release(self, slug: str, episode_id: str) -> None:
+        key = f"{slug}:{episode_id}"
+        with self._flock():
+            slots = self._read_slots()
+            if slots.pop(key, None) is not None:
+                logger.info(f"ProcessingQueue slot released for {key}")
+            self._write_slots(slots)
 
     def release_if_processing(self, slug: str, episode_id: str) -> bool:
-        """Release the lock only if this episode currently holds it.
+        """Release the slot only if this episode currently holds one.
 
         Best-effort cleanup helper for cancel / feed-delete paths: swallows
         errors so a failed release never breaks the caller. Returns True if a
@@ -269,24 +168,23 @@ class ProcessingQueue:
         """
         try:
             if self.is_processing(slug, episode_id):
-                self.release()
+                self.release(slug, episode_id)
                 return True
         except Exception as e:
             logger.warning(f"Could not release processing queue: {e}")
         return False
 
-    def get_current(self) -> tuple[str, str] | None:
-        """Get currently processing episode (slug, episode_id) or None.
+    def get_current(self) -> list[tuple[str, str]]:
+        """Running episodes, oldest first."""
+        with self._flock():
+            slots = self._prune(self._read_slots())
+            self._write_slots(slots)
+        ordered = sorted(slots.items(), key=lambda kv: kv[1].get('started_at') or 0)
+        return [tuple(key.partition(':')[::2]) for key, _ in ordered]
 
-        Reads from shared state file so all workers see the same state.
-        Performs staleness check before returning.
-        """
-        self._clear_stale_state()
-        state = self._read_state()
-        current = state.get('current_episode')
-        return tuple(current) if current else None
+    def slot_count(self) -> int:
+        return len(self.get_current())
 
     def is_processing(self, slug: str, episode_id: str) -> bool:
         """Check if specific episode is currently being processed."""
-        current = self.get_current()  # already calls _clear_stale_state
-        return current is not None and current == (slug, episode_id)
+        return (slug, episode_id) in self.get_current()

@@ -1902,17 +1902,18 @@ def delete_feed(slug):
         # in-memory display state must be cleared explicitly.
         status_service = get_status_service()
         queue = ProcessingQueue()
-        current = queue.get_current()
-        if current and current[0] == slug:
+        for current_slug, current_episode_id in queue.get_current():
+            if current_slug != slug:
+                continue
             # Signal the running thread to abort. If it was signalled it owns
             # the fcntl lock and clears the shared state itself on exit; only
             # force-release as a fallback when no local thread was found, to
             # avoid zeroing the state file while a live worker still holds the
             # lock (which would report false-idle). Mirrors cancel_episode_processing.
-            signalled = cancel_processing(slug, current[1])
+            signalled = cancel_processing(slug, current_episode_id)
             if not signalled:
-                queue.release_if_processing(slug, current[1])
-            status_service.clear_if_matches(slug, current[1])
+                queue.release_if_processing(slug, current_episode_id)
+            status_service.clear_if_matches(slug, current_episode_id)
         status_service.remove_feed_from_queue(slug)      # drop queued display entries for this feed
         status_service.remove_feed_refresh(slug)         # drop any in-progress refresh badge
 

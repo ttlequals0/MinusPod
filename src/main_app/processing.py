@@ -42,6 +42,7 @@ from utils.time import (
     ranges_overlap, span_inside_any_cut, utc_now, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
+from whisper_pool import get_pool
 from config import (
     log_download_query_enabled,
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
@@ -332,7 +333,7 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
         # Backstop for swallowed write failures anywhere in the run: this
         # thread's connection must not leave here with an open transaction.
         db.clear_leaked_transaction(audio_logger, 'episode processing')
-        queue.release()
+        queue.release(slug, episode_id)
         with _cancel_events_lock:
             _cancel_events.pop(f"{slug}:{episode_id}", None)
         run_context.end(ctx)
@@ -362,10 +363,10 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         return False, "rate_limit_paused"
 
     # Check if queue is busy with another episode
-    if not queue.acquire(slug, episode_id, timeout=0):
+    if not queue.acquire(slug, episode_id, limit=get_pool().max_episodes, timeout=0):
         current = queue.get_current()
         if current:
-            return False, f"queue_busy:{current[0]}:{current[1]}"
+            return False, f"queue_busy:{current[0][0]}:{current[0][1]}"
         return False, "queue_busy"
 
     # Update StatusService IMMEDIATELY after lock acquired (prevents race condition)

@@ -383,7 +383,8 @@ def graceful_shutdown(signum, frame):
 
     current = processing_queue.get_current()
     if current:
-        logger.info(f"Shutdown signal sent, processing in progress: {current[0]}:{current[1]}")
+        for cur_slug, cur_episode_id in current:
+            logger.info(f"Shutdown signal sent, processing in progress: {cur_slug}:{cur_episode_id}")
         logger.info("Gunicorn graceful-timeout will allow processing to finish")
 
     # Release the background-leader flock explicitly. Linux frees the

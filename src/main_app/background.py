@@ -392,12 +392,12 @@ def reset_stuck_processing_episodes():
     # Age alone cannot distinguish a slow pass from a crash; the lock can. A row
     # is only written at start and at ad_detection_status, so a long
     # transcription looks stale while the job is very much alive.
-    current = ProcessingQueue().get_current()
+    running = ProcessingQueue().get_current()
     reset_count = 0
     failed_count = 0
 
     for row in stuck:
-        if current == (row['slug'], row['episode_id']):
+        if (row['slug'], row['episode_id']) in running:
             continue
 
         current_retry_count = row['retry_count'] or 0

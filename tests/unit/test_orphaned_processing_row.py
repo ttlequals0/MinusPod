@@ -144,7 +144,7 @@ class TestSweepIsLockAware:
         mock_db.get_connection.return_value = conn
         queue = MagicMock()
         queue.get_current.return_value = (
-            ('example-podcast', 'a1b2c3d4e5f6') if lock_held else None)
+            [('example-podcast', 'a1b2c3d4e5f6')] if lock_held else [])
 
         with patch.object(background, 'db', mock_db), \
              patch('processing_queue.ProcessingQueue', return_value=queue):
