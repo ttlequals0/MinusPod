@@ -100,14 +100,31 @@ class ProcessingQueue:
             self._write_slots(slots)
 
     def clear_all(self) -> int:
-        """Drop every slot. At leader startup they all belong to the previous
-        container run, whose pids this one can legitimately be handed again."""
+        """Drop every slot. Test cleanup helper; startup uses the targeted
+        drop_slots_without_start_time instead, since sibling workers may hold
+        live slots when gunicorn respawns a dead leader."""
         with self._flock():
             slots = self._read_slots()
             if slots:
                 self._write_slots({})
-                logger.info(f"Cleared {len(slots)} processing slot(s) left by a previous run")
+                logger.info(f"Cleared {len(slots)} processing slot(s)")
         return len(slots)
+
+    def drop_slots_without_start_time(self) -> int:
+        """Startup prune: drop slots with no recorded pid start time.
+
+        Those come from a pre-2.96.2 state file or a host without /proc, where
+        a pid the previous container run left behind can read as live. Slots
+        that do carry one are left to _slot_alive, which can tell them apart.
+        """
+        with self._flock():
+            slots = self._read_slots()
+            kept = {k: v for k, v in slots.items() if v.get('pid_start') is not None}
+            dropped = len(slots) - len(kept)
+            if dropped:
+                self._write_slots(kept)
+                logger.info(f"Dropped {dropped} processing slot(s) with no recorded start time")
+        return dropped
 
     @contextlib.contextmanager
     def _flock(self):
@@ -133,6 +150,10 @@ class ProcessingQueue:
 
     @staticmethod
     def _pid_alive(pid: int) -> bool:
+        # A slot with no usable pid is dead; os.kill(0, 0) would signal our
+        # own process group instead of testing anything.
+        if pid <= 0:
+            return False
         try:
             os.kill(pid, 0)
         except ProcessLookupError:

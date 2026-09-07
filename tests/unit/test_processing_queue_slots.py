@@ -106,6 +106,29 @@ def test_slot_with_a_recycled_pid_is_pruned(queue):
     assert queue.get_current() == [('a', '1')]
 
 
+def test_startup_prune_keeps_slots_that_recorded_a_start_time(queue):
+    """A respawned leader has sibling workers still running episodes, so the
+    startup prune drops only what liveness cannot judge: slots with no
+    recorded start time."""
+    queue.acquire('a', '1', limit=3)
+    queue._seed_slot('b', '2', started_at=time.time() - 10, pid=os.getpid())
+    assert queue.drop_slots_without_start_time() == 1
+    assert queue.get_current() == [('a', '1')]
+
+
+def test_startup_prune_writes_nothing_when_every_slot_has_one(queue):
+    queue.acquire('a', '1', limit=2)
+    before_mtime = queue._state_file_path.stat().st_mtime_ns
+    assert queue.drop_slots_without_start_time() == 0
+    assert queue._state_file_path.stat().st_mtime_ns == before_mtime
+
+
+def test_a_slot_with_no_pid_is_dead(queue):
+    queue._seed_slot('a', '1', started_at=time.time(), pid=0)
+    assert queue.is_processing('a', '1') is False
+    assert queue.get_current() == []
+
+
 def test_clear_all_drops_every_slot(queue):
     queue.acquire('a', '1', limit=2)
     queue.acquire('b', '2', limit=2)

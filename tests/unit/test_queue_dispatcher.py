@@ -228,3 +228,15 @@ def test_start_refreshes_the_pool_before_the_leader_gate(feed, monkeypatch):
     started, reason = start_background_processing(
         SLUG, 'ep-flip', 'https://example.com/e.mp3', 'E', 'P', None, None)
     assert (started, reason) == (False, 'queue_only')
+
+
+def test_a_thread_that_will_not_start_frees_its_slot(feed, monkeypatch):
+    """Nothing runs, so nothing would release the slot in its own finally;
+    the caller has to be told to enqueue instead."""
+    monkeypatch.setattr('main_app.processing.get_pool', lambda: _pool(False, 1))
+    with patch('main_app.processing.threading.Thread') as thread:
+        thread.return_value.start.side_effect = RuntimeError('no threads left')
+        started, reason = start_background_processing(
+            SLUG, 'ep-nothread', 'https://example.com/e.mp3', 'E', 'P', None, None)
+    assert (started, reason) == (False, 'queue_busy')
+    assert ProcessingQueue().is_processing(SLUG, 'ep-nothread') is False

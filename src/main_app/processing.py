@@ -395,7 +395,17 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         args=(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at, cancel_event),
         daemon=True
     )
-    processing_thread.start()
+    try:
+        processing_thread.start()
+    except Exception as e:
+        # Nothing will run, so nothing will release the slot in its finally.
+        # Hand back "queue_busy" and the caller enqueues instead.
+        audio_logger.error(f"[{slug}:{episode_id}] Could not start processing thread: {e}")
+        with _cancel_events_lock:
+            _cancel_events.pop(key, None)
+        status_service.fail_job(slug, episode_id)
+        queue.release(slug, episode_id)
+        return False, "queue_busy"
 
     return True, "started"
 

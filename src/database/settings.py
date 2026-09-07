@@ -889,6 +889,18 @@ class SettingsMixin:
         conn.execute("DELETE FROM settings WHERE key = ?", (key,))
         conn.commit()
 
+    def clear_setting_if_equal(self, key: str, expected: str) -> bool:
+        """Delete a setting row only while it still holds `expected`.
+
+        One statement, so a writer racing the caller between its read and this
+        delete keeps its own value. Returns whether a row was deleted.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "DELETE FROM settings WHERE key = ? AND value = ?", (key, expected))
+        conn.commit()
+        return cursor.rowcount > 0
+
     def reset_setting(self, key: str):
         """Reset a setting to its default value (SETTINGS_REGISTRY-driven).
 

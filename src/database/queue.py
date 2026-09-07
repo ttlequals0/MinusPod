@@ -566,7 +566,7 @@ class QueueMixin:
                WHERE status = 'processing'
                AND attempts >= ?
                AND datetime(updated_at) < datetime('now', ? || ' minutes')
-               AND (SELECT p.slug FROM podcasts p WHERE p.id = podcast_id)
+               AND COALESCE((SELECT p.slug FROM podcasts p WHERE p.id = podcast_id), '')
                    || ':' || episode_id NOT IN (SELECT value FROM json_each(?))
                RETURNING id, episode_id""",
             params
@@ -582,7 +582,7 @@ class QueueMixin:
                WHERE status = 'processing'
                AND attempts < ?
                AND datetime(updated_at) < datetime('now', ? || ' minutes')
-               AND (SELECT p.slug FROM podcasts p WHERE p.id = podcast_id)
+               AND COALESCE((SELECT p.slug FROM podcasts p WHERE p.id = podcast_id), '')
                    || ':' || episode_id NOT IN (SELECT value FROM json_each(?))
                RETURNING id, episode_id""",
             params

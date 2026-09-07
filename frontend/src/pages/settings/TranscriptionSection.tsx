@@ -305,6 +305,7 @@ function TranscriptionSection({
                   <label htmlFor="whisperPoolMaxRequests" className="text-sm text-muted-foreground w-44">
                     Max requests to backend:
                   </label>
+                  {/* Bounds mirror WHISPER_POOL_MAX_REQUESTS_RANGE in src/config.py. */}
                   <NumberInput
                     id="whisperPoolMaxRequests"
                     value={whisperPoolMaxRequests}
@@ -321,6 +322,7 @@ function TranscriptionSection({
                   <label htmlFor="whisperPoolMaxEpisodes" className="text-sm text-muted-foreground w-44">
                     Episodes at once:
                   </label>
+                  {/* Bounds mirror WHISPER_POOL_MAX_EPISODES_RANGE in src/config.py. */}
                   <NumberInput
                     id="whisperPoolMaxEpisodes"
                     value={whisperPoolMaxEpisodes}

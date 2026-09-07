@@ -70,6 +70,19 @@ def clear_hold(db) -> str | None:
     return held_since
 
 
+def clear_hold_if_unchanged(db, hold_until: str) -> tuple[bool, str | None]:
+    """Drop the pause only while the marker still reads `hold_until`.
+
+    A 429 landing between a caller's read and this call owns a newer marker,
+    and resuming on it would put the queue straight back into the limit.
+    """
+    held_since = db.get_setting(HOLD_SINCE_KEY)
+    if not db.clear_setting_if_equal(HOLD_UNTIL_KEY, hold_until):
+        return False, None
+    db.clear_setting(HOLD_SINCE_KEY)
+    return True, held_since
+
+
 def hold_is_active(hold_until: str | None) -> bool:
     """True when `hold_until` is a reset time still in the future."""
     reset_at = parse_iso_utc(hold_until) if hold_until else None
@@ -106,10 +119,8 @@ def rate_limit_hold_tick(db) -> None:
     hold_until = get_hold_until(db)
     if not hold_until or hold_is_active(hold_until):
         return
-    # Compare and clear: a 429 that landed since the read above owns a newer
-    # marker, and clearing it would resume the queue straight into the limit.
-    if get_hold_until(db) != hold_until:
+    cleared, held_since = clear_hold_if_unchanged(db, hold_until)
+    if not cleared:
         return
-    held_since = clear_hold(db)
     logger.info("Rate-limit hold: queue pause lifted after provider reset")
     fire_queue_resumed_event(held_since=held_since)

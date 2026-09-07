@@ -468,11 +468,19 @@ class TestTick:
         past = (datetime.now(timezone.utc) - timedelta(seconds=5)).strftime('%Y-%m-%dT%H:%M:%SZ')
         future = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
         db.set_setting('rate_limit_hold_until', future)
-        reads = iter([past, future])
-        with patch('rate_limit_hold.get_hold_until', side_effect=lambda _db: next(reads)):
+        db.set_setting('rate_limit_hold_since', '2026-01-01T00:00:00Z')
+        with patch('rate_limit_hold.get_hold_until', return_value=past):
             rate_limit_hold_tick(db)
         assert db.get_setting('rate_limit_hold_until') == future
+        assert db.get_setting('rate_limit_hold_since') == '2026-01-01T00:00:00Z'
         assert is_queue_paused(db) is True
+
+    def test_clear_setting_if_equal_only_matches_the_stored_value(self, seeded_episode):
+        db.set_setting('rate_limit_hold_until', 'A')
+        assert db.clear_setting_if_equal('rate_limit_hold_until', 'B') is False
+        assert db.get_setting('rate_limit_hold_until') == 'A'
+        assert db.clear_setting_if_equal('rate_limit_hold_until', 'A') is True
+        assert db.get_setting('rate_limit_hold_until') is None
 
     def test_tick_keeps_marker_until_reset(self, seeded_episode):
         future = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
