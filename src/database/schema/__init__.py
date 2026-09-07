@@ -266,6 +266,9 @@ class SchemaMixin:
             # when an audio-affecting correction lands, cleared when a recut
             # completes, so one episode edited several times recuts once.
             ('pending_recut_at', 'TEXT'),
+            # Lifetime time-saved counter dedup (#727): saving already credited
+            # to the total_time_saved stat for this episode's latest cut.
+            ('credited_time_saved', 'REAL'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)

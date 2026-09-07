@@ -2525,7 +2525,7 @@ paths:
       tags:
         - Stats
       summary: Get dashboard statistics
-      description: Returns aggregate stats with avg/min/max for time saved, ads removed, cost, processing time, episode length, and token usage. Optionally filtered by podcast.
+      description: Returns aggregate stats with avg/min/max for time saved, ads removed, cost, processing time, episode length, and token usage. Optionally filtered by podcast. Episode-scoped fields (totalEpisodesProcessed, episodesWithTimeSaved, and the episode length and time-saved figures) count each surviving episode once; run-scoped fields (ads, audio cues, cost, tokens, processing time, totalRuns) count every completed processing run, including reprocesses.
       parameters:
         - name: podcast_slug
           in: query
@@ -2541,6 +2541,10 @@ paths:
                 type: object
                 properties:
                   totalEpisodesProcessed:
+                    type: integer
+                  totalRuns:
+                    type: integer
+                  episodesWithTimeSaved:
                     type: integer
                   avgTimeSavedSeconds:
                     type: number
@@ -2601,6 +2605,7 @@ paths:
       tags:
         - Stats
       summary: Get per-podcast aggregate stats
+      description: episodeCount counts distinct surviving episodes with at least one completed run; runCount counts every completed processing run, including reprocesses.
       responses:
         '200':
           description: Per-podcast stats ordered by total ads
@@ -2619,6 +2624,8 @@ paths:
                         podcastTitle:
                           type: string
                         episodeCount:
+                          type: integer
+                        runCount:
                           type: integer
                         totalAds:
                           type: integer

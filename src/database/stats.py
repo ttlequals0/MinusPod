@@ -19,6 +19,23 @@ STORAGE_WALK_TTL_SECONDS = 45
 # the walk instead of duplicating it.
 _STORAGE_WALK_LOCK = threading.Lock()
 
+# SQL fragment for one episode's saved seconds, NULL unless it actually got
+# shorter. Shared between get_dashboard_stats and get_stats_by_podcast (#727)
+# so both agree on what counts as "saved time".
+_SAVED_SECONDS_CASE_SQL = (
+    "CASE WHEN e.original_duration > 0 AND e.new_duration > 0 "
+    "AND e.new_duration < e.original_duration "
+    "THEN e.original_duration - e.new_duration END"
+)
+
+# An episode counts toward episode-scoped stats once it has at least one
+# completed processing_history row. Shared for the same reason as above.
+_PROCESSED_EPISODE_EXISTS_SQL = (
+    "EXISTS (SELECT 1 FROM processing_history h "
+    "WHERE h.episode_id = e.episode_id AND h.podcast_id = e.podcast_id "
+    "AND h.status = 'completed')"
+)
+
 
 class StatsMixin:
     """Statistics, token usage, and processing history methods."""
@@ -80,22 +97,41 @@ class StatsMixin:
 
     # ========== Cumulative Stats Methods ==========
 
-    def increment_total_time_saved(self, seconds: float):
-        """Add to the cumulative total time saved. Called when episode processing completes."""
-        if seconds <= 0:
-            return
-
+    def credit_time_saved(self, slug: str, episode_id: str, saving: float) -> float:
+        """Credit the lifetime total_time_saved stat with only the change in
+        this episode's saving since it was last credited (#727), so
+        reprocessing an already-cut episode does not add the same saving
+        again. Returns the applied delta; 0.0 if the episode is not found.
+        """
         conn = self.get_connection()
+        row = conn.execute(
+            """SELECT e.id, e.credited_time_saved FROM episodes e
+               JOIN podcasts p ON p.id = e.podcast_id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)
+        ).fetchone()
+        if row is None:
+            return 0.0
+
+        delta = saving - (row['credited_time_saved'] or 0.0)
+        if delta == 0:
+            return 0.0
+
         conn.execute(
             """INSERT INTO stats (key, value, updated_at)
                VALUES ('total_time_saved', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
                ON CONFLICT(key) DO UPDATE SET
-                 value = value + excluded.value,
+                 value = MAX(0, value + excluded.value),
                  updated_at = excluded.updated_at""",
-            (seconds,)
+            (delta,)
+        )
+        conn.execute(
+            "UPDATE episodes SET credited_time_saved = ? WHERE id = ?",
+            (saving, row['id'])
         )
         conn.commit()
-        logger.debug(f"Incremented total time saved by {seconds:.1f} seconds")
+        logger.debug(f"Credited time saved for {slug}/{episode_id}: delta={delta:.1f}s")
+        return delta
 
     def get_total_time_saved(self) -> float:
         """Get the cumulative total time saved across all processed episodes."""
@@ -592,18 +628,26 @@ class StatsMixin:
         }
 
     def get_dashboard_stats(self, podcast_slug: str = None) -> dict:
-        """Get aggregate dashboard stats with avg/min/max, optionally filtered by podcast."""
-        conn = self.get_connection()
-        where_clauses = ["h.status = 'completed'"]
-        params = []
-        if podcast_slug:
-            where_clauses.append("h.podcast_slug = ?")
-            params.append(podcast_slug)
-        where_sql = " AND ".join(where_clauses)
+        """Get aggregate dashboard stats with avg/min/max, optionally filtered by podcast.
 
-        row = conn.execute(
+        Run-scoped fields (ads, audio cues, cost, tokens, processing time) count
+        every processing_history row, since a reprocess costs real time and
+        money each time it runs. Episode-scoped fields (episode length, time
+        saved, totalEpisodesProcessed) count each surviving episode once, from
+        its current row in episodes, so a reprocessed episode is not counted
+        or summed twice (#727).
+        """
+        conn = self.get_connection()
+        run_where = ["h.status = 'completed'"]
+        run_params = []
+        if podcast_slug:
+            run_where.append("h.podcast_slug = ?")
+            run_params.append(podcast_slug)
+        run_where_sql = " AND ".join(run_where)
+
+        run_row = conn.execute(
             f"""SELECT
-                COUNT(*) AS total_episodes,
+                COUNT(*) AS total_runs,
                 COALESCE(AVG(h.ads_detected), 0) AS avg_ads_removed,
                 COALESCE(MIN(h.ads_detected), 0) AS min_ads_removed,
                 COALESCE(MAX(h.ads_detected), 0) AS max_ads_removed,
@@ -618,32 +662,20 @@ class StatsMixin:
                 COALESCE(AVG(h.processing_duration_seconds), 0) AS avg_processing_time,
                 COALESCE(MIN(h.processing_duration_seconds), 0) AS min_processing_time,
                 COALESCE(MAX(h.processing_duration_seconds), 0) AS max_processing_time,
-                COALESCE(AVG(e.original_duration), 0) AS avg_episode_length,
-                COALESCE(MIN(e.original_duration), 0) AS min_episode_length,
-                COALESCE(MAX(e.original_duration), 0) AS max_episode_length,
-                COALESCE(AVG(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
-                    THEN e.original_duration - e.new_duration END), 0) AS avg_time_saved,
-                COALESCE(MIN(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
-                    THEN e.original_duration - e.new_duration END), 0) AS min_time_saved,
-                COALESCE(MAX(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
-                    THEN e.original_duration - e.new_duration END), 0) AS max_time_saved,
-                COALESCE(SUM(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
-                    THEN e.original_duration - e.new_duration END), 0) AS total_time_saved,
                 COALESCE(SUM(h.input_tokens), 0) AS total_input_tokens,
                 COALESCE(SUM(h.output_tokens), 0) AS total_output_tokens,
                 COALESCE(SUM(h.llm_cost), 0) AS total_llm_cost,
                 COALESCE(AVG(h.input_tokens), 0) AS avg_input_tokens,
                 COALESCE(AVG(h.output_tokens), 0) AS avg_output_tokens
             FROM processing_history h
-            LEFT JOIN episodes e ON e.episode_id = h.episode_id
-                AND e.podcast_id = h.podcast_id
-            WHERE {where_sql}""",  # noqa: S608
-            params
+            WHERE {run_where_sql}""",  # noqa: S608
+            run_params
         ).fetchone()
 
-        if not row or row['total_episodes'] == 0:
+        if not run_row or run_row['total_runs'] == 0:
             return {k: 0 for k in [
-                'totalEpisodesProcessed', 'avgTimeSavedSeconds', 'minTimeSavedSeconds',
+                'totalEpisodesProcessed', 'totalRuns', 'episodesWithTimeSaved',
+                'avgTimeSavedSeconds', 'minTimeSavedSeconds',
                 'maxTimeSavedSeconds', 'totalTimeSavedSeconds', 'avgAdsRemoved',
                 'minAdsRemoved', 'maxAdsRemoved', 'totalAdsRemoved',
                 'avgCostPerEpisode', 'minCostPerEpisode', 'maxCostPerEpisode',
@@ -656,34 +688,61 @@ class StatsMixin:
                 'maxAudioCuesDetected', 'totalAudioCuesDetected',
             ]}
 
+        # Episode-scoped population: episodes still in the table with at least
+        # one completed run. The saved-time aggregates are restricted to
+        # episodes that actually got shorter, so avg * episodesWithTimeSaved
+        # == totalTimeSavedSeconds.
+        ep_where_sql = " AND p.slug = ?" if podcast_slug else ""
+        ep_params = [podcast_slug] if podcast_slug else []
+        saved = _SAVED_SECONDS_CASE_SQL
+
+        ep_row = conn.execute(
+            f"""SELECT
+                COUNT(*) AS total_episodes,
+                COALESCE(AVG(e.original_duration), 0) AS avg_episode_length,
+                COALESCE(MIN(e.original_duration), 0) AS min_episode_length,
+                COALESCE(MAX(e.original_duration), 0) AS max_episode_length,
+                COUNT({saved}) AS episodes_with_time_saved,
+                COALESCE(AVG({saved}), 0) AS avg_time_saved,
+                COALESCE(MIN({saved}), 0) AS min_time_saved,
+                COALESCE(MAX({saved}), 0) AS max_time_saved,
+                COALESCE(SUM({saved}), 0) AS total_time_saved
+            FROM episodes e
+            JOIN podcasts p ON p.id = e.podcast_id
+            WHERE {_PROCESSED_EPISODE_EXISTS_SQL}{ep_where_sql}""",  # noqa: S608
+            ep_params
+        ).fetchone()
+
         return {
-            'totalEpisodesProcessed': row['total_episodes'],
-            'avgTimeSavedSeconds': round(row['avg_time_saved'], 1),
-            'minTimeSavedSeconds': round(row['min_time_saved'], 1),
-            'maxTimeSavedSeconds': round(row['max_time_saved'], 1),
-            'totalTimeSavedSeconds': round(row['total_time_saved'], 1),
-            'avgAdsRemoved': round(row['avg_ads_removed'], 1),
-            'minAdsRemoved': row['min_ads_removed'],
-            'maxAdsRemoved': row['max_ads_removed'],
-            'totalAdsRemoved': row['total_ads_removed'],
-            'avgCostPerEpisode': round(row['avg_cost'], 6),
-            'minCostPerEpisode': round(row['min_cost'], 6),
-            'maxCostPerEpisode': round(row['max_cost'], 6),
-            'avgProcessingTimeSeconds': round(row['avg_processing_time'], 1),
-            'minProcessingTimeSeconds': round(row['min_processing_time'], 1),
-            'maxProcessingTimeSeconds': round(row['max_processing_time'], 1),
-            'avgEpisodeLengthSeconds': round(row['avg_episode_length'], 1),
-            'minEpisodeLengthSeconds': round(row['min_episode_length'], 1),
-            'maxEpisodeLengthSeconds': round(row['max_episode_length'], 1),
-            'totalInputTokens': row['total_input_tokens'],
-            'totalOutputTokens': row['total_output_tokens'],
-            'totalLlmCost': round(row['total_llm_cost'], 6),
-            'avgInputTokens': round(row['avg_input_tokens']),
-            'avgOutputTokens': round(row['avg_output_tokens']),
-            'avgAudioCuesDetected': round(row['avg_audio_cues'], 1),
-            'minAudioCuesDetected': row['min_audio_cues'],
-            'maxAudioCuesDetected': row['max_audio_cues'],
-            'totalAudioCuesDetected': row['total_audio_cues'],
+            'totalEpisodesProcessed': ep_row['total_episodes'],
+            'totalRuns': run_row['total_runs'],
+            'episodesWithTimeSaved': ep_row['episodes_with_time_saved'],
+            'avgTimeSavedSeconds': round(ep_row['avg_time_saved'], 1),
+            'minTimeSavedSeconds': round(ep_row['min_time_saved'], 1),
+            'maxTimeSavedSeconds': round(ep_row['max_time_saved'], 1),
+            'totalTimeSavedSeconds': round(ep_row['total_time_saved'], 1),
+            'avgAdsRemoved': round(run_row['avg_ads_removed'], 1),
+            'minAdsRemoved': run_row['min_ads_removed'],
+            'maxAdsRemoved': run_row['max_ads_removed'],
+            'totalAdsRemoved': run_row['total_ads_removed'],
+            'avgCostPerEpisode': round(run_row['avg_cost'], 6),
+            'minCostPerEpisode': round(run_row['min_cost'], 6),
+            'maxCostPerEpisode': round(run_row['max_cost'], 6),
+            'avgProcessingTimeSeconds': round(run_row['avg_processing_time'], 1),
+            'minProcessingTimeSeconds': round(run_row['min_processing_time'], 1),
+            'maxProcessingTimeSeconds': round(run_row['max_processing_time'], 1),
+            'avgEpisodeLengthSeconds': round(ep_row['avg_episode_length'], 1),
+            'minEpisodeLengthSeconds': round(ep_row['min_episode_length'], 1),
+            'maxEpisodeLengthSeconds': round(ep_row['max_episode_length'], 1),
+            'totalInputTokens': run_row['total_input_tokens'],
+            'totalOutputTokens': run_row['total_output_tokens'],
+            'totalLlmCost': round(run_row['total_llm_cost'], 6),
+            'avgInputTokens': round(run_row['avg_input_tokens']),
+            'avgOutputTokens': round(run_row['avg_output_tokens']),
+            'avgAudioCuesDetected': round(run_row['avg_audio_cues'], 1),
+            'minAudioCuesDetected': run_row['min_audio_cues'],
+            'maxAudioCuesDetected': run_row['max_audio_cues'],
+            'totalAudioCuesDetected': run_row['total_audio_cues'],
         }
 
     def get_stats_by_day(self, podcast_slug: str = None) -> list[dict]:
@@ -722,43 +781,61 @@ class StatsMixin:
         return result
 
     def get_stats_by_podcast(self) -> list[dict]:
-        """Get per-podcast aggregate stats, ordered by total ads removed."""
+        """Get per-podcast aggregate stats, ordered by total ads removed.
+
+        episodeCount is distinct surviving episodes per podcast; runCount is
+        every completed processing_history row. A podcast with completed runs
+        but no surviving episodes still appears, with episodeCount 0 (#727).
+        """
         conn = self.get_connection()
-        rows = conn.execute(
+        run_rows = conn.execute(
             """SELECT
                 h.podcast_slug,
                 h.podcast_title,
-                COUNT(*) AS episode_count,
+                COUNT(*) AS run_count,
                 COALESCE(SUM(h.ads_detected), 0) AS total_ads,
                 COALESCE(AVG(h.ads_detected), 0) AS avg_ads,
-                COALESCE(AVG(e.original_duration), 0) AS avg_episode_length,
-                COALESCE(AVG(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
-                    THEN e.original_duration - e.new_duration END), 0) AS avg_time_saved,
                 COALESCE(SUM(h.llm_cost), 0) AS total_cost,
                 COALESCE(SUM(h.input_tokens), 0) AS total_input_tokens,
                 COALESCE(SUM(h.output_tokens), 0) AS total_output_tokens,
                 COALESCE(AVG(h.input_tokens + h.output_tokens), 0) AS avg_tokens_per_episode
             FROM processing_history h
-            LEFT JOIN episodes e ON e.episode_id = h.episode_id
-                AND e.podcast_id = h.podcast_id
             WHERE h.status = 'completed'
             GROUP BY h.podcast_slug
             ORDER BY total_ads DESC"""
         ).fetchall()
 
-        return [{
-            'podcastSlug': r['podcast_slug'],
-            'podcastTitle': r['podcast_title'],
-            'episodeCount': r['episode_count'],
-            'totalAds': r['total_ads'],
-            'avgAds': round(r['avg_ads'], 1),
-            'avgEpisodeLengthSeconds': round(r['avg_episode_length'], 1),
-            'avgTimeSavedSeconds': round(r['avg_time_saved'], 1),
-            'totalCost': round(r['total_cost'], 6),
-            'totalInputTokens': r['total_input_tokens'],
-            'totalOutputTokens': r['total_output_tokens'],
-            'avgTokensPerEpisode': round(r['avg_tokens_per_episode']),
-        } for r in rows]
+        ep_rows = conn.execute(
+            f"""SELECT
+                p.slug AS podcast_slug,
+                COUNT(*) AS episode_count,
+                COALESCE(AVG(e.original_duration), 0) AS avg_episode_length,
+                COALESCE(AVG({_SAVED_SECONDS_CASE_SQL}), 0) AS avg_time_saved
+            FROM episodes e
+            JOIN podcasts p ON p.id = e.podcast_id
+            WHERE {_PROCESSED_EPISODE_EXISTS_SQL}
+            GROUP BY p.slug"""  # noqa: S608
+        ).fetchall()
+        ep_by_slug = {r['podcast_slug']: r for r in ep_rows}
+
+        results = []
+        for r in run_rows:
+            ep = ep_by_slug.get(r['podcast_slug'])
+            results.append({
+                'podcastSlug': r['podcast_slug'],
+                'podcastTitle': r['podcast_title'],
+                'episodeCount': ep['episode_count'] if ep else 0,
+                'totalAds': r['total_ads'],
+                'avgAds': round(r['avg_ads'], 1),
+                'avgEpisodeLengthSeconds': round(ep['avg_episode_length'], 1) if ep else 0,
+                'avgTimeSavedSeconds': round(ep['avg_time_saved'], 1) if ep else 0,
+                'totalCost': round(r['total_cost'], 6),
+                'totalInputTokens': r['total_input_tokens'],
+                'totalOutputTokens': r['total_output_tokens'],
+                'avgTokensPerEpisode': round(r['avg_tokens_per_episode']),
+                'runCount': r['run_count'],
+            })
+        return results
 
     def get_reviewer_stats(self, podcast_slug: str = None,
                            episode_id: str = None) -> dict:
