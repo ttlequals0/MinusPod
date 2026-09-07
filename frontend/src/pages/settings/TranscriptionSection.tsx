@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig } from '../../api/types';
 import { getWhisperCapacity } from '../../api/settings';
-import CollapsibleSection from '../../components/CollapsibleSection';
+import CollapsibleSection, {
+  useCollapsibleOpen, useSectionVisible,
+} from '../../components/CollapsibleSection';
 import ConnectionTestButton from './ConnectionTestButton';
 import LanguageCombobox from '../../components/LanguageCombobox';
 import NumberInput from '../../components/NumberInput';
@@ -59,6 +61,7 @@ interface TranscriptionSectionProps {
 }
 
 const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
+const STORAGE_KEY = 'settings-section-transcription';
 
 function TranscriptionSection({
   whisperModel,
@@ -106,8 +109,13 @@ function TranscriptionSection({
 }: TranscriptionSectionProps) {
   const whisperStatus = providersState?.whisper ?? NONE_STATUS;
   const cryptoReady = providersState?.cryptoReady ?? false;
+  // Capacity poll should only run while the section is on screen, but its
+  // fields must stay in the DOM while collapsed so settings search can
+  // still match "whisper", "chunk", "overlap", etc.
+  const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);
+  const visible = useSectionVisible(STORAGE_KEY, open);
   return (
-    <CollapsibleSection title="Transcription" unmountWhenClosed>
+    <CollapsibleSection title="Transcription" storageKey={STORAGE_KEY} onToggle={setOpen}>
       <div className="space-y-4">
         <div>
           <label htmlFor="whisperBackend" className="block text-sm font-medium text-foreground mb-2">
@@ -325,7 +333,7 @@ function TranscriptionSection({
                   />
                   <span className="text-sm text-muted-foreground">each keeps at least one request slot</span>
                 </div>
-                <WhisperCapacityLine enabled={whisperPoolEnabled} />
+                <WhisperCapacityLine enabled={whisperPoolEnabled} visible={visible} />
               </div>
             </div>
 
@@ -437,11 +445,11 @@ function TranscriptionSection({
   );
 }
 
-function WhisperCapacityLine({ enabled }: { enabled: boolean }) {
+function WhisperCapacityLine({ enabled, visible }: { enabled: boolean; visible: boolean }) {
   const { data } = useQuery({
     queryKey: ['whisperCapacity'],
     queryFn: getWhisperCapacity,
-    enabled,
+    enabled: enabled && visible,
     refetchInterval: 15000,
   });
   if (!enabled || !data) return null;

@@ -15,7 +15,10 @@ vi.mock('../../api/settings', async (importOriginal) => ({
   }),
 }));
 
-function renderSection(overrides: Partial<React.ComponentProps<typeof TranscriptionSection>> = {}) {
+function renderSection(
+  overrides: Partial<React.ComponentProps<typeof TranscriptionSection>> = {},
+  { open = true }: { open?: boolean } = {},
+) {
   const noop = () => {};
   const props = {
     whisperModel: 'small', whisperModels: [], onWhisperModelChange: noop,
@@ -39,8 +42,12 @@ function renderSection(overrides: Partial<React.ComponentProps<typeof Transcript
   } as React.ComponentProps<typeof TranscriptionSection>;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const result = render(<QueryClientProvider client={client}><TranscriptionSection {...props} /></QueryClientProvider>);
-  // Section is unmountWhenClosed and starts collapsed; open it so content mounts.
-  fireEvent.click(screen.getByRole('button', { name: 'Transcription' }));
+  // Section starts collapsed; the capacity poll only runs once visible, so
+  // open it for cases that need the query to fire. Content itself stays in
+  // the DOM either way (search must be able to match it while collapsed).
+  if (open) {
+    fireEvent.click(screen.getByRole('button', { name: 'Transcription' }));
+  }
   return result;
 }
 
@@ -78,5 +85,11 @@ describe('TranscriptionSection whisper pool', () => {
     renderSection();
     expect(await screen.findByText(/Up to 8 requests in flight against a cap of 3/)).toBeTruthy();
     expect(screen.queryByText(/Currently/)).toBeNull();
+  });
+
+  it('keeps field labels in the DOM while collapsed, for settings search', () => {
+    renderSection({}, { open: false });
+    expect(screen.getByRole('button', { name: 'Transcription' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByText('Chunk overlap seconds:')).toBeTruthy();
   });
 });
