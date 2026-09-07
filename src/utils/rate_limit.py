@@ -6,6 +6,11 @@ from email.utils import parsedate_to_datetime
 from typing import Any
 
 
+def _clamp_seconds(value: float, max_seconds: float) -> float:
+    """Clamp a seconds-to-wait value to [0, max_seconds]."""
+    return min(max(value, 0.0), max_seconds)
+
+
 def parse_retry_after(value: str | None, *, max_seconds: float = 300.0) -> float | None:
     """Parse an HTTP `Retry-After` header into seconds-to-wait.
 
@@ -35,11 +40,7 @@ def parse_retry_after(value: str | None, *, max_seconds: float = 300.0) -> float
             target = target.replace(tzinfo=timezone.utc)
         seconds = (target - datetime.now(timezone.utc)).total_seconds()
 
-    if seconds < 0:
-        seconds = 0.0
-    if seconds > max_seconds:
-        seconds = max_seconds
-    return float(seconds)
+    return _clamp_seconds(seconds, max_seconds)
 
 
 # Groq's 429 body for a tokens-per-minute exceedance includes a message like:
@@ -196,7 +197,7 @@ def parse_google_retry_delay(body: Any, *, max_seconds: float = 300.0) -> float 
             seconds = float(m.group(1))
     if seconds is None:
         return None
-    return min(max(seconds, 0.0), max_seconds)
+    return _clamp_seconds(seconds, max_seconds)
 
 
 def parse_upstream_reset(body: Any, *, max_seconds: float = 300.0) -> float | None:
@@ -213,7 +214,7 @@ def parse_upstream_reset(body: Any, *, max_seconds: float = 300.0) -> float | No
     seconds = err.get("seconds_until_reset")
     if seconds is not None:
         try:
-            return min(max(float(seconds), 0.0), max_seconds)
+            return _clamp_seconds(float(seconds), max_seconds)
         except (TypeError, ValueError):
             pass
 
@@ -221,7 +222,7 @@ def parse_upstream_reset(body: Any, *, max_seconds: float = 300.0) -> float | No
     if resets_at is not None:
         try:
             delta = float(resets_at) - datetime.now(timezone.utc).timestamp()
-            return min(max(delta, 0.0), max_seconds)
+            return _clamp_seconds(delta, max_seconds)
         except (TypeError, ValueError):
             pass
 
@@ -235,7 +236,7 @@ def parse_upstream_reset(body: Any, *, max_seconds: float = 300.0) -> float | No
             if target.tzinfo is None:
                 target = target.replace(tzinfo=timezone.utc)
             delta = (target - datetime.now(timezone.utc)).total_seconds()
-            return min(max(delta, 0.0), max_seconds)
+            return _clamp_seconds(delta, max_seconds)
 
     return None
 

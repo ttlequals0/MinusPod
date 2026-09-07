@@ -1978,14 +1978,10 @@ def classify_daily_quota_exhaustion(error: Exception) -> dict | None:
 def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> float | None:
     """Pull a recommended wait (seconds) from a provider rate-limit exception.
 
-    Takes the larger of the `Retry-After` header and any body-carried reset
-    (``seconds_until_reset`` / ``resets_at`` / ``resets_at_iso``): some providers
-    send a generic hourly header alongside a body with the true, farther-out
-    reset, and waiting longer than either recommends is always safe while
-    waiting less risks resuming into a still-limited provider. Falls back to
-    Google/Gemini's body-only RetryInfo ``retryDelay`` / "retry in Ns" hint when
-    neither the header nor a reset field is present. Returns ``None`` when
-    nothing is usable so callers fall through to their existing backoff curve.
+    Reads, in order: the larger of the `Retry-After` header and a body-carried
+    reset field, then Google/Gemini's RetryInfo ``retryDelay`` / "retry in Ns"
+    hint. Returns ``None`` when nothing is usable, so callers fall through to
+    their existing backoff curve.
     """
     response = getattr(error, 'response', None)
     headers = getattr(response, 'headers', None) if response is not None else None

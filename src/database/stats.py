@@ -97,12 +97,26 @@ class StatsMixin:
 
     # ========== Cumulative Stats Methods ==========
 
-    def credit_time_saved(self, slug: str, episode_id: str, saving: float) -> float:
-        """Credit the lifetime total_time_saved stat with only the change in
-        this episode's saving since it was last credited (#727), so
-        reprocessing an already-cut episode does not add the same saving
-        again. Returns the applied delta; 0.0 if the episode is not found.
+    def _bump_stat(self, conn, key: str, delta: float, clamp_zero: bool = False) -> None:
+        """Upsert a delta into the stats key/value table.
+
+        clamp_zero=True floors the resulting value at 0 (for stats that must
+        never go negative); caller still commits.
         """
+        value_expr = "MAX(0, value + excluded.value)" if clamp_zero else "value + excluded.value"
+        conn.execute(
+            f"""INSERT INTO stats (key, value, updated_at)
+               VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(key) DO UPDATE SET
+                 value = {value_expr},
+                 updated_at = excluded.updated_at""",  # noqa: S608
+            (key, delta)
+        )
+
+    def credit_time_saved(self, slug: str, episode_id: str, saving: float) -> float:
+        """Credit the lifetime total_time_saved stat with only this episode's
+        unaccredited delta. Returns the delta applied, or 0.0 when the
+        episode is unknown."""
         conn = self.get_connection()
         row = conn.execute(
             """SELECT e.id, e.credited_time_saved FROM episodes e
@@ -117,14 +131,7 @@ class StatsMixin:
         if delta == 0:
             return 0.0
 
-        conn.execute(
-            """INSERT INTO stats (key, value, updated_at)
-               VALUES ('total_time_saved', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-               ON CONFLICT(key) DO UPDATE SET
-                 value = MAX(0, value + excluded.value),
-                 updated_at = excluded.updated_at""",
-            (delta,)
-        )
+        self._bump_stat(conn, 'total_time_saved', delta, clamp_zero=True)
         conn.execute(
             "UPDATE episodes SET credited_time_saved = ? WHERE id = ?",
             (saving, row['id'])
@@ -257,14 +264,7 @@ class StatsMixin:
         for stat_key, value in [('total_input_tokens', float(input_tokens)),
                                 ('total_output_tokens', float(output_tokens)),
                                 ('total_llm_cost', cost)]:
-            conn.execute(
-                """INSERT INTO stats (key, value, updated_at)
-                   VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-                   ON CONFLICT(key) DO UPDATE SET
-                     value = value + excluded.value,
-                     updated_at = excluded.updated_at""",
-                (stat_key, value)
-            )
+            self._bump_stat(conn, stat_key, value)
 
         conn.commit()
         logger.debug(
@@ -628,15 +628,7 @@ class StatsMixin:
         }
 
     def get_dashboard_stats(self, podcast_slug: str = None) -> dict:
-        """Get aggregate dashboard stats with avg/min/max, optionally filtered by podcast.
-
-        Run-scoped fields (ads, audio cues, cost, tokens, processing time) count
-        every processing_history row, since a reprocess costs real time and
-        money each time it runs. Episode-scoped fields (episode length, time
-        saved, totalEpisodesProcessed) count each surviving episode once, from
-        its current row in episodes, so a reprocessed episode is not counted
-        or summed twice (#727).
-        """
+        """Get aggregate dashboard stats with avg/min/max, optionally filtered by podcast."""
         conn = self.get_connection()
         run_where = ["h.status = 'completed'"]
         run_params = []
@@ -781,12 +773,7 @@ class StatsMixin:
         return result
 
     def get_stats_by_podcast(self) -> list[dict]:
-        """Get per-podcast aggregate stats, ordered by total ads removed.
-
-        episodeCount is distinct surviving episodes per podcast; runCount is
-        every completed processing_history row. A podcast with completed runs
-        but no surviving episodes still appears, with episodeCount 0 (#727).
-        """
+        """Get per-podcast aggregate stats, ordered by total ads removed."""
         conn = self.get_connection()
         run_rows = conn.execute(
             """SELECT
