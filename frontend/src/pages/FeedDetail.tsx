@@ -17,7 +17,7 @@ import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Pagination } from '../components/Pagination';
 import PodpingBadge from '../components/PodpingBadge';
-import { feedDisplayTitle } from '../utils/feedTitle';
+import { feedDisplayTitle, feedHasUpstream } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
 import LocalFeedPanel from './feeds/LocalFeedPanel';
 import FeedStatsCards from './feeds/FeedStatsCards';
@@ -492,7 +492,7 @@ function FeedDetail() {
               ]}
             />
             )}
-            {feed.feedType !== 'local' && !isRecents && (
+            {feedHasUpstream(feed) && (
               <DropdownMenu
                 triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
                   <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh Feed</span></>
@@ -529,7 +529,7 @@ function FeedDetail() {
         </div>
       </div>
 
-      {slug && <FeedStatsCards feed={feed} slug={slug} />}
+      {slug && !isRecents && <FeedStatsCards feed={feed} slug={slug} />}
 
       {slug && isRecents && <RecentsFeedPanel feed={feed} slug={slug} />}
 
@@ -542,7 +542,7 @@ function FeedDetail() {
       {slug && !isRecents && <CueTemplatesPanel slug={slug} />}
 
       {/* Decisions made on this feed's episodes, not yet in the audio. */}
-      {slug && <PendingRecutsBar slug={slug} />}
+      {slug && !isRecents && <PendingRecutsBar slug={slug} />}
 
       {/* Episodes header with status filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -551,6 +551,7 @@ function FeedDetail() {
         </h2>
         {/* The pair shares one row and shrinks to fit rather than stacking:
             wrapping put each select on its own line at ordinary phone widths. */}
+        {!isRecents && (
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
           <select
             value={statusFilter}
@@ -583,10 +584,11 @@ function FeedDetail() {
             <option value="episode_number:asc">Episode # (Low-High)</option>
           </select>
         </div>
+        )}
       </div>
 
       {/* Bulk action toolbar */}
-      {!isRecents && hasSelection && (
+      {hasSelection && (
         <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
           <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -652,9 +654,7 @@ function FeedDetail() {
           episodes={episodes}
           feedSlug={slug!}
           feedArtworkUrl={feed.artworkUrl}
-          selectedIds={isRecents ? undefined : selectedIds}
-          onToggle={isRecents ? undefined : handleToggleSelect}
-          onSelectAll={isRecents ? undefined : handleSelectAll}
+          {...(isRecents ? {} : { selectedIds, onToggle: handleToggleSelect, onSelectAll: handleSelectAll })}
         />
       )}
 

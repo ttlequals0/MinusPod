@@ -195,9 +195,11 @@ describe('recents feed page', () => {
     renderFeedDetail(makeFeed({ slug: 'recents', feedType: 'recents', title: 'Recents', sourceUrl: 'recents://' }));
     expect(await screen.findByLabelText('Feed title')).toBeTruthy();
     expect(screen.getByLabelText('Feed description')).toBeTruthy();
-    expect(screen.getByText('Replace artwork')).toBeTruthy();
+    expect(screen.getByLabelText('Artwork')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Refresh/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Reprocess/ })).toBeNull();
     expect(screen.queryByRole('combobox', { name: 'Chapters' })).toBeNull();
+    // Processed-only and newest-first by definition: no status or sort selects.
+    expect(screen.queryByText('All statuses')).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import Checkbox from '../components/Checkbox';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
+import { inputBase } from '../components/fieldStyles';
 import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS, parseOptionalNumber } from '../components/DraftNumberInput';
 import { focusRing } from '../components/fieldStyles';
 
@@ -60,12 +61,12 @@ function RecentsFeedForm({ onCancel }: { onCancel: () => void }) {
       <div>
         <label htmlFor="recentsTitle" className="block text-sm font-medium text-foreground mb-2">Title</label>
         <input id="recentsTitle" type="text" value={title} onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring" />
+          className={`w-full ${inputBase}`} />
       </div>
       <div>
         <label htmlFor="recentsDescription" className="block text-sm font-medium text-foreground mb-2">Description</label>
         <textarea id="recentsDescription" rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
-          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring" />
+          className={`w-full ${inputBase}`} />
       </div>
       {mutation.error && (
         <p className="text-sm text-destructive">{getErrorMessage(mutation.error)}</p>

@@ -11,3 +11,5 @@ export const selectBase = `px-3 py-2 rounded bg-secondary text-secondary-foregro
 // Single-line text input: the same chrome AIModelsSection and the settings
 // User-Agent fields were each spelling out inline.
 export const inputBase = `px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`;
+// Native file input styled as a secondary button.
+export const fileInputBase = `block w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:text-sm bg-secondary text-secondary-foreground hover:bg-secondary/80 file:transition-colors ${focusRing}`;

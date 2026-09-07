@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { Trash2 } from 'lucide-react';
 import { Feed } from '../api/types';
-import { feedDisplayTitle } from '../utils/feedTitle';
+import { feedDisplayTitle, feedHasUpstream } from '../utils/feedTitle';
 import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
 import FeedArtworkLink from './FeedArtworkLink';
@@ -22,8 +22,7 @@ interface FeedCardProps {
 
 function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
   const artworkUrl = feedArtworkSrc(feed.slug, feed.artworkUrl);
-  // Local and recents feeds have no upstream RSS to refresh or fail on.
-  const hasUpstream = feed.feedType !== 'local' && feed.feedType !== 'recents';
+  const hasUpstream = feedHasUpstream(feed);
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">

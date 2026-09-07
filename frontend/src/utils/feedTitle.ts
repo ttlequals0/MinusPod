@@ -8,3 +8,8 @@ import type { Feed } from '../api/types';
 export function feedDisplayTitle(feed: Pick<Feed, 'title' | 'titleOverride'>): string {
   return feed.titleOverride || feed.title;
 }
+
+// Local and recents feeds have no upstream RSS to refresh or fail on.
+export function feedHasUpstream(feed: { feedType?: string }): boolean {
+  return feed.feedType !== 'local' && feed.feedType !== 'recents';
+}
