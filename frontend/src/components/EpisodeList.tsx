@@ -68,6 +68,8 @@ function EpisodeRow({
   selected: boolean;
   onToggle?: (id: string) => void;
 }) {
+  // Rows of the recents feed belong to another feed; link there.
+  const rowSlug = episode.feedSlug ?? feedSlug;
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '';
     const hours = Math.floor(seconds / 3600);
@@ -99,17 +101,20 @@ function EpisodeRow({
         </button>
       )}
       <Link
-        to={`/feeds/${feedSlug}/episodes/${episode.id}`}
+        to={`/feeds/${rowSlug}/episodes/${episode.id}`}
         className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
       >
         <Artwork
-          src={episodeArtworkSrc(feedSlug, episode.id, episode.artworkUrl, feedArtworkUrl)}
+          src={episodeArtworkSrc(rowSlug, episode.id, episode.artworkUrl, feedArtworkUrl)}
           alt=""
           loading="lazy"
           className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
         />
         <div className="flex-1 min-w-0">
           <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
+          {episode.feedTitle && (
+            <p className="text-xs text-muted-foreground truncate">{episode.feedTitle}</p>
+          )}
           {episode.description && (
             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
               {stripHtml(episode.description)}

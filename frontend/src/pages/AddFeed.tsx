@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { addFeed, addLocalFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
+import { getErrorMessage } from '../api/client';
+import { addFeed, addLocalFeed, addRecentsFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
 import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -11,7 +12,7 @@ import { btnPrimary, btnSecondary } from '../components/buttonStyles';
 import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS, parseOptionalNumber } from '../components/DraftNumberInput';
 import { focusRing } from '../components/fieldStyles';
 
-type AddFeedMode = 'subscribe' | 'local';
+type AddFeedMode = 'subscribe' | 'local' | 'recents';
 
 // Mirrors the shape of the backend's make_slug (python-slugify): lowercase,
 // strip diacritics, collapse runs of non-alphanumerics to a single hyphen,
@@ -30,6 +31,57 @@ function localSlugify(title: string): string {
 
 interface LocalFeedFormProps {
   onCancel: () => void;
+}
+
+// One combined feed of everything processed from now on (#721); title and
+// description only, the rest is derived from the source feeds.
+function RecentsFeedForm({ onCancel }: { onCancel: () => void }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState('Recents');
+  const [description, setDescription] = useState('');
+  const mutation = useMutation({
+    mutationFn: () => addRecentsFeed({
+      title: title.trim() || undefined,
+      description: description.trim() || undefined,
+    }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['feeds'] });
+      navigate(`/feeds/${result.slug}`);
+    },
+  });
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }} className="space-y-4 max-w-xl">
+      <p className="text-sm text-muted-foreground">
+        One feed with every episode processed from now on, across all your podcasts.
+        Subscribe to it once; podcasts you add later show up without another import.
+        Episodes published before today stay out, even when they are reprocessed.
+      </p>
+      <div>
+        <label htmlFor="recentsTitle" className="block text-sm font-medium text-foreground mb-2">Title</label>
+        <input id="recentsTitle" type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring" />
+      </div>
+      <div>
+        <label htmlFor="recentsDescription" className="block text-sm font-medium text-foreground mb-2">Description</label>
+        <textarea id="recentsDescription" rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
+          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring" />
+      </div>
+      {mutation.error && (
+        <p className="text-sm text-destructive">{getErrorMessage(mutation.error)}</p>
+      )}
+      <div className="flex gap-2">
+        <button type="submit" disabled={mutation.isPending}
+          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}>
+          {mutation.isPending ? 'Creating...' : 'Create feed'}
+        </button>
+        <button type="button" onClick={onCancel}
+          className={`px-4 py-2 rounded-lg ${btnSecondary} transition-colors ${focusRing}`}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
 }
 
 function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
@@ -412,6 +464,7 @@ function AddFeed() {
 
   // Existing feeds for "already added" detection
   const { data: feedsData } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
+  const hasRecents = (feedsData ?? []).some((f) => f.feedType === 'recents');
   const subscribedUrls = useMemo(() => {
     if (!feedsData) return new Set<string>();
     return new Set(feedsData.map((f) => f.sourceUrl));
@@ -545,9 +598,22 @@ function AddFeed() {
         >
           Create local feed
         </button>
+        {!hasRecents && (
+          <button
+            type="button"
+            onClick={() => setMode('recents')}
+            aria-pressed={mode === 'recents'}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              mode === 'recents' ? btnPrimary : btnSecondary
+            } ${focusRing}`}
+          >
+            Create recents feed
+          </button>
+        )}
       </div>
 
       {mode === 'local' && <LocalFeedForm onCancel={() => setMode('subscribe')} />}
+      {mode === 'recents' && <RecentsFeedForm onCancel={() => setMode('subscribe')} />}
 
       {mode === 'subscribe' && (
       <>

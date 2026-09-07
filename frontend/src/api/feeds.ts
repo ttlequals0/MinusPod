@@ -193,6 +193,26 @@ export async function addLocalFeed(payload: AddLocalFeedPayload): Promise<AddLoc
   });
 }
 
+export interface AddRecentsFeedPayload {
+  title?: string;
+  description?: string;
+}
+
+export interface AddRecentsFeedResult {
+  slug: string;
+  feedType: 'recents';
+  feedUrl: string;
+  message: string;
+}
+
+// The single combined feed of newly published episodes (#721).
+export async function addRecentsFeed(payload: AddRecentsFeedPayload): Promise<AddRecentsFeedResult> {
+  return apiRequest<AddRecentsFeedResult>('/feeds', {
+    method: 'POST',
+    body: { feedType: 'recents', ...payload },
+  });
+}
+
 export interface UploadFeedArtworkResult {
   message: string;
   artworkUrl: string;

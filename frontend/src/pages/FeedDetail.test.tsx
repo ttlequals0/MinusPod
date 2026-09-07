@@ -189,3 +189,15 @@ describe('FeedDetail: notice from router state', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 });
+
+describe('recents feed page', () => {
+  it('shows the title, description and artwork controls and hides processing controls', async () => {
+    renderFeedDetail(makeFeed({ slug: 'recents', feedType: 'recents', title: 'Recents', sourceUrl: 'recents://' }));
+    expect(await screen.findByLabelText('Feed title')).toBeTruthy();
+    expect(screen.getByLabelText('Feed description')).toBeTruthy();
+    expect(screen.getByText('Replace artwork')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Refresh/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Reprocess/ })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Chapters' })).toBeNull();
+  });
+});

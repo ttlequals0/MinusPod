@@ -23,6 +23,8 @@ interface FeedListItemProps {
 
 function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemProps) {
   const artworkUrl = feedArtworkSrc(feed.slug, feed.artworkUrl);
+  // Local and recents feeds have no upstream RSS to refresh or fail on.
+  const hasUpstream = feed.feedType !== 'local' && feed.feedType !== 'recents';
 
   return (
     <div className="bg-card rounded-lg border border-border p-3 flex items-center gap-3 sm:gap-4">
@@ -41,6 +43,11 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
           >
             {feedDisplayTitle(feed)}
           </Link>
+          {feed.feedType === 'recents' && (
+            <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
+              Recents
+            </span>
+          )}
           {feed.feedType === 'local' && (
             <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
               Local
@@ -60,7 +67,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
             compact
             className="ml-2"
           />
-          {feed.feedType !== 'local' && feed.lastRefreshError && (
+          {hasUpstream && feed.lastRefreshError && (
             <span
               className="ml-2 text-warning"
               title={feed.lastRefreshError}
@@ -73,7 +80,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
       </div>
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <CopyButton text={feed.feedUrl} hideLabelOnMobile />
-        {feed.feedType !== 'local' && (
+        {hasUpstream && (
           <>
             <button
               onClick={() => onRefresh(feed.slug)}

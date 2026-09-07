@@ -18,11 +18,13 @@ vi.mock('react-router', async (importOriginal) => ({
 
 const mockAddFeed = vi.fn();
 const mockAddLocalFeed = vi.fn();
+const mockAddRecentsFeed = vi.fn();
 const mockUploadFeedArtwork = vi.fn();
 const mockImportOpml = vi.fn();
 const mockGetFeedsResponse = vi.fn();
 
 vi.mock('../api/feeds', () => ({
+  addRecentsFeed: (...a: unknown[]) => mockAddRecentsFeed(...a),
   addFeed: (...a: unknown[]) => mockAddFeed(...a),
   addLocalFeed: (...a: unknown[]) => mockAddLocalFeed(...a),
   uploadFeedArtwork: (...a: unknown[]) => mockUploadFeedArtwork(...a),
@@ -316,5 +318,30 @@ describe('AddFeed: artwork upload after create', () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/feeds/my-archive-show', undefined);
     });
+  });
+});
+
+describe('Recents feed mode', () => {
+  it('creates the recents feed with a title and description', async () => {
+    mockAddRecentsFeed.mockResolvedValue({ slug: 'recents', feedType: 'recents', feedUrl: '/recents', message: 'ok' });
+    renderAddFeed();
+    await userEvent.click(await screen.findByRole('button', { name: 'Create recents feed' }));
+    const title = screen.getByLabelText('Title');
+    await userEvent.clear(title);
+    await userEvent.type(title, 'My Recents');
+    await userEvent.type(screen.getByLabelText('Description'), 'New episodes');
+    await userEvent.click(screen.getByRole('button', { name: 'Create feed' }));
+    await waitFor(() => expect(mockAddRecentsFeed).toHaveBeenCalledWith({ title: 'My Recents', description: 'New episodes' }));
+  });
+
+  it('hides the option once a recents feed exists', async () => {
+    // A one-shot value wins over the default renderAddFeed installs.
+    mockGetFeedsResponse.mockResolvedValueOnce({
+      feeds: [{ slug: 'recents', title: 'Recents', feedType: 'recents', sourceUrl: 'recents://', feedUrl: '/recents', episodeCount: 0 }],
+      lastRefreshCompletedAt: null,
+    });
+    renderAddFeed();
+    await screen.findByRole('button', { name: 'Subscribe to feed' });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Create recents feed' })).toBeNull());
   });
 });

@@ -28,7 +28,7 @@ export interface Feed {
   // Local (imported-archive) feeds have no upstream RSS: subscribed is the
   // default for feeds pulled from a source URL. Absent on backends that
   // predate local feeds, which read as 'subscribed'.
-  feedType?: 'subscribed' | 'local';
+  feedType?: 'subscribed' | 'local' | 'recents';
   description?: string;
   artworkUrl?: string;
   // Explicit "do we hold an uploaded file" signal (artworkUrl is never
@@ -172,6 +172,9 @@ export interface AdDistribution {
 export interface Episode {
   id: string;
   title: string;
+  // Set on rows of the recents feed: the feed the episode belongs to.
+  feedSlug?: string;
+  feedTitle?: string;
   description?: string;
   published: string;
   duration?: number;

@@ -22,6 +22,7 @@ import FeedSettingsPanel from './feeds/FeedSettingsPanel';
 import LocalFeedPanel from './feeds/LocalFeedPanel';
 import FeedStatsCards from './feeds/FeedStatsCards';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
+import RecentsFeedPanel from './feeds/RecentsFeedPanel';
 import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
@@ -275,6 +276,7 @@ function FeedDetail() {
     ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;
   const hasSelection = selectedIds.size > 0;
+  const isRecents = feed?.feedType === 'recents';
 
   if (feedLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -386,6 +388,11 @@ function FeedDetail() {
                     Local
                   </span>
                 )}
+                {isRecents && (
+                  <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
+                    Recents
+                  </span>
+                )}
                 {feed.titleOverride && (
                   <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
                     Custom
@@ -448,6 +455,7 @@ function FeedDetail() {
               items-center, so the buttons keep flex's default stretch and the
               icon-only delete stays the same height as the labelled ones. */}
           <div className="flex flex-wrap justify-end gap-2">
+            {!isRecents && (
             <DropdownMenu
               triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : (
                 <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">Reprocess All</span></>
@@ -483,7 +491,8 @@ function FeedDetail() {
                 },
               ]}
             />
-            {feed.feedType !== 'local' && (
+            )}
+            {feed.feedType !== 'local' && !isRecents && (
               <DropdownMenu
                 triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
                   <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh Feed</span></>
@@ -522,13 +531,15 @@ function FeedDetail() {
 
       {slug && <FeedStatsCards feed={feed} slug={slug} />}
 
-      {slug && <FeedSettingsPanel feed={feed} slug={slug} />}
+      {slug && isRecents && <RecentsFeedPanel feed={feed} slug={slug} />}
+
+      {slug && !isRecents && <FeedSettingsPanel feed={feed} slug={slug} />}
 
       {slug && feed.feedType === 'local' && <LocalFeedPanel feed={feed} slug={slug} />}
 
-      {slug && <PodcastAdDistributionPanel slug={slug} />}
+      {slug && !isRecents && <PodcastAdDistributionPanel slug={slug} />}
 
-      {slug && <CueTemplatesPanel slug={slug} />}
+      {slug && !isRecents && <CueTemplatesPanel slug={slug} />}
 
       {/* Decisions made on this feed's episodes, not yet in the audio. */}
       {slug && <PendingRecutsBar slug={slug} />}
@@ -575,7 +586,7 @@ function FeedDetail() {
       </div>
 
       {/* Bulk action toolbar */}
-      {hasSelection && (
+      {!isRecents && hasSelection && (
         <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
           <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -641,9 +652,9 @@ function FeedDetail() {
           episodes={episodes}
           feedSlug={slug!}
           feedArtworkUrl={feed.artworkUrl}
-          selectedIds={selectedIds}
-          onToggle={handleToggleSelect}
-          onSelectAll={handleSelectAll}
+          selectedIds={isRecents ? undefined : selectedIds}
+          onToggle={isRecents ? undefined : handleToggleSelect}
+          onSelectAll={isRecents ? undefined : handleSelectAll}
         />
       )}
 
@@ -829,6 +840,11 @@ function FeedDetail() {
               {feed?.feedType === 'local' && (
                 <p className="text-sm text-warning mt-1">
                   This is a local feed: the imported originals are the only copy and will be deleted.
+                </p>
+              )}
+              {isRecents && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Only the combined feed is removed; the source feeds and episodes stay.
                 </p>
               )}
             </div>
