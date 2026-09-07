@@ -461,6 +461,9 @@ export interface WhisperHealthProbe {
   instances?: WhisperHealthInstance[];
   suggested_max_requests?: number;
   mismatch?: string[];
+  // True when every sample turned up a new instance, so the count is a
+  // lower bound rather than the confirmed replica count.
+  sampled_floor?: boolean;
 }
 
 export interface WhisperCapacity {

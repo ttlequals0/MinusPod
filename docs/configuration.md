@@ -434,7 +434,9 @@ health endpoint, MinusPod samples it to report the replica count, model,
 device, and compute type per instance, plus a suggested "Max requests"
 value based on their combined concurrency. This is entirely optional:
 without a health endpoint, nothing changes and the cap stays a manual
-setting.
+setting. The probe always reads `{base}/health` (e.g.
+`https://your-whisper-host/v1/health`), so a server that exposes health at
+its root rather than under the API path reports nothing.
 
 ## Outbound Requests
 

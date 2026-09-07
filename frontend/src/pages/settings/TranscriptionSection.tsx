@@ -467,15 +467,22 @@ function WhisperCapacityLine({ enabled, visible }: { enabled: boolean; visible: 
   );
 }
 
+const MISMATCH_FIELD_LABELS: Record<string, string> = {
+  compute_type: 'compute type',
+  model: 'model',
+  device: 'device',
+};
+
 function WhisperHealthLine({ health, configuredMaxRequests }: {
   health: WhisperHealthProbe | undefined;
   configuredMaxRequests: number;
 }) {
   if (!health?.available) return null;
   if (health.mismatch && health.mismatch.length > 0) {
+    const fields = health.mismatch.map((f) => MISMATCH_FIELD_LABELS[f] ?? f);
     return (
       <p className="text-xs text-warning">
-        Instances disagree on {health.mismatch.join(', ')}.
+        Instances disagree on {fields.join(', ')}.
       </p>
     );
   }
@@ -483,9 +490,12 @@ function WhisperHealthLine({ health, configuredMaxRequests }: {
   const count = instances.length;
   const model = instances[0]?.model ?? 'unknown';
   const suggested = health.suggested_max_requests ?? count;
+  const countLabel = health.sampled_floor
+    ? `at least ${count} ${count === 1 ? 'instance' : 'instances'}`
+    : `${count} ${count === 1 ? 'instance' : 'instances'}`;
   return (
     <p className="text-xs text-muted-foreground">
-      {count} {count === 1 ? 'instance' : 'instances'} reporting {model}, {suggested} requests total.
+      {countLabel} reporting {model}, {suggested} requests total.
       {suggested !== configuredMaxRequests && ` Your cap is ${configuredMaxRequests}.`}
     </p>
   );

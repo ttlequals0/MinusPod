@@ -18,6 +18,11 @@ release notes.
 - Rate-limit hold: a probe now re-checks an active hold instead of waiting out the provider's stated reset. With `llmUsageUrl` set, it checks that endpoint every `rateLimitProbeMinutes` (default 5, 0 disables) and clears the hold early or re-stamps it with a fresher reset, in either direction. Without a usage URL, a single minimal completion call does the same check.
 - A self-hosted Whisper backend can expose an optional health endpoint reporting its model, device, compute type, and concurrency limit. `GET /settings/whisper/capacity` and the Whisper connection test now sample it (round-robining behind a load balancer reveals each replica), and Settings > Transcription shows the detected instance count and a suggested `whisperPoolMaxRequests` when it differs from the configured cap, or a warning when replicas disagree on model, device, or compute type.
 
+### Fixed
+
+- The Whisper health probe now runs only while the pool is pointed at the remote backend, so switching back to local stops it from polling a stale URL, and its result is cached for 120 seconds so the settings page's 15-second poll does not refire it every tick. Sampling takes up to 8 requests instead of being capped at 3, and needs three repeated replicas rather than two before it stops early; when every sample turned up a new instance, Settings > Transcription now reports "at least N instances" instead of implying N is the confirmed total.
+- A provider's rate-limit reset field that failed to parse (an empty string, a non-numeric value, or an explicit null) was blocking the fallback to a still-parseable reset nested in a proxied body (`error.metadata.raw`), silently reverting to the generic Retry-After header. The nested reset is now read whenever the outer field does not actually parse.
+
 ## [2.96.3] - 2026-09-07
 
 ### Fixed

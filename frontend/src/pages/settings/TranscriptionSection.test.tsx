@@ -139,4 +139,48 @@ describe('TranscriptionSection whisper pool', () => {
     expect(await screen.findByText('Instances disagree on model.')).toBeTruthy();
     expect(screen.queryByText(/requests total/)).toBeNull();
   });
+
+  it('maps mismatch field names to human labels', async () => {
+    vi.mocked(getWhisperCapacity).mockResolvedValueOnce({
+      enabled: true, backend: 'openai-api', active: true, inactiveReason: null,
+      capacity: 4, inFlight: 0, transcribingEpisodes: 0,
+      maxEpisodes: { configured: 2, effective: 2 },
+      chunkWorkers: { configured: 4, effective: 3 },
+      worstCaseInFlight: 8, exceedsCapacity: true, leader: false,
+      health: {
+        available: true,
+        instances: [
+          { instance: 'whisper-1', model: 'large-v3', device: 'cuda', compute_type: 'float16', batch_size: 16, max_concurrent: 1, vad_filter: true },
+          { instance: 'whisper-2', model: 'large-v3', device: 'cuda', compute_type: 'int8', batch_size: 16, max_concurrent: 1, vad_filter: true },
+        ],
+        suggested_max_requests: 2,
+        mismatch: ['compute_type', 'device'],
+      },
+    });
+    renderSection();
+    expect(await screen.findByText('Instances disagree on compute type, device.')).toBeTruthy();
+  });
+
+  it('renders "at least N instances" when every sample was a new instance', async () => {
+    vi.mocked(getWhisperCapacity).mockResolvedValueOnce({
+      enabled: true, backend: 'openai-api', active: true, inactiveReason: null,
+      capacity: 4, inFlight: 0, transcribingEpisodes: 0,
+      maxEpisodes: { configured: 2, effective: 2 },
+      chunkWorkers: { configured: 4, effective: 3 },
+      worstCaseInFlight: 8, exceedsCapacity: true, leader: false,
+      health: {
+        available: true,
+        instances: [
+          { instance: 'whisper-1', model: 'large-v3', device: 'cuda', compute_type: 'float16', batch_size: 16, max_concurrent: 1, vad_filter: true },
+          { instance: 'whisper-2', model: 'large-v3', device: 'cuda', compute_type: 'float16', batch_size: 16, max_concurrent: 1, vad_filter: true },
+        ],
+        suggested_max_requests: 2,
+        mismatch: [],
+        sampled_floor: true,
+      },
+    });
+    renderSection();
+    expect(await screen.findByText(
+      'at least 2 instances reporting large-v3, 2 requests total. Your cap is 4.')).toBeTruthy();
+  });
 });
