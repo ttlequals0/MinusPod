@@ -1044,6 +1044,7 @@ class Transcriber:
         whisper_settings: dict[str, str] = None,
         language_override: str | None = None,
         preprocessed: bool = False,
+        vad_filter: bool = True,
     ) -> list[dict] | None:
         """Transcribe audio using an OpenAI-compatible whisper API.
 
@@ -1056,6 +1057,9 @@ class Transcriber:
             preprocessed: The file already went through the preprocess filter
                 chain (extract_audio_chunk(preprocess=True)); skip the
                 redundant preprocess pass.
+            vad_filter: False sends `vad_filter=false` so a server that
+                supports the switch keeps quiet audio (tail pass, spec 1.2).
+                True sends nothing, leaving the server's own default alone.
 
         Returns:
             List of transcript segments, or None on failure.
@@ -1113,6 +1117,10 @@ class Transcriber:
                 'model': model,
                 'response_format': 'verbose_json',
             }
+            # Only sent when disabling VAD: a server without the switch
+            # ignores an unknown field, but never send a redundant default.
+            if not vad_filter:
+                form_data_base['vad_filter'] = 'false'
             language = _effective_language(language_override, whisper_settings)
             if language and language != 'auto':
                 form_data_base['language'] = language
@@ -1686,7 +1694,8 @@ class Transcriber:
         language overrides without mutating shared settings.
 
         ``vad_filter=False`` disables Whisper's VAD (tail re-transcription,
-        spec 1.2). Local backend only; API backends have no VAD switch.
+        spec 1.2). The API backend forwards it as a `vad_filter=false` form
+        field; servers without the switch ignore it.
 
         ``preprocessed=True`` means the caller already applied the preprocess
         filter chain (chunks from extract_audio_chunk(preprocess=True)), so
@@ -1695,15 +1704,11 @@ class Transcriber:
         # Check whisper backend setting
         whisper_settings = _get_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
-            if not vad_filter:
-                # OpenAI-compatible endpoints expose no VAD switch; any VAD
-                # is server-side config. The tail still gets transcribed as
-                # its own upload, which is the intended effect (spec 1.2).
-                logger.info("vad_filter=False not forwardable to API backend; sending audio as-is")
             return self._transcribe_via_api(
                 audio_path, whisper_settings,
                 language_override=language_override,
                 preprocessed=preprocessed,
+                vad_filter=vad_filter,
             )
 
         language_setting = _effective_language(language_override, whisper_settings)

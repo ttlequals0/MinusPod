@@ -418,8 +418,8 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
     before the audio does and no LLM window ever sees the tail. When the gap
     is inside the configured window, re-run just the tail with
     vad_filter=False and append the segments flagged novad_tail=True.
-    On the API whisper backend the tail is sent as its own upload (no remote
-    VAD switch exists); that is the intended behavior. Returns
+    On the API whisper backend the tail is sent as its own upload carrying
+    `vad_filter=false`; servers without the switch ignore it. Returns
     (segments, tail_added).
     """
     if not segments:

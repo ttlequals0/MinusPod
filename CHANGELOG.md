@@ -25,6 +25,7 @@ release notes.
 
 ### Fixed
 
+- The tail re-transcription pass now sends `vad_filter=false` to a remote Whisper backend. It re-runs the untranscribed tail of an episode with voice detection off, but on the API backend the request was identical to a normal one, so a server that supports the switch never saw it and quiet post-rolls stayed missing. Servers without the switch ignore the field.
 - The rate-limit hold did not hold. Play, Reprocess, and bulk-queued episodes bypassed the pause, so each one ran a full transcription, hit its own 429, and was parked; one instance parked 26 episodes in a row over two hours. The pause now sits on the one entry point every run goes through, so a Play or Reprocess during a hold waits in the queue at its usual boost instead of starting.
 - After the reset passed, the pause marker and the parked episodes waited for a maintenance pass that runs once every ten queue iterations, and each iteration blocks for a whole episode. The status bar kept saying "Provider rate limit lifted. Held episodes requeue shortly" for hours. The marker is now cleared on the first pass after the reset, and there is nothing left to requeue.
 - Feed cards on the dashboard are the same height whether or not a feed has a Podping line, a refresh date, or status pills. The "Refresh failing" warning sits on the Updated line. Episode rows on a feed page reserve the same space for the description, duration, ad count, and status badge, so a list lines up too.

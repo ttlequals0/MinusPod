@@ -171,6 +171,39 @@ class TestTranscribeViaApi:
             os.unlink(temp_path)
         assert 'prompt' not in mock_post.call_args.kwargs['data']
 
+    def _post_data_for_vad(self, vad_filter):
+        """Form data the API upload sends for a given vad_filter."""
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(b'fake audio data' * 200)
+            temp_path = f.name
+        mock_response = MagicMock(status_code=200)
+        mock_response.json.return_value = self._make_api_response([])
+        try:
+            with patch('transcriber.safe_post', return_value=mock_response) as mock_post:
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                transcriber._transcribe_via_api(
+                    temp_path, self._make_settings(), vad_filter=vad_filter)
+        finally:
+            os.unlink(temp_path)
+        return mock_post.call_args.kwargs['data']
+
+    def test_sends_vad_filter_false_on_the_tail_upload(self):
+        assert self._post_data_for_vad(False)['vad_filter'] == 'false'
+
+    def test_omits_vad_filter_by_default(self):
+        assert 'vad_filter' not in self._post_data_for_vad(True)
+
+    def test_transcribe_forwards_vad_filter_to_the_api_call(self):
+        """transcribe(vad_filter=False) must reach the upload, or the tail
+        pass is identical to a normal one (spec 1.2)."""
+        settings = {'backend': 'openai-api', 'api_base_url': 'https://whisper.example.com/v1',
+                    'api_key': '', 'api_model': 'whisper-1', 'language': 'en'}
+        with patch('transcriber._get_whisper_settings', return_value=settings), \
+                patch.object(Transcriber, '_transcribe_via_api', return_value=[]) as api:
+            Transcriber().transcribe('/tmp/tail.wav', vad_filter=False)
+        assert api.call_args.kwargs['vad_filter'] is False
+
     def test_returns_none_on_missing_base_url(self):
         with patch('transcriber.safe_post') as mock_post:
             transcriber = Transcriber()
