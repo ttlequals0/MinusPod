@@ -20,8 +20,8 @@ release notes.
 
 ### Fixed
 
-- The Whisper health probe now runs only while the pool is pointed at the remote backend, so switching back to local stops it from polling a stale URL, and its result is cached for 120 seconds so the settings page's 15-second poll does not refire it every tick. Sampling takes up to 8 requests instead of being capped at 3, and needs three repeated replicas rather than two before it stops early; when every sample turned up a new instance, Settings > Transcription now reports "at least N instances" instead of implying N is the confirmed total.
-- A provider's rate-limit reset field that failed to parse (an empty string, a non-numeric value, or an explicit null) was blocking the fallback to a still-parseable reset nested in a proxied body (`error.metadata.raw`), silently reverting to the generic Retry-After header. The nested reset is now read whenever the outer field does not actually parse.
+- The Whisper health probe now runs only while the pool points at the remote backend, so switching back to local stops it polling a stale URL. Its result is cached for 120 seconds, so the settings page's 15-second poll no longer refires it. Sampling takes up to 8 requests instead of 3, and needs three repeated replicas rather than two before stopping early. When every sample turns up a new instance, Settings > Transcription now reports "at least N instances" rather than stating N as the total.
+- A provider's rate-limit reset field can arrive empty, non-numeric, or explicitly null. Such a field still counted as present, so the fallback to a parseable reset nested in a proxied body (`error.metadata.raw`) never ran. The hold fell back to the generic Retry-After header. The nested reset is now read whenever the outer field does not parse.
 
 ## [2.96.3] - 2026-09-07
 
