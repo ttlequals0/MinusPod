@@ -101,3 +101,19 @@ def test_opml_excludes_the_recents_feed(client):
     podcasts = database.Database().get_all_podcasts()
     xml = build_opml_xml(podcasts, 'modified', 'https://mp.example.com', None)
     assert '/recents' not in xml
+
+
+def test_episode_list_for_recents_carries_the_source_slug(client):
+    db = database.Database()
+    db.create_podcast('alpha', 'https://example.com/alpha.xml', 'Alpha')
+    _create_ok(client)
+    conn = db.get_connection()
+    conn.execute("UPDATE podcasts SET created_at = '2026-09-01T00:00:00Z' WHERE slug = ?", (RECENTS_SLUG,))
+    conn.commit()
+    db.upsert_episode('alpha', 'aaaaaaaaaaa1', original_url='u', title='t', status='processed',
+                      published_at='2026-09-10T00:00:00Z', processed_file='/a.mp3')
+    body = client.get(f'/api/v1/feeds/{RECENTS_SLUG}/episodes?limit=10').get_json()
+    assert body['total'] == 1
+    assert body['episodes'][0]['feedSlug'] == 'alpha'
+    assert body['episodes'][0]['feedTitle'] == 'Alpha'
+    assert body['episodes'][0]['id'] == 'aaaaaaaaaaa1'
