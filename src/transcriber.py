@@ -9,11 +9,13 @@ import tempfile
 import os
 import re
 import subprocess
+import time
 import wave
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import run_context
 from run_log import run_in_worker_thread
 from user_agent import download_user_agent
 from utils.audio import get_audio_duration
@@ -32,6 +34,7 @@ from utils.safe_http import (
     ResponseTooLargeError,
 )
 from utils.subprocess_registry import tracked_run
+from whisper_pool import get_pool
 from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
@@ -476,6 +479,15 @@ def _api_timeout(whisper_settings: dict) -> float:
     return _clamp_api_timeout(whisper_settings.get('api_timeout'))
 
 
+def _retry_after_seconds(response, default: float) -> float:
+    """Parse a 429 Retry-After header (seconds), clamped to 0..300."""
+    try:
+        value = float((response.headers or {}).get('Retry-After', ''))
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, min(value, 300.0))
+
+
 def _connection_test_timeout(whisper_settings: dict = None) -> float:
     """How long the Settings test-connection probe waits.
 
@@ -699,6 +711,12 @@ def _get_chunk_settings() -> dict[str, int]:
         max(1, defaults['max_chunk_seconds'] - 1),
     )
     return defaults
+
+
+def _log_prefix() -> str:
+    """"[slug:episode_id] " for the calling run, else empty."""
+    ctx = run_context.current()
+    return f"[{ctx.key}] " if ctx else ''
 
 
 # Canonical lookup: keys are what we accept, values are the literal constants
@@ -1135,6 +1153,9 @@ class Transcriber:
             response = None
             last_request_exc = None
             max_attempts = 2
+            # Bounds total time spent waiting out 429s across all attempts;
+            # a 429 retry does not consume an attempt slot (see below).
+            waited = 0.0
             granularity_modes = (
                 ['segment', 'word'],
                 ['segment'],
@@ -1144,18 +1165,20 @@ class Transcriber:
                     **form_data_base,
                     'timestamp_granularities[]': granularities,
                 }
-                for attempt in range(max_attempts):
+                attempt = 0
+                while attempt < max_attempts:
                     try:
                         with open(transcribe_path, 'rb') as audio_file:
-                            response = safe_post(
-                                url,
-                                trust=URLTrust.OPERATOR_CONFIGURED,
-                                timeout=_api_timeout(whisper_settings),
-                                max_redirects=HTTP_MAX_REDIRECTS_API,
-                                files={'file': (os.path.basename(transcribe_path), audio_file)},
-                                data=form_data,
-                                headers=headers,
-                            )
+                            with get_pool().slot():
+                                response = safe_post(
+                                    url,
+                                    trust=URLTrust.OPERATOR_CONFIGURED,
+                                    timeout=_api_timeout(whisper_settings),
+                                    max_redirects=HTTP_MAX_REDIRECTS_API,
+                                    files={'file': (os.path.basename(transcribe_path), audio_file)},
+                                    data=form_data,
+                                    headers=headers,
+                                )
                     except SSRFError as exc:
                         logger.warning(f"Whisper API URL blocked: {exc}")
                         return None
@@ -1166,6 +1189,18 @@ class Transcriber:
                         )
                         last_request_exc = exc
                         response = None
+                        attempt += 1
+                        continue
+                    if response.status_code == 429 and get_pool().active:
+                        retry_after = _retry_after_seconds(response, default=5.0)
+                        waited += retry_after
+                        if waited >= _api_timeout(whisper_settings):
+                            return None
+                        logger.warning(
+                            "%sWhisper API busy (429); waiting %.0fs before retrying",
+                            _log_prefix(), retry_after)
+                        time.sleep(retry_after)
+                        response = None
                         continue
                     if response.status_code < 500:
                         break
@@ -1173,6 +1208,7 @@ class Transcriber:
                         "Whisper API attempt %d/%d returned %d",
                         attempt + 1, max_attempts, response.status_code,
                     )
+                    attempt += 1
 
                 if response is None:
                     # Every attempt raised at the transport layer -- the
@@ -1888,7 +1924,8 @@ class Transcriber:
         chunk_settings = _get_chunk_settings()
         chunk_duration = chunk_settings['max_chunk_seconds']
         overlap = chunk_settings['chunk_overlap_seconds']
-        max_workers = chunk_settings['concurrent_chunks']
+        max_workers = get_pool().chunk_workers(chunk_settings['concurrent_chunks'])
+        prefix = _log_prefix()
 
         # Single-shot if entire audio fits in one chunk
         if duration <= chunk_duration:
@@ -1942,12 +1979,12 @@ class Transcriber:
                     preprocess=True, flac=extract_as_flac,
                 )
             except AudioExtractionTimeout as e:
-                logger.error(f"Chunk {chunk_idx + 1}: {e}")
+                logger.error(f"{prefix}Chunk {chunk_idx + 1}: {e}")
                 extraction_failures.append(chunk_idx)
                 extraction_timeouts.append(chunk_idx)
                 return chunk_idx, None
             if not chunk_path:
-                logger.error(f"Chunk {chunk_idx + 1}: ffmpeg extract failed")
+                logger.error(f"{prefix}Chunk {chunk_idx + 1}: ffmpeg extract failed")
                 extraction_failures.append(chunk_idx)
                 return chunk_idx, None
             try:
@@ -1970,11 +2007,11 @@ class Transcriber:
             except ServiceUnavailableError as e:
                 # list.append is thread-safe; recorded so an endpoint-down
                 # abort can defer the episode (#482) instead of failing it.
-                logger.error(f"Chunk {chunk_idx + 1} failed: {e}")
+                logger.error(f"{prefix}Chunk {chunk_idx + 1} failed: {e}")
                 connectivity_errors.append(e)
                 return chunk_idx, None
             except Exception as e:
-                logger.error(f"Chunk {chunk_idx + 1} failed: {e}")
+                logger.error(f"{prefix}Chunk {chunk_idx + 1} failed: {e}")
                 return chunk_idx, None
             finally:
                 _unlink_quiet(chunk_path)
@@ -1996,7 +2033,7 @@ class Transcriber:
                 if segs is None:
                     failed += 1
                 logger.info(
-                    f"Chunk {chunk_idx + 1} complete "
+                    f"{prefix}Chunk {chunk_idx + 1} complete "
                     f"({completed}/{num_chunks}): "
                     f"{len(segs) if segs else 0} segments"
                 )
@@ -2006,7 +2043,7 @@ class Transcriber:
                 # Returning here still runs the finally below (pool shutdown).
                 if failed > max_failed_chunks:
                     logger.error(
-                        f"Too many failed chunks ({failed} > {max_failed_chunks}); "
+                        f"{prefix}Too many failed chunks ({failed} > {max_failed_chunks}); "
                         f"aborting transcription early"
                     )
                     # Classify the abort as an outage only when connectivity
@@ -2112,10 +2149,11 @@ class Transcriber:
         # WhisperModelSingleton constraints, so chunks can run concurrently.
         whisper_settings = _get_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
-            return self._transcribe_chunked_parallel_api(
-                audio_path, duration, whisper_settings,
-                language_override=language_override,
-            )
+            with get_pool().transcribing():
+                return self._transcribe_chunked_parallel_api(
+                    audio_path, duration, whisper_settings,
+                    language_override=language_override,
+                )
 
         # Get current model and device for memory calculation
         model_name = WhisperModelSingleton.get_configured_model()
