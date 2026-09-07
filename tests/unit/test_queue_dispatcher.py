@@ -1,7 +1,7 @@
 """Dispatcher keeps up to max_episodes runs in flight; API workers enqueue while the pool is active."""
 import threading
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -37,18 +37,22 @@ def _queue(n):
 
 
 def test_dispatcher_runs_up_to_max_episodes(feed, monkeypatch):
+    """A started run's poll/verdict work happens on its own thread
+    (_wait_for_claimed_episode), so that is what concurrency is bounded on."""
     _queue(3)
     monkeypatch.setattr(background, 'get_pool', lambda: _pool(True, 2))
+    monkeypatch.setattr('main_app.processing.start_background_processing',
+                        lambda *a, **k: (True, 'started'))
     running = {'n': 0, 'peak': 0}
     lock = threading.Lock()
-    def fake_run(queued):
+    def fake_wait(queue_id, slug, episode_id):
         with lock:
             running['n'] += 1; running['peak'] = max(running['peak'], running['n'])
         time.sleep(0.2)
         with lock:
             running['n'] -= 1
-        db.close_claimed_queue_row(queued['id'], 'completed')
-    monkeypatch.setattr(background, '_run_claimed_episode', fake_run)
+        db.close_claimed_queue_row(queue_id, 'completed')
+    monkeypatch.setattr(background, '_wait_for_claimed_episode', fake_wait)
     monkeypatch.setattr(background, 'IDLE_WAIT_SECONDS', 0.05)
     stop = threading.Event()
     monkeypatch.setattr(background, 'shutdown_event', stop)
@@ -63,16 +67,18 @@ def test_dispatcher_runs_up_to_max_episodes(feed, monkeypatch):
 def test_dispatcher_runs_one_at_a_time_when_inactive(feed, monkeypatch):
     _queue(3)
     monkeypatch.setattr(background, 'get_pool', lambda: _pool(False, 4))
+    monkeypatch.setattr('main_app.processing.start_background_processing',
+                        lambda *a, **k: (True, 'started'))
     running = {'n': 0, 'peak': 0}
     lock = threading.Lock()
-    def fake_run(queued):
+    def fake_wait(queue_id, slug, episode_id):
         with lock:
             running['n'] += 1; running['peak'] = max(running['peak'], running['n'])
         time.sleep(0.1)
         with lock:
             running['n'] -= 1
-        db.close_claimed_queue_row(queued['id'], 'completed')
-    monkeypatch.setattr(background, '_run_claimed_episode', fake_run)
+        db.close_claimed_queue_row(queue_id, 'completed')
+    monkeypatch.setattr(background, '_wait_for_claimed_episode', fake_wait)
     monkeypatch.setattr(background, 'IDLE_WAIT_SECONDS', 0.05)
     stop = threading.Event()
     monkeypatch.setattr(background, 'shutdown_event', stop)
@@ -82,6 +88,64 @@ def test_dispatcher_runs_one_at_a_time_when_inactive(feed, monkeypatch):
         time.sleep(0.05)
     stop.set(); t.join(5)
     assert running['peak'] == 1
+
+
+def test_dispatcher_picks_up_a_larger_pool_between_passes(feed, monkeypatch):
+    """pool.refresh() is called every pass, so a raised max_episodes takes
+    effect on the next pass instead of needing a process restart."""
+    _queue(5)
+    state = {'enabled': True, 'backend': 'openai-api', 'max_requests': 4, 'max_episodes': 1}
+    monkeypatch.setattr(background, 'get_pool', lambda: WhisperPool(lambda: dict(state)))
+    monkeypatch.setattr('main_app.processing.start_background_processing',
+                        lambda *a, **k: (True, 'started'))
+    running = {'n': 0, 'peak': 0}
+    lock = threading.Lock()
+    calls = {'n': 0}
+    def fake_wait(queue_id, slug, episode_id):
+        with lock:
+            calls['n'] += 1
+            if calls['n'] == 3:
+                state['max_episodes'] = 2
+            running['n'] += 1; running['peak'] = max(running['peak'], running['n'])
+        time.sleep(0.2)
+        with lock:
+            running['n'] -= 1
+        db.close_claimed_queue_row(queue_id, 'completed')
+    monkeypatch.setattr(background, '_wait_for_claimed_episode', fake_wait)
+    monkeypatch.setattr(background, 'IDLE_WAIT_SECONDS', 0.05)
+    stop = threading.Event()
+    monkeypatch.setattr(background, 'shutdown_event', stop)
+    t = threading.Thread(target=background.background_queue_processor); t.start()
+    deadline = time.time() + 5
+    while time.time() < deadline and db.count_pending_queued_episodes():
+        time.sleep(0.05)
+    stop.set(); t.join(5)
+    assert running['peak'] == 2
+
+
+def test_bounced_claim_backs_off_instead_of_spinning(feed):
+    """A claim that bounces (queue busy) must not be reclaimed at full speed:
+    the dispatcher should wait 30s, then 60s, growing before retrying."""
+    _queue(1)
+    waits = []
+    calls = {'n': 0}
+
+    def fake_wait(timeout=None):
+        waits.append(timeout)
+        calls['n'] += 1
+        return calls['n'] >= 3
+
+    stop = MagicMock()
+    stop.is_set.side_effect = lambda: calls['n'] >= 3
+    stop.wait.side_effect = fake_wait
+
+    with patch.object(background, 'shutdown_event', stop), \
+         patch.object(background, 'get_pool', lambda: _pool(False, 1)), \
+         patch('main_app.processing.start_background_processing',
+               return_value=(False, 'queue_busy:other:ep')):
+        background.background_queue_processor()
+
+    assert waits[:2] == [30, 60]
 
 
 def test_start_outside_leader_enqueues_only_while_active(feed, monkeypatch):

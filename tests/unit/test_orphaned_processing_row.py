@@ -34,7 +34,8 @@ def test_periodic_block_resets_stuck_processing_rows():
          patch.object(background, 'shutdown_event') as ev, \
          patch.object(background, 'reset_stuck_processing_episodes') as reset, \
          patch('offline_queue.offline_queue_tick'):
-        # The periodic block runs every 10 iterations; give it 12.
+        # The periodic block now runs on the first pass (then every 5
+        # minutes of wall-clock time); 12 passes is well within that.
         ev.is_set.side_effect = lambda: ticks['n'] >= 12
         ev.wait.side_effect = fake_wait
         background.background_queue_processor()
