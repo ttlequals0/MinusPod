@@ -14,7 +14,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { selectBase } from '../components/fieldStyles';
 
-type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
+type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
 interface SortThProps {
   field: PodcastSortField;
@@ -273,6 +273,9 @@ export default function StatsPage() {
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Episodes</p>
             <p className="text-xl font-bold text-foreground">{dashboard.totalEpisodesProcessed}</p>
+            {dashboard.totalRuns !== dashboard.totalEpisodesProcessed && (
+              <p className="text-xs text-muted-foreground mt-1">{dashboard.totalRuns} processing runs</p>
+            )}
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Ads Removed</p>
@@ -473,6 +476,8 @@ export default function StatsPage() {
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <span className="text-muted-foreground">Episodes</span>
                 <span className="text-foreground text-right">{p.episodeCount}</span>
+                <span className="text-muted-foreground">Runs</span>
+                <span className="text-foreground text-right">{p.runCount}</span>
                 <span className="text-muted-foreground">Total Ads</span>
                 <span className="text-foreground text-right">{p.totalAds}</span>
                 <span className="text-muted-foreground">Avg Ads</span>
@@ -501,6 +506,7 @@ export default function StatsPage() {
                 <tr>
                   <SortTh field="podcastTitle" label="Podcast" align="left" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="episodeCount" label="Episodes" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="runCount" label="Runs" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="totalAds" label="Total Ads" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="avgAds" label="Avg Ads" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="avgTimeSavedSeconds" label="Avg Time Saved" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
@@ -514,6 +520,7 @@ export default function StatsPage() {
                   <tr key={p.podcastSlug} className="hover:bg-muted/50">
                     <td className="px-4 py-3 text-sm text-foreground font-medium truncate max-w-[200px]">{p.podcastTitle}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.episodeCount}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{p.runCount}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.totalAds}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.avgAds}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatDuration(p.avgTimeSavedSeconds)}</td>

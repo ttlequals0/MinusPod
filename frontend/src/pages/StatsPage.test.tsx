@@ -10,6 +10,8 @@ import type { AddressingStats, DashboardStats, Feed, ReviewerStats } from '../ap
 const { DASHBOARD, REVIEWER_STATS, FEED, mockGetAddressingStats } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
+    totalRuns: 0,
+    episodesWithTimeSaved: 0,
     avgTimeSavedSeconds: 0,
     minTimeSavedSeconds: 0,
     maxTimeSavedSeconds: 0,

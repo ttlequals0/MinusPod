@@ -1037,6 +1037,9 @@ export interface ProcessingHistoryStats {
 
 export interface DashboardStats {
   totalEpisodesProcessed: number;
+  // Completed processing runs, including reprocesses of the same episode (#727).
+  totalRuns: number;
+  episodesWithTimeSaved: number;
   avgTimeSavedSeconds: number;
   minTimeSavedSeconds: number;
   maxTimeSavedSeconds: number;
@@ -1077,6 +1080,8 @@ export interface PodcastStats {
   podcastSlug: string;
   podcastTitle: string;
   episodeCount: number;
+  // Completed processing runs, including reprocesses of the same episode (#727).
+  runCount: number;
   totalAds: number;
   avgAds: number;
   avgEpisodeLengthSeconds: number;
