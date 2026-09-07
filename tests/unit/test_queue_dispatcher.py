@@ -95,7 +95,8 @@ def test_dispatcher_picks_up_a_larger_pool_between_passes(feed, monkeypatch):
     effect on the next pass instead of needing a process restart."""
     _queue(5)
     state = {'enabled': True, 'backend': 'openai-api', 'max_requests': 4, 'max_episodes': 1}
-    monkeypatch.setattr(background, 'get_pool', lambda: WhisperPool(lambda: dict(state)))
+    pool = WhisperPool(lambda: dict(state))
+    monkeypatch.setattr(background, 'get_pool', lambda: pool)
     monkeypatch.setattr('main_app.processing.start_background_processing',
                         lambda *a, **k: (True, 'started'))
     running = {'n': 0, 'peak': 0}

@@ -1905,11 +1905,8 @@ def delete_feed(slug):
         for current_slug, current_episode_id in queue.get_current():
             if current_slug != slug:
                 continue
-            # Signal the running thread to abort. If it was signalled it owns
-            # the fcntl lock and clears the shared state itself on exit; only
-            # force-release as a fallback when no local thread was found, to
-            # avoid zeroing the state file while a live worker still holds the
-            # lock (which would report false-idle). Mirrors cancel_episode_processing.
+            # Signal the running thread to abort; the running slot is released by the
+            # worker itself on exit. Force-release only as a fallback. Mirrors cancel_episode_processing.
             signalled = cancel_processing(slug, current_episode_id)
             if not signalled:
                 queue.release_if_processing(slug, current_episode_id)

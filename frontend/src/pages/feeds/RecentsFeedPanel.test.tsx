@@ -32,6 +32,6 @@ describe('RecentsFeedPanel', () => {
     renderPanel();
     const header = screen.getByRole('button', { name: /Recents feed/ });
     expect(header.getAttribute('aria-expanded')).toBe('false');
-    expect(screen.queryByLabelText('Title')).toBeNull();
+    expect(screen.queryByLabelText('Feed title')).toBeNull();
   });
 });

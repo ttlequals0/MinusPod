@@ -114,7 +114,7 @@ class TestCompletionLogLineIncludesVerification:
     def test_log_includes_verification_count(self, caplog):
         db = MagicMock()
         # Mock get_episode_token_totals so we don't read/reset the
-        # module-level _episode_accumulator that other tests share.
+        # calling thread's run-context token accumulator.
         token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
         with caplog.at_level(logging.INFO, logger='podcast.audio'), \
                 patch('main_app.processing.get_episode_token_totals',

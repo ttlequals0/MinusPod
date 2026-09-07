@@ -145,10 +145,7 @@ def background_rss_refresh():
 def _run_claimed_episode(queued: dict, running: set) -> bool:
     """Handle one claim's gates and start inline; the run itself polls on its own thread.
 
-    Returns False on a bounce (still busy elsewhere, rate-limited) so the
-    dispatcher backs off before reclaiming the same row; True when the row
-    was consumed (a gate skipped it, or a run started and its waiter thread
-    was added to `running`).
+    Returns False on a bounce (dispatcher backs off before reclaiming); True once the row is consumed.
     """
     try:
         queue_id = queued['id']

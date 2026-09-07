@@ -683,7 +683,7 @@ def _release_import_lock(fh) -> None:
 
 def _lock_is_held(storage, slug: str) -> bool:
     """Non-blocking probe: is ANY process currently holding this feed's
-    import lock? Mirrors ProcessingQueue._clear_stale_state's orphan probe
+    import lock? Mirrors the slot registry's pid probe (ProcessingQueue._pid_alive)
     -- opening a separate file description to try-acquire the same lock
     file does not disturb a real holder's lock (flock locks are scoped to
     the open file description that set them, not the process or fd

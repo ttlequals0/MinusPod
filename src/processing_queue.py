@@ -98,6 +98,8 @@ class ProcessingQueue:
 
     @staticmethod
     def _pid_alive(pid: int) -> bool:
+        # A pid reused by an unrelated process reads as alive, so a truly dead
+        # slot with a recycled pid is only cleared once it hits the hard timeout.
         try:
             os.kill(pid, 0)
         except ProcessLookupError:
