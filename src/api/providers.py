@@ -456,8 +456,9 @@ def test_provider_connection(provider):
             base, api_key=api_key, model=model,
             skip_flac_compression=skip_flac)
         if result.get('ok'):
-            # refresh=True: this test checks the backend now, and its fresh
-            # result replaces whatever the cache held.
+            # refresh=True: re-probe rather than report a cached result. If a
+            # probe for this backend is already running, that one's result is
+            # reused instead.
             health = transcriber.probe_whisper_health(
                 base_url=base, api_key=api_key, refresh=True)
             result['health'] = health

@@ -287,11 +287,42 @@ class TestConcurrentProbes:
         transcriber._health_last_good.pop(BASE, None)
         transcriber._health_inflight.add(BASE)
         try:
-            with patch('transcriber.safe_get', side_effect=AssertionError('must not probe')):
+            with patch('transcriber.safe_get',
+                       side_effect=AssertionError('must not probe')) as sg:
                 result = probe_whisper_health(base_url=BASE, samples=1)
         finally:
             transcriber._health_inflight.discard(BASE)
+        # Without the count the probe's own except Exception would swallow the
+        # side effect and this would pass with the guard ignored entirely.
+        assert sg.call_count == 0
         assert result == {'available': False}
+
+    def test_a_stale_last_good_is_not_served_as_current(self):
+        # A long-dead backend shown as healthy is worse than showing nothing.
+        with patch('transcriber.safe_get', return_value=_health('whisper-1')):
+            probe_whisper_health(base_url=BASE, samples=1)
+        transcriber._health_cache.clear()
+        stamped_at, result = transcriber._health_last_good[BASE]
+        age = transcriber._HEALTH_LAST_GOOD_MAX_AGE_SECONDS + 1
+        transcriber._health_last_good[BASE] = (stamped_at - age, result)
+        transcriber._health_inflight.add(BASE)
+        try:
+            with patch('transcriber.safe_get', side_effect=AssertionError('must not probe')):
+                assert probe_whisper_health(base_url=BASE, samples=1) == {'available': False}
+        finally:
+            transcriber._health_inflight.discard(BASE)
+
+    def test_eviction_keeps_the_most_recent_entries(self):
+        for i in range(transcriber._HEALTH_LAST_GOOD_MAX):
+            with patch('transcriber.safe_get', return_value=_health(f'w-{i}')):
+                probe_whisper_health(base_url=f'http://h{i}:8001/v1', samples=1, refresh=True)
+        oldest = 'http://h0:8001/v1'
+        newest = f'http://h{transcriber._HEALTH_LAST_GOOD_MAX - 1}:8001/v1'
+        with patch('transcriber.safe_get', return_value=_health('w-new')):
+            probe_whisper_health(base_url='http://h-new:8001/v1', samples=1, refresh=True)
+        assert oldest not in transcriber._health_last_good
+        assert newest in transcriber._health_last_good
+        assert 'http://h-new:8001/v1' in transcriber._health_last_good
 
     def test_the_in_flight_marker_is_cleared_when_a_probe_raises(self):
         with patch('transcriber._probe_whisper_health', side_effect=RuntimeError('boom')):

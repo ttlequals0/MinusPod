@@ -8925,6 +8925,9 @@ components:
         Result of sampling a self-hosted Whisper backend's optional /health
         endpoint. Behind a load balancer, repeated calls round-robin across
         replicas, so sampling reveals the replica count and total concurrency.
+        Not necessarily live: a result is cached for 120 seconds, and a request
+        arriving while a probe for that backend is already running is answered
+        from the last successful probe, which may be up to 6 minutes old.
       properties:
         available:
           type: boolean

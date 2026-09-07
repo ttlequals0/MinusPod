@@ -538,9 +538,31 @@ _HEALTH_PROBE_BUDGET_SECONDS = 15.0
 _health_inflight: set[str] = set()
 _health_inflight_lock = threading.Lock()
 # Last successful probe per base URL, kept past the cache TTL only to answer
-# a caller that arrives while that URL's probe is still running.
-_health_last_good: dict[str, dict] = {}
+# a caller that arrives while that URL's probe is still running. Stamped and
+# age-capped: showing a long-dead backend as healthy is worse than showing
+# nothing.
+_health_last_good: dict[str, tuple[float, dict]] = {}
 _HEALTH_LAST_GOOD_MAX = 32
+_HEALTH_LAST_GOOD_MAX_AGE_SECONDS = 3 * _HEALTH_CACHE_TTL_SECONDS
+
+
+def _last_good_health(cache_key: str) -> dict | None:
+    """Last successful probe for a backend, if recent enough to still show."""
+    entry = _health_last_good.get(cache_key)
+    if entry is None:
+        return None
+    stamped_at, result = entry
+    if time.monotonic() - stamped_at > _HEALTH_LAST_GOOD_MAX_AGE_SECONDS:
+        return None
+    return result
+
+
+def _remember_health(cache_key: str, result: dict) -> None:
+    """Record a successful probe, evicting the oldest entry when full."""
+    entries = list(_health_last_good.items())
+    if len(entries) >= _HEALTH_LAST_GOOD_MAX and cache_key not in _health_last_good:
+        _health_last_good.pop(min(entries, key=lambda kv: kv[1][0])[0], None)
+    _health_last_good[cache_key] = (time.monotonic(), result)
 
 
 def _coerce_hashable(value):
@@ -605,7 +627,7 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
         # A non-refresh caller only gets here after its own cache read missed,
         # so fall back to the last good probe rather than blanking the panel
         # for as long as the running probe takes.
-        return (_health_cache.get(cache_key) or _health_last_good.get(cache_key)
+        return (_health_cache.get(cache_key) or _last_good_health(cache_key)
                 or {'available': False})
     try:
         return _probe_whisper_health(cache_key, samples, timeout, api_key, refresh, budget)
@@ -616,7 +638,7 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
 
 def _probe_whisper_health(cache_key: str, samples: int, timeout: float,
                           api_key: str | None, refresh: bool, budget: float) -> dict:
-    """probe_whisper_health's body, run under the single-flight lock."""
+    """probe_whisper_health's body, run with this backend marked in flight."""
     url = f"{cache_key}/health"
     headers = _bearer_headers(api_key)
     give_up_at = time.monotonic() + budget
@@ -678,9 +700,7 @@ def _probe_whisper_health(cache_key: str, samples: int, timeout: float,
         'sampled_floor': not converged,
     }
     _health_cache.set(cache_key, result)
-    if len(_health_last_good) >= _HEALTH_LAST_GOOD_MAX and cache_key not in _health_last_good:
-        _health_last_good.clear()
-    _health_last_good[cache_key] = result
+    _remember_health(cache_key, result)
     return result
 
 
