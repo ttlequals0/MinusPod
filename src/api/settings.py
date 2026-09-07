@@ -2430,7 +2430,6 @@ def get_whisper_capacity():
     Refreshes only this worker's pool; the leader's dispatcher refreshes its
     own pool every pass (5s settings TTL), so no cross-process signal needed.
     """
-    from main_app.background import is_background_leader  # lazy: avoid import cycle
     from transcriber import _get_chunk_settings
     pool = get_pool()
     pool.refresh(force=True)
@@ -2442,7 +2441,6 @@ def get_whisper_capacity():
         'chunkWorkers': {'configured': configured, 'effective': effective},
         'worstCaseInFlight': worst,
         'exceedsCapacity': bool(snap['active'] and worst > snap['capacity']),
-        'leader': is_background_leader(),
     })
     return json_response(snap)
 

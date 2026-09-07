@@ -2,6 +2,7 @@
 import threading
 import time
 
+import whisper_pool
 from whisper_pool import WhisperPool
 
 
@@ -122,8 +123,11 @@ def test_snapshot_shape():
     _, read = _settings(max_requests=4, max_episodes=2)
     pool = WhisperPool(read)
     snap = pool.snapshot()
+    # Leader is process-global state (set once at app startup, never reset in
+    # tests), so assert against the live value rather than a fixed expectation.
     assert snap == {
         'enabled': True, 'backend': 'openai-api', 'active': True, 'inactiveReason': None,
         'capacity': 4, 'inFlight': 0, 'transcribingEpisodes': 0,
         'maxEpisodes': {'configured': 2, 'effective': 2},
+        'leader': whisper_pool.is_background_leader(),
     }

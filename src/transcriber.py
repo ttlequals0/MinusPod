@@ -16,7 +16,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import run_context
-from run_log import run_in_worker_thread
+from run_context import run_in_worker_thread
 from user_agent import download_user_agent
 from utils.audio import get_audio_duration
 from utils.errors import (
@@ -33,6 +33,7 @@ from utils.safe_http import (
     URLTrust, safe_get, safe_post, stream_to_file_capped,
     ResponseTooLargeError,
 )
+from utils.rate_limit import parse_retry_after
 from utils.subprocess_registry import tracked_run
 from whisper_pool import get_pool
 from config import (
@@ -477,15 +478,6 @@ def _clamp_api_timeout(value) -> float:
 def _api_timeout(whisper_settings: dict) -> float:
     """Per-request Whisper upload timeout from a resolved settings dict."""
     return _clamp_api_timeout(whisper_settings.get('api_timeout'))
-
-
-def _retry_after_seconds(response, default: float) -> float:
-    """Parse a 429 Retry-After header (seconds), clamped to 0..300."""
-    try:
-        value = float((response.headers or {}).get('Retry-After', ''))
-    except (TypeError, ValueError):
-        return default
-    return max(0.0, min(value, 300.0))
 
 
 def _connection_test_timeout(whisper_settings: dict = None) -> float:
@@ -1199,7 +1191,10 @@ class Transcriber:
                                 "retry deadline; giving up", _log_prefix())
                             return None
                         # Floor so a Retry-After: 0 (or absent) header still yields.
-                        retry_after = max(_retry_after_seconds(response, default=5.0), 0.5)
+                        parsed_retry_after = parse_retry_after(
+                            (response.headers or {}).get('Retry-After'), max_seconds=300.0)
+                        retry_after = max(
+                            parsed_retry_after if parsed_retry_after is not None else 5.0, 0.5)
                         logger.warning(
                             "%sWhisper API busy (429); waiting %.1fs before retrying",
                             _log_prefix(), retry_after)

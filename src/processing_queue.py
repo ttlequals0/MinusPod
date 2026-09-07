@@ -96,6 +96,17 @@ class ProcessingQueue:
                 finally:
                     fcntl.flock(fd, fcntl.LOCK_UN)
 
+    @contextlib.contextmanager
+    def _flock_shared(self):
+        """Shared-lock read of the state file; concurrent with other readers,
+        blocks only while a writer holds the exclusive lock."""
+        with open(self._lock_file_path, 'a') as fd:
+            fcntl.flock(fd, fcntl.LOCK_SH)
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+
     @staticmethod
     def _pid_alive(pid: int) -> bool:
         # A pid reused by an unrelated process reads as alive, so a truly dead
@@ -194,5 +205,15 @@ class ProcessingQueue:
         return len(self.get_current())
 
     def is_processing(self, slug: str, episode_id: str) -> bool:
-        """Check if specific episode is currently being processed."""
-        return (slug, episode_id) in self.get_current()
+        """Check if specific episode is currently being processed.
+
+        Cheap path: a shared-lock read of just this slot, no prune, no write,
+        so a hot liveness check does not contend with acquire/release for the
+        exclusive lock.
+        """
+        key = f"{slug}:{episode_id}"
+        with self._flock_shared():
+            slot = self._read_slots().get(key)
+        if slot is None:
+            return False
+        return self._pid_alive(int(slot.get('pid') or 0))

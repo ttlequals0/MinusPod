@@ -18,7 +18,7 @@ from .transition_detector import TransitionDetector
 from .cue_template_matcher import AudioCueTemplateMatcher
 from .silence_detector import SilenceDetector
 from .splice_detector import SpliceDetector
-from run_log import run_in_worker_thread
+from run_context import run_in_worker_thread
 from config import (
     AUDIO_CUE_FORMANT_ATTEN_DB,
     resolve_cue_template_score,

@@ -7,25 +7,41 @@ method is a pass-through so callers need no branch of their own.
 import contextlib
 import logging
 import threading
-import time
 
 from config import WHISPER_BACKEND_API, coerce_bool_setting
+from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger('podcast.whisper_pool')
 
 _SETTINGS_TTL_SECONDS = 5.0
+_SETTINGS_CACHE_KEY = 'settings'
+
+# Set once this process wins the background-leader lock at startup (see
+# _try_become_background_leader in main_app/__init__.py). Gates episode runs
+# while the whisper pool is active so per-run state stays in one process.
+_is_leader = False
+
+
+def mark_background_leader() -> None:
+    global _is_leader
+    _is_leader = True
+
+
+def is_background_leader() -> bool:
+    return _is_leader
 
 
 def _db_settings_reader():
     """Default reader: DB with a short TTL so worker threads do not hit
     SQLite on every chunk."""
-    cache = {'at': 0.0, 'value': None}
+    cache = TTLCache(ttl_seconds=_SETTINGS_TTL_SECONDS)
     lock = threading.Lock()
 
     def read():
         with lock:
-            if cache['value'] is not None and time.time() - cache['at'] < _SETTINGS_TTL_SECONDS:
-                return dict(cache['value'])
+            cached = cache.get(_SETTINGS_CACHE_KEY)
+        if cached is not None:
+            return dict(cached)
         try:
             from database import Database
             db = Database()
@@ -39,13 +55,12 @@ def _db_settings_reader():
             logger.warning(f"Could not read whisper pool settings: {e}")
             value = {'enabled': False, 'backend': 'local', 'max_requests': 4, 'max_episodes': 1}
         with lock:
-            cache['value'] = value
-            cache['at'] = time.time()
+            cache.set(_SETTINGS_CACHE_KEY, value)
         return dict(value)
 
     def invalidate():
         with lock:
-            cache['at'] = 0.0
+            cache.delete(_SETTINGS_CACHE_KEY)
 
     read.invalidate = invalidate
     return read
@@ -153,6 +168,7 @@ class WhisperPool:
                     'configured': settings.get('max_episodes', 1),
                     'effective': self.max_episodes,
                 },
+                'leader': is_background_leader(),
             }
 
 

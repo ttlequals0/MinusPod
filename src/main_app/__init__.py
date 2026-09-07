@@ -663,8 +663,9 @@ from main_app.feeds import refresh_rss_feed, refresh_all_feeds, invalidate_feed_
 from main_app.processing import start_background_processing
 from main_app.background import (
     background_rss_refresh, background_queue_processor,
-    mark_background_leader, reset_stuck_processing_episodes,
+    reset_stuck_processing_episodes,
 )
+from whisper_pool import mark_background_leader
 from podping_listener import podping_listener_loop
 from status_service import reconcile_startup_state
 

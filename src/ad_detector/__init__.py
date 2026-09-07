@@ -23,7 +23,7 @@ from llm_client import (
     get_effective_provider, model_matches_provider,
     StructuralRateLimitError, ProviderRateLimitedError,
 )
-from run_log import run_in_worker_thread
+from run_context import run_in_worker_thread
 from sponsor_normalize import segment_category_for
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for

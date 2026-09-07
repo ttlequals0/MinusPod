@@ -1028,37 +1028,24 @@ def regenerate_chapters(slug, episode_id):
             segment_markers = None
     marker_cuts = storage.get_applied_cuts(slug, episode_id)
 
-    ctx = None
+    ctx = run_context.begin(slug, episode_id)
     try:
-        try:
-            ctx = run_context.begin(slug, episode_id)
-            start_episode_token_tracking()
-            chapters_gen = ChaptersGenerator()
+        start_episode_token_tracking()
+        chapters_gen = ChaptersGenerator()
 
-            # VTT segments are already ad-adjusted; omit ads_removed so
-            # generate_chapters doesn't double-adjust. marker_cuts still maps
-            # segment_markers onto the processed timeline for topic hints.
-            chapters = chapters_gen.generate_chapters(
-                segments,
-                episode_description=episode_description,
-                podcast_name=podcast_name,
-                episode_title=episode_title,
-                episode_id=episode_id,
-                replacement_duration=get_replacement_duration(),
-                segment_markers=segment_markers,
-                marker_cuts=marker_cuts,
-            )
-        finally:
-            if ctx is not None:
-                token_totals = get_episode_token_totals()
-                run_context.end(ctx)
-                if token_totals['input_tokens'] > 0:
-                    db.increment_episode_token_usage(
-                        episode_id,
-                        token_totals['input_tokens'],
-                        token_totals['output_tokens'],
-                        token_totals['cost'],
-                    )
+        # VTT segments are already ad-adjusted; omit ads_removed so
+        # generate_chapters doesn't double-adjust. marker_cuts still maps
+        # segment_markers onto the processed timeline for topic hints.
+        chapters = chapters_gen.generate_chapters(
+            segments,
+            episode_description=episode_description,
+            podcast_name=podcast_name,
+            episode_title=episode_title,
+            episode_id=episode_id,
+            replacement_duration=get_replacement_duration(),
+            segment_markers=segment_markers,
+            marker_cuts=marker_cuts,
+        )
 
         if chapters and chapters.get('chapters'):
             storage.save_chapters_json(slug, episode_id, chapters)
@@ -1091,6 +1078,16 @@ def regenerate_chapters(slug, episode_id):
     except Exception:
         logger.exception(f"Failed to regenerate chapters for {slug}:{episode_id}")
         return error_response('Failed to regenerate chapters', 500)
+    finally:
+        token_totals = get_episode_token_totals()
+        run_context.end(ctx)
+        if token_totals['input_tokens'] > 0:
+            db.increment_episode_token_usage(
+                episode_id,
+                token_totals['input_tokens'],
+                token_totals['output_tokens'],
+                token_totals['cost'],
+            )
 
 
 def parse_vtt_to_segments(vtt_content: str) -> list:
@@ -1389,7 +1386,7 @@ def retry_ad_detection(slug, episode_id):
     if not transcript:
         return error_response('No transcript available - full reprocess required', 400)
 
-    ctx = None
+    ctx = run_context.begin(slug, episode_id)
     try:
         # Parse transcript back into segments
         segments = parse_transcript_segments(transcript)
@@ -1399,38 +1396,25 @@ def retry_ad_detection(slug, episode_id):
 
         podcast_name = podcast.get('title', slug)
 
-        try:
-            # Retry ad detection with token tracking
-            ctx = run_context.begin(slug, episode_id)
-            start_episode_token_tracking()
+        # Retry ad detection with token tracking
+        start_episode_token_tracking()
 
-            from ad_detector import AdDetector
-            ad_detector = AdDetector()
-            # Load podcast tags for community-pattern eligibility.
-            try:
-                _tags_json = podcast.get('tags') if podcast else None
-                podcast_tags = set(json.loads(_tags_json)) if _tags_json else None
-            except Exception:
-                podcast_tags = None
-            # No positional_prior_hint here (issue #360): the stored transcript
-            # is post-cut for processed episodes, so original-timeline hint
-            # times would misdirect the model -- same reason pass 2 skips it.
-            ad_result = ad_detector.process_transcript(
-                segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id,
-                podcast_id=slug,  # Pass slug as podcast_id for pattern matching
-                podcast_tags=podcast_tags,
-            )
-        finally:
-            if ctx is not None:
-                token_totals = get_episode_token_totals()
-                run_context.end(ctx)
-                if token_totals['input_tokens'] > 0:
-                    db.increment_episode_token_usage(
-                        episode_id,
-                        token_totals['input_tokens'],
-                        token_totals['output_tokens'],
-                        token_totals['cost'],
-                    )
+        from ad_detector import AdDetector
+        ad_detector = AdDetector()
+        # Load podcast tags for community-pattern eligibility.
+        try:
+            _tags_json = podcast.get('tags') if podcast else None
+            podcast_tags = set(json.loads(_tags_json)) if _tags_json else None
+        except Exception:
+            podcast_tags = None
+        # No positional_prior_hint here (issue #360): the stored transcript
+        # is post-cut for processed episodes, so original-timeline hint
+        # times would misdirect the model -- same reason pass 2 skips it.
+        ad_result = ad_detector.process_transcript(
+            segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id,
+            podcast_id=slug,  # Pass slug as podcast_id for pattern matching
+            podcast_tags=podcast_tags,
+        )
 
         ad_detection_status = ad_result.get('status', 'failed')
 
@@ -1459,6 +1443,16 @@ def retry_ad_detection(slug, episode_id):
     except Exception:
         logger.exception(f"Failed to retry ad detection for {slug}:{episode_id}")
         return error_response('Failed to retry ad detection', 500)
+    finally:
+        token_totals = get_episode_token_totals()
+        run_context.end(ctx)
+        if token_totals['input_tokens'] > 0:
+            db.increment_episode_token_usage(
+                episode_id,
+                token_totals['input_tokens'],
+                token_totals['output_tokens'],
+                token_totals['cost'],
+            )
 
 
 # ========== Processing Queue Endpoints ==========

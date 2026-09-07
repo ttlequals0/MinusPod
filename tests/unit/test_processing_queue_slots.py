@@ -76,6 +76,24 @@ def test_stale_slot_from_dead_process_is_cleared_alone(queue, monkeypatch):
     assert queue.get_current() == [('a', '1')]
 
 
+def test_is_processing_false_for_dead_pid_without_rewriting_state(queue, monkeypatch):
+    """is_processing takes the cheap read-only path: a dead-pid slot reads as
+    not processing, but the state file itself is left untouched (no prune)."""
+    dead_pid = os.getpid() + 1
+    monkeypatch.setattr(
+        'processing_queue.ProcessingQueue._pid_alive',
+        staticmethod(lambda pid: pid != dead_pid),
+    )
+    queue._seed_slot('a', '1', started_at=time.time() - 10, pid=dead_pid)
+    before = queue._state_file_path.read_bytes()
+    before_mtime = queue._state_file_path.stat().st_mtime_ns
+
+    assert queue.is_processing('a', '1') is False
+
+    assert queue._state_file_path.read_bytes() == before
+    assert queue._state_file_path.stat().st_mtime_ns == before_mtime
+
+
 def test_hard_timeout_force_clears_only_that_slot(queue, monkeypatch):
     monkeypatch.setattr('processing_queue.get_hard_timeout', lambda: 60)
     queue.acquire('a', '1', limit=2)

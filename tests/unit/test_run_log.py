@@ -6,7 +6,6 @@ import threading
 import pytest
 
 import run_context
-import run_log
 from run_log import RunLogRecorder, TRUNCATION_MARKER
 
 
@@ -136,7 +135,7 @@ class TestRunThreadCapture:
         def worker():
             src_logger.info('chunk 2 failed')
 
-        t = threading.Thread(target=run_log.run_in_worker_thread(worker))
+        t = threading.Thread(target=run_context.run_in_worker_thread(worker))
         t.start()
         t.join()
         rec.detach()
@@ -146,7 +145,7 @@ class TestRunThreadCapture:
 
     def test_the_helpers_are_a_no_op_without_a_recorder(self):
         # No run_context.begin(): the wrapped worker just runs, unbound.
-        t = threading.Thread(target=run_log.run_in_worker_thread(lambda: None))
+        t = threading.Thread(target=run_context.run_in_worker_thread(lambda: None))
         t.start()
         t.join()
 
@@ -158,7 +157,7 @@ class TestRunThreadCapture:
         def worker():
             idents.append(threading.get_ident())
 
-        t = threading.Thread(target=run_log.run_in_worker_thread(worker))
+        t = threading.Thread(target=run_context.run_in_worker_thread(worker))
         t.start()
         t.join()
         rec.detach()
@@ -477,7 +476,7 @@ class TestCurrentRecorder:
         ctx = run_context.begin('my-feed', 'ep123')
         rec.attach()
         seen = []
-        t = threading.Thread(target=run_log.run_in_worker_thread(
+        t = threading.Thread(target=run_context.run_in_worker_thread(
             lambda: seen.append(current_recorder())))
         t.start()
         t.join()

@@ -22,21 +22,8 @@ from recents_feed import rebuild_recents_feed
 refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
 
-# Set once this process wins the background-leader lock at startup (see
-# _try_become_background_leader in main_app/__init__.py). Gates episode runs
-# while the whisper pool is active so per-run state stays in one process.
-_is_leader = False
 IDLE_WAIT_SECONDS = 5.0
 MAINTENANCE_INTERVAL_SECONDS = 300.0
-
-
-def mark_background_leader() -> None:
-    global _is_leader
-    _is_leader = True
-
-
-def is_background_leader() -> bool:
-    return _is_leader
 
 
 def _run_tick(tick_fn, name):

@@ -42,7 +42,7 @@ from utils.time import (
     ranges_overlap, span_inside_any_cut, utc_now, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
-from whisper_pool import get_pool
+from whisper_pool import get_pool, is_background_leader
 from config import (
     log_download_query_enabled,
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
@@ -360,7 +360,6 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
 
     # Pool active: only the background leader runs episodes, so every
     # per-run state lives in one process. Callers enqueue on any refusal.
-    from main_app.background import is_background_leader
     if get_pool().active and not is_background_leader():
         return False, "queue_only"
 

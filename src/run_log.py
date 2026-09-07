@@ -48,9 +48,6 @@ def _clear_current_recorder(recorder):
         ctx.recorder = None
 
 
-run_in_worker_thread = run_context.run_in_worker_thread
-
-
 def run_log_temp_dir(data_dir):
     """Where in-flight run logs are written before they are finalized."""
     return Path(data_dir) / 'logs' / 'tmp'
