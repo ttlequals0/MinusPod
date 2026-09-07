@@ -100,6 +100,9 @@ SEED_SNAPSHOT = {
     'transcribe_concurrent_chunks': '4',
     'whisper_api_timeout_seconds': '600',
     'transcribe_max_chunk_seconds': '600',
+    'whisper_pool_enabled': 'false',
+    'whisper_pool_max_requests': '4',
+    'whisper_pool_max_episodes': '1',
     'transition_threshold_db': '3.5',
     'verification_miss_autocut_min_confidence': '0',
     'verification_miss_hold_min_confidence': '0.60',
@@ -120,7 +123,9 @@ EXPECTED_AD_RESET_KEYS = {
     'audio_normalize_enabled', 'audio_normalize_intensity',
     'whisper_api_timeout_seconds',
     'transcribe_max_chunk_seconds', 'transcribe_concurrent_chunks',
-    'transcribe_chunk_overlap_seconds', 'ad_detection_parallel_windows',
+    'transcribe_chunk_overlap_seconds',
+    'whisper_pool_enabled', 'whisper_pool_max_requests', 'whisper_pool_max_episodes',
+    'ad_detection_parallel_windows',
     'ad_reviewer_parallel_ads', 'max_artwork_bytes', 'max_rss_bytes',
     'max_audio_download_mb',
     'llm_provider', 'openai_base_url', 'pricing_source_mode',
@@ -439,12 +444,13 @@ class TestGetDefaults:
         # downloadUserAgent + feedUserAgent after that (101 -> 103),
         # then logDownloadQuery (103 -> 104).
         # notificationTimezone added after that (104 -> 105), then
-        # chaptersInNotes (105 -> 106).
+        # chaptersInNotes (105 -> 106). whisperPoolEnabled +
+        # whisperPoolMaxRequests + whisperPoolMaxEpisodes after that (106 -> 109).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 106
+        assert len(payload_keys) == 109
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

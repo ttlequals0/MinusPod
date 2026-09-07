@@ -398,6 +398,19 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         reset_factory=lambda: os.environ.get('TRANSCRIBE_CHUNK_OVERLAP_SECONDS', '30'),
         payload_key='transcribeChunkOverlapSeconds', payload_kind='int'),
 
+    # -- Whisper pool (parallel processing against a remote backend) --
+    'whisper_pool_enabled': SettingSpec(
+        default='false', env='WHISPER_POOL_ENABLED', seeded=True, in_ad_reset=True,
+        payload_key='whisperPoolEnabled', payload_kind='bool'),
+    'whisper_pool_max_requests': SettingSpec(
+        default='4', seeded=True, in_ad_reset=True,
+        reset_factory=lambda: os.environ.get('WHISPER_POOL_MAX_REQUESTS', '4'),
+        payload_key='whisperPoolMaxRequests', payload_kind='int'),
+    'whisper_pool_max_episodes': SettingSpec(
+        default='1', seeded=True, in_ad_reset=True,
+        reset_factory=lambda: os.environ.get('WHISPER_POOL_MAX_EPISODES', '1'),
+        payload_key='whisperPoolMaxEpisodes', payload_kind='int'),
+
     # -- Whisper --
     'whisper_model': SettingSpec(
         default='small', env='WHISPER_MODEL', seeded=True, in_ad_reset=True,

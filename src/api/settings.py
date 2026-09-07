@@ -440,6 +440,13 @@ def get_settings():
         'transcribe_concurrent_chunks', registry_get_default('transcribe_concurrent_chunks'))
     transcribe_chunk_overlap_seconds = _db_int(
         'transcribe_chunk_overlap_seconds', registry_get_default('transcribe_chunk_overlap_seconds'))
+    whisper_pool_max_requests = _db_int(
+        'whisper_pool_max_requests', registry_get_default('whisper_pool_max_requests'))
+    whisper_pool_max_episodes = _db_int(
+        'whisper_pool_max_episodes', registry_get_default('whisper_pool_max_episodes'))
+    whisper_pool_enabled_raw = _setting_value(
+        settings, 'whisper_pool_enabled', registry_default('whisper_pool_enabled'))
+    whisper_pool_enabled = coerce_bool_setting(whisper_pool_enabled_raw)
 
     # Per-stage LLM tunables: resolved value (DB > env > default) and env-default provenance.
     from config import (
@@ -687,6 +694,9 @@ def get_settings():
         'transcribeMaxChunkSeconds': _sv('transcribe_max_chunk_seconds', transcribe_max_chunk_seconds),
         'transcribeConcurrentChunks': _sv('transcribe_concurrent_chunks', transcribe_concurrent_chunks),
         'transcribeChunkOverlapSeconds': _sv('transcribe_chunk_overlap_seconds', transcribe_chunk_overlap_seconds),
+        'whisperPoolEnabled': _sv('whisper_pool_enabled', whisper_pool_enabled),
+        'whisperPoolMaxRequests': _sv('whisper_pool_max_requests', whisper_pool_max_requests),
+        'whisperPoolMaxEpisodes': _sv('whisper_pool_max_episodes', whisper_pool_max_episodes),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'stageTunables': tunables_payload,
@@ -1305,6 +1315,8 @@ def _apply_transcribe_chunk_fields(db, data):
         ('transcribeChunkOverlapSeconds', 'transcribe_chunk_overlap_seconds', 1, 600),
         ('whisperApiTimeoutSeconds', 'whisper_api_timeout_seconds',
          WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX),
+        ('whisperPoolMaxRequests', 'whisper_pool_max_requests', 1, 64),
+        ('whisperPoolMaxEpisodes', 'whisper_pool_max_episodes', 1, 16),
     ):
         if field_name not in data:
             continue
@@ -1317,6 +1329,13 @@ def _apply_transcribe_chunk_fields(db, data):
                 {'error': f'{field_name} must be between {min_val} and {max_val}'}, 400
             )
         parsed[db_key] = value
+
+    if 'whisperPoolEnabled' in data:
+        if not isinstance(data['whisperPoolEnabled'], bool):
+            return json_response({'error': 'whisperPoolEnabled must be a boolean'}, 400)
+        db.set_setting('whisper_pool_enabled',
+                        'true' if data['whisperPoolEnabled'] else 'false', is_default=False)
+        logger.info(f"Updated whisper_pool_enabled to: {data['whisperPoolEnabled']}")
 
     if not parsed:
         return None
