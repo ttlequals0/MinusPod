@@ -18,6 +18,8 @@ BASE = 'http://transcriber:8001/v1'
 def _clear_health_cache():
     """The probe caches per base URL; tests share BASE, so start each clean."""
     transcriber._health_cache.clear()
+    transcriber._health_last_good.clear()
+    transcriber._health_inflight.clear()
     yield
 
 
@@ -238,41 +240,64 @@ class TestCaching:
 
 
 class TestProbeBudget:
-    def test_a_slow_backend_stops_sampling_at_the_budget(self):
-        # Every sample burns a second of a 2s budget, so the 8-sample default
-        # cannot keep a worker for 40s against a hanging backend.
-        clock = {'t': 0.0}
+    def test_an_exhausted_budget_stops_after_the_first_sample(self):
+        # A spent budget must not let the 8-sample default keep a worker for
+        # samples * timeout against a hanging backend.
+        with patch('transcriber.safe_get', return_value=_bad(503)) as sg:
+            probe_whisper_health(base_url=BASE, samples=8, refresh=True, budget=0.0)
+        assert sg.call_count == 1
 
-        def tick(*a, **kw):
-            clock['t'] += 1.0
-            return _bad(503)
+    def test_a_generous_budget_takes_every_sample(self):
+        with patch('transcriber.safe_get', return_value=_bad(503)) as sg:
+            probe_whisper_health(base_url=BASE, samples=4, refresh=True, budget=600.0)
+        assert sg.call_count == 4
 
-        with patch('transcriber.time.monotonic', side_effect=lambda: clock['t']), \
-             patch('transcriber.safe_get', side_effect=tick) as sg:
-            probe_whisper_health(base_url=BASE, samples=8, refresh=True, budget=2.0)
-        assert sg.call_count < 8
 
-    def test_a_concurrent_probe_returns_the_cached_result_instead_of_stacking(self):
+class TestConcurrentProbes:
+    def test_a_probe_in_flight_serves_the_last_good_result(self):
+        # The caller's own cache read already missed, so an expired entry must
+        # not blank the panel for as long as the running probe takes.
         with patch('transcriber.safe_get', return_value=_health('whisper-1')):
             probe_whisper_health(base_url=BASE, samples=1)
-        transcriber._health_probe_lock.acquire()
+        transcriber._health_cache.clear()
+        transcriber._health_inflight.add(BASE)
         try:
             with patch('transcriber.safe_get',
                        side_effect=AssertionError('must not probe')) as sg:
-                result = probe_whisper_health(base_url=BASE, samples=1, refresh=True)
+                result = probe_whisper_health(base_url=BASE, samples=1)
             assert sg.call_count == 0
         finally:
-            transcriber._health_probe_lock.release()
+            transcriber._health_inflight.discard(BASE)
         assert result['available'] is True
 
-    def test_a_concurrent_probe_with_no_cache_reports_unavailable(self):
-        transcriber._health_probe_lock.acquire()
+    def test_a_probe_in_flight_on_another_backend_does_not_block(self):
+        # The in-flight set is per backend: testing a new URL must not wait on
+        # a probe hanging against the old one.
+        transcriber._health_inflight.add(BASE)
+        try:
+            with patch('transcriber.safe_get', return_value=_health('whisper-9')) as sg:
+                result = probe_whisper_health(
+                    base_url='http://other-transcriber:8001/v1', samples=1, refresh=True)
+        finally:
+            transcriber._health_inflight.discard(BASE)
+        assert sg.call_count == 1
+        assert result['available'] is True
+
+    def test_a_probe_in_flight_with_nothing_known_reports_unavailable(self):
+        transcriber._health_last_good.pop(BASE, None)
+        transcriber._health_inflight.add(BASE)
         try:
             with patch('transcriber.safe_get', side_effect=AssertionError('must not probe')):
                 result = probe_whisper_health(base_url=BASE, samples=1)
         finally:
-            transcriber._health_probe_lock.release()
+            transcriber._health_inflight.discard(BASE)
         assert result == {'available': False}
+
+    def test_the_in_flight_marker_is_cleared_when_a_probe_raises(self):
+        with patch('transcriber._probe_whisper_health', side_effect=RuntimeError('boom')):
+            with pytest.raises(RuntimeError):
+                probe_whisper_health(base_url=BASE, samples=1, refresh=True)
+        assert BASE not in transcriber._health_inflight
 
 
 class TestConcurrencyCoercion:

@@ -531,10 +531,16 @@ _HEALTH_INSTANCE_FIELDS = (
 _HEALTH_CACHE_TTL_SECONDS = 120.0
 _health_cache = TTLCache(ttl_seconds=_HEALTH_CACHE_TTL_SECONDS)
 # A hanging backend costs samples * timeout, and the cache only absorbs
-# repeats once the first probe returns. The budget bounds one probe and the
-# lock stops a 15s poll loop stacking more while that one is still running.
+# repeats once the first probe returns. The budget caps how many samples a
+# probe starts, and the in-flight set stops a 15s poll loop stacking more
+# against the same backend while one is still running.
 _HEALTH_PROBE_BUDGET_SECONDS = 15.0
-_health_probe_lock = threading.Lock()
+_health_inflight: set[str] = set()
+_health_inflight_lock = threading.Lock()
+# Last successful probe per base URL, kept past the cache TTL only to answer
+# a caller that arrives while that URL's probe is still running.
+_health_last_good: dict[str, dict] = {}
+_HEALTH_LAST_GOOD_MAX = 32
 
 
 def _coerce_hashable(value):
@@ -567,10 +573,12 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
     after three consecutive already-seen instances. Results are cached per
     base URL for 120s; refresh=True skips that read and re-probes, then
     stores the fresh result so an on-demand check such as the connection
-    test also clears a stale entry. Sampling stops once `budget` seconds
-    have gone, and only one probe runs at a time. Never raises: an unusable
-    sample is skipped, and a probe that finds nothing returns
-    {'available': False}.
+    test also clears a stale entry. One probe runs per backend at a time,
+    and a caller arriving mid-probe (refresh included) gets the cached or
+    last good result instead of queuing. `budget` caps how many further
+    samples start, not the wall time of one already in flight. Never
+    raises: an unusable sample is skipped, and a probe that finds nothing
+    returns {'available': False}.
     """
     settings = None
     if base_url is None:
@@ -587,14 +595,23 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
         if cached is not None:
             return cached
 
-    # Another thread is already probing this backend: hand back whatever is
-    # cached rather than starting a second slow probe behind it.
-    if not _health_probe_lock.acquire(blocking=False):
-        return _health_cache.get(cache_key) or {'available': False}
+    # Per backend, so a test against a new URL is never blocked by a probe
+    # hanging on the old one.
+    with _health_inflight_lock:
+        busy = cache_key in _health_inflight
+        if not busy:
+            _health_inflight.add(cache_key)
+    if busy:
+        # A non-refresh caller only gets here after its own cache read missed,
+        # so fall back to the last good probe rather than blanking the panel
+        # for as long as the running probe takes.
+        return (_health_cache.get(cache_key) or _health_last_good.get(cache_key)
+                or {'available': False})
     try:
         return _probe_whisper_health(cache_key, samples, timeout, api_key, refresh, budget)
     finally:
-        _health_probe_lock.release()
+        with _health_inflight_lock:
+            _health_inflight.discard(cache_key)
 
 
 def _probe_whisper_health(cache_key: str, samples: int, timeout: float,
@@ -661,6 +678,9 @@ def _probe_whisper_health(cache_key: str, samples: int, timeout: float,
         'sampled_floor': not converged,
     }
     _health_cache.set(cache_key, result)
+    if len(_health_last_good) >= _HEALTH_LAST_GOOD_MAX and cache_key not in _health_last_good:
+        _health_last_good.clear()
+    _health_last_good[cache_key] = result
     return result
 
 
