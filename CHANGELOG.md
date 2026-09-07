@@ -11,11 +11,25 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.2] - 2026-09-06
+
+### Changed
+
+- Rate-limit hold: a 429 with a reset time now puts the episode back in the normal queue and pauses all processing until the reset passes. The queue row is released in place, so the episode keeps the priority and position it was claimed at, and a fresh episode still goes ahead of a bulk backlog when the queue resumes. Held episodes are no longer parked as `deferred`, so there is no give-up window and nothing to requeue or expire. Gone with that: `ttlHours`, the "Give up after" input, and `holdCount` on `/settings/rate-limit-hold`; `rateLimitHeld` on the `hold` block of `/status`; `ttl_hours` on the `Queue Held` webhook and email; `requeued` on `Queue Resumed`. `holdUntil` and `holdSince` are null once the reset has passed. A one-time migration returns episodes an older hold left as `deferred` to their original queue rows.
+
+- The modified OPML export lists the recents feed alongside local feeds. The original export still skips both, since neither has an upstream URL.
+
+### Fixed
+
+- The rate-limit hold did not hold. Play, Reprocess, and bulk-queued episodes bypassed the pause, so each one ran a full transcription, hit its own 429, and was parked; one instance parked 26 episodes in a row over two hours. The pause now sits on the one entry point every run goes through, so a Play or Reprocess during a hold waits in the queue at its usual boost instead of starting.
+- After the reset passed, the pause marker and the parked episodes waited for a maintenance pass that runs once every ten queue iterations, and each iteration blocks for a whole episode. The status bar kept saying "Provider rate limit lifted. Held episodes requeue shortly" for hours. The marker is now cleared on the first pass after the reset, and there is nothing left to requeue.
+- Feed cards on the dashboard are the same height whether or not a feed has a Podping line, a refresh date, or status pills. The "Refresh failing" warning sits on the Updated line. Episode rows on a feed page reserve the same space for the description, duration, ad count, and status badge, so a list lines up too.
+
 ## [2.96.1] - 2026-09-06
 
 ### Added
 
-- Recents feed (#721): an opt-in combined feed at `/recents` with every episode processed on the instance whose publish date is on or after the day the feed was created, across all subscribed and local feeds. Create it once from Add Feed, rename it, set a description, and replace its artwork (the MinusPod icon by default). Every item points at its source feed's audio, transcript, and chapters, so subscribing to it once keeps up with podcasts added later. Old episodes that get reprocessed stay out, and OPML exports do not include it.
+- Recents feed (#721): an opt-in combined feed at `/recents` with every episode processed on the instance whose publish date is on or after the day the feed was created, across all subscribed and local feeds. Create it once from Add Feed, rename it, set a description, and replace its artwork (the MinusPod icon by default). Every item points at its source feed's audio, transcript, and chapters, so subscribing to it once keeps up with podcasts added later. Old episodes that get reprocessed stay out.
 
 ### Changed
 

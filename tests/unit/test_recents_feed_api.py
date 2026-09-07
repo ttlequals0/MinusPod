@@ -127,12 +127,14 @@ def test_delete_removes_the_row(client):
     assert client.get(f'/api/v1/feeds/{RECENTS_SLUG}').status_code == 404
 
 
-def test_opml_excludes_the_recents_feed(client):
+def test_opml_includes_the_recents_feed_only_in_modified_mode(client):
     from utils.opml import build_opml_xml
     _create(client)
     podcasts = database.Database().get_all_podcasts()
-    xml = build_opml_xml(podcasts, 'modified', 'https://mp.example.com', None)
-    assert '/recents' not in xml
+    modified = build_opml_xml(podcasts, 'modified', 'https://mp.example.com', None)
+    assert 'https://mp.example.com/recents' in modified
+    original = build_opml_xml(podcasts, 'original', 'https://mp.example.com', None)
+    assert '/recents' not in original
 
 
 def test_episode_list_for_recents_carries_the_source_slug(client):

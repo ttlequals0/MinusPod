@@ -89,7 +89,7 @@ Key endpoints:
   "hold": {
     "queuePaused": true,
     "holdUntil": "2026-01-01T12:30:00Z",
-    "rateLimitHeld": 4,
+    "holdSince": "2026-01-01T11:45:00Z",
     "offlineHeld": 2,
     "offlineServices": [
       {"service": "whisper", "held": 2, "reachable": false, "checkedAt": "2026-01-01T11:58:00Z"}
@@ -98,7 +98,7 @@ Key endpoints:
 }
 ```
 
-`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
+`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time and `holdSince` is when the pause began, both null once the reset has passed. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
 
 ### Public feed-domain routes
 
@@ -131,7 +131,7 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
 | `Cue Template Quiet` | An enabled audio cue template on a `cue_only` feed has matched before but has zero above-threshold matches across the feed's last 5 telemetry-recorded episodes. Rate-limited to one alert per template per 5 minutes. |
 | `Queue Held` | A provider 429 with a reset time paused the queue (Queue Control > Rate-limit hold). One alert per pause; a later 429 that extends the pause is silent. |
-| `Queue Resumed` | The rate-limit hold cleared and held episodes went back to the queue. One alert per 5 minutes. |
+| `Queue Resumed` | The rate-limit hold cleared and the queue is claiming work again. One alert per 5 minutes. |
 | `Service Offline` | An episode deferred because the LLM or Whisper endpoint was unreachable (Offline queue). One alert per service per 5 minutes. |
 | `Service Reachable` | The offline probe found a service back up and re-queued its deferred episodes. One alert per service per 5 minutes. |
 
@@ -249,7 +249,6 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `hold_until` | string | The provider's reset time; the queue claims no new work until then |
 | `hold_until_local` | string | The same reset time in the notification_timezone setting, with UTC offset |
-| `ttl_hours` | int | Hours a held episode waits before it expires and fails |
 | `error_message` | string | The 429 response that triggered the hold |
 | `slug` | string | Feed slug of the episode that hit the limit |
 | `episode_id` | string | ID of that episode |
@@ -263,7 +262,6 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `held_since` | string/null | When the hold began; null when no start time was recorded |
-| `requeued` | int | Held episodes sent back to the queue |
 
 **Service Offline events use a different payload:**
 
@@ -453,7 +451,6 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "timestamp_local": "2026-04-12T00:15:42+00:00",
   "hold_until": "2026-01-01T12:30:00Z",
   "hold_until_local": "2026-01-01T12:30:00+00:00",
-  "ttl_hours": 24,
   "error_message": "rate_limit_exceeded: retry after 900 seconds",
   "slug": "my-podcast",
   "episode_id": "a1b2c3d4e5f6",
@@ -468,8 +465,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "event": "Queue Resumed",
   "timestamp": "2026-04-12T00:15:42Z",
   "timestamp_local": "2026-04-12T00:15:42+00:00",
-  "held_since": "2026-01-01T12:15:00Z",
-  "requeued": 3
+  "held_since": "2026-01-01T12:15:00Z"
 }
 ```
 

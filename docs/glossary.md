@@ -118,7 +118,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## R
 
-**Rate-limit hold** - An opt-in hold that parks an episode when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming new work until that time passes. Unlike the offline queue it pauses everything, though anything you ask for by hand still runs. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
+**Rate-limit hold** - An opt-in hold that puts an episode back in the queue when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming any work until that time passes. Unlike the offline queue it pauses everything, Play and Reprocess included. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 
 **Recut** - Re-cutting the retained original audio using the current ad markers, with no download, transcription, or LLM involved. What "Approve & Recut" does. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
 

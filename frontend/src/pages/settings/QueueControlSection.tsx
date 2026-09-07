@@ -30,22 +30,23 @@ interface QueueControlSectionProps {
   onQueueBulkBoostChange: (value: number) => void;
 }
 
-interface HoldBlockConfig<T extends { enabled: boolean; ttlHours: number }> {
+interface HoldBlockConfig<T extends { enabled: boolean; ttlHours?: number }> {
   queryKey: string[];
   load: () => Promise<T>;
-  save: (args: { enabled: boolean; ttlHours: number }) => Promise<unknown>;
+  save: (args: { enabled: boolean; ttlHours?: number }) => Promise<unknown>;
   toggleLabel: string;
   ariaLabel: string;
   description: ReactNode;
-  ttlInputId: string;
+  /** Omit for a feature with no give-up window. */
+  ttlInputId?: string;
   loadErrorText: string;
-  /** Rendered under the TTL field while the feature holds episodes. */
+  /** Rendered under the toggle while the feature holds the queue. */
   status?: (data: T) => ReactNode | null;
 }
 
-// Shared shape of the offline-queue and rate-limit-hold settings: a toggle
-// plus a give-up window, with draft state and an explicit Save (#482, #696).
-function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
+// Shared shape of the offline-queue and rate-limit-hold settings: a toggle,
+// an optional give-up window, draft state and an explicit Save (#482, #696).
+function QueueHoldBlock<T extends { enabled: boolean; ttlHours?: number }>(
   { config, active }: { config: HoldBlockConfig<T>; active: boolean }
 ) {
   const qc = useQueryClient();
@@ -61,7 +62,8 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
   const ttlHours = draft.ttlHours ?? data?.ttlHours ?? 48;
 
   const save = useMutation({
-    mutationFn: () => config.save({ enabled, ttlHours }),
+    mutationFn: () => config.save(
+      config.ttlInputId ? { enabled, ttlHours } : { enabled }),
     onSuccess: () => {
       setSaveError(null);
       setDraft({});
@@ -102,33 +104,35 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
       </label>
       <p className="text-sm text-muted-foreground -mt-2">{config.description}</p>
 
-      <div className="space-y-1">
-        <div className="flex items-center gap-3">
-          <label
-            htmlFor={config.ttlInputId}
-            className="text-sm text-muted-foreground whitespace-nowrap"
-          >
-            Give up after:
-          </label>
-          <NumberInput
-            id={config.ttlInputId}
-            value={ttlHours}
-            min={1}
-            max={720}
-            step={1}
-            fallback={48}
-            parse={(s) => parseInt(s, 10)}
-            onCommit={(v) => setDraft((d) => ({ ...d, ttlHours: v }))}
-            className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
-          />
-          <span className="text-xs text-muted-foreground">hours</span>
+      {config.ttlInputId && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <label
+              htmlFor={config.ttlInputId}
+              className="text-sm text-muted-foreground whitespace-nowrap"
+            >
+              Give up after:
+            </label>
+            <NumberInput
+              id={config.ttlInputId}
+              value={ttlHours}
+              min={1}
+              max={720}
+              step={1}
+              fallback={48}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={(v) => setDraft((d) => ({ ...d, ttlHours: v }))}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
+            />
+            <span className="text-xs text-muted-foreground">hours</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Episodes still waiting after this long are marked failed and
+            logged. Applies to episodes already in the queue even if you
+            turn the toggle off.
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Episodes still waiting after this long are marked failed and
-          logged. Applies to episodes already in the queue even if you
-          turn the toggle off.
-        </p>
-      </div>
+      )}
 
       {config.status?.(data)}
 
@@ -291,24 +295,21 @@ function QueueControlSection({
               save: updateRateLimitHoldSettings,
               toggleLabel: 'Pause the queue when the LLM provider is rate limited',
               ariaLabel: 'Rate-limit hold toggle',
-              ttlInputId: 'rate-limit-hold-ttl',
               loadErrorText: 'Could not load rate-limit hold settings.',
               description: (
                 <>
                   When the provider answers 429 with a reset longer than five
-                  minutes, episodes stop retrying and wait; shorter resets keep
-                  retrying normally. The queue stays paused until the reset
-                  passes, then processes on its own. Off by default. Turning the
-                  toggle off lifts the pause and releases held episodes; Play
-                  and Reprocess always run.
+                  minutes, the episode goes back to the queue and nothing else
+                  is claimed until the reset passes; shorter resets keep
+                  retrying normally. Play and Reprocess wait with the rest.
+                  Off by default. Turning the toggle off lifts an active pause.
                 </>
               ),
               status: (data) => {
                 const holdUntil = data.holdUntil ? String(data.holdUntil) : null;
                 if (!holdUntil) return null;
-                const count = Number(data.holdCount ?? 0);
                 return `Queue paused until ${new Date(holdUntil).toLocaleString()} (provider
-                  rate limit). ${count} episode${count === 1 ? '' : 's'} waiting.`;
+                  rate limit).`;
               },
             }}
           />

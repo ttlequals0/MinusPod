@@ -368,7 +368,6 @@ FEED_REFRESH_FAILURE_COUNT_INTERVAL = 600  # Seconds between counted failures
 # NULL reads as DEFER_SERVICE_LLM.
 DEFER_SERVICE_LLM = 'llm'
 DEFER_SERVICE_WHISPER = 'whisper'
-DEFER_SERVICE_RATE_LIMIT = 'llm_rate_limit'
 
 # ============================================================
 # Text Pattern Matching Thresholds

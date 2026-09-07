@@ -244,21 +244,19 @@ def _fmt_queue_held(ctx):
     subject = f"[MinusPod] Queue Held until {_value(held_until)}"
     rows = [
         ('Held until', _value(held_until)),
-        ('Hold TTL (hours)', _value(ctx.get('ttl_hours'))),
         ('Tripped by', _episode_ref(ctx)),
         ('Error', _value(ctx.get('error_message'))),
         ('Timestamp', _display_timestamp(ctx)),
     ]
     return subject, rows, ('The LLM provider returned a rate limit with a reset time. '
-                           'Processing resumes on its own when it passes. Play or '
-                           'Reprocess on an episode bypasses the hold.')
+                           'The episode is back in the queue and processing resumes '
+                           'on its own when the reset passes.')
 
 
 def _fmt_queue_resumed(ctx):
-    subject = f"[MinusPod] Queue Resumed: {_value(ctx.get('requeued'))} episodes re-queued"
+    subject = "[MinusPod] Queue Resumed: provider rate limit lifted"
     rows = [
         ('Held since', _value(ctx.get('held_since'))),
-        ('Episodes re-queued', _value(ctx.get('requeued'))),
         ('Timestamp', _display_timestamp(ctx)),
     ]
     return subject, rows, None

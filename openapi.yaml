@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.96.1
+  version: 2.96.2
   contact:
     name: MinusPod
   license:
@@ -5862,8 +5862,8 @@ paths:
       summary: Get rate-limit hold configuration
       description: >-
         Rate-limit queue hold (#696). When enabled, a provider 429 carrying a
-        reset time defers the episode and pauses new queue claims until the
-        reset instead of failing the job.
+        reset time sends the episode back to the queue and pauses new queue
+        claims until the reset instead of failing the job.
       operationId: getRateLimitHoldSettings
       responses:
         '200':
@@ -5875,20 +5875,12 @@ paths:
                 properties:
                   enabled:
                     type: boolean
-                  ttlHours:
-                    type: integer
-                    minimum: 1
-                    maximum: 720
-                    description: Hours a held episode waits before being marked permanently failed.
                   holdUntil:
                     type:
                       - string
                       - 'null'
                     format: date-time
                     description: Until when new queue claims pause; null when no hold is active.
-                  holdCount:
-                    type: integer
-                    description: Episodes currently held by the rate-limit hold.
     put:
       tags:
         - Settings
@@ -5903,12 +5895,7 @@ paths:
               properties:
                 enabled:
                   type: boolean
-                  description: Pause the queue on a provider 429 with a reset time longer than five minutes. Off by default; setting false clears an active pause and releases held episodes.
-                ttlHours:
-                  type: integer
-                  minimum: 1
-                  maximum: 720
-                  description: Hours a held episode waits before being marked permanently failed.
+                  description: Pause the queue on a provider 429 with a reset time longer than five minutes. Off by default; setting false clears an active pause.
       responses:
         '200':
           description: Rate-limit hold settings updated
@@ -5919,15 +5906,11 @@ paths:
                 properties:
                   enabled:
                     type: boolean
-                  ttlHours:
-                    type: integer
                   holdUntil:
                     type:
                       - string
                       - 'null'
                     format: date-time
-                  holdCount:
-                    type: integer
 
   /settings/update-check:
     get:
@@ -11957,16 +11940,13 @@ components:
             - string
             - 'null'
           format: date-time
-          description: The provider's own rate-limit reset time, or null
+          description: The provider's own rate-limit reset time while the pause is active, or null
         holdSince:
           type:
             - string
             - 'null'
           format: date-time
-          description: When the current pause began, or null when nothing is held
-        rateLimitHeld:
-          type: integer
-          description: Episodes held by the rate-limit hold
+          description: When the current pause began, or null when the queue is not paused
         offlineHeld:
           type: integer
           description: |

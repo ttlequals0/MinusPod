@@ -1,26 +1,19 @@
 """Rate-limit queue hold (#696): pause the queue until a 429 reset passes.
 
-A held 429 defers its episode and stamps HOLD_UNTIL_KEY; the queue
-processor blocks new claims until that time, and the tick below releases
-or expires held rows. The toggle gates only new holds, so the tick keeps
-draining after it is turned off.
+A held 429 sends its episode back to pending and stamps HOLD_UNTIL_KEY; no
+processing starts until that time, then the queue processor clears the
+marker on its next pass. Episodes never leave the normal queue.
 """
 import logging
 
-from config import DEFER_SERVICE_RATE_LIMIT, coerce_bool_setting
+from config import coerce_bool_setting
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 from webhook_service import fire_queue_resumed_event
 
-# offline_queue is lazy-imported below: at module level it would drag
-# llm_client and transcriber into the LLM call path's import graph,
-# which utils.llm_call deliberately avoids.
-
 logger = logging.getLogger('podcast.refresh')
 
-RATE_LIMIT_DEFERRED_SERVICE = DEFER_SERVICE_RATE_LIMIT
 HOLD_UNTIL_KEY = 'rate_limit_hold_until'
 HOLD_SINCE_KEY = 'rate_limit_hold_since'
-HOLD_LABEL = 'Rate-limit hold'
 
 # A provider reset farther out than this is treated as unusable reset info;
 # 24h covers the common per-minute and per-day windows.
@@ -45,14 +38,8 @@ def is_rate_limit_hold_enabled(db=None) -> bool:
         return False
 
 
-def get_rate_limit_hold_ttl_hours(db) -> int:
-    """Configured TTL in hours, clamped to [1, 720]; default 48."""
-    from offline_queue import deferral_ttl_hours
-    return deferral_ttl_hours(db, 'rate_limit_hold_ttl_hours')
-
-
 def get_hold_until(db) -> str | None:
-    """ISO timestamp until which new queue claims pause, or None."""
+    """Raw pause marker, stale or not; readers want get_active_hold."""
     try:
         return db.get_setting(HOLD_UNTIL_KEY) or None
     except Exception:
@@ -75,14 +62,6 @@ def record_hold_until(db, retry_at_iso: str) -> tuple[str, bool]:
     return retry_at_iso, started
 
 
-def get_hold_since(db) -> str | None:
-    """When the active pause began, or None when nothing is held."""
-    try:
-        return db.get_setting(HOLD_SINCE_KEY) or None
-    except Exception:
-        return None
-
-
 def clear_hold(db) -> str | None:
     """Drop the pause marker and its start stamp; returns when the hold began."""
     held_since = db.get_setting(HOLD_SINCE_KEY)
@@ -93,8 +72,23 @@ def clear_hold(db) -> str | None:
 
 def hold_is_active(hold_until: str | None) -> bool:
     """True when `hold_until` is a reset time still in the future."""
-    return bool(hold_until and parse_iso_utc(hold_until)
-                and parse_iso_utc(hold_until) > utc_now())
+    reset_at = parse_iso_utc(hold_until) if hold_until else None
+    return bool(reset_at and reset_at > utc_now())
+
+
+def get_active_hold(db) -> tuple[str | None, str | None]:
+    """(hold_until, hold_since) while the pause is active, else (None, None).
+
+    A marker past its reset waits on the processor's next pass to be
+    cleared; readers see no hold at all in that gap.
+    """
+    hold_until = get_hold_until(db)
+    if not hold_is_active(hold_until):
+        return None, None
+    try:
+        return hold_until, db.get_setting(HOLD_SINCE_KEY) or None
+    except Exception:
+        return hold_until, None
 
 
 def is_queue_paused(db) -> bool:
@@ -102,51 +96,16 @@ def is_queue_paused(db) -> bool:
     return hold_is_active(get_hold_until(db))
 
 
-def should_pause_claims(db) -> bool:
-    """True when the queue processor must not claim its next episode.
-
-    A pending row the user asked for overrides the pause, so a Play or
-    Reprocess never parks behind a provider backoff window.
-    """
-    return is_queue_paused(db) and not db.has_user_requested_pending_row()
+def hold_message(hold_until: str, error) -> str:
+    """error_message written on an episode the hold sent back to the queue."""
+    return f"Paused (LLM rate limit until {hold_until}): {error}"
 
 
 def rate_limit_hold_tick(db) -> None:
-    """One maintenance pass: release held episodes whose reset time passed,
-    expire holds whose TTL has run out, clear the pause marker when elapsed.
-
-    Runs for episodes already held even when the toggle is off; the toggle
-    gates only new holds.
-    """
+    """Clear a pause marker whose reset time has passed."""
     hold_until = get_hold_until(db)
-    held_count = db.count_deferred_episodes(service=RATE_LIMIT_DEFERRED_SERVICE)
-    if not held_count and not hold_is_active(hold_until):
+    if not hold_until or hold_is_active(hold_until):
         return
-
-    expired = db.expire_deferred_episodes(
-        get_rate_limit_hold_ttl_hours(db), service=RATE_LIMIT_DEFERRED_SERVICE,
-        label=HOLD_LABEL)
-    from offline_queue import notify_expired_episodes
-    notify_expired_episodes(db, expired, label=HOLD_LABEL)
-
-    # A failure may have recorded a newer hold while the expiry ran; its
-    # pause must outlive this pass.
-    if hold_is_active(get_hold_until(db)):
-        return
-
-    requeued = db.requeue_deferred_episodes({RATE_LIMIT_DEFERRED_SERVICE})
-    if requeued:
-        logger.info(f"Rate-limit hold: released {requeued} held episodes after provider reset")
-
-    held_since = None
-    cleared = False
-    if hold_until and get_hold_until(db) == hold_until:
-        # Reset time passed and nothing re-stamped it; clear the stale
-        # marker so the claim gate unblocks.
-        held_since = clear_hold(db)
-        cleared = True
-        logger.info("Rate-limit hold: queue pause lifted after provider reset")
-    # The settings-disable path clears the marker itself, so a release with
-    # no marker to clear still counts as a resume.
-    if requeued or cleared:
-        fire_queue_resumed_event(held_since=held_since, requeued=requeued)
+    held_since = clear_hold(db)
+    logger.info("Rate-limit hold: queue pause lifted after provider reset")
+    fire_queue_resumed_event(held_since=held_since)

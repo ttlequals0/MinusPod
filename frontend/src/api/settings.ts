@@ -286,10 +286,8 @@ export async function updateOfflineQueueSettings(
 
 export interface RateLimitHoldSettings {
   enabled: boolean;
-  ttlHours: number;
   /** ISO timestamp until which new queue claims pause, or null when idle. */
   holdUntil: string | null;
-  holdCount: number;
 }
 
 export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings> {
@@ -297,7 +295,7 @@ export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings>
 }
 
 export async function updateRateLimitHoldSettings(
-  args: Partial<Pick<RateLimitHoldSettings, 'enabled' | 'ttlHours'>>,
+  args: Pick<RateLimitHoldSettings, 'enabled'>,
 ): Promise<RateLimitHoldSettings> {
   return apiRequest<RateLimitHoldSettings>('/settings/rate-limit-hold', {
     method: 'PUT',

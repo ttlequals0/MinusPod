@@ -51,26 +51,26 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           <p className="text-sm text-muted-foreground mt-1">
             {feed.episodeCount} episodes
           </p>
-          {feed.lastRefreshed && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Updated {formatDate(feed.lastRefreshed)}
-            </p>
-          )}
-          <PodpingBadge
-            coverage={feed.podpingCoverage}
-            lastPodpingAt={feed.lastPodpingAt}
-            compact
-            className="text-xs mt-1 block"
-          />
-          {hasUpstream && feed.lastRefreshError && (
-            <p
-              className="text-xs text-warning mt-1"
-              title={feed.lastRefreshError}
-            >
-              Refresh failing
-            </p>
-          )}
-          <FeedStatusSummary counts={feed.statusCounts} className="mt-2" />
+          {/* Every slot below always renders so cards share one height. */}
+          <p className="text-xs text-muted-foreground mt-1 truncate">
+            {feed.lastRefreshed ? `Updated ${formatDate(feed.lastRefreshed)}` : 'Not refreshed yet'}
+            {hasUpstream && feed.lastRefreshError && (
+              <span className="text-warning ml-2" title={feed.lastRefreshError}>
+                Refresh failing
+              </span>
+            )}
+          </p>
+          <div className="h-4 mt-1">
+            <PodpingBadge
+              coverage={feed.podpingCoverage}
+              lastPodpingAt={feed.lastPodpingAt}
+              compact
+              className="text-xs block truncate"
+            />
+          </div>
+          <div className="mt-2 min-h-[1.375rem]">
+            <FeedStatusSummary counts={feed.statusCounts} />
+          </div>
         </div>
       </div>
       <div className="px-4 py-3 bg-secondary/50 border-t border-border rounded-b-lg flex justify-between items-center">

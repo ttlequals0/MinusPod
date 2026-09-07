@@ -32,14 +32,12 @@ def build_opml_xml(podcasts: list[dict], mode: str, base_url: str,
     body = ET.SubElement(opml, 'body')
 
     for podcast in podcasts:
-        # The combined feed is the alternative to OPML, not an entry in it.
-        if podcast.get('feed_type') == 'recents':
-            continue
         title = podcast.get('title') or podcast.get('slug', '')
         if mode == 'modified':
             feed_url = modified_feed_url(base_url, podcast['slug'], feed_auth_key)
         else:
-            if podcast.get('feed_type') == 'local':
+            # Local and recents feeds have no upstream to point at.
+            if podcast.get('feed_type') in ('local', 'recents'):
                 continue
             feed_url = podcast.get('source_url', '')
         ET.SubElement(body, 'outline', type='rss', text=title, title=title,

@@ -42,7 +42,6 @@ interface QueueHold {
   queuePaused: boolean;
   holdUntil: string | null;
   holdSince: string | null;
-  rateLimitHeld: number;
   offlineHeld: number;
   offlineServices: OfflineService[];
 }
@@ -91,26 +90,10 @@ function resumesText(iso: string | null): string {
   return `Resumes ${formatClock(iso)}${relative ? ` (${relative})` : ''}.`;
 }
 
-/** "1h 15m" between two stamps, or null when either is missing. */
-function spanText(fromIso: string | null, toIso: string | null): string | null {
-  if (!fromIso || !toIso) return null;
-  const mins = Math.round(
-    (new Date(toIso).getTime() - new Date(fromIso).getTime()) / 60000);
-  if (!Number.isFinite(mins) || mins < 1) return null;
-  if (mins < 60) return `${mins}m`;
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
-}
-
 /** The rate-limit line: when the pause ends first, then when it began. */
 function rateLimitText(hold: QueueHold): string {
-  if (hold.queuePaused) {
-    const started = hold.holdSince ? ` Paused since ${formatClock(hold.holdSince)}.` : '';
-    return `Provider rate limit. ${resumesText(hold.holdUntil)}${started}`;
-  }
-  const ran = spanText(hold.holdSince, hold.holdUntil);
-  const lifted = hold.holdUntil ? ` at ${formatClock(hold.holdUntil)}` : '';
-  return `Provider rate limit lifted${lifted}${ran ? ` after ${ran}` : ''}. `
-    + 'Held episodes requeue shortly.';
+  const started = hold.holdSince ? ` Paused since ${formatClock(hold.holdSince)}.` : '';
+  return `Provider rate limit. ${resumesText(hold.holdUntil)}${started}`;
 }
 
 /** Short summary for the collapsed bar, or null when nothing is held. */
@@ -125,7 +108,6 @@ function holdSummary(hold: QueueHold | undefined): string | null {
       ? `${serviceLabel(down[0].service)} unreachable`
       : 'Waiting on a service';
   }
-  if (hold.rateLimitHeld > 0) return 'Episodes held';
   return null;
 }
 
@@ -403,11 +385,9 @@ function GlobalStatusBar() {
             <div className="py-2 border-b border-border/30">
               <p className="text-xs font-medium text-warning mb-1">{summary}</p>
               <ul className="space-y-1">
-                {(hold.queuePaused || hold.rateLimitHeld > 0) && (
+                {hold.queuePaused && (
                   <li className="text-xs text-foreground">
-                    {rateLimitText(hold)}
-                    {hold.rateLimitHeld > 0
-                      && ` ${countLabel(hold.rateLimitHeld, 'episode')} waiting.`}
+                    {rateLimitText(hold)} Queued episodes wait in place.
                   </li>
                 )}
                 {hold.offlineServices.map((svc) => (

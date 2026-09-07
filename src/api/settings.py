@@ -63,8 +63,7 @@ from offline_queue import (
     TTL_HOURS_MIN, TTL_HOURS_MAX,
 )
 from rate_limit_hold import (
-    get_hold_until, get_rate_limit_hold_ttl_hours,
-    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE, clear_hold,
+    get_active_hold, is_rate_limit_hold_enabled, clear_hold,
 )
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
@@ -81,7 +80,7 @@ from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from webhook_service import (
     render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS,
-    get_notification_timezone,
+    get_notification_timezone, fire_queue_resumed_event,
 )
 import email_service
 from email.utils import parseaddr
@@ -2294,8 +2293,7 @@ def _offline_queue_view(db) -> dict:
     return {
         'enabled': is_offline_queue_enabled(db),
         'ttlHours': get_offline_queue_ttl_hours(db),
-        'deferredCount': db.count_deferred_episodes(
-            exclude_service=RATE_LIMIT_DEFERRED_SERVICE),
+        'deferredCount': db.count_deferred_episodes(),
     }
 
 
@@ -2326,12 +2324,11 @@ def update_offline_queue_settings():
     return json_response(view)
 
 
-def _apply_toggle_ttl_update(db, data, prefix: str):
-    """Validate and store {enabled, ttlHours} for a deferral feature.
+def _apply_enabled_update(db, data, prefix: str):
+    """Validate and store {enabled} for a queue-wait feature.
 
     `prefix` is the settings key stem ('offline_queue', 'rate_limit_hold').
-    Returns an error response on invalid input, else None. Shared by the
-    offline-queue and rate-limit-hold PUT handlers (#482, #696).
+    Returns an error response on invalid input, else None.
     """
     if not isinstance(data, dict) or not data:
         return error_response('No data provided', 400)
@@ -2341,6 +2338,14 @@ def _apply_toggle_ttl_update(db, data, prefix: str):
             return error_response('enabled must be a boolean', 400)
         db.set_setting(f'{prefix}_enabled',
                        'true' if data['enabled'] else 'false', is_default=False)
+    return None
+
+
+def _apply_toggle_ttl_update(db, data, prefix: str):
+    """_apply_enabled_update plus the ttlHours give-up window (#482)."""
+    error = _apply_enabled_update(db, data, prefix)
+    if error:
+        return error
 
     if 'ttlHours' in data:
         ttl = data['ttlHours']
@@ -2356,9 +2361,7 @@ def _rate_limit_hold_view(db) -> dict:
     """Rate-limit hold settings payload shared by GET and PUT (#696)."""
     return {
         'enabled': is_rate_limit_hold_enabled(db),
-        'ttlHours': get_rate_limit_hold_ttl_hours(db),
-        'holdUntil': get_hold_until(db),
-        'holdCount': db.count_deferred_episodes(service=RATE_LIMIT_DEFERRED_SERVICE),
+        'holdUntil': get_active_hold(db)[0],
     }
 
 
@@ -2374,20 +2377,18 @@ def get_rate_limit_hold_settings():
 def update_rate_limit_hold_settings():
     """Update rate-limit hold configuration (#696).
 
-    When enabled, a provider 429 carrying a reset time defers the episode
-    and pauses new queue claims until the reset instead of failing the job.
-    ttlHours bounds how long a held episode waits before being marked
-    permanently failed.
+    When enabled, a provider 429 carrying a reset time sends the episode
+    back to the queue and pauses new claims until the reset instead of
+    failing the job.
     """
     data = request.get_json()
     db = get_database()
-    error = _apply_toggle_ttl_update(db, data, 'rate_limit_hold')
+    error = _apply_enabled_update(db, data, 'rate_limit_hold')
     if error:
         return error
-    if data.get('enabled') is False:
-        # Escape hatch: lifting the hold releases the pause and lets the
-        # tick requeue every held episode on its next pass.
-        clear_hold(db)
+    if data.get('enabled') is False and get_active_hold(db)[0]:
+        # Escape hatch: turning the hold off lifts an active pause.
+        fire_queue_resumed_event(held_since=clear_hold(db))
     view = _rate_limit_hold_view(db)
     logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
     return json_response(view)

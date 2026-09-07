@@ -58,7 +58,7 @@ describe('QueueControlSection', () => {
       enabled: false, ttlHours: 48, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null,
     });
     renderSection();
     const toggle = screen.getByRole('switch', { name: 'Process new episodes first' });
@@ -70,7 +70,7 @@ describe('QueueControlSection', () => {
       enabled: false, ttlHours: 48, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null,
     });
     renderSection();
     expect((screen.getByLabelText('Play / Reprocess') as HTMLInputElement).value).toBe('20');
@@ -83,20 +83,20 @@ describe('QueueControlSection', () => {
       enabled: false, ttlHours: 48, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: true, ttlHours: 48,
-      holdUntil: '2026-08-30T20:00:00Z', holdCount: 2,
+      enabled: true, holdUntil: '2026-08-30T20:00:00Z',
     });
     renderSection();
     await waitFor(() => {
       expect(screen.getByText(/Queue paused until/)).toBeTruthy();
     });
-    expect(screen.getByText(/2 episodes waiting/)).toBeTruthy();
+    // No give-up window: held episodes stay in the normal queue.
+    expect(screen.queryByLabelText('Give up after:', { selector: '#rate-limit-hold-ttl' })).toBeNull();
   });
 
   it('renders the offline queue failed-GET guard instead of the editable form', async () => {
     mocked.getOfflineQueueSettings.mockRejectedValue(new Error('boom'));
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null,
     });
     renderSection();
     await waitFor(() => {
@@ -113,7 +113,7 @@ describe('QueueControlSection', () => {
       enabled: true, ttlHours: 12, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null,
     });
     renderSection({}, new Set(['settings-section-queue-control']));
     await waitFor(() => {
@@ -127,7 +127,7 @@ describe('QueueControlSection', () => {
       enabled: false, ttlHours: 48, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null,
     });
     renderSection({}, new Set(['settings-section-something-else']));
     expect(mocked.getOfflineQueueSettings).not.toHaveBeenCalled();

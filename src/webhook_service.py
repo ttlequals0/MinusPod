@@ -163,7 +163,6 @@ _ALERT_SAMPLE_CONTEXTS = {
     EVENT_QUEUE_HELD: {
         'hold_until': '2026-01-01T12:30:00Z',
         'hold_until_local': '2026-01-01T12:30:00+00:00',
-        'ttl_hours': 24,
         'error_message': 'rate_limit_exceeded: retry after 900 seconds',
         'slug': 'my-podcast',
         'episode_id': 'a1b2c3d4e5f6',
@@ -171,7 +170,6 @@ _ALERT_SAMPLE_CONTEXTS = {
     },
     EVENT_QUEUE_RESUMED: {
         'held_since': '2026-01-01T12:15:00Z',
-        'requeued': 3,
     },
     EVENT_SERVICE_OFFLINE: {
         'service': 'llm',
@@ -523,12 +521,11 @@ def fire_structural_rate_limit_event(provider, model, limit, used, requested, er
     }, f"provider={provider}, limit={limit}, requested={requested}")
 
 
-def fire_queue_held_event(hold_until, ttl_hours, error_message, slug, episode_id, podcast_name):
+def fire_queue_held_event(hold_until, error_message, slug, episode_id, podcast_name):
     """Fire when a provider 429 pauses the queue (#696 hold)."""
     return _fire_alert_event(EVENT_QUEUE_HELD, {
         'hold_until': hold_until,
         'hold_until_local': local_iso(hold_until, get_notification_timezone()),
-        'ttl_hours': ttl_hours,
         'error_message': str(error_message),
         'slug': slug,
         'episode_id': episode_id,
@@ -536,12 +533,11 @@ def fire_queue_held_event(hold_until, ttl_hours, error_message, slug, episode_id
     }, f"hold_until={hold_until}")
 
 
-def fire_queue_resumed_event(held_since, requeued):
-    """Fire when the rate-limit hold clears and held episodes re-queue."""
+def fire_queue_resumed_event(held_since):
+    """Fire when the rate-limit hold clears and the queue resumes."""
     return _fire_alert_event(EVENT_QUEUE_RESUMED, {
         'held_since': held_since,
-        'requeued': requeued,
-    }, f"requeued={requeued}")
+    }, f"held_since={held_since}")
 
 
 def fire_service_offline_event(service, error_message, slug, episode_id, podcast_name):

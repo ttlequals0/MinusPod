@@ -259,8 +259,6 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # not exposed through the general settings payload.
     'rate_limit_hold_enabled': SettingSpec(
         default='false', seeded=True, resettable=False),
-    'rate_limit_hold_ttl_hours': SettingSpec(
-        default='48', seeded=True, resettable=False),
     'processing_soft_timeout_seconds': SettingSpec(
         default='3600', env='PROCESSING_SOFT_TIMEOUT', seeded=True,
         resettable=False),

@@ -220,7 +220,9 @@ from Add Feed (the option disappears once it exists); rename it, set a
 description, and replace its artwork (the MinusPod icon by default) from its
 feed page. Each item points at its source feed's audio, transcript, and
 chapters, so nothing is copied. Episodes published before the feed existed
-stay out even when they are reprocessed, and OPML exports do not include it.
+stay out even when they are reprocessed. The modified OPML export lists it
+alongside your other feeds; the original export skips it, since it has no
+upstream URL.
 
 ### Per-feed retention
 
@@ -388,18 +390,15 @@ Only connection-level failures qualify: connection refused, DNS errors, timeouts
 
 ## Rate-Limit Hold
 
-Hosted LLM providers answer a 429 with the time their limit resets. Without this feature an episode that hits one burns its retries against a provider that will not answer for another hour, and every episode behind it does the same. The rate-limit hold parks the episode instead and stops the queue from claiming new work until the reset time passes, then carries on by itself.
+Hosted LLM providers answer a 429 with the time their limit resets. Without this feature an episode that hits one burns its retries against a provider that will not answer for another hour, and every episode behind it does the same. The rate-limit hold puts the episode back in the queue instead and stops the queue from claiming anything until the reset time passes, then carries on by itself.
 
 The feature is off by default. Configure it in **Settings > AI & Processing > Queue Control**.
 
 | Setting | Default | Notes |
 |---|---|---|
 | Enabled | off | Pause the queue when the provider reports a 429 with a reset time. |
-| Give up after | 48 hours | Episodes still held after this long are marked failed and logged. Range 1-720 hours. |
 
-Only a reset further out than five minutes triggers a hold. Shorter ones keep the existing in-process retry, so a single throttled window recovers without pausing the queue. The hold covers detection, review, and verification, so a throttle part-way through a run defers the whole episode rather than skipping that stage. Anything you ask for by hand carries the manual queue boost, so Play and Reprocess still run during a pause. Turning the toggle off lifts the pause and releases held episodes on the next maintenance pass, within about five minutes.
-
-Held episodes sit under their own service name, so the offline queue's endpoint probes and give-up window never touch them, and a held episode does not inherit the clock of an earlier offline deferral.
+Only a reset further out than five minutes triggers a hold. Shorter ones keep the existing in-process retry, so a single throttled window recovers without pausing the queue. The hold covers detection, review, and verification, so a throttle part-way through a run sends the whole episode back to the queue rather than skipping that stage. Nothing bypasses the pause: Play and Reprocess wait with the rest, because a hand-picked episode would only hit the same 429. Held episodes keep their queue position and status, so there is no give-up window and nothing to release. Turning the toggle off lifts an active pause at once.
 
 ## Outbound Requests
 

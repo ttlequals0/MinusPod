@@ -78,7 +78,6 @@ SEED_SNAPSHOT = {
     'offline_queue_enabled': 'false',
     'llm_json_schema_enabled': 'false',
     'rate_limit_hold_enabled': 'false',
-    'rate_limit_hold_ttl_hours': '48',
     'offline_queue_ttl_hours': '48',
     'omit_temperature': 'false',
     'only_expose_processed_default': 'false',

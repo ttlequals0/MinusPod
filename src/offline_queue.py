@@ -14,8 +14,7 @@ import logging
 import llm_client
 import transcriber
 from config import (
-    DEFER_SERVICE_LLM, DEFER_SERVICE_RATE_LIMIT, DEFER_SERVICE_WHISPER,
-    coerce_bool_setting,
+    DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER, coerce_bool_setting,
 )
 from utils.time import utc_now_iso
 from webhook_service import fire_event, fire_service_reachable_event, EVENT_EPISODE_FAILED
@@ -32,16 +31,6 @@ _SERVICE_PROBES = {
 }
 
 
-def deferral_ttl_hours(db, key: str) -> int:
-    """Configured TTL in hours for a deferral feature, clamped to the shared
-    bounds. Used by the offline queue and the rate-limit hold."""
-    try:
-        ttl = int(db.get_setting(key) or TTL_HOURS_DEFAULT)
-    except (TypeError, ValueError):
-        ttl = TTL_HOURS_DEFAULT
-    return max(TTL_HOURS_MIN, min(ttl, TTL_HOURS_MAX))
-
-
 def is_offline_queue_enabled(db) -> bool:
     """Offline queue toggle; off by default."""
     try:
@@ -52,12 +41,16 @@ def is_offline_queue_enabled(db) -> bool:
 
 def get_offline_queue_ttl_hours(db) -> int:
     """Configured TTL in hours, clamped to [1, 720]; default 48."""
-    return deferral_ttl_hours(db, 'offline_queue_ttl_hours')
+    try:
+        ttl = int(db.get_setting('offline_queue_ttl_hours') or TTL_HOURS_DEFAULT)
+    except (TypeError, ValueError):
+        ttl = TTL_HOURS_DEFAULT
+    return max(TTL_HOURS_MIN, min(ttl, TTL_HOURS_MAX))
 
 
-def notify_expired_episodes(db, expired, label='Offline queue') -> None:
+def notify_expired_episodes(db, expired) -> None:
     """History + webhook for TTL-expired deferrals, matching the
-    permanent-failure audit trail. Shared by every deferral holder."""
+    permanent-failure audit trail."""
     for episode in expired:
         try:
             # Keep the audit trail consistent with every other permanent
@@ -73,7 +66,7 @@ def notify_expired_episodes(db, expired, label='Offline queue') -> None:
             )
         except Exception as hist_err:
             logger.warning(
-                f"{label}: history record failed for "
+                f"Offline queue: history record failed for "
                 f"{episode['podcast_slug']}:{episode['episode_id']}: {hist_err}")
         try:
             fire_event(
@@ -90,7 +83,7 @@ def notify_expired_episodes(db, expired, label='Offline queue') -> None:
             )
         except Exception as wh_err:
             logger.warning(
-                f"{label}: webhook fire failed for "
+                f"Offline queue: webhook fire failed for "
                 f"{episode['podcast_slug']}:{episode['episode_id']}: {wh_err}")
 
 
@@ -121,14 +114,13 @@ def get_probe_state(db, service: str) -> tuple[bool | None, str | None]:
 
 def offline_queue_tick(db) -> None:
     """One maintenance pass: expire by TTL, probe, re-queue."""
-    deferred = db.get_deferred_episodes(exclude_service=DEFER_SERVICE_RATE_LIMIT)
+    deferred = db.get_deferred_episodes()
     if not deferred:
         # Installs without deferred episodes (including everyone with the
         # feature off) pay one COUNT-style query and nothing else.
         return
 
-    expired = db.expire_deferred_episodes(
-        get_offline_queue_ttl_hours(db), exclude_service=DEFER_SERVICE_RATE_LIMIT)
+    expired = db.expire_deferred_episodes(get_offline_queue_ttl_hours(db))
     notify_expired_episodes(db, expired)
 
     expired_ids = {e['id'] for e in expired}

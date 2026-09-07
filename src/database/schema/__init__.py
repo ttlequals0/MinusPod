@@ -1441,6 +1441,14 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"legacy skip_second_pass reset failed: {e}")
 
+        # Episodes a pre-2.96.2 rate-limit hold parked as deferred go back
+        # to the queue they were claimed from.
+        try:
+            self._run_requeue_rate_limit_held_episodes(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"rate-limit held episode requeue failed: {e}")
+
         # Repair covers left stale by the skipped-download bug (#596).
         try:
             self._run_redownload_stale_artwork(conn)
@@ -2087,6 +2095,54 @@ class SchemaMixin:
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
             "('reset_legacy_skip_second_pass')"
+        )
+        conn.commit()
+
+    def _run_requeue_rate_limit_held_episodes(self, conn):
+        """One-time requeue of episodes a pre-2.96.2 rate-limit hold parked.
+
+        Those holds set status 'deferred' with deferred_service
+        'llm_rate_limit' and closed the queue row. The hold now leaves
+        episodes pending in place, so reopen each row (keeping its priority
+        and created_at) and put the episode back to pending. Gated by
+        `schema_migrations`.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'requeue_rate_limit_held_episodes'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        held = "e.status = 'deferred' AND e.deferred_service = 'llm_rate_limit'"
+        conn.execute(
+            f"""INSERT INTO auto_process_queue
+                   (podcast_id, episode_id, original_url, title, published_at,
+                    description, priority, status, attempts, error_message)
+                SELECT e.podcast_id, e.episode_id, e.original_url, e.title,
+                       e.published_at, e.description, 0, 'pending', 0, NULL
+                FROM episodes e WHERE {held}
+                ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
+                  status = 'pending',
+                  error_message = NULL,
+                  updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"""  # noqa: S608
+        )
+        cur = conn.execute(
+            f"""UPDATE episodes SET
+                  status = 'pending',
+                  deferred_at = NULL,
+                  deferred_service = NULL,
+                  updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                WHERE id IN (SELECT e.id FROM episodes e WHERE {held})"""  # noqa: S608
+        )
+        if cur.rowcount:
+            logger.info(
+                "Migration: returned %d rate-limit held episode(s) to the queue (#696)",
+                cur.rowcount,
+            )
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('requeue_rate_limit_held_episodes')"
         )
         conn.commit()
 

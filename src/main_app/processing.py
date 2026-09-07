@@ -105,10 +105,10 @@ from llm_client import (
     ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
 )
+from database.queue import compute_queue_priority
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
-    RATE_LIMIT_DEFERRED_SERVICE, get_rate_limit_hold_ttl_hours,
-    is_rate_limit_hold_enabled, record_hold_until,
+    hold_message, is_queue_paused, is_rate_limit_hold_enabled, record_hold_until,
 )
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -344,6 +344,7 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         - (True, "started") if processing was started
         - (False, "already_processing") if this episode is already being processed
         - (False, "queue_busy:slug:episode_id") if another episode is processing
+        - (False, "rate_limit_paused") while a rate-limit hold is active
     """
     from processing_queue import ProcessingQueue
     queue = ProcessingQueue()
@@ -351,6 +352,11 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
     # Check if already processing this episode
     if queue.is_processing(slug, episode_id):
         return False, "already_processing"
+
+    # Rate-limit hold (#696): the one choke point every start goes through,
+    # so a Play or Reprocess waits in the queue like the rest.
+    if is_queue_paused(db):
+        return False, "rate_limit_paused"
 
     # Check if queue is busy with another episode
     if not queue.acquire(slug, episode_id, timeout=0):
@@ -4148,38 +4154,42 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
 
     status_service.fail_job()
 
-    # Rate-limit hold (#696): a 429 with a reset defers instead of failing
-    # and pauses new claims. Runs before the offline-queue branch because a
-    # held 429 is throttling, not an outage. retry_count untouched.
+    # Rate-limit hold (#696): a 429 with a reset sends the episode back to
+    # the queue and pauses new starts until the reset. Runs before the
+    # offline-queue branch: throttling is not an outage. retry_count untouched.
     if isinstance(error, ProviderRateLimitedError) and is_rate_limit_hold_enabled(db):
-        # Fresh clock unless this row is already in the hold lifecycle: a
-        # deferred_at kept from an earlier offline deferral would pre-age
-        # the hold's TTL clock (requeue keeps deferred_at by design).
-        prior_service = (episode_data or {}).get('deferred_service')
-        if prior_service == RATE_LIMIT_DEFERRED_SERVICE:
-            first_deferred_at = (episode_data or {}).get('deferred_at') or utc_now_iso()
-        else:
-            first_deferred_at = utc_now_iso()
         hold_until = utc_now() + timedelta(
             seconds=max(0.0, float(error.retry_after_seconds)))
         hold_until_iso = hold_until.strftime(ISO_FORMAT)
         effective_until, hold_started = record_hold_until(db, hold_until_iso)
         db.upsert_episode(
             slug, episode_id,
-            status=EpisodeStatus.DEFERRED.value,
-            error_message=f"Paused (LLM rate limit until {effective_until}): {error}",
-            deferred_at=first_deferred_at,
-            deferred_service=RATE_LIMIT_DEFERRED_SERVICE,
+            status=EpisodeStatus.PENDING.value,
+            error_message=hold_message(effective_until, error),
         )
+        # Release the claimed queue row in place so the episode keeps its
+        # priority and position. A run started outside the queue processor
+        # has no row, so it gets one at the boost its request would carry.
+        if not db.reopen_claimed_queue_row(slug, episode_id):
+            # episode_data predates the run; a JIT play may have had no row
+            # then, so read the row the run wrote.
+            row = db.get_episode(slug, episode_id) or episode_data or {}
+            podcast = db.get_podcast_by_slug(slug) or {}
+            db.upsert_episode_for_processing(
+                slug, episode_id, row.get('original_url'),
+                title=episode_title, published_at=row.get('published_at'),
+                description=row.get('description'),
+                priority=compute_queue_priority(
+                    podcast.get('queue_priority'), row.get('published_at'),
+                    manual=bool(row.get('reprocess_requested_at'))),
+            )
         audio_logger.warning(
             f"[{slug}:{episode_id}] Rate-limit hold: paused until "
             f"{hold_until_iso} (provider reset)")
-        # One alert per pause: later 429s under it (user-requested episodes
-        # bypass the claim gate) only move the reset out.
+        # One alert per pause: a later 429 under it only moves the reset out.
         if hold_started:
             fire_queue_held_event(
                 hold_until=effective_until,
-                ttl_hours=get_rate_limit_hold_ttl_hours(db),
                 error_message=error, slug=slug, episode_id=episode_id,
                 podcast_name=podcast_name)
         return

@@ -12,9 +12,7 @@ from api import (
 )
 from config import DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER
 from offline_queue import get_probe_state
-from rate_limit_hold import (
-    RATE_LIMIT_DEFERRED_SERVICE, get_hold_since, get_hold_until, hold_is_active,
-)
+from rate_limit_hold import get_active_hold
 from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger('podcast.api')
@@ -25,11 +23,11 @@ OFFLINE_SERVICES = (DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER)
 # What a caller sees when nothing is held, and when the read fails.
 EMPTY_HOLD = {
     'queuePaused': False, 'holdUntil': None, 'holdSince': None,
-    'rateLimitHeld': 0, 'offlineHeld': 0, 'offlineServices': [],
+    'offlineHeld': 0, 'offlineServices': [],
 }
 
 # The block is rebuilt per reader, so it is cached. The underlying state only
-# changes on the ~5-minute maintenance tick or a 429, so a short TTL is enough.
+# changes on a queue-processor pass or a 429, so a short TTL is enough.
 _HOLD_CACHE_TTL_SECONDS = 15
 _hold_cache = TTLCache(ttl_seconds=_HOLD_CACHE_TTL_SECONDS)
 _hold_cache_lock = threading.Lock()
@@ -55,18 +53,14 @@ def _build_hold_block(db) -> dict:
     Reports what the maintenance tick last observed. Nothing here probes a
     service, so an open SSE stream cannot generate outbound traffic.
     """
-    hold_until = get_hold_until(db)
+    hold_until, hold_since = get_active_hold(db)
     return {
-        'queuePaused': hold_is_active(hold_until),
+        'queuePaused': hold_until is not None,
         'holdUntil': hold_until,
-        # When the pause began, so the bar can show how long it ran.
-        'holdSince': get_hold_since(db),
-        'rateLimitHeld': db.count_deferred_episodes(
-            service=RATE_LIMIT_DEFERRED_SERVICE),
-        # Every non-rate-limit deferral, so the total agrees with
-        # /settings/offline-queue even for a service not broken out below.
-        'offlineHeld': db.count_deferred_episodes(
-            exclude_service=RATE_LIMIT_DEFERRED_SERVICE),
+        'holdSince': hold_since,
+        # Every deferral, so the total agrees with /settings/offline-queue
+        # even for a service not broken out below.
+        'offlineHeld': db.count_deferred_episodes(),
         'offlineServices': [
             v for v in (_offline_service_view(db, s) for s in OFFLINE_SERVICES) if v
         ],

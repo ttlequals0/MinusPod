@@ -116,17 +116,19 @@ function EpisodeRow({
           {episode.feedTitle && (
             <p className="text-xs text-muted-foreground truncate">{episode.feedTitle}</p>
           )}
-          {episode.description && (
-            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-              {stripHtml(episode.description)}
-            </p>
-          )}
-          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-sm text-muted-foreground">
+          {/* Fixed slots (two description lines, one meta line, one badge
+              line) so every row in the list is the same height. */}
+          <p className="text-sm text-muted-foreground mt-1 line-clamp-2 min-h-10">
+            {episode.description ? stripHtml(episode.description) : ''}
+          </p>
+          <div className="flex gap-x-3 mt-2 text-sm text-muted-foreground truncate">
             <span className="whitespace-nowrap">{formatDate(episode.published)}</span>
             {episode.duration && <span className="whitespace-nowrap">{formatDuration(episode.duration)}</span>}
             {episode.ad_count !== undefined && episode.ad_count > 0 && (
               <span className="whitespace-nowrap">{episode.ad_count} ads detected</span>
             )}
+          </div>
+          <div className="flex items-center gap-2 mt-1 min-h-6">
             {episode.pendingReviewCount !== undefined && episode.pendingReviewCount > 0 && (
               <span className="px-2 py-0.5 text-xs rounded whitespace-nowrap bg-warning/20 text-warning">
                 {episode.pendingReviewCount} held

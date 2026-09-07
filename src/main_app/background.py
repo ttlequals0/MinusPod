@@ -132,7 +132,7 @@ def background_queue_processor():
     from main_app.processing import start_background_processing
     from offline_queue import offline_queue_tick
     from rate_limit_hold import (
-        is_queue_paused, rate_limit_hold_tick)
+        get_hold_until, hold_is_active, is_queue_paused, rate_limit_hold_tick)
     from processing_queue import ProcessingQueue
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
@@ -163,14 +163,10 @@ def background_queue_processor():
                 # TTL and re-queue the rest once their service is reachable.
                 _run_tick(offline_queue_tick, 'offline_queue_tick')
 
-                # Rate-limit hold (#696): release held episodes once the
-                # provider's reset time has passed; expire past the TTL.
-                _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
-
-            # Rate-limit pause gate (#696); held episodes resume via the tick
-            # above.
-            paused = is_queue_paused(db)
-            if paused and not db.has_user_requested_pending_row():
+            # Rate-limit pause gate (#696): every claim waits for the
+            # provider's reset, then the tick drops the stale marker.
+            hold_until = get_hold_until(db)
+            if hold_is_active(hold_until):
                 if not rate_limit_pause_logged:
                     refresh_logger.info(
                         "Queue paused: LLM provider rate limit; waiting for reset")
@@ -178,13 +174,11 @@ def background_queue_processor():
                 shutdown_event.wait(timeout=30)
                 continue
             rate_limit_pause_logged = False
+            if hold_until:
+                _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
 
             # Atomically claim the next queued episode (marks it 'processing').
-            # Mid-pause only user-requested rows are claimed: the gate above
-            # waves them through, and letting the whole backlog claim by
-            # priority would burn one throttled call per row ahead of them.
-            queued = db.claim_next_queued_episode(
-                user_requested_only=paused)
+            queued = db.claim_next_queued_episode()
 
             if queued:
                 queue_id = queued['id']
@@ -259,6 +253,9 @@ def background_queue_processor():
                             episode = db.get_episode(slug, episode_id)
                             if episode and episode['status'] in ('processed', 'failed', 'permanently_failed', 'deferred'):
                                 break
+                            # A rate-limit hold put the row back to pending.
+                            if episode and episode['status'] == 'pending' and is_queue_paused(db):
+                                break
                             if queue.is_processing(slug, episode_id):
                                 orphan_polls = 0
                                 continue
@@ -307,6 +304,11 @@ def background_queue_processor():
                             # re-opens it as pending once the service is back.
                             db.close_claimed_queue_row(queue_id, 'completed')
                             refresh_logger.info(f"[{slug}:{episode_id}] Deferred to offline queue (endpoint unreachable)")
+                        elif (episode and episode['status'] == 'pending'
+                                and is_queue_paused(db)):
+                            # The failure handler already reopened the row as
+                            # pending; it is claimed again after the reset.
+                            refresh_logger.info(f"[{slug}:{episode_id}] Paused by rate-limit hold; stays queued")
                         elif (episode and episode['status'] == 'pending'
                                 and episode.get('error_message') == CANCELED_ERROR_MESSAGE):
                             # Only a user cancel closes the row. The stuck-row
