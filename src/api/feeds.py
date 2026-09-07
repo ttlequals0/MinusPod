@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import shutil
 import time
@@ -50,7 +51,7 @@ from utils.feed_guid import compute_feed_guid
 from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
-from database.podcasts import EPISODE_STATUSES, PodcastMixin, is_local_feed
+from database.podcasts import EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, is_local_feed, is_recents_feed
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
@@ -956,8 +957,8 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         # reliable field to read and resorted to a HEAD probe of the proxy
         # URL (#625 Task 13 review).
         'hasArtwork': get_storage().has_artwork(podcast['slug']),
-        'episodeCount': podcast.get('episode_count', 0),
-        'processedCount': podcast.get('processed_count', 0),
+        'episodeCount': _recents_count(podcast) if is_recents_feed(podcast) else podcast.get('episode_count', 0),
+        'processedCount': _recents_count(podcast) if is_recents_feed(podcast) else podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
         'lastPodpingAt': podcast.get('last_podping_at'),
         'podpingCoverage': _podping_coverage(podcast, enabled, host_is_active),
@@ -996,6 +997,43 @@ def list_feeds():
         # first pass completes.
         'lastRefreshCompletedAt': db.get_setting('feeds_last_refresh_completed_at'),
     })
+
+
+_DEFAULT_RECENTS_ARTWORK = Path(__file__).resolve().parents[2] / 'static' / 'ui' / 'logo.png'
+
+
+def rebuild_recents_feed():
+    # Inline import: recents_feed imports main_app, which imports api.
+    from recents_feed import rebuild_recents_feed as _rebuild
+    return _rebuild()
+
+
+def _recents_count(podcast) -> int:
+    _, total = get_database().get_recent_processed_episodes(podcast['created_at'], limit=1)
+    return total
+
+
+def _add_recents_feed(data, db):
+    """Create the single combined recents feed (#721)."""
+    if db.get_recents_feed():
+        return error_response('A recents feed already exists', 409)
+    title = (data.get('title') or 'Recents').strip() or 'Recents'
+    description = data.get('description')
+    if description is not None and not isinstance(description, str):
+        return error_response('description must be a string', 400)
+    db.create_podcast(RECENTS_SLUG, 'recents://', title, feed_type='recents')
+    if description:
+        db.update_podcast(RECENTS_SLUG, description=description)
+    if _DEFAULT_RECENTS_ARTWORK.exists():
+        get_storage().save_artwork(RECENTS_SLUG, _DEFAULT_RECENTS_ARTWORK.read_bytes(), 'image/png')
+    rebuild_recents_feed()
+    from main_app.feeds import invalidate_feed_cache
+    invalidate_feed_cache()
+    return json_response({
+        'slug': RECENTS_SLUG, 'feedType': 'recents',
+        'feedUrl': _public_feed_url(RECENTS_SLUG, get_feed_auth_key(db)),
+        'message': 'Recents feed created',
+    }, 201)
 
 
 def _add_local_feed(data, db):
@@ -1112,6 +1150,8 @@ def add_feed():
     """
     data = request.get_json()
 
+    if data and data.get('feedType') == 'recents':
+        return _add_recents_feed(data, get_database())
     if data and data.get('feedType') == 'local':
         return _add_local_feed(data, get_database())
 
@@ -1485,6 +1525,12 @@ def update_feed(slug):
     if not data:
         return error_response('No data provided', 400)
 
+    if is_recents_feed(podcast):
+        extra = set(data) - {'title', 'description'}
+        if extra:
+            return error_response(
+                f"The recents feed only accepts title and description, not: {', '.join(sorted(extra))}", 400)
+
     # Map API field names to database field names. Note: the source `title` is
     # RSS-managed (a refresh overwrites it), so it is intentionally NOT editable
     # here -- user renames go through `titleOverride` below (#375).
@@ -1505,7 +1551,7 @@ def update_feed(slug):
     # from), so a subscribed feed 400s rather than silently accepting a value
     # a refresh would immediately overwrite or ignore.
     for field in _LOCAL_ONLY_FIELDS:
-        if field in data and not is_local_feed(podcast):
+        if field in data and not (is_local_feed(podcast) or is_recents_feed(podcast)):
             return error_response(
                 f'field {field} is only editable on local feeds', 400)
 
@@ -1775,7 +1821,9 @@ def update_feed(slug):
         # description rewrites the channel <description> for both feed types
         # and was previously missing from this list, so a local feed's served
         # RSS kept the stale description until the next unrelated refresh.
-        if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
+        if is_recents_feed(podcast):
+            rebuild_recents_feed()
+        elif ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
                 or 'title_override' in updates or 'source_url' in updates
                 or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
                 or 'title_skip_action' in updates
@@ -2108,8 +2156,8 @@ def upload_feed_artwork(slug):
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return error_response('Feed not found', 404)
-    if not is_local_feed(podcast):
-        return error_response('Artwork upload is only available for local feeds', 400)
+    if not (is_local_feed(podcast) or is_recents_feed(podcast)):
+        return error_response('Artwork upload is only available for local and recents feeds', 400)
 
     upload = request.files.get('file')
     if upload is None:
