@@ -1,5 +1,6 @@
 """Feed routes: /feeds/* endpoints."""
 import json
+import sqlite3
 import logging
 import os
 import re
@@ -51,7 +52,8 @@ from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
 from utils.paths import RECENTS_ARTWORK_PATH
-from database.podcasts import EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, is_local_feed, is_recents_feed, recents_cutoff
+from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, is_local_feed,
+                               is_recents_feed, recents_cutoff)
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
@@ -916,11 +918,11 @@ def _podping_context_for_feed(db):
 def _podping_coverage(podcast, enabled, host_is_active):
     """Why this feed is or is not covered by podping, most specific first.
 
-    None when the listener is off instance-wide: that is a global setting, not a
-    fact about this feed. The UI only distinguishes received from everything
+    None when the listener is off instance-wide (a global setting, not a fact
+    about this feed) or the feed has no upstream that could ping. The UI only distinguishes received from everything
     else; the finer states are here for API consumers and diagnostics.
     """
-    if not enabled:
+    if not enabled or not has_upstream(podcast):
         return None
     if podcast.get('podping_uses') == 0:
         return 'declined'
@@ -1003,13 +1005,17 @@ def list_feeds():
 
 
 def _add_recents_feed(data, db):
-    if db.get_podcast_by_slug(RECENTS_SLUG):
-        return error_response('A recents feed already exists', 409)
-    title = (data.get('title') or 'Recents').strip() or 'Recents'
+    title = data.get('title')
+    if title is not None and not isinstance(title, str):
+        return error_response('title must be a string', 400)
+    title = (title or 'Recents').strip() or 'Recents'
     description = data.get('description')
     if description is not None and not isinstance(description, str):
         return error_response('description must be a string', 400)
-    db.create_podcast(RECENTS_SLUG, 'recents://', title, feed_type='recents')
+    try:
+        db.create_podcast(RECENTS_SLUG, 'recents://', title, feed_type='recents')
+    except sqlite3.IntegrityError:
+        return error_response('A recents feed already exists', 409)
     if description:
         db.update_podcast(RECENTS_SLUG, description=description)
     if RECENTS_ARTWORK_PATH.exists():
@@ -1383,6 +1389,9 @@ def import_opml():
         if not slug:
             failed.append({'url': source_url, 'error': 'Could not generate slug'})
             continue
+        if slug == RECENTS_SLUG:
+            failed.append({'url': source_url, 'error': f'"{RECENTS_SLUG}" is reserved for the recents feed'})
+            continue
 
         # Check if slug already exists
         existing = db.get_podcast_by_slug(slug)
@@ -1543,7 +1552,7 @@ def update_feed(slug):
     # from), so a subscribed feed 400s rather than silently accepting a value
     # a refresh would immediately overwrite or ignore.
     for field in _LOCAL_ONLY_FIELDS:
-        if field in data and not (is_local_feed(podcast) or is_recents_feed(podcast)):
+        if field in data and has_upstream(podcast):
             return error_response(
                 f'field {field} is only editable on local feeds', 400)
 
@@ -1814,7 +1823,6 @@ def update_feed(slug):
         # and was previously missing from this list, so a local feed's served
         # RSS kept the stale description until the next unrelated refresh.
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
-                or 'title' in updates
                 or 'title_override' in updates or 'source_url' in updates
                 or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
                 or 'title_skip_action' in updates
@@ -1944,6 +1952,8 @@ def delete_feed(slug):
             except Exception as e:
                 logger.warning(f"[{slug}] could not clear import job files: {e}")
 
+        from recents_feed import rebuild_recents_feed
+        rebuild_recents_feed()
         logger.info(f"Deleted feed: {slug}")
         return json_response({'message': 'Feed deleted', 'slug': slug})
 
@@ -1969,8 +1979,8 @@ def refresh_feed(slug):
     if not podcast:
         return error_response('Feed not found', 404)
 
-    if is_local_feed(podcast):
-        return error_response('Local feed has no upstream to refresh', 400)
+    if not has_upstream(podcast):
+        return error_response('Feed has no upstream to refresh', 400)
 
     if not podcast.get('source_url'):
         return error_response('Feed has no source URL', 400)
@@ -2147,7 +2157,7 @@ def upload_feed_artwork(slug):
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return error_response('Feed not found', 404)
-    if not (is_local_feed(podcast) or is_recents_feed(podcast)):
+    if has_upstream(podcast):
         return error_response('Artwork upload is only available for local and recents feeds', 400)
 
     upload = request.files.get('file')

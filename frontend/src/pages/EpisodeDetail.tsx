@@ -39,7 +39,7 @@ import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import EpisodeLogsCard from '../components/EpisodeLogsCard';
 import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
-import { focusRing } from '../components/fieldStyles';
+import { fileInputBase, focusRing } from '../components/fieldStyles';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -208,7 +208,7 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
                 e.target.value = '';
                 if (file) artworkMutation.mutate(file);
               }}
-              className={`block w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:text-sm ${btnSecondary} file:transition-colors ${focusRing}`}
+              className={fileInputBase}
             />
             {artworkMutation.isPending && <p className="mt-1 text-sm text-muted-foreground">Uploading...</p>}
             {artworkMutation.isSuccess && <p className="mt-1 text-sm text-success">Artwork updated.</p>}

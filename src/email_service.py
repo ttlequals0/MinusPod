@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import make_msgid
 
+from utils.paths import LOGO_PATH
 from utils.url import validate_outbound_host
 
 logger = logging.getLogger('podcast.email')
@@ -32,7 +33,6 @@ DEFAULT_EVENTS = [
     'Feed Refresh Failed', 'Update Available', 'Cue Template Quiet',
     'Queue Held', 'Queue Resumed', 'Service Offline', 'Service Reachable',
 ]
-from utils.paths import LOGO_PATH  # noqa: E402
 
 
 @dataclass

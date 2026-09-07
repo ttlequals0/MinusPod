@@ -62,6 +62,11 @@ def is_local_feed(podcast: dict | None) -> bool:
 RECENTS_SLUG = 'recents'
 
 
+def has_upstream(podcast) -> bool:
+    """Subscribed feeds have an upstream RSS to fetch; local and recents feeds do not."""
+    return bool(podcast) and podcast.get('feed_type', 'subscribed') not in ('local', 'recents')
+
+
 def is_recents_feed(podcast: dict | None) -> bool:
     return bool(podcast) and podcast.get('feed_type') == 'recents'
 

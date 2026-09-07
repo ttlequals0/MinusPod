@@ -176,8 +176,12 @@ def list_episodes(slug):
     if is_recents_feed(podcast):
         # Membership rows belong to other feeds; each carries its source.
         cutoff = recents_cutoff(podcast)
-        episodes = db.get_recent_processed_episodes(cutoff, limit=limit, offset=offset)
-        total = db.count_recent_processed_episodes(cutoff)
+        if status in (None, 'all', 'processed'):
+            episodes = db.get_recent_processed_episodes(cutoff, limit=limit, offset=offset,
+                                                        sort_by=sort_by, sort_dir=sort_dir)
+            total = db.count_recent_processed_episodes(cutoff)
+        else:
+            episodes, total = [], 0
     else:
         episodes, total = db.get_episodes(slug, status=status, limit=limit, offset=offset,
                                           sort_by=sort_by, sort_dir=sort_dir)
@@ -1310,6 +1314,9 @@ def bulk_episode_action(slug):
                 if local_feed and reset:
                     from local_feed_builder import rebuild_local_feed
                     rebuild_local_feed(slug)
+                if reset:
+                    from recents_feed import rebuild_recents_feed
+                    rebuild_recents_feed()
             except Exception as e:
                 logger.error(f"Bulk delete error for {slug}: {e}")
                 errors.append('bulk delete failed')

@@ -161,10 +161,37 @@ def _enclosure_length_attr(slug: str, ep: dict, storage_, version) -> str:
     return f' length="{size}"'
 
 
+def _channel_open(title: str, channel_link: str, description: str, language: str = 'en') -> list[str]:
+    """XML prologue through <generator>, shared by the local and recents renderers."""
+    return ['<?xml version="1.0" encoding="UTF-8"?>',
+            '<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
+            f'xmlns:podcast="{_PODCAST_NS}">',
+            '<channel>',
+            f'<title>{rss_parser._escape_xml(title)}</title>',
+            f'<link>{rss_parser._escape_xml(channel_link)}</link>',
+            f'<description><![CDATA[{rss_parser._escape_cdata(description)}]]></description>',
+            f'<language>{rss_parser._escape_xml(language)}</language>',
+            f'<lastBuildDate>{rss_parser._format_rfc2822(utc_now_iso())}</lastBuildDate>',
+            '<generator>MinusPod</generator>']
+
+
+def _append_channel_image(lines: list, artwork_url: str | None, title: str, channel_link: str) -> None:
+    if not artwork_url:
+        return
+    lines += ['<image>',
+              f'  <url>{rss_parser._escape_xml(artwork_url)}</url>',
+              f'  <title>{rss_parser._escape_xml(title)}</title>',
+              f'  <link>{rss_parser._escape_xml(channel_link)}</link>',
+              '</image>',
+              f'<itunes:image href="{rss_parser._escape_xml(artwork_url)}" />']
+
+
 def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
                                storage_, feed_auth_key: str | None,
                                chapter_notes: dict[str, str],
-                               title_prefix: str = '') -> None:
+                               title_prefix: str = '',
+                               has_transcript: bool | None = None,
+                               has_chapters: bool | None = None) -> None:
     ep_id = ep['episode_id']
     item_json = _load_json_dict(ep.get('p20_item_json'))
     description = append_chapters(ep.get('description'), chapter_notes.get(ep_id))
@@ -214,12 +241,10 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
 
     # Same emitter modify_feed uses (rss_parser.py:1096-1109), keyed
     # identically -- including key_suffix on both tags.
-    # Recents rows carry the flags; local rows fall back to the storage lookup.
-    has_vtt = ep.get('has_transcript_vtt')
+    # None falls back to the storage lookup; the recents renderer passes flags.
     rss_parser._append_podcasting2_tags(
         lines, slug, ep_id, storage_, feed_auth_key,
-        has_transcript=None if has_vtt is None else bool(has_vtt),
-        has_chapters=bool(ep['chapters_json']) if 'chapters_json' in ep else None)
+        has_transcript=has_transcript, has_chapters=has_chapters)
 
     _emit_pc2_items(lines, 'person', item_json.get('person'), _PERSON_ATTRS)
     _emit_pc2_items(lines, 'location', item_json.get('location'), _LOCATION_ATTRS)
@@ -244,18 +269,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
     if str(language).strip().lower() == 'auto':
         language = 'en'
 
-    lines = []
-    lines.append('<?xml version="1.0" encoding="UTF-8"?>')
-    lines.append('<rss version="2.0" '
-                 'xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
-                 f'xmlns:podcast="{_PODCAST_NS}">')
-    lines.append('<channel>')
-    lines.append(f'<title>{rss_parser._escape_xml(title)}</title>')
-    lines.append(f'<link>{rss_parser._escape_xml(channel_link)}</link>')
-    lines.append(f'<description><![CDATA[{rss_parser._escape_cdata(description)}]]></description>')
-    lines.append(f'<language>{rss_parser._escape_xml(language)}</language>')
-    lines.append(f'<lastBuildDate>{rss_parser._format_rfc2822(utc_now_iso())}</lastBuildDate>')
-    lines.append('<generator>MinusPod</generator>')
+    lines = _channel_open(title, channel_link, description, language)
 
     author = podcast.get('author')
     if author:
@@ -269,14 +283,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
         if category:
             lines.append(f'<itunes:category text="{rss_parser._escape_xml(str(category))}" />')
 
-    artwork_url = _channel_artwork_url(slug, base, feed_auth_key, storage)
-    if artwork_url:
-        lines.append('<image>')
-        lines.append(f'  <url>{rss_parser._escape_xml(artwork_url)}</url>')
-        lines.append(f'  <title>{rss_parser._escape_xml(title)}</title>')
-        lines.append(f'  <link>{rss_parser._escape_xml(channel_link)}</link>')
-        lines.append('</image>')
-        lines.append(f'<itunes:image href="{rss_parser._escape_xml(artwork_url)}" />')
+    _append_channel_image(lines, _channel_artwork_url(slug, base, feed_auth_key, storage), title, channel_link)
 
     # Deliberately keyless (same as modify_feed, rss_parser.py:1413-1417):
     # the guid seed is the feed's stable identity, so folding the auth key

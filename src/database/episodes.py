@@ -2,10 +2,12 @@
 import json
 import logging
 import sqlite3
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
 from utils.constants import EpisodeStatus
+from utils.time import ISO_FORMAT
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +32,15 @@ def normalize_published_at(value: str | None) -> str | None:
     """
     if not value:
         return value
-    if value[0].isdigit():
-        return value
+    # Stored as true UTC: cross-feed ordering and the recents cutoff compare
+    # these strings directly, so a publisher's local offset must not survive.
     try:
-        parsed = parsedate_to_datetime(value)
-        return parsed.strftime('%Y-%m-%dT%H:%M:%SZ')
+        parsed = datetime.fromisoformat(value) if value[0].isdigit() else parsedate_to_datetime(value)
     except (ValueError, TypeError):
         return value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).strftime(ISO_FORMAT)
 
 
 def _serialize_applied_cut(cut: dict) -> dict:
@@ -855,24 +859,33 @@ class EpisodeMixin:
     # subscribed and local feeds published on or after the cutoff. Publish
     # date only: a backlog episode processed later keeps its old date.
     _RECENTS_WHERE = ("FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
-                      "LEFT JOIN episode_details d ON d.episode_id = e.id "
                       "WHERE e.status = 'processed' AND e.processed_file IS NOT NULL "
                       "AND p.feed_type IN ('subscribed', 'local') "
                       "AND e.published_at IS NOT NULL AND e.published_at >= ?")
+    _RECENTS_SOURCE_COLS = ("p.slug AS source_slug, "
+                            "COALESCE(NULLIF(p.title_override, ''), NULLIF(p.title, ''), p.slug) AS source_title, "
+                            "p.feed_type AS source_feed_type, p.chapters_in_notes AS source_chapters_in_notes")
 
     def count_recent_processed_episodes(self, since: str) -> int:
         return self.get_connection().execute(
             f"SELECT COUNT(*) {self._RECENTS_WHERE}", (since,)).fetchone()[0]
 
     def get_recent_processed_episodes(self, since: str, limit: int | None = None,
-                                      offset: int = 0) -> list[dict]:
-        """Newest first; each row carries source_slug, source_title,
-        source_feed_type, chapters_json, and has_transcript_vtt so the feed
-        renderer needs no per-item lookups."""
-        query = (f"SELECT e.*, p.slug AS source_slug, p.title AS source_title, "
-                 f"p.feed_type AS source_feed_type, d.chapters_json, "
-                 f"COALESCE(d.transcript_vtt, '') != '' AS has_transcript_vtt "
-                 f"{self._RECENTS_WHERE} ORDER BY e.published_at DESC")
+                                      offset: int = 0, sort_by: str = 'published_at',
+                                      sort_dir: str = 'desc', details: bool = False) -> list[dict]:
+        """Each row carries its source feed's slug, display title, feed type and
+        chapters override. details=True adds chapters_json and has_transcript_vtt
+        for the feed renderer; typeof() reads the record header instead of
+        copying the VTT text."""
+        sort_col = sort_by if sort_by in self.VALID_SORT_COLUMNS else 'published_at'
+        direction = 'ASC' if str(sort_dir).lower() == 'asc' else 'DESC'
+        cols = f"e.*, {self._RECENTS_SOURCE_COLS}"
+        join = ''
+        if details:
+            cols += ", d.chapters_json, typeof(d.transcript_vtt) = 'text' AS has_transcript_vtt"
+            join = "LEFT JOIN episode_details d ON d.episode_id = e.id "
+        where = self._RECENTS_WHERE.replace('WHERE ', f'{join}WHERE ', 1)
+        query = f"SELECT {cols} {where} ORDER BY e.{sort_col} {direction}, e.id DESC"
         params: list = [since]
         if limit:
             query += " LIMIT ? OFFSET ?"

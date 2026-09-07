@@ -8,6 +8,8 @@ resolves its own singletons -- see that module's docstring.
 """
 import json
 import logging
+
+from database.podcasts import has_upstream
 import time
 from urllib.parse import urlparse, urlunparse
 
@@ -277,7 +279,7 @@ class PodpingListener:
     def _refresh_feed_map(self):
         feed_map = {}
         for podcast in self.db.get_podcast_feed_urls():
-            if podcast.get('feed_type', 'subscribed') != 'subscribed':
+            if not has_upstream(podcast):
                 continue
             source_url = podcast.get('source_url')
             if source_url:

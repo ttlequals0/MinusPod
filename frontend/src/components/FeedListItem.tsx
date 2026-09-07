@@ -10,6 +10,7 @@ import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
+import FeedTypeBadge from './FeedTypeBadge';
 import PodpingBadge from './PodpingBadge';
 import { btnDestructive, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
@@ -42,16 +43,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
           >
             {feedDisplayTitle(feed)}
           </Link>
-          {feed.feedType === 'recents' && (
-            <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
-              Recents
-            </span>
-          )}
-          {feed.feedType === 'local' && (
-            <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
-              Local
-            </span>
-          )}
+          <FeedTypeBadge feedType={feed.feedType} />
         </div>
         <p className="text-xs text-muted-foreground truncate">
           {feed.episodeCount} episodes

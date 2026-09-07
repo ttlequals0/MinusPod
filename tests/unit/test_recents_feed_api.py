@@ -6,6 +6,8 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('recents_api_test_')
 
 from main_app import app  # noqa: E402
+import io  # noqa: E402
+
 import database  # noqa: E402
 from database.podcasts import RECENTS_SLUG  # noqa: E402
 
@@ -146,3 +148,42 @@ def test_other_feeds_cannot_take_the_recents_slug(client):
     resp = client.post('/api/v1/feeds', json={'feedType': 'local', 'title': 'Recents'}, headers=_csrf(client))
     assert resp.status_code == 400
     assert 'reserved' in resp.get_json()['error']
+
+
+def test_title_must_be_a_string(client):
+    resp = _create(client, title=5)
+    assert resp.status_code == 400
+
+
+def test_recents_has_no_upstream_to_refresh(client):
+    _create_ok(client)
+    resp = client.post(f'/api/v1/feeds/{RECENTS_SLUG}/refresh', headers=_csrf(client))
+    assert resp.status_code == 400
+
+
+def test_status_filter_other_than_processed_is_empty(client):
+    _seed_alpha_episode(client)
+    ok = client.get(f'/api/v1/feeds/{RECENTS_SLUG}/episodes?status=processed').get_json()
+    assert ok['total'] == 1
+    failed = client.get(f'/api/v1/feeds/{RECENTS_SLUG}/episodes?status=failed').get_json()
+    assert failed['total'] == 0 and failed['episodes'] == []
+
+
+def test_deleting_a_source_feed_re_renders_the_served_feed(client):
+    from api import get_storage
+    from recents_feed import rebuild_recents_feed
+    _seed_alpha_episode(client)
+    rebuild_recents_feed()
+    assert 'aaaaaaaaaaa1' in get_storage().get_rss(RECENTS_SLUG)
+    resp = client.delete('/api/v1/feeds/alpha', headers=_csrf(client))
+    assert resp.status_code == 200, resp.data
+    assert 'aaaaaaaaaaa1' not in get_storage().get_rss(RECENTS_SLUG)
+
+
+def test_opml_import_cannot_take_the_recents_slug(client):
+    opml = ('<opml version="2.0"><body><outline type="rss" text="Recents" title="Recents" '
+            'xmlUrl="https://example.com/recents.xml"/></body></opml>')
+    resp = client.post('/api/v1/feeds/import-opml', data={'opml': (io.BytesIO(opml.encode()), 'f.opml')},
+                       content_type='multipart/form-data', headers=_csrf(client))
+    assert resp.status_code in (200, 207), resp.data
+    assert database.Database().get_podcast_by_slug(RECENTS_SLUG) is None

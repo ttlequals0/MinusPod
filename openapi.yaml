@@ -555,7 +555,10 @@ paths:
       tags:
         - Feeds
       summary: Update feed settings
-      description: Update podcast feed settings like network override, DAI platform, processing overrides, and the source RSS URL
+      description: >-
+        Update podcast feed settings like network override, DAI platform, processing overrides,
+        and the source RSS URL. The recents feed accepts only title and description; any other
+        field returns 400.
       operationId: updateFeed
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -1170,7 +1173,10 @@ paths:
       tags:
         - Episodes
       summary: List episodes for a feed
-      description: Returns paginated list of episodes for a podcast
+      description: >-
+        Returns paginated list of episodes for a podcast. For the recents feed the rows come from
+        the source feeds (see feedSlug and feedTitle); they are all processed, so a status filter
+        other than processed returns an empty page.
       operationId: listEpisodes
       parameters:
         - $ref: '#/components/parameters/slug'

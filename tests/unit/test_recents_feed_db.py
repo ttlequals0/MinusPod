@@ -9,7 +9,8 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('recents_db_test_')
 
 import database  # noqa: E402
-from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff  # noqa: E402
+from database.episodes import normalize_published_at  # noqa: E402
+from database.podcasts import RECENTS_SLUG, has_upstream, is_recents_feed, recents_cutoff  # noqa: E402
 
 
 def _db():
@@ -75,6 +76,46 @@ def test_membership_carries_chapters_and_transcript_flags():
     _seed_episode('delta', 'ddddddddddd1', '2026-09-10T00:00:00Z')
     db.save_episode_details('delta', 'ddddddddddd1', chapters_json=json.dumps({'chapters': []}),
                             transcript_vtt='WEBVTT')
-    rows = db.get_recent_processed_episodes('2026-09-01')
+    rows = db.get_recent_processed_episodes('2026-09-01', details=True)
     assert rows[0]['chapters_json'] == json.dumps({'chapters': []})
     assert rows[0]['has_transcript_vtt'] == 1
+
+
+def test_has_upstream_is_false_for_local_and_recents():
+    assert has_upstream({'feed_type': 'subscribed'}) is True
+    assert has_upstream({'slug': 'x'}) is True
+    assert has_upstream({'feed_type': 'local'}) is False
+    assert has_upstream({'feed_type': 'recents'}) is False
+    assert has_upstream(None) is False
+
+
+def test_published_at_is_stored_as_true_utc():
+    # A publisher offset must not survive: the cutoff and cross-feed order compare strings.
+    assert normalize_published_at('Sat, 05 Sep 2026 20:00:00 -0700') == '2026-09-06T03:00:00Z'
+    assert normalize_published_at('2026-09-06T01:00:00+02:00') == '2026-09-05T23:00:00Z'
+    assert normalize_published_at('2026-09-06T01:00:00Z') == '2026-09-06T01:00:00Z'
+    assert normalize_published_at('not a date') == 'not a date'
+
+
+def test_source_title_prefers_override_then_title_then_slug():
+    _seed_source('alpha')
+    _db().update_podcast('alpha', title_override='Renamed Alpha')
+    _db().create_podcast('gamma', 'https://example.com/gamma.xml', None, feed_type='subscribed')
+    _seed_episode('alpha', 'a1', '2026-09-06T10:00:00Z')
+    _seed_episode('gamma', 'g1', '2026-09-06T11:00:00Z')
+    rows = {r['episode_id']: r['source_title'] for r in _db().get_recent_processed_episodes('2026-09-06')}
+    assert rows == {'a1': 'Renamed Alpha', 'g1': 'gamma'}
+
+
+def test_detail_flags_only_with_details_and_sort_is_whitelisted():
+    _seed_source('alpha')
+    _seed_episode('alpha', 'a1', '2026-09-06T10:00:00Z')
+    _seed_episode('alpha', 'a2', '2026-09-07T10:00:00Z')
+    plain = _db().get_recent_processed_episodes('2026-09-06')
+    assert 'has_transcript_vtt' not in plain[0] and 'source_chapters_in_notes' in plain[0]
+    detailed = _db().get_recent_processed_episodes('2026-09-06', details=True)
+    assert detailed[0]['has_transcript_vtt'] == 0 and 'chapters_json' in detailed[0]
+    oldest_first = _db().get_recent_processed_episodes('2026-09-06', sort_dir='asc')
+    assert [r['episode_id'] for r in oldest_first] == ['a1', 'a2']
+    bogus = _db().get_recent_processed_episodes('2026-09-06', sort_by='1; DROP TABLE episodes')
+    assert [r['episode_id'] for r in bogus] == ['a2', 'a1']

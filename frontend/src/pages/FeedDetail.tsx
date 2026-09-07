@@ -16,6 +16,7 @@ import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Pagination } from '../components/Pagination';
+import FeedTypeBadge from '../components/FeedTypeBadge';
 import PodpingBadge from '../components/PodpingBadge';
 import { feedDisplayTitle, feedHasUpstream } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
@@ -383,16 +384,7 @@ function FeedDetail() {
                 <h1 className="text-2xl font-bold text-foreground min-w-0 break-words">
                   {feedDisplayTitle(feed)}
                 </h1>
-                {feed.feedType === 'local' && (
-                  <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
-                    Local
-                  </span>
-                )}
-                {isRecents && (
-                  <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
-                    Recents
-                  </span>
-                )}
+                <FeedTypeBadge feedType={feed.feedType} className="mt-1.5" />
                 {feed.titleOverride && (
                   <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
                     Custom
@@ -420,7 +412,7 @@ function FeedDetail() {
                 coverage={feed.podpingCoverage}
                 lastPodpingAt={feed.lastPodpingAt}
               />
-              {feed.feedType !== 'local' && feed.lastRefreshError && (
+              {feedHasUpstream(feed) && feed.lastRefreshError && (
                 <span
                   className="text-warning"
                   title={feed.lastRefreshError}
@@ -654,7 +646,9 @@ function FeedDetail() {
           episodes={episodes}
           feedSlug={slug!}
           feedArtworkUrl={feed.artworkUrl}
-          {...(isRecents ? {} : { selectedIds, onToggle: handleToggleSelect, onSelectAll: handleSelectAll })}
+          selectedIds={isRecents ? undefined : selectedIds}
+          onToggle={isRecents ? undefined : handleToggleSelect}
+          onSelectAll={isRecents ? undefined : handleSelectAll}
         />
       )}
 

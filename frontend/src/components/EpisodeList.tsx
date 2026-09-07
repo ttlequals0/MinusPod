@@ -105,7 +105,8 @@ function EpisodeRow({
         className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
       >
         <Artwork
-          src={episodeArtworkSrc(rowSlug, episode.id, episode.artworkUrl, feedArtworkUrl)}
+          // A recents row falls back to its source feed's cover, not this feed's.
+          src={episodeArtworkSrc(rowSlug, episode.id, episode.artworkUrl, episode.feedSlug ? undefined : feedArtworkUrl)}
           alt=""
           loading="lazy"
           className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"

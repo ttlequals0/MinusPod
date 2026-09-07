@@ -9,9 +9,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import Checkbox from '../components/Checkbox';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
-import { inputBase } from '../components/fieldStyles';
 import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS, parseOptionalNumber } from '../components/DraftNumberInput';
-import { focusRing } from '../components/fieldStyles';
+import { fileInputBase, focusRing, inputBase } from '../components/fieldStyles';
 
 type AddFeedMode = 'subscribe' | 'local' | 'recents';
 
@@ -255,7 +254,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
           id="localArtwork"
           accept="image/jpeg,image/png"
           onChange={(e) => setArtworkFile(e.target.files?.[0] ?? null)}
-          className={`block w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:text-sm ${btnSecondary} file:transition-colors ${focusRing}`}
+          className={fileInputBase}
         />
         <p className="mt-1 text-sm text-warning">
           Podcast apps require square artwork, at least 1400x1400.

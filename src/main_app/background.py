@@ -14,6 +14,7 @@ from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 # is loaded by the explicit `from main_app.background import ...` at
 # the bottom of that file, so the apparent circular import is safe.
 from main_app import db, storage, shutdown_event
+from recents_feed import rebuild_recents_feed
 
 refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
@@ -37,6 +38,7 @@ def run_cleanup():
         reset_count, freed_mb = db.cleanup_old_episodes(storage=storage)
         if reset_count > 0:
             refresh_logger.info(f"Cleanup: reset {reset_count} episodes to discovered, freed {freed_mb:.1f} MB")
+            rebuild_recents_feed()
     except Exception as e:
         refresh_logger.error(f"Cleanup failed: {e}")
         db.clear_leaked_transaction(refresh_logger, 'cleanup')

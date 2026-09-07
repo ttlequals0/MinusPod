@@ -13,7 +13,7 @@ import {
 import type { UpdateFeedPayload, ImportPlan, ImportSource, ImportRejectedFile } from '../../api/feeds';
 import type { Feed } from '../../api/types';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
-import { focusRing, selectBase } from '../../components/fieldStyles';
+import { fileInputBase, focusRing, selectBase } from '../../components/fieldStyles';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { fromDatetimeLocalInput } from '../../utils/format';
 
@@ -29,7 +29,6 @@ const P20_FEED_GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 const P20_PODROLL_MAX_ROWS = 50;
 
 const fieldCls = 'w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
-const fileInputCls = `block w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:text-sm ${btnSecondary} file:transition-colors ${focusRing}`;
 
 // ---- Podcasting 2.0 list tags (funding/person/license/location/txt/podroll) ----
 // One row shape (plain string fields) serves all six tags; the field list
@@ -654,7 +653,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 e.target.value = '';
                 if (file) artworkMutation.mutate(file);
               }}
-              className={fileInputCls}
+              className={fileInputBase}
             />
             {artworkMutation.isPending && <p className="mt-1 text-sm text-muted-foreground">Uploading...</p>}
             {artworkMutation.isSuccess && <p className="mt-1 text-sm text-success">Artwork updated.</p>}
@@ -1073,7 +1072,7 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
             accept=".mp3,audio/mpeg"
             required
             onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)}
-            className={fileInputCls}
+            className={fileInputBase}
           />
         </div>
         <div>
@@ -1134,7 +1133,7 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
             type="file"
             accept="image/jpeg,image/png"
             onChange={(e) => setArtworkFile(e.target.files?.[0] ?? null)}
-            className={fileInputCls}
+            className={fileInputBase}
           />
         </div>
         {mutation.isError && (

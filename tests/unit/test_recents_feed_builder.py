@@ -43,7 +43,7 @@ def recents():
 
 
 def _rows(podcast):
-    return mf.db.get_recent_processed_episodes(recents_cutoff(podcast))
+    return mf.db.get_recent_processed_episodes(recents_cutoff(podcast), details=True)
 
 
 def test_items_come_from_every_source_and_point_at_source_urls(recents):
@@ -76,6 +76,17 @@ def test_chapter_block_follows_the_global_setting(recents):
     mf.db.set_setting('chapters_in_notes', 'true', is_default=False)
     xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
     assert '<p>a2</p><p>Chapters</p><p>00:00 Intro</p>' in xml
+
+
+def test_chapter_block_honours_the_source_feed_override(recents):
+    mf.storage.save_chapters_json('alpha', 'aaaaaaaaaaa2', {'version': '1.2.0', 'chapters': [
+        {'startTime': 0, 'title': 'Intro'}]})
+    mf.db.set_setting('chapters_in_notes', 'true', is_default=False)
+    mf.db.update_podcast('alpha', chapters_in_notes='off')
+    assert 'Chapters</p>' not in build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
+    mf.db.set_setting('chapters_in_notes', 'false', is_default=True)
+    mf.db.update_podcast('alpha', chapters_in_notes='on')
+    assert '<p>Chapters</p><p>00:00 Intro</p>' in build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
 
 
 def test_rebuild_persists_the_cached_rss_and_refresh_routes_to_it(recents):
