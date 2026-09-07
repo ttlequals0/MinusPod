@@ -9,12 +9,11 @@ import logging
 import threading
 import time
 
-from config import coerce_bool_setting
+from config import WHISPER_BACKEND_API, coerce_bool_setting
 
 logger = logging.getLogger('podcast.whisper_pool')
 
 _SETTINGS_TTL_SECONDS = 5.0
-_API_BACKEND = 'openai-api'
 
 
 def _db_settings_reader():
@@ -67,7 +66,7 @@ class WhisperPool:
 
     @staticmethod
     def _is_active(settings) -> bool:
-        return bool(settings.get('enabled')) and settings.get('backend') == _API_BACKEND
+        return bool(settings.get('enabled')) and settings.get('backend') == WHISPER_BACKEND_API
 
     @property
     def active(self) -> bool:
@@ -89,10 +88,8 @@ class WhisperPool:
 
     @contextlib.contextmanager
     def slot(self):
-        """One in-flight request. Blocks while the pool is at capacity;
-        pass-through while inactive. A permit taken while active is
-        released the same way after a toggle-off. Yields outside the
-        lock so inactive calls never serialize on it."""
+        """One in-flight request; pass-through while inactive. A permit
+        taken while active is still released the same way after a toggle-off."""
         with self._lock:
             active = self._capacity > 0
             if active:
