@@ -8952,9 +8952,9 @@ components:
         sampled_floor:
           type: boolean
           description: >-
-            No instance ever repeated across the samples, so the sampling never
-            wrapped around the replica set. The instance count is a lower bound
-            rather than the confirmed total.
+            Sampling ran out before any instance repeated three times in a row,
+            so it never demonstrably wrapped the replica set. The instance count
+            and suggested_max_requests are lower bounds, not confirmed totals.
     CueMatch:
       type: object
       description: One cue match within an episode

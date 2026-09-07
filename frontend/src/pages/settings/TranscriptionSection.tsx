@@ -490,13 +490,14 @@ function WhisperHealthLine({ health, configuredMaxRequests }: {
   const count = instances.length;
   const model = instances[0]?.model ?? 'unknown';
   const suggested = health.suggested_max_requests ?? count;
-  // The hedge leads the sentence so it governs the request total too: that
-  // sum is over the same undercounted instances, so it is equally a floor.
+  // Both numbers are hedged: the request total is summed over the same
+  // undercounted instances, so it is equally a floor.
   const countLabel = `${count} ${count === 1 ? 'instance' : 'instances'}`;
-  const line = health.sampled_floor ? `At least ${countLabel}` : countLabel;
+  const hedge = health.sampled_floor ? 'at least ' : '';
+  const lead = health.sampled_floor ? `At least ${countLabel}` : countLabel;
   return (
     <p className="text-xs text-muted-foreground">
-      {line} reporting {model}, {suggested} requests total.
+      {lead} reporting {model}, {hedge}{suggested} requests total.
       {suggested !== configuredMaxRequests && ` Your cap is ${configuredMaxRequests}.`}
     </p>
   );

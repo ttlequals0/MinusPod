@@ -219,6 +219,15 @@ class TestCaching:
             probe_whisper_health(base_url=BASE, samples=1, refresh=True)
         assert sg.call_count == 2
 
+    def test_a_failed_refresh_keeps_a_good_cached_probe(self):
+        with patch('transcriber.safe_get', return_value=_health('whisper-1')):
+            probe_whisper_health(base_url=BASE, samples=1)
+        with patch('transcriber.safe_get', return_value=_bad(429)):
+            assert probe_whisper_health(base_url=BASE, samples=1, refresh=True) == {
+                'available': False}
+        with patch('transcriber.safe_get', side_effect=AssertionError('should be cached')):
+            assert probe_whisper_health(base_url=BASE, samples=1)['available'] is True
+
     def test_refresh_replaces_a_cached_negative(self):
         with patch('transcriber.safe_get', return_value=_bad(404)):
             assert probe_whisper_health(base_url=BASE, samples=1)['available'] is False
@@ -228,6 +237,44 @@ class TestCaching:
             assert probe_whisper_health(base_url=BASE, samples=1)['available'] is True
 
 
+class TestProbeBudget:
+    def test_a_slow_backend_stops_sampling_at_the_budget(self):
+        # Every sample burns a second of a 2s budget, so the 8-sample default
+        # cannot keep a worker for 40s against a hanging backend.
+        clock = {'t': 0.0}
+
+        def tick(*a, **kw):
+            clock['t'] += 1.0
+            return _bad(503)
+
+        with patch('transcriber.time.monotonic', side_effect=lambda: clock['t']), \
+             patch('transcriber.safe_get', side_effect=tick) as sg:
+            probe_whisper_health(base_url=BASE, samples=8, refresh=True, budget=2.0)
+        assert sg.call_count < 8
+
+    def test_a_concurrent_probe_returns_the_cached_result_instead_of_stacking(self):
+        with patch('transcriber.safe_get', return_value=_health('whisper-1')):
+            probe_whisper_health(base_url=BASE, samples=1)
+        transcriber._health_probe_lock.acquire()
+        try:
+            with patch('transcriber.safe_get',
+                       side_effect=AssertionError('must not probe')) as sg:
+                result = probe_whisper_health(base_url=BASE, samples=1, refresh=True)
+            assert sg.call_count == 0
+        finally:
+            transcriber._health_probe_lock.release()
+        assert result['available'] is True
+
+    def test_a_concurrent_probe_with_no_cache_reports_unavailable(self):
+        transcriber._health_probe_lock.acquire()
+        try:
+            with patch('transcriber.safe_get', side_effect=AssertionError('must not probe')):
+                result = probe_whisper_health(base_url=BASE, samples=1)
+        finally:
+            transcriber._health_probe_lock.release()
+        assert result == {'available': False}
+
+
 class TestConcurrencyCoercion:
     def test_float_and_numeric_string_max_concurrent_are_counted(self):
         replicas = [_health('whisper-1', max_concurrent=4.0),
@@ -235,6 +282,14 @@ class TestConcurrencyCoercion:
         with patch('transcriber.safe_get', side_effect=replicas):
             result = probe_whisper_health(base_url=BASE, samples=2, refresh=True)
         assert result['suggested_max_requests'] == 8
+
+    def test_infinite_max_concurrent_does_not_raise(self):
+        # json.loads accepts bare Infinity, and int(inf) raises OverflowError.
+        replicas = [_health('whisper-1', max_concurrent=float('inf')),
+                    _health('whisper-2', max_concurrent='1e400')]
+        with patch('transcriber.safe_get', side_effect=replicas):
+            result = probe_whisper_health(base_url=BASE, samples=2, refresh=True)
+        assert result['suggested_max_requests'] == 2
 
     def test_zero_negative_and_bool_max_concurrent_floor_at_one(self):
         replicas = [_health('whisper-1', max_concurrent=0),

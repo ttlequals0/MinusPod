@@ -181,6 +181,6 @@ describe('TranscriptionSection whisper pool', () => {
     });
     renderSection();
     expect(await screen.findByText(
-      'At least 2 instances reporting large-v3, 2 requests total. Your cap is 4.')).toBeTruthy();
+      'At least 2 instances reporting large-v3, at least 2 requests total. Your cap is 4.')).toBeTruthy();
   });
 });
