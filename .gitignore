@@ -186,6 +186,7 @@ docker-compose.local.yml
 ad_detection_baseline.md.playwright-mcp/
 .playwright-mcp/
 *.png
+!frontend/public/recents-artwork.png
 
 # Smoke test per-run artifacts (scripts and .gitkeep are tracked)
 smoke/results/*

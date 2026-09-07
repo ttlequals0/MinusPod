@@ -50,7 +50,7 @@ from utils.feed_guid import compute_feed_guid
 from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
-from utils.paths import LOGO_PATH
+from utils.paths import RECENTS_ARTWORK_PATH
 from database.podcasts import EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, is_local_feed, is_recents_feed, recents_cutoff
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
@@ -1012,8 +1012,8 @@ def _add_recents_feed(data, db):
     db.create_podcast(RECENTS_SLUG, 'recents://', title, feed_type='recents')
     if description:
         db.update_podcast(RECENTS_SLUG, description=description)
-    if LOGO_PATH.exists():
-        get_storage().save_artwork(RECENTS_SLUG, LOGO_PATH.read_bytes(), 'image/png')
+    if RECENTS_ARTWORK_PATH.exists():
+        get_storage().save_artwork(RECENTS_SLUG, RECENTS_ARTWORK_PATH.read_bytes(), 'image/png')
     from main_app.feeds import invalidate_feed_cache, rebuild_served_rss
     rebuild_served_rss(RECENTS_SLUG)
     invalidate_feed_cache()

@@ -6,7 +6,6 @@ import type { Feed } from '../../api/types';
 import { btnPrimary } from '../../components/buttonStyles';
 import { fileInputBase, focusRing, inputBase } from '../../components/fieldStyles';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
-import { formatDate } from '../../utils/format';
 
 // Title, description and artwork are the only editable parts of the recents feed.
 function RecentsFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
@@ -31,8 +30,8 @@ function RecentsFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
     <section className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6 space-y-4">
       <h2 className="text-lg font-semibold text-foreground">Recents feed</h2>
       <p className="text-sm text-muted-foreground">
-        Every episode processed on this instance and published on or after {formatDate(feed.createdAt ?? null)}
-        appears here, from all your podcasts. Older episodes stay out even when they are reprocessed.
+        Every episode processed on this instance and published on or after {feed.createdAt?.slice(0, 10)} appears
+        here, from all your podcasts. Older episodes stay out even when they are reprocessed.
       </p>
       <label className="block text-sm">
         <span className="font-medium text-foreground">Title</span>

@@ -15,7 +15,7 @@ release notes.
 
 ### Added
 
-- Recents feed (#721): an opt-in combined feed at `/recents` with every episode processed on the instance whose publish date is on or after the feed's creation, across all subscribed and local feeds. Create it once from Add Feed, rename it, set a description, and replace its artwork (the MinusPod logo by default). Every item points at its source feed's audio, transcript, and chapters, so subscribing to it once keeps up with podcasts added later. Old episodes that get reprocessed stay out, and OPML exports do not include it.
+- Recents feed (#721): an opt-in combined feed at `/recents` with every episode processed on the instance whose publish date is on or after the day the feed was created, across all subscribed and local feeds. Create it once from Add Feed, rename it, set a description, and replace its artwork (the MinusPod icon by default). Every item points at its source feed's audio, transcript, and chapters, so subscribing to it once keeps up with podcasts added later. Old episodes that get reprocessed stay out, and OPML exports do not include it.
 
 ### Changed
 
