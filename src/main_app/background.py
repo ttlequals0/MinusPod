@@ -4,6 +4,7 @@ import os
 import shutil
 import threading
 import time
+from typing import Literal
 
 import run_log
 from config import (
@@ -142,10 +143,15 @@ def background_rss_refresh():
         shutdown_event.wait(timeout=interval_minutes * 60)
 
 
-def _run_claimed_episode(queued: dict, running: set) -> bool:
+ClaimResult = Literal['started', 'skipped', 'bounced']
+
+
+def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
     """Handle one claim's gates and start inline; the run itself polls on its own thread.
 
-    Returns False on a bounce (dispatcher backs off before reclaiming); True once the row is consumed.
+    'started': a waiter thread now owns the run. 'skipped': the row was closed
+    (completed or failed) without starting a run. 'bounced': the row went back
+    to 'pending' and the dispatcher should back off before reclaiming it.
     """
     try:
         queue_id = queued['id']
@@ -164,7 +170,7 @@ def _run_claimed_episode(queued: dict, running: set) -> bool:
         if queue_id is not None:
             db.clear_leaked_transaction(refresh_logger, 'auto-process error path')
             db.close_claimed_queue_row(queue_id, 'pending')
-        return False
+        return 'bounced'
 
     try:
         from main_app.processing import start_background_processing
@@ -193,7 +199,7 @@ def _run_claimed_episode(queued: dict, running: set) -> bool:
             if not user_requested:
                 db.close_claimed_queue_row(queue_id, 'completed', 'Auto-process disabled for this feed')
                 refresh_logger.info(f"[{slug}:{episode_id}] Skipped - auto-process disabled for this feed")
-                return True
+                return 'skipped'
             refresh_logger.info(f"[{slug}:{episode_id}] Auto-process disabled but user-initiated reprocess; honoring")
 
         # Title blacklist gate: mirrors the auto-process gate above,
@@ -201,7 +207,7 @@ def _run_claimed_episode(queued: dict, running: set) -> bool:
         if title_blacklisted and not user_requested:
             db.close_claimed_queue_row(queue_id, 'completed', 'skipped: title blacklist')
             refresh_logger.info(f"[{slug}:{episode_id}] Skipped - title blacklist match: {title}")
-            return True
+            return 'skipped'
 
         refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
 
@@ -217,20 +223,27 @@ def _run_claimed_episode(queued: dict, running: set) -> bool:
             waiter = threading.Thread(
                 target=_wait_for_claimed_episode, args=(queue_id, slug, episode_id),
                 daemon=True, name=f"episode-{slug}-{episode_id}")
+            try:
+                waiter.start()
+            except Exception as e:
+                # The run is already live (start_background_processing
+                # returned True); a failed poller thread must not mark the
+                # row failed. Leave it as 'processing' for the orphan sweep.
+                refresh_logger.error(f"[{slug}:{episode_id}] Could not start claim waiter thread: {e}")
+                return 'skipped'
             running.add(waiter)
-            waiter.start()
-            return True
+            return 'started'
         elif reason == "already_processing":
             # Episode is already being processed elsewhere. Release our
             # claim back to 'pending'; the dispatcher backs off before retrying.
             db.close_claimed_queue_row(queue_id, 'pending')
             refresh_logger.info(f"[{slug}:{episode_id}] Already processing, will retry")
-            return False
+            return 'bounced'
         else:
             # Queue busy or rate-limit paused; put back in queue and back off.
             db.close_claimed_queue_row(queue_id, 'pending')
             refresh_logger.debug(f"[{slug}:{episode_id}] Queue busy, will retry")
-            return False
+            return 'bounced'
 
     except Exception as e:
         # Clear any leaked transaction before the status write so
@@ -238,7 +251,7 @@ def _run_claimed_episode(queued: dict, running: set) -> bool:
         db.clear_leaked_transaction(refresh_logger, 'auto-process error path')
         db.close_claimed_queue_row(queue_id, 'failed', str(e))
         refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
-        return True
+        return 'skipped'
 
 
 def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None:
@@ -416,11 +429,13 @@ def background_queue_processor():
                 if not queued:
                     break
                 claimed_any = True
-                if _run_claimed_episode(queued, running):
+                result = _run_claimed_episode(queued, running)
+                if result == 'started':
                     backoff = 30
-                else:
+                elif result == 'bounced':
                     bounced = True
                     break
+                # 'skipped': row already closed, neither resets backoff nor bounces
 
             # Periodically clean up completed queue items
             db.clear_completed_queue_items(older_than_hours=24)

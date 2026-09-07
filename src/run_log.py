@@ -276,19 +276,21 @@ class RunLogRecorder(logging.Handler):
         try:
             if record.levelno < self.level:
                 return
-            message = self.format(record)
-            if not self._belongs(record, message):
+            if not self._belongs(record):
                 return
+            message = self.format(record)
             self._write(record.levelname, record.name, message,
                         created=record.created)
         except Exception as err:
             self._disable(err)
 
-    def _belongs(self, record, message):
-        if self.tag in message:
-            return True
+    def _belongs(self, record):
+        # Thread check first: no need to format (and possibly render a
+        # traceback for) a foreign record just to test it.
         with self._threads_lock:
-            return record.thread in self._threads
+            if record.thread in self._threads:
+                return True
+        return self.tag in record.getMessage()
 
     def _write(self, level, logger_name, message, created=None):
         encoded = _encode_line({

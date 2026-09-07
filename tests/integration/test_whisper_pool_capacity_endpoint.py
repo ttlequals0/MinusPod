@@ -24,6 +24,7 @@ def test_capacity_reports_disabled_by_default(app_client):
     assert body['chunkWorkers'] == {'configured': 4, 'effective': 4}
     assert body['worstCaseInFlight'] == 4
     assert body['exceedsCapacity'] is False
+    assert isinstance(body['leader'], bool)
 
 
 def test_capacity_reflects_settings_and_local_backend(app_client):

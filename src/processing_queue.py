@@ -108,8 +108,11 @@ class ProcessingQueue:
             return True
         return True
 
-    def _prune(self, slots: dict) -> dict:
-        """Drop slots whose process is gone or whose run passed the hard timeout."""
+    def _prune(self, slots: dict) -> tuple[dict, bool]:
+        """Drop slots whose process is gone or whose run passed the hard timeout.
+
+        Returns (kept, changed) so callers can skip writing back an unchanged state.
+        """
         now = time.time()
         hard = get_hard_timeout()
         kept = {}
@@ -129,7 +132,7 @@ class ProcessingQueue:
             if elapsed > get_soft_timeout():
                 logger.warning(f"Long-running job: {key} ({elapsed/60:.0f} min), still in progress")
             kept[key] = slot
-        return kept
+        return kept, len(kept) != len(slots)
 
     def acquire(self, slug: str, episode_id: str, limit: int = 1, timeout: float = 0) -> bool:
         """Take a slot. False when this episode already holds one or the
@@ -138,17 +141,19 @@ class ProcessingQueue:
         deadline = time.time() + max(0.0, timeout)
         while True:
             with self._flock():
-                slots = self._prune(self._read_slots())
+                slots, pruned = self._prune(self._read_slots())
                 if key in slots:
                     logger.warning(f"ProcessingQueue rejecting acquire for {key}: already running")
-                    self._write_slots(slots)
+                    if pruned:
+                        self._write_slots(slots)
                     return False
                 if len(slots) < max(1, limit):
                     slots[key] = {'started_at': time.time(), 'pid': os.getpid()}
                     self._write_slots(slots)
                     logger.info(f"ProcessingQueue slot acquired for {key} ({len(slots)}/{limit})")
                     return True
-                self._write_slots(slots)
+                if pruned:
+                    self._write_slots(slots)
             if time.time() >= deadline:
                 return False
             time.sleep(0.1)
@@ -179,8 +184,9 @@ class ProcessingQueue:
     def get_current(self) -> list[tuple[str, str]]:
         """Running episodes, oldest first."""
         with self._flock():
-            slots = self._prune(self._read_slots())
-            self._write_slots(slots)
+            slots, pruned = self._prune(self._read_slots())
+            if pruned:
+                self._write_slots(slots)
         ordered = sorted(slots.items(), key=lambda kv: kv[1].get('started_at') or 0)
         return [tuple(key.partition(':')[::2]) for key, _ in ordered]
 

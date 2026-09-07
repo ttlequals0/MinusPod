@@ -1153,9 +1153,6 @@ class Transcriber:
             response = None
             last_request_exc = None
             max_attempts = 2
-            # Wall-clock deadline for 429 retries (which do not consume an
-            # attempt slot, see below) so a Retry-After: 0 loop cannot spin.
-            retry_deadline = time.monotonic() + _api_timeout(whisper_settings)
             granularity_modes = (
                 ['segment', 'word'],
                 ['segment'],
@@ -1165,6 +1162,10 @@ class Transcriber:
                     **form_data_base,
                     'timestamp_granularities[]': granularities,
                 }
+                # Wall-clock deadline for 429 retries (which do not consume an
+                # attempt slot, see below) so a Retry-After: 0 loop cannot spin.
+                # Reset per granularity mode so a retried mode gets its own window.
+                retry_deadline = time.monotonic() + _api_timeout(whisper_settings)
                 attempt = 0
                 while attempt < max_attempts:
                     try:

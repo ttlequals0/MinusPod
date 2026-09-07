@@ -1331,40 +1331,39 @@ def _apply_transcribe_chunk_fields(db, data):
             )
         parsed[db_key] = value
 
+    pool_enabled = None
     if 'whisperPoolEnabled' in data:
         if not isinstance(data['whisperPoolEnabled'], bool):
             return json_response({'error': 'whisperPoolEnabled must be a boolean'}, 400)
-        db.set_setting('whisper_pool_enabled',
-                        'true' if data['whisperPoolEnabled'] else 'false', is_default=False)
-        logger.info(f"Updated whisper_pool_enabled to: {data['whisperPoolEnabled']}")
+        pool_enabled = data['whisperPoolEnabled']
 
     pool_touched = ('whisperPoolEnabled' in data
                     or 'whisper_pool_max_requests' in parsed
                     or 'whisper_pool_max_episodes' in parsed)
 
-    if not parsed:
-        if pool_touched:
-            get_pool().refresh(force=True)
-        return None
+    if parsed:
+        # Cross-field: overlap must stay below the chunk size. An overlap >= chunk
+        # makes every chunk span its whole neighbor, wasting work and degenerating
+        # the merge dedupe. Validate the effective values (incoming where present,
+        # stored otherwise) so changing one field can't cross the other.
+        def _effective(db_key, fallback):
+            if db_key in parsed:
+                return parsed[db_key]
+            stored = db.get_setting(db_key)
+            try:
+                return int(stored) if stored else fallback
+            except (ValueError, TypeError):
+                return fallback
 
-    # Cross-field: overlap must stay below the chunk size. An overlap >= chunk
-    # makes every chunk span its whole neighbor, wasting work and degenerating
-    # the merge dedupe. Validate the effective values (incoming where present,
-    # stored otherwise) so changing one field can't cross the other.
-    def _effective(db_key, fallback):
-        if db_key in parsed:
-            return parsed[db_key]
-        stored = db.get_setting(db_key)
-        try:
-            return int(stored) if stored else fallback
-        except (ValueError, TypeError):
-            return fallback
+        if _effective('transcribe_chunk_overlap_seconds', 30) >= _effective('transcribe_max_chunk_seconds', 600):
+            return json_response(
+                {'error': 'transcribeChunkOverlapSeconds must be less than transcribeMaxChunkSeconds'},
+                400,
+            )
 
-    if _effective('transcribe_chunk_overlap_seconds', 30) >= _effective('transcribe_max_chunk_seconds', 600):
-        return json_response(
-            {'error': 'transcribeChunkOverlapSeconds must be less than transcribeMaxChunkSeconds'},
-            400,
-        )
+    if pool_enabled is not None:
+        db.set_setting('whisper_pool_enabled', 'true' if pool_enabled else 'false', is_default=False)
+        logger.info(f"Updated whisper_pool_enabled to: {pool_enabled}")
 
     for db_key, value in parsed.items():
         db.set_setting(db_key, str(value), is_default=False)
@@ -2431,6 +2430,7 @@ def get_whisper_capacity():
     Refreshes only this worker's pool; the leader's dispatcher refreshes its
     own pool every pass (5s settings TTL), so no cross-process signal needed.
     """
+    from main_app.background import is_background_leader  # lazy: avoid import cycle
     from transcriber import _get_chunk_settings
     pool = get_pool()
     pool.refresh(force=True)
@@ -2442,6 +2442,7 @@ def get_whisper_capacity():
         'chunkWorkers': {'configured': configured, 'effective': effective},
         'worstCaseInFlight': worst,
         'exceedsCapacity': bool(snap['active'] and worst > snap['capacity']),
+        'leader': is_background_leader(),
     })
     return json_response(snap)
 

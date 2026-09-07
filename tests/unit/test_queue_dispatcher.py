@@ -149,6 +149,32 @@ def test_bounced_claim_backs_off_instead_of_spinning(feed):
     assert waits[:2] == [30, 60]
 
 
+def test_skipped_claim_does_not_reset_ramped_backoff(feed, monkeypatch):
+    """A gate-skipped claim between two bounces must not reset the backoff
+    the first bounce already ramped (#parallel-whisper review)."""
+    _queue(3)
+    results = iter(['bounced', 'skipped', 'bounced'])
+    monkeypatch.setattr(background, '_run_claimed_episode', lambda queued, running: next(results))
+
+    waits = []
+    calls = {'n': 0}
+
+    def fake_wait(timeout=None):
+        waits.append(timeout)
+        calls['n'] += 1
+        return calls['n'] >= 2
+
+    stop = MagicMock()
+    stop.is_set.side_effect = lambda: calls['n'] >= 2
+    stop.wait.side_effect = fake_wait
+
+    with patch.object(background, 'shutdown_event', stop), \
+         patch.object(background, 'get_pool', lambda: _pool(False, 1)):
+        background.background_queue_processor()
+
+    assert waits == [30, 60]
+
+
 def test_start_outside_leader_enqueues_only_while_active(feed, monkeypatch):
     monkeypatch.setattr('main_app.processing.get_pool', lambda: _pool(True, 2))
     monkeypatch.setattr(background, '_is_leader', False)

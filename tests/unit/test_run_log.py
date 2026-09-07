@@ -168,7 +168,7 @@ class TestRunThreadCapture:
         record = logging.LogRecord('podcast.other', logging.INFO, __file__, 1,
                                    'unrelated work', None, None)
         record.thread = idents[0]
-        assert rec._belongs(record, record.getMessage()) is False
+        assert rec._belongs(record) is False
 
 
 class TestLineShape:

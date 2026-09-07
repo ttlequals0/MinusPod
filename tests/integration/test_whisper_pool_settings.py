@@ -41,3 +41,18 @@ def test_patch_rejects_out_of_range(app_client):
     assert app_client.put('/api/v1/settings/ad-detection', json={'whisperPoolMaxRequests': 65}, headers=hdr).status_code == 400
     assert app_client.put('/api/v1/settings/ad-detection', json={'whisperPoolMaxEpisodes': 17}, headers=hdr).status_code == 400
     assert app_client.put('/api/v1/settings/ad-detection', json={'whisperPoolEnabled': 'yes'}, headers=hdr).status_code == 400
+
+
+def test_patch_rejects_cross_field_leaves_pool_enabled_unchanged(app_client):
+    hdr = _csrf(app_client)
+    before = app_client.get('/api/v1/settings').get_json()['whisperPoolEnabled']['value']
+
+    r = app_client.put('/api/v1/settings/ad-detection', json={
+        'whisperPoolEnabled': not before,
+        'transcribeMaxChunkSeconds': 30,
+        'transcribeChunkOverlapSeconds': 30,
+    }, headers=hdr)
+    assert r.status_code == 400
+
+    after = app_client.get('/api/v1/settings').get_json()['whisperPoolEnabled']['value']
+    assert after is before

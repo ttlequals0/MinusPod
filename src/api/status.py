@@ -100,9 +100,11 @@ def status_payload(status=None) -> dict:
     hold state is merged here instead, where both the stream and the one-time
     GET pick it up from the same place.
     """
+    from main_app.background import is_background_leader  # lazy: avoid import cycle
+
     payload = get_status_service().to_dict(status)
     payload['hold'] = hold_block()
-    payload['whisper'] = get_pool().snapshot()
+    payload['whisper'] = {**get_pool().snapshot(), 'leader': is_background_leader()}
     return payload
 
 
