@@ -113,6 +113,13 @@ function holdSummary(hold: QueueHold | undefined): string | null {
 }
 
 
+/** The running jobs in a frame, keyed slug:episodeId. Older frames carry only
+ *  currentJob, so that is the fallback. */
+function jobKeys(status: StatusData | null): Set<string> {
+  const list = status?.jobs ?? (status?.currentJob ? [status.currentJob] : []);
+  return new Set(list.map((job) => `${job.slug}:${job.episodeId}`));
+}
+
 /** Server elapsed plus seconds ticked locally since the frame carrying it arrived. */
 function jobElapsed(job: ProcessingJob, now: number, receivedAt: number): number {
   return job.elapsed + (now - receivedAt) / 1000;
@@ -194,8 +201,10 @@ function GlobalStatusBar() {
           // pages (FeedDetail, EpisodeDetail, Dashboard) pick up
           // changes without manual refresh.
           const prev = prevStatusRef.current;
-          if (prev?.currentJob && !data.currentJob) {
-            // Job just completed
+          const nextKeys = jobKeys(data);
+          if ([...jobKeys(prev)].some((key) => !nextKeys.has(key))) {
+            // A job in the previous frame is missing from this one, so it
+            // finished. A count would miss one ending as another starts.
             queryClient.invalidateQueries({ queryKey: ['episode'] });
             queryClient.invalidateQueries({ queryKey: ['episodes'] });
             queryClient.invalidateQueries({ queryKey: ['feed'] });

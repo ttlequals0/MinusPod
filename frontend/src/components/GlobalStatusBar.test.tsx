@@ -229,3 +229,45 @@ describe('GlobalStatusBar multiple jobs', () => {
     expect(rows[1].textContent).toContain('Detecting ads');
   });
 });
+
+describe('GlobalStatusBar completion invalidation', () => {
+  beforeEach(() => { FakeEventSource.instances = []; vi.stubGlobal('EventSource', FakeEventSource); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('invalidates when one of several jobs finishes', () => {
+    const a = job('feed-a', '1', 'First');
+    const b = job('feed-b', '2', 'Second');
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    render(
+      <QueryClientProvider client={client}>
+        <GlobalStatusBar />
+      </QueryClientProvider>,
+    );
+    const source = FakeEventSource.instances[0];
+    source.emit(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    invalidate.mockClear();
+    // The newer job ends; currentJob still names the older one, so only the
+    // key set says anything finished.
+    source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
+    expect(invalidate.mock.calls.map((c) => c[0]?.queryKey)).toEqual([
+      ['episode'], ['episodes'], ['feed'], ['feeds'],
+    ]);
+  });
+
+  it('does not invalidate while the same jobs keep running', () => {
+    const a = job('feed-a', '1', 'First');
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    render(
+      <QueryClientProvider client={client}>
+        <GlobalStatusBar />
+      </QueryClientProvider>,
+    );
+    const source = FakeEventSource.instances[0];
+    source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
+    invalidate.mockClear();
+    source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+});
