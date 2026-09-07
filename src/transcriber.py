@@ -538,9 +538,7 @@ _HEALTH_PROBE_BUDGET_SECONDS = 15.0
 _health_inflight: set[str] = set()
 _health_inflight_lock = threading.Lock()
 # Last successful probe per base URL, kept past the cache TTL only to answer
-# a caller that arrives while that URL's probe is still running. Stamped and
-# age-capped: showing a long-dead backend as healthy is worse than showing
-# nothing.
+# a caller that arrives while that URL's probe is still running.
 _health_last_good: dict[str, tuple[float, dict]] = {}
 _HEALTH_LAST_GOOD_MAX = 32
 _HEALTH_LAST_GOOD_MAX_AGE_SECONDS = 3 * _HEALTH_CACHE_TTL_SECONDS
