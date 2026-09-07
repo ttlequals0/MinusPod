@@ -398,7 +398,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         reset_factory=lambda: os.environ.get('TRANSCRIBE_CHUNK_OVERLAP_SECONDS', '30'),
         payload_key='transcribeChunkOverlapSeconds', payload_kind='int'),
 
-    # -- Whisper pool (parallel processing against a remote backend) --
+    # Whisper pool (parallel processing against a remote backend)
     'whisper_pool_enabled': SettingSpec(
         default='false', env='WHISPER_POOL_ENABLED', seeded=True, in_ad_reset=True,
         payload_key='whisperPoolEnabled', payload_kind='bool'),
