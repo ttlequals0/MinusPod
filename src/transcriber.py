@@ -330,7 +330,7 @@ class _ChunkPrefetcher:
             # run_in_worker_thread keeps the pool thread's ffmpeg log lines
             # inside the episode's run log.
             self._pending[bounds] = self._executor.submit(
-                run_in_worker_thread, extract_audio_chunk,
+                run_in_worker_thread(extract_audio_chunk),
                 self._audio_path, start, end, preprocess=True,
             )
 
@@ -1987,7 +1987,7 @@ class Transcriber:
         exe = ThreadPoolExecutor(max_workers=max_workers)
         try:
             futures = [
-                exe.submit(run_in_worker_thread, _process_chunk, i, s, e)
+                exe.submit(run_in_worker_thread(_process_chunk), i, s, e)
                 for i, s, e in plan
             ]
             for completed, fut in enumerate(as_completed(futures), 1):

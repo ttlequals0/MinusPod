@@ -18,11 +18,11 @@ from unittest.mock import patch
 
 import pytest
 
+import run_context
 from ad_detector import AdDetector, _resolve_parallel_windows, WindowResult
 from llm_client import (
     start_episode_token_tracking,
     get_episode_token_totals,
-    _episode_accumulator,
 )
 
 
@@ -69,10 +69,14 @@ def detector():
 
 @pytest.fixture(autouse=True)
 def reset_accumulator():
-    # Ensure no leftover state between tests.
-    _episode_accumulator.collect_and_reset()
+    # Ensure no leftover run context from a previous test.
+    leftover = run_context.current()
+    if leftover is not None:
+        run_context.end(leftover)
     yield
-    _episode_accumulator.collect_and_reset()
+    leftover = run_context.current()
+    if leftover is not None:
+        run_context.end(leftover)
 
 
 class TestResolveParallelWindows:
@@ -287,47 +291,56 @@ class TestRunWindowsProgressCallback:
 
 
 class TestCostAccumulatorParallelSafety:
-    """The shared lock-protected accumulator must collect totals correctly
-    from N concurrent workers without double-counting or lost updates."""
+    """The per-run accumulator must collect totals correctly from N
+    concurrent worker threads bound to the same run, without
+    double-counting or lost updates."""
 
     def test_parallel_calls_aggregate_correctly(self):
         """Hammer the accumulator from 8 threads with 100 calls each and
         verify the totals are exactly the expected sum."""
-        start_episode_token_tracking()
+        ctx = run_context.begin('feed', 'ep')
+        try:
+            start_episode_token_tracking()
 
-        threads = []
-        n_threads = 8
-        calls_per_thread = 100
-        per_call_in = 10
-        per_call_out = 5
-        per_call_cost = 0.001
+            threads = []
+            n_threads = 8
+            calls_per_thread = 100
+            per_call_in = 10
+            per_call_out = 5
+            per_call_cost = 0.001
 
-        def worker():
-            for _ in range(calls_per_thread):
-                _episode_accumulator.add(per_call_in, per_call_out, per_call_cost)
+            def worker():
+                for _ in range(calls_per_thread):
+                    run_context.current().tokens.add(per_call_in, per_call_out, per_call_cost)
 
-        for _ in range(n_threads):
-            t = threading.Thread(target=worker)
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
+            for _ in range(n_threads):
+                t = threading.Thread(target=run_context.run_in_worker_thread(worker))
+                t.start()
+                threads.append(t)
+            for t in threads:
+                t.join()
 
-        totals = get_episode_token_totals()
-        expected_in = n_threads * calls_per_thread * per_call_in
-        expected_out = n_threads * calls_per_thread * per_call_out
-        expected_cost = n_threads * calls_per_thread * per_call_cost
+            totals = get_episode_token_totals()
+            expected_in = n_threads * calls_per_thread * per_call_in
+            expected_out = n_threads * calls_per_thread * per_call_out
+            expected_cost = n_threads * calls_per_thread * per_call_cost
 
-        assert totals['input_tokens'] == expected_in
-        assert totals['output_tokens'] == expected_out
-        assert abs(totals['cost'] - expected_cost) < 1e-6
+            assert totals['input_tokens'] == expected_in
+            assert totals['output_tokens'] == expected_out
+            assert abs(totals['cost'] - expected_cost) < 1e-6
+        finally:
+            run_context.end(ctx)
 
     def test_inactive_accumulator_silently_drops_updates(self):
         """A worker thread updating the accumulator while it's not active
         must be a safe no-op (e.g., chapters generation outside detection)."""
-        # Don't call start_episode_token_tracking
-        _episode_accumulator.add(100, 50, 1.0)
-        totals = get_episode_token_totals()
-        assert totals['input_tokens'] == 0
-        assert totals['output_tokens'] == 0
-        assert totals['cost'] == 0.0
+        ctx = run_context.begin('feed', 'ep')
+        try:
+            # Don't call start_episode_token_tracking
+            ctx.tokens.add(100, 50, 1.0)
+            totals = get_episode_token_totals()
+            assert totals['input_tokens'] == 0
+            assert totals['output_tokens'] == 0
+            assert totals['cost'] == 0.0
+        finally:
+            run_context.end(ctx)

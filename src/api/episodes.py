@@ -27,6 +27,7 @@ from database.queue import (
 )
 from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
+import run_context
 from processing_queue import ProcessingQueue
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT, batch_clear_episodes_for_mode,
@@ -1028,6 +1029,7 @@ def regenerate_chapters(slug, episode_id):
     marker_cuts = storage.get_applied_cuts(slug, episode_id)
 
     try:
+        ctx = run_context.begin(slug, episode_id)
         start_episode_token_tracking()
         chapters_gen = ChaptersGenerator()
 
@@ -1047,6 +1049,7 @@ def regenerate_chapters(slug, episode_id):
             )
         finally:
             token_totals = get_episode_token_totals()
+            run_context.end(ctx)
             if token_totals['input_tokens'] > 0:
                 db.increment_episode_token_usage(
                     episode_id,
@@ -1394,6 +1397,7 @@ def retry_ad_detection(slug, episode_id):
         podcast_name = podcast.get('title', slug)
 
         # Retry ad detection with token tracking
+        ctx = run_context.begin(slug, episode_id)
         start_episode_token_tracking()
 
         from ad_detector import AdDetector
@@ -1415,6 +1419,7 @@ def retry_ad_detection(slug, episode_id):
             )
         finally:
             token_totals = get_episode_token_totals()
+            run_context.end(ctx)
             if token_totals['input_tokens'] > 0:
                 db.increment_episode_token_usage(
                     episode_id,

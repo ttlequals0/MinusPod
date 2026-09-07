@@ -32,6 +32,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Union
 
+import run_context
+
 import requests
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
@@ -1334,78 +1336,36 @@ _llm_circuit_breaker = CircuitBreaker(
     "llm-api", failure_threshold=5, recovery_timeout=60,
     cause_classifier=lambda error: is_auth_error(error))
 
-# Per-episode token accumulator.
-#
-# Backed by a single lock-protected object rather than thread-local storage
-# so that ad-detection windows running on a ThreadPoolExecutor (2.5.23+) all
-# contribute to the same totals. The processing queue (fcntl flock on
-# .processing_queue.lock) guarantees only one episode is mid-accumulation at
-# any time per gunicorn worker process, so a single accumulator is correct.
-class _EpisodeAccumulator:
-    def __init__(self):
-        self._lock = threading.Lock()
-        self.active = False
-        self.input_tokens = 0
-        self.output_tokens = 0
-        self.cost = 0.0
-
-    def start(self):
-        with self._lock:
-            self.active = True
-            self.input_tokens = 0
-            self.output_tokens = 0
-            self.cost = 0.0
-
-    def add(self, input_tokens: int, output_tokens: int, cost: float) -> None:
-        with self._lock:
-            if not self.active:
-                return
-            self.input_tokens += input_tokens
-            self.output_tokens += output_tokens
-            self.cost += cost
-
-    def is_active(self) -> bool:
-        with self._lock:
-            return self.active
-
-    def collect_and_reset(self) -> dict:
-        with self._lock:
-            totals = {
-                'input_tokens': self.input_tokens,
-                'output_tokens': self.output_tokens,
-                'cost': self.cost,
-            }
-            self.active = False
-            self.input_tokens = 0
-            self.output_tokens = 0
-            self.cost = 0.0
-        return totals
-
-
-_episode_accumulator = _EpisodeAccumulator()
+# Per-run token accumulator, keyed by run_context (one per thread's run):
+# pool workers (ad-detection windows, reviewer batches) are bound to their
+# submitting thread's run, so totals aggregate per run, not per process.
 
 
 def _get_accumulator_active() -> bool:
-    """Return whether the per-episode accumulator is currently active."""
-    return _episode_accumulator.is_active()
+    """Return whether the calling thread's run has active token tracking."""
+    ctx = run_context.current()
+    return bool(ctx and ctx.tokens.is_active())
 
 
 def start_episode_token_tracking():
-    """Reset and activate the per-episode token accumulator.
-
-    Safe to call from any thread; updates from any thread will be aggregated
-    until ``get_episode_token_totals()`` is invoked.
-    """
-    _episode_accumulator.start()
-    logger.info(f"Episode token tracking: ACTIVATED (thread={threading.current_thread().name})")
+    """Reset and activate the calling run's token accumulator."""
+    ctx = run_context.current()
+    if ctx is None:
+        logger.debug("Episode token tracking requested outside a run; ignored")
+        return
+    ctx.tokens.start()
+    logger.info(f"Episode token tracking: ACTIVATED ({ctx.key})")
 
 
 def get_episode_token_totals() -> dict:
-    """Return accumulated totals, deactivate, and reset the accumulator."""
-    totals = _episode_accumulator.collect_and_reset()
+    """Return the calling run's totals, deactivate, and reset."""
+    ctx = run_context.current()
+    if ctx is None:
+        return {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+    totals = ctx.tokens.collect_and_reset()
     logger.info(
         f"Episode token totals: in={totals['input_tokens']} out={totals['output_tokens']}"
-        f" cost=${totals['cost']:.6f} (thread={threading.current_thread().name})"
+        f" cost=${totals['cost']:.6f} ({ctx.key})"
     )
     return totals
 
@@ -1433,7 +1393,9 @@ def _record_token_usage(model: str, usage: dict):
         f" cost=${cost:.6f} accum_active={accum_active}"
         f" (thread={threading.current_thread().name})"
     )
-    _episode_accumulator.add(input_tokens, output_tokens, cost)
+    ctx = run_context.current()
+    if ctx is not None:
+        ctx.tokens.add(input_tokens, output_tokens, cost)
 
 
 def get_llm_client(force_new: bool = False) -> LLMClient:

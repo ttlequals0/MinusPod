@@ -1277,7 +1277,7 @@ class AdDetector:
         ordered = [None] * total
         with ThreadPoolExecutor(max_workers=max_workers,
                                 thread_name_prefix='addet-window') as executor:
-            futures = {executor.submit(run_in_worker_thread, _run_one, i): i
+            futures = {executor.submit(run_in_worker_thread(_run_one), i): i
                        for i in range(total)}
             for fut in as_completed(futures):
                 i = futures[fut]

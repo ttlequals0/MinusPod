@@ -15,6 +15,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import run_context
+
 logger = logging.getLogger('podcast.run_log')
 
 DEFAULT_SIZE_CAP_BYTES = 20 * 1024 * 1024
@@ -27,57 +29,26 @@ TEMP_MIN_AGE_SECONDS = 6 * 3600
 _MESSAGE_FORMATTER = logging.Formatter('%(message)s')
 _TEMP_NAME_UNSAFE = re.compile(r'[^A-Za-z0-9._-]')
 
-# One run is processed at a time per worker process, so the active recorder
-# is a process-wide slot rather than a contextvar: pool workers must see it
-# and a new thread starts with an empty context.
-_active_lock = threading.Lock()
-_active_recorder = None
-
 
 def current_recorder():
-    """The recorder capturing the run in flight, or None."""
-    with _active_lock:
-        return _active_recorder
+    """The recorder capturing the calling thread's run, or None."""
+    ctx = run_context.current()
+    return ctx.recorder if ctx is not None else None
 
 
 def _set_current_recorder(recorder):
-    global _active_recorder
-    with _active_lock:
-        _active_recorder = recorder
+    ctx = run_context.current()
+    if ctx is not None:
+        ctx.recorder = recorder
 
 
 def _clear_current_recorder(recorder):
-    global _active_recorder
-    with _active_lock:
-        if _active_recorder is recorder:
-            _active_recorder = None
+    ctx = run_context.current()
+    if ctx is not None and ctx.recorder is recorder:
+        ctx.recorder = None
 
 
-def register_worker_thread():
-    """Mark the calling pool worker as part of the run in flight, if any."""
-    recorder = current_recorder()
-    if recorder is not None:
-        recorder.register_thread()
-
-
-def unregister_worker_thread():
-    """Drop the calling thread's registration once its task is done."""
-    recorder = current_recorder()
-    if recorder is not None:
-        recorder.unregister_thread()
-
-
-def run_in_worker_thread(fn, *args, **kwargs):
-    """Pool-task wrapper that registers the worker thread for the run log.
-
-    Registration is dropped in the finally: thread idents are recycled, and an
-    unregistered ident must not hand a later thread this run's capture.
-    """
-    register_worker_thread()
-    try:
-        return fn(*args, **kwargs)
-    finally:
-        unregister_worker_thread()
+run_in_worker_thread = run_context.run_in_worker_thread
 
 
 def run_log_temp_dir(data_dir):

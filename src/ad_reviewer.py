@@ -988,7 +988,7 @@ class AdReviewer:
         ordered = [None] * len(ads)
         with ThreadPoolExecutor(max_workers=max_workers,
                                 thread_name_prefix='reviewer') as executor:
-            futures = {executor.submit(run_in_worker_thread, _run_one, i): i
+            futures = {executor.submit(run_in_worker_thread(_run_one), i): i
                        for i in range(len(ads))}
             for fut in as_completed(futures):
                 idx = futures[fut]

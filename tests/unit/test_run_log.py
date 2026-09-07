@@ -5,6 +5,8 @@ import threading
 
 import pytest
 
+import run_context
+import run_log
 from run_log import RunLogRecorder, TRUNCATION_MARKER
 
 
@@ -128,45 +130,39 @@ class TestRunThreadCapture:
             'FFMPEG convert failed: no such codec']
 
     def test_pool_workers_register_through_the_module_helper(self, rec, src_logger):
-        from run_log import register_worker_thread, unregister_worker_thread
-
+        ctx = run_context.begin('my-feed', 'ep123')
         rec.attach()
 
         def worker():
-            register_worker_thread()
-            try:
-                src_logger.info('chunk 2 failed')
-            finally:
-                unregister_worker_thread()
+            src_logger.info('chunk 2 failed')
 
-        t = threading.Thread(target=worker)
+        t = threading.Thread(target=run_log.run_in_worker_thread(worker))
         t.start()
         t.join()
         rec.detach()
+        run_context.end(ctx)
 
         assert 'chunk 2 failed' in [entry['msg'] for entry in _lines(_temp_file(rec))]
 
     def test_the_helpers_are_a_no_op_without_a_recorder(self):
-        from run_log import register_worker_thread, unregister_worker_thread
-
-        register_worker_thread()
-        unregister_worker_thread()
+        # No run_context.begin(): the wrapped worker just runs, unbound.
+        t = threading.Thread(target=run_log.run_in_worker_thread(lambda: None))
+        t.start()
+        t.join()
 
     def test_a_recycled_ident_is_not_captured(self, rec):
-        from run_log import register_worker_thread, unregister_worker_thread
-
+        ctx = run_context.begin('my-feed', 'ep123')
         rec.attach()
         idents = []
 
         def worker():
-            register_worker_thread()
             idents.append(threading.get_ident())
-            unregister_worker_thread()
 
-        t = threading.Thread(target=worker)
+        t = threading.Thread(target=run_log.run_in_worker_thread(worker))
         t.start()
         t.join()
         rec.detach()
+        run_context.end(ctx)
 
         # A later thread handed the same ident must not inherit the run.
         record = logging.LogRecord('podcast.other', logging.INFO, __file__, 1,
@@ -465,20 +461,27 @@ class TestCurrentRecorder:
     def test_current_recorder_tracks_attach_and_detach(self, rec):
         from run_log import current_recorder
 
-        assert current_recorder() is None
-        rec.attach()
-        assert current_recorder() is rec
-        rec.detach()
-        assert current_recorder() is None
+        ctx = run_context.begin('my-feed', 'ep123')
+        try:
+            assert current_recorder() is None
+            rec.attach()
+            assert current_recorder() is rec
+            rec.detach()
+            assert current_recorder() is None
+        finally:
+            run_context.end(ctx)
 
     def test_current_recorder_is_visible_from_worker_threads(self, rec):
         from run_log import current_recorder
 
+        ctx = run_context.begin('my-feed', 'ep123')
         rec.attach()
         seen = []
-        t = threading.Thread(target=lambda: seen.append(current_recorder()))
+        t = threading.Thread(target=run_log.run_in_worker_thread(
+            lambda: seen.append(current_recorder())))
         t.start()
         t.join()
         rec.detach()
+        run_context.end(ctx)
 
         assert seen == [rec]

@@ -113,6 +113,7 @@ from rate_limit_hold import (
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
 from text_recurrence import find_recurring_spans
+import run_context
 import run_log
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT,
@@ -284,6 +285,7 @@ def is_transient_error(error: Exception) -> bool:
 
 def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None):
     """Background thread wrapper for process_episode with queue management."""
+    ctx = run_context.begin(slug, episode_id)
     from processing_queue import ProcessingQueue
     queue = ProcessingQueue()
     start_time = time.time()
@@ -333,6 +335,7 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
         queue.release()
         with _cancel_events_lock:
             _cancel_events.pop(f"{slug}:{episode_id}", None)
+        run_context.end(ctx)
 
 
 def start_background_processing(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None):
