@@ -8943,12 +8943,18 @@ components:
               vad_filter:    { type: boolean }
         suggested_max_requests:
           type: integer
-          description: Sum of max_concurrent across distinct instances (falls back to the instance count)
+          description: Sum of each distinct instance's max_concurrent, floored at 1 per instance
         mismatch:
           type: array
           items:
             type: string
           description: Fields (model, compute_type, device) whose values differ across instances
+        sampled_floor:
+          type: boolean
+          description: >-
+            No instance ever repeated across the samples, so the sampling never
+            wrapped around the replica set. The instance count is a lower bound
+            rather than the confirmed total.
     CueMatch:
       type: object
       description: One cue match within an episode
