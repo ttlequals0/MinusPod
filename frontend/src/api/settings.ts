@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -43,6 +43,10 @@ export async function getModels(provider?: string): Promise<ClaudeModel[]> {
   const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
   const response = await apiRequest<{ models: ClaudeModel[] }>(`/settings/models${params}`);
   return response.models;
+}
+
+export async function getWhisperCapacity(): Promise<WhisperCapacity> {
+  return apiRequest<WhisperCapacity>('/settings/whisper/capacity');
 }
 
 export async function getWhisperModels(): Promise<WhisperModel[]> {

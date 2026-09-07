@@ -282,6 +282,9 @@ function Settings() {
   const [transcribeConcurrentChunks, setTranscribeConcurrentChunks] = useState(4);
   const [transcribeChunkOverlapSeconds, setTranscribeChunkOverlapSeconds] = useState(30);
   const [whisperApiTimeoutSeconds, setWhisperApiTimeoutSeconds] = useState(600);
+  const [whisperPoolEnabled, setWhisperPoolEnabled] = useState(false);
+  const [whisperPoolMaxRequests, setWhisperPoolMaxRequests] = useState(4);
+  const [whisperPoolMaxEpisodes, setWhisperPoolMaxEpisodes] = useState(1);
   const [providersState, setProvidersState] = useState<ProvidersResponse | null>(null);
   const [providersError, setProvidersError] = useState<string | null>(null);
 
@@ -506,6 +509,9 @@ function Settings() {
     { key: 'transcribeConcurrentChunks', kind: 'val', useDefault: true, literal: 4, value: transcribeConcurrentChunks, set: setTranscribeConcurrentChunks },
     { key: 'transcribeChunkOverlapSeconds', kind: 'val', useDefault: true, literal: 30, value: transcribeChunkOverlapSeconds, set: setTranscribeChunkOverlapSeconds },
     { key: 'whisperApiTimeoutSeconds', kind: 'val', useDefault: true, literal: 600, value: whisperApiTimeoutSeconds, set: setWhisperApiTimeoutSeconds },
+    { key: 'whisperPoolEnabled', kind: 'val', useDefault: true, literal: false, value: whisperPoolEnabled, set: setWhisperPoolEnabled },
+    { key: 'whisperPoolMaxRequests', kind: 'val', useDefault: true, literal: 4, value: whisperPoolMaxRequests, set: setWhisperPoolMaxRequests },
+    { key: 'whisperPoolMaxEpisodes', kind: 'val', useDefault: true, literal: 1, value: whisperPoolMaxEpisodes, set: setWhisperPoolMaxEpisodes },
     // Audio output
     { key: 'audioBitrate', kind: 'str', useDefault: true, value: audioBitrate, set: setAudioBitrate },
     { key: 'audioNormalizeEnabled', kind: 'val', useDefault: true, value: audioNormalizeEnabled, set: setAudioNormalizeEnabled },
@@ -706,6 +712,7 @@ function Settings() {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['models'] });
       queryClient.invalidateQueries({ queryKey: ['reviewerSettings'] });
+      queryClient.invalidateQueries({ queryKey: ['whisperCapacity'] });
     },
   });
 
@@ -1039,6 +1046,12 @@ function Settings() {
         onTranscribeChunkOverlapSecondsChange={setTranscribeChunkOverlapSeconds}
         skipFlacCompression={skipFlacCompression}
         onSkipFlacCompressionChange={setSkipFlacCompression}
+        whisperPoolEnabled={whisperPoolEnabled}
+        onWhisperPoolEnabledChange={setWhisperPoolEnabled}
+        whisperPoolMaxRequests={whisperPoolMaxRequests}
+        onWhisperPoolMaxRequestsChange={setWhisperPoolMaxRequests}
+        whisperPoolMaxEpisodes={whisperPoolMaxEpisodes}
+        onWhisperPoolMaxEpisodesChange={setWhisperPoolMaxEpisodes}
         softTimeoutMinutes={softTimeoutMinutes}
         hardTimeoutMinutes={hardTimeoutMinutes}
         softMinMinutes={processingTimeouts ? Math.max(1, Math.ceil(processingTimeouts.limits.softMin / 60)) : 5}

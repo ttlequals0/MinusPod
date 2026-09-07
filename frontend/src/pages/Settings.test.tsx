@@ -61,6 +61,13 @@ vi.mock('../api/settings', () => ({
   resetPrompt: (...a: unknown[]) => mockResetPrompt(...a),
   getModels: vi.fn().mockResolvedValue([]),
   getWhisperModels: vi.fn().mockResolvedValue([]),
+  getWhisperCapacity: vi.fn().mockResolvedValue({
+    enabled: false, backend: 'openai-api', active: false, inactiveReason: 'disabled',
+    capacity: 1, inFlight: 0, transcribingEpisodes: 0,
+    maxEpisodes: { configured: 1, effective: 1 },
+    chunkWorkers: { configured: 4, effective: 4 },
+    worstCaseInFlight: 4, exceedsCapacity: false,
+  }),
   getSystemStatus: vi.fn().mockResolvedValue({}),
   runCleanup: vi.fn(),
   getProcessingEpisodes: vi.fn().mockResolvedValue([]),

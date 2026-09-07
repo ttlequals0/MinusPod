@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig } from '../../api/types';
+import { getWhisperCapacity } from '../../api/settings';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ConnectionTestButton from './ConnectionTestButton';
 import LanguageCombobox from '../../components/LanguageCombobox';
@@ -38,6 +40,12 @@ interface TranscriptionSectionProps {
   onTranscribeChunkOverlapSecondsChange: (value: number) => void;
   skipFlacCompression: boolean;
   onSkipFlacCompressionChange: (value: boolean) => void;
+  whisperPoolEnabled: boolean;
+  onWhisperPoolEnabledChange: (value: boolean) => void;
+  whisperPoolMaxRequests: number;
+  onWhisperPoolMaxRequestsChange: (value: number) => void;
+  whisperPoolMaxEpisodes: number;
+  onWhisperPoolMaxEpisodesChange: (value: number) => void;
   softTimeoutMinutes: number;
   hardTimeoutMinutes: number;
   softMinMinutes: number;
@@ -79,6 +87,12 @@ function TranscriptionSection({
   onWhisperApiTimeoutSecondsChange,
   skipFlacCompression,
   onSkipFlacCompressionChange,
+  whisperPoolEnabled,
+  onWhisperPoolEnabledChange,
+  whisperPoolMaxRequests,
+  onWhisperPoolMaxRequestsChange,
+  whisperPoolMaxEpisodes,
+  onWhisperPoolMaxEpisodesChange,
   softTimeoutMinutes,
   hardTimeoutMinutes,
   softMinMinutes,
@@ -261,6 +275,60 @@ function TranscriptionSection({
               </div>
             </div>
 
+            <div className="pt-2 border-t border-border">
+              <h4 className="text-sm font-medium text-foreground mb-3">Whisper pool</h4>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <ToggleSwitch
+                  checked={whisperPoolEnabled}
+                  onChange={onWhisperPoolEnabledChange}
+                  ariaLabel="Whisper pool toggle"
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Process several episodes at once on the remote Whisper backend
+                </span>
+              </label>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Runs up to the number of episodes below at the same time, sharing one cap on
+                requests to the backend. Set the cap to what your backend accepts. MinusPod does
+                not probe it.
+              </p>
+              <div className="space-y-3 mt-3">
+                <div className="flex items-center gap-3">
+                  <label htmlFor="whisperPoolMaxRequests" className="text-sm text-muted-foreground w-44">
+                    Max requests to backend:
+                  </label>
+                  <NumberInput
+                    id="whisperPoolMaxRequests"
+                    value={whisperPoolMaxRequests}
+                    min={1}
+                    max={64}
+                    fallback={4}
+                    disabled={!whisperPoolEnabled}
+                    parse={(s) => parseInt(s, 10)}
+                    onCommit={onWhisperPoolMaxRequestsChange}
+                  />
+                  <span className="text-sm text-muted-foreground">across all running episodes</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label htmlFor="whisperPoolMaxEpisodes" className="text-sm text-muted-foreground w-44">
+                    Episodes at once:
+                  </label>
+                  <NumberInput
+                    id="whisperPoolMaxEpisodes"
+                    value={whisperPoolMaxEpisodes}
+                    min={1}
+                    max={16}
+                    fallback={1}
+                    disabled={!whisperPoolEnabled}
+                    parse={(s) => parseInt(s, 10)}
+                    onCommit={onWhisperPoolMaxEpisodesChange}
+                  />
+                  <span className="text-sm text-muted-foreground">each keeps at least one request slot</span>
+                </div>
+                <WhisperCapacityLine enabled={whisperPoolEnabled} />
+              </div>
+            </div>
+
           </>
         )}
 
@@ -366,6 +434,24 @@ function TranscriptionSection({
         </div>
       </div>
     </CollapsibleSection>
+  );
+}
+
+function WhisperCapacityLine({ enabled }: { enabled: boolean }) {
+  const { data } = useQuery({
+    queryKey: ['whisperCapacity'],
+    queryFn: getWhisperCapacity,
+    enabled,
+    refetchInterval: 15000,
+  });
+  if (!enabled || !data) return null;
+  const tone = data.exceedsCapacity ? 'text-warning' : 'text-muted-foreground';
+  return (
+    <p className={`text-xs ${tone}`}>
+      Up to {data.worstCaseInFlight} requests in flight against a cap of {data.capacity}.
+      {data.exceedsCapacity && ` The pool holds them to ${data.capacity}, so raise the cap or lower the dials.`}
+      {' '}Currently {data.inFlight} in flight, {data.transcribingEpisodes} transcribing.
+    </p>
   );
 }
 

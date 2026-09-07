@@ -1,0 +1,61 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import TranscriptionSection from './TranscriptionSection';
+
+vi.mock('../../api/settings', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/settings')>()),
+  getWhisperCapacity: vi.fn().mockResolvedValue({
+    enabled: true, backend: 'openai-api', active: true, inactiveReason: null,
+    capacity: 3, inFlight: 0, transcribingEpisodes: 0,
+    maxEpisodes: { configured: 2, effective: 2 },
+    chunkWorkers: { configured: 4, effective: 3 },
+    worstCaseInFlight: 8, exceedsCapacity: true,
+  }),
+}));
+
+function renderSection(overrides: Partial<React.ComponentProps<typeof TranscriptionSection>> = {}) {
+  const noop = () => {};
+  const props = {
+    whisperModel: 'small', whisperModels: [], onWhisperModelChange: noop,
+    whisperBackend: 'openai-api', onWhisperBackendChange: noop,
+    apiConfig: { baseUrl: 'https://whisper.example.com/v1', model: 'whisper-1' }, onApiConfigChange: noop,
+    providersState: null, onProviderKeySave: noop, onProviderKeyClear: noop, onProviderKeyTest: noop,
+    onConnectionTest: noop, whisperLanguage: 'en', onWhisperLanguageChange: noop,
+    whisperComputeType: 'auto', onWhisperComputeTypeChange: noop,
+    transcribeMaxChunkSeconds: 600, onTranscribeMaxChunkSecondsChange: noop,
+    transcribeConcurrentChunks: 4, onTranscribeConcurrentChunksChange: noop,
+    transcribeChunkOverlapSeconds: 30, onTranscribeChunkOverlapSecondsChange: noop,
+    whisperApiTimeoutSeconds: 600, onWhisperApiTimeoutSecondsChange: noop,
+    skipFlacCompression: false, onSkipFlacCompressionChange: noop,
+    softTimeoutMinutes: 60, hardTimeoutMinutes: 120, softMinMinutes: 5, hardMaxMinutes: 1440,
+    onSoftTimeoutChange: noop, onHardTimeoutChange: noop,
+    onTimeoutsSave: noop, timeoutsSaveIsPending: false, timeoutsSaveIsSuccess: false, timeoutsError: null,
+    whisperPoolEnabled: true, onWhisperPoolEnabledChange: noop,
+    whisperPoolMaxRequests: 3, onWhisperPoolMaxRequestsChange: noop,
+    whisperPoolMaxEpisodes: 2, onWhisperPoolMaxEpisodesChange: noop,
+    ...overrides,
+  } as React.ComponentProps<typeof TranscriptionSection>;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}><TranscriptionSection {...props} /></QueryClientProvider>);
+}
+
+describe('TranscriptionSection whisper pool', () => {
+  it('renders the toggle and both dials for the remote backend', async () => {
+    renderSection();
+    expect(screen.getByRole('switch', { name: 'Whisper pool toggle' })).toBeTruthy();
+    expect((screen.getByLabelText('Max requests to backend:') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText('Episodes at once:') as HTMLInputElement).value).toBe('2');
+    expect(await screen.findByText(/Up to 8 requests in flight against a cap of 3/)).toBeTruthy();
+  });
+
+  it('disables the dials while the toggle is off', () => {
+    renderSection({ whisperPoolEnabled: false });
+    expect((screen.getByLabelText('Max requests to backend:') as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('hides the block on the local backend', () => {
+    renderSection({ whisperBackend: 'local' });
+    expect(screen.queryByRole('switch', { name: 'Whisper pool toggle' })).toBeNull();
+  });
+});

@@ -444,6 +444,20 @@ export interface SettingValueNumber {
   isDefault: boolean;
 }
 
+export interface WhisperCapacity {
+  enabled: boolean;
+  backend: string;
+  active: boolean;
+  inactiveReason: 'disabled' | 'local_backend' | null;
+  capacity: number;
+  inFlight: number;
+  transcribingEpisodes: number;
+  maxEpisodes: { configured: number; effective: number };
+  chunkWorkers: { configured: number; effective: number };
+  worstCaseInFlight: number;
+  exceedsCapacity: boolean;
+}
+
 export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter';
 // Corner the MinusPod cover-art badge renders in (issue #600).
 export type BadgePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
@@ -533,6 +547,9 @@ export interface Settings {
   transcribeConcurrentChunks: SettingValueNumber;
   transcribeChunkOverlapSeconds: SettingValueNumber;
   whisperApiTimeoutSeconds: SettingValueNumber;
+  whisperPoolEnabled: SettingValueBoolean;
+  whisperPoolMaxRequests: SettingValueNumber;
+  whisperPoolMaxEpisodes: SettingValueNumber;
   audioCueDetectionEnabled: SettingValueBoolean;
   audioCueFreqMinHz: SettingValueNumber;
   audioCueFreqMaxHz: SettingValueNumber;
@@ -649,6 +666,9 @@ export interface Settings {
     transcribeConcurrentChunks: number;
     transcribeChunkOverlapSeconds: number;
     whisperApiTimeoutSeconds: number;
+    whisperPoolEnabled: boolean;
+    whisperPoolMaxRequests: number;
+    whisperPoolMaxEpisodes: number;
     audioCueDetectionEnabled: boolean;
     audioCueFreqMinHz: number;
     audioCueFreqMaxHz: number;
@@ -746,6 +766,9 @@ export interface UpdateSettingsPayload {
   transcribeConcurrentChunks?: number;
   transcribeChunkOverlapSeconds?: number;
   whisperApiTimeoutSeconds?: number;
+  whisperPoolEnabled?: boolean;
+  whisperPoolMaxRequests?: number;
+  whisperPoolMaxEpisodes?: number;
   audioCueDetectionEnabled?: boolean;
   audioCueFreqMinHz?: number;
   audioCueFreqMaxHz?: number;
