@@ -1452,6 +1452,14 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"rate-limit held episode requeue failed: {e}")
 
+        # Episodes credited under the pre-2.96.3 counter have a NULL
+        # credited_time_saved, which would double-credit them on the next run.
+        try:
+            self._run_backfill_credited_time_saved(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"credited_time_saved backfill failed: {e}")
+
         # Repair covers left stale by the skipped-download bug (#596).
         try:
             self._run_redownload_stale_artwork(conn)
@@ -2098,6 +2106,53 @@ class SchemaMixin:
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
             "('reset_legacy_skip_second_pass')"
+        )
+        conn.commit()
+
+    def _run_backfill_credited_time_saved(self, conn):
+        """One-time backfill of `episodes.credited_time_saved` (#727).
+
+        The column landed as NULL on every row, so the next completed run
+        for an already-credited episode computed `delta = saving - 0` and
+        credited the saving again. Backfill each row's saving from its
+        stored durations, then reset `total_time_saved` to their sum,
+        correcting any prior inflation. Gated by `schema_migrations`;
+        writes are absolute so a re-run is a no-op.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'backfill_credited_time_saved'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        cur = conn.execute(
+            """UPDATE episodes SET credited_time_saved = original_duration - new_duration
+               WHERE original_duration > 0 AND new_duration > 0
+                 AND new_duration < original_duration"""
+        )
+        total = conn.execute(
+            """SELECT COALESCE(SUM(original_duration - new_duration), 0) AS total
+               FROM episodes
+               WHERE original_duration > 0 AND new_duration > 0
+                 AND new_duration < original_duration"""
+        ).fetchone()['total']
+
+        conn.execute(
+            """INSERT INTO stats (key, value, updated_at) VALUES
+                   ('total_time_saved', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(key) DO UPDATE SET
+                 value = excluded.value, updated_at = excluded.updated_at""",
+            (total,)
+        )
+        logger.info(
+            "Migration: backfilled credited_time_saved on %d episode(s), "
+            "total_time_saved reset to %.1f (#727)",
+            cur.rowcount, total,
+        )
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('backfill_credited_time_saved')"
         )
         conn.commit()
 

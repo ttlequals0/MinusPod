@@ -103,14 +103,18 @@ class StatsMixin:
         clamp_zero=True floors the resulting value at 0 (for stats that must
         never go negative); caller still commits.
         """
-        value_expr = "MAX(0, value + excluded.value)" if clamp_zero else "value + excluded.value"
+        # excluded.value is the (possibly floored) insert value, not the raw
+        # delta, so the UPDATE branch needs delta passed again separately or
+        # a negative delta on an existing row would add 0 instead of delta.
+        insert_value = max(0.0, delta) if clamp_zero else delta
+        value_expr = "MAX(0, value + ?)" if clamp_zero else "value + ?"
         conn.execute(
             f"""INSERT INTO stats (key, value, updated_at)
                VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
                ON CONFLICT(key) DO UPDATE SET
                  value = {value_expr},
                  updated_at = excluded.updated_at""",  # noqa: S608
-            (key, delta)
+            (key, insert_value, delta)
         )
 
     def credit_time_saved(self, slug: str, episode_id: str, saving: float) -> float:

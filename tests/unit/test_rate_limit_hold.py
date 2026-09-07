@@ -28,6 +28,7 @@ from rate_limit_hold import (
     rate_limit_hold_tick,
 )
 from tests.unit.provider_error_fakes import FakeResponse, FakeProviderError, call_window
+from tests.unit.rate_limit_fixtures import PRODUCTION_RESET_BODY
 
 
 class _FakeRateLimitError(FakeProviderError):
@@ -97,19 +98,8 @@ class TestCallLlmHold:
         farther-out reset must hold for the body's reset, not the header (#696)."""
         from utils import llm_call
         _set_hold_enabled(True)
-        body = {
-            "error": {
-                "message": "Upstream rate limit exceeded",
-                "type": "upstream_api_error",
-                "code": "assistant_rate_limit",
-                "rate_limit_type": "session_limit",
-                "resets_at": 1788804000,
-                "resets_at_iso": "2026-09-07T18:00:00+00:00",
-                "seconds_until_reset": 8129,
-            }
-        }
         err = _FakeRateLimitError(
-            body=body, response=FakeResponse(headers={'Retry-After': '3600'}))
+            body=PRODUCTION_RESET_BODY, response=FakeResponse(headers={'Retry-After': '3600'}))
 
         class _Client:
             def messages_create(self, **kw):

@@ -101,3 +101,57 @@ def test_credit_time_saved_dedups_reprocess(temp_db):
     conn.execute("DELETE FROM episodes WHERE episode_id = 'ep1'")
     conn.commit()
     assert temp_db.get_total_time_saved() == 500.0
+
+
+def test_recredit_zero_after_positive_subtracts_the_difference(temp_db):
+    """A recut that removes the saving re-credits 0.0, which must subtract
+    the episode's prior credit from the lifetime total, not just skip it."""
+    temp_db.create_podcast('show-h', 'https://example.com/h.xml', 'Show H')
+    temp_db.upsert_episode('show-h', 'ep1',
+                           original_url='https://example.com/ep1.mp3',
+                           title='ep1', status='processed',
+                           original_duration=3600, new_duration=3300)
+
+    temp_db.credit_time_saved('show-h', 'ep1', 300.0)
+    assert temp_db.get_total_time_saved() == 300.0
+
+    delta = temp_db.credit_time_saved('show-h', 'ep1', 0.0)
+    assert delta == -300.0
+    assert temp_db.get_total_time_saved() == 0.0
+
+
+def test_credit_time_saved_returns_zero_for_unknown_episode(temp_db):
+    temp_db.create_podcast('show-i', 'https://example.com/i.xml', 'Show I')
+    delta = temp_db.credit_time_saved('show-i', 'missing-ep', 300.0)
+    assert delta == 0.0
+    assert temp_db.get_total_time_saved() == 0.0
+
+
+def test_first_bump_ever_floors_at_zero_when_negative(temp_db):
+    """The very first write to a stats key with a negative delta must still
+    floor at 0; the clamp applied only to the ON CONFLICT branch before."""
+    temp_db.create_podcast('show-k', 'https://example.com/k.xml', 'Show K')
+    temp_db.upsert_episode('show-k', 'ep1',
+                           original_url='https://example.com/ep1.mp3',
+                           title='ep1', status='processed',
+                           original_duration=3600, new_duration=3600)
+
+    delta = temp_db.credit_time_saved('show-k', 'ep1', -50.0)
+    assert delta == -50.0
+    assert temp_db.get_total_time_saved() == 0.0
+
+
+def test_lifetime_total_floors_at_zero_on_large_negative_delta(temp_db):
+    temp_db.create_podcast('show-j', 'https://example.com/j.xml', 'Show J')
+    temp_db.upsert_episode('show-j', 'ep1',
+                           original_url='https://example.com/ep1.mp3',
+                           title='ep1', status='processed',
+                           original_duration=3600, new_duration=3300)
+
+    temp_db.credit_time_saved('show-j', 'ep1', 300.0)
+    assert temp_db.get_total_time_saved() == 300.0
+
+    # A negative re-credit larger than the current total must not go negative.
+    delta = temp_db.credit_time_saved('show-j', 'ep1', -1000.0)
+    assert delta == -1300.0
+    assert temp_db.get_total_time_saved() == 0.0

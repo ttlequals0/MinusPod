@@ -253,7 +253,7 @@ export default function StatsPage() {
             max={formatDuration(dashboard.maxEpisodeLengthSeconds)}
           />
           <StatCard
-            label="Avg Tokens/Episode"
+            label="Avg Tokens/Run"
             value={formatTokenCount(dashboard.avgInputTokens + dashboard.avgOutputTokens)}
             min={`In: ${formatTokenCount(dashboard.avgInputTokens)}`}
             max={`Out: ${formatTokenCount(dashboard.avgOutputTokens)}`}
@@ -288,6 +288,10 @@ export default function StatsPage() {
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Time Saved</p>
             <p className="text-xl font-bold text-foreground">{formatDuration(dashboard.totalTimeSavedSeconds)}</p>
+            {dashboard.episodesWithTimeSaved > 0 &&
+              dashboard.episodesWithTimeSaved !== dashboard.totalEpisodesProcessed && (
+                <p className="text-xs text-muted-foreground mt-1">from {dashboard.episodesWithTimeSaved} episodes</p>
+              )}
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total LLM Cost</p>
@@ -512,7 +516,7 @@ export default function StatsPage() {
                   <SortTh field="avgTimeSavedSeconds" label="Avg Time Saved" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="avgEpisodeLengthSeconds" label="Avg Length" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="totalCost" label="Total Cost" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="avgTokensPerEpisode" label="Avg Tokens" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="avgTokensPerEpisode" label="Avg Tokens/Run" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

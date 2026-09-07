@@ -129,7 +129,10 @@ def _coerce_error_dict(body: Any) -> dict | None:
 
     Shared by the Google coercer and ``parse_upstream_reset``: accepts a dict,
     a list wrapping one, or a JSON string, and descends into an ``error`` key
-    when present. Any parse failure returns None.
+    when present. When the error is proxied through OpenRouter, the upstream
+    error (with its own ``details``/``status``) is a JSON string under
+    ``error.metadata.raw``; descend into it so callers see the real fields.
+    Any parse failure returns None.
     """
     payload = body
     if isinstance(payload, str):
@@ -142,21 +145,7 @@ def _coerce_error_dict(body: Any) -> dict | None:
     if not isinstance(payload, dict):
         return None
     err = payload.get("error")
-    return err if isinstance(err, dict) else payload
-
-
-def _coerce_google_error(body: Any) -> dict | None:
-    """Normalize a Google 429 body to its inner ``error`` dict (or the payload).
-
-    Accepts a dict, a list wrapping it, or a JSON string. Plain non-JSON strings
-    return None so callers can fall back to a regex over ``str(body)``. When the
-    error is proxied through OpenRouter, the upstream Google error (with its
-    ``details``/``status``) is a JSON string under ``error.metadata.raw``; descend
-    into it so the daily-quota / retry-delay parsers see the real fields.
-    """
-    err = _coerce_error_dict(body)
-    if not isinstance(err, dict):
-        return None
+    err = err if isinstance(err, dict) else payload
     if "details" not in err and "status" not in err:
         meta = err.get("metadata")
         raw = meta.get("raw") if isinstance(meta, dict) else None
@@ -169,6 +158,15 @@ def _coerce_google_error(body: Any) -> dict | None:
                 inner_err = inner.get("error")
                 return inner_err if isinstance(inner_err, dict) else inner
     return err
+
+
+def _coerce_google_error(body: Any) -> dict | None:
+    """Normalize a Google 429 body to its inner ``error`` dict (or the payload).
+
+    Accepts a dict, a list wrapping it, or a JSON string. Plain non-JSON strings
+    return None so callers can fall back to a regex over ``str(body)``.
+    """
+    return _coerce_error_dict(body)
 
 
 def parse_google_retry_delay(body: Any, *, max_seconds: float = 300.0) -> float | None:

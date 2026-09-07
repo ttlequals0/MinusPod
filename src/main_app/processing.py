@@ -3493,8 +3493,9 @@ def _log_completion_summary(slug, episode_id, pass1_cut_count, *, verification_c
     total_cuts = pass1_cut_count + verification_count
     if original_duration and new_duration:
         time_saved = original_duration - new_duration
-        if time_saved > 0:
-            db.credit_time_saved(slug, episode_id, time_saved)
+        # Unconditional so a recut that removes the saving corrects the
+        # counter downward, not just credits further gains.
+        db.credit_time_saved(slug, episode_id, max(time_saved, 0.0))
         audio_logger.info(
             f"[{slug}:{episode_id}] Complete: {original_duration/60:.1f}->{new_duration/60:.1f}min, "
             f"{total_cuts} ads removed, {processing_time:.1f}s"

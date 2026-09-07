@@ -11,6 +11,14 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.3] - 2026-09-07
+
+### Fixed
+
+- The tail re-transcription pass now sends `vad_filter=false` to a remote Whisper backend. It re-runs the untranscribed tail of an episode with voice detection off, but on the API backend the request was identical to a normal one, so a server that supports the switch never saw it and quiet post-rolls stayed missing. Servers without the switch ignore the field.
+- The stats dashboard and per-podcast stats summed a join between processing history and episodes, so a reprocessed episode's time saved was counted once per run instead of once. Episode length, time saved, and total episode count now come from each episode's current row, counted once regardless of how many times it was reprocessed. Ads removed, audio cues, cost, tokens, and processing time still count every run, since each reprocess costs real time and money. New fields `totalRuns` and `episodesWithTimeSaved` on the dashboard, and `runCount` per podcast, show both denominators. The lifetime time-saved counter also credited the same saving on every reprocess; it now credits only the change since it was last credited, and survives the episode being deleted. This upgrade backfills the per-episode credit for episodes already processed, so the lifetime total matches the dashboard total from the first boot.
+- A provider's generic one-hour Retry-After header sat next to a body carrying the true, farther-out reset time. The hold read the header first and released the queue an hour early, into a still-limited provider. That burned a full transcription and a round of detection windows before taking another short hold. The hold now takes the later of the header and the provider's own reset time (`seconds_until_reset`, `resets_at`, or `resets_at_iso` in the body), so it lasts until the provider clears.
+
 ## [2.96.2] - 2026-09-06
 
 ### Added
@@ -25,12 +33,9 @@ release notes.
 
 ### Fixed
 
-- The tail re-transcription pass now sends `vad_filter=false` to a remote Whisper backend. It re-runs the untranscribed tail of an episode with voice detection off, but on the API backend the request was identical to a normal one, so a server that supports the switch never saw it and quiet post-rolls stayed missing. Servers without the switch ignore the field.
 - The rate-limit hold did not hold. Play, Reprocess, and bulk-queued episodes bypassed the pause, so each one ran a full transcription, hit its own 429, and was parked; one instance parked 26 episodes in a row over two hours. The pause now sits on the one entry point every run goes through, so a Play or Reprocess during a hold waits in the queue at its usual boost instead of starting.
 - After the reset passed, the pause marker and the parked episodes waited for a maintenance pass that runs once every ten queue iterations, and each iteration blocks for a whole episode. The status bar kept saying "Provider rate limit lifted. Held episodes requeue shortly" for hours. The marker is now cleared on the first pass after the reset, and there is nothing left to requeue.
 - Feed cards on the dashboard are the same height whether or not a feed has a Podping line, a refresh date, or status pills. The "Refresh failing" warning sits on the Updated line. Episode rows on a feed page reserve the same space for the description, duration, ad count, and status badge, so a list lines up too.
-- The stats dashboard and per-podcast stats summed a join between processing history and episodes, so a reprocessed episode's time saved was counted once per run instead of once. Episode length, time saved, and total episode count now come from each episode's current row, counted once regardless of how many times it was reprocessed. Ads removed, audio cues, cost, tokens, and processing time still count every run, since each reprocess costs real time and money. New fields `totalRuns` and `episodesWithTimeSaved` on the dashboard, and `runCount` per podcast, show both denominators. The lifetime time-saved counter also credited the same saving on every reprocess; it now credits only the change since it was last credited, and survives the episode being deleted.
-- A provider's generic one-hour Retry-After header sat next to a body carrying the true, farther-out reset time. The hold read the header first and released the queue an hour early, into a still-limited provider. That burned a full transcription and a round of detection windows before taking another short hold. The hold now takes the later of the header and the provider's own reset time (`seconds_until_reset`, `resets_at`, or `resets_at_iso` in the body), so it lasts until the provider clears.
 
 ## [2.96.1] - 2026-09-06
 

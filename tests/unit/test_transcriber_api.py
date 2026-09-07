@@ -11,6 +11,7 @@ from transcriber import (
     Transcriber, _get_whisper_settings, _get_whisper_compute_type,
     check_whisper_connectivity, _api_timeout,
     _whisper_api_rejects_word_timestamps,
+    _whisper_api_rejects_vad_filter,
     extract_audio_chunk,
     _ffmpeg_error_tail,
     PREPROCESS_AUDIO_FILTERS,
@@ -194,15 +195,33 @@ class TestTranscribeViaApi:
     def test_omits_vad_filter_by_default(self):
         assert 'vad_filter' not in self._post_data_for_vad(True)
 
-    def test_transcribe_forwards_vad_filter_to_the_api_call(self):
-        """transcribe(vad_filter=False) must reach the upload, or the tail
-        pass is identical to a normal one (spec 1.2)."""
-        settings = {'backend': 'openai-api', 'api_base_url': 'https://whisper.example.com/v1',
-                    'api_key': '', 'api_model': 'whisper-1', 'language': 'en'}
-        with patch('transcriber._get_whisper_settings', return_value=settings), \
-                patch.object(Transcriber, '_transcribe_via_api', return_value=[]) as api:
-            Transcriber().transcribe('/tmp/tail.wav', vad_filter=False)
-        assert api.call_args.kwargs['vad_filter'] is False
+    def test_retries_without_vad_filter_when_server_rejects_it(self):
+        """A server 400-ing the unknown vad_filter field must not lose the
+        upload outright; drop the field and retry once."""
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(b'fake audio data' * 200)
+            temp_path = f.name
+
+        rejected = MagicMock(status_code=400, text='unknown field: vad_filter')
+        accepted = MagicMock(status_code=200)
+        accepted.json.return_value = self._make_api_response(
+            [{'start': 0.0, 'end': 1.0, 'text': 'hi', 'words': []}]
+        )
+        try:
+            with patch('transcriber.safe_post',
+                       side_effect=[rejected, accepted]) as mock_post:
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                result = transcriber._transcribe_via_api(
+                    temp_path, self._make_settings(), vad_filter=False)
+        finally:
+            os.unlink(temp_path)
+
+        assert result is not None
+        assert result[0]['text'] == 'hi'
+        assert mock_post.call_count == 2
+        assert mock_post.call_args_list[0].kwargs['data']['vad_filter'] == 'false'
+        assert 'vad_filter' not in mock_post.call_args_list[1].kwargs['data']
 
     def test_returns_none_on_missing_base_url(self):
         with patch('transcriber.safe_post') as mock_post:
@@ -551,6 +570,32 @@ class TestWordTimestampRejectionDetection:
         r.status_code = 500
         type(r).text = property(lambda self_: (_ for _ in ()).throw(RuntimeError('boom')))
         assert _whisper_api_rejects_word_timestamps(r) is False
+
+
+class TestVadFilterRejectionDetection:
+    """_whisper_api_rejects_vad_filter body-marker matcher."""
+
+    def _resp(self, status, body=''):
+        r = MagicMock()
+        r.status_code = status
+        r.text = body
+        return r
+
+    def test_none_response(self):
+        assert _whisper_api_rejects_vad_filter(None) is False
+
+    def test_200_is_never_rejection(self):
+        assert _whisper_api_rejects_vad_filter(self._resp(200, 'vad_filter')) is False
+
+    def test_400_naming_the_field(self):
+        assert _whisper_api_rejects_vad_filter(
+            self._resp(400, "unrecognized field 'vad_filter'")
+        ) is True
+
+    def test_unrelated_error_body_does_not_trigger(self):
+        assert _whisper_api_rejects_vad_filter(
+            self._resp(400, 'Internal server error: upstream timeout')
+        ) is False
 
 
 class TestSkipFlacCompressionSetting:

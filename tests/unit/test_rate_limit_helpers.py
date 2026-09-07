@@ -6,6 +6,8 @@ import pytest
 
 from utils.rate_limit import parse_retry_after, parse_upstream_reset
 
+from tests.unit.rate_limit_fixtures import PRODUCTION_RESET_BODY
+
 
 class TestParseRetryAfterDeltaSeconds:
     def test_integer_string(self):
@@ -118,22 +120,6 @@ class TestParseGroqRateLimitBody:
         assert result == {"limit": 6000, "used": 0, "requested": 7500}
 
 
-# A generic provider's 429 body: a one-hour Retry-After header sits next to a
-# body carrying the true, farther-out reset (issue: the header alone caused
-# the queue hold to release an hour early).
-PRODUCTION_RESET_BODY = {
-    "error": {
-        "message": "Upstream rate limit exceeded",
-        "type": "upstream_api_error",
-        "code": "assistant_rate_limit",
-        "rate_limit_type": "session_limit",
-        "resets_at": 1788804000,
-        "resets_at_iso": "2026-09-07T18:00:00+00:00",
-        "seconds_until_reset": 8129,
-    }
-}
-
-
 class TestParseUpstreamReset:
     def test_seconds_until_reset_is_exact(self):
         assert parse_upstream_reset(PRODUCTION_RESET_BODY, max_seconds=86400) == 8129.0
@@ -160,12 +146,10 @@ class TestParseUpstreamReset:
         assert 890.0 <= result <= 905.0
 
     def test_reset_in_the_past_clamps_to_zero(self):
-        from rate_limit_hold import MIN_HOLD_RESET_SECONDS
         past = datetime.now(timezone.utc) - timedelta(minutes=5)
         body = {"error": {"resets_at_iso": past.isoformat()}}
         result = parse_upstream_reset(body, max_seconds=86400)
         assert result == 0.0
-        assert not (result > MIN_HOLD_RESET_SECONDS)  # hold gate does not fire
 
     def test_clamps_to_max_seconds(self):
         body = {"error": {"seconds_until_reset": 99999}}
@@ -177,3 +161,16 @@ class TestParseUpstreamReset:
     @pytest.mark.parametrize("body", [None, "", "garbage", {}, 12345])
     def test_unparseable_inputs_return_none(self, body):
         assert parse_upstream_reset(body) is None
+
+    def test_finds_reset_nested_in_openrouter_metadata_raw(self):
+        """OpenRouter proxies the upstream body as a JSON string under
+        error.metadata.raw; the reset fields live inside that, not at the
+        top level."""
+        import json
+        body = {
+            "error": {
+                "message": "Provider returned error",
+                "metadata": {"raw": json.dumps(PRODUCTION_RESET_BODY)},
+            }
+        }
+        assert parse_upstream_reset(body, max_seconds=86400) == 8129.0

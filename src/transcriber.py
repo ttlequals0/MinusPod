@@ -999,6 +999,21 @@ def _whisper_api_rejects_word_timestamps(response) -> bool:
     )
 
 
+def _whisper_api_rejects_vad_filter(response) -> bool:
+    """True when the server 400s an unrecognized `vad_filter` form field.
+
+    Narrow to that field name so only this specific rejection retries; any
+    other non-200 falls through unchanged.
+    """
+    if response is None or response.status_code == 200:
+        return False
+    try:
+        body = (response.text or '').lower()
+    except Exception:
+        return False
+    return 'vad_filter' in body
+
+
 def _effective_language(language_override: str | None, whisper_settings: dict[str, str]) -> str:
     """Resolve the effective Whisper language as a lowercased code.
 
@@ -1157,90 +1172,105 @@ class Transcriber:
                 ['segment', 'word'],
                 ['segment'],
             )
-            for gran_idx, granularities in enumerate(granularity_modes):
-                form_data = {
-                    **form_data_base,
-                    'timestamp_granularities[]': granularities,
-                }
-                # Wall-clock deadline for 429 retries (which do not consume an
-                # attempt slot, see below) so a Retry-After: 0 loop cannot spin.
-                # Set on the first permit below, per granularity mode.
-                retry_deadline = None
-                attempt = 0
-                while attempt < max_attempts:
-                    try:
-                        with open(transcribe_path, 'rb') as audio_file:
-                            permit_wait_start = time.monotonic()
-                            with get_pool().slot():
-                                # Waiting on our own admission control is not
-                                # the provider throttling us, so it never
-                                # eats the 429 window.
-                                now = time.monotonic()
-                                if retry_deadline is None:
-                                    retry_deadline = now + _api_timeout(whisper_settings)
-                                else:
-                                    retry_deadline += now - permit_wait_start
-                                response = safe_post(
-                                    url,
-                                    trust=URLTrust.OPERATOR_CONFIGURED,
-                                    timeout=_api_timeout(whisper_settings),
-                                    max_redirects=HTTP_MAX_REDIRECTS_API,
-                                    files={'file': (os.path.basename(transcribe_path), audio_file)},
-                                    data=form_data,
-                                    headers=headers,
-                                )
-                    except SSRFError as exc:
-                        logger.warning(f"Whisper API URL blocked: {exc}")
-                        return None
-                    except requests.RequestException as exc:
-                        logger.warning(
-                            "Whisper API attempt %d/%d failed: %s",
-                            attempt + 1, max_attempts, exc,
-                        )
-                        last_request_exc = exc
-                        response = None
-                        attempt += 1
-                        continue
-                    if response.status_code == 429 and get_pool().active:
-                        if time.monotonic() >= retry_deadline:
-                            logger.warning(
-                                "%sWhisper API still busy (429) after the "
-                                "retry deadline; giving up", _log_prefix())
+            # Some servers 400 an unrecognized vad_filter field instead of
+            # ignoring it; drop it and retry once rather than lose the upload.
+            vad_filter_retried = False
+            while True:
+                for gran_idx, granularities in enumerate(granularity_modes):
+                    form_data = {
+                        **form_data_base,
+                        'timestamp_granularities[]': granularities,
+                    }
+                    # Wall-clock deadline for 429 retries (which do not consume an
+                    # attempt slot, see below) so a Retry-After: 0 loop cannot spin.
+                    # Set on the first permit below, per granularity mode.
+                    retry_deadline = None
+                    attempt = 0
+                    while attempt < max_attempts:
+                        try:
+                            with open(transcribe_path, 'rb') as audio_file:
+                                permit_wait_start = time.monotonic()
+                                with get_pool().slot():
+                                    # Waiting on our own admission control is not
+                                    # the provider throttling us, so it never
+                                    # eats the 429 window.
+                                    now = time.monotonic()
+                                    if retry_deadline is None:
+                                        retry_deadline = now + _api_timeout(whisper_settings)
+                                    else:
+                                        retry_deadline += now - permit_wait_start
+                                    response = safe_post(
+                                        url,
+                                        trust=URLTrust.OPERATOR_CONFIGURED,
+                                        timeout=_api_timeout(whisper_settings),
+                                        max_redirects=HTTP_MAX_REDIRECTS_API,
+                                        files={'file': (os.path.basename(transcribe_path), audio_file)},
+                                        data=form_data,
+                                        headers=headers,
+                                    )
+                        except SSRFError as exc:
+                            logger.warning(f"Whisper API URL blocked: {exc}")
                             return None
-                        # Floor so a Retry-After: 0 (or absent) header still yields.
-                        parsed_retry_after = parse_retry_after(
-                            (response.headers or {}).get('Retry-After'), max_seconds=300.0)
-                        retry_after = max(
-                            parsed_retry_after if parsed_retry_after is not None else 5.0, 0.5)
+                        except requests.RequestException as exc:
+                            logger.warning(
+                                "Whisper API attempt %d/%d failed: %s",
+                                attempt + 1, max_attempts, exc,
+                            )
+                            last_request_exc = exc
+                            response = None
+                            attempt += 1
+                            continue
+                        if response.status_code == 429 and get_pool().active:
+                            if time.monotonic() >= retry_deadline:
+                                logger.warning(
+                                    "%sWhisper API still busy (429) after the "
+                                    "retry deadline; giving up", _log_prefix())
+                                return None
+                            # Floor so a Retry-After: 0 (or absent) header still yields.
+                            parsed_retry_after = parse_retry_after(
+                                (response.headers or {}).get('Retry-After'), max_seconds=300.0)
+                            retry_after = max(
+                                parsed_retry_after if parsed_retry_after is not None else 5.0, 0.5)
+                            logger.warning(
+                                "%sWhisper API busy (429); waiting %.1fs before retrying",
+                                _log_prefix(), retry_after)
+                            time.sleep(retry_after)
+                            response = None
+                            continue
+                        if response.status_code < 500:
+                            break
                         logger.warning(
-                            "%sWhisper API busy (429); waiting %.1fs before retrying",
-                            _log_prefix(), retry_after)
-                        time.sleep(retry_after)
-                        response = None
-                        continue
-                    if response.status_code < 500:
-                        break
-                    logger.warning(
-                        "Whisper API attempt %d/%d returned %d",
-                        attempt + 1, max_attempts, response.status_code,
-                    )
-                    attempt += 1
+                            "Whisper API attempt %d/%d returned %d",
+                            attempt + 1, max_attempts, response.status_code,
+                        )
+                        attempt += 1
 
-                if response is None:
-                    # Every attempt raised at the transport layer -- the
-                    # endpoint is unreachable, which the offline queue (#482)
-                    # must be able to tell apart from a bad response.
-                    raise ServiceUnavailableError(
-                        'whisper', f"Whisper API unreachable: {last_request_exc}")
-                if response.status_code == 200:
+                    if response is None:
+                        # Every attempt raised at the transport layer -- the
+                        # endpoint is unreachable, which the offline queue (#482)
+                        # must be able to tell apart from a bad response.
+                        raise ServiceUnavailableError(
+                            'whisper', f"Whisper API unreachable: {last_request_exc}")
+                    if response.status_code == 200:
+                        break
+                    if gran_idx == 0 and _whisper_api_rejects_word_timestamps(response):
+                        logger.warning(
+                            "Whisper API does not support word timestamps; "
+                            "retrying with segment-only timestamps"
+                        )
+                        continue
+                    # Non-200 with no word-timestamp signal -- give up here.
                     break
-                if gran_idx == 0 and _whisper_api_rejects_word_timestamps(response):
+
+                if (response.status_code != 200 and not vad_filter_retried
+                        and 'vad_filter' in form_data_base
+                        and _whisper_api_rejects_vad_filter(response)):
                     logger.warning(
-                        "Whisper API does not support word timestamps; "
-                        "retrying with segment-only timestamps"
+                        "Whisper API rejected vad_filter field; retrying without it"
                     )
+                    form_data_base.pop('vad_filter', None)
+                    vad_filter_retried = True
                     continue
-                # Non-200 with no word-timestamp signal -- give up here.
                 break
 
             if response is None or response.status_code != 200:

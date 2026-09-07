@@ -1982,6 +1982,9 @@ def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> floa
     reset field, then Google/Gemini's RetryInfo ``retryDelay`` / "retry in Ns"
     hint. Returns ``None`` when nothing is usable, so callers fall through to
     their existing backoff curve.
+
+    A body reset can exceed the header (or be the only value present), so the
+    in-process sleep this drives can reach the caller's `max_seconds` cap.
     """
     response = getattr(error, 'response', None)
     headers = getattr(response, 'headers', None) if response is not None else None

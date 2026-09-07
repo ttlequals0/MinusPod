@@ -129,6 +129,9 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     processed_version INTEGER DEFAULT 0,
     original_duration REAL,
     new_duration REAL,
+    -- Lifetime time-saved counter dedup (#727): saving already credited
+    -- to the total_time_saved stat for this episode's latest cut.
+    credited_time_saved REAL,
     -- Duration declared by the feed (itunes:duration), captured at discovery.
     -- Compared against the downloaded copy to expose DAI fill variance (#519).
     rss_duration REAL,
