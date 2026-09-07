@@ -313,7 +313,7 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
                               error_message=CANCELED_ERROR_MESSAGE)
         except Exception as db_err:
             audio_logger.warning(f"[{slug}:{episode_id}] Failed to reset status after cancel: {db_err}")
-        status_service.complete_job()
+        status_service.complete_job(slug, episode_id)
     except Exception as e:
         # This outer handler only fires if process_episode's own error handling
         # raises (e.g., DB unreachable during _handle_processing_failure).
@@ -640,7 +640,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
             audio_path = _download_episode_audio(episode_url)
 
-        status_service.update_job_stage("pass1:transcribing", 20)
+        status_service.update_job_stage(slug, episode_id, "pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
         language_override = get_feed_language_override(db, slug)
         segments = transcriber.transcribe_chunked(
@@ -683,7 +683,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
 
 def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detection=False):
     """Pipeline stage: Run volume + transition detection on audio."""
-    status_service.update_job_stage("pass1:analyzing", 25)
+    status_service.update_job_stage(slug, episode_id, "pass1:analyzing", 25)
     audio_logger.info(f"[{slug}:{episode_id}] Running audio analysis")
     try:
         # Resolve the feed PK so the cue analyzer can pick a per-feed template
@@ -695,7 +695,7 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detect
             transcript_segments=segments,
             feed_id=feed_id,
             force_cue_detection=force_cue_detection,
-            status_callback=lambda stage, progress: status_service.update_job_stage(stage, progress)
+            status_callback=lambda stage, progress: status_service.update_job_stage(slug, episode_id, stage, progress)
         )
         if result.signals:
             audio_logger.info(
@@ -873,7 +873,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     """
     slug = ctx.slug
     episode_id = ctx.episode_id
-    status_service.update_job_stage("pass1:detecting", 50)
+    status_service.update_job_stage(slug, episode_id, "pass1:detecting", 50)
     clear_fallback(episode_id, PASS_AD_DETECTION_1)
 
     ad_result = ad_detector.process_transcript(
@@ -1882,7 +1882,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     if not accepted_originals and not eligible_originals:
         return
 
-    status_service.update_job_stage("pass2:reviewing", 90)
+    status_service.update_job_stage(slug, episode_id, "pass2:reviewing", 90)
 
     podcast_id = ctx.podcast_id
 
@@ -2104,7 +2104,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     if not ads_to_remove and not eligible:
         return ads_to_remove, all_ads_with_validation
 
-    status_service.update_job_stage(f"pass{pass_num}:reviewing", 75)
+    status_service.update_job_stage(slug, episode_id, f"pass{pass_num}:reviewing", 75)
 
     audio_logger.info(
         f"[{slug}:{episode_id}] Reviewer pass {pass_num}: "
@@ -3857,7 +3857,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Pass-through: \"{episode_title}\"")
         status_service.start_job(slug, episode_id, episode_title, podcast_name)
-        status_service.update_job_stage("downloading", 10)
+        status_service.update_job_stage(slug, episode_id, "downloading", 10)
 
         upsert_kwargs = dict(
             original_url=episode_url, title=episode_title,
@@ -3929,7 +3929,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                            processed_version=new_version,
                            audio_cue_detections=0,
                            run_stats=run_stats)
-        status_service.complete_job()
+        status_service.complete_job(slug, episode_id)
         return True
 
     except ProcessingCancelled:
@@ -3973,7 +3973,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Recut: \"{episode_title}\"")
         status_service.start_job(slug, episode_id, episode_title, podcast_name)
-        status_service.update_job_stage("recut:loading", 10)
+        status_service.update_job_stage(slug, episode_id, "recut:loading", 10)
         db.upsert_episode(slug, episode_id, status=EpisodeStatus.PROCESSING.value)
 
         original_path = storage.get_original_path(slug, episode_id)
@@ -4025,7 +4025,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         )
         _check_cancel(cancel_event, slug, episode_id)
 
-        status_service.update_job_stage("recut:processing", 60)
+        status_service.update_job_stage(slug, episode_id, "recut:processing", 60)
         # 'beep' is derived from action_applied so a marker stamped beep in
         # an earlier pass still renders as beep on recut, not a full remove.
         audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
@@ -4063,7 +4063,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         final_path = storage.get_episode_path(slug, episode_id, version=new_version)
         shutil.move(processed_path, final_path)
 
-        status_service.update_job_stage("recut:assets", 85)
+        status_service.update_job_stage(slug, episode_id, "recut:assets", 85)
         # Skip chapter regeneration: its topic-boundary detection is an LLM call,
         # and recut is meant to be AI-free. The stored chapters JSON is instead
         # remapped arithmetically onto the new cut list; the user can still
@@ -4121,7 +4121,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                            audio_cue_detections=audio_cue_detections,
                            run_stats=finalize_run_stats,
                            ads_held=held_count, ads_not_cut=not_cut_count)
-        status_service.complete_job()
+        status_service.complete_job(slug, episode_id)
         return True
 
     except ProcessingCancelled:
@@ -4156,7 +4156,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     except Exception as cleanup_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up GPU memory: {cleanup_err}")
 
-    status_service.fail_job()
+    status_service.fail_job(slug, episode_id)
 
     # Rate-limit hold (#696): a 429 with a reset sends the episode back to
     # the queue and pauses new starts until the reset. Runs before the
@@ -4417,7 +4417,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         audio_logger.info(f"[{slug}:{episode_id}] Confidence threshold: {min_cut_confidence:.0%}")
 
         status_service.start_job(slug, episode_id, episode_title, podcast_name)
-        status_service.update_job_stage("downloading", 0)
+        status_service.update_job_stage(slug, episode_id, "downloading", 0)
 
         upsert_kwargs = dict(
             original_url=episode_url, title=episode_title,
@@ -4466,7 +4466,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Stamp from the main thread BEFORE the worker starts: all status
             # stamps stay on the main thread, so the pass1 ordering 22 -> 25
             # is monotonic and an abandoned worker never stamps another job.
-            status_service.update_job_stage("pass1:differential", 22)
+            status_service.update_job_stage(slug, episode_id, "pass1:differential", 22)
 
             def _diff_worker():
                 try:
@@ -4525,7 +4525,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Progress callback for detection stages
             current_pass = "pass1"
             def detection_progress_callback(stage, percent):
-                status_service.update_job_stage(f"{current_pass}:{stage}", percent)
+                status_service.update_job_stage(slug, episode_id, f"{current_pass}:{stage}", percent)
 
             # Build the per-episode immutable context once. Podcast tags drive
             # the matcher's community-pattern eligibility check; podcast_id is
@@ -4780,7 +4780,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
             # Stage 5: Process audio
-            status_service.update_job_stage("pass1:processing", 80)
+            status_service.update_job_stage(slug, episode_id, "pass1:processing", 80)
             audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(ads_to_remove)} ads to remove)")
 
             settings = db.get_all_settings()
@@ -5018,7 +5018,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 episode_description, episode_published_at, episode_data, run_stats,
                 podcast_row=podcast_settings)
 
-            status_service.complete_job()
+            status_service.complete_job(slug, episode_id)
             return True
 
         finally:

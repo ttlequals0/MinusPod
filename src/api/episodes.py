@@ -1464,8 +1464,8 @@ def retry_ad_detection(slug, episode_id):
 def get_processing_episodes():
     """Episodes processing now, then the pending queue in dequeue order.
 
-    Sources: the DB's 'processing' rows plus StatusService.current_job for the
-    active job; auto_process_queue pending rows plus StatusService's display
+    Sources: the DB's 'processing' rows plus StatusService.jobs for the
+    active jobs; auto_process_queue pending rows plus StatusService's display
     queue for the backlog. Issue #236. The waiting list is paginated with the
     `offset`/`limit` query params (limit default 200, cap 1000); rows carry an
     offset-aware `queuePosition` so the panel can page through a long backlog
@@ -1495,23 +1495,22 @@ def get_processing_episodes():
     } for ep in cursor.fetchall()]
 
     status = get_status_service().get_status()
-    current = status.current_job
-    if current:
+    for job in status.jobs:
         match = next((e for e in episodes
-                      if e['slug'] == current.slug and e['episodeId'] == current.episode_id), None)
+                      if e['slug'] == job.slug and e['episodeId'] == job.episode_id), None)
         if match:
-            match['title'] = current.title or match['title']
-            match['podcast'] = current.podcast_name or match['podcast']
-            match['startedAt'] = current.started_at
-            match['stage'] = current.stage
+            match['title'] = job.title or match['title']
+            match['podcast'] = job.podcast_name or match['podcast']
+            match['startedAt'] = job.started_at
+            match['stage'] = job.stage
         else:
             episodes.append({
-                'episodeId': current.episode_id,
-                'slug': current.slug,
-                'title': current.title or 'Unknown',
-                'podcast': current.podcast_name or current.slug,
-                'startedAt': current.started_at,
-                'stage': current.stage,
+                'episodeId': job.episode_id,
+                'slug': job.slug,
+                'title': job.title or 'Unknown',
+                'podcast': job.podcast_name or job.slug,
+                'startedAt': job.started_at,
+                'stage': job.stage,
             })
 
     # Append the waiting queue after the active job(s). The auto_process_queue
