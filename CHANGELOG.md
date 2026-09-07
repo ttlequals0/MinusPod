@@ -11,11 +11,13 @@ release notes.
 
 ## [Unreleased]
 
-## [2.96.3] - 2026-09-07
+## [2.96.4] - 2026-09-07
 
 ### Added
 
 - Rate-limit hold: a probe now re-checks an active hold instead of waiting out the provider's stated reset. With `llmUsageUrl` set, it checks that endpoint every `rateLimitProbeMinutes` (default 5, 0 disables) and clears the hold early or re-stamps it with a fresher reset, in either direction. Without a usage URL, a single minimal completion call does the same check.
+
+## [2.96.3] - 2026-09-07
 
 ### Fixed
 
