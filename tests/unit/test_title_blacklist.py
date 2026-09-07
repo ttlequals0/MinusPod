@@ -187,7 +187,9 @@ class TestClaimGateTitleBlacklist:
              patch.object(background, 'shutdown_event') as ev, \
              patch('main_app.processing.start_background_processing',
                    return_value=start_return) as start:
-            ev.is_set.side_effect = [False, True]
+            # 2 False calls: the outer loop check, then the dispatcher's
+            # inner claim-loop check that must pass to claim the row.
+            ev.is_set.side_effect = [False, False, True]
             ev.wait.return_value = None
             background.background_queue_processor()
 

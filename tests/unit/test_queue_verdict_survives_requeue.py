@@ -183,8 +183,10 @@ class TestDrainerErrorPathKeepsRequeue:
         iterations = {'n': 0}
 
         def _is_set():
+            # 2 False calls: the outer loop check, then the dispatcher's
+            # inner claim-loop check that must pass to claim the row.
             iterations['n'] += 1
-            return iterations['n'] > 1
+            return iterations['n'] > 2
 
         with patch.object(background, 'db', db), \
              patch.object(background, 'shutdown_event') as ev, \
@@ -209,8 +211,10 @@ def _drain_once(db, on_start, log):
     iterations = {'n': 0}
 
     def _is_set():
+        # 2 False calls: the outer loop check, then the dispatcher's
+        # inner claim-loop check that must pass to claim the row.
         iterations['n'] += 1
-        return iterations['n'] > 1
+        return iterations['n'] > 2
 
     with patch.object(background, 'db', db), \
          patch.object(background, 'shutdown_event') as ev, \

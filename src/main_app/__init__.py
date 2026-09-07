@@ -661,7 +661,10 @@ register_routes(app)
 # Re-export public API for downstream consumers
 from main_app.feeds import refresh_rss_feed, refresh_all_feeds, invalidate_feed_cache, get_feed_map
 from main_app.processing import start_background_processing
-from main_app.background import background_rss_refresh, background_queue_processor, reset_stuck_processing_episodes
+from main_app.background import (
+    background_rss_refresh, background_queue_processor,
+    mark_background_leader, reset_stuck_processing_episodes,
+)
 from podping_listener import podping_listener_loop
 from status_service import reconcile_startup_state
 
@@ -716,6 +719,8 @@ def _startup():
     """
 
     is_leader = _try_become_background_leader()
+    if is_leader:
+        mark_background_leader()
 
     # Reset any episodes stuck in 'processing' status from previous crash.
     # Leader-only - the followers would just race the same UPDATE.

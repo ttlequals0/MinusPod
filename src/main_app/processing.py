@@ -347,6 +347,7 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         Tuple of (started: bool, reason: str)
         - (True, "started") if processing was started
         - (False, "already_processing") if this episode is already being processed
+        - (False, "queue_only") if the whisper pool is active and this process is not the leader
         - (False, "queue_busy:slug:episode_id") if another episode is processing
         - (False, "rate_limit_paused") while a rate-limit hold is active
     """
@@ -356,6 +357,12 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
     # Check if already processing this episode
     if queue.is_processing(slug, episode_id):
         return False, "already_processing"
+
+    # Pool active: only the background leader runs episodes, so every
+    # per-run state lives in one process. Callers enqueue on any refusal.
+    from main_app.background import is_background_leader
+    if get_pool().active and not is_background_leader():
+        return False, "queue_only"
 
     # Rate-limit hold (#696): the one choke point every start goes through,
     # so a Play or Reprocess waits in the queue like the rest.
