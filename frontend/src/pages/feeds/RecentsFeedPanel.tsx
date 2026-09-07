@@ -4,6 +4,7 @@ import { updateFeed, uploadFeedArtwork } from '../../api/feeds';
 import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
 import { btnPrimary } from '../../components/buttonStyles';
+import CollapsibleSection from '../../components/CollapsibleSection';
 import { fileInputBase, focusRing, inputBase } from '../../components/fieldStyles';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 
@@ -26,48 +27,56 @@ function RecentsFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
     onSuccess: invalidate,
   });
   const error = save.error ?? artwork.error;
+  const cutoff = feed.createdAt?.slice(0, 10);
   return (
-    <section className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6 space-y-4">
-      <h2 className="text-lg font-semibold text-foreground">Recents feed</h2>
-      <p className="text-sm text-muted-foreground">
-        Every episode processed on this instance and published on or after {feed.createdAt?.slice(0, 10)} appears
-        here, from all your podcasts. Older episodes stay out even when they are reprocessed.
-      </p>
-      <label className="block text-sm">
-        <span className="font-medium text-foreground">Title</span>
-        <input aria-label="Feed title" value={title} onChange={(e) => setTitle(e.target.value)}
-          className={`mt-1 w-full ${inputBase}`} />
-      </label>
-      <label className="block text-sm">
-        <span className="font-medium text-foreground">Description</span>
-        <textarea aria-label="Feed description" rows={3} value={description}
-          onChange={(e) => setDescription(e.target.value)} className={`mt-1 w-full ${inputBase}`} />
-      </label>
-      <div className="flex flex-wrap gap-2 items-center">
-        <button type="button" onClick={() => save.mutate()} disabled={save.isPending || !title.trim()}
-          className={`px-4 py-2 rounded ${btnPrimary} disabled:opacity-50 ${focusRing}`}>
-          {save.isPending ? 'Saving...' : 'Save'}
-        </button>
-        {save.isSuccess && <span className="text-sm text-muted-foreground">Saved.</span>}
-      </div>
-      <div>
-        <label htmlFor={`recents-artwork-${slug}`} className="block text-sm font-medium text-foreground mb-2">Artwork</label>
-        <input
-          id={`recents-artwork-${slug}`}
-          type="file"
-          accept="image/jpeg,image/png"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (file) artwork.mutate(file);
-          }}
-          className={fileInputBase}
-        />
-        {artwork.isPending && <p className="mt-1 text-sm text-muted-foreground">Uploading...</p>}
-        {artwork.isSuccess && <p className="mt-1 text-sm text-success">Artwork updated.</p>}
-      </div>
-      {error && <p className="text-sm text-destructive">{getErrorMessage(error)}</p>}
-    </section>
+    <div className="mb-6">
+      <CollapsibleSection
+        title="Recents feed"
+        subtitle={`Every episode processed on this instance and published on or after ${cutoff} appears here.`}
+        storageKey="feed-section-recents"
+        unmountWhenClosed
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            From all your podcasts. Older episodes stay out even when they are reprocessed.
+          </p>
+          <label className="block text-sm">
+            <span className="font-medium text-foreground">Title</span>
+            <input aria-label="Feed title" value={title} onChange={(e) => setTitle(e.target.value)}
+              className={`mt-1 w-full ${inputBase}`} />
+          </label>
+          <label className="block text-sm">
+            <span className="font-medium text-foreground">Description</span>
+            <textarea aria-label="Feed description" rows={3} value={description}
+              onChange={(e) => setDescription(e.target.value)} className={`mt-1 w-full ${inputBase}`} />
+          </label>
+          <div className="flex flex-wrap gap-2 items-center">
+            <button type="button" onClick={() => save.mutate()} disabled={save.isPending || !title.trim()}
+              className={`px-4 py-2 rounded ${btnPrimary} disabled:opacity-50 ${focusRing}`}>
+              {save.isPending ? 'Saving...' : 'Save'}
+            </button>
+            {save.isSuccess && <span className="text-sm text-muted-foreground">Saved.</span>}
+          </div>
+          <div>
+            <label htmlFor={`recents-artwork-${slug}`} className="block text-sm font-medium text-foreground mb-2">Artwork</label>
+            <input
+              id={`recents-artwork-${slug}`}
+              type="file"
+              accept="image/jpeg,image/png"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) artwork.mutate(file);
+              }}
+              className={fileInputBase}
+            />
+            {artwork.isPending && <p className="mt-1 text-sm text-muted-foreground">Uploading...</p>}
+            {artwork.isSuccess && <p className="mt-1 text-sm text-success">Artwork updated.</p>}
+          </div>
+          {error && <p className="text-sm text-destructive">{getErrorMessage(error)}</p>}
+        </div>
+      </CollapsibleSection>
+    </div>
   );
 }
 

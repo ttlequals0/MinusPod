@@ -160,6 +160,7 @@ function CollapsibleSection({
             the row's single toggle handler above. */}
         <button
           type="button"
+          aria-expanded={expanded}
           className={`flex-1 min-w-0 text-left ${focusRing}`}
         >
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>
