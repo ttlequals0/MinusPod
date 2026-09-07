@@ -16,6 +16,8 @@ def _clean_settings(app_client):
     yield db
     db.set_setting('rate_limit_hold_enabled', 'false')
     db.set_setting('rate_limit_hold_until', '')
+    db.set_setting('llm_usage_url', '')
+    db.set_setting('rate_limit_probe_minutes', '5')
 
 
 def _csrf(app_client):
@@ -29,7 +31,59 @@ def _csrf(app_client):
 def test_get_defaults(app_client, _clean_settings):
     _csrf(app_client)
     body = app_client.get('/api/v1/settings/rate-limit-hold').get_json()
-    assert body == {'enabled': False, 'holdUntil': None}
+    assert body == {
+        'enabled': False, 'holdUntil': None,
+        'llmUsageUrl': '', 'rateLimitProbeMinutes': 5,
+    }
+
+
+def test_put_llm_usage_url_and_probe_minutes(app_client, _clean_settings):
+    hdr = _csrf(app_client)
+    r = app_client.put('/api/v1/settings/rate-limit-hold', json={
+        'llmUsageUrl': 'https://your-proxy:8001/v1/usage',
+        'rateLimitProbeMinutes': 10,
+    }, headers=hdr)
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body['llmUsageUrl'] == 'https://your-proxy:8001/v1/usage'
+    assert body['rateLimitProbeMinutes'] == 10
+    roundtrip = app_client.get('/api/v1/settings/rate-limit-hold').get_json()
+    assert roundtrip['llmUsageUrl'] == 'https://your-proxy:8001/v1/usage'
+    assert roundtrip['rateLimitProbeMinutes'] == 10
+
+
+def test_put_probe_minutes_zero_is_allowed(app_client, _clean_settings):
+    hdr = _csrf(app_client)
+    r = app_client.put('/api/v1/settings/rate-limit-hold',
+                       json={'rateLimitProbeMinutes': 0}, headers=hdr)
+    assert r.status_code == 200
+    assert r.get_json()['rateLimitProbeMinutes'] == 0
+
+
+@pytest.mark.parametrize('value', [-1, 61, 'five', 5.5, True])
+def test_put_probe_minutes_out_of_range_rejected(app_client, _clean_settings, value):
+    hdr = _csrf(app_client)
+    r = app_client.put('/api/v1/settings/rate-limit-hold',
+                       json={'rateLimitProbeMinutes': value}, headers=hdr)
+    assert r.status_code == 400
+
+
+def test_put_llm_usage_url_rejects_ssrf_unsafe_url(app_client, _clean_settings):
+    hdr = _csrf(app_client)
+    r = app_client.put('/api/v1/settings/rate-limit-hold',
+                       json={'llmUsageUrl': 'http://169.254.169.254/latest/meta-data'},
+                       headers=hdr)
+    assert r.status_code == 400
+
+
+def test_put_llm_usage_url_clears_with_empty_string(app_client, _clean_settings):
+    hdr = _csrf(app_client)
+    app_client.put('/api/v1/settings/rate-limit-hold',
+                   json={'llmUsageUrl': 'https://your-proxy:8001/v1/usage'}, headers=hdr)
+    r = app_client.put('/api/v1/settings/rate-limit-hold',
+                       json={'llmUsageUrl': ''}, headers=hdr)
+    assert r.status_code == 200
+    assert r.get_json()['llmUsageUrl'] == ''
 
 
 def test_put_happy_path_and_persistence(app_client, _clean_settings):

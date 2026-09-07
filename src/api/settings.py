@@ -65,6 +65,8 @@ from offline_queue import (
 )
 from rate_limit_hold import (
     get_active_hold, is_rate_limit_hold_enabled, clear_hold,
+    get_llm_usage_url, get_rate_limit_probe_minutes,
+    RATE_LIMIT_PROBE_MINUTES_MIN, RATE_LIMIT_PROBE_MINUTES_MAX,
 )
 from pricing_fetcher import force_refresh_pricing
 from whisper_pool import get_pool
@@ -2393,6 +2395,8 @@ def _rate_limit_hold_view(db) -> dict:
     return {
         'enabled': is_rate_limit_hold_enabled(db),
         'holdUntil': get_active_hold(db)[0],
+        'llmUsageUrl': get_llm_usage_url(db),
+        'rateLimitProbeMinutes': get_rate_limit_probe_minutes(db),
     }
 
 
@@ -2410,13 +2414,30 @@ def update_rate_limit_hold_settings():
 
     When enabled, a provider 429 carrying a reset time sends the episode
     back to the queue and pauses new claims until the reset instead of
-    failing the job.
+    failing the job. llmUsageUrl and rateLimitProbeMinutes configure the
+    probe that periodically re-checks an active hold.
     """
     data = request.get_json()
     db = get_database()
     error = _apply_enabled_update(db, data, 'rate_limit_hold')
     if error:
         return error
+    if 'llmUsageUrl' in data:
+        usage_url = data['llmUsageUrl']
+        if usage_url:
+            try:
+                validate_base_url(usage_url)
+            except SSRFError as e:
+                return json_response({'error': f'Invalid LLM usage URL: {e}'}, 400)
+        db.set_setting('llm_usage_url', usage_url, is_default=False)
+    if 'rateLimitProbeMinutes' in data:
+        minutes = data['rateLimitProbeMinutes']
+        if not isinstance(minutes, int) or isinstance(minutes, bool) \
+                or minutes < RATE_LIMIT_PROBE_MINUTES_MIN or minutes > RATE_LIMIT_PROBE_MINUTES_MAX:
+            return error_response(
+                'rateLimitProbeMinutes must be an integer between '
+                f'{RATE_LIMIT_PROBE_MINUTES_MIN} and {RATE_LIMIT_PROBE_MINUTES_MAX}', 400)
+        db.set_setting('rate_limit_probe_minutes', str(minutes), is_default=False)
     if data.get('enabled') is False and get_active_hold(db)[0]:
         # Escape hatch: turning the hold off lifts an active pause.
         fire_queue_resumed_event(held_since=clear_hold(db))

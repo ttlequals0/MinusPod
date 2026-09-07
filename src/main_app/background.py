@@ -27,15 +27,19 @@ MAINTENANCE_INTERVAL_SECONDS = 300.0
 
 
 def _run_tick(tick_fn, name):
-    """Run one scheduled tick, logging (never raising) on failure."""
+    """Run one scheduled tick, logging (never raising) on failure.
+
+    Returns the tick's own return value, or None if it raised.
+    """
     try:
-        tick_fn(db)
+        return tick_fn(db)
     except Exception as e:
         refresh_logger.warning(f"{name} failed: {e}")
         # A tick that died mid-write may have left a transaction open; clear
         # it here so the next write in this iteration cannot commit the
         # tick's partial work (issue #566).
         db.clear_leaked_transaction(refresh_logger, name)
+        return None
 
 
 def run_cleanup():
@@ -354,7 +358,9 @@ def background_queue_processor():
     """Dispatcher: keep up to the pool's max_episodes claimed rows running."""
     from offline_queue import offline_queue_tick
     from processing_queue import ProcessingQueue
-    from rate_limit_hold import get_hold_until, hold_is_active, rate_limit_hold_tick
+    from rate_limit_hold import (
+        get_hold_until, hold_is_active, probe_rate_limit, rate_limit_hold_tick,
+    )
     refresh_logger.info("Auto-process queue processor started")
     registry = ProcessingQueue()
     running: set[threading.Thread] = set()
@@ -404,6 +410,9 @@ def background_queue_processor():
                     refresh_logger.info(
                         "Queue paused: LLM provider rate limit; waiting for reset")
                     rate_limit_pause_logged = True
+                if _run_tick(probe_rate_limit, 'rate_limit_probe'):
+                    rate_limit_pause_logged = False
+                    continue
                 shutdown_event.wait(timeout=30)
                 continue
             rate_limit_pause_logged = False

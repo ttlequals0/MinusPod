@@ -272,6 +272,13 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # not exposed through the general settings payload.
     'rate_limit_hold_enabled': SettingSpec(
         default='false', seeded=True, resettable=False),
+    # Rate-limit hold probe: re-checks an active hold instead of waiting out
+    # the provider's stated reset, which can be wrong in either direction.
+    'llm_usage_url': SettingSpec(
+        default='', env='LLM_USAGE_URL', seeded=True, resettable=False),
+    'rate_limit_probe_minutes': SettingSpec(
+        default='5', env='RATE_LIMIT_PROBE_MINUTES', seeded=True, resettable=False,
+        validator=_int_in_range((0, 60))),
     'processing_soft_timeout_seconds': SettingSpec(
         default='3600', env='PROCESSING_SOFT_TIMEOUT', seeded=True,
         resettable=False),

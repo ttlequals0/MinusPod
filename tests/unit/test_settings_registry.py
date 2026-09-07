@@ -40,6 +40,7 @@ _SEED_ENV_VARS = (
     'VAD_GAP_MID_MIN_SECONDS', 'VAD_GAP_TAIL_MIN_SECONDS',
     'TRANSCRIBE_MAX_CHUNK_SECONDS', 'TRANSCRIBE_CONCURRENT_CHUNKS',
     'TRANSCRIBE_CHUNK_OVERLAP_SECONDS', 'TZ',
+    'LLM_USAGE_URL', 'RATE_LIMIT_PROBE_MINUTES',
 )
 
 # Snapshot of _seed_default_settings output captured from the pre-registry
@@ -78,6 +79,8 @@ SEED_SNAPSHOT = {
     'offline_queue_enabled': 'false',
     'llm_json_schema_enabled': 'false',
     'rate_limit_hold_enabled': 'false',
+    'llm_usage_url': '',
+    'rate_limit_probe_minutes': '5',
     'offline_queue_ttl_hours': '48',
     'omit_temperature': 'false',
     'only_expose_processed_default': 'false',

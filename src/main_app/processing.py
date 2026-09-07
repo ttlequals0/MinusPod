@@ -109,7 +109,8 @@ from llm_client import (
 from database.queue import compute_queue_priority
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
-    hold_message, is_queue_paused, is_rate_limit_hold_enabled, record_hold_until,
+    get_llm_usage_url, hold_message, is_queue_paused, is_rate_limit_hold_enabled,
+    read_usage_status, record_hold_until, usage_reset_iso,
 )
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -4183,9 +4184,18 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # the queue and pauses new starts until the reset. Runs before the
     # offline-queue branch: throttling is not an outage. retry_count untouched.
     if isinstance(error, ProviderRateLimitedError) and is_rate_limit_hold_enabled(db):
-        hold_until = utc_now() + timedelta(
-            seconds=max(0.0, float(error.retry_after_seconds)))
-        hold_until_iso = hold_until.strftime(ISO_FORMAT)
+        hold_until_iso = None
+        usage_url = get_llm_usage_url(db)
+        if usage_url:
+            # The 429's own stated reset can be wrong in either direction; a
+            # configured usage endpoint's own numbers are more reliable.
+            payload = read_usage_status(usage_url)
+            if payload is not None and payload.get('blocked') is True:
+                hold_until_iso = usage_reset_iso(payload)
+        if hold_until_iso is None:
+            hold_until = utc_now() + timedelta(
+                seconds=max(0.0, float(error.retry_after_seconds)))
+            hold_until_iso = hold_until.strftime(ISO_FORMAT)
         effective_until, hold_started = record_hold_until(db, hold_until_iso)
         db.upsert_episode(
             slug, episode_id,
