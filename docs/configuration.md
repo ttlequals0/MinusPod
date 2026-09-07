@@ -415,7 +415,7 @@ the remote backend fields.
 | Setting | Env | Default | Notes |
 |---|---|---|---|
 | Whisper pool | `WHISPER_POOL_ENABLED` | off | Nothing below applies while this is off or the backend is local. |
-| Max requests to backend | `WHISPER_POOL_MAX_REQUESTS` | 4 | Transcription requests in flight at once, across every episode. Range 1-64. Set it to what your backend accepts. MinusPod does not probe it. |
+| Max requests to backend | `WHISPER_POOL_MAX_REQUESTS` | 4 | Transcription requests in flight at once, across every episode. Range 1-64. Set it to what your backend accepts. |
 | Episodes at once | `WHISPER_POOL_MAX_EPISODES` | 1 | Episodes processed concurrently. Range 1-16. |
 
 While the pool is on, every run starts from the background worker, so a
@@ -428,6 +428,13 @@ reports the resolved numbers, and the settings page shows the worst case
 waits and retries instead of counting as a failed chunk. Turning the pool
 off lets runs in flight finish and returns new runs to the single-slot
 path.
+
+When a backend at `https://your-whisper-host/v1` exposes an optional
+health endpoint, MinusPod samples it to report the replica count, model,
+device, and compute type per instance, plus a suggested "Max requests"
+value based on their combined concurrency. This is entirely optional:
+without a health endpoint, nothing changes and the cap stays a manual
+setting.
 
 ## Outbound Requests
 

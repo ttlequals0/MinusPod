@@ -6014,6 +6014,8 @@ paths:
                       Whether this process is the background leader that runs
                       transcriptions. inFlight/transcribingEpisodes are only
                       meaningful when true; other workers always report 0.
+                  health:
+                    $ref: '#/components/schemas/WhisperHealthProbe'
 
   /settings/update-check:
     get:
@@ -8913,6 +8915,40 @@ components:
         reachable: { type: boolean, description: 'The server returned any HTTP response' }
         status:    { type: integer, description: 'HTTP status code, when a response was received' }
         detail:    { type: string, description: 'Human-readable outcome' }
+        health:
+          allOf:
+            - $ref: '#/components/schemas/WhisperHealthProbe'
+          description: 'whisper only, present when ok is true: result of sampling the backend''s optional /health endpoint'
+    WhisperHealthProbe:
+      type: object
+      description: >-
+        Result of sampling a self-hosted Whisper backend's optional /health
+        endpoint. Behind a load balancer, repeated calls round-robin across
+        replicas, so sampling reveals the replica count and total concurrency.
+      properties:
+        available:
+          type: boolean
+          description: The backend exposes a working /health endpoint
+        instances:
+          type: array
+          items:
+            type: object
+            properties:
+              instance:      { type: string }
+              model:         { type: string }
+              device:        { type: string }
+              compute_type:  { type: string }
+              batch_size:    { type: integer }
+              max_concurrent: { type: integer }
+              vad_filter:    { type: boolean }
+        suggested_max_requests:
+          type: integer
+          description: Sum of max_concurrent across distinct instances (falls back to the instance count)
+        mismatch:
+          type: array
+          items:
+            type: string
+          description: Fields (model, compute_type, device) whose values differ across instances
     CueMatch:
       type: object
       description: One cue match within an episode

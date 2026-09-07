@@ -16,6 +16,7 @@ release notes.
 ### Added
 
 - Rate-limit hold: a probe now re-checks an active hold instead of waiting out the provider's stated reset. With `llmUsageUrl` set, it checks that endpoint every `rateLimitProbeMinutes` (default 5, 0 disables) and clears the hold early or re-stamps it with a fresher reset, in either direction. Without a usage URL, a single minimal completion call does the same check.
+- A self-hosted Whisper backend can expose an optional health endpoint reporting its model, device, compute type, and concurrency limit. `GET /settings/whisper/capacity` and the Whisper connection test now sample it (round-robining behind a load balancer reveals each replica), and Settings > Transcription shows the detected instance count and a suggested `whisperPoolMaxRequests` when it differs from the configured cap, or a warning when replicas disagree on model, device, or compute type.
 
 ## [2.96.3] - 2026-09-07
 

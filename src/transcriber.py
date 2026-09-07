@@ -520,6 +520,75 @@ def check_whisper_connectivity(timeout: float = 5.0) -> bool:
         return False
 
 
+_HEALTH_INSTANCE_FIELDS = (
+    'model', 'device', 'compute_type', 'batch_size', 'max_concurrent', 'vad_filter',
+)
+
+
+def probe_whisper_health(base_url: str = None, samples: int = 5,
+                         timeout: float = 5.0) -> dict:
+    """Sample a self-hosted Whisper backend's optional /health endpoint.
+
+    Behind a load balancer, repeated calls round-robin across replicas,
+    revealing the replica count and total concurrency accepted. Stops early
+    after two consecutive already-seen instances. Never raises: any failure
+    (unreachable, 404, non-JSON) returns {'available': False} alone.
+    """
+    if base_url is None:
+        base_url = _get_whisper_settings()['api_base_url']
+    if not base_url:
+        return {'available': False}
+    url = f"{base_url.rstrip('/')}/health"
+
+    bodies: dict[str, dict] = {}
+    order: list[str] = []
+    repeat_streak = 0
+    for _ in range(max(1, samples)):
+        try:
+            response = safe_get(url, trust=URLTrust.OPERATOR_CONFIGURED, timeout=timeout)
+            if response.status_code != 200:
+                continue
+            body = response.json()
+        except Exception as e:
+            logger.debug(f"Whisper health probe failed: {e}")
+            continue
+        if not isinstance(body, dict) or 'instance' not in body:
+            continue
+
+        instance = body['instance']
+        if instance in bodies:
+            repeat_streak += 1
+        else:
+            repeat_streak = 0
+            bodies[instance] = body
+            order.append(instance)
+        if repeat_streak >= 2:
+            break
+
+    if not bodies:
+        return {'available': False}
+
+    instances = [
+        {'instance': inst, **{f: bodies[inst].get(f) for f in _HEALTH_INSTANCE_FIELDS}}
+        for inst in order
+    ]
+    suggested = sum(
+        inst['max_concurrent'] if isinstance(inst['max_concurrent'], int) else 1
+        for inst in instances
+    )
+    mismatch = [
+        field for field in ('model', 'compute_type', 'device')
+        if len({inst[field] for inst in instances}) > 1
+    ]
+
+    return {
+        'available': True,
+        'instances': instances,
+        'suggested_max_requests': suggested,
+        'mismatch': mismatch,
+    }
+
+
 def _transcription_url(base_url: str) -> str:
     """Endpoint URL for an OpenAI-compatible transcription request. Shared
     by the real upload path and the connection probe so they cannot drift."""

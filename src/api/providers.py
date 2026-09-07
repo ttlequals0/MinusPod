@@ -434,6 +434,12 @@ def test_provider_connection(provider):
         result = transcriber.probe_transcription_endpoint(
             base, api_key=api_key, model=model,
             skip_flac_compression=skip_flac)
+        if result.get('ok'):
+            try:
+                result['health'] = transcriber.probe_whisper_health(
+                    base_url=base, samples=3)
+            except Exception:
+                result['health'] = {'available': False}
     else:
         # The real client appends /v1 for Ollama; the probe must match or a
         # URL that works for episodes would fail the test and vice versa.

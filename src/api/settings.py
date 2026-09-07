@@ -2454,17 +2454,22 @@ def get_whisper_capacity():
     Refreshes only this worker's pool; the leader's dispatcher refreshes its
     own pool every pass (5s settings TTL), so no cross-process signal needed.
     """
-    from transcriber import _get_chunk_settings
+    from transcriber import _get_chunk_settings, probe_whisper_health
     pool = get_pool()
     pool.refresh(force=True)
     snap = pool.snapshot()
     configured = _get_chunk_settings()['concurrent_chunks']
     effective = pool.chunk_workers(configured)
     worst = snap['maxEpisodes']['effective'] * configured
+    try:
+        health = probe_whisper_health(samples=3)
+    except Exception:
+        health = {'available': False}
     snap.update({
         'chunkWorkers': {'configured': configured, 'effective': effective},
         'worstCaseInFlight': worst,
         'exceedsCapacity': bool(snap['active'] and worst > snap['capacity']),
+        'health': health,
     })
     return json_response(snap)
 
