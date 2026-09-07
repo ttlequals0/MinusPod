@@ -362,6 +362,27 @@ _CONNECTION_TEST_PROVIDERS = (
     ('whisper', 'openai', 'ollama') + tuple(_FIXED_PROVIDER_PROBES))
 
 
+def _health_detail(health: dict) -> str:
+    """One sentence on a health probe for the connection-test detail, or ''.
+
+    Hedges the count when the probe only established a floor, and reports a
+    disagreement rather than one replica's model, so this never contradicts
+    the same probe's warning in Settings.
+    """
+    instances = health.get('instances') or []
+    if not health.get('available') or not instances:
+        return ''
+    count = len(instances)
+    noun = 'instance' if count == 1 else 'instances'
+    hedge = 'At least ' if health.get('sampled_floor') else ''
+    mismatch = health.get('mismatch') or []
+    if mismatch:
+        fields = ', '.join(f.replace('_', ' ') for f in mismatch)
+        return f"{hedge}{count} {noun}, disagreeing on {fields}."
+    model = instances[0].get('model')
+    return f"{hedge}{count} {noun} reporting {model}." if model else f"{hedge}{count} {noun}."
+
+
 @api.route('/settings/providers/<provider>/test-connection', methods=['POST'])
 def test_provider_connection(provider):
     """End-to-end probe of a configured external endpoint (#544).
@@ -435,19 +456,14 @@ def test_provider_connection(provider):
             base, api_key=api_key, model=model,
             skip_flac_compression=skip_flac)
         if result.get('ok'):
-            # use_cache=False: this test exists to check the backend right
-            # now, not to report a stale cached probe.
+            # refresh=True: this test checks the backend now, and its fresh
+            # result replaces whatever the cache held.
             health = transcriber.probe_whisper_health(
-                base_url=base, api_key=api_key, use_cache=False)
+                base_url=base, api_key=api_key, refresh=True)
             result['health'] = health
-            if health.get('available'):
-                instances = health.get('instances') or []
-                count = len(instances)
-                model_name = instances[0].get('model') if instances else None
-                if count and model_name:
-                    noun = 'instance' if count == 1 else 'instances'
-                    result['detail'] = (
-                        f"{result['detail']} {count} {noun} reporting {model_name}.")
+            summary = _health_detail(health)
+            if summary:
+                result['detail'] = f"{result['detail']} {summary}"
     else:
         # The real client appends /v1 for Ollama; the probe must match or a
         # URL that works for episodes would fail the test and vice versa.

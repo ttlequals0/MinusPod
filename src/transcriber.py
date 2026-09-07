@@ -537,23 +537,31 @@ def _coerce_hashable(value):
 
 
 def _clamped_concurrency(value) -> int:
-    """One instance's usable max_concurrent: real ints floored at 1, anything else counts as 1."""
-    if isinstance(value, int) and not isinstance(value, bool):
-        return max(1, value)
-    return 1
+    """One instance's usable max_concurrent, floored at 1.
+
+    Accepts the int, float, and numeric-string spellings backends use; bool
+    and anything unparseable count as 1.
+    """
+    if isinstance(value, bool):
+        return 1
+    try:
+        return max(1, int(float(value)))
+    except (TypeError, ValueError):
+        return 1
 
 
 def probe_whisper_health(base_url: str | None = None, samples: int = 8,
                          timeout: float = 5.0, api_key: str | None = None,
-                         use_cache: bool = True) -> dict:
+                         refresh: bool = False) -> dict:
     """Sample a self-hosted Whisper backend's optional /health endpoint.
 
     Behind a load balancer, repeated calls round-robin across replicas,
     revealing the replica count and total concurrency accepted. Stops early
     after three consecutive already-seen instances. Results are cached per
-    base URL for 120s; pass use_cache=False for an on-demand check such as
-    the connection test. Never raises: an unusable sample is skipped, and a
-    probe that finds nothing returns {'available': False} alone.
+    base URL for 120s; refresh=True skips that read and re-probes, then
+    stores the fresh result so an on-demand check such as the connection
+    test also clears a stale entry. Never raises: an unusable sample is
+    skipped, and a probe that finds nothing returns {'available': False}.
     """
     settings = None
     if base_url is None:
@@ -565,7 +573,7 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
         api_key = settings['api_key'] if settings else ''
 
     cache_key = base_url.rstrip('/')
-    if use_cache:
+    if not refresh:
         cached = _health_cache.get(cache_key)
         if cached is not None:
             return cached
@@ -575,7 +583,7 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
 
     bodies: dict[str, dict] = {}
     repeat_streak = 0
-    saw_repeat = False
+    converged = False
     for _ in range(max(1, samples)):
         try:
             response = safe_get(url, trust=URLTrust.OPERATOR_CONFIGURED,
@@ -592,17 +600,16 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
         instance = body['instance']
         if instance in bodies:
             repeat_streak += 1
-            saw_repeat = True
         else:
             repeat_streak = 0
             bodies[instance] = body
         if repeat_streak >= 3:
+            converged = True
             break
 
     if not bodies:
         result = {'available': False}
-        if use_cache:
-            _health_cache.set(cache_key, result)
+        _health_cache.set(cache_key, result)
         return result
 
     instances = [
@@ -621,12 +628,12 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
         'instances': instances,
         'suggested_max_requests': suggested,
         'mismatch': mismatch,
-        # No replica ever repeated, so the sampling never wrapped around:
-        # the count is a lower bound, not the confirmed replica set.
-        'sampled_floor': not saw_repeat,
+        # Sampling ran out before an instance repeated three times running,
+        # so it never demonstrably wrapped the replica set: the count is a
+        # lower bound. A balancer that is not round robin lands here.
+        'sampled_floor': not converged,
     }
-    if use_cache:
-        _health_cache.set(cache_key, result)
+    _health_cache.set(cache_key, result)
     return result
 
 

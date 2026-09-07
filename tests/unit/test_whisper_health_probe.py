@@ -54,7 +54,7 @@ class TestDistinctInstances:
     def test_three_distinct_instances_sum_max_concurrent(self):
         replicas = [_health('whisper-1'), _health('whisper-2'), _health('whisper-3')]
         with patch('transcriber.safe_get', side_effect=replicas) as sg:
-            result = probe_whisper_health(base_url=BASE, samples=3, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=3, refresh=True)
         assert result['available'] is True
         assert sg.call_args[0][0] == f'{BASE}/health'
         assert [i['instance'] for i in result['instances']] == [
@@ -67,7 +67,7 @@ class TestEarlyStop:
     def test_repeated_instance_stops_after_three_consecutive_repeats(self):
         replicas = [_health('whisper-1', max_concurrent=2)] * 5
         with patch('transcriber.safe_get', side_effect=replicas) as sg:
-            result = probe_whisper_health(base_url=BASE, samples=5, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=5, refresh=True)
         assert sg.call_count == 4
         assert len(result['instances']) == 1
         assert result['suggested_max_requests'] == 2
@@ -79,25 +79,25 @@ class TestMismatch:
         replicas = [_health('whisper-1', model='large-v3'),
                    _health('whisper-2', model='medium')]
         with patch('transcriber.safe_get', side_effect=replicas):
-            result = probe_whisper_health(base_url=BASE, samples=2, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=2, refresh=True)
         assert result['mismatch'] == ['model']
 
 
 class TestUnavailable:
     def test_404_returns_unavailable_only(self):
         with patch('transcriber.safe_get', return_value=_bad(404)):
-            result = probe_whisper_health(base_url=BASE, samples=3, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=3, refresh=True)
         assert result == {'available': False}
 
     def test_404_backend_costs_the_full_sample_count(self):
         with patch('transcriber.safe_get', return_value=_bad(404)) as sg:
-            probe_whisper_health(base_url=BASE, samples=5, use_cache=False)
+            probe_whisper_health(base_url=BASE, samples=5, refresh=True)
         assert sg.call_count == 5
 
     def test_transport_error_returns_unavailable_only(self):
         with patch('transcriber.safe_get',
                    side_effect=requests_lib.ConnectionError('refused')):
-            result = probe_whisper_health(base_url=BASE, samples=3, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=3, refresh=True)
         assert result == {'available': False}
 
     def test_no_base_url_returns_unavailable(self):
@@ -108,36 +108,36 @@ class TestUnavailable:
         r.status_code = 200
         r.json.return_value = {'status': 'ok', 'instance': ['not', 'hashable'], 'model': 'large-v3'}
         with patch('transcriber.safe_get', return_value=r):
-            result = probe_whisper_health(base_url=BASE, samples=2, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=2, refresh=True)
         assert result == {'available': False}
 
 
 class TestMaxConcurrentFallback:
     def test_missing_max_concurrent_falls_back_to_instance_count(self):
         with patch('transcriber.safe_get', return_value=_health_no_max_concurrent('whisper-1')):
-            result = probe_whisper_health(base_url=BASE, samples=1, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=1, refresh=True)
         assert result['suggested_max_requests'] == 1
         assert len(result['instances']) == 1
 
     def test_zero_max_concurrent_clamps_to_one(self):
         with patch('transcriber.safe_get', return_value=_health('whisper-1', max_concurrent=0)):
-            result = probe_whisper_health(base_url=BASE, samples=1, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=1, refresh=True)
         assert result['suggested_max_requests'] == 1
 
     def test_negative_max_concurrent_clamps_to_one(self):
         with patch('transcriber.safe_get', return_value=_health('whisper-1', max_concurrent=-5)):
-            result = probe_whisper_health(base_url=BASE, samples=1, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=1, refresh=True)
         assert result['suggested_max_requests'] == 1
 
     def test_bool_max_concurrent_is_ignored(self):
         with patch('transcriber.safe_get', return_value=_health('whisper-1', max_concurrent=True)):
-            result = probe_whisper_health(base_url=BASE, samples=1, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=1, refresh=True)
         assert result['suggested_max_requests'] == 1
 
     def test_mixed_reporting_sums_fallback_and_reported_values(self):
         replicas = [_health('whisper-1', max_concurrent=5), _health_no_max_concurrent('whisper-2')]
         with patch('transcriber.safe_get', side_effect=replicas):
-            result = probe_whisper_health(base_url=BASE, samples=2, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=2, refresh=True)
         assert len(result['instances']) == 2
         # Genuinely summed (5 + 1), not just the instance count (2).
         assert result['suggested_max_requests'] == 6
@@ -145,7 +145,7 @@ class TestMaxConcurrentFallback:
     def test_all_missing_max_concurrent_sums_one_per_instance(self):
         replicas = [_health_no_max_concurrent('whisper-1'), _health_no_max_concurrent('whisper-2')]
         with patch('transcriber.safe_get', side_effect=replicas):
-            result = probe_whisper_health(base_url=BASE, samples=2, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=2, refresh=True)
         assert len(result['instances']) == 2
         assert result['suggested_max_requests'] == 2
 
@@ -154,45 +154,55 @@ class TestSampledFloor:
     def test_all_samples_distinct_reports_floor_true(self):
         replicas = [_health('whisper-1'), _health('whisper-2')]
         with patch('transcriber.safe_get', side_effect=replicas):
-            result = probe_whisper_health(base_url=BASE, samples=2, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=2, refresh=True)
         assert result['sampled_floor'] is True
 
     def test_failed_samples_do_not_clear_the_floor_flag(self):
         # A wasted sample is not evidence the replica set was covered.
         replicas = [_health('whisper-1'), _bad(503), _health('whisper-2')]
         with patch('transcriber.safe_get', side_effect=replicas):
-            result = probe_whisper_health(base_url=BASE, samples=3, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=3, refresh=True)
         assert len(result['instances']) == 2
         assert result['sampled_floor'] is True
 
-    def test_repeated_instance_clears_the_floor_flag(self):
-        replicas = [_health('whisper-1'), _health('whisper-2'), _health('whisper-1')]
+    def test_a_lone_repeat_does_not_clear_the_floor_flag(self):
+        # One repeat is not the sampling wrapping the replica set; a balancer
+        # that is not round robin repeats without having shown every replica.
+        replicas = [_health('whisper-1'), _health('whisper-2'), _health('whisper-1'),
+                    _health('whisper-3')]
         with patch('transcriber.safe_get', side_effect=replicas):
-            result = probe_whisper_health(base_url=BASE, samples=3, use_cache=False)
+            result = probe_whisper_health(base_url=BASE, samples=4, refresh=True)
+        assert len(result['instances']) == 3
+        assert result['sampled_floor'] is True
+
+    def test_three_consecutive_repeats_clear_the_floor_flag(self):
+        replicas = [_health('whisper-1'), _health('whisper-2')] + [_health('whisper-2')] * 3
+        with patch('transcriber.safe_get', side_effect=replicas):
+            result = probe_whisper_health(base_url=BASE, samples=5, refresh=True)
         assert result['sampled_floor'] is False
 
 
 class TestHealthUrl:
     def test_trailing_slash_derives_same_health_url(self):
         with patch('transcriber.safe_get', return_value=_bad(404)) as sg:
-            probe_whisper_health(base_url='http://transcriber:8001/v1/', samples=1, use_cache=False)
+            probe_whisper_health(base_url='http://transcriber:8001/v1/', samples=1, refresh=True)
         assert sg.call_args[0][0] == 'http://transcriber:8001/v1/health'
 
     def test_no_path_derives_health_at_root(self):
         with patch('transcriber.safe_get', return_value=_bad(404)) as sg:
-            probe_whisper_health(base_url='http://transcriber:8001', samples=1, use_cache=False)
+            probe_whisper_health(base_url='http://transcriber:8001', samples=1, refresh=True)
         assert sg.call_args[0][0] == 'http://transcriber:8001/health'
 
 
 class TestAuthHeader:
     def test_sends_bearer_header_when_api_key_given(self):
         with patch('transcriber.safe_get', return_value=_health('whisper-1')) as sg:
-            probe_whisper_health(base_url=BASE, samples=1, api_key='sk-test', use_cache=False)
+            probe_whisper_health(base_url=BASE, samples=1, api_key='sk-test', refresh=True)
         assert sg.call_args.kwargs['headers'] == {'Authorization': 'Bearer sk-test'}
 
     def test_no_api_key_sends_no_auth_header(self):
         with patch('transcriber.safe_get', return_value=_health('whisper-1')) as sg:
-            probe_whisper_health(base_url=BASE, samples=1, use_cache=False)
+            probe_whisper_health(base_url=BASE, samples=1, refresh=True)
         assert sg.call_args.kwargs['headers'] == {}
 
 
@@ -203,8 +213,33 @@ class TestCaching:
             probe_whisper_health(base_url=BASE, samples=1)
         assert sg.call_count == 1
 
-    def test_use_cache_false_always_reprobes(self):
+    def test_refresh_always_reprobes(self):
         with patch('transcriber.safe_get', return_value=_health('whisper-1')) as sg:
-            probe_whisper_health(base_url=BASE, samples=1, use_cache=False)
-            probe_whisper_health(base_url=BASE, samples=1, use_cache=False)
+            probe_whisper_health(base_url=BASE, samples=1, refresh=True)
+            probe_whisper_health(base_url=BASE, samples=1, refresh=True)
         assert sg.call_count == 2
+
+    def test_refresh_replaces_a_cached_negative(self):
+        with patch('transcriber.safe_get', return_value=_bad(404)):
+            assert probe_whisper_health(base_url=BASE, samples=1)['available'] is False
+        with patch('transcriber.safe_get', return_value=_health('whisper-1')):
+            probe_whisper_health(base_url=BASE, samples=1, refresh=True)
+        with patch('transcriber.safe_get', side_effect=AssertionError('should be cached')):
+            assert probe_whisper_health(base_url=BASE, samples=1)['available'] is True
+
+
+class TestConcurrencyCoercion:
+    def test_float_and_numeric_string_max_concurrent_are_counted(self):
+        replicas = [_health('whisper-1', max_concurrent=4.0),
+                    _health('whisper-2', max_concurrent='4')]
+        with patch('transcriber.safe_get', side_effect=replicas):
+            result = probe_whisper_health(base_url=BASE, samples=2, refresh=True)
+        assert result['suggested_max_requests'] == 8
+
+    def test_zero_negative_and_bool_max_concurrent_floor_at_one(self):
+        replicas = [_health('whisper-1', max_concurrent=0),
+                    _health('whisper-2', max_concurrent=-3),
+                    _health('whisper-3', max_concurrent=True)]
+        with patch('transcriber.safe_get', side_effect=replicas):
+            result = probe_whisper_health(base_url=BASE, samples=3, refresh=True)
+        assert result['suggested_max_requests'] == 3
