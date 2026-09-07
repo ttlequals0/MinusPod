@@ -12,7 +12,7 @@ from config import (
 )
 
 from database.episodes import normalize_published_at
-from database.podcasts import is_local_feed, podping_declaration_columns
+from database.podcasts import is_local_feed, is_recents_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
 from chapter_notes import chapter_notes_for
 from local_feed_builder import rebuild_local_feed
@@ -144,6 +144,9 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
     podcast = db.get_podcast_by_slug(slug)
     if is_local_feed(podcast):
         return rebuild_local_feed(slug, podcast)
+    if is_recents_feed(podcast):
+        from recents_feed import rebuild_recents_feed
+        return rebuild_recents_feed(podcast)
 
     if not force and _refresh_coalesce.get(slug) is not None:
         refresh_logger.debug(f"[{slug}] Skipping refresh (recent attempt within coalesce window)")
@@ -467,7 +470,8 @@ def refresh_all_feeds(force: bool = False):
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {}
             for slug, feed_info in feed_map.items():
-                if is_local_feed(db.get_podcast_by_slug(slug)):
+                row = db.get_podcast_by_slug(slug)
+                if is_local_feed(row) or is_recents_feed(row):
                     continue
                 futures[executor.submit(refresh_rss_feed, slug, feed_info['in'], force)] = slug
             for future in as_completed(futures):
@@ -558,6 +562,9 @@ def rebuild_served_rss(slug, podcast=None):
     podcast = podcast or db.get_podcast_by_slug(slug)
     if is_local_feed(podcast):
         return rebuild_local_feed(slug, podcast)
+    if is_recents_feed(podcast):
+        from recents_feed import rebuild_recents_feed
+        return rebuild_recents_feed(podcast)
     if not podcast or not podcast.get('source_url'):
         return False
     try:

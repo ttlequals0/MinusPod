@@ -163,13 +163,16 @@ def _enclosure_length_attr(slug: str, ep: dict, storage_, version) -> str:
 
 def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
                                storage_, feed_auth_key: str | None,
-                               chapter_notes: dict[str, str]) -> None:
+                               chapter_notes: dict[str, str],
+                               title_prefix: str = '') -> None:
     ep_id = ep['episode_id']
     item_json = _load_json_dict(ep.get('p20_item_json'))
-    description = append_chapters(ep.get('description'), chapter_notes.get(ep_id))
+    # Recents rows carry their own chapters_json (joined across feeds).
+    chapters_json = ep['chapters_json'] if 'chapters_json' in ep else chapter_notes.get(ep_id)
+    description = append_chapters(ep.get('description'), chapters_json)
 
     lines.append('<item>')
-    lines.append(f'  <title>{rss_parser._escape_xml(ep.get("title") or "")}</title>')
+    lines.append(f'  <title>{rss_parser._escape_xml(title_prefix + (ep.get("title") or ""))}</title>')
     lines.append(f'  <description><![CDATA[{rss_parser._escape_cdata(description)}]]></description>')
     lines.append(f'  <guid isPermaLink="false">{ep_id}</guid>')
 

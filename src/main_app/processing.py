@@ -3442,6 +3442,8 @@ def _refresh_rss_for_slug(slug, episode_id):
         feed_map = get_feed_map()
         if slug in feed_map:
             refresh_rss_feed(slug, feed_map[slug]['in'], force=True)
+        from recents_feed import rebuild_recents_feed_if_present
+        rebuild_recents_feed_if_present()
     except Exception as cache_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to regenerate RSS cache: {cache_err}")
 
