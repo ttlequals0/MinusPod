@@ -400,6 +400,31 @@ The feature is off by default. Configure it in **Settings > AI & Processing > Qu
 
 Only a reset further out than five minutes triggers a hold. Shorter ones keep the existing in-process retry, so a single throttled window recovers without pausing the queue. The hold covers detection, review, and verification, so a throttle part-way through a run sends the whole episode back to the queue rather than skipping that stage. Nothing bypasses the pause: Play and Reprocess wait with the rest, because a hand-picked episode would only hit the same 429. Held episodes keep their queue position and status, so there is no give-up window and nothing to release. Turning the toggle off lifts an active pause at once.
 
+## Whisper Pool
+
+Off by default. With a remote Whisper backend (`WHISPER_BACKEND=openai-api`)
+that accepts several requests at once, the pool lets MinusPod process more
+than one episode at a time and share one cap on in-flight transcription
+requests between them. Configure it in **Settings > Transcription** under
+the remote backend fields.
+
+| Setting | Env | Default | Notes |
+|---|---|---|---|
+| Whisper pool | `WHISPER_POOL_ENABLED` | off | Nothing below applies while this is off or the backend is local. |
+| Max requests to backend | `WHISPER_POOL_MAX_REQUESTS` | 4 | Transcription requests in flight at once, across every episode. Range 1-64. Set it to what your backend accepts. MinusPod does not probe it. |
+| Episodes at once | `WHISPER_POOL_MAX_EPISODES` | 1 | Episodes processed concurrently. Range 1-16. |
+
+While the pool is on, every run starts from the background worker, so a
+Play on an idle instance begins within a few seconds instead of at once.
+Each episode keeps at least one request slot. Leftover slots go to chunk
+parallelism, so "Concurrent chunks" is capped by the request cap divided
+by the episodes transcribing. `GET /api/v1/settings/whisper/capacity`
+reports the resolved numbers, and the settings page shows the worst case
+(episodes times concurrent chunks) against the cap. A 429 from the backend
+waits and retries instead of counting as a failed chunk. Turning the pool
+off lets runs in flight finish and returns new runs to the single-slot
+path.
+
 ## Outbound Requests
 
 MinusPod identifies itself with two User-Agent strings, and hosts treat them differently. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship. A string that worked last year starts drawing a 403 on download, even though the file is there. Other feed hosts do the reverse and answer only a declared podcast client. One string cannot satisfy both, so there are two.

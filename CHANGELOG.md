@@ -13,6 +13,10 @@ release notes.
 
 ## [2.96.2] - 2026-09-06
 
+### Added
+
+- Whisper pool: opt-in parallel processing against a remote Whisper backend. Settings > Transcription gains a toggle (`whisperPoolEnabled`, default off), a cap on transcription requests in flight (`whisperPoolMaxRequests`, 1-64, default 4), and a count of episodes to process at once (`whisperPoolMaxEpisodes`, 1-16, default 1). While the pool is on, every run starts from the background worker and up to that many episodes run concurrently, each keeping at least one request slot. A 429 from the backend waits instead of failing a chunk. `GET /settings/whisper/capacity` reports the resolved numbers. `GET /status` carries `jobs` (every running job, oldest first; `currentJob` stays as the oldest) and `whisper` (the pool snapshot), and the status bar lists each running job. With the toggle off nothing changes.
+
 ### Changed
 
 - Rate-limit hold: a 429 with a reset time now puts the episode back in the normal queue and pauses all processing until the reset passes. The queue row is released in place, so the episode keeps the priority and position it was claimed at, and a fresh episode still goes ahead of a bulk backlog when the queue resumes. Held episodes are no longer parked as `deferred`, so there is no give-up window and nothing to requeue or expire. Gone with that: `ttlHours`, the "Give up after" input, and `holdCount` on `/settings/rate-limit-hold`; `rateLimitHeld` on the `hold` block of `/status`; `ttl_hours` on the `Queue Held` webhook and email; `requeued` on `Queue Resumed`. `holdUntil` and `holdSince` are null once the reset has passed. A one-time migration returns episodes an older hold left as `deferred` to their original queue rows.

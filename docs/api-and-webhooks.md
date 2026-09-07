@@ -94,11 +94,35 @@ Key endpoints:
     "offlineServices": [
       {"service": "whisper", "held": 2, "reachable": false, "checkedAt": "2026-01-01T11:58:00Z"}
     ]
+  },
+  "jobs": [
+    {
+      "slug": "my-favorite-podcast",
+      "episodeId": "a1b2c3d4e5f6",
+      "title": "Episode 42: The Answer",
+      "podcastName": "My Favorite Podcast",
+      "stage": "pass1:transcribing",
+      "progress": 35,
+      "startedAt": 1767261900,
+      "elapsed": 120
+    }
+  ],
+  "whisper": {
+    "enabled": true,
+    "backend": "openai-api",
+    "active": true,
+    "inactiveReason": null,
+    "capacity": 4,
+    "inFlight": 2,
+    "transcribingEpisodes": 1,
+    "maxEpisodes": {"configured": 2, "effective": 2}
   }
 }
 ```
 
 `queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time and `holdSince` is when the pause began, both null once the reset has passed. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
+
+`jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight.
 
 ### Public feed-domain routes
 
