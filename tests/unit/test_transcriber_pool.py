@@ -59,6 +59,27 @@ def test_429_waits_and_retries_while_active(pool, tmp_path, monkeypatch):
     assert segs and len(responses) == 2 and sleeps == [2.0]
 
 
+def test_429_deadline_bounds_a_zero_retry_after_loop(pool, tmp_path, monkeypatch):
+    """Retry-After: 0 must not spin forever; the wall-clock deadline wins."""
+    audio = tmp_path / 'a.wav'; audio.write_bytes(b'0' * 4096)
+    monkeypatch.setattr(transcriber.time, 'sleep', lambda s: None)
+    clock = {'t': 0.0}
+    def fake_monotonic():
+        clock['t'] += 1.0
+        return clock['t']
+    monkeypatch.setattr(transcriber.time, 'monotonic', fake_monotonic)
+    monkeypatch.setattr(transcriber, '_api_timeout', lambda settings: 2.0)
+    calls = []
+    def fake_post(*a, **k):
+        calls.append(1)
+        r = MagicMock(); r.status_code = 429; r.headers = {'Retry-After': '0'}; r.text = 'busy'
+        return r
+    with patch('transcriber.safe_post', side_effect=fake_post):
+        result = transcriber.Transcriber()._transcribe_via_api(str(audio), _whisper_settings(), preprocessed=True)
+    assert result is None
+    assert len(calls) < 10
+
+
 def test_429_is_a_plain_failure_while_inactive(tmp_path, monkeypatch):
     p = WhisperPool(_settings(enabled=False))
     monkeypatch.setattr(transcriber, 'get_pool', lambda: p)

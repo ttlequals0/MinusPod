@@ -1153,9 +1153,9 @@ class Transcriber:
             response = None
             last_request_exc = None
             max_attempts = 2
-            # Bounds total time spent waiting out 429s across all attempts;
-            # a 429 retry does not consume an attempt slot (see below).
-            waited = 0.0
+            # Wall-clock deadline for 429 retries (which do not consume an
+            # attempt slot, see below) so a Retry-After: 0 loop cannot spin.
+            retry_deadline = time.monotonic() + _api_timeout(whisper_settings)
             granularity_modes = (
                 ['segment', 'word'],
                 ['segment'],
@@ -1192,12 +1192,15 @@ class Transcriber:
                         attempt += 1
                         continue
                     if response.status_code == 429 and get_pool().active:
-                        retry_after = _retry_after_seconds(response, default=5.0)
-                        waited += retry_after
-                        if waited >= _api_timeout(whisper_settings):
+                        if time.monotonic() >= retry_deadline:
+                            logger.warning(
+                                "%sWhisper API still busy (429) after the "
+                                "retry deadline; giving up", _log_prefix())
                             return None
+                        # Floor so a Retry-After: 0 (or absent) header still yields.
+                        retry_after = max(_retry_after_seconds(response, default=5.0), 0.5)
                         logger.warning(
-                            "%sWhisper API busy (429); waiting %.0fs before retrying",
+                            "%sWhisper API busy (429); waiting %.1fs before retrying",
                             _log_prefix(), retry_after)
                         time.sleep(retry_after)
                         response = None
