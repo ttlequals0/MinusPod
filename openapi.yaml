@@ -5903,6 +5903,12 @@ paths:
                       - 'null'
                     format: date-time
                     description: Until when new queue claims pause; null when no hold is active.
+                  llmUsageUrl:
+                    type: string
+                    description: Operator-configured provider usage/limit endpoint the hold probe checks first; empty when unset.
+                  rateLimitProbeMinutes:
+                    type: integer
+                    description: Minutes between hold probes; 0 disables probing.
     put:
       tags:
         - Settings
@@ -5918,6 +5924,14 @@ paths:
                 enabled:
                   type: boolean
                   description: Pause the queue on a provider 429 with a reset time longer than five minutes. Off by default; setting false clears an active pause.
+                llmUsageUrl:
+                  type: string
+                  description: Provider usage/limit endpoint the hold probe checks first (tier 1); an empty string clears it. Must pass the same SSRF check as the other operator-configured base URLs.
+                rateLimitProbeMinutes:
+                  type: integer
+                  minimum: 0
+                  maximum: 60
+                  description: Minutes between hold probes; 0 disables probing.
       responses:
         '200':
           description: Rate-limit hold settings updated
@@ -5933,6 +5947,10 @@ paths:
                       - string
                       - 'null'
                     format: date-time
+                  llmUsageUrl:
+                    type: string
+                  rateLimitProbeMinutes:
+                    type: integer
 
   /settings/whisper/capacity:
     get:

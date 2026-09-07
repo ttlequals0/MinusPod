@@ -397,8 +397,12 @@ The feature is off by default. Configure it in **Settings > AI & Processing > Qu
 | Setting | Default | Notes |
 |---|---|---|
 | Enabled | off | Pause the queue when the provider reports a 429 with a reset time. |
+| Usage endpoint | (unset) | Optional URL returning provider usage/limit JSON (env `LLM_USAGE_URL`); checked first while a hold is active. |
+| Check every | 5 minutes | How often the probe re-checks an active hold. Range 0-60 minutes; 0 turns it off (env `RATE_LIMIT_PROBE_MINUTES`). |
 
 Only a reset further out than five minutes triggers a hold. Shorter ones keep the existing in-process retry, so a single throttled window recovers without pausing the queue. The hold covers detection, review, and verification, so a throttle part-way through a run sends the whole episode back to the queue rather than skipping that stage. Nothing bypasses the pause: Play and Reprocess wait with the rest, because a hand-picked episode would only hit the same 429. Held episodes keep their queue position and status, so there is no give-up window and nothing to release. Turning the toggle off lifts an active pause at once.
+
+While a hold is active, a probe re-checks it instead of waiting out the provider's stated reset. With a usage endpoint configured it is checked first and can clear the hold early or push it out to a fresher reset; without one, a single minimal completion call does the same check.
 
 ## Whisper Pool
 

@@ -13,6 +13,10 @@ release notes.
 
 ## [2.96.3] - 2026-09-07
 
+### Added
+
+- Rate-limit hold: a probe now re-checks an active hold instead of waiting out the provider's stated reset. With `llmUsageUrl` set, it checks that endpoint every `rateLimitProbeMinutes` (default 5, 0 disables) and clears the hold early or re-stamps it with a fresher reset, in either direction. Without a usage URL, a single minimal completion call does the same check.
+
 ### Fixed
 
 - The tail re-transcription pass now sends `vad_filter=false` to a remote Whisper backend. It re-runs the untranscribed tail of an episode with voice detection off, but on the API backend the request was identical to a normal one, so a server that supports the switch never saw it and quiet post-rolls stayed missing. Servers without the switch ignore the field.
