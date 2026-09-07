@@ -78,7 +78,7 @@ vi.mock('../api/settings', () => ({
   }),
   updateOfflineQueueSettings: vi.fn(),
   getRateLimitHoldSettings: vi.fn().mockResolvedValue({
-    enabled: false, holdUntil: null,
+    enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
   }),
   updateRateLimitHoldSettings: vi.fn(),
   refreshModels: vi.fn(),

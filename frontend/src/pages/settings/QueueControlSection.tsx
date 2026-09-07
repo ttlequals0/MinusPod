@@ -30,15 +30,25 @@ interface QueueControlSectionProps {
   onQueueBulkBoostChange: (value: number) => void;
 }
 
-interface HoldBlockConfig<T extends { enabled: boolean; ttlHours?: number }> {
+interface HoldBlockConfig<
+  T extends {
+    enabled: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }
+> {
   queryKey: string[];
   load: () => Promise<T>;
-  save: (args: { enabled: boolean; ttlHours?: number }) => Promise<unknown>;
+  save: (args: {
+    enabled: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }) => Promise<unknown>;
   toggleLabel: string;
   ariaLabel: string;
   description: ReactNode;
   /** Omit for a feature with no give-up window. */
   ttlInputId?: string;
+  /** Rate-limit-hold only: renders the usage URL + probe interval fields. */
+  probeFields?: boolean;
   loadErrorText: string;
   /** Rendered under the toggle while the feature holds the queue. */
   status?: (data: T) => ReactNode | null;
@@ -46,7 +56,12 @@ interface HoldBlockConfig<T extends { enabled: boolean; ttlHours?: number }> {
 
 // Shared shape of the offline-queue and rate-limit-hold settings: a toggle,
 // an optional give-up window, draft state and an explicit Save (#482, #696).
-function QueueHoldBlock<T extends { enabled: boolean; ttlHours?: number }>(
+function QueueHoldBlock<
+  T extends {
+    enabled: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }
+>(
   { config, active }: { config: HoldBlockConfig<T>; active: boolean }
 ) {
   const qc = useQueryClient();
@@ -56,14 +71,22 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours?: number }>(
     enabled: active,
   });
 
-  const [draft, setDraft] = useState<{ enabled?: boolean; ttlHours?: number }>({});
+  const [draft, setDraft] = useState<{
+    enabled?: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const enabled = draft.enabled ?? data?.enabled ?? false;
   const ttlHours = draft.ttlHours ?? data?.ttlHours ?? 48;
+  const llmUsageUrl = draft.llmUsageUrl ?? data?.llmUsageUrl ?? '';
+  const rateLimitProbeMinutes = draft.rateLimitProbeMinutes ?? data?.rateLimitProbeMinutes ?? 5;
 
   const save = useMutation({
-    mutationFn: () => config.save(
-      config.ttlInputId ? { enabled, ttlHours } : { enabled }),
+    mutationFn: () => config.save({
+      enabled,
+      ...(config.ttlInputId ? { ttlHours } : {}),
+      ...(config.probeFields ? { llmUsageUrl, rateLimitProbeMinutes } : {}),
+    }),
     onSuccess: () => {
       setSaveError(null);
       setDraft({});
@@ -130,6 +153,48 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours?: number }>(
             Episodes still waiting after this long are marked failed and
             logged. Applies to episodes already in the queue even if you
             turn the toggle off.
+          </p>
+        </div>
+      )}
+
+      {config.probeFields && (
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="llmUsageUrl" className="block text-sm font-medium text-foreground mb-2">
+              Usage endpoint (optional)
+            </label>
+            <input
+              type="text"
+              id="llmUsageUrl"
+              value={llmUsageUrl}
+              onChange={(e) => setDraft((d) => ({ ...d, llmUsageUrl: e.target.value }))}
+              placeholder="https://your-proxy:8001/v1/usage"
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+            />
+            <p className="mt-1 text-sm text-muted-foreground">
+              Checked first while the queue is paused; without one, a single test
+              call to the LLM provider stands in.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <label htmlFor="rateLimitProbeMinutes" className="text-sm text-muted-foreground whitespace-nowrap">
+              Check every:
+            </label>
+            <NumberInput
+              id="rateLimitProbeMinutes"
+              value={rateLimitProbeMinutes}
+              min={0}
+              max={60}
+              step={1}
+              fallback={5}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={(v) => setDraft((d) => ({ ...d, rateLimitProbeMinutes: v }))}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
+            />
+            <span className="text-xs text-muted-foreground">minutes</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            0 turns off checking; the queue then waits out the provider's own reset.
           </p>
         </div>
       )}
@@ -295,6 +360,7 @@ function QueueControlSection({
               save: updateRateLimitHoldSettings,
               toggleLabel: 'Pause the queue when the LLM provider is rate limited',
               ariaLabel: 'Rate-limit hold toggle',
+              probeFields: true,
               loadErrorText: 'Could not load rate-limit hold settings.',
               description: (
                 <>

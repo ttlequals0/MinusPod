@@ -292,6 +292,10 @@ export interface RateLimitHoldSettings {
   enabled: boolean;
   /** ISO timestamp until which new queue claims pause, or null when idle. */
   holdUntil: string | null;
+  /** Provider usage/limit endpoint the hold probe checks first; empty when unset. */
+  llmUsageUrl: string;
+  /** Minutes between hold probes; 0 disables probing. */
+  rateLimitProbeMinutes: number;
 }
 
 export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings> {
@@ -299,7 +303,7 @@ export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings>
 }
 
 export async function updateRateLimitHoldSettings(
-  args: Pick<RateLimitHoldSettings, 'enabled'>,
+  args: Partial<Pick<RateLimitHoldSettings, 'enabled' | 'llmUsageUrl' | 'rateLimitProbeMinutes'>>,
 ): Promise<RateLimitHoldSettings> {
   return apiRequest<RateLimitHoldSettings>('/settings/rate-limit-hold', {
     method: 'PUT',
