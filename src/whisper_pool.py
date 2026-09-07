@@ -43,6 +43,11 @@ def _db_settings_reader():
             cache['at'] = time.time()
         return dict(value)
 
+    def invalidate():
+        with lock:
+            cache['at'] = 0.0
+
+    read.invalidate = invalidate
     return read
 
 
@@ -56,8 +61,17 @@ class WhisperPool:
         self._transcribing = 0
         self.refresh()
 
-    def refresh(self) -> None:
-        """Re-read settings; a shrink never revokes a held permit."""
+    def refresh(self, force: bool = False) -> None:
+        """Re-read settings; a shrink never revokes a held permit.
+
+        force=True bypasses the reader's TTL cache so a setting just written
+        this request is visible immediately; the periodic dispatcher pass
+        omits it and stays throttled by that cache.
+        """
+        if force:
+            invalidate = getattr(self._read, 'invalidate', None)
+            if invalidate is not None:
+                invalidate()
         settings = self._read()
         with self._lock:
             self._settings = settings

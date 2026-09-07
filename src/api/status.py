@@ -14,6 +14,7 @@ from config import DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER
 from offline_queue import get_probe_state
 from rate_limit_hold import get_active_hold
 from utils.ttl_cache import TTLCache
+from whisper_pool import get_pool
 
 logger = logging.getLogger('podcast.api')
 
@@ -101,6 +102,7 @@ def status_payload(status=None) -> dict:
     """
     payload = get_status_service().to_dict(status)
     payload['hold'] = hold_block()
+    payload['whisper'] = get_pool().snapshot()
     return payload
 
 

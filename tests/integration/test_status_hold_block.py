@@ -133,3 +133,10 @@ def test_an_unprobed_service_reports_reachable_as_unknown(deferred_on, app_clien
         entry = _hold(app_client)['offlineServices'][0]
         assert entry['reachable'] is None
         assert entry['checkedAt'] is None
+
+
+def test_status_carries_jobs_and_whisper(clean_hold, app_client):
+    body = app_client.get('/api/v1/status').get_json()
+    assert body['jobs'] == []
+    assert body['currentJob'] is None
+    assert set(body['whisper']) >= {'enabled', 'active', 'capacity', 'inFlight'}

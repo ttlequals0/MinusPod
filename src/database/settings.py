@@ -403,12 +403,10 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='false', env='WHISPER_POOL_ENABLED', seeded=True, in_ad_reset=True,
         payload_key='whisperPoolEnabled', payload_kind='bool'),
     'whisper_pool_max_requests': SettingSpec(
-        default='4', seeded=True, in_ad_reset=True,
-        reset_factory=lambda: os.environ.get('WHISPER_POOL_MAX_REQUESTS', '4'),
+        default='4', env='WHISPER_POOL_MAX_REQUESTS', seeded=True, in_ad_reset=True,
         payload_key='whisperPoolMaxRequests', payload_kind='int'),
     'whisper_pool_max_episodes': SettingSpec(
-        default='1', seeded=True, in_ad_reset=True,
-        reset_factory=lambda: os.environ.get('WHISPER_POOL_MAX_EPISODES', '1'),
+        default='1', env='WHISPER_POOL_MAX_EPISODES', seeded=True, in_ad_reset=True,
         payload_key='whisperPoolMaxEpisodes', payload_kind='int'),
 
     # -- Whisper --

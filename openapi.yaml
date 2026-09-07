@@ -4466,6 +4466,21 @@ paths:
                   maximum: 600
                   description: Overlap, in seconds, between consecutive transcription chunks.
                   example: 30
+                whisperPoolEnabled:
+                  type: boolean
+                  description: Bound concurrent requests to the remote Whisper API to avoid rate limits.
+                whisperPoolMaxRequests:
+                  type: integer
+                  minimum: 1
+                  maximum: 64
+                  description: Maximum concurrent in-flight requests to the remote Whisper API when the pool is enabled.
+                  example: 4
+                whisperPoolMaxEpisodes:
+                  type: integer
+                  minimum: 1
+                  maximum: 16
+                  description: Maximum episodes transcribing concurrently against the remote Whisper API when the pool is enabled.
+                  example: 1
                 whisperComputeType:
                   type: string
                   enum: [auto, float16, int8_float16, int8, float32]
@@ -5911,6 +5926,63 @@ paths:
                       - string
                       - 'null'
                     format: date-time
+
+  /settings/whisper/capacity:
+    get:
+      tags:
+        - Settings
+      summary: Resolved Whisper pool capacity and in-flight counts
+      description: >-
+        What the operator configured, whether the pool is active (enabled and
+        the backend is the remote OpenAI-compatible API), and what is
+        currently in flight against it. Read from this process's own pool
+        instance; the queue leader refreshes its own pool every dispatcher
+        pass, so no cross-process signal is needed.
+      operationId: getWhisperCapacity
+      responses:
+        '200':
+          description: Pool state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  backend:
+                    type: string
+                  active:
+                    type: boolean
+                    description: enabled and backend is openai-api
+                  inactiveReason:
+                    type:
+                      - string
+                      - 'null'
+                    enum: [disabled, local_backend, null]
+                  capacity:
+                    type: integer
+                  inFlight:
+                    type: integer
+                  transcribingEpisodes:
+                    type: integer
+                  maxEpisodes:
+                    type: object
+                    properties:
+                      configured:
+                        type: integer
+                      effective:
+                        type: integer
+                  chunkWorkers:
+                    type: object
+                    properties:
+                      configured:
+                        type: integer
+                      effective:
+                        type: integer
+                  worstCaseInFlight:
+                    type: integer
+                  exceedsCapacity:
+                    type: boolean
 
   /settings/update-check:
     get:
@@ -10624,6 +10696,30 @@ components:
               type: integer
             isDefault:
               type: boolean
+        whisperPoolEnabled:
+          type: object
+          description: Bound concurrent requests to the remote Whisper API to avoid rate limits.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        whisperPoolMaxRequests:
+          type: object
+          description: Maximum concurrent in-flight requests to the remote Whisper API when the pool is enabled.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        whisperPoolMaxEpisodes:
+          type: object
+          description: Maximum episodes transcribing concurrently against the remote Whisper API when the pool is enabled.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
         whisperComputeType:
           type: object
           properties:
@@ -11886,6 +11982,34 @@ components:
             elapsed:
               type: number
               description: Seconds since the job started
+        jobs:
+          type: array
+          description: Every episode currently processing, oldest first. currentJob is jobs[0].
+          items:
+            type: object
+            properties:
+              slug:
+                type: string
+              episodeId:
+                type: string
+              title:
+                type: string
+              podcastName:
+                type: string
+              stage:
+                type: string
+                description: Current processing stage (e.g. pass1:transcribing)
+              progress:
+                type: number
+                description: Progress percentage (0-100)
+              startedAt:
+                type: number
+                description: Unix timestamp the job started
+              elapsed:
+                type: number
+                description: Seconds since the job started
+        whisper:
+          $ref: '#/components/schemas/WhisperPoolSnapshot'
         queueLength:
           type: integer
           description: Number of episodes waiting to be processed
@@ -11975,6 +12099,36 @@ components:
                   - string
                   - 'null'
                 format: date-time
+
+    WhisperPoolSnapshot:
+      type: object
+      description: Bounded admission state for remote Whisper requests, as read by this process's pool.
+      properties:
+        enabled:
+          type: boolean
+        backend:
+          type: string
+        active:
+          type: boolean
+          description: enabled and backend is openai-api
+        inactiveReason:
+          type:
+            - string
+            - 'null'
+          enum: [disabled, local_backend, null]
+        capacity:
+          type: integer
+        inFlight:
+          type: integer
+        transcribingEpisodes:
+          type: integer
+        maxEpisodes:
+          type: object
+          properties:
+            configured:
+              type: integer
+            effective:
+              type: integer
 
     ProcessingHistoryEntry:
       type: object

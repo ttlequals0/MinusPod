@@ -66,6 +66,7 @@ from rate_limit_hold import (
     get_active_hold, is_rate_limit_hold_enabled, clear_hold,
 )
 from pricing_fetcher import force_refresh_pricing
+from whisper_pool import get_pool
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
     get_llm_client, create_client_for_provider,
@@ -1337,7 +1338,13 @@ def _apply_transcribe_chunk_fields(db, data):
                         'true' if data['whisperPoolEnabled'] else 'false', is_default=False)
         logger.info(f"Updated whisper_pool_enabled to: {data['whisperPoolEnabled']}")
 
+    pool_touched = ('whisperPoolEnabled' in data
+                    or 'whisper_pool_max_requests' in parsed
+                    or 'whisper_pool_max_episodes' in parsed)
+
     if not parsed:
+        if pool_touched:
+            get_pool().refresh(force=True)
         return None
 
     # Cross-field: overlap must stay below the chunk size. An overlap >= chunk
@@ -1362,6 +1369,8 @@ def _apply_transcribe_chunk_fields(db, data):
     for db_key, value in parsed.items():
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
+    if pool_touched:
+        get_pool().refresh(force=True)
     return None
 
 
@@ -1486,6 +1495,7 @@ def _apply_whisper_fields(db, data):
             )
         db.set_setting('whisper_backend', data['whisperBackend'], is_default=False)
         logger.info(f"Updated whisper backend to: {data['whisperBackend']}")
+        get_pool().refresh(force=True)
 
     if 'whisperApiBaseUrl' in data:
         if data['whisperApiBaseUrl']:
@@ -2411,6 +2421,29 @@ def update_rate_limit_hold_settings():
     view = _rate_limit_hold_view(db)
     logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
     return json_response(view)
+
+
+@api.route('/settings/whisper/capacity', methods=['GET'])
+@log_request
+def get_whisper_capacity():
+    """Resolved Whisper pool: what is configured, what is active, what is in flight.
+
+    Refreshes only this worker's pool; the leader's dispatcher refreshes its
+    own pool every pass (5s settings TTL), so no cross-process signal needed.
+    """
+    from transcriber import _get_chunk_settings
+    pool = get_pool()
+    pool.refresh(force=True)
+    snap = pool.snapshot()
+    configured = _get_chunk_settings()['concurrent_chunks']
+    effective = pool.chunk_workers(configured)
+    worst = snap['maxEpisodes']['effective'] * configured
+    snap.update({
+        'chunkWorkers': {'configured': configured, 'effective': effective},
+        'worstCaseInFlight': worst,
+        'exceedsCapacity': bool(snap['active'] and worst > snap['capacity']),
+    })
+    return json_response(snap)
 
 
 # ========== Update check settings ==========
