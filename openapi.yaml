@@ -235,13 +235,15 @@ paths:
         - Feeds
       summary: Add a new feed
       description: >-
-        Add a new podcast feed. Two shapes: a subscribed feed (default),
-        which requires sourceUrl and fetches/parses it before saving; or a
+        Add a new podcast feed. Three shapes: a subscribed feed (default),
+        which requires sourceUrl and fetches/parses it before saving; a
         local (archive-import) feed, set with feedType: "local", which
         takes no sourceUrl and no upstream is ever fetched: metadata comes
-        entirely from the request body. The local branch still validates
-        slug (or derives one from title) but skips URL/SSRF validation
-        since there is no URL.
+        entirely from the request body; or the single combined recents feed,
+        feedType: "recents", served at /recents with a fixed slug, taking
+        only title and description (409 when one already exists). The local
+        branch still validates slug (or derives one from title) but skips
+        URL/SSRF validation since there is no URL.
       operationId: addFeed
       requestBody:
         required: true
@@ -263,7 +265,7 @@ paths:
                   example: my-podcast
                 feedType:
                   type: string
-                  enum: [subscribed, local]
+                  enum: [subscribed, local, recents]
                   default: subscribed
                   description: >-
                     "local" creates an archive-import feed with no upstream
@@ -9237,13 +9239,16 @@ components:
           description: URL-safe identifier for the feed
         feedType:
           type: string
-          enum: [subscribed, local]
+          enum: [subscribed, local, recents]
           description: >-
             "subscribed" (default) mirrors an upstream RSS feed; "local" is
             an archive-import feed MinusPod builds and serves itself, with
-            no upstream. Several fields and actions (refresh, Podping,
-            differential fetch, sourceUrl) are meaningless for a local
-            feed; see the Local Feeds guide.
+            no upstream; "recents" is the single combined feed of every
+            processed episode published on or after its creation, which
+            accepts only title and description on PATCH. Several fields and
+            actions (refresh, Podping, differential fetch, sourceUrl) are
+            meaningless for local and recents feeds; see the Local Feeds
+            guide.
         title:
           type: string
           description: Podcast title. Mirrors the upstream RSS <title> for a subscribed feed (overwritten on refresh); user-set and PATCHable for a local feed.
@@ -9651,6 +9656,12 @@ components:
     EpisodeSummary:
       type: object
       properties:
+        feedSlug:
+          type: string
+          description: Set on rows of the recents feed; the feed the episode belongs to.
+        feedTitle:
+          type: string
+          description: Set on rows of the recents feed; the source feed's title.
         episodeId:
           type: string
         title:

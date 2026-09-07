@@ -210,6 +210,18 @@ A per-feed **Skipped episodes** choice decides how a skipped episode is served: 
 
 API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each) and `titleSkipAction` (`serve_original` or `hide`) on `PATCH /api/v1/feeds/{slug}`.
 
+### Recents feed
+
+One optional combined feed at `/recents` carries every episode processed on
+this instance whose publish date is on or after the day the feed was
+created, across all subscribed and local feeds. Subscribe to it once and
+podcasts you add later show up in it without another OPML import. Create it
+from Add Feed (the option disappears once it exists); rename it, set a
+description, and replace its artwork (the MinusPod logo by default) from its
+feed page. Each item points at its source feed's audio, transcript, and
+chapters, so nothing is copied. Episodes published before the feed existed
+stay out even when they are reprocessed, and OPML exports do not include it.
+
 ### Per-feed retention
 
 Global retention lives in Settings > Storage & Retention and applies to every feed. Any single feed can override it from its own settings page with the **Retention** control, which offers three choices:
