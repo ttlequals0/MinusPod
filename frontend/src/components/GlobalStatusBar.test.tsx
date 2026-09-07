@@ -201,3 +201,31 @@ describe('GlobalStatusBar queue holds', () => {
     expect(container.firstChild).toBeNull();
   });
 });
+
+function job(slug: string, id: string, title: string, stage = 'transcribing', progress = 20) {
+  return { slug, episodeId: id, title, podcastName: slug, stage, progress,
+    startedAt: Date.now() / 1000 - 60, elapsed: 60 };
+}
+
+describe('GlobalStatusBar multiple jobs', () => {
+  beforeEach(() => { FakeEventSource.instances = []; vi.stubGlobal('EventSource', FakeEventSource); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('shows the oldest job collapsed with a chip for the rest', () => {
+    const a = job('feed-a', '1', 'First'); const b = job('feed-b', '2', 'Second');
+    renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    expect(screen.getByText('First')).toBeDefined();
+    expect(screen.getByText('+1 running')).toBeDefined();
+  });
+
+  it('lists every job with its own stage once expanded', () => {
+    const a = job('feed-a', '1', 'First', 'transcribing');
+    const b = job('feed-b', '2', 'Second', 'detecting', 55);
+    renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    act(() => { screen.getByRole('button', { name: 'Expand status bar' }).click(); });
+    const rows = screen.getAllByTestId('status-job');
+    expect(rows).toHaveLength(2);
+    expect(rows[1].textContent).toContain('Second');
+    expect(rows[1].textContent).toContain('Detecting ads');
+  });
+});

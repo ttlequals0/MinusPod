@@ -48,6 +48,7 @@ interface QueueHold {
 
 interface StatusData {
   currentJob: ProcessingJob | null;
+  jobs?: ProcessingJob[];
   queueLength: number;
   queuedEpisodes: QueuedEpisode[];
   feedRefreshes: FeedRefresh[];
@@ -130,29 +131,21 @@ function GlobalStatusBar() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [, setReconnectAttempt] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const prevStatusRef = useRef<StatusData | null>(null);
   const queryClient = useQueryClient();
 
-  // Reset the elapsed counter when the current job changes (during render).
-  const currentJobStarted = status?.currentJob?.startedAt;
-  const [lastJobStarted, setLastJobStarted] = useState(currentJobStarted);
-  if (currentJobStarted !== lastJobStarted) {
-    setLastJobStarted(currentJobStarted);
-    setElapsed(0);
-  }
+  const jobs = status?.jobs ?? (status?.currentJob ? [status.currentJob] : []);
 
-  // Tick the elapsed counter every second while a job is running.
+  // Tick the elapsed counter every second while any job is running.
   useEffect(() => {
-    if (!currentJobStarted) return;
-    const interval = setInterval(() => {
-      setElapsed(Date.now() / 1000 - currentJobStarted);
-    }, 1000);
+    if (jobs.length === 0) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [currentJobStarted]);
+  }, [jobs.length]);
 
   useEffect(() => {
     function connect() {
@@ -185,9 +178,7 @@ function GlobalStatusBar() {
         try {
           const data = JSON.parse(event.data) as StatusData;
           setStatus(data);
-          if (data.currentJob) {
-            setElapsed(data.currentJob.elapsed);
-          }
+          setNow(Date.now());
 
           // Invalidate React Query caches on status transitions so
           // pages (FeedDetail, EpisodeDetail, Dashboard) pick up
@@ -264,6 +255,7 @@ function GlobalStatusBar() {
 
   const currentJob = status?.currentJob;
   const stageLabel = currentJob ? getStageLabel(currentJob.stage) : '';
+  const extra = jobs.length - 1;
 
   return (
     <div
@@ -308,7 +300,7 @@ function GlobalStatusBar() {
 
             {/* Elapsed time */}
             <span className="text-xs text-muted-foreground shrink-0 w-14 text-right">
-              {formatDuration(elapsed)}
+              {formatDuration(now / 1000 - currentJob.startedAt)}
             </span>
           </>
         ) : (
@@ -321,6 +313,13 @@ function GlobalStatusBar() {
         {summary && currentJob && (
           <span className="px-1.5 py-0.5 text-xs font-medium bg-warning/10 text-warning rounded shrink-0">
             {summary}
+          </span>
+        )}
+
+        {/* Other running jobs */}
+        {extra > 0 && (
+          <span className="px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded shrink-0">
+            +{extra} running
           </span>
         )}
 
@@ -352,33 +351,24 @@ function GlobalStatusBar() {
       {/* Expanded View */}
       {isExpanded && (
         <div className="px-4 pb-3 border-t border-border/50 bg-accent/20 max-h-48 overflow-y-auto">
-          {/* Current job details */}
-          {currentJob && (
-            <div className="py-2 border-b border-border/30">
+          {/* Running jobs, oldest first */}
+          {jobs.map((j) => (
+            <div key={`${j.slug}-${j.episodeId}`} data-testid="status-job" className="py-2 border-b border-border/30">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {currentJob.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {currentJob.podcastName}
-                  </p>
+                  <p className="text-sm font-medium text-foreground truncate">{j.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{j.podcastName}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-medium text-primary">{stageLabel}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDuration(elapsed)}
-                  </p>
+                  <p className="text-sm font-medium text-primary">{getStageLabel(j.stage)}</p>
+                  <p className="text-xs text-muted-foreground">{formatDuration(now / 1000 - j.startedAt)}</p>
                 </div>
               </div>
               <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${currentJob.progress}%` }}
-                />
+                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${j.progress}%` }} />
               </div>
             </div>
-          )}
+          ))}
 
           {/* Queue holds: why work is not moving, and when it resumes */}
           {summary && hold && (
