@@ -159,7 +159,9 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     # fallback below. Also avoids an SSRF-blocked fetch_feed call on every
     # lookup.
     podcast = db.get_podcast_by_slug(slug)
-    original_feed = rss_parser.fetch_feed(feed_map[slug]['in']) if has_upstream(podcast) else None
+    # An unknown row keeps the historical fetch; only local/recents rows skip it.
+    original_feed = (rss_parser.fetch_feed(feed_map[slug]['in'])
+                     if podcast is None or has_upstream(podcast) else None)
     if original_feed:
         parsed_feed = rss_parser.parse_feed(original_feed, source=slug)
         podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
