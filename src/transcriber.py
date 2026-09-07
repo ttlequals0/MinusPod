@@ -1430,9 +1430,9 @@ class Transcriber:
                         attempt += 1
 
                     if response is None:
-                        # Every attempt raised at the transport layer -- the
-                        # endpoint is unreachable, which the offline queue (#482)
-                        # must be able to tell apart from a bad response.
+                        # Every attempt raised at the transport layer, so the
+                        # endpoint is unreachable. The offline queue (#482) must
+                        # tell that apart from a bad response.
                         raise ServiceUnavailableError(
                             'whisper', f"Whisper API unreachable: {last_request_exc}")
                     if response.status_code == 200:
@@ -1443,7 +1443,7 @@ class Transcriber:
                             "retrying with segment-only timestamps"
                         )
                         continue
-                    # Non-200 with no word-timestamp signal -- give up here.
+                    # Non-200 with no word-timestamp signal, so give up here.
                     break
 
                 if (response.status_code != 200 and not vad_filter_retried
