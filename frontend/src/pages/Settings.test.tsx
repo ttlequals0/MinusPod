@@ -67,6 +67,7 @@ vi.mock('../api/settings', () => ({
     maxEpisodes: { configured: 1, effective: 1 },
     chunkWorkers: { configured: 4, effective: 4 },
     worstCaseInFlight: 4, exceedsCapacity: false,
+    health: { available: false },
   }),
   getSystemStatus: vi.fn().mockResolvedValue({}),
   runCleanup: vi.fn(),

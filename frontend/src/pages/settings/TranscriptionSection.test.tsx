@@ -12,6 +12,7 @@ vi.mock('../../api/settings', async (importOriginal) => ({
     maxEpisodes: { configured: 2, effective: 2 },
     chunkWorkers: { configured: 4, effective: 3 },
     worstCaseInFlight: 8, exceedsCapacity: true, leader: true,
+    health: { available: false },
   }),
 }));
 
@@ -81,6 +82,7 @@ describe('TranscriptionSection whisper pool', () => {
       maxEpisodes: { configured: 2, effective: 2 },
       chunkWorkers: { configured: 4, effective: 3 },
       worstCaseInFlight: 8, exceedsCapacity: true, leader: false,
+      health: { available: false },
     });
     renderSection();
     expect(await screen.findByText(/Up to 8 requests in flight against a cap of 3/)).toBeTruthy();
@@ -91,5 +93,50 @@ describe('TranscriptionSection whisper pool', () => {
     renderSection({}, { open: false });
     expect(screen.getByRole('button', { name: 'Transcription' }).getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByText('Chunk overlap seconds:')).toBeTruthy();
+  });
+
+  it('shows the health suggestion when it differs from the configured cap', async () => {
+    vi.mocked(getWhisperCapacity).mockResolvedValueOnce({
+      enabled: true, backend: 'openai-api', active: true, inactiveReason: null,
+      capacity: 4, inFlight: 0, transcribingEpisodes: 0,
+      maxEpisodes: { configured: 2, effective: 2 },
+      chunkWorkers: { configured: 4, effective: 3 },
+      worstCaseInFlight: 8, exceedsCapacity: true, leader: false,
+      health: {
+        available: true,
+        instances: [
+          { instance: 'whisper-1', model: 'large-v3', device: 'cuda', compute_type: 'float16', batch_size: 16, max_concurrent: 1, vad_filter: true },
+          { instance: 'whisper-2', model: 'large-v3', device: 'cuda', compute_type: 'float16', batch_size: 16, max_concurrent: 1, vad_filter: true },
+          { instance: 'whisper-3', model: 'large-v3', device: 'cuda', compute_type: 'float16', batch_size: 16, max_concurrent: 1, vad_filter: true },
+        ],
+        suggested_max_requests: 3,
+        mismatch: [],
+      },
+    });
+    renderSection();
+    expect(await screen.findByText(
+      '3 instances reporting large-v3, 3 requests total. Your cap is 4.')).toBeTruthy();
+  });
+
+  it('shows a mismatch warning instead of the suggestion when instances disagree', async () => {
+    vi.mocked(getWhisperCapacity).mockResolvedValueOnce({
+      enabled: true, backend: 'openai-api', active: true, inactiveReason: null,
+      capacity: 4, inFlight: 0, transcribingEpisodes: 0,
+      maxEpisodes: { configured: 2, effective: 2 },
+      chunkWorkers: { configured: 4, effective: 3 },
+      worstCaseInFlight: 8, exceedsCapacity: true, leader: false,
+      health: {
+        available: true,
+        instances: [
+          { instance: 'whisper-1', model: 'large-v3', device: 'cuda', compute_type: 'float16', batch_size: 16, max_concurrent: 1, vad_filter: true },
+          { instance: 'whisper-2', model: 'medium', device: 'cuda', compute_type: 'float16', batch_size: 16, max_concurrent: 1, vad_filter: true },
+        ],
+        suggested_max_requests: 2,
+        mismatch: ['model'],
+      },
+    });
+    renderSection();
+    expect(await screen.findByText('Instances disagree on model.')).toBeTruthy();
+    expect(screen.queryByText(/requests total/)).toBeNull();
   });
 });

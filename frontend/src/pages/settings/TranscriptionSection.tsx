@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig } from '../../api/types';
+import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig, type WhisperHealthProbe } from '../../api/types';
 import { getWhisperCapacity } from '../../api/settings';
 import CollapsibleSection, {
   useCollapsibleOpen, useSectionVisible,
@@ -297,8 +297,7 @@ function TranscriptionSection({
               </label>
               <p className="mt-2 text-sm text-muted-foreground">
                 Runs up to the number of episodes below at the same time, sharing one cap on
-                requests to the backend. Set the cap to what your backend accepts. MinusPod does
-                not probe it.
+                requests to the backend. Set the cap to what your backend accepts.
               </p>
               <div className="space-y-3 mt-3">
                 <div className="flex items-center gap-3">
@@ -457,10 +456,37 @@ function WhisperCapacityLine({ enabled, visible }: { enabled: boolean; visible: 
   if (!enabled || !data) return null;
   const tone = data.exceedsCapacity ? 'text-warning' : 'text-muted-foreground';
   return (
-    <p className={`text-xs ${tone}`}>
-      Up to {data.worstCaseInFlight} requests in flight against a cap of {data.capacity}.
-      {data.exceedsCapacity && ` The pool holds them to ${data.capacity}, so raise the cap or lower the dials.`}
-      {data.leader && <> Currently {data.inFlight} in flight, {data.transcribingEpisodes} transcribing.</>}
+    <>
+      <p className={`text-xs ${tone}`}>
+        Up to {data.worstCaseInFlight} requests in flight against a cap of {data.capacity}.
+        {data.exceedsCapacity && ` The pool holds them to ${data.capacity}, so raise the cap or lower the dials.`}
+        {data.leader && <> Currently {data.inFlight} in flight, {data.transcribingEpisodes} transcribing.</>}
+      </p>
+      <WhisperHealthLine health={data.health} configuredMaxRequests={data.capacity} />
+    </>
+  );
+}
+
+function WhisperHealthLine({ health, configuredMaxRequests }: {
+  health: WhisperHealthProbe | undefined;
+  configuredMaxRequests: number;
+}) {
+  if (!health?.available) return null;
+  if (health.mismatch && health.mismatch.length > 0) {
+    return (
+      <p className="text-xs text-warning">
+        Instances disagree on {health.mismatch.join(', ')}.
+      </p>
+    );
+  }
+  const instances = health.instances ?? [];
+  const count = instances.length;
+  const model = instances[0]?.model ?? 'unknown';
+  const suggested = health.suggested_max_requests ?? count;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {count} {count === 1 ? 'instance' : 'instances'} reporting {model}, {suggested} requests total.
+      {suggested !== configuredMaxRequests && ` Your cap is ${configuredMaxRequests}.`}
     </p>
   );
 }

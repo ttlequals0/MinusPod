@@ -444,6 +444,25 @@ export interface SettingValueNumber {
   isDefault: boolean;
 }
 
+export interface WhisperHealthInstance {
+  instance: string;
+  model: string;
+  device: string;
+  compute_type: string;
+  batch_size: number;
+  max_concurrent: number;
+  vad_filter: boolean;
+}
+
+// Result of sampling a self-hosted Whisper backend's optional /health
+// endpoint. `available: false` means no health data was collected.
+export interface WhisperHealthProbe {
+  available: boolean;
+  instances?: WhisperHealthInstance[];
+  suggested_max_requests?: number;
+  mismatch?: string[];
+}
+
 export interface WhisperCapacity {
   enabled: boolean;
   backend: string;
@@ -457,6 +476,7 @@ export interface WhisperCapacity {
   worstCaseInFlight: number;
   exceedsCapacity: boolean;
   leader: boolean;
+  health: WhisperHealthProbe;
 }
 
 export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter';
