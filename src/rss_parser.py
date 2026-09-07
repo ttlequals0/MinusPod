@@ -1102,17 +1102,23 @@ class RSSParser:
         return modified_rss
 
     def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str,
-                                 storage, feed_auth_key=None) -> None:
+                                 storage, feed_auth_key=None,
+                                 has_transcript=None, has_chapters=None) -> None:
         # Emit only when MinusPod has the cached file. Upstream URLs must
         # never appear in the served feed; see docs/podcasting-2.0.md.
+        # Callers that already hold the row pass the flags to skip a lookup.
         if not storage:
             return
         base_url = self._resolved_base_url()
         key_suffix = f"?key={feed_auth_key}" if feed_auth_key else ""
-        if storage.has_transcript_vtt(slug, episode_id):
+        if has_transcript is None:
+            has_transcript = storage.has_transcript_vtt(slug, episode_id)
+        if has_chapters is None:
+            has_chapters = storage.has_chapters_json(slug, episode_id)
+        if has_transcript:
             transcript_url = f"{base_url}/episodes/{slug}/{episode_id}.vtt{key_suffix}"
             lines.append(f'  <podcast:transcript url="{transcript_url}" type="text/vtt" language="en" rel="captions" />')
-        if storage.has_chapters_json(slug, episode_id):
+        if has_chapters:
             chapters_url = f"{base_url}/episodes/{slug}/{episode_id}/chapters.json{key_suffix}"
             lines.append(f'  <podcast:chapters url="{chapters_url}" type="application/json+chapters" />')
 

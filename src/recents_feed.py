@@ -3,7 +3,7 @@ from a cross-feed membership query with every item under its source slug."""
 import logging
 
 from config import resolve_chapters_in_notes
-from database.podcasts import RECENTS_SLUG
+from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff
 from local_feed_builder import _PODCAST_NS, _append_local_episode_item, _channel_artwork_url
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
@@ -44,22 +44,22 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
     lines.append('<podcast:txt purpose="ai-content">true</podcast:txt>')
 
     for ep in episodes:
-        item = dict(ep)
-        if not list_chapters:
-            item.pop('chapters_json', None)
-        _append_local_episode_item(lines, ep['source_slug'], item, base, storage, feed_auth_key,
-                                   chapter_notes={}, title_prefix=f"{ep['source_title']}: ")
+        # Per-item map: episode ids are only unique within a feed.
+        notes = {ep['episode_id']: ep['chapters_json']} if list_chapters else {}
+        _append_local_episode_item(lines, ep['source_slug'], ep, base, storage, feed_auth_key,
+                                   chapter_notes=notes, title_prefix=f"{ep['source_title']}: ")
     lines += ['</channel>', '</rss>']
     return '\n'.join(lines)
 
 
 def rebuild_recents_feed(podcast: dict | None = None) -> bool:
-    podcast = podcast or db.get_recents_feed()
-    if not podcast:
+    """Render and cache /recents; False when no recents row exists."""
+    podcast = podcast or db.get_podcast_by_slug(RECENTS_SLUG)
+    if not is_recents_feed(podcast):
         return False
     try:
-        cap = db.get_setting_int('max_feed_episodes', 300)
-        episodes, _ = db.get_recent_processed_episodes(podcast['created_at'], limit=cap)
+        cap = db.get_max_episodes_for_podcast(RECENTS_SLUG, podcast=podcast)
+        episodes = db.get_recent_processed_episodes(recents_cutoff(podcast), limit=cap)
         storage.save_rss(RECENTS_SLUG, build_recents_feed_xml(podcast, episodes, storage=storage, db=db))
         db.update_podcast(RECENTS_SLUG, last_checked_at=utc_now_iso())
         invalidate_episode_lookup_cache(RECENTS_SLUG)
@@ -67,10 +67,3 @@ def rebuild_recents_feed(podcast: dict | None = None) -> bool:
     except Exception as e:
         logger.warning(f"[{RECENTS_SLUG}] rebuild failed: {e}")
         return False
-
-
-def rebuild_recents_feed_if_present() -> None:
-    """Called wherever a source feed is rebuilt; a no-op without the row."""
-    podcast = db.get_recents_feed()
-    if podcast:
-        rebuild_recents_feed(podcast)

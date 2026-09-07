@@ -16,6 +16,7 @@ from database.podcasts import is_local_feed, is_recents_feed, podping_declaratio
 from database.queue import compute_queue_priority
 from chapter_notes import chapter_notes_for
 from local_feed_builder import rebuild_local_feed
+from recents_feed import rebuild_recents_feed
 from utils.http import safe_url_for_log
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -145,7 +146,6 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
     if is_local_feed(podcast):
         return rebuild_local_feed(slug, podcast)
     if is_recents_feed(podcast):
-        from recents_feed import rebuild_recents_feed
         return rebuild_recents_feed(podcast)
 
     if not force and _refresh_coalesce.get(slug) is not None:
@@ -563,7 +563,6 @@ def rebuild_served_rss(slug, podcast=None):
     if is_local_feed(podcast):
         return rebuild_local_feed(slug, podcast)
     if is_recents_feed(podcast):
-        from recents_feed import rebuild_recents_feed
         return rebuild_recents_feed(podcast)
     if not podcast or not podcast.get('source_url'):
         return False

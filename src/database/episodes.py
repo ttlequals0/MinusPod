@@ -851,25 +851,33 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_recent_processed_episodes(self, since_iso: str, limit: int | None = None,
-                                      offset: int = 0) -> tuple[list[dict], int]:
-        """Processed episodes across subscribed and local feeds published on or
-        after `since_iso`, newest first (#721). Publish date only: a backlog
-        episode processed later keeps its old date and stays out."""
-        conn = self.get_connection()
-        where = ("FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
-                 "LEFT JOIN episode_details d ON d.episode_id = e.id "
-                 "WHERE e.status = 'processed' AND e.processed_file IS NOT NULL "
-                 "AND p.feed_type IN ('subscribed', 'local') "
-                 "AND e.published_at IS NOT NULL AND e.published_at >= ?")
-        total = conn.execute(f"SELECT COUNT(*) {where}", (since_iso,)).fetchone()[0]
+    # Membership of the recents feed (#721): processed episodes across
+    # subscribed and local feeds published on or after the cutoff. Publish
+    # date only: a backlog episode processed later keeps its old date.
+    _RECENTS_WHERE = ("FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+                      "LEFT JOIN episode_details d ON d.episode_id = e.id "
+                      "WHERE e.status = 'processed' AND e.processed_file IS NOT NULL "
+                      "AND p.feed_type IN ('subscribed', 'local') "
+                      "AND e.published_at IS NOT NULL AND e.published_at >= ?")
+
+    def count_recent_processed_episodes(self, since: str) -> int:
+        return self.get_connection().execute(
+            f"SELECT COUNT(*) {self._RECENTS_WHERE}", (since,)).fetchone()[0]
+
+    def get_recent_processed_episodes(self, since: str, limit: int | None = None,
+                                      offset: int = 0) -> list[dict]:
+        """Newest first; each row carries source_slug, source_title,
+        source_feed_type, chapters_json, and has_transcript_vtt so the feed
+        renderer needs no per-item lookups."""
         query = (f"SELECT e.*, p.slug AS source_slug, p.title AS source_title, "
-                 f"d.chapters_json {where} ORDER BY e.published_at DESC")
-        params = [since_iso]
+                 f"p.feed_type AS source_feed_type, d.chapters_json, "
+                 f"COALESCE(d.transcript_vtt, '') != '' AS has_transcript_vtt "
+                 f"{self._RECENTS_WHERE} ORDER BY e.published_at DESC")
+        params: list = [since]
         if limit:
             query += " LIMIT ? OFFSET ?"
             params += [limit, offset]
-        return [dict(r) for r in conn.execute(query, params).fetchall()], total
+        return [dict(r) for r in self.get_connection().execute(query, params).fetchall()]
 
     def get_chapters_json_for_podcast(self, podcast_id: int) -> dict[str, str]:
         """{episode_id: chapters_json} for a feed's processed episodes; one

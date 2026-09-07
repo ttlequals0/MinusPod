@@ -20,7 +20,7 @@ from ad_yield import latest_completed_run, low_ad_yield
 from audio_peaks import compute_peaks, PeaksError
 from audio_processor import get_replacement_duration
 from chapters_generator import ChaptersGenerator
-from database.podcasts import is_local_feed, is_recents_feed
+from database.podcasts import is_local_feed, is_recents_feed, recents_cutoff
 from database.queue import (
     compute_queue_priority, PENDING_QUEUE_LIMIT,
     QUEUE_PRIORITY_MAX, QUEUE_PRIORITY_MIN,
@@ -174,25 +174,26 @@ def list_episodes(slug):
     sort_dir = request.args.get('sort_dir', 'desc')
 
     if is_recents_feed(podcast):
-        rows, total = db.get_recent_processed_episodes(podcast['created_at'], limit=limit, offset=offset)
-        episode_list = []
-        for ep in rows:
-            item = _episode_base_json(ep, slug=ep['source_slug'], is_local=False, storage=storage)
-            item['ad_count'] = ep['ads_removed']
-            item['episodeNumber'] = ep.get('episode_number')
-            item['feedSlug'] = ep['source_slug']
-            item['feedTitle'] = ep['source_title']
-            episode_list.append(item)
-        return json_response({'episodes': episode_list, 'total': total, 'limit': limit, 'offset': offset})
-
-    episodes, total = db.get_episodes(slug, status=status, limit=limit, offset=offset,
-                                      sort_by=sort_by, sort_dir=sort_dir)
+        # Membership rows belong to other feeds; each carries its source.
+        cutoff = recents_cutoff(podcast)
+        episodes = db.get_recent_processed_episodes(cutoff, limit=limit, offset=offset)
+        total = db.count_recent_processed_episodes(cutoff)
+    else:
+        episodes, total = db.get_episodes(slug, status=status, limit=limit, offset=offset,
+                                          sort_by=sort_by, sort_dir=sort_dir)
 
     episode_list = []
     for ep in episodes:
-        item = _episode_base_json(ep, slug=slug, is_local=is_local, storage=storage)
+        source_slug = ep.get('source_slug')
+        item = _episode_base_json(
+            ep, slug=source_slug or slug,
+            is_local=(ep.get('source_feed_type') == 'local') if source_slug else is_local,
+            storage=storage)
         item['ad_count'] = ep['ads_removed']
         item['episodeNumber'] = ep.get('episode_number')
+        if source_slug:
+            item['feedSlug'] = source_slug
+            item['feedTitle'] = ep['source_title']
         episode_list.append(item)
 
     return json_response({

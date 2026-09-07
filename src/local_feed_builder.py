@@ -167,9 +167,7 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
                                title_prefix: str = '') -> None:
     ep_id = ep['episode_id']
     item_json = _load_json_dict(ep.get('p20_item_json'))
-    # Recents rows carry their own chapters_json (joined across feeds).
-    chapters_json = ep['chapters_json'] if 'chapters_json' in ep else chapter_notes.get(ep_id)
-    description = append_chapters(ep.get('description'), chapters_json)
+    description = append_chapters(ep.get('description'), chapter_notes.get(ep_id))
 
     lines.append('<item>')
     lines.append(f'  <title>{rss_parser._escape_xml(title_prefix + (ep.get("title") or ""))}</title>')
@@ -216,7 +214,12 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
 
     # Same emitter modify_feed uses (rss_parser.py:1096-1109), keyed
     # identically -- including key_suffix on both tags.
-    rss_parser._append_podcasting2_tags(lines, slug, ep_id, storage_, feed_auth_key)
+    # Recents rows carry the flags; local rows fall back to the storage lookup.
+    has_vtt = ep.get('has_transcript_vtt')
+    rss_parser._append_podcasting2_tags(
+        lines, slug, ep_id, storage_, feed_auth_key,
+        has_transcript=None if has_vtt is None else bool(has_vtt),
+        has_chapters=bool(ep['chapters_json']) if 'chapters_json' in ep else None)
 
     _emit_pc2_items(lines, 'person', item_json.get('person'), _PERSON_ATTRS)
     _emit_pc2_items(lines, 'location', item_json.get('location'), _LOCATION_ATTRS)

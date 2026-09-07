@@ -20,7 +20,6 @@ import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import make_msgid
-from pathlib import Path
 
 from utils.url import validate_outbound_host
 
@@ -33,10 +32,7 @@ DEFAULT_EVENTS = [
     'Feed Refresh Failed', 'Update Available', 'Cue Template Quiet',
     'Queue Held', 'Queue Resumed', 'Service Offline', 'Service Reachable',
 ]
-# Repo layout: <root>/src/email_service.py and <root>/static/ui/logo.png.
-# Container layout: /app/src/email_service.py and /app/static/ui/logo.png.
-# parent.parent resolves to the right root in both.
-LOGO_PATH = Path(__file__).resolve().parent.parent / 'static' / 'ui' / 'logo.png'
+from utils.paths import LOGO_PATH  # noqa: E402
 
 
 @dataclass

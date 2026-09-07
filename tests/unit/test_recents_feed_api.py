@@ -1,6 +1,4 @@
 """Recents feed API (#721)."""
-from unittest.mock import patch
-
 import pytest
 
 from tests.app_bootstrap import bootstrap
@@ -18,14 +16,38 @@ def client():
     # POST /feeds is rate limited; clear the in-memory counters per test.
     from api import limiter
     limiter.reset()
+    # The rebuild path reads through module-level db/storage names bound at
+    # import; point them at the singletons the API layer writes to (see
+    # test_local_feed_api._align_main_app_singletons).
+    import main_app.feeds as mf
+    import local_feed_builder as lfb
+    import recents_feed as rf
+    from api import get_database, get_storage
+    db, storage = get_database(), get_storage()
+    orig = (mf.db, mf.storage, lfb.db, lfb.storage, rf.db, rf.storage)
+    mf.db, mf.storage, lfb.db, lfb.storage, rf.db, rf.storage = db, storage, db, storage, db, storage
     with app.test_client() as c:
         with c.session_transaction() as sess:
             sess['authenticated'] = True
         c.get('/api/v1/auth/status')
         yield c
-    db = database.Database()
+    mf.db, mf.storage, lfb.db, lfb.storage, rf.db, rf.storage = orig
     for slug in (RECENTS_SLUG, 'alpha'):
         db.delete_podcast(slug)
+
+
+def _seed_alpha_episode(client):
+    """A source feed with one processed episode published after the
+    (backdated) recents row was created."""
+    db = database.Database()
+    db.create_podcast('alpha', 'https://example.com/alpha.xml', 'Alpha')
+    _create_ok(client)
+    conn = db.get_connection()
+    conn.execute("UPDATE podcasts SET created_at = '2026-09-01T00:00:00Z' WHERE slug = ?", (RECENTS_SLUG,))
+    conn.commit()
+    db.upsert_episode('alpha', 'aaaaaaaaaaa1', original_url='u', title='t', status='processed',
+                      published_at='2026-09-10T00:00:00Z', processed_file='/a.mp3')
+    return db
 
 
 def _csrf(client):
@@ -70,23 +92,31 @@ def test_patch_allows_title_and_description_only(client):
 
 
 def test_counts_come_from_membership(client):
-    db = database.Database()
-    db.create_podcast('alpha', 'https://example.com/alpha.xml', 'Alpha')
-    _create_ok(client)
-    conn = db.get_connection()
-    conn.execute("UPDATE podcasts SET created_at = '2026-09-01T00:00:00Z' WHERE slug = ?", (RECENTS_SLUG,))
-    conn.commit()
-    db.upsert_episode('alpha', 'aaaaaaaaaaa1', original_url='u', title='t', status='processed',
-                      published_at='2026-09-10T00:00:00Z', processed_file='/a.mp3')
+    _seed_alpha_episode(client)
     feed = client.get(f'/api/v1/feeds/{RECENTS_SLUG}').get_json()
     assert feed['episodeCount'] == 1 and feed['processedCount'] == 1
 
 
-def test_edit_rebuilds_the_served_feed(client):
+def test_edit_re_renders_the_served_feed(client):
+    from api import get_storage
     _create_ok(client)
-    with patch('api.feeds.rebuild_recents_feed') as rebuild:
-        client.patch(f'/api/v1/feeds/{RECENTS_SLUG}', json={'title': 'Again'}, headers=_csrf(client))
-    rebuild.assert_called_once()
+    client.patch(f'/api/v1/feeds/{RECENTS_SLUG}', json={'title': 'Again'}, headers=_csrf(client))
+    assert '<title>Again</title>' in get_storage().get_rss(RECENTS_SLUG)
+
+
+def test_artwork_upload_keeps_the_served_items(client):
+    from api import get_storage
+    _seed_alpha_episode(client)
+    client.patch(f'/api/v1/feeds/{RECENTS_SLUG}', json={'title': 'Mine'}, headers=_csrf(client))
+    assert 'aaaaaaaaaaa1' in get_storage().get_rss(RECENTS_SLUG)
+    png = bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108020000009077'
+                        '3df40000000c4944415478da6360606060000000050001a5f6454000000000'
+                        '49454e44ae426082')
+    import io
+    resp = client.post(f'/api/v1/feeds/{RECENTS_SLUG}/artwork', headers=_csrf(client),
+                       data={'file': (io.BytesIO(png), 'logo.png')}, content_type='multipart/form-data')
+    assert resp.status_code == 200, resp.data
+    assert 'aaaaaaaaaaa1' in get_storage().get_rss(RECENTS_SLUG)
 
 
 def test_delete_removes_the_row(client):
@@ -104,16 +134,15 @@ def test_opml_excludes_the_recents_feed(client):
 
 
 def test_episode_list_for_recents_carries_the_source_slug(client):
-    db = database.Database()
-    db.create_podcast('alpha', 'https://example.com/alpha.xml', 'Alpha')
-    _create_ok(client)
-    conn = db.get_connection()
-    conn.execute("UPDATE podcasts SET created_at = '2026-09-01T00:00:00Z' WHERE slug = ?", (RECENTS_SLUG,))
-    conn.commit()
-    db.upsert_episode('alpha', 'aaaaaaaaaaa1', original_url='u', title='t', status='processed',
-                      published_at='2026-09-10T00:00:00Z', processed_file='/a.mp3')
+    _seed_alpha_episode(client)
     body = client.get(f'/api/v1/feeds/{RECENTS_SLUG}/episodes?limit=10').get_json()
     assert body['total'] == 1
     assert body['episodes'][0]['feedSlug'] == 'alpha'
     assert body['episodes'][0]['feedTitle'] == 'Alpha'
     assert body['episodes'][0]['id'] == 'aaaaaaaaaaa1'
+
+
+def test_other_feeds_cannot_take_the_recents_slug(client):
+    resp = client.post('/api/v1/feeds', json={'feedType': 'local', 'title': 'Recents'}, headers=_csrf(client))
+    assert resp.status_code == 400
+    assert 'reserved' in resp.get_json()['error']

@@ -2,7 +2,6 @@
 import json
 import logging
 import os
-from pathlib import Path
 import re
 import shutil
 import time
@@ -51,7 +50,8 @@ from utils.feed_guid import compute_feed_guid
 from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
-from database.podcasts import EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, is_local_feed, is_recents_feed
+from utils.paths import LOGO_PATH
+from database.podcasts import EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, is_local_feed, is_recents_feed, recents_cutoff
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
@@ -944,6 +944,9 @@ def _feed_artwork_url(podcast) -> str:
 def _podcast_listing_fields(podcast, podping) -> dict:
     """Extra fields shared by the feed list and detail responses (not PATCH)."""
     enabled, host_is_active = podping
+    # The recents row owns no episodes; its counts are its membership.
+    recents_total = (get_database().count_recent_processed_episodes(recents_cutoff(podcast))
+                     if is_recents_feed(podcast) else None)
     declaration = PodcastMixin._podping_declaration_from_row(podcast)
     return {
         # The proxy whenever we hold the file. A cover that was rejected at
@@ -957,8 +960,8 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         # reliable field to read and resorted to a HEAD probe of the proxy
         # URL (#625 Task 13 review).
         'hasArtwork': get_storage().has_artwork(podcast['slug']),
-        'episodeCount': _recents_count(podcast) if is_recents_feed(podcast) else podcast.get('episode_count', 0),
-        'processedCount': _recents_count(podcast) if is_recents_feed(podcast) else podcast.get('processed_count', 0),
+        'episodeCount': recents_total if recents_total is not None else podcast.get('episode_count', 0),
+        'processedCount': recents_total if recents_total is not None else podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
         'lastPodpingAt': podcast.get('last_podping_at'),
         'podpingCoverage': _podping_coverage(podcast, enabled, host_is_active),
@@ -999,23 +1002,8 @@ def list_feeds():
     })
 
 
-_DEFAULT_RECENTS_ARTWORK = Path(__file__).resolve().parents[2] / 'static' / 'ui' / 'logo.png'
-
-
-def rebuild_recents_feed():
-    # Inline import: recents_feed imports main_app, which imports api.
-    from recents_feed import rebuild_recents_feed as _rebuild
-    return _rebuild()
-
-
-def _recents_count(podcast) -> int:
-    _, total = get_database().get_recent_processed_episodes(podcast['created_at'], limit=1)
-    return total
-
-
 def _add_recents_feed(data, db):
-    """Create the single combined recents feed (#721)."""
-    if db.get_recents_feed():
+    if db.get_podcast_by_slug(RECENTS_SLUG):
         return error_response('A recents feed already exists', 409)
     title = (data.get('title') or 'Recents').strip() or 'Recents'
     description = data.get('description')
@@ -1024,10 +1012,10 @@ def _add_recents_feed(data, db):
     db.create_podcast(RECENTS_SLUG, 'recents://', title, feed_type='recents')
     if description:
         db.update_podcast(RECENTS_SLUG, description=description)
-    if _DEFAULT_RECENTS_ARTWORK.exists():
-        get_storage().save_artwork(RECENTS_SLUG, _DEFAULT_RECENTS_ARTWORK.read_bytes(), 'image/png')
-    rebuild_recents_feed()
-    from main_app.feeds import invalidate_feed_cache
+    if LOGO_PATH.exists():
+        get_storage().save_artwork(RECENTS_SLUG, LOGO_PATH.read_bytes(), 'image/png')
+    from main_app.feeds import invalidate_feed_cache, rebuild_served_rss
+    rebuild_served_rss(RECENTS_SLUG)
     invalidate_feed_cache()
     return json_response({
         'slug': RECENTS_SLUG, 'feedType': 'recents',
@@ -1059,6 +1047,8 @@ def _add_local_feed(data, db):
             400,
         )
 
+    if slug == RECENTS_SLUG:
+        return error_response(f'"{RECENTS_SLUG}" is reserved for the recents feed', 400)
     existing = db.get_podcast_by_slug(slug)
     if existing:
         return error_response(f'Feed with slug "{slug}" already exists', 409)
@@ -1206,6 +1196,8 @@ def add_feed():
             '(max 200 chars), not a reserved word.',
             400,
         )
+    if slug == RECENTS_SLUG:
+        return error_response(f'"{RECENTS_SLUG}" is reserved for the recents feed', 400)
 
     db = get_database()
 
@@ -1821,9 +1813,8 @@ def update_feed(slug):
         # description rewrites the channel <description> for both feed types
         # and was previously missing from this list, so a local feed's served
         # RSS kept the stale description until the next unrelated refresh.
-        if is_recents_feed(podcast):
-            rebuild_recents_feed()
-        elif ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
+        if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
+                or 'title' in updates
                 or 'title_override' in updates or 'source_url' in updates
                 or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
                 or 'title_skip_action' in updates
@@ -2146,11 +2137,11 @@ def get_artwork(slug):
 @limiter.limit("60 per minute")
 @log_request
 def upload_feed_artwork(slug):
-    """Upload cover art for a local feed (Task 6).
+    """Upload cover art for a local or recents feed.
 
     Subscribed feeds get their artwork from the upstream RSS
     <itunes:image>/<image> on refresh, so a direct upload here would just be
-    silently clobbered by the next refresh -- local feeds only.
+    silently clobbered by the next refresh.
     """
     db = get_database()
     podcast = db.get_podcast_by_slug(slug)
@@ -2192,9 +2183,9 @@ def upload_feed_artwork(slug):
                        'recommend at least 1400x1400')
     except Exception as e:
         logger.warning(f"[{slug}] artwork dimension check failed: {e}")
-
-    from local_feed_builder import rebuild_local_feed
-    rebuild_local_feed(slug)
+    # Local rebuilds the archive feed; recents re-renders the combined one.
+    from main_app.feeds import rebuild_served_rss
+    rebuild_served_rss(slug, podcast)
 
     response = {
         'message': 'Artwork uploaded',

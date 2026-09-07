@@ -66,6 +66,12 @@ def is_recents_feed(podcast: dict | None) -> bool:
     return bool(podcast) and podcast.get('feed_type') == 'recents'
 
 
+def recents_cutoff(podcast: dict) -> str:
+    """Membership starts on the day the row was created: a date-only string
+    sorts before any timestamp of that day, so `published_at >= cutoff` works."""
+    return (podcast.get('created_at') or '')[:10]
+
+
 class PodcastMixin:
     """Podcast management methods."""
 
@@ -232,11 +238,6 @@ class PodcastMixin:
         )
         conn.commit()
         return cursor.lastrowid
-
-    def get_recents_feed(self) -> dict | None:
-        row = self.get_connection().execute(
-            "SELECT * FROM podcasts WHERE feed_type = 'recents' LIMIT 1").fetchone()
-        return dict(row) if row else None
 
     def update_podcast(self, slug: str, **kwargs) -> bool:
         """Update podcast fields."""
