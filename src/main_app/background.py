@@ -353,8 +353,10 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
 def background_queue_processor():
     """Dispatcher: keep up to the pool's max_episodes claimed rows running."""
     from offline_queue import offline_queue_tick
+    from processing_queue import ProcessingQueue
     from rate_limit_hold import get_hold_until, hold_is_active, rate_limit_hold_tick
     refresh_logger.info("Auto-process queue processor started")
+    registry = ProcessingQueue()
     running: set[threading.Thread] = set()
     # Backdated so the very first pass always runs the maintenance block.
     last_maintenance = time.monotonic() - MAINTENANCE_INTERVAL_SECONDS
@@ -368,7 +370,10 @@ def background_queue_processor():
             # every 5 minutes of wall-clock time (the first pass runs it too).
             if time.monotonic() - last_maintenance >= MAINTENANCE_INTERVAL_SECONDS:
                 last_maintenance = time.monotonic()
-                reset_count, failed_count = db.reset_orphaned_queue_items(stuck_minutes=65)
+                # A live slot means the run is still going, whatever the row's
+                # age says: updated_at is only written at a stage change.
+                reset_count, failed_count = db.reset_orphaned_queue_items(
+                    stuck_minutes=65, exclude_running=registry.get_current())
                 if reset_count > 0 or failed_count > 0:
                     refresh_logger.info(f"Reset {reset_count} orphaned queue items, {failed_count} exceeded max attempts")
 
@@ -384,6 +389,8 @@ def background_queue_processor():
                 # Offline queue (#482): expire deferred episodes past their
                 # TTL and re-queue the rest once their service is reachable.
                 _run_tick(offline_queue_tick, 'offline_queue_tick')
+
+                db.clear_completed_queue_items(older_than_hours=24)
 
             for waiter in list(running):
                 if not waiter.is_alive():
@@ -411,7 +418,9 @@ def background_queue_processor():
             limit = pool.max_episodes
             claimed_any = False
             bounced = False
-            while len(running) < limit and not shutdown_event.is_set():
+            # The registry, not `running`: it also sees runs a Play or
+            # Reprocess started on this leader outside the dispatcher.
+            while registry.slot_count() < limit and not shutdown_event.is_set():
                 queued = db.claim_next_queued_episode()
                 if not queued:
                     break
@@ -424,8 +433,6 @@ def background_queue_processor():
                     break
                 # 'skipped': row already closed, neither resets backoff nor bounces
 
-            # Periodically clean up completed queue items
-            db.clear_completed_queue_items(older_than_hours=24)
             if bounced:
                 # A claim bounced (busy elsewhere, rate-limited); back off
                 # instead of reclaiming the same row at full speed.

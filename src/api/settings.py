@@ -29,6 +29,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MIN,
     AD_REVIEWER_PARALLEL_ADS_MAX,
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
+    WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
     coerce_bool_setting,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
@@ -1316,8 +1317,10 @@ def _apply_transcribe_chunk_fields(db, data):
         ('transcribeChunkOverlapSeconds', 'transcribe_chunk_overlap_seconds', 1, 600),
         ('whisperApiTimeoutSeconds', 'whisper_api_timeout_seconds',
          WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX),
-        ('whisperPoolMaxRequests', 'whisper_pool_max_requests', 1, 64),
-        ('whisperPoolMaxEpisodes', 'whisper_pool_max_episodes', 1, 16),
+        ('whisperPoolMaxRequests', 'whisper_pool_max_requests',
+         *WHISPER_POOL_MAX_REQUESTS_RANGE),
+        ('whisperPoolMaxEpisodes', 'whisper_pool_max_episodes',
+         *WHISPER_POOL_MAX_EPISODES_RANGE),
     ):
         if field_name not in data:
             continue

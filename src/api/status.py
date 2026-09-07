@@ -102,7 +102,10 @@ def status_payload(status=None) -> dict:
     """
     payload = get_status_service().to_dict(status)
     payload['hold'] = hold_block()
-    payload['whisper'] = get_pool().snapshot()
+    # This worker may not be the leader, so nothing else refreshes its pool.
+    pool = get_pool()
+    pool.refresh()
+    payload['whisper'] = pool.snapshot()
     return payload
 
 

@@ -726,6 +726,9 @@ def _startup():
     # Reset any episodes stuck in 'processing' status from previous crash.
     # Leader-only - the followers would just race the same UPDATE.
     if is_leader:
+        # Every slot in the registry file predates this container, so none of
+        # them can be live however their recorded pid reads now.
+        processing_queue.clear_all()
         reset_stuck_processing_episodes()
         reconcile_startup_state(db)
 

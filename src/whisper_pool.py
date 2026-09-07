@@ -8,13 +8,21 @@ import contextlib
 import logging
 import threading
 
-from config import WHISPER_BACKEND_API, coerce_bool_setting
+from config import (
+    WHISPER_BACKEND_API, WHISPER_POOL_MAX_EPISODES_RANGE,
+    WHISPER_POOL_MAX_REQUESTS_RANGE, coerce_bool_setting,
+)
 from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger('podcast.whisper_pool')
 
 _SETTINGS_TTL_SECONDS = 5.0
 _SETTINGS_CACHE_KEY = 'settings'
+
+# What the reader falls back to when the settings read itself fails.
+_FALLBACK_SETTINGS = {
+    'enabled': False, 'backend': 'local', 'max_requests': 4, 'max_episodes': 1,
+}
 
 # Set once this process wins the background-leader lock at startup (see
 # _try_become_background_leader in main_app/__init__.py). Gates episode runs
@@ -31,6 +39,13 @@ def is_background_leader() -> bool:
     return _is_leader
 
 
+def _pool_int(db, key: str, bounds: tuple[int, int]) -> int:
+    """One clamped pool numeric: the stored value, else the registry default."""
+    from database.settings import registry_get_default
+    lo, hi = bounds
+    return max(lo, min(hi, db.get_setting_int(key, registry_get_default(key))))
+
+
 def _db_settings_reader():
     """Default reader: DB with a short TTL so worker threads do not hit
     SQLite on every chunk."""
@@ -42,18 +57,23 @@ def _db_settings_reader():
             cached = cache.get(_SETTINGS_CACHE_KEY)
         if cached is not None:
             return dict(cached)
+        value = dict(_FALLBACK_SETTINGS)
         try:
             from database import Database
+            from database.settings import registry_default
             db = Database()
-            value = {
-                'enabled': coerce_bool_setting(db.get_setting('whisper_pool_enabled')),
-                'backend': db.get_setting('whisper_backend') or 'local',
-                'max_requests': max(1, min(64, int(db.get_setting('whisper_pool_max_requests') or 4))),
-                'max_episodes': max(1, min(16, int(db.get_setting('whisper_pool_max_episodes') or 1))),
-            }
+            value.update(
+                enabled=coerce_bool_setting(db.get_setting('whisper_pool_enabled')),
+                # whisper_backend is not a seeded row, so an install driven by
+                # WHISPER_BACKEND alone has nothing stored to read.
+                backend=db.get_setting('whisper_backend') or registry_default('whisper_backend'),
+                max_requests=_pool_int(db, 'whisper_pool_max_requests',
+                                       WHISPER_POOL_MAX_REQUESTS_RANGE),
+                max_episodes=_pool_int(db, 'whisper_pool_max_episodes',
+                                       WHISPER_POOL_MAX_EPISODES_RANGE),
+            )
         except Exception as e:
             logger.warning(f"Could not read whisper pool settings: {e}")
-            value = {'enabled': False, 'backend': 'local', 'max_requests': 4, 'max_episodes': 1}
         with lock:
             cache.set(_SETTINGS_CACHE_KEY, value)
         return dict(value)

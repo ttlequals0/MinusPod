@@ -1409,7 +1409,7 @@ def retry_ad_detection(slug, episode_id):
             podcast_tags = None
         # No positional_prior_hint here (issue #360): the stored transcript
         # is post-cut for processed episodes, so original-timeline hint
-        # times would misdirect the model -- same reason pass 2 skips it.
+        # times would misdirect the model, the same reason pass 2 skips it.
         ad_result = ad_detector.process_transcript(
             segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id,
             podcast_id=slug,  # Pass slug as podcast_id for pattern matching

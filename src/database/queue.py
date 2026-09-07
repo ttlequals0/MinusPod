@@ -1,4 +1,5 @@
 """Auto-process queue mixin for MinusPod database."""
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -527,7 +528,8 @@ class QueueMixin:
         conn.commit()
         return cursor.rowcount
 
-    def reset_orphaned_queue_items(self, stuck_minutes: int = 35, max_attempts: int = 3) -> tuple[int, int]:
+    def reset_orphaned_queue_items(self, stuck_minutes: int = 35, max_attempts: int = 3,
+                                   exclude_running=None) -> tuple[int, int]:
         """Reset queue items stuck in 'processing' for too long.
 
         This catches orphaned queue items where the worker crashed or was killed
@@ -540,11 +542,20 @@ class QueueMixin:
         Args:
             stuck_minutes: Minutes after which a 'processing' item is considered orphaned
             max_attempts: Maximum retry attempts before marking as permanently failed
+            exclude_running: (slug, episode_id) pairs holding a live processing
+                slot. Age alone cannot tell a slow run from a crash, so these
+                rows are left claimed however stale updated_at looks.
 
         Returns:
             Tuple of (reset_count, failed_count)
         """
         conn = self.get_connection()
+
+        # json_each keeps the exclusion a bound parameter instead of a
+        # placeholder list built into the SQL text.
+        live_keys = json.dumps(
+            [f"{slug}:{episode_id}" for slug, episode_id in (exclude_running or ())])
+        params = (max_attempts, f'-{stuck_minutes}', live_keys)
 
         # First: Mark items that exceeded max attempts as permanently failed
         cursor = conn.execute(
@@ -555,8 +566,10 @@ class QueueMixin:
                WHERE status = 'processing'
                AND attempts >= ?
                AND datetime(updated_at) < datetime('now', ? || ' minutes')
+               AND (SELECT p.slug FROM podcasts p WHERE p.id = podcast_id)
+                   || ':' || episode_id NOT IN (SELECT value FROM json_each(?))
                RETURNING id, episode_id""",
-            (max_attempts, f'-{stuck_minutes}')
+            params
         )
         failed_items = cursor.fetchall()
 
@@ -569,8 +582,10 @@ class QueueMixin:
                WHERE status = 'processing'
                AND attempts < ?
                AND datetime(updated_at) < datetime('now', ? || ' minutes')
+               AND (SELECT p.slug FROM podcasts p WHERE p.id = podcast_id)
+                   || ':' || episode_id NOT IN (SELECT value FROM json_each(?))
                RETURNING id, episode_id""",
-            (max_attempts, f'-{stuck_minutes}')
+            params
         )
         reset_items = cursor.fetchall()
         conn.commit()

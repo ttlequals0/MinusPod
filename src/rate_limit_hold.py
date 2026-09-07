@@ -106,6 +106,10 @@ def rate_limit_hold_tick(db) -> None:
     hold_until = get_hold_until(db)
     if not hold_until or hold_is_active(hold_until):
         return
+    # Compare and clear: a 429 that landed since the read above owns a newer
+    # marker, and clearing it would resume the queue straight into the limit.
+    if get_hold_until(db) != hold_until:
+        return
     held_since = clear_hold(db)
     logger.info("Rate-limit hold: queue pause lifted after provider reset")
     fire_queue_resumed_event(held_since=held_since)

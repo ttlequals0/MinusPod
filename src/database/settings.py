@@ -32,6 +32,7 @@ from config import (
     resolve_segment_category_actions_map,
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     resolve_jit_blocked_user_agents,
+    WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
 )
 from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
@@ -45,6 +46,18 @@ logger = logging.getLogger(__name__)
 def _valid_notification_timezone(tz: str) -> bool:
     """UTC is always acceptable, even on a host with no tzdata installed."""
     return tz == 'UTC' or is_valid_timezone(tz)
+
+
+def _int_in_range(bounds: tuple[int, int]) -> Callable[[str], bool]:
+    """Validator accepting only an integer string inside `bounds`."""
+    lo, hi = bounds
+
+    def check(value: str) -> bool:
+        try:
+            return lo <= int(value) <= hi
+        except (TypeError, ValueError):
+            return False
+    return check
 
 # Default pricing for known Anthropic models (USD per 1M tokens)
 # claude-sonnet-5/fable-5/opus-4-8 values from LiteLLM 2026-07-02.
@@ -404,9 +417,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_key='whisperPoolEnabled', payload_kind='bool'),
     'whisper_pool_max_requests': SettingSpec(
         default='4', env='WHISPER_POOL_MAX_REQUESTS', seeded=True, in_ad_reset=True,
+        validator=_int_in_range(WHISPER_POOL_MAX_REQUESTS_RANGE),
         payload_key='whisperPoolMaxRequests', payload_kind='int'),
     'whisper_pool_max_episodes': SettingSpec(
         default='1', env='WHISPER_POOL_MAX_EPISODES', seeded=True, in_ad_reset=True,
+        validator=_int_in_range(WHISPER_POOL_MAX_EPISODES_RANGE),
         payload_key='whisperPoolMaxEpisodes', payload_kind='int'),
 
     # -- Whisper --

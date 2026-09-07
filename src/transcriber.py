@@ -1156,13 +1156,22 @@ class Transcriber:
                 }
                 # Wall-clock deadline for 429 retries (which do not consume an
                 # attempt slot, see below) so a Retry-After: 0 loop cannot spin.
-                # Reset per granularity mode so a retried mode gets its own window.
-                retry_deadline = time.monotonic() + _api_timeout(whisper_settings)
+                # Set on the first permit below, per granularity mode.
+                retry_deadline = None
                 attempt = 0
                 while attempt < max_attempts:
                     try:
                         with open(transcribe_path, 'rb') as audio_file:
+                            permit_wait_start = time.monotonic()
                             with get_pool().slot():
+                                # Waiting on our own admission control is not
+                                # the provider throttling us, so it never
+                                # eats the 429 window.
+                                now = time.monotonic()
+                                if retry_deadline is None:
+                                    retry_deadline = now + _api_timeout(whisper_settings)
+                                else:
+                                    retry_deadline += now - permit_wait_start
                                 response = safe_post(
                                     url,
                                     trust=URLTrust.OPERATOR_CONFIGURED,

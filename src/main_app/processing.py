@@ -125,7 +125,7 @@ from transcriber import CDN_REFUSED_PREFIX, extract_audio_chunk
 from user_agent import download_user_agent, feed_user_agent
 from utils.constants import (
     CANCELED_ERROR_MESSAGE, EpisodeStatus, PIPELINE_REPROCESS_SOURCES,
-    REPROCESS_SOURCE_DEGRADED, REPROCESS_SOURCE_POLICY,
+    REPROCESS_SOURCE_DEGRADED, REPROCESS_SOURCE_JIT, REPROCESS_SOURCE_POLICY,
 )
 from utils.episode_paths import episode_relative_path
 from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionTimeout
@@ -353,6 +353,10 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
     """
     from processing_queue import ProcessingQueue
     queue = ProcessingQueue()
+
+    # Only the leader's dispatcher refreshes on a loop, so a non-leader worker
+    # would otherwise hold whatever settings it saw at boot. TTL-throttled.
+    get_pool().refresh()
 
     # Check if already processing this episode
     if queue.is_processing(slug, episode_id):
@@ -4185,13 +4189,20 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             # then, so read the row the run wrote.
             row = db.get_episode(slug, episode_id) or episode_data or {}
             podcast = db.get_podcast_by_slug(slug) or {}
+            # Only Play and Reprocess start outside the queue, so this is user
+            # intent: the mark clears the drainer's auto-process gate. Never
+            # over an existing stamp, which would relabel someone's reprocess.
+            if not row.get('reprocess_requested_at'):
+                db.upsert_episode(slug, episode_id,
+                                  reprocess_requested_at=utc_now_iso(),
+                                  reprocess_source=REPROCESS_SOURCE_JIT)
             db.upsert_episode_for_processing(
                 slug, episode_id, row.get('original_url'),
                 title=episode_title, published_at=row.get('published_at'),
                 description=row.get('description'),
                 priority=compute_queue_priority(
                     podcast.get('queue_priority'), row.get('published_at'),
-                    manual=bool(row.get('reprocess_requested_at'))),
+                    manual=True),
             )
         audio_logger.warning(
             f"[{slug}:{episode_id}] Rate-limit hold: paused until "

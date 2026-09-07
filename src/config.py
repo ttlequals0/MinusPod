@@ -1296,6 +1296,12 @@ API_CHUNK_DURATION_SECONDS = 600
 WHISPER_BACKEND_LOCAL = 'local'
 WHISPER_BACKEND_API = 'openai-api'
 
+# Whisper pool bounds. The settings registry validator, the POST /settings
+# range check and the pool's own reader clamp all read these, so an env var
+# or a direct DB write cannot route around the range.
+WHISPER_POOL_MAX_REQUESTS_RANGE = (1, 64)
+WHISPER_POOL_MAX_EPISODES_RANGE = (1, 16)
+
 # Whisper compute-type values accepted by faster-whisper/CTranslate2.
 # 'auto' resolves to float16 on CUDA and int8 on CPU at init time.
 WHISPER_COMPUTE_TYPES = ('auto', 'float16', 'int8_float16', 'int8', 'float32')

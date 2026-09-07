@@ -1,8 +1,8 @@
 """
 Processing Queue - Cross-process N-slot registry limiting concurrent episode processing.
 
-Slot liveness is tracked by pid (os.kill(pid, 0)), not by a held lock; the
-flock only serializes each read-modify-write of the shared state file.
+Slot liveness is tracked by pid plus that pid's process start time, not by a
+held lock; the flock only serializes each read-modify-write of the state file.
 """
 import contextlib
 import fcntl
@@ -18,6 +18,19 @@ from utils.atomic_json import write_json_atomic
 from utils.paths import resolve_data_dir
 
 logger = logging.getLogger('podcast.processing_queue')
+
+
+def _pid_start_time(pid: int) -> float | None:
+    """Process start time from /proc/<pid>/stat (field 22), or None if unreadable.
+
+    The comm field can contain spaces and parentheses, so the split starts
+    after the last ')': field N is then fields[N - 3].
+    """
+    try:
+        with open(f"/proc/{pid}/stat") as fd:
+            return float(fd.read().rpartition(')')[2].split()[19])
+    except (OSError, IndexError, ValueError):
+        return None
 
 
 def _sync_status_clear(slug: str, episode_id: str) -> None:
@@ -78,12 +91,23 @@ class ProcessingQueue:
         if not write_json_atomic(self._state_file_path, {'slots': slots}):
             logger.warning("Could not write state file")
 
-    def _seed_slot(self, slug, episode_id, started_at, pid):
+    def _seed_slot(self, slug, episode_id, started_at, pid, pid_start=None):
         """Test helper: write a slot as another process would have."""
         with self._flock():
             slots = self._read_slots()
-            slots[f"{slug}:{episode_id}"] = {'started_at': started_at, 'pid': pid}
+            slots[f"{slug}:{episode_id}"] = {
+                'started_at': started_at, 'pid': pid, 'pid_start': pid_start}
             self._write_slots(slots)
+
+    def clear_all(self) -> int:
+        """Drop every slot. At leader startup they all belong to the previous
+        container run, whose pids this one can legitimately be handed again."""
+        with self._flock():
+            slots = self._read_slots()
+            if slots:
+                self._write_slots({})
+                logger.info(f"Cleared {len(slots)} processing slot(s) left by a previous run")
+        return len(slots)
 
     @contextlib.contextmanager
     def _flock(self):
@@ -109,8 +133,6 @@ class ProcessingQueue:
 
     @staticmethod
     def _pid_alive(pid: int) -> bool:
-        # A pid reused by an unrelated process reads as alive, so a truly dead
-        # slot with a recycled pid is only cleared once it hits the hard timeout.
         try:
             os.kill(pid, 0)
         except ProcessLookupError:
@@ -118,6 +140,20 @@ class ProcessingQueue:
         except PermissionError:
             return True
         return True
+
+    @classmethod
+    def _slot_alive(cls, slot: dict) -> bool:
+        """Liveness for one slot: the pid must exist and still be the process
+        that took it. A container restart hands out the same low pids again,
+        so pid alone would read a slot left by the previous run as live."""
+        pid = int(slot.get('pid') or 0)
+        if not cls._pid_alive(pid):
+            return False
+        recorded = slot.get('pid_start')
+        if recorded is None:
+            return True
+        current = _pid_start_time(pid)
+        return current is None or current == recorded
 
     def _prune(self, slots: dict) -> tuple[dict, bool]:
         """Drop slots whose process is gone or whose run passed the hard timeout.
@@ -130,7 +166,7 @@ class ProcessingQueue:
         for key, slot in slots.items():
             slug, _, episode_id = key.partition(':')
             elapsed = now - (slot.get('started_at') or now)
-            if not self._pid_alive(int(slot.get('pid') or 0)):
+            if not self._slot_alive(slot):
                 logger.warning(f"Clearing orphaned queue slot: {key} ({elapsed/60:.0f} min, process gone)")
                 _sync_status_clear(slug, episode_id)
                 continue
@@ -159,7 +195,8 @@ class ProcessingQueue:
                         self._write_slots(slots)
                     return False
                 if len(slots) < max(1, limit):
-                    slots[key] = {'started_at': time.time(), 'pid': os.getpid()}
+                    slots[key] = {'started_at': time.time(), 'pid': os.getpid(),
+                                  'pid_start': _pid_start_time(os.getpid())}
                     self._write_slots(slots)
                     logger.info(f"ProcessingQueue slot acquired for {key} ({len(slots)}/{limit})")
                     return True
@@ -216,4 +253,4 @@ class ProcessingQueue:
             slot = self._read_slots().get(key)
         if slot is None:
             return False
-        return self._pid_alive(int(slot.get('pid') or 0))
+        return self._slot_alive(slot)
