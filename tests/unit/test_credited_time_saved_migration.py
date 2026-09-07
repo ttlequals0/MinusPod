@@ -54,12 +54,19 @@ def legacy_db_path(tmp_path):
     return path
 
 
-def test_backfill_credits_existing_rows_and_resets_total(legacy_db_path):
+@pytest.fixture
+def legacy_db(legacy_db_path):
+    """Database singleton over legacy_db_path; teardown runs even on assertion failure."""
     from database import Database
 
     Database._instance = None
     db = Database(data_dir=str(legacy_db_path.parent))
-    conn = db.get_connection()
+    yield db
+    Database._instance = None
+
+
+def test_backfill_credits_existing_rows_and_resets_total(legacy_db):
+    conn = legacy_db.get_connection()
 
     rows = {
         row['episode_id']: row['credited_time_saved']
@@ -78,15 +85,9 @@ def test_backfill_credits_existing_rows_and_resets_total(legacy_db_path):
     ).fetchone()
     assert gate is not None
 
-    Database._instance = None
 
-
-def test_backfill_is_a_no_op_on_second_run(legacy_db_path):
-    from database import Database
-
-    Database._instance = None
-    db = Database(data_dir=str(legacy_db_path.parent))
-    conn = db.get_connection()
+def test_backfill_is_a_no_op_on_second_run(legacy_db):
+    conn = legacy_db.get_connection()
 
     before = {
         row['episode_id']: row['credited_time_saved']
@@ -96,7 +97,7 @@ def test_backfill_is_a_no_op_on_second_run(legacy_db_path):
         "SELECT value FROM stats WHERE key = 'total_time_saved'"
     ).fetchone()['value']
 
-    db._run_backfill_credited_time_saved(conn)
+    legacy_db._run_backfill_credited_time_saved(conn)
 
     after = {
         row['episode_id']: row['credited_time_saved']
@@ -108,5 +109,3 @@ def test_backfill_is_a_no_op_on_second_run(legacy_db_path):
 
     assert after == before
     assert after_total == pytest.approx(before_total)
-
-    Database._instance = None

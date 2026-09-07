@@ -2144,11 +2144,12 @@ class SchemaMixin:
                  value = excluded.value, updated_at = excluded.updated_at""",
             (total,)
         )
-        logger.info(
-            "Migration: backfilled credited_time_saved on %d episode(s), "
-            "total_time_saved reset to %.1f (#727)",
-            cur.rowcount, total,
-        )
+        if cur.rowcount:
+            logger.info(
+                "Migration: backfilled credited_time_saved on %d episode(s), "
+                "total_time_saved reset to %.1f (#727)",
+                cur.rowcount, total,
+            )
 
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations (name) VALUES "

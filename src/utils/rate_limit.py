@@ -132,7 +132,9 @@ def _coerce_error_dict(body: Any) -> dict | None:
     when present. When the error is proxied through OpenRouter, the upstream
     error (with its own ``details``/``status``) is a JSON string under
     ``error.metadata.raw``; descend into it so callers see the real fields.
-    Any parse failure returns None.
+    Skipped when the outer error already carries its own reset field
+    (``seconds_until_reset``, ``resets_at``, ``resets_at_iso``), so that
+    field is not shadowed by the proxied body. Any parse failure returns None.
     """
     payload = body
     if isinstance(payload, str):
@@ -146,7 +148,11 @@ def _coerce_error_dict(body: Any) -> dict | None:
         return None
     err = payload.get("error")
     err = err if isinstance(err, dict) else payload
-    if "details" not in err and "status" not in err:
+    has_own_reset = any(
+        err.get(f) is not None
+        for f in ("seconds_until_reset", "resets_at", "resets_at_iso")
+    )
+    if "details" not in err and "status" not in err and not has_own_reset:
         meta = err.get("metadata")
         raw = meta.get("raw") if isinstance(meta, dict) else None
         if isinstance(raw, str):

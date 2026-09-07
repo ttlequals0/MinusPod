@@ -174,3 +174,16 @@ class TestParseUpstreamReset:
             }
         }
         assert parse_upstream_reset(body, max_seconds=86400) == 8129.0
+
+    def test_outer_reset_field_wins_over_nested_metadata_raw(self):
+        """An outer error carrying its own reset must not be shadowed by an
+        inner body nested under metadata.raw."""
+        import json
+        body = {
+            "error": {
+                "message": "Provider returned error",
+                "seconds_until_reset": 42,
+                "metadata": {"raw": json.dumps(PRODUCTION_RESET_BODY)},
+            }
+        }
+        assert parse_upstream_reset(body, max_seconds=86400) == 42.0
