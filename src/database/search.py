@@ -67,10 +67,9 @@ class SearchMixin:
         """
         conn = self.get_connection()
         self._drop_stale_shadows(conn)
-        # Rows indexed while the shadow fills land in the old table above this
-        # mark and the swap carries them over. FTS5 reuses freed rowids, so a
-        # reindex that shrinks the top rows, or a delete during the fill, is
-        # missed until the next rebuild.
+        # Rows indexed during the fill land in the old table above this mark and
+        # the swap carries them over; FTS5 rowid reuse means a shrink or delete
+        # mid-fill is missed until the next rebuild.
         high_water = conn.execute(
             "SELECT COALESCE(MAX(rowid), 0) FROM search_index").fetchone()[0]
 

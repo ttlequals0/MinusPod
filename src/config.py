@@ -214,12 +214,8 @@ def resolve_ad_chapter_categories_map(raw_json, baseline=None) -> dict[str, bool
 
 
 def valid_ad_chapter_title_format(value) -> bool:
-    """A title template must be non-empty and use only `{category}` or `{label}`.
-
-    Parsed rather than formatted: attribute and index access ({category.foo},
-    {category[0]}) raise their own error types and {category.__class__} would
-    render junk, so only a bare field name is accepted.
-    """
+    """A title template must be non-empty and use only bare {category} or {label}
+    fields; parsed rather than formatted so {category.foo} and friends are rejected."""
     if not isinstance(value, str) or not value.strip():
         return False
     try:
