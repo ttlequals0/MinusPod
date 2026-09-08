@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- SQLite write contention. Every LLM call bumped three global counters as three separate statements inside its write transaction, and a refresh sweep committed once per feed even when the feed was clean and the update matched no row. SQLite allows one writer, so those extra trips queued behind each other and write transactions were observed waiting 5 to 16 seconds under a concurrent pool. The three counters are now one statement, and a clean feed costs no commit.
+- Log records are no longer split across lines. A logged prompt body carries newlines, and a container runtime turns each into its own log line with no level prefix, so a scraper re-sniffs the level from the text and files a line beginning "CRITICAL:" as a critical entry. The console formatter now collapses newlines in the message. Exception tracebacks keep their line breaks, and the per-episode run log still records the original text.
+
 ## [2.96.4] - 2026-09-07
 
 ### Added

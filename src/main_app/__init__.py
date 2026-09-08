@@ -1,4 +1,5 @@
 """Main Flask web server for podcast ad removal with web UI."""
+import copy
 import fcntl
 import json
 import logging
@@ -43,6 +44,29 @@ class _RequestIDFilter(logging.Filter):
         except Exception:
             pass
         return True
+
+
+class SingleLineFormatter(logging.Formatter):
+    """Text formatter that keeps one record on one line.
+
+    Docker splits a multi-line record into separate lines, and the
+    continuation lines carry no level prefix, so a scraper re-sniffs their
+    level from the text: a logged prompt body whose line reads "CRITICAL:"
+    arrives as a critical entry. The record is copied rather than mutated,
+    since the per-episode run log handler formats the same record and wants
+    the real line breaks. An exc_info traceback is appended by the base
+    formatter and keeps its own.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        message = record.getMessage()
+        if '\n' not in message and '\r' not in message:
+            return super().format(record)
+        flat = copy.copy(record)
+        flat.msg = (message.replace('\r\n', '\\n')
+                    .replace('\n', '\\n').replace('\r', '\\n'))
+        flat.args = ()
+        return super().format(flat)
 
 
 class JSONFormatter(logging.Formatter):
@@ -96,7 +120,7 @@ def setup_logging():
     if log_format == 'json':
         formatter = JSONFormatter(datefmt='%Y-%m-%dT%H:%M:%S')
     else:
-        formatter = logging.Formatter(
+        formatter = SingleLineFormatter(
             '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )

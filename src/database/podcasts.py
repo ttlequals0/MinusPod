@@ -304,17 +304,22 @@ class PodcastMixin:
 
         The guard lives in the WHERE clause so a failure written by a
         concurrent refresh attempt is cleared even when the caller's row
-        snapshot predates it, and clean feeds cost no write.
+        snapshot predates it, and clean feeds cost no write or commit.
         """
         conn = self.get_connection()
-        conn.execute(
+        cursor = conn.execute(
             """UPDATE podcasts
                SET refresh_failure_count = 0, last_refresh_error = NULL,
                    last_refresh_error_at = NULL, last_refresh_failure_at = NULL
                WHERE slug = ? AND refresh_failure_count > 0""",
             (slug,)
         )
-        conn.commit()
+        # A clean feed matches no row, and committing that still costs a trip
+        # through the single write lock during a refresh sweep.
+        if cursor.rowcount:
+            conn.commit()
+        else:
+            conn.rollback()
 
     def get_podcast_tags(self, slug: str) -> dict[str, list[str]]:
         """Return the source breakdown of a podcast's tags.

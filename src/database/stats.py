@@ -117,6 +117,29 @@ class StatsMixin:
             (key, insert_value, delta)
         )
 
+    def _bump_stats(self, conn, deltas: list[tuple[str, float]]) -> None:
+        """Upsert several non-clamped stat deltas in one statement.
+
+        Every LLM call bumps the same three global rows, so sending them
+        separately triples the write statements each call holds the single
+        SQLite write lock for.
+        """
+        if not deltas:
+            return
+        values_sql = ", ".join(
+            ["(?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"] * len(deltas))
+        params: list = []
+        for key, delta in deltas:
+            params.extend((key, delta))
+        conn.execute(
+            f"""INSERT INTO stats (key, value, updated_at)
+               VALUES {values_sql}
+               ON CONFLICT(key) DO UPDATE SET
+                 value = value + excluded.value,
+                 updated_at = excluded.updated_at""",  # noqa: S608
+            params
+        )
+
     def credit_time_saved(self, slug: str, episode_id: str, saving: float) -> float:
         """Credit the lifetime total_time_saved stat with only this episode's
         unaccredited delta. Returns the delta applied, or 0.0 when the
@@ -264,11 +287,11 @@ class StatsMixin:
             (model_id, match_key, input_tokens, output_tokens, cost)
         )
 
-        # Update global stats counters
-        for stat_key, value in [('total_input_tokens', float(input_tokens)),
-                                ('total_output_tokens', float(output_tokens)),
-                                ('total_llm_cost', cost)]:
-            self._bump_stat(conn, stat_key, value)
+        self._bump_stats(conn, [
+            ('total_input_tokens', float(input_tokens)),
+            ('total_output_tokens', float(output_tokens)),
+            ('total_llm_cost', cost),
+        ])
 
         conn.commit()
         logger.debug(
