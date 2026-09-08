@@ -1457,10 +1457,15 @@ class SchemaMixin:
         # Repair covers left stale by the skipped-download bug (#596).
         try:
             self._run_redownload_stale_artwork(conn)
-            self._run_ad_chapter_title_defaults(conn)
         except Exception as e:
             conn.rollback()
             logger.error(f"artwork re-download priming failed: {e}")
+
+        try:
+            self._run_ad_chapter_title_defaults(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"ad chapter title default migration failed: {e}")
 
         # One-shot clear of system-seeded model defaults (2.86.4): a stale
         # model id written by the old hardcoded-default seeding logic must

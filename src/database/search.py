@@ -28,6 +28,23 @@ SEARCH_INDEX_DDL = """CREATE VIRTUAL TABLE IF NOT EXISTS {name} USING fts5(
 )"""
 _SHADOW_PREFIX = 'search_index_new'
 
+
+def _shadow_owner_alive(name: str) -> bool:
+    """True when the pid and thread named in a shadow table are still running."""
+    try:
+        pid, tid = (int(x) for x in name[len(_SHADOW_PREFIX) + 1:].split('_'))
+    except ValueError:
+        return False
+    if pid <= 0:
+        return False
+    if pid == os.getpid():
+        return tid in {t.ident for t in threading.enumerate()}
+    try:
+        os.kill(pid, 0)
+    except (ProcessLookupError, PermissionError):
+        return False
+    return True
+
 # search_index column order: content_type, content_id, podcast_slug, title, body, metadata.
 _SNIPPET_COL = {'title': 3, 'body': 4, 'metadata': 5}
 # Only the three text columns score; weighting content_type would rank by row length.
@@ -50,8 +67,10 @@ class SearchMixin:
         """
         conn = self.get_connection()
         self._drop_stale_shadows(conn)
-        # Rows indexed while the shadow fills land in the old table with a
-        # higher rowid than this mark; the swap carries them over.
+        # Rows indexed while the shadow fills land in the old table above this
+        # mark and the swap carries them over. FTS5 reuses freed rowids, so a
+        # reindex that shrinks the top rows, or a delete during the fill, is
+        # missed until the next rebuild.
         high_water = conn.execute(
             "SELECT COALESCE(MAX(rowid), 0) FROM search_index").fetchone()[0]
 
@@ -105,7 +124,7 @@ class SearchMixin:
             with self.transaction(immediate=True) as tx:
                 late = tx.execute(
                     "SELECT content_type, content_id, podcast_slug, title, body, metadata "
-                    "FROM search_index WHERE rowid >= ?", (high_water,)).fetchall()
+                    "FROM search_index WHERE rowid > ?", (high_water,)).fetchall()
                 for r in late:
                     tx.execute(f"DELETE FROM {shadow} WHERE content_type = ? AND content_id = ?",  # noqa: S608
                                (r[0], r[1]))
@@ -122,15 +141,19 @@ class SearchMixin:
         return len(rows)
 
     def _drop_stale_shadows(self, conn) -> None:
-        """Remove shadow tables a crashed rebuild left behind."""
+        """Remove shadow tables whose rebuild is gone; a live one is left alone."""
         names = [r['name'] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?",
             (f"{_SHADOW_PREFIX}%",))]
+        dropped = 0
         for name in names:
+            if _shadow_owner_alive(name):
+                continue
             conn.execute(f'DROP TABLE IF EXISTS "{name}"')
-        if names:
+            dropped += 1
+        if dropped:
             conn.commit()
-            logger.warning(f"Dropped {len(names)} stale search index shadow table(s)")
+            logger.warning(f"Dropped {dropped} stale search index shadow table(s)")
 
     def index_episode(self, episode_id: str, slug: str) -> bool:
         """Index or re-index a single episode in the search index."""

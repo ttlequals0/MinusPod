@@ -14,7 +14,8 @@ release notes.
 ## [2.96.9] - 2026-09-08
 
 ### Fixed
-- An audio-analysis save that timed out on the SQLite write lock left its connection in an open write transaction for the rest of the run. Every other writer then failed with "database is locked" until the run ended. The save, and the cross-fetch differential save with the same shape, now run as one upsert in an immediate transaction that rolls back on error, and both stages' error paths clear any leaked transaction.
+- An audio-analysis save that timed out on the SQLite write lock left its connection in an open write transaction for the rest of the run. Every other writer then failed with "database is locked" until the run ended. The save, and the cross-fetch differential save with the same shape, now run as one upsert in an immediate transaction. A statement that opens a transaction and then fails now rolls it back on the spot, and an immediate transaction clears any leaked one before it begins. No writer can leave the thread's connection holding the lock.
+- Installs upgraded from 2.96.8 with the ad chapter title formats still at their defaults get the new readable defaults; customised formats are kept.
 - The startup search-index rebuild held the write lock for the whole insert (14 s on a 16k-item index). It now fills a shadow table in short transactions and swaps it in with one quick DDL transaction.
 
 ### Changed

@@ -402,7 +402,7 @@ def test_failed_fill_drops_the_shadow_and_keeps_the_old_index(monkeypatch):
 def test_stale_shadow_from_a_crash_is_dropped_on_the_next_rebuild():
     conn = db.get_connection()
     conn.execute(
-        "CREATE VIRTUAL TABLE search_index_new_0_0 USING fts5(content_type, content_id, podcast_slug, title, body, metadata)")
+        "CREATE VIRTUAL TABLE search_index_new_4194304_1 USING fts5(content_type, content_id, podcast_slug, title, body, metadata)")
     conn.commit()
     db.rebuild_search_index()
     names = [r['name'] for r in conn.execute(
