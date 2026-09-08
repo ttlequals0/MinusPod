@@ -2,6 +2,8 @@
 import json
 from unittest.mock import MagicMock
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 bootstrap('ad_chapter_config_test_')
@@ -66,10 +68,24 @@ def test_enabled_follows_override_then_global():
 def test_title_format_validator():
     assert valid_ad_chapter_title_format('[mp:{category}]')
     assert valid_ad_chapter_title_format('Ad break')
+    assert valid_ad_chapter_title_format('{category} / {category}')
     assert not valid_ad_chapter_title_format('{category')
     assert not valid_ad_chapter_title_format('{nope}')
     assert not valid_ad_chapter_title_format('')
     assert not valid_ad_chapter_title_format(None)
+
+
+@pytest.mark.parametrize('value', [
+    '{category.foo}',       # AttributeError out of str.format
+    '{category[foo]}',      # TypeError out of str.format
+    '{category.__class__}',  # formats, but renders junk
+    '{}',                   # positional
+    '{0}',                  # positional
+    '{category!r}',         # conversion
+    '{category:>10}',       # format spec
+])
+def test_title_format_validator_rejects_field_access(value):
+    assert not valid_ad_chapter_title_format(value)
 
 
 def test_per_feed_categories_layer_over_global(temp_db):

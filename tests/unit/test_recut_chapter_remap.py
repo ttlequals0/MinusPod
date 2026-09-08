@@ -148,6 +148,9 @@ def _stub_assets_io(monkeypatch, counters, embed_ok=True):
         counters['applied_saved'] = cuts
     monkeypatch.setattr(
         processing.storage, 'save_chapters_and_applied_cuts', _save_both)
+    monkeypatch.setattr(
+        processing.storage, 'save_chapters_json',
+        lambda s, e, chapters: counters.__setitem__('chapters_saved', chapters))
     # Default: no probe (callers pass audio_duration). Overridden where the
     # duration=None consistency path is exercised.
     monkeypatch.setattr(processing, 'get_audio_duration', lambda p: None)
@@ -259,17 +262,15 @@ def test_generate_assets_regenerate_true_unchanged(monkeypatch):
 
 # ---------- fallback: no persisted applied cuts (pre-deploy episodes) ----------
 
-def test_generate_assets_recut_no_persisted_cuts_leaves_chapters_untouched(monkeypatch):
+def test_generate_assets_recut_no_persisted_cuts_leaves_topic_chapters_untouched(monkeypatch):
     # previous_cuts=None models an episode rendered before applied_cuts_json
-    # was persisted. The remap must be a no-op: no reconstruction, no remap, no
-    # save, no embed -- the served chapters JSON stays byte-identical.
+    # was persisted. The topic chapters are not remapped, and with no ad
+    # entries in play nothing is written at all.
     counters = {}
     _stub_assets_io(monkeypatch, counters)
-
-    def unexpected_read(s, e):
-        raise AssertionError("fallback must not even read chapters JSON")
-
-    monkeypatch.setattr(processing.storage, 'get_chapters_json', unexpected_read)
+    _use_config(monkeypatch, AdChapterConfig.disabled())
+    stored = {'version': '1.2.0', 'chapters': [{'startTime': 10, 'title': 'Intro'}]}
+    monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
     new_cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 600.0}]
     # Must not raise.
     processing._generate_assets(
@@ -278,21 +279,56 @@ def test_generate_assets_recut_no_persisted_cuts_leaves_chapters_untouched(monke
         audio_path='/x.mp3', audio_duration=804.0,
         previous_cuts=None, original_duration=1000.0)
     assert 'saved' not in counters, "chapters JSON must be left untouched"
+    assert 'chapters_saved' not in counters
     assert 'embedded' not in counters
     assert 'applied_saved' not in counters, \
         "stale chapters must not gain an authoritative cut list"
 
 
-def test_remap_stored_chapters_none_cuts_is_noop_directly(monkeypatch):
-    # Unit-level pin of the fallback in _remap_stored_chapters itself.
+def test_remap_none_previous_cuts_still_rebuilds_the_ad_entries(monkeypatch):
+    # The recut's own cut list IS known, so stale ad entries must not survive
+    # on the old timeline even when the topic chapters cannot be remapped.
     counters = {}
     _stub_assets_io(monkeypatch, counters)
-    monkeypatch.setattr(
-        processing.storage, 'get_chapters_json',
-        lambda s, e: (_ for _ in ()).throw(AssertionError("must not read")))
+    _use_config(monkeypatch, AD_CFG)
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 10, 'title': 'Intro'},
+        {'startTime': 300, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 360, 'title': 'Show', 'kind': 'resume'}]}
+    monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+                'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     processing._remap_stored_chapters(
-        'slug', 'ep', [{'start': 100.0, 'end': 200.0}], BEEP,
-        None, 1000.0, audio_path='/x.mp3', audio_duration=804.0)
+        'slug', 'ep', all_cuts=[], replacement_duration=BEEP,
+        previous_cuts=None, original_duration=1000.0, audio_path='/x.mp3',
+        audio_duration=804.0, markers=markers)
+    assert counters['chapters_saved']['chapters'] == [
+        {'startTime': 10, 'title': 'Intro'},
+        {'startTime': 500, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 530, 'title': 'Show', 'kind': 'resume'}]
+    assert counters['embedded']['chapters'] == [
+        {'startTime': 10, 'title': 'Intro'},
+        {'startTime': 500, 'title': '[mp:sponsor]'},
+        {'startTime': 530, 'title': 'Show'}]
+    assert 'applied_saved' not in counters, \
+        "unremapped topic chapters must not claim the recut's cut list"
+
+
+def test_remap_none_previous_cuts_writes_nothing_when_unchanged(monkeypatch):
+    counters = {}
+    _stub_assets_io(monkeypatch, counters)
+    _use_config(monkeypatch, AD_CFG)
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 10, 'title': 'Intro'},
+        {'startTime': 500, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 530, 'title': 'Show', 'kind': 'resume'}]}
+    monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+                'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
+    processing._remap_stored_chapters(
+        'slug', 'ep', all_cuts=[], replacement_duration=BEEP,
+        previous_cuts=None, original_duration=1000.0, audio_path='/x.mp3',
+        audio_duration=804.0, markers=markers)
     assert counters == {}
 
 

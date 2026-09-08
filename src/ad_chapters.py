@@ -4,12 +4,14 @@ from dataclasses import dataclass, field
 
 from config import (
     AD_CHAPTER_KINDS, AD_CHAPTER_SNAP_SECONDS, CHAPTERS_MODE_OFF,
-    DEFAULT_AD_CHAPTER_CATEGORIES, is_pending_review,
-    normalize_segment_category, resolve_ad_chapters_enabled,
-    resolve_chapters_mode,
+    DEFAULT_AD_CHAPTER_CATEGORIES, SEGMENT_CATEGORIES, is_pending_review,
+    resolve_ad_chapters_enabled, resolve_chapters_mode,
 )
 from database.settings import registry_current_value, registry_default
 from utils.time import adjust_timestamp
+
+# Keys the merge adds for its own bookkeeping; never served or embedded.
+INTERNAL_CHAPTER_KEYS = ('kind', 'category', 'held', 'hidden')
 
 
 @dataclass(frozen=True)
@@ -36,7 +38,10 @@ class AdChapterConfig:
             return None
         if held and not self.include_held:
             return None
-        if not self.categories.get(normalize_segment_category(marker.get('category'))):
+        # Raw category: an unset or unknown one is not a sponsor read, so it
+        # gets no chapter at all.
+        category = marker.get('category')
+        if category not in SEGMENT_CATEGORIES or not self.categories.get(category):
             return None
         if not held and _marker_confidence(marker) < self.min_confidence:
             return None
@@ -67,12 +72,23 @@ def format_ad_chapter_title(fmt, category) -> str:
 
 
 def strip_ad_chapters(chapters) -> list[dict]:
-    return [ch for ch in (chapters or []) if ch.get('kind') not in AD_CHAPTER_KINDS]
+    """Topic chapters only, each unhidden: a rebuild re-decides what is displaced."""
+    return [{k: v for k, v in ch.items() if k != 'hidden'}
+            for ch in (chapters or []) if ch.get('kind') not in AD_CHAPTER_KINDS]
+
+
+def public_chapters(entries) -> list[dict]:
+    """Spec-clean chapters for serving and embedding: hidden entries and the
+    internal bookkeeping keys dropped."""
+    return [{k: v for k, v in ch.items() if k not in INTERNAL_CHAPTER_KEYS}
+            for ch in (entries or []) if not ch.get('hidden')]
 
 
 def _marker_confidence(marker) -> float:
-    for key in ('adjusted_confidence', 'confidence'):
-        value = marker.get(key)
+    # The validator writes its adjusted score under 'validation'; the
+    # top-level key is the older shape.
+    for value in ((marker.get('validation') or {}).get('adjusted_confidence'),
+                  marker.get('adjusted_confidence'), marker.get('confidence')):
         if value is None:
             continue
         try:
@@ -96,7 +112,7 @@ def _eligible_spans(markers, cuts, replacement_duration, config) -> list[dict]:
         if end_s <= start_s:
             continue
         spans.append({'start': start_s, 'end': end_s, 'held': held,
-                      'category': normalize_segment_category(marker.get('category'))})
+                      'category': marker['category']})
     spans.sort(key=lambda sp: sp['start'])
     # Overlapping spans would interleave ad/resume pairs; the first names the break.
     merged = []
@@ -115,6 +131,9 @@ def merge_ad_chapters(chapters, markers, cuts, episode_duration,
     Stale ad entries are stripped first, so the result is idempotent. Chapters
     carry no end time, so each break gets a resume entry unless a topic chapter
     already starts within AD_CHAPTER_SNAP_SECONDS.
+
+    A topic chapter a break displaces is flagged hidden rather than deleted,
+    so a later rebuild can restore it; public_chapters drops those.
     """
     topics = strip_ad_chapters(chapters)
     if config is None or not config.enabled or not markers:
@@ -130,10 +149,12 @@ def merge_ad_chapters(chapters, markers, cuts, episode_duration,
                    or abs(start - sp['start']) <= AD_CHAPTER_SNAP_SECONDS
                    for sp in spans)
 
-    kept = [ch for ch in topics if not displaced(ch)]
+    kept = [{**ch, 'hidden': True} if displaced(ch) else ch for ch in topics]
+    visible = [ch for ch in kept if not ch.get('hidden')]
 
     def snaps_to(time_s):
-        return any(abs(ch['startTime'] - time_s) <= AD_CHAPTER_SNAP_SECONDS for ch in kept)
+        return any(abs(ch['startTime'] - time_s) <= AD_CHAPTER_SNAP_SECONDS
+                   for ch in visible)
 
     end_s = int(round(episode_duration)) if episode_duration else None
     additions = []

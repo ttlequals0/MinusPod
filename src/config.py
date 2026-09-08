@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import sqlite3
+import string
 from typing import Any
 from urllib.parse import urlparse
 
@@ -213,14 +214,20 @@ def resolve_ad_chapter_categories_map(raw_json, baseline=None) -> dict[str, bool
 
 
 def valid_ad_chapter_title_format(value) -> bool:
-    """A title template must format with only `category` and be non-empty."""
+    """A title template must be non-empty and reference only `{category}`.
+
+    Parsed rather than formatted: attribute and index access ({category.foo},
+    {category[0]}) raise their own error types and {category.__class__} would
+    render junk, so only a bare field name is accepted.
+    """
     if not isinstance(value, str) or not value.strip():
         return False
     try:
-        value.format(category='x')
-    except (KeyError, IndexError, ValueError):
+        fields = list(string.Formatter().parse(value))
+    except ValueError:
         return False
-    return True
+    return all(name is None or (name == 'category' and not spec and not conv)
+               for _, name, spec, conv in fields)
 
 
 def validate_ad_chapter_categories(value) -> str | None:

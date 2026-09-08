@@ -53,6 +53,16 @@ def test_ad_chapter_lines_carry_category_suffix():
         '<br>20:00 [mp:cross_promo?] (Cross-promo, awaiting review)</p>')
 
 
+def test_hidden_chapters_are_not_listed():
+    chapters = json.dumps({'chapters': [
+        {'startTime': 0, 'title': 'Intro'},
+        {'startTime': 600, 'title': 'Displaced topic', 'hidden': True},
+        {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+    ]})
+    assert format_chapter_block(chapters) == (
+        '<p>Chapters</p><p>00:00 Intro<br>15:00 [mp:sponsor] (Sponsor)</p>')
+
+
 def test_ad_chapter_without_a_known_category_falls_back():
     chapters = json.dumps({'chapters': [
         {'startTime': 30, 'title': 'A', 'kind': 'ad'},

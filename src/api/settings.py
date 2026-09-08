@@ -1219,7 +1219,11 @@ def _apply_segment_category_actions(db, data):
 
 
 def _apply_ad_chapter_fields(db, data):
-    """Persist the ad chapter settings; the category map merges over the stored map."""
+    """Persist the ad chapter settings; the category map merges over the stored map.
+
+    An empty title string resets that field to its default, matching the
+    contract _apply_user_agent_fields uses for the other free-text settings.
+    """
     # Validate every field first so a bad value leaves nothing half-written.
     writes = []
     for key, setting in (('adChaptersEnabled', 'ad_chapters_enabled'),
@@ -1228,27 +1232,27 @@ def _apply_ad_chapter_fields(db, data):
             writes.append((setting, 'true' if coerce_bool_setting(data[key]) else 'false'))
 
     for key, setting in (('adChapterTitleFormat', 'ad_chapter_title_format'),
-                         ('adChapterHeldTitleFormat', 'ad_chapter_held_title_format')):
-        if key in data:
-            if not valid_ad_chapter_title_format(data[key]):
-                return error_response(
-                    f'{key} must be text with an optional {{category}} placeholder', 400)
-            writes.append((setting, data[key].strip()))
-
-    if 'adChapterResumeTitle' in data:
-        title = data['adChapterResumeTitle']
-        if not isinstance(title, str) or not title.strip():
-            return error_response('adChapterResumeTitle must not be empty', 400)
-        writes.append(('ad_chapter_resume_title', title.strip()))
+                         ('adChapterHeldTitleFormat', 'ad_chapter_held_title_format'),
+                         ('adChapterResumeTitle', 'ad_chapter_resume_title')):
+        if key not in data:
+            continue
+        title = data[key]
+        if not isinstance(title, str):
+            return error_response(f'{key} must be a string', 400)
+        if not title.strip():
+            writes.append((setting, ''))
+            continue
+        # Only the two format fields carry a {category} placeholder.
+        if setting != 'ad_chapter_resume_title' and not valid_ad_chapter_title_format(title):
+            return error_response(
+                f'{key} must be text with an optional {{category}} placeholder', 400)
+        writes.append((setting, title.strip()))
 
     if 'adChapterMinConfidence' in data:
-        try:
-            value = float(data['adChapterMinConfidence'])
-        except (TypeError, ValueError):
-            value = -1.0
-        if not 0.0 <= value <= 1.0:
+        value = data['adChapterMinConfidence']
+        if not SETTINGS_REGISTRY['ad_chapter_min_confidence'].validator(str(value)):
             return error_response('adChapterMinConfidence must be between 0 and 1', 400)
-        writes.append(('ad_chapter_min_confidence', str(value)))
+        writes.append(('ad_chapter_min_confidence', str(float(value))))
 
     merged = None
     if 'adChapterCategories' in data:
@@ -1261,7 +1265,12 @@ def _apply_ad_chapter_fields(db, data):
         writes.append(('ad_chapter_categories', json.dumps(merged)))
 
     for setting, value in writes:
-        db.set_setting(setting, value, is_default=False)
+        # Only the title fields can be blank here, and blank means reset.
+        if value == '':
+            db.clear_setting(setting)
+            logger.info(f"Reset {setting} to the default")
+        else:
+            db.set_setting(setting, value, is_default=False)
     if merged is not None:
         logger.info(f"Updated ad chapter categories: {merged}")
     return None

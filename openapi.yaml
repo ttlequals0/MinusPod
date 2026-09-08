@@ -4865,15 +4865,21 @@ paths:
                   example: false
                 adChapterTitleFormat:
                   type: string
-                  description: Title template for an ad chapter, with an optional {category} placeholder.
+                  description: >-
+                    Title template for an ad chapter, with an optional {category}
+                    placeholder. Send an empty string to restore the default.
                   example: '[mp:{category}]'
                 adChapterHeldTitleFormat:
                   type: string
-                  description: Title template for a held segment's ad chapter, with an optional {category} placeholder.
+                  description: >-
+                    Title template for a held segment's ad chapter, with an optional
+                    {category} placeholder. Send an empty string to restore the default.
                   example: '[mp:{category}?]'
                 adChapterResumeTitle:
                   type: string
-                  description: Title of the chapter that marks the return to show content after an ad chapter.
+                  description: >-
+                    Title of the chapter that marks the return to show content after an
+                    ad chapter. Send an empty string to restore the default.
                   example: Show
                 adChapterMinConfidence:
                   type: number

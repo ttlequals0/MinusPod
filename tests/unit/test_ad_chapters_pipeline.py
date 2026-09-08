@@ -15,7 +15,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('ad_chapters_pipeline_test_', reset_storage=True)
 
 import chapters_generator
-from ad_chapters import AdChapterConfig
+from ad_chapters import AdChapterConfig, public_chapters
 from main_app import processing
 
 AD_CFG = AdChapterConfig(
@@ -90,6 +90,12 @@ def _saved_chapters(storage_mock):
     return storage_mock.save_chapters_and_applied_cuts.call_args.args[2]['chapters']
 
 
+def _assert_embedded(embed_mock, merged):
+    """The embed always gets the spec-clean projection, never the stored list."""
+    embed_mock.assert_called_once_with(
+        '/tmp/fake-processed.mp3', public_chapters(merged), duration=3600.0)
+
+
 # ---------- generate path ----------
 
 def test_generate_path_appends_ad_chapters_and_embeds(monkeypatch):
@@ -100,8 +106,9 @@ def test_generate_path_appends_ad_chapters_and_embeds(monkeypatch):
     generator_class.return_value.generate_chapters.assert_called_once()
     merged = _saved_chapters(storage_mock)
     assert merged == [{'startTime': 1, 'title': 'Intro'}, AD_ENTRY, RESUME_ENTRY]
-    embed_mock.assert_called_once_with(
-        '/tmp/fake-processed.mp3', merged, duration=3600.0)
+    _assert_embedded(embed_mock, merged)
+    assert all(set(ch) == {'startTime', 'title'}
+               for ch in embed_mock.call_args.args[1])
 
 
 def test_generate_path_with_empty_generation_still_saves_ad_only_list(monkeypatch):
@@ -112,8 +119,7 @@ def test_generate_path_with_empty_generation_still_saves_ad_only_list(monkeypatc
 
     merged = _saved_chapters(storage_mock)
     assert merged == [AD_ENTRY, RESUME_ENTRY]
-    embed_mock.assert_called_once_with(
-        '/tmp/fake-processed.mp3', merged, duration=3600.0)
+    _assert_embedded(embed_mock, merged)
 
 
 def test_generate_path_without_ads_saves_topics_only(monkeypatch):
@@ -153,8 +159,7 @@ def test_publisher_preserve_path_merges_and_embeds_when_ads_added(monkeypatch):
                       {'startTime': 1500, 'title': 'Outro'}]
     # The cut step embedded the publisher frames; the ad entries it does not
     # know about make a re-embed necessary here.
-    embed_mock.assert_called_once_with(
-        '/tmp/fake-processed.mp3', merged, duration=3600.0)
+    _assert_embedded(embed_mock, merged)
 
 
 def test_publisher_preserve_path_unchanged_when_no_ads(monkeypatch):
@@ -198,8 +203,7 @@ def test_upstream_json_path_merges_and_embeds(monkeypatch):
                       {'startTime': 300, 'title': 'Body'},
                       AD_ENTRY, RESUME_ENTRY,
                       {'startTime': 1500, 'title': 'Outro'}]
-    embed_mock.assert_called_once_with(
-        '/tmp/fake-processed.mp3', merged, duration=3600.0)
+    _assert_embedded(embed_mock, merged)
 
 
 # ---------- regenerate-chapters endpoint ----------
@@ -235,6 +239,9 @@ def _authed(client):
 
 
 def test_regenerate_endpoint_merges_ad_chapters(app_client, seeded):
+    # Authoritative (empty) cut list: without one the endpoint cannot place
+    # ad chapters and skips the merge.
+    seeded.save_applied_cuts(SLUG, EPISODE_ID, [])
     headers = _authed(app_client)
     with patch('api.episodes.ChaptersGenerator') as generator, \
          patch('api.episodes.embed_chapters', return_value=False), \
@@ -249,10 +256,51 @@ def test_regenerate_endpoint_merges_ad_chapters(app_client, seeded):
 
     assert resp.status_code == 200, resp.data
     chapters = resp.get_json()['chapters']
-    assert chapters == [{'startTime': 1, 'title': 'Intro'}, AD_ENTRY, RESUME_ENTRY]
+    # The response is the served projection; the stored list keeps the keys.
+    assert chapters == [{'startTime': 1, 'title': 'Intro'},
+                        {'startTime': 900, 'title': '[mp:sponsor]'},
+                        {'startTime': 960, 'title': 'Show'}]
     assert resp.get_json()['chapterCount'] == 3
     stored = json.loads(seeded.get_episode(SLUG, EPISODE_ID)['chapters_json'])
-    assert stored['chapters'] == chapters
+    assert stored['chapters'] == [{'startTime': 1, 'title': 'Intro'},
+                                  AD_ENTRY, RESUME_ENTRY]
+
+
+def test_regenerate_endpoint_skips_ad_chapters_without_applied_cuts(app_client, seeded):
+    """None cuts are unknown, not empty: ad spans would land at original offsets."""
+    assert seeded.get_applied_cuts(SLUG, EPISODE_ID) is None
+    headers = _authed(app_client)
+    with patch('api.episodes.ChaptersGenerator') as generator, \
+         patch('api.episodes.embed_chapters', return_value=False), \
+         patch('api.episodes.resolve_ad_chapter_config',
+               lambda db, row, slug=None: AD_CFG), \
+         patch('main_app.processing._refresh_rss_for_slug'):
+        generator.return_value.generate_chapters.return_value = {
+            'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+        resp = app_client.post(
+            f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+            headers=headers)
+
+    assert resp.status_code == 200, resp.data
+    assert resp.get_json()['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
+
+
+def test_served_chapters_json_carries_no_internal_keys(app_client, monkeypatch):
+    """The Podcasting 2.0 document is the public projection of the stored list."""
+    import main_app
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 1, 'title': 'Intro'},
+        {'startTime': 600, 'title': 'Displaced topic', 'hidden': True},
+        AD_ENTRY, RESUME_ENTRY]}
+    monkeypatch.setattr(main_app.storage, 'get_chapters_json', lambda s, e: stored)
+
+    resp = app_client.get(f'/episodes/{SLUG}/{EPISODE_ID}/chapters.json')
+    assert resp.status_code == 200, resp.data
+    body = json.loads(resp.data)
+    assert body['version'] == '1.2.0'
+    assert body['chapters'] == [{'startTime': 1, 'title': 'Intro'},
+                                {'startTime': 900, 'title': '[mp:sponsor]'},
+                                {'startTime': 960, 'title': 'Show'}]
 
 
 def test_regenerate_endpoint_without_ad_config_is_unchanged(app_client, seeded):

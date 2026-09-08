@@ -6,8 +6,8 @@ from tests.app_bootstrap import bootstrap
 bootstrap('ad_chapters_test_')
 
 from ad_chapters import (  # noqa: E402
-    AdChapterConfig, merge_ad_chapters, resolve_ad_chapter_config,
-    strip_ad_chapters,
+    AdChapterConfig, merge_ad_chapters, public_chapters,
+    resolve_ad_chapter_config, strip_ad_chapters,
 )
 
 DURATION = 3600.0
@@ -74,8 +74,15 @@ def test_unchecked_category_is_skipped():
 def test_confidence_floor_applies_to_kept_only():
     low = kept(900.0, 960.0, confidence=0.5)
     assert merge_ad_chapters(topics(), [low], [], DURATION, 0.0, CFG) == topics()
-    adjusted = kept(900.0, 960.0, confidence=0.5, adjusted_confidence=0.95)
+    adjusted = kept(900.0, 960.0, confidence=0.5,
+                    validation={'adjusted_confidence': 0.95})
     assert ads(merge_ad_chapters(topics(), [adjusted], [], DURATION, 0.0, CFG))
+
+
+def test_validated_downgrade_below_the_floor_drops_the_chapter():
+    downgraded = kept(900.0, 960.0, confidence=0.95,
+                      validation={'adjusted_confidence': 0.4})
+    assert merge_ad_chapters(topics(), [downgraded], [], DURATION, 0.0, CFG) == topics()
 
 
 def test_held_markers_only_when_included_and_use_held_title():
@@ -86,6 +93,15 @@ def test_held_markers_only_when_included_and_use_held_title():
             'category': 'cross_promo', 'held': True} in result
 
 
+def test_marker_without_a_known_category_gets_no_chapter():
+    cfg = AdChapterConfig(**{**CFG.__dict__, 'include_held': True})
+    no_category = held(900.0, 960.0)
+    no_category.pop('category')
+    assert merge_ad_chapters(topics(), [no_category], [], DURATION, 0.0, cfg) == topics()
+    unknown = held(900.0, 960.0, 'mystery')
+    assert merge_ad_chapters(topics(), [unknown], [], DURATION, 0.0, cfg) == topics()
+
+
 def test_held_marker_that_was_cut_is_not_pending():
     cfg = AdChapterConfig(**{**CFG.__dict__, 'include_held': True})
     m = held(900.0, 960.0)
@@ -93,9 +109,28 @@ def test_held_marker_that_was_cut_is_not_pending():
     assert merge_ad_chapters(topics(), [m], [], DURATION, 0.0, cfg) == topics()
 
 
-def test_topic_chapter_inside_span_is_dropped():
+def test_topic_chapter_inside_span_is_hidden_not_deleted():
     result = merge_ad_chapters(topics(), [kept(500.0, 700.0)], [], DURATION, 0.0, CFG)
-    assert 600 not in [c['startTime'] for c in result]
+    assert {'startTime': 600, 'title': 'Main topic', 'hidden': True} in result
+    assert 600 not in [c['startTime'] for c in public_chapters(result)]
+
+
+def test_hidden_topic_returns_once_the_marker_is_gone():
+    displaced = merge_ad_chapters(topics(), [kept(500.0, 700.0)], [], DURATION, 0.0, CFG)
+    assert merge_ad_chapters(displaced, [], [], DURATION, 0.0, CFG) == topics()
+
+
+def test_public_chapters_drops_hidden_entries_and_internal_keys():
+    merged = merge_ad_chapters(topics(), [kept(500.0, 700.0)], [], DURATION, 0.0, CFG)
+    served = public_chapters(merged)
+    assert all(set(ch) == {'startTime', 'title'} for ch in served)
+    assert [ch['startTime'] for ch in served] == [1, 500, 700, 1800]
+
+
+def test_public_chapters_keeps_other_spec_keys():
+    entries = [{'startTime': 1, 'title': 'Intro', 'img': 'https://example.com/a.png',
+                'url': 'https://example.com'}]
+    assert public_chapters(entries) == entries
 
 
 def test_existing_chapter_within_snap_of_end_is_the_resume():
@@ -105,7 +140,8 @@ def test_existing_chapter_within_snap_of_end_is_the_resume():
 
 
 def test_ad_chapter_wins_over_snapped_topic_at_its_start():
-    result = merge_ad_chapters(topics(), [kept(601.0, 700.0)], [], DURATION, 0.0, CFG)
+    result = public_chapters(
+        merge_ad_chapters(topics(), [kept(601.0, 700.0)], [], DURATION, 0.0, CFG))
     assert [c['title'] for c in result if c['startTime'] in (600, 601)] == ['[mp:sponsor]']
 
 
@@ -187,7 +223,8 @@ def test_resolve_config_bad_confidence_uses_default():
 
 
 def test_unparseable_adjusted_confidence_falls_back_to_confidence():
-    marker = kept(900.0, 960.0, adjusted_confidence='abc', confidence=0.1)
+    marker = kept(900.0, 960.0, validation={'adjusted_confidence': 'abc'},
+                  confidence=0.1)
     assert merge_ad_chapters(topics(), [marker], [], DURATION, 0.0, CFG) == topics()
 
 

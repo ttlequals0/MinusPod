@@ -13,7 +13,8 @@ import requests
 import requests.exceptions
 
 from ad_chapters import (
-    merge_ad_chapters, resolve_ad_chapter_config, strip_ad_chapters,
+    merge_ad_chapters, public_chapters, resolve_ad_chapter_config,
+    strip_ad_chapters,
 )
 from ad_detector import (
     refine_ad_boundaries, snap_early_ads_to_zero, merge_same_sponsor_ads,
@@ -3116,7 +3117,8 @@ def _publish_chapters(slug, episode_id, chapters_json, merged, all_cuts,
         f"[{slug}:{episode_id}] {label}, {_ad_chapter_count(merged)} ad "
         f"chapter entries")
     if embed and audio_path:
-        embed_chapters(str(audio_path), merged, duration=audio_duration)
+        embed_chapters(str(audio_path), public_chapters(merged),
+                       duration=audio_duration)
 
 
 def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
@@ -3130,11 +3132,13 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
     JSON was generated against (original-episode coordinates), loaded from the
     persisted applied_cuts_json. None means no authoritative list exists
     (episode rendered before applied_cuts_json was persisted, or the slot was
-    cleared/unparseable): the remap is SKIPPED and the existing chapters JSON
-    is left untouched, exactly as the pre-2.62.1 recut did. Reconstructing the
-    list from was_cut markers is deliberately not attempted -- a wrong remap
-    ships wrong timestamps in served RSS and embedded ID3, worse than
-    stale-but-consistent ones. This keeps the feature correct-or-noop.
+    cleared/unparseable): the topic chapters are then left on their old
+    timeline, exactly as the pre-2.62.1 recut did, because reconstructing the
+    list from was_cut markers would ship wrong timestamps in served RSS and
+    embedded ID3, worse than stale-but-consistent ones. The ad entries are
+    still rebuilt from this recut's own (known) cut list, so they never linger
+    on the previous timeline; the result saves without claiming all_cuts as
+    authoritative, since the topics were not remapped.
 
     On a successful remap, all_cuts (the recut's own applied cuts) becomes the
     new authoritative list so the NEXT recut remaps from it.
@@ -3142,11 +3146,6 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
     Never raises: on any failure the previous JSON is left in place and the
     recut proceeds."""
     try:
-        if previous_cuts is None:
-            audio_logger.info(
-                f"[{slug}:{episode_id}] Chapter remap skipped (no authoritative "
-                f"applied cuts persisted); keeping previous chapters JSON")
-            return
         chapters_json = storage.get_chapters_json(slug, episode_id)
         stored = (chapters_json or {}).get('chapters') or []
         # Stale ad chapters are rebuilt from the recut's markers, never remapped.
@@ -3161,11 +3160,6 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
             db, podcast_row or db.get_podcast_by_slug(slug), slug=slug)
         if nothing_stored and not ad_config.enabled:
             return
-        if not original_duration:
-            audio_logger.warning(
-                f"[{slug}:{episode_id}] No original duration for chapter "
-                f"remap; keeping previous chapters JSON")
-            return
         # One resolved duration for BOTH the JSON sliver filter and the ID3
         # embed, so the served and embedded chapter sets trim against the same
         # tail bound. Prefer the caller's known value, then a probe of the
@@ -3173,9 +3167,39 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
         resolved_duration = audio_duration
         if resolved_duration is None and audio_path:
             resolved_duration = get_audio_duration(audio_path)
-        if resolved_duration is None:
+        if resolved_duration is None and original_duration:
             resolved_duration = adjust_timestamp(
                 original_duration, all_cuts, replacement_duration)
+        if previous_cuts is None:
+            # No authoritative previous cuts: the topic chapters keep their old
+            # timestamps, but the ad entries are rebuilt from this recut's own
+            # cut list instead of being left on the previous timeline.
+            merged = merge_ad_chapters(chapters, markers, all_cuts or [],
+                                       resolved_duration, replacement_duration,
+                                       ad_config)
+            if merged == stored:
+                return
+            if audio_path and not embed_chapters(
+                    str(audio_path), public_chapters(merged),
+                    duration=resolved_duration):
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Chapter embed failed after recut; "
+                    f"keeping previous chapters JSON and embedded ID3")
+                return
+            # Chapters alone: all_cuts is not the list these topic chapters sit
+            # on, so it must not become the authoritative one.
+            storage.save_chapters_json(
+                slug, episode_id,
+                {**(chapters_json or {'version': '1.2.0'}), 'chapters': merged})
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Rebuilt {_ad_chapter_count(merged)} ad "
+                f"chapter entries without a remap (no authoritative previous cuts)")
+            return
+        if not original_duration:
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] No original duration for chapter "
+                f"remap; keeping previous chapters JSON")
+            return
         remapped = _remap_chapters_for_recut(
             chapters, previous_cuts, all_cuts or [],
             replacement_duration, original_duration, resolved_duration)
@@ -3194,7 +3218,7 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
         # not a second remap: embed_chapters writes the timestamps as-is and
         # returns False (never raises for ffmpeg/OS errors) on failure.
         if audio_path:
-            if not embed_chapters(str(audio_path), merged,
+            if not embed_chapters(str(audio_path), public_chapters(merged),
                                   duration=resolved_duration):
                 audio_logger.warning(
                     f"[{slug}:{episode_id}] Chapter embed failed after recut; "
@@ -3218,24 +3242,40 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
             f"recut; keeping previous chapters JSON: {e}")
 
 
-def rebuild_ad_chapters(slug, episode_id, markers) -> bool:
+def rebuild_ad_chapters(slug, episode_id, markers, episode=None) -> bool:
     """Rebuild ad chapters from `markers` without touching the audio cut.
 
-    Returns True when the stored chapter set changed. Never raises.
+    episode, when given, is the already-loaded episodes row. Returns True when
+    the stored chapter set changed. Never raises.
     """
     try:
-        episode = db.get_episode(slug, episode_id)
+        if episode is None:
+            episode = db.get_episode(slug, episode_id)
         if not episode or episode.get('status') != EpisodeStatus.PROCESSED.value:
             return False
         chapters_json = (storage.get_chapters_json(slug, episode_id)
                          or {'version': '1.2.0', 'chapters': []})
         current = chapters_json.get('chapters') or []
+        has_ad_entries = len(strip_ad_chapters(current)) != len(current)
+        could_add = any(m.get('action_applied') == 'keep' or is_pending_review(m)
+                        for m in markers or [])
+        # Nothing stored to clear and no marker that could produce an entry:
+        # skip the podcast row and settings reads entirely.
+        if not has_ad_entries and not could_add:
+            return False
         ad_config = resolve_ad_chapter_config(
             db, db.get_podcast_by_slug(slug), slug=slug)
         # Disabled with nothing to strip: no file probe, no write.
-        if not ad_config.enabled and len(strip_ad_chapters(current)) == len(current):
+        if not ad_config.enabled and not has_ad_entries:
             return False
-        cuts = storage.get_applied_cuts(slug, episode_id) or []
+        cuts = storage.get_applied_cuts(slug, episode_id)
+        if cuts is None:
+            # Unknown cut list, not an empty one: ad spans would be placed at
+            # original-episode offsets. Leave the stored set alone.
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Ad chapter rebuild skipped: no "
+                f"authoritative applied cuts persisted")
+            return False
         path = storage.get_episode_path(slug, episode_id,
                                         version=episode.get('processed_version'))
         exists = path.exists()
@@ -3248,7 +3288,8 @@ def rebuild_ad_chapters(slug, episode_id, markers) -> bool:
             return False
         # Embed first: a failed embed must leave the served JSON matching the
         # ID3 already in the file.
-        if exists and not embed_chapters(str(path), merged, duration=duration):
+        if exists and not embed_chapters(str(path), public_chapters(merged),
+                                         duration=duration):
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Ad chapter embed failed; "
                 f"keeping previous chapters")
@@ -4135,7 +4176,8 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 def _recut_episode(slug, episode_id, episode_title, podcast_name,
                     episode_description, start_time, cancel_event=None,
                     run_stats=None, verification_count=0,
-                    audio_cue_detections=0, owns_failure=True, progress=None):
+                    audio_cue_detections=0, owns_failure=True, progress=None,
+                    podcast_row=None):
     """Recut mode (issue #422): re-cut the retained original audio from the
     current ad detections and re-time the saved transcript -- no download,
     transcription, detection, LLM, or verification pass. Preconditions
@@ -4148,6 +4190,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
     run_stats, verification_count, and audio_cue_detections are forwarded to
     the history row, so a folded approval recut keeps the run's stats.
+    podcast_row, when given, is the caller's already-fetched podcasts row.
     owns_failure=False leaves the failure to the caller. ``progress`` is a dict
     the recut stamps 'mutated' on before it overwrites the episode's markers or
     audio, so a caller that means to fall back knows whether anything it would
@@ -4271,7 +4314,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                           audio_path=final_path, audio_duration=new_duration,
                           previous_cuts=previous_cuts,
                           original_duration=original_duration,
-                          markers=all_ads_with_validation)
+                          markers=all_ads_with_validation,
+                          podcast_row=podcast_row)
 
         pass1_cut_count = sum(
             1 for ad in ads_to_remove
@@ -5194,7 +5238,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    verification_count=verification_count,
                                    audio_cue_detections=audio_cue_count,
                                    owns_failure=False,
-                                   progress=recut_progress):
+                                   progress=recut_progress,
+                                   podcast_row=podcast_settings):
                     _fire_degraded_redetect()
                     return True
                 if recut_progress.get('mutated'):

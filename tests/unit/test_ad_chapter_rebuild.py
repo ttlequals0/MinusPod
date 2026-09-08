@@ -16,11 +16,14 @@ CFG = AdChapterConfig(
     resume_title='Show', min_confidence=0.9)
 
 
-def _wire(monkeypatch, stored, path_exists=True):
+def _wire(monkeypatch, stored, path_exists=True, podcast_reads=None):
     saved, embedded, refreshed = [], [], []
     monkeypatch.setattr(processing.db, 'get_episode',
                         lambda s, e: {'status': 'processed', 'processed_version': 2})
-    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda s: {'chapters_mode': 'auto'})
+    monkeypatch.setattr(
+        processing.db, 'get_podcast_by_slug',
+        lambda s: (podcast_reads.append(s) if podcast_reads is not None else None)
+        or {'chapters_mode': 'auto'})
     monkeypatch.setattr(processing, 'resolve_ad_chapter_config', lambda db, row, slug=None: CFG)
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
     monkeypatch.setattr(processing.storage, 'get_applied_cuts', lambda s, e: [])
@@ -68,6 +71,53 @@ def test_embed_failure_leaves_json_untouched(monkeypatch):
     assert not saved
 
 
+def test_empty_rebuilt_set_clears_the_stored_ad_chapters(monkeypatch):
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 960, 'title': 'Show', 'kind': 'resume'}]}
+    saved, embedded, refreshed = _wire(monkeypatch, stored)
+    markers = [{'start': 900.0, 'end': 960.0, 'action_applied': 'remove',
+                'held_for_review': False, 'was_cut': True, 'category': 'sponsor'}]
+    assert processing.rebuild_ad_chapters('example-podcast', 'a1b2c3d4e5f6', markers) is True
+    assert saved[0]['chapters'] == []
+    assert embedded == [[]]
+
+
+def test_unknown_applied_cuts_leave_the_chapters_alone(monkeypatch):
+    stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+    saved, embedded, refreshed = _wire(monkeypatch, stored)
+    monkeypatch.setattr(processing.storage, 'get_applied_cuts', lambda s, e: None)
+    markers = [{'start': 900.0, 'end': 960.0, 'action_applied': 'keep',
+                'was_cut': False, 'category': 'sponsor', 'confidence': 0.95}]
+    assert processing.rebuild_ad_chapters('example-podcast', 'a1b2c3d4e5f6', markers) is False
+    assert not saved and not embedded
+
+
+def test_nothing_to_rebuild_skips_the_podcast_row_read(monkeypatch):
+    stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+    podcast_reads = []
+    saved, embedded, refreshed = _wire(monkeypatch, stored, podcast_reads=podcast_reads)
+    markers = [{'start': 900.0, 'end': 960.0, 'action_applied': 'remove',
+                'held_for_review': False, 'was_cut': True, 'category': 'sponsor'}]
+    assert processing.rebuild_ad_chapters('example-podcast', 'a1b2c3d4e5f6', markers) is False
+    assert podcast_reads == []
+    assert not saved
+
+
+def test_caller_supplied_episode_row_is_not_reloaded(monkeypatch):
+    stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+    saved, embedded, refreshed = _wire(monkeypatch, stored)
+    reads = []
+    monkeypatch.setattr(processing.db, 'get_episode',
+                        lambda s, e: reads.append(e) or {'status': 'processed'})
+    markers = [{'start': 900.0, 'end': 960.0, 'action_applied': 'keep',
+                'was_cut': False, 'category': 'sponsor', 'confidence': 0.95}]
+    assert processing.rebuild_ad_chapters(
+        'example-podcast', 'a1b2c3d4e5f6', markers,
+        episode={'status': 'processed', 'processed_version': 2}) is True
+    assert reads == []
+
+
 def test_missing_file_still_updates_json(monkeypatch):
     stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
     saved, embedded, refreshed = _wire(monkeypatch, stored, path_exists=False)
@@ -106,8 +156,9 @@ def seeded(temp_db):
 @pytest.fixture
 def rebuilds(monkeypatch):
     calls = []
-    monkeypatch.setattr(processing, 'rebuild_ad_chapters',
-                        lambda slug, episode_id, markers: calls.append(markers) or True)
+    monkeypatch.setattr(
+        processing, 'rebuild_ad_chapters',
+        lambda slug, episode_id, markers, episode=None: calls.append(markers) or True)
     return calls
 
 

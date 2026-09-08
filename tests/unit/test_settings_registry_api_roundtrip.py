@@ -87,9 +87,9 @@ def test_ad_chapter_settings_round_trip(client):
 
 @pytest.mark.parametrize('payload', [
     {'adChapterTitleFormat': '{nope}'},
-    {'adChapterTitleFormat': '   '},
+    {'adChapterTitleFormat': '{category.__class__}'},
+    {'adChapterTitleFormat': '{category[0]}'},
     {'adChapterHeldTitleFormat': 42},
-    {'adChapterResumeTitle': ''},
     {'adChapterMinConfidence': 1.5},
     {'adChapterMinConfidence': 'high'},
     {'adChapterCategories': {'bogus': True}},
@@ -100,6 +100,30 @@ def test_ad_chapter_settings_validation(client, payload):
     r = client.put(f'{BASE}/ad-detection', data=json.dumps(payload),
                    content_type='application/json')
     assert r.status_code == 400, r.get_data(as_text=True)
+
+
+def test_blank_ad_chapter_titles_reset_to_the_default(client):
+    r = client.put(f'{BASE}/ad-detection', data=json.dumps({
+        'adChapterTitleFormat': 'Ad: {category}',
+        'adChapterHeldTitleFormat': 'Maybe {category}',
+        'adChapterResumeTitle': 'Back',
+    }), content_type='application/json')
+    assert r.status_code == 200, r.get_data(as_text=True)
+    assert client.get(BASE).get_json()['adChapterTitleFormat']['isDefault'] is False
+
+    r = client.put(f'{BASE}/ad-detection', data=json.dumps({
+        'adChapterTitleFormat': '',
+        'adChapterHeldTitleFormat': '   ',
+        'adChapterResumeTitle': '',
+    }), content_type='application/json')
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    after = client.get(BASE).get_json()
+    for key, default in (('adChapterTitleFormat', '[mp:{category}]'),
+                         ('adChapterHeldTitleFormat', '[mp:{category}?]'),
+                         ('adChapterResumeTitle', 'Show')):
+        assert after[key]['value'] == default
+        assert after[key]['isDefault'] is True
 
 
 def test_ad_chapter_settings_reject_without_partial_write(client):

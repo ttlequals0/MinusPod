@@ -16,7 +16,9 @@ from config import (
     is_pending_review, resolve_chapters_in_notes, resolve_feed_processing_mode,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
-from ad_chapters import merge_ad_chapters, resolve_ad_chapter_config
+from ad_chapters import (
+    merge_ad_chapters, public_chapters, resolve_ad_chapter_config,
+)
 from ad_yield import latest_completed_run, low_ad_yield
 from audio_peaks import compute_peaks, PeaksError
 from audio_processor import get_replacement_duration
@@ -1050,13 +1052,19 @@ def regenerate_chapters(slug, episode_id):
 
         # Kept ad segments are republished as their own chapters; marker_cuts
         # maps them onto the processed timeline the same way it maps hints.
-        ad_config = resolve_ad_chapter_config(db, podcast, slug=slug)
-        topic = (chapters or {}).get('chapters') or []
-        merged = merge_ad_chapters(topic, segment_markers, marker_cuts or [],
-                                   segments[-1].get('end') if segments else None,
-                                   get_replacement_duration(), ad_config)
-        if merged:
-            chapters = {**(chapters or {'version': '1.2.0'}), 'chapters': merged}
+        # None (never persisted) is an unknown cut list, not an empty one, so
+        # the ad merge is skipped rather than placing spans at original offsets.
+        if marker_cuts is None:
+            logger.info(f"[{slug}:{episode_id}] No authoritative applied cuts "
+                        f"persisted; skipping ad chapters")
+        else:
+            ad_config = resolve_ad_chapter_config(db, podcast, slug=slug)
+            topic = (chapters or {}).get('chapters') or []
+            merged = merge_ad_chapters(topic, segment_markers, marker_cuts,
+                                       segments[-1].get('end') if segments else None,
+                                       get_replacement_duration(), ad_config)
+            if merged:
+                chapters = {**(chapters or {'version': '1.2.0'}), 'chapters': merged}
 
         if chapters and chapters.get('chapters'):
             storage.save_chapters_json(slug, episode_id, chapters)
@@ -1070,8 +1078,9 @@ def regenerate_chapters(slug, episode_id):
             current = db.get_episode(slug, episode_id) or episode
             processed_path = storage.get_episode_path(
                 slug, episode_id, version=current.get('processed_version'))
+            served = public_chapters(chapters['chapters'])
             if processed_path.exists():
-                embedded = embed_chapters(str(processed_path), chapters['chapters'])
+                embedded = embed_chapters(str(processed_path), served)
             # Same seam a finished run uses, so the served feed (which may
             # list the chapters, #720) picks up the new set.
             from main_app.processing import _refresh_rss_for_slug
@@ -1079,8 +1088,8 @@ def regenerate_chapters(slug, episode_id):
             return json_response({
                 'message': 'Chapters regenerated',
                 'episodeId': episode_id,
-                'chapterCount': len(chapters['chapters']),
-                'chapters': chapters['chapters'],
+                'chapterCount': len(served),
+                'chapters': served,
                 'embedded': embedded
             })
         else:

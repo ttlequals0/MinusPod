@@ -458,18 +458,8 @@ def _deserialize_categories(raw):
     return parsed if isinstance(parsed, list) else None
 
 
-def _deserialize_p20_channel(raw):
-    """Parse the stored p20_channel_json back for API responses.
-
-    None when unset/unparsable, mirroring _deserialize_json_map.
-    """
-    if not raw:
-        return None
-    try:
-        parsed = json.loads(raw)
-    except (TypeError, ValueError):
-        return None
-    return parsed if isinstance(parsed, dict) else None
+# p20_channel_json is a nullable JSON object column like the rest.
+_deserialize_p20_channel = _deserialize_json_map
 
 
 from config import AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN

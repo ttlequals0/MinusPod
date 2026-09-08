@@ -42,6 +42,9 @@ def format_chapter_block(chapters_json) -> str:
     for ch in entries:
         if not isinstance(ch, dict) or not isinstance(ch.get('startTime'), (int, float)):
             continue
+        # A topic chapter a break displaced stays in the stored list, unlisted.
+        if ch.get('hidden'):
+            continue
         title = html.escape(str(ch.get('title') or ''))
         lines.append(f"{_timestamp(ch['startTime'])} {title}{html.escape(_ad_suffix(ch))}")
     if not lines:

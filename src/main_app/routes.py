@@ -24,6 +24,7 @@ from config import (
     title_matches_skip_patterns,
     user_agent_is_jit_blocked,
 )
+from ad_chapters import public_chapters
 from database.podcasts import has_upstream, is_local_feed
 from database.queue import compute_queue_priority
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
@@ -730,7 +731,8 @@ def register_routes(app):
         # Podcasting 2.0 chapters.json is fetched cross-origin by
         # podcast players; the wildcard Access-Control-Allow-Origin
         # is intentional. No credentials travel with the request.
-        response = Response(json.dumps(chapters), mimetype='application/json+chapters')
+        body = {**chapters, 'chapters': public_chapters(chapters.get('chapters'))}
+        response = Response(json.dumps(body), mimetype='application/json+chapters')
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response
 

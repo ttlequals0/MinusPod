@@ -1171,15 +1171,20 @@ def _matches_held_marker(m, start, end, tol):
             and abs(m_end - end) <= tol)
 
 
-def _load_markers(db, slug, episode_id):
+def _load_episode_markers(db, slug, episode_id):
+    """(episode row, parsed markers) from a single row load."""
     episode = db.get_episode(slug, episode_id) or {}
     raw = episode.get('ad_markers_json')
     if not raw:
-        return None
+        return episode, None
     try:
-        return json.loads(raw)
+        return episode, json.loads(raw)
     except (TypeError, ValueError):
-        return None
+        return episode, None
+
+
+def _load_markers(db, slug, episode_id):
+    return _load_episode_markers(db, slug, episode_id)[1]
 
 
 def _find_marker_in_list(markers, start, end, tol=BOUNDS_TOLERANCE_S):
@@ -1217,18 +1222,6 @@ def _correction_changes_audio(db, slug, correction_type, marker, data) -> bool:
             normalize_segment_category(data.get('category')), DEFAULT_SEGMENT_ACTION)
         return new_action != marker.get('action_applied')
     return False
-
-
-def _find_marker_by_bounds(db, slug, episode_id, start, end, tol=0.5):
-    """Find the persisted marker matching (start, end) within tolerance,
-    regardless of pending-review state (unlike _matches_held_marker). A
-    keep-resolved marker clears its hold, so it's never pending review and
-    a pending-review-scoped lookup would miss it.
-
-    Returns the marker dict, or None if no match.
-    """
-    return _find_marker_in_list(
-        _load_markers(db, slug, episode_id), start, end, tol)
 
 
 def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
@@ -1513,8 +1506,12 @@ def submit_correction(slug, episode_id):
 
     # A keep-resolved marker is left in on purpose by the feed's category
     # action, so confirm/reject/adjust would record a decision the cut can
-    # never honor. Recategorizing changes that verdict, so it is exempt.
-    target_marker = _find_marker_by_bounds(db, slug, episode_id, original_start, original_end)
+    # never honor. Recategorizing changes that verdict, so it is exempt. The
+    # match ignores pending-review state: a keep-resolved marker clears its
+    # hold, so a pending-review-scoped lookup would miss it.
+    episode_row, current_markers = _load_episode_markers(db, slug, episode_id)
+    target_marker = _find_marker_in_list(
+        current_markers, original_start, original_end, 0.5)
     if (correction_type != 'recategorize'
             and target_marker is not None
             and target_marker.get('action_applied') == 'keep'):
@@ -1555,8 +1552,10 @@ def submit_correction(slug, episode_id):
         else:
             # Local import: importing main_app pulls in the api blueprint.
             from main_app.processing import rebuild_ad_chapters
+            # Markers are re-read: the handler above may have rewritten them.
             rebuild_ad_chapters(slug, episode_id,
-                                _load_markers(db, slug, episode_id) or [])
+                                _load_markers(db, slug, episode_id) or [],
+                                episode=episode_row)
     return response
 
 
