@@ -212,6 +212,9 @@ VTT = 'WEBVTT\n\n00:00:00.000 --> 00:20:00.000\nHello there\n'
 @pytest.fixture
 def seeded(app_client):
     from api import get_database, get_storage
+    from storage import Storage
+    # Rebind Storage to the current Database; an earlier module may have reset it.
+    Storage._instance = None
     db = get_database()
     db.create_podcast(SLUG, 'https://example.com/feed.xml', 'Ad Chapters')
     db.upsert_episode(slug=SLUG, episode_id=EPISODE_ID,
