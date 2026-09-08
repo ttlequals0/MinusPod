@@ -10,7 +10,7 @@ import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
 import { formatCost, formatStatsDuration as formatDuration } from '../utils/format';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonStatCards, SkeletonChart } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { selectBase } from '../components/fieldStyles';
 
@@ -197,10 +197,6 @@ export default function StatsPage() {
     [theme.primary, topPodcasts.length]
   );
 
-  if (dashLoading && dayLoading && podLoading) {
-    return <LoadingSpinner className="py-12" />;
-  }
-
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
@@ -220,6 +216,9 @@ export default function StatsPage() {
       </div>
 
       {/* Summary Cards */}
+      {dashLoading && (
+        <SkeletonStatCards count={6} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8" />
+      )}
       {dashboard && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           <StatCard
@@ -268,6 +267,9 @@ export default function StatsPage() {
       )}
 
       {/* Totals Row */}
+      {dashLoading && (
+        <SkeletonStatCards count={6} className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8" />
+      )}
       {dashboard && (
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           <div className="bg-card rounded-lg border border-border p-4">
@@ -308,6 +310,7 @@ export default function StatsPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Top Podcasts by Ads */}
+        {podLoading && <SkeletonChart />}
         {topPodcasts.length > 0 && (
           <div className="bg-card rounded-lg border border-border p-4">
             <h2 className="text-lg font-semibold text-foreground mb-4">Top Podcasts by Ads Removed</h2>
@@ -334,6 +337,7 @@ export default function StatsPage() {
         )}
 
         {/* Episodes by Day of Week */}
+        {dayLoading && <SkeletonChart />}
         {byDay?.days && (
           <div className="bg-card rounded-lg border border-border p-4">
             <h2 className="text-lg font-semibold text-foreground mb-4">Episodes Processed by Day</h2>
@@ -362,7 +366,7 @@ export default function StatsPage() {
           <h2 className="text-lg font-semibold text-foreground mb-4">Ad Reviewer Stats</h2>
           {reviewer.totalReviews === 0 && (
             <p className="text-sm text-muted-foreground mb-4">
-              No reviews yet. Enable Ad Reviewer in Settings, Experiments section, then reprocess an episode.
+              No reviews yet. Enable Ad Reviewer in Settings, AI & Processing section, then reprocess an episode.
             </p>
           )}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
