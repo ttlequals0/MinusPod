@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from config import (
     SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION,
+    DEFAULT_AD_CHAPTER_CATEGORIES_JSON,
     DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
 )
 from database import Database
@@ -55,6 +56,13 @@ SEED_SNAPSHOT = {
     'auto_process_enabled': 'true',
     'chapters_enabled': 'true',
     'chapters_in_notes': 'false',
+    'ad_chapters_enabled': 'false',
+    'ad_chapter_categories': DEFAULT_AD_CHAPTER_CATEGORIES_JSON,
+    'ad_chapters_include_held': 'false',
+    'ad_chapter_title_format': '[mp:{category}]',
+    'ad_chapter_held_title_format': '[mp:{category}?]',
+    'ad_chapter_resume_title': 'Show',
+    'ad_chapter_min_confidence': '0.9',
     'community_sync_categories': DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     'detect_show_segments': '0',
     'seed_sponsors_detection': 'true',
@@ -123,6 +131,10 @@ EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
     'chapters_enabled', 'chapters_in_notes', 'chapters_model',
+    'ad_chapters_enabled', 'ad_chapter_categories',
+    'ad_chapters_include_held', 'ad_chapter_title_format',
+    'ad_chapter_held_title_format', 'ad_chapter_resume_title',
+    'ad_chapter_min_confidence',
     'min_cut_confidence', 'auto_process_enabled', 'audio_bitrate',
     'audio_normalize_enabled', 'audio_normalize_intensity',
     'whisper_api_timeout_seconds',
@@ -451,12 +463,13 @@ class TestGetDefaults:
         # notificationTimezone added after that (104 -> 105), then
         # chaptersInNotes (105 -> 106). whisperPoolEnabled +
         # whisperPoolMaxRequests + whisperPoolMaxEpisodes after that (106 -> 109),
-        # then daiDifferentialOverridesKeep (109 -> 110).
+        # then daiDifferentialOverridesKeep (109 -> 110),
+        # then the seven adChapter* keys (110 -> 117).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 110
+        assert len(payload_keys) == 117
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

@@ -175,6 +175,51 @@ def resolve_segment_category_actions_map(
     return merged
 
 
+# Ad chapters: segments left in the audio published as skippable chapters.
+AD_CHAPTER_SNAP_SECONDS = 2.0
+AD_CHAPTER_KINDS = frozenset({'ad', 'resume'})
+DEFAULT_AD_CHAPTER_CATEGORIES = {
+    cat: cat in ('sponsor', 'cross_promo') for cat in SEGMENT_CATEGORIES}
+DEFAULT_AD_CHAPTER_CATEGORIES_JSON = json.dumps(DEFAULT_AD_CHAPTER_CATEGORIES)
+AD_CHAPTERS_OVERRIDE_VALUES = ('on', 'off')
+
+
+def resolve_ad_chapter_categories_map(raw_json, baseline=None) -> dict[str, bool]:
+    """Full category -> bool map; unknown keys and non-bool values are ignored."""
+    merged = dict(baseline) if baseline is not None else dict(DEFAULT_AD_CHAPTER_CATEGORIES)
+    if not raw_json:
+        return merged
+    try:
+        parsed = json.loads(raw_json)
+    except (TypeError, ValueError):
+        return merged
+    if not isinstance(parsed, dict):
+        return merged
+    for cat, flag in parsed.items():
+        if cat in SEGMENT_CATEGORIES and isinstance(flag, bool):
+            merged[cat] = flag
+    return merged
+
+
+def resolve_ad_chapters_enabled(db, podcast_row) -> bool:
+    """Per-feed 'on'/'off' override, else the global ad_chapters_enabled setting."""
+    override = (podcast_row or {}).get('ad_chapters_enabled_override')
+    if override in AD_CHAPTERS_OVERRIDE_VALUES:
+        return override == 'on'
+    return db.get_setting_bool('ad_chapters_enabled', False)
+
+
+def valid_ad_chapter_title_format(value) -> bool:
+    """A title template must format with only `category` and be non-empty."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        value.format(category='x')
+    except (KeyError, IndexError, ValueError):
+        return False
+    return True
+
+
 # Hold reasons pass-2 auto-approval may release when the verification pass
 # independently re-detects the held span at cut confidence. Deliberate
 # allowlist, fail-closed: a new hold reason is NOT auto-approvable until

@@ -2,7 +2,8 @@
 import json
 import logging
 
-from config import coerce_bool_setting, resolve_segment_category_actions_map
+from config import (coerce_bool_setting, resolve_ad_chapter_categories_map,
+                    resolve_segment_category_actions_map)
 from utils.constants import EpisodeStatus
 from utils.time import utc_now_iso
 
@@ -260,7 +261,9 @@ class PodcastMixin:
                 'last_checked_at', 'source_url', 'network_id', 'dai_platform',
                 'network_id_override', 'audio_analysis_override', 'auto_process_override',
                 'language_override', 'title_override', 'detection_notes', 'detection_mode',
-                'chapters_mode', 'chapters_in_notes', 'own_episode_guids',
+                'chapters_mode', 'chapters_in_notes',
+                'ad_chapters_enabled_override', 'ad_chapter_categories_override',
+                'own_episode_guids',
                 'cue_template_score_override',
                 *self._CUE_OVERRIDE_COLS,
                 *self._SNAP_FLAG_COLS,
@@ -658,3 +661,13 @@ class PodcastMixin:
             self.get_setting('segment_category_actions'))
         per_feed_raw = podcast.get('segment_category_actions') if podcast else None
         return resolve_segment_category_actions_map(per_feed_raw, baseline=global_resolved)
+
+    def resolve_ad_chapter_categories(self, slug: str,
+                                      podcast: dict | None = None) -> dict[str, bool]:
+        """Per-feed override -> global ad_chapter_categories -> defaults."""
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        global_resolved = resolve_ad_chapter_categories_map(
+            self.get_setting('ad_chapter_categories'))
+        per_feed_raw = podcast.get('ad_chapter_categories_override') if podcast else None
+        return resolve_ad_chapter_categories_map(per_feed_raw, baseline=global_resolved)

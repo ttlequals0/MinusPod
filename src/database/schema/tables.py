@@ -37,6 +37,10 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Chapter list in served descriptions (#720): NULL = global setting,
     -- 'on'/'off' = per-feed override
     chapters_in_notes TEXT,
+    -- Ad chapters: NULL = global setting, 'on'/'off' = per-feed override;
+    -- the categories override is a JSON category -> bool map layered over global
+    ad_chapters_enabled_override TEXT,
+    ad_chapter_categories_override TEXT,
     -- Served-feed GUID scheme (#598): NULL/0 = pass upstream GUIDs through,
     -- 1 = serve MinusPod episode ids. New feeds are created with 1.
     own_episode_guids INTEGER,

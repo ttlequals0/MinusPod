@@ -30,6 +30,8 @@ from config import (
     SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
     SILENCE_SNAP_MAX_DISTANCE_SECONDS,
     resolve_segment_category_actions_map,
+    DEFAULT_AD_CHAPTER_CATEGORIES_JSON, resolve_ad_chapter_categories_map,
+    valid_ad_chapter_title_format,
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     resolve_jit_blocked_user_agents,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
@@ -55,6 +57,18 @@ def _int_in_range(bounds: tuple[int, int]) -> Callable[[str], bool]:
     def check(value: str) -> bool:
         try:
             return lo <= int(value) <= hi
+        except (TypeError, ValueError):
+            return False
+    return check
+
+
+def _float_in_range(bounds: tuple[float, float]) -> Callable[[str], bool]:
+    """Validator accepting only a float string inside `bounds`."""
+    lo, hi = bounds
+
+    def check(value: str) -> bool:
+        try:
+            return lo <= float(value) <= hi
         except (TypeError, ValueError):
             return False
     return check
@@ -140,6 +154,10 @@ def _payload_max_audio_download_mb() -> int:
 def _payload_segment_category_actions() -> dict[str, str]:
     return resolve_segment_category_actions_map(
         registry_default('segment_category_actions'))
+
+
+def _payload_ad_chapter_categories() -> dict[str, bool]:
+    return resolve_ad_chapter_categories_map(registry_default('ad_chapter_categories'))
 
 
 def _payload_community_sync_categories() -> list[str]:
@@ -381,6 +399,32 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'chapters_in_notes': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='chaptersInNotes', payload_kind='bool'),
+    # Ad chapters: publish kept or held segments as skippable chapters.
+    'ad_chapters_enabled': SettingSpec(
+        default='false', seeded=True, in_ad_reset=True,
+        payload_key='adChaptersEnabled', payload_kind='bool'),
+    'ad_chapter_categories': SettingSpec(
+        default=DEFAULT_AD_CHAPTER_CATEGORIES_JSON, seeded=True, in_ad_reset=True,
+        payload_key='adChapterCategories',
+        payload_factory=_payload_ad_chapter_categories),
+    'ad_chapters_include_held': SettingSpec(
+        default='false', seeded=True, in_ad_reset=True,
+        payload_key='adChaptersIncludeHeld', payload_kind='bool'),
+    'ad_chapter_title_format': SettingSpec(
+        default='[mp:{category}]', seeded=True, in_ad_reset=True,
+        payload_key='adChapterTitleFormat',
+        validator=valid_ad_chapter_title_format),
+    'ad_chapter_held_title_format': SettingSpec(
+        default='[mp:{category}?]', seeded=True, in_ad_reset=True,
+        payload_key='adChapterHeldTitleFormat',
+        validator=valid_ad_chapter_title_format),
+    'ad_chapter_resume_title': SettingSpec(
+        default='Show', seeded=True, in_ad_reset=True,
+        payload_key='adChapterResumeTitle'),
+    'ad_chapter_min_confidence': SettingSpec(
+        default='0.9', seeded=True, in_ad_reset=True,
+        payload_key='adChapterMinConfidence', payload_kind='float',
+        validator=_float_in_range((0.0, 1.0))),
     'pricing_source_mode': SettingSpec(
         default='auto', in_ad_reset=True,
         payload_key='pricingSourceMode'),

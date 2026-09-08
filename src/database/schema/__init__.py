@@ -353,6 +353,9 @@ class SchemaMixin:
             ('chapters_mode', 'TEXT'),
             # Chapter list in served descriptions (#720)
             ('chapters_in_notes', 'TEXT'),
+            # Ad chapters per-feed overrides
+            ('ad_chapters_enabled_override', 'TEXT'),
+            ('ad_chapter_categories_override', 'TEXT'),
             # Served-feed GUID scheme (#598): NULL/0 = upstream GUIDs,
             # 1 = MinusPod episode ids. Existing feeds stay NULL (off).
             ('own_episode_guids', 'INTEGER'),
