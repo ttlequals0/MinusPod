@@ -36,10 +36,8 @@ class SearchMixin:
         """
         conn = self.get_connection()
 
-        # Every row is read and shaped before the write transaction opens. The
-        # rebuild wipes the whole table, so it has to stay one transaction, and
-        # holding the single write lock across this much per-row Python work
-        # stalled every other writer for tens of seconds.
+        # Every row is read and shaped before any write: holding the write
+        # lock across this much per-row Python work stalled other writers.
         rows = []
         rows.extend(
             ('podcast', r['slug'], r['slug'], r['title'], r['description'] or '', '')
@@ -74,13 +72,24 @@ class SearchMixin:
             """)
         )
 
-        conn.execute("DELETE FROM search_index")
-        for start in range(0, len(rows), _INDEX_CHUNK):
-            conn.executemany("""
-                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, rows[start:start + _INDEX_CHUNK])
+        # Fill a shadow table in short transactions, then swap it in with one
+        # DDL transaction: the old table stays readable and the write lock is
+        # never held across the full insert.
+        ddl = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'search_index'"
+        ).fetchone()['sql']
+        conn.execute("DROP TABLE IF EXISTS search_index_new")
+        conn.execute(ddl.replace('search_index', 'search_index_new', 1))
         conn.commit()
+        for start in range(0, len(rows), _INDEX_CHUNK):
+            with self.transaction(immediate=True) as tx:
+                tx.executemany("""
+                    INSERT INTO search_index_new (content_type, content_id, podcast_slug, title, body, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, rows[start:start + _INDEX_CHUNK])
+        with self.transaction(immediate=True) as tx:
+            tx.execute("DROP TABLE search_index")
+            tx.execute("ALTER TABLE search_index_new RENAME TO search_index")
 
         logger.info(f"Search index rebuilt with {len(rows)} items")
         return len(rows)

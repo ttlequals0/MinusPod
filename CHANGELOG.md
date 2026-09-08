@@ -14,7 +14,8 @@ release notes.
 ## [2.96.9] - 2026-09-08
 
 ### Fixed
-- An audio-analysis save that timed out on the SQLite write lock left its connection in an open write transaction for the rest of the run. Every other writer then failed with "database is locked" until the run ended. The save now runs in one immediate transaction that rolls back on error, and the stage's error path clears any leaked transaction.
+- An audio-analysis save that timed out on the SQLite write lock left its connection in an open write transaction for the rest of the run. Every other writer then failed with "database is locked" until the run ended. The save, and the cross-fetch differential save with the same shape, now run as one upsert in an immediate transaction that rolls back on error, and both stages' error paths clear any leaked transaction.
+- The startup search-index rebuild held the write lock for the whole insert (14 s on a 16k-item index). It now fills a shadow table in short transactions and swaps it in with one quick DDL transaction.
 
 ### Changed
 - Ad chapter titles gain `{label}`, the category name (Sponsor, Self-promo). The defaults are now `Ad: {label}` and `Possible ad: {label}`; the `[mp:sponsor]` machine form stays available through `{category}`. Description chapter lists no longer append the category after an ad chapter title.

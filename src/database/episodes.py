@@ -636,28 +636,34 @@ class EpisodeMixin:
         row = cursor.fetchone()
         return row['transcript'] if row else None
 
-    def save_episode_audio_analysis(self, slug: str, episode_id: str, audio_analysis_json: str):
-        """Save audio analysis results for an episode."""
+    _DETAIL_JSON_UPSERT = {
+        'audio_analysis_json': """
+            INSERT INTO episode_details (episode_id, audio_analysis_json)
+            VALUES (?, ?)
+            ON CONFLICT(episode_id) DO UPDATE
+            SET audio_analysis_json = excluded.audio_analysis_json""",
+        'dai_differential_json': """
+            INSERT INTO episode_details (episode_id, dai_differential_json)
+            VALUES (?, ?)
+            ON CONFLICT(episode_id) DO UPDATE
+            SET dai_differential_json = excluded.dai_differential_json""",
+    }
+
+    def _upsert_episode_detail_json(self, slug, episode_id, column, value) -> bool:
+        """Set one JSON column on episode_details in a single immediate
+        transaction, so a locked write rolls back instead of leaking (#566)."""
         db_episode_id = self._get_episode_db_id(slug, episode_id)
         if not db_episode_id:
-            logger.warning(f"Episode not found for audio analysis: {slug}/{episode_id}")
-            return
-        # One immediate transaction: a locked UPDATE rolls back instead of
-        # leaving this thread's connection holding the write lock (#566).
+            logger.warning(f"Episode not found for {column}: {slug}/{episode_id}")
+            return False
         with self.transaction(immediate=True) as conn:
-            row = conn.execute(
-                "SELECT id FROM episode_details WHERE episode_id = ?",
-                (db_episode_id,)).fetchone()
-            if row:
-                conn.execute(
-                    "UPDATE episode_details SET audio_analysis_json = ? WHERE id = ?",
-                    (audio_analysis_json, row['id']))
-            else:
-                conn.execute(
-                    """INSERT INTO episode_details (episode_id, audio_analysis_json)
-                       VALUES (?, ?)""",
-                    (db_episode_id, audio_analysis_json))
-        logger.debug(f"[{slug}:{episode_id}] Saved audio analysis to database")
+            conn.execute(self._DETAIL_JSON_UPSERT[column], (db_episode_id, value))
+        return True
+
+    def save_episode_audio_analysis(self, slug: str, episode_id: str, audio_analysis_json: str):
+        """Save audio analysis results for an episode."""
+        if self._upsert_episode_detail_json(slug, episode_id, 'audio_analysis_json', audio_analysis_json):
+            logger.debug(f"[{slug}:{episode_id}] Saved audio analysis to database")
 
     def get_episode_audio_analysis(self, slug: str, episode_id: str):
         """Return the raw audio_analysis_json for an episode, or None."""
@@ -674,33 +680,8 @@ class EpisodeMixin:
     def save_episode_dai_differential(self, slug: str, episode_id: str,
                                       dai_differential_json: str):
         """Save the cross-fetch differential result for an episode."""
-        conn = self.get_connection()
-
-        db_episode_id = self._get_episode_db_id(slug, episode_id)
-        if not db_episode_id:
-            logger.warning(f"Episode not found for dai differential: {slug}/{episode_id}")
-            return
-
-        cursor = conn.execute(
-            "SELECT id FROM episode_details WHERE episode_id = ?",
-            (db_episode_id,)
-        )
-        row = cursor.fetchone()
-
-        if row:
-            conn.execute(
-                "UPDATE episode_details SET dai_differential_json = ? WHERE id = ?",
-                (dai_differential_json, row['id'])
-            )
-        else:
-            conn.execute(
-                """INSERT INTO episode_details (episode_id, dai_differential_json)
-                   VALUES (?, ?)""",
-                (db_episode_id, dai_differential_json)
-            )
-
-        conn.commit()
-        logger.debug(f"[{slug}:{episode_id}] Saved dai differential to database")
+        if self._upsert_episode_detail_json(slug, episode_id, 'dai_differential_json', dai_differential_json):
+            logger.debug(f"[{slug}:{episode_id}] Saved DAI differential to database")
 
     def get_episode_dai_differential(self, slug: str, episode_id: str):
         """Return the raw dai_differential_json for an episode, or None."""

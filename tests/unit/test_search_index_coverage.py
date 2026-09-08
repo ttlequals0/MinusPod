@@ -283,9 +283,8 @@ def test_upsert_new_row_indexes_inside_the_insert_transaction(monkeypatch):
 
 
 def test_rebuild_reads_everything_before_it_takes_the_write_lock(monkeypatch):
-    """The rebuild wipes the whole table, so it stays one transaction. Holding
-    that lock across per-row Python work stalled every other writer, so no
-    SELECT may run after the DELETE opens it."""
+    """Every source row is read before the first write to the shadow table, so
+    no read ever runs while the rebuild holds the write lock."""
     slug = _feed('rebuild-lock-order')
     db.upsert_episode(slug, _eid(), original_url='https://example.com/a.mp3',
                       title='Indexed episode', status='processed')
@@ -309,10 +308,11 @@ def test_rebuild_reads_everything_before_it_takes_the_write_lock(monkeypatch):
 
     kinds = [k for k, _ in order]
     sqls = [q for _, q in order]
-    delete_at = next(i for i, q in enumerate(sqls) if q.startswith('DELETE FROM search_index'))
-    assert not any(q.startswith('SELECT') for q in sqls[delete_at:]), (
+    first_write = next(i for i, q in enumerate(sqls) if q.startswith('INSERT INTO search_index_new'))
+    assert not any(q.startswith('SELECT') for q in sqls[first_write:]), (
         'a read ran while the rebuild held the write lock')
-    assert kinds[delete_at + 1:] == ['executemany'] * (len(kinds) - delete_at - 1)
+    assert kinds[first_write] == 'executemany'
+    assert sqls[-2].startswith('DROP TABLE search_index') and sqls[-1].startswith('ALTER TABLE search_index_new')
 
 
 def test_rebuild_still_indexes_every_content_type(monkeypatch):
@@ -326,3 +326,23 @@ def test_rebuild_still_indexes_every_content_type(monkeypatch):
     types = {r['content_type'] for r in conn.execute(
         'SELECT DISTINCT content_type FROM search_index').fetchall()}
     assert 'episode' in types and 'podcast' in types
+
+
+def test_rebuild_swaps_a_shadow_table_and_keeps_the_fts_definition():
+    conn = db.get_connection()
+    before = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'search_index'").fetchone()['sql']
+    ep = _eid()
+    slug = _feed('swap-podcast')
+    db.upsert_episode(slug, ep, original_url='https://example.com/a.mp3',
+                      title='Rebuild swap marker title', status='processed')
+    count = db.rebuild_search_index()
+    assert count >= 1
+    names = {r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE name LIKE 'search_index%' AND type = 'table'")}
+    assert 'search_index_new' not in names
+    after = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'search_index'").fetchone()['sql']
+    assert after.replace('"', '') == before.replace('"', '')
+    assert any(r['content_id'] == ep for r in conn.execute(
+        "SELECT content_id FROM search_index WHERE search_index MATCH 'swap'"))

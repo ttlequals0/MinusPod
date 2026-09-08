@@ -856,6 +856,7 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
         except Exception as e:
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
+            db.clear_leaked_transaction(audio_logger, 'differential fetch')
             result = {'status': 'error', 'regions': [], 'refetch_meta': {},
                       'error': str(e)}
         finally:

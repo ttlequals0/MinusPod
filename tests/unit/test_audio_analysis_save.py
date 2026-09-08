@@ -1,4 +1,4 @@
-"""A locked audio-analysis save must not leave the thread's connection in a transaction."""
+"""A locked episode_details save must not leave the thread's connection in a transaction."""
 import sqlite3
 
 import pytest
@@ -10,30 +10,28 @@ bootstrap('audio_analysis_save_test_')
 from main_app import processing  # noqa: E402
 
 
-def _seed(db):
-    db.create_podcast('example-podcast', 'https://example.com/feed', 'Example')
-    db.upsert_episode(slug='example-podcast', episode_id='a1b2c3d4e5f6',
-                      original_url='https://example.com/ep.mp3', title='Ep')
-
-
-def test_locked_update_rolls_back_and_frees_the_connection(temp_db, monkeypatch):
-    db = temp_db
-    _seed(db)
-    db.save_episode_audio_analysis('example-podcast', 'a1b2c3d4e5f6', '{"v": 1}')
-    conn = db.get_connection()
-    real_execute = conn.execute
-
-    def locked(sql, *args):
-        if sql.startswith('UPDATE episode_details SET audio_analysis_json'):
-            raise sqlite3.OperationalError('database is locked')
-        return real_execute(sql, *args)
-
-    monkeypatch.setattr(conn, 'execute', locked)
-    with pytest.raises(sqlite3.OperationalError):
-        db.save_episode_audio_analysis('example-podcast', 'a1b2c3d4e5f6', '{"v": 2}')
-    assert not conn.in_transaction
-    monkeypatch.undo()
-    assert db.get_episode_audio_analysis('example-podcast', 'a1b2c3d4e5f6') == '{"v": 1}'
+@pytest.mark.parametrize('save, read', [
+    ('save_episode_audio_analysis', 'get_episode_audio_analysis'),
+    ('save_episode_dai_differential', 'get_episode_dai_differential'),
+])
+def test_locked_save_rolls_back_and_frees_the_connection(temp_db, mock_episode, save, read):
+    slug, ep = mock_episode['slug'], mock_episode['episode_id']
+    getattr(temp_db, save)(slug, ep, '{"v": 1}')
+    conn = temp_db.get_connection()
+    conn.execute("PRAGMA busy_timeout = 100")
+    blocker = sqlite3.connect(str(temp_db.db_path))
+    try:
+        blocker.execute("BEGIN IMMEDIATE")
+        with pytest.raises(sqlite3.OperationalError):
+            getattr(temp_db, save)(slug, ep, '{"v": 2}')
+        assert not conn.in_transaction
+    finally:
+        blocker.rollback()
+        blocker.close()
+        conn.execute("PRAGMA busy_timeout = 30000")
+    assert getattr(temp_db, read)(slug, ep) == '{"v": 1}'
+    getattr(temp_db, save)(slug, ep, '{"v": 3}')
+    assert getattr(temp_db, read)(slug, ep) == '{"v": 3}'
 
 
 def test_stage_failure_clears_a_leaked_transaction(monkeypatch):
