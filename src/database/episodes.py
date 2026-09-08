@@ -13,6 +13,11 @@ logger = logging.getLogger(__name__)
 
 # Columns the ad-detection and cut stages regenerate (issue #349 LLM-only
 # reprocess). Shared by clear_episode_ad_data and batch_clear_episode_ad_data.
+# Episodes per discovery write transaction. One transaction spanning a large
+# archive feed held the single write lock long enough for every other writer to
+# exceed its 30s busy_timeout and fail with "database is locked".
+DISCOVERY_UPSERT_CHUNK = 50
+
 AD_DATA_NULL_SET_SQL = """SET ad_markers_json = NULL,
                    first_pass_prompt = NULL,
                    first_pass_response = NULL,
@@ -1060,9 +1065,12 @@ class EpisodeMixin:
         never overwrites an existing episode's status or non-empty metadata.
         Returns count of newly inserted rows.
 
-        Runs in an immediate transaction: a deferred begin upgrades to a write
-        lock at the first INSERT, and that upgrade fails instantly with
-        "database is locked" rather than waiting on busy_timeout (issue #566).
+        Each chunk runs in its own immediate transaction: a deferred begin
+        upgrades to a write lock at the first INSERT, and that upgrade fails
+        instantly with "database is locked" rather than waiting on
+        busy_timeout (issue #566). Chunking bounds how long that lock is
+        held, since one transaction spanning a large archive feed starved
+        every other writer past its busy_timeout (#728 follow-up).
         """
         podcast = self.get_podcast_by_slug(slug)
         if not podcast:
@@ -1073,33 +1081,36 @@ class EpisodeMixin:
         inserted = 0
         skipped = 0
 
-        with self.transaction(immediate=True) as conn:
-            # Snapshot existing GUIDs so we can count real inserts. SQLite's
-            # cursor.rowcount is 1 for both the INSERT and the UPDATE branch of
-            # an UPSERT (and even for an UPDATE that sets every column to its
-            # current value), so it cannot distinguish "new" from "re-touched".
-            # The downstream log line "Discovered N new episode(s)" needs the
-            # real new-row count, not the upsert-touched count.
-            existing_ids = {
-                row['episode_id'] for row in conn.execute(
-                    "SELECT episode_id FROM episodes WHERE podcast_id = ?",
-                    (podcast_id,),
-                ).fetchall()
-            }
+        # Snapshot existing GUIDs so we can count real inserts. SQLite's
+        # cursor.rowcount is 1 for both the INSERT and the UPDATE branch of
+        # an UPSERT (and even for an UPDATE that sets every column to its
+        # current value), so it cannot distinguish "new" from "re-touched".
+        # The downstream log line "Discovered N new episode(s)" needs the
+        # real new-row count, not the upsert-touched count. Read outside the
+        # write transactions so the lock is not held across it.
+        existing_ids = {
+            row['episode_id'] for row in self.get_connection().execute(
+                "SELECT episode_id FROM episodes WHERE podcast_id = ?",
+                (podcast_id,),
+            ).fetchall()
+        }
 
-            newly_inserted_pairs = []
-            for ep in episodes:
-                row_inserted, row_skipped = self._upsert_one_discovered_episode(
-                    conn, podcast_id, slug, ep, existing_ids)
-                inserted += row_inserted
-                skipped += row_skipped
-                if row_inserted:
-                    newly_inserted_pairs.append((ep['id'], slug))
+        for start in range(0, len(episodes), DISCOVERY_UPSERT_CHUNK):
+            chunk = episodes[start:start + DISCOVERY_UPSERT_CHUNK]
+            with self.transaction(immediate=True) as conn:
+                newly_inserted_pairs = []
+                for ep in chunk:
+                    row_inserted, row_skipped = self._upsert_one_discovered_episode(
+                        conn, podcast_id, slug, ep, existing_ids)
+                    inserted += row_inserted
+                    skipped += row_skipped
+                    if row_inserted:
+                        newly_inserted_pairs.append((ep['id'], slug))
 
-            # Batched inside this same transaction: one DELETE + INSERT for the
-            # whole discovery, never index_episode() per row (that commits per call).
-            if newly_inserted_pairs:
-                self.index_episodes(newly_inserted_pairs, conn=conn)
+                # Batched inside this chunk's transaction: one DELETE + INSERT,
+                # never index_episode() per row (that commits per call).
+                if newly_inserted_pairs:
+                    self.index_episodes(newly_inserted_pairs, conn=conn)
 
         if skipped:
             logger.warning(
