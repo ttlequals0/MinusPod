@@ -119,8 +119,8 @@ def test_blank_ad_chapter_titles_reset_to_the_default(client):
     assert r.status_code == 200, r.get_data(as_text=True)
 
     after = client.get(BASE).get_json()
-    for key, default in (('adChapterTitleFormat', '[mp:{category}]'),
-                         ('adChapterHeldTitleFormat', '[mp:{category}?]'),
+    for key, default in (('adChapterTitleFormat', 'Ad: {label}'),
+                         ('adChapterHeldTitleFormat', 'Possible ad: {label}'),
                          ('adChapterResumeTitle', 'Show')):
         assert after[key]['value'] == default
         assert after[key]['isDefault'] is True

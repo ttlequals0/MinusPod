@@ -40,17 +40,17 @@ def test_append_keeps_the_description_and_adds_the_block():
     assert append_chapters(None, CHAPTERS) == BLOCK
 
 
-def test_ad_chapter_lines_carry_category_suffix():
+def test_ad_chapter_lines_use_the_stored_title_only():
     chapters = json.dumps({'version': '1.2.0', 'chapters': [
         {'startTime': 0, 'title': 'Intro'},
-        {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 900, 'title': 'Ad: Sponsor', 'kind': 'ad', 'category': 'sponsor'},
         {'startTime': 960, 'title': 'Show', 'kind': 'resume'},
-        {'startTime': 1200, 'title': '[mp:cross_promo?]', 'kind': 'ad',
+        {'startTime': 1200, 'title': 'Possible ad: Cross-promo', 'kind': 'ad',
          'category': 'cross_promo', 'held': True},
     ]})
     assert format_chapter_block(chapters) == (
-        '<p>Chapters</p><p>00:00 Intro<br>15:00 [mp:sponsor] (Sponsor)<br>16:00 Show'
-        '<br>20:00 [mp:cross_promo?] (Cross-promo, awaiting review)</p>')
+        '<p>Chapters</p><p>00:00 Intro<br>15:00 Ad: Sponsor<br>16:00 Show'
+        '<br>20:00 Possible ad: Cross-promo</p>')
 
 
 def test_hidden_chapters_are_not_listed():
@@ -60,16 +60,7 @@ def test_hidden_chapters_are_not_listed():
         {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
     ]})
     assert format_chapter_block(chapters) == (
-        '<p>Chapters</p><p>00:00 Intro<br>15:00 [mp:sponsor] (Sponsor)</p>')
-
-
-def test_ad_chapter_without_a_known_category_falls_back():
-    chapters = json.dumps({'chapters': [
-        {'startTime': 30, 'title': 'A', 'kind': 'ad'},
-        {'startTime': 60, 'title': 'B', 'kind': 'ad', 'category': 'mystery'},
-    ]})
-    assert format_chapter_block(chapters) == (
-        '<p>Chapters</p><p>00:30 A (Ad)<br>01:00 B (mystery)</p>')
+        '<p>Chapters</p><p>00:00 Intro<br>15:00 [mp:sponsor]</p>')
 
 
 def _db(global_value):

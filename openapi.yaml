@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.96.8
+  version: 2.96.9
   contact:
     name: MinusPod
   license:
@@ -4868,13 +4868,13 @@ paths:
                   description: >-
                     Title template for an ad chapter, with an optional {category}
                     placeholder. Send an empty string to restore the default.
-                  example: '[mp:{category}]'
+                  example: 'Ad: {label}'
                 adChapterHeldTitleFormat:
                   type: string
                   description: >-
                     Title template for a held segment's ad chapter, with an optional
                     {category} placeholder. Send an empty string to restore the default.
-                  example: '[mp:{category}?]'
+                  example: 'Possible ad: {label}'
                 adChapterResumeTitle:
                   type: string
                   description: >-
@@ -11583,7 +11583,7 @@ components:
               type: boolean
         adChapterTitleFormat:
           type: object
-          description: Title template for an ad chapter, with an optional {category} placeholder.
+          description: Title template for an ad chapter; {label} is the category name and {category} its id, both optional.
           properties:
             value:
               type: string
@@ -11591,7 +11591,7 @@ components:
               type: boolean
         adChapterHeldTitleFormat:
           type: object
-          description: Title template for a held segment's ad chapter, with an optional {category} placeholder.
+          description: Title template for a held segment's ad chapter; {label} is the category name and {category} its id, both optional.
           properties:
             value:
               type: string

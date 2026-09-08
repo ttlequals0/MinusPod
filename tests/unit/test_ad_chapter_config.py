@@ -19,8 +19,8 @@ from database.settings import SETTINGS_REGISTRY, registry_default  # noqa: E402
 def test_registry_defaults_are_off_and_sponsor_cross_promo():
     assert registry_default('ad_chapters_enabled') == 'false'
     assert registry_default('ad_chapters_include_held') == 'false'
-    assert registry_default('ad_chapter_title_format') == '[mp:{category}]'
-    assert registry_default('ad_chapter_held_title_format') == '[mp:{category}?]'
+    assert registry_default('ad_chapter_title_format') == 'Ad: {label}'
+    assert registry_default('ad_chapter_held_title_format') == 'Possible ad: {label}'
     assert registry_default('ad_chapter_resume_title') == 'Show'
     assert registry_default('ad_chapter_min_confidence') == '0.9'
     assert json.loads(registry_default('ad_chapter_categories')) == {
@@ -68,6 +68,7 @@ def test_enabled_follows_override_then_global():
 def test_title_format_validator():
     assert valid_ad_chapter_title_format('[mp:{category}]')
     assert valid_ad_chapter_title_format('Ad break')
+    assert valid_ad_chapter_title_format('Held: {label}')
     assert valid_ad_chapter_title_format('{category} / {category}')
     assert not valid_ad_chapter_title_format('{category')
     assert not valid_ad_chapter_title_format('{nope}')

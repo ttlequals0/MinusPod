@@ -126,7 +126,7 @@ function AdChaptersBlock({
               value={titleFormat}
               disabled={disabled}
               onChange={onTitleFormatChange}
-              help="{category} is replaced with the segment category, for example [mp:sponsor]."
+              help="{label} is the category name, such as Sponsor. {category} is its id, such as sponsor."
             />
             <TextField
               id="adChapterHeldTitleFormat"

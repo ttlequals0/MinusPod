@@ -6,7 +6,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('ad_chapters_test_')
 
 from ad_chapters import (  # noqa: E402
-    AdChapterConfig, merge_ad_chapters, public_chapters,
+    AdChapterConfig, format_ad_chapter_title, merge_ad_chapters, public_chapters,
     resolve_ad_chapter_config, strip_ad_chapters,
 )
 
@@ -232,3 +232,11 @@ def test_keep_marker_with_hold_flag_is_never_treated_as_held():
     marker = kept(900.0, 960.0, held_for_review=True)
     result = merge_ad_chapters(topics(), [marker], [], DURATION, 0.0, CFG)
     assert {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'} in result
+
+
+def test_label_placeholder_renders_the_category_name():
+    assert format_ad_chapter_title('Held: {label}', 'self_promo') == 'Held: Self-promo'
+    assert format_ad_chapter_title('{label} ({category})', 'cross_promo') == 'Cross-promo (cross_promo)'
+    cfg = AdChapterConfig(**{**CFG.__dict__, 'title_format': 'Ad: {label}'})
+    result = merge_ad_chapters(topics(), [kept(900.0, 960.0)], [], DURATION, 0.0, cfg)
+    assert [c['title'] for c in ads(result)] == ['Ad: Sponsor']

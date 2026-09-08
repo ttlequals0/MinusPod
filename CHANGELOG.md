@@ -11,6 +11,14 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.9] - 2026-09-08
+
+### Fixed
+- An audio-analysis save that timed out on the SQLite write lock left its connection in an open write transaction for the rest of the run. Every other writer then failed with "database is locked" until the run ended. The save now runs in one immediate transaction that rolls back on error, and the stage's error path clears any leaked transaction.
+
+### Changed
+- Ad chapter titles gain `{label}`, the category name (Sponsor, Self-promo). The defaults are now `Ad: {label}` and `Possible ad: {label}`; the `[mp:sponsor]` machine form stays available through `{category}`. Description chapter lists no longer append the category after an ad chapter title.
+
 ## [2.96.8] - 2026-09-08
 
 ### Added

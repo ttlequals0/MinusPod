@@ -3,6 +3,7 @@ Podcasting 2.0 chapters so a chapter-aware player can skip them."""
 from dataclasses import dataclass, field
 
 from config import (
+    SEGMENT_CATEGORY_LABELS,
     AD_CHAPTER_KINDS, AD_CHAPTER_SNAP_SECONDS, CHAPTERS_MODE_OFF,
     DEFAULT_AD_CHAPTER_CATEGORIES, SEGMENT_CATEGORIES, is_pending_review,
     resolve_ad_chapters_enabled, resolve_chapters_mode,
@@ -68,7 +69,8 @@ def resolve_ad_chapter_config(db, podcast_row, slug=None) -> AdChapterConfig:
 
 
 def format_ad_chapter_title(fmt, category) -> str:
-    return fmt.format(category=category)
+    return fmt.format(category=category,
+                      label=SEGMENT_CATEGORY_LABELS.get(category, category))
 
 
 def strip_ad_chapters(chapters) -> list[dict]:

@@ -258,8 +258,8 @@ function Settings() {
   const [chaptersInNotes, setChaptersInNotes] = useState(false);
   const [adChaptersEnabled, setAdChaptersEnabled] = useState(false);
   const [adChaptersIncludeHeld, setAdChaptersIncludeHeld] = useState(false);
-  const [adChapterTitleFormat, setAdChapterTitleFormat] = useState('[mp:{category}]');
-  const [adChapterHeldTitleFormat, setAdChapterHeldTitleFormat] = useState('[mp:{category}?]');
+  const [adChapterTitleFormat, setAdChapterTitleFormat] = useState('Ad: {label}');
+  const [adChapterHeldTitleFormat, setAdChapterHeldTitleFormat] = useState('Possible ad: {label}');
   const [adChapterResumeTitle, setAdChapterResumeTitle] = useState('Show');
   const [adChapterMinConfidence, setAdChapterMinConfidence] = useState(0.9);
   const [chaptersModel, setChaptersModel] = useState('');

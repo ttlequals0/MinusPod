@@ -411,11 +411,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='false', seeded=True, in_ad_reset=True,
         payload_key='adChaptersIncludeHeld', payload_kind='bool'),
     'ad_chapter_title_format': SettingSpec(
-        default='[mp:{category}]', seeded=True, in_ad_reset=True,
+        default='Ad: {label}', seeded=True, in_ad_reset=True,
         payload_key='adChapterTitleFormat',
         validator=valid_ad_chapter_title_format),
     'ad_chapter_held_title_format': SettingSpec(
-        default='[mp:{category}?]', seeded=True, in_ad_reset=True,
+        default='Possible ad: {label}', seeded=True, in_ad_reset=True,
         payload_key='adChapterHeldTitleFormat',
         validator=valid_ad_chapter_title_format),
     'ad_chapter_resume_title': SettingSpec(

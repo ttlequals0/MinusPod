@@ -2,7 +2,7 @@
 import html
 import json
 
-from config import SEGMENT_CATEGORY_LABELS, resolve_chapters_in_notes
+from config import resolve_chapters_in_notes
 
 
 def chapter_notes_for(db, podcast) -> dict[str, str]:
@@ -23,14 +23,6 @@ def _timestamp(seconds) -> str:
     return f"{minutes:02d}:{secs:02d}"
 
 
-def _ad_suffix(ch) -> str:
-    """` (Sponsor)` for an ad chapter, noting a held marker; empty otherwise."""
-    if ch.get('kind') != 'ad':
-        return ''
-    label = SEGMENT_CATEGORY_LABELS.get(ch.get('category')) or ch.get('category') or 'Ad'
-    return f" ({label}, awaiting review)" if ch.get('held') else f" ({label})"
-
-
 def format_chapter_block(chapters_json) -> str:
     """`<p>Chapters</p><p>mm:ss Title<br>...</p>` from the stored chapters JSON
     string; empty when there are no usable chapters."""
@@ -46,7 +38,7 @@ def format_chapter_block(chapters_json) -> str:
         if ch.get('hidden'):
             continue
         title = html.escape(str(ch.get('title') or ''))
-        lines.append(f"{_timestamp(ch['startTime'])} {title}{html.escape(_ad_suffix(ch))}")
+        lines.append(f"{_timestamp(ch['startTime'])} {title}")
     if not lines:
         return ''
     return '<p>Chapters</p><p>' + '<br>'.join(lines) + '</p>'

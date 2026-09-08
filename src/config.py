@@ -214,7 +214,7 @@ def resolve_ad_chapter_categories_map(raw_json, baseline=None) -> dict[str, bool
 
 
 def valid_ad_chapter_title_format(value) -> bool:
-    """A title template must be non-empty and reference only `{category}`.
+    """A title template must be non-empty and use only `{category}` or `{label}`.
 
     Parsed rather than formatted: attribute and index access ({category.foo},
     {category[0]}) raise their own error types and {category.__class__} would
@@ -226,7 +226,7 @@ def valid_ad_chapter_title_format(value) -> bool:
         fields = list(string.Formatter().parse(value))
     except ValueError:
         return False
-    return all(name is None or (name == 'category' and not spec and not conv)
+    return all(name is None or (name in ('category', 'label') and not spec and not conv)
                for _, name, spec, conv in fields)
 
 

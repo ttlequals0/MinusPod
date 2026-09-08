@@ -167,12 +167,13 @@ waiting-for-review title format, and rejecting one removes its chapter without
 a recut. Confirming one queues a recut, which rebuilds the chapter list when
 it runs.
 
-Titles come from **Chapter title** (`[mp:{category}]` by default) and **Resume
-title** (`Show`). Each feed can turn ad chapters on or off and pick its own
-category list from Feed Settings; a feed whose chapters mode is Off gets none.
-Existing episodes are not backfilled: use Regenerate Chapters on an episode to
-add them. In description chapter lists the category is appended after the
-title, for example `15:00 [mp:sponsor] (Sponsor)`.
+Titles come from **Chapter title** (`Ad: {label}` by default), **Title while
+waiting for review** (`Possible ad: {label}`), and **Resume title** (`Show`).
+`{label}` is the category name, such as Sponsor. `{category}` is its id, such
+as `sponsor`, for players that match chapter titles by keyword. Each feed can
+turn ad chapters on or off and pick its own category list from Feed Settings;
+a feed whose chapters mode is Off gets none. Existing episodes are not
+backfilled: use Regenerate Chapters on an episode to add them.
 
 ### Deliberately stripped
 
