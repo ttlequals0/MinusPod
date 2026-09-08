@@ -11,6 +11,12 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.7] - 2026-09-08
+
+### Changed
+
+- Every remaining region that waits on the database shows a content-shaped placeholder instead of a spinner or a "Loading..." line: the sponsors, history, search and settings pages, the detected-ads and ad-review tabs, the transcript, run log and split-marker viewers, feed tags, and the community patterns, database backup, queue control and transcript normalization settings. The login check and the OPML import progress keep their spinner, since those are waits rather than data.
+
 ## [2.96.6] - 2026-09-08
 
 ### Changed
