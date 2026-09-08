@@ -27,4 +27,11 @@ describe('Skeleton', () => {
     render(<SkeletonPageHeader />);
     expect(screen.getByTestId('skeleton-page-header').children).toHaveLength(2);
   });
+
+  it('containers announce a loading state while inner blocks stay hidden', () => {
+    render(<SkeletonStatCards count={2} />);
+    const grid = screen.getByRole('status', { name: 'Loading' });
+    expect(grid.getAttribute('aria-busy')).toBe('true');
+    expect(grid.querySelectorAll('[aria-hidden="true"]').length).toBe(4);
+  });
 });

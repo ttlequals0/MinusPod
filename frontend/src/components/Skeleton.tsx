@@ -11,7 +11,13 @@ export function Skeleton({ className = '' }: { className?: string }) {
 /** A row of stat cards: label line over a value line, matching StatCard. */
 export function SkeletonStatCards({ count, className = '' }: { count: number; className?: string }) {
   return (
-    <div className={className} data-testid="skeleton-stat-cards">
+    <div
+      className={className}
+      data-testid="skeleton-stat-cards"
+      role="status"
+      aria-busy="true"
+      aria-label="Loading"
+    >
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="bg-card rounded-lg border border-border p-4 space-y-3">
           <Skeleton className="h-3.5 w-2/3" />
@@ -25,7 +31,13 @@ export function SkeletonStatCards({ count, className = '' }: { count: number; cl
 /** A chart panel: heading line over a plot-height block. */
 export function SkeletonChart({ height = 300 }: { height?: number }) {
   return (
-    <div className="bg-card rounded-lg border border-border p-4" data-testid="skeleton-chart">
+    <div
+      className="bg-card rounded-lg border border-border p-4"
+      data-testid="skeleton-chart"
+      role="status"
+      aria-busy="true"
+      aria-label="Loading"
+    >
       <Skeleton className="h-5 w-56 mb-4" />
       <div aria-hidden className="w-full bg-muted rounded animate-pulse" style={{ height }} />
     </div>
@@ -35,7 +47,13 @@ export function SkeletonChart({ height = 300 }: { height?: number }) {
 /** Stacked list rows: a title line and a shorter detail line each. */
 export function SkeletonRows({ count, className = '' }: { count: number; className?: string }) {
   return (
-    <div className={`space-y-3 ${className}`} data-testid="skeleton-rows">
+    <div
+      className={`space-y-3 ${className}`}
+      data-testid="skeleton-rows"
+      role="status"
+      aria-busy="true"
+      aria-label="Loading"
+    >
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border">
           <div className="flex-1 space-y-2">
@@ -51,7 +69,13 @@ export function SkeletonRows({ count, className = '' }: { count: number; classNa
 /** A page header: title line with a control slot on the right. */
 export function SkeletonPageHeader() {
   return (
-    <div className="flex items-center justify-between gap-4 mb-6" data-testid="skeleton-page-header">
+    <div
+      className="flex items-center justify-between gap-4 mb-6"
+      data-testid="skeleton-page-header"
+      role="status"
+      aria-busy="true"
+      aria-label="Loading"
+    >
       <Skeleton className="h-8 w-40" />
       <Skeleton className="h-9 w-32" />
     </div>
