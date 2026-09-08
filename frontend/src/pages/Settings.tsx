@@ -46,6 +46,7 @@ import SegmentActionsSection from './settings/SegmentActionsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
+import AdReviewerSection from './settings/AdReviewerSection';
 import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
 import PositionalPriorSection from './settings/PositionalPriorSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
@@ -1100,6 +1101,18 @@ function Settings() {
         onDifferentialHoldMinSecondsChange={setDifferentialHoldMinSeconds}
       />
 
+      <AdReviewerSection
+        reviewer={reviewer}
+        onChange={setReviewer}
+        onResetPrompts={() => resetPromptsMutation.mutate()}
+        resetIsPending={resetPromptsMutation.isPending}
+        modelOptions={models?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
+        reviewPromptIsDefault={settings?.reviewPrompt.isDefault}
+        resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
+        onResetReviewPrompt={() => resetPromptMutation.mutate('review')}
+        onResetResurrectPrompt={() => resetPromptMutation.mutate('resurrect')}
+      />
+
       <SeedSponsorsSection
         detection={settings?.seedSponsorsDetection?.value ?? settings?.defaults?.seedSponsorsDetection ?? true}
         verification={settings?.seedSponsorsVerification?.value ?? settings?.defaults?.seedSponsorsVerification ?? true}
@@ -1136,15 +1149,6 @@ function Settings() {
       <SettingsGroupHeader title="Experiments" />
 
       <ExperimentsSection
-        reviewer={reviewer}
-        onChange={setReviewer}
-        onResetPrompts={() => resetPromptsMutation.mutate()}
-        resetIsPending={resetPromptsMutation.isPending}
-        modelOptions={models?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
-        reviewPromptIsDefault={settings?.reviewPrompt.isDefault}
-        resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
-        onResetReviewPrompt={() => resetPromptMutation.mutate('review')}
-        onResetResurrectPrompt={() => resetPromptMutation.mutate('resurrect')}
         addressingMode={settings?.adAddressingMode?.value ?? settings?.defaults?.adAddressingMode ?? 'timestamps'}
         onAddressingModeChange={(v) => tunableMutation.mutate({ adAddressingMode: v })}
       />

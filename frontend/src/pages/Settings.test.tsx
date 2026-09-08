@@ -9,6 +9,14 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Settings from './Settings';
 import type { Settings as SettingsShape, SettingValue } from '../api/types';
+import { within } from '@testing-library/react';
+
+// The Reset button that belongs to one prompt textarea, found by its label
+// rather than by position, so reordering settings sections cannot break it.
+function resetButtonFor(label: string) {
+  const field = screen.getByLabelText(label).closest('div') as HTMLElement;
+  return within(field).getByRole('button', { name: 'Reset' });
+}
 
 vi.mock('react-router', () => ({
   useLocation: () => ({ hash: '', pathname: '/settings', search: '' }),
@@ -188,7 +196,7 @@ describe('Settings: per-prompt reset', () => {
       expect(screen.getByLabelText('First Pass System Prompt')).toBeDefined();
     });
 
-    const [resetBtn] = screen.getAllByRole('button', { name: 'Reset' });
+    const resetBtn = resetButtonFor('First Pass System Prompt');
     await user.click(resetBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
 
@@ -208,7 +216,7 @@ describe('Settings: per-prompt reset', () => {
     // The refetch after the mutation returns the field already at default.
     mockGetSettings.mockResolvedValue(makeSettings({ systemPrompt: sv('default system prompt', true) }));
 
-    const [resetBtn] = screen.getAllByRole('button', { name: 'Reset' });
+    const resetBtn = resetButtonFor('First Pass System Prompt');
     await user.click(resetBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
 
@@ -231,11 +239,8 @@ describe('Settings: per-prompt reset', () => {
       expect(screen.getByLabelText('Review prompt (confirm / adjust / reject)')).toBeDefined();
     });
 
-    // system/verification/chapter are at their default (disabled); review
-    // and resurrect are customized (enabled), in that DOM order.
-    const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
-    expect(resetButtons).toHaveLength(5);
-    const [reviewBtn, resurrectBtn] = resetButtons.slice(3);
+    const reviewBtn = resetButtonFor('Review prompt (confirm / adjust / reject)');
+    const resurrectBtn = resetButtonFor('Resurrect prompt (resurrect / reject)');
 
     await user.click(reviewBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
