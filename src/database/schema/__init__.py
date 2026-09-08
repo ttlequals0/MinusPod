@@ -18,6 +18,7 @@ _COLLAPSE_BATCH_ROWS = 500
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import SCHEMA_SQL, TABLE_DDL
+from database.search import SEARCH_INDEX_DDL
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 from config import count_pending_review
 from utils.markers import collapse_duplicate_markers
@@ -962,17 +963,7 @@ class SchemaMixin:
         # Migration: Create FTS5 search index table
         try:
             fresh = not self._table_exists(conn, 'search_index')
-            conn.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-                    content_type,
-                    content_id,
-                    podcast_slug,
-                    title,
-                    body,
-                    metadata,
-                    tokenize='porter unicode61'
-                )
-            """)
+            conn.execute(SEARCH_INDEX_DDL.format(name='search_index'))
             conn.commit()
             if fresh:
                 logger.info("Migration: Created FTS5 search_index table")
@@ -1466,6 +1457,7 @@ class SchemaMixin:
         # Repair covers left stale by the skipped-download bug (#596).
         try:
             self._run_redownload_stale_artwork(conn)
+            self._run_ad_chapter_title_defaults(conn)
         except Exception as e:
             conn.rollback()
             logger.error(f"artwork re-download priming failed: {e}")
@@ -1969,6 +1961,25 @@ class SchemaMixin:
         )
         conn.commit()
         logger.info("opus48-cost-fix: complete")
+
+    def _run_ad_chapter_title_defaults(self, conn):
+        """2.96.9: move untouched ad chapter title defaults from the machine form
+        to the readable {label} form. Customised rows (is_default = 0) are kept."""
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'ad_chapter_title_defaults_2969'"
+        ).fetchone()
+        if gate is not None:
+            return
+        for key, old, new in (
+                ('ad_chapter_title_format', '[mp:{category}]', 'Ad: {label}'),
+                ('ad_chapter_held_title_format', '[mp:{category}?]', 'Possible ad: {label}')):
+            conn.execute(
+                "UPDATE settings SET value = ? WHERE key = ? AND is_default = 1 AND value = ?",
+                (new, key, old))
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('ad_chapter_title_defaults_2969')")
+        conn.commit()
 
     def _run_redownload_stale_artwork(self, conn):
         """One-time artwork_cached clear so every cover re-downloads once (#596).

@@ -46,6 +46,12 @@ class TracedConnection(sqlite3.Connection):
         started = time.monotonic()
         try:
             return run(sql, *args)
+        except Exception:
+            # A statement that opened the transaction and then failed would
+            # leave it open on this thread with nothing to roll it back (#566).
+            if not was_in_tx and self.in_transaction:
+                super().rollback()
+            raise
         finally:
             self._note_statement(sql, started, was_in_tx)
 
@@ -474,6 +480,11 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
             self.immediate = immediate
         def __enter__(self):
             if self.immediate:
+                if self.conn.in_transaction:
+                    # BEGIN IMMEDIATE cannot nest; a transaction open here is a leak.
+                    logger.warning("Rolled back a leaked transaction before BEGIN IMMEDIATE on thread %s",
+                                   threading.current_thread().name)
+                    self.conn.rollback()
                 self.conn.execute("BEGIN IMMEDIATE")
             return self.conn
         def __exit__(self, exc_type, exc_val, exc_tb):

@@ -1242,10 +1242,10 @@ def _apply_ad_chapter_fields(db, data):
         if not title.strip():
             writes.append((setting, ''))
             continue
-        # Only the two format fields carry a {category} placeholder.
+        # Only the two format fields carry {label} or {category} placeholders.
         if setting != 'ad_chapter_resume_title' and not valid_ad_chapter_title_format(title):
             return error_response(
-                f'{key} must be text with an optional {{category}} placeholder', 400)
+                f'{key} must be text using only the {{label}} and {{category}} placeholders', 400)
         writes.append((setting, title.strip()))
 
     if 'adChapterMinConfidence' in data:

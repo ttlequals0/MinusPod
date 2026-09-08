@@ -4866,14 +4866,14 @@ paths:
                 adChapterTitleFormat:
                   type: string
                   description: >-
-                    Title template for an ad chapter, with an optional {category}
-                    placeholder. Send an empty string to restore the default.
+                    Title template for an ad chapter; {label} is the category name
+                    and {category} its id. Send an empty string to restore the default.
                   example: 'Ad: {label}'
                 adChapterHeldTitleFormat:
                   type: string
                   description: >-
-                    Title template for a held segment's ad chapter, with an optional
-                    {category} placeholder. Send an empty string to restore the default.
+                    Title template for a held segment's ad chapter; {label} is the
+                    category name and {category} its id. Send an empty string to restore the default.
                   example: 'Possible ad: {label}'
                 adChapterResumeTitle:
                   type: string

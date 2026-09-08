@@ -103,3 +103,20 @@ def test_per_feed_categories_layer_over_global(temp_db):
     assert row['ad_chapter_categories_override'] == json.dumps({'sponsor': False})
     db.update_podcast('example-podcast', ad_chapters_enabled_override='on')
     assert db.get_podcast_by_slug('example-podcast')['ad_chapters_enabled_override'] == 'on'
+
+
+def test_old_machine_form_defaults_are_migrated_once(temp_db):
+    conn = temp_db.get_connection()
+    conn.execute("INSERT OR REPLACE INTO settings (key, value, is_default) "
+                 "VALUES ('ad_chapter_title_format', '[mp:{category}]', 1)")
+    conn.execute("INSERT OR REPLACE INTO settings (key, value, is_default) "
+                 "VALUES ('ad_chapter_held_title_format', '[mp:{category}?]', 0)")
+    conn.execute("DELETE FROM schema_migrations WHERE name = 'ad_chapter_title_defaults_2969'")
+    conn.commit()
+    temp_db._run_ad_chapter_title_defaults(conn)
+    assert temp_db.get_setting('ad_chapter_title_format') == 'Ad: {label}'
+    assert temp_db.get_setting('ad_chapter_held_title_format') == '[mp:{category}?]'
+    conn.execute("UPDATE settings SET value = '[mp:{category}]' WHERE key = 'ad_chapter_title_format'")
+    conn.commit()
+    temp_db._run_ad_chapter_title_defaults(conn)
+    assert temp_db.get_setting('ad_chapter_title_format') == '[mp:{category}]'

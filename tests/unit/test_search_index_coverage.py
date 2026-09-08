@@ -1,6 +1,10 @@
 """search_index coverage: every episode status must be indexed, not just processed,
 since rebuild_search_index and index_episode used to filter on status='processed'."""
 
+import sqlite3
+
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('search_index_coverage_')
@@ -294,11 +298,11 @@ def test_rebuild_reads_everything_before_it_takes_the_write_lock(monkeypatch):
     real_executemany = conn.executemany
 
     def spy_execute(sql, *a):
-        order.append(('execute', ' '.join(str(sql).split())[:40]))
+        order.append(('execute', ' '.join(str(sql).split())[:120]))
         return real_execute(sql, *a)
 
     def spy_executemany(sql, *a):
-        order.append(('executemany', ' '.join(str(sql).split())[:40]))
+        order.append(('executemany', ' '.join(str(sql).split())[:120]))
         return real_executemany(sql, *a)
 
     monkeypatch.setattr(conn, 'execute', spy_execute)
@@ -309,10 +313,13 @@ def test_rebuild_reads_everything_before_it_takes_the_write_lock(monkeypatch):
     kinds = [k for k, _ in order]
     sqls = [q for _, q in order]
     first_write = next(i for i, q in enumerate(sqls) if q.startswith('INSERT INTO search_index_new'))
-    assert not any(q.startswith('SELECT') for q in sqls[first_write:]), (
+    # The swap may read the old index for late rows, never a source table.
+    assert not any(q.startswith('SELECT') and 'FROM search_index' not in q
+                   for q in sqls[first_write:]), (
         'a read ran while the rebuild held the write lock')
     assert kinds[first_write] == 'executemany'
-    assert sqls[-2].startswith('DROP TABLE search_index') and sqls[-1].startswith('ALTER TABLE search_index_new')
+    assert sqls[-2].startswith('DROP TABLE search_index')
+    assert sqls[-1].startswith('ALTER TABLE') and sqls[-1].endswith('RENAME TO search_index')
 
 
 def test_rebuild_still_indexes_every_content_type(monkeypatch):
@@ -346,3 +353,58 @@ def test_rebuild_swaps_a_shadow_table_and_keeps_the_fts_definition():
     assert after.replace('"', '') == before.replace('"', '')
     assert any(r['content_id'] == ep for r in conn.execute(
         "SELECT content_id FROM search_index WHERE search_index MATCH 'swap'"))
+
+
+def test_rows_indexed_during_the_fill_survive_the_swap(monkeypatch):
+    slug = _feed('late-write-podcast')
+    conn = db.get_connection()
+    late_ep = _eid()
+    real_execute = conn.execute
+    fired = []
+
+    def write_during_fill(sql, *a):
+        # Fires before the first chunk takes the write lock, like a request
+        # thread indexing an episode between chunks.
+        if not fired and str(sql).startswith('BEGIN IMMEDIATE'):
+            fired.append(True)
+            other = sqlite3.connect(str(db.db_path))
+            other.execute(
+                "INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata) "
+                "VALUES ('episode', ?, ?, 'Late arrival title', '', '')", (late_ep, slug))
+            other.commit()
+            other.close()
+        return real_execute(sql, *a)
+
+    monkeypatch.setattr(conn, 'execute', write_during_fill)
+    db.rebuild_search_index()
+    assert fired
+    assert any(r['content_id'] == late_ep for r in conn.execute(
+        "SELECT content_id FROM search_index WHERE search_index MATCH 'arrival'"))
+
+
+def test_failed_fill_drops_the_shadow_and_keeps_the_old_index(monkeypatch):
+    conn = db.get_connection()
+    before = conn.execute("SELECT COUNT(*) FROM search_index").fetchone()[0]
+
+    def boom(sql, *a):
+        raise sqlite3.OperationalError('disk I/O error')
+
+    monkeypatch.setattr(conn, 'executemany', boom)
+    with pytest.raises(sqlite3.OperationalError):
+        db.rebuild_search_index()
+    assert not conn.in_transaction
+    names = [r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'search_index_new%'")]
+    assert names == []
+    assert conn.execute("SELECT COUNT(*) FROM search_index").fetchone()[0] == before
+
+
+def test_stale_shadow_from_a_crash_is_dropped_on_the_next_rebuild():
+    conn = db.get_connection()
+    conn.execute(
+        "CREATE VIRTUAL TABLE search_index_new_0_0 USING fts5(content_type, content_id, podcast_slug, title, body, metadata)")
+    conn.commit()
+    db.rebuild_search_index()
+    names = [r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'search_index_new%'")]
+    assert names == []

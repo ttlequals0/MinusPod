@@ -856,7 +856,6 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
         except Exception as e:
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
-            db.clear_leaked_transaction(audio_logger, 'differential fetch')
             result = {'status': 'error', 'regions': [], 'refetch_meta': {},
                       'error': str(e)}
         finally:
@@ -865,6 +864,7 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
             db.save_episode_dai_differential(slug, episode_id, json.dumps(result))
         except Exception as e:
             audio_logger.warning(f"[{slug}:{episode_id}] Differential store failed: {e}")
+            db.clear_leaked_transaction(audio_logger, 'differential store')
         diff_count = len([r for r in result.get('regions', [])
                           if r.get('kind') == 'differential'])
         audio_logger.info(
@@ -875,6 +875,7 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
         # Outer non-fatal boundary: the flag read, status update, or mkdtemp
         # can raise outside the inner guards; the episode must not fail here.
         audio_logger.warning(f"[{slug}:{episode_id}] Differential stage failed: {e}")
+        db.clear_leaked_transaction(audio_logger, 'differential stage')
         return None
 
 

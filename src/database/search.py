@@ -1,6 +1,8 @@
 """Full-text search mixin for MinusPod database."""
 import html
 import logging
+import os
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +15,18 @@ SEARCH_GROUP_NAMES = ('shows', 'episodes', 'transcripts', 'patterns', 'sponsors'
 
 # Episodes per indexing statement: two bound params each, plus one MATCH term each.
 _INDEX_CHUNK = 500
+
+# One definition for the migration and the rebuild's shadow table.
+SEARCH_INDEX_DDL = """CREATE VIRTUAL TABLE IF NOT EXISTS {name} USING fts5(
+    content_type,
+    content_id,
+    podcast_slug,
+    title,
+    body,
+    metadata,
+    tokenize='porter unicode61'
+)"""
+_SHADOW_PREFIX = 'search_index_new'
 
 # search_index column order: content_type, content_id, podcast_slug, title, body, metadata.
 _SNIPPET_COL = {'title': 3, 'body': 4, 'metadata': 5}
@@ -35,6 +49,11 @@ class SearchMixin:
         Returns count of indexed items.
         """
         conn = self.get_connection()
+        self._drop_stale_shadows(conn)
+        # Rows indexed while the shadow fills land in the old table with a
+        # higher rowid than this mark; the swap carries them over.
+        high_water = conn.execute(
+            "SELECT COALESCE(MAX(rowid), 0) FROM search_index").fetchone()[0]
 
         # Every row is read and shaped before any write: holding the write
         # lock across this much per-row Python work stalled other writers.
@@ -72,27 +91,46 @@ class SearchMixin:
             """)
         )
 
-        # Fill a shadow table in short transactions, then swap it in with one
-        # DDL transaction: the old table stays readable and the write lock is
-        # never held across the full insert.
-        ddl = conn.execute(
-            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'search_index'"
-        ).fetchone()['sql']
-        conn.execute("DROP TABLE IF EXISTS search_index_new")
-        conn.execute(ddl.replace('search_index', 'search_index_new', 1))
+        shadow = f"{_SHADOW_PREFIX}_{os.getpid()}_{threading.get_ident()}"
+        conn.execute(SEARCH_INDEX_DDL.format(name=shadow))
         conn.commit()
-        for start in range(0, len(rows), _INDEX_CHUNK):
+        insert = (f"INSERT INTO {shadow} (content_type, content_id, podcast_slug, title, body, metadata) "  # noqa: S608
+                  "VALUES (?, ?, ?, ?, ?, ?)")
+        try:
+            # Short transactions per chunk, then one quick DDL swap: the old
+            # table stays live and the write lock is never held across the fill.
+            for start in range(0, len(rows), _INDEX_CHUNK):
+                with self.transaction(immediate=True) as tx:
+                    tx.executemany(insert, rows[start:start + _INDEX_CHUNK])
             with self.transaction(immediate=True) as tx:
-                tx.executemany("""
-                    INSERT INTO search_index_new (content_type, content_id, podcast_slug, title, body, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, rows[start:start + _INDEX_CHUNK])
-        with self.transaction(immediate=True) as tx:
-            tx.execute("DROP TABLE search_index")
-            tx.execute("ALTER TABLE search_index_new RENAME TO search_index")
+                late = tx.execute(
+                    "SELECT content_type, content_id, podcast_slug, title, body, metadata "
+                    "FROM search_index WHERE rowid >= ?", (high_water,)).fetchall()
+                for r in late:
+                    tx.execute(f"DELETE FROM {shadow} WHERE content_type = ? AND content_id = ?",  # noqa: S608
+                               (r[0], r[1]))
+                    tx.execute(insert, tuple(r))
+                tx.execute("DROP TABLE search_index")
+                tx.execute(f'ALTER TABLE "{shadow}" RENAME TO search_index')
+        except Exception:
+            conn.rollback()
+            conn.execute(f'DROP TABLE IF EXISTS "{shadow}"')
+            conn.commit()
+            raise
 
         logger.info(f"Search index rebuilt with {len(rows)} items")
         return len(rows)
+
+    def _drop_stale_shadows(self, conn) -> None:
+        """Remove shadow tables a crashed rebuild left behind."""
+        names = [r['name'] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?",
+            (f"{_SHADOW_PREFIX}%",))]
+        for name in names:
+            conn.execute(f'DROP TABLE IF EXISTS "{name}"')
+        if names:
+            conn.commit()
+            logger.warning(f"Dropped {len(names)} stale search index shadow table(s)")
 
     def index_episode(self, episode_id: str, slug: str) -> bool:
         """Index or re-index a single episode in the search index."""
