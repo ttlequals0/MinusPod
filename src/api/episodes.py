@@ -16,6 +16,7 @@ from config import (
     is_pending_review, resolve_chapters_in_notes, resolve_feed_processing_mode,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
+from ad_chapters import merge_ad_chapters, resolve_ad_chapter_config
 from ad_yield import latest_completed_run, low_ad_yield
 from audio_peaks import compute_peaks, PeaksError
 from audio_processor import get_replacement_duration
@@ -1046,6 +1047,16 @@ def regenerate_chapters(slug, episode_id):
             segment_markers=segment_markers,
             marker_cuts=marker_cuts,
         )
+
+        # Kept ad segments are republished as their own chapters; marker_cuts
+        # maps them onto the processed timeline the same way it maps hints.
+        ad_config = resolve_ad_chapter_config(db, podcast, slug=slug)
+        topic = (chapters or {}).get('chapters') or []
+        merged = merge_ad_chapters(topic, segment_markers, marker_cuts or [],
+                                   segments[-1].get('end') if segments else None,
+                                   get_replacement_duration(), ad_config)
+        if merged:
+            chapters = {**(chapters or {'version': '1.2.0'}), 'chapters': merged}
 
         if chapters and chapters.get('chapters'):
             storage.save_chapters_json(slug, episode_id, chapters)

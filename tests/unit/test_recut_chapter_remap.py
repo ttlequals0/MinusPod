@@ -20,6 +20,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from ad_chapters import AdChapterConfig
 from main_app import processing
 from utils.time import adjust_timestamp
 
@@ -347,3 +348,82 @@ def test_generate_assets_recut_duration_none_uses_probed_value(monkeypatch):
     assert counters['embedded']['duration'] == 804.0
     # Late still remaps (804.0 tail leaves room): consistent survivor set.
     assert counters['saved']['chapters'][1] == {'startTime': 602, 'title': 'Late'}
+
+
+# ---------- ad chapters on the recut path ----------
+
+AD_CFG = AdChapterConfig(
+    enabled=True, categories={'sponsor': True}, include_held=False,
+    title_format='[mp:{category}]', held_title_format='[mp:{category}?]',
+    resume_title='Show', min_confidence=0.9)
+
+
+def test_remap_strips_stale_ad_chapters_and_rebuilds_from_markers(monkeypatch):
+    saved = {}
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 1, 'title': 'Intro'},
+        {'startTime': 300, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 360, 'title': 'Show', 'kind': 'resume'},
+        {'startTime': 1200, 'title': 'Later'}]}
+    monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
+    monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
+                        lambda s, e, cj, cuts: saved.update(cj))
+    monkeypatch.setattr(processing, 'embed_chapters', lambda *a, **k: True)
+    markers = [{'start': 2000.0, 'end': 2060.0, 'action_applied': 'keep',
+                'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
+    processing._remap_stored_chapters(
+        'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
+        previous_cuts=[], original_duration=3600.0, audio_path=None,
+        audio_duration=3600.0, markers=markers, ad_config=AD_CFG)
+    starts = [(c['startTime'], c.get('kind')) for c in saved['chapters']]
+    assert (300, 'ad') not in starts and (360, 'resume') not in starts
+    assert (2000, 'ad') in starts and (2060, 'resume') in starts
+    assert (1, None) in starts and (1200, None) in starts
+
+
+def test_remap_with_only_ad_chapters_stored_still_rebuilds(monkeypatch):
+    saved = {}
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 300, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 360, 'title': 'Show', 'kind': 'resume'}]}
+    monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
+    monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
+                        lambda s, e, cj, cuts: saved.update(cj))
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+                'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
+    processing._remap_stored_chapters(
+        'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
+        previous_cuts=[], original_duration=3600.0, audio_duration=3600.0,
+        markers=markers, ad_config=AD_CFG)
+    assert [c['startTime'] for c in saved['chapters']] == [500, 530]
+
+
+def test_remap_without_ad_config_keeps_previous_behavior(monkeypatch):
+    calls = []
+    stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+    monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
+    monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
+                        lambda s, e, cj, cuts: calls.append(cj))
+    processing._remap_stored_chapters(
+        'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
+        previous_cuts=[], original_duration=3600.0, audio_duration=3600.0)
+    assert calls and calls[0]['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
+
+
+def test_remap_disabled_ad_config_strips_stale_ad_chapters(monkeypatch):
+    """Turning the feature off must clean up entries a previous run wrote."""
+    saved = {}
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 1, 'title': 'Intro'},
+        {'startTime': 300, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 360, 'title': 'Show', 'kind': 'resume'}]}
+    monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
+    monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
+                        lambda s, e, cj, cuts: saved.update(cj))
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+                'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
+    processing._remap_stored_chapters(
+        'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
+        previous_cuts=[], original_duration=3600.0, audio_duration=3600.0,
+        markers=markers, ad_config=AdChapterConfig.disabled())
+    assert saved['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
