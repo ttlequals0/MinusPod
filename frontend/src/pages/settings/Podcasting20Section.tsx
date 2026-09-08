@@ -12,6 +12,7 @@ import {
   useServerDraft,
 } from './StageTunablesSection';
 import { focusRing } from '../../components/fieldStyles';
+import AdChaptersBlock, { type AdChaptersBlockProps } from './AdChaptersBlock';
 
 const CHAPTER_GEOMETRY_FIELDS = [
   {
@@ -154,6 +155,7 @@ interface Podcasting20SectionProps {
   onVttTranscriptsEnabledChange: (enabled: boolean) => void;
   onChaptersEnabledChange: (enabled: boolean) => void;
   onChaptersInNotesChange: (enabled: boolean) => void;
+  adChapters?: AdChaptersBlockProps;
   geometry?: ChapterGeometryProps;
 }
 
@@ -164,6 +166,7 @@ function Podcasting20Section({
   onVttTranscriptsEnabledChange,
   onChaptersEnabledChange,
   onChaptersInNotesChange,
+  adChapters,
   geometry,
 }: Podcasting20SectionProps) {
   return (
@@ -178,6 +181,8 @@ function Podcasting20Section({
           label="Generate Chapters">
           Create JSON chapters from ad boundaries and description timestamps
         </ToggleRow>
+
+        {adChapters && <AdChaptersBlock {...adChapters} />}
 
         <ToggleRow checked={chaptersInNotes} onChange={onChaptersInNotesChange}
           label="List chapters in episode descriptions">

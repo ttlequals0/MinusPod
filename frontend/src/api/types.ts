@@ -612,6 +612,13 @@ export interface Settings {
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
   chaptersInNotes: SettingValueBoolean;
+  adChaptersEnabled: SettingValueBoolean;
+  adChapterCategories: { value: Record<SegmentCategory, boolean>; isDefault: boolean };
+  adChaptersIncludeHeld: SettingValueBoolean;
+  adChapterTitleFormat: SettingValue;
+  adChapterHeldTitleFormat: SettingValue;
+  adChapterResumeTitle: SettingValue;
+  adChapterMinConfidence: SettingValueNumber;
   chaptersModel: SettingValue;
   minCutConfidence: SettingValueNumber;
   whisperBackend: SettingValue;
@@ -665,6 +672,13 @@ export interface Settings {
     feedAuthEnabled: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
+    adChaptersEnabled: boolean;
+    adChapterCategories: Record<SegmentCategory, boolean>;
+    adChaptersIncludeHeld: boolean;
+    adChapterTitleFormat: string;
+    adChapterHeldTitleFormat: string;
+    adChapterResumeTitle: string;
+    adChapterMinConfidence: number;
     chaptersModel: string;
     minCutConfidence: number;
     llmProvider: LlmProvider;
@@ -833,6 +847,14 @@ export interface UpdateSettingsPayload {
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
   chaptersInNotes?: boolean;
+  adChaptersEnabled?: boolean;
+  // Partial map, merged over the stored global map by the backend.
+  adChapterCategories?: Partial<Record<SegmentCategory, boolean>>;
+  adChaptersIncludeHeld?: boolean;
+  adChapterTitleFormat?: string;
+  adChapterHeldTitleFormat?: string;
+  adChapterResumeTitle?: string;
+  adChapterMinConfidence?: number;
   chaptersModel?: string;
   minCutConfidence?: number;
   llmProvider?: LlmProvider;

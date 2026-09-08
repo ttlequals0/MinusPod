@@ -44,6 +44,7 @@ import SeedSponsorsSection from './settings/SeedSponsorsSection';
 import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import SegmentActionsSection from './settings/SegmentActionsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
+import { DEFAULT_AD_CHAPTER_CATEGORIES } from './settings/AdChaptersBlock';
 import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
 import AdReviewerSection from './settings/AdReviewerSection';
@@ -256,6 +257,12 @@ function Settings() {
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
   const [chaptersInNotes, setChaptersInNotes] = useState(false);
+  const [adChaptersEnabled, setAdChaptersEnabled] = useState(false);
+  const [adChaptersIncludeHeld, setAdChaptersIncludeHeld] = useState(false);
+  const [adChapterTitleFormat, setAdChapterTitleFormat] = useState('[mp:{category}]');
+  const [adChapterHeldTitleFormat, setAdChapterHeldTitleFormat] = useState('[mp:{category}?]');
+  const [adChapterResumeTitle, setAdChapterResumeTitle] = useState('Show');
+  const [adChapterMinConfidence, setAdChapterMinConfidence] = useState(0.9);
   const [chaptersModel, setChaptersModel] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0);
   const [minContentBetweenAdsSeconds, setMinContentBetweenAdsSeconds] = useState(12);
@@ -533,6 +540,12 @@ function Settings() {
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
     { key: 'chaptersEnabled', kind: 'val', useDefault: true, value: chaptersEnabled, set: setChaptersEnabled },
     { key: 'chaptersInNotes', kind: 'val', useDefault: true, value: chaptersInNotes, set: setChaptersInNotes },
+    { key: 'adChaptersEnabled', kind: 'val', useDefault: true, value: adChaptersEnabled, set: setAdChaptersEnabled },
+    { key: 'adChaptersIncludeHeld', kind: 'val', useDefault: true, value: adChaptersIncludeHeld, set: setAdChaptersIncludeHeld },
+    { key: 'adChapterTitleFormat', kind: 'str', useDefault: true, value: adChapterTitleFormat, set: setAdChapterTitleFormat },
+    { key: 'adChapterHeldTitleFormat', kind: 'str', useDefault: true, value: adChapterHeldTitleFormat, set: setAdChapterHeldTitleFormat },
+    { key: 'adChapterResumeTitle', kind: 'str', useDefault: true, value: adChapterResumeTitle, set: setAdChapterResumeTitle },
+    { key: 'adChapterMinConfidence', kind: 'val', useDefault: true, literal: 0.9, value: adChapterMinConfidence, set: setAdChapterMinConfidence },
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
     { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
     { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },
@@ -1185,6 +1198,25 @@ function Settings() {
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
         onChaptersInNotesChange={setChaptersInNotes}
+        adChapters={{
+          chaptersEnabled,
+          enabled: adChaptersEnabled,
+          categories: settings?.adChapterCategories?.value
+            ?? settings?.defaults?.adChapterCategories ?? DEFAULT_AD_CHAPTER_CATEGORIES,
+          includeHeld: adChaptersIncludeHeld,
+          titleFormat: adChapterTitleFormat,
+          heldTitleFormat: adChapterHeldTitleFormat,
+          resumeTitle: adChapterResumeTitle,
+          minConfidence: adChapterMinConfidence,
+          onEnabledChange: setAdChaptersEnabled,
+          onCategoryChange: (category, checked) =>
+            tunableMutation.mutate({ adChapterCategories: { [category]: checked } }),
+          onIncludeHeldChange: setAdChaptersIncludeHeld,
+          onTitleFormatChange: setAdChapterTitleFormat,
+          onHeldTitleFormatChange: setAdChapterHeldTitleFormat,
+          onResumeTitleChange: setAdChapterResumeTitle,
+          onMinConfidenceChange: setAdChapterMinConfidence,
+        }}
         geometry={
           settings?.stageTunables && settings?.stageTunableDefaults
             ? {
