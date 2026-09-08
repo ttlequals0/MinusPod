@@ -1050,10 +1050,8 @@ def regenerate_chapters(slug, episode_id):
             marker_cuts=marker_cuts,
         )
 
-        # Kept ad segments are republished as their own chapters; marker_cuts
-        # maps them onto the processed timeline the same way it maps hints.
-        # None (never persisted) is an unknown cut list, not an empty one, so
-        # the ad merge is skipped rather than placing spans at original offsets.
+        # marker_cuts None means no authoritative cuts persisted, not "no cuts":
+        # skip the ad merge rather than place spans at original offsets.
         if marker_cuts is None:
             logger.info(f"[{slug}:{episode_id}] No authoritative applied cuts "
                         f"persisted; skipping ad chapters")

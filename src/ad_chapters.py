@@ -126,15 +126,9 @@ def _eligible_spans(markers, cuts, replacement_duration, config) -> list[dict]:
 
 def merge_ad_chapters(chapters, markers, cuts, episode_duration,
                       replacement_duration, config=None) -> list[dict]:
-    """Topic chapters from `chapters` plus ad chapters rebuilt from `markers`.
-
-    Stale ad entries are stripped first, so the result is idempotent. Chapters
-    carry no end time, so each break gets a resume entry unless a topic chapter
-    already starts within AD_CHAPTER_SNAP_SECONDS.
-
-    A topic chapter a break displaces is flagged hidden rather than deleted,
-    so a later rebuild can restore it; public_chapters drops those.
-    """
+    """Topic chapters plus ad chapters rebuilt from markers; idempotent, and a
+    displaced topic chapter is hidden rather than deleted so a later rebuild
+    can restore it."""
     topics = strip_ad_chapters(chapters)
     if config is None or not config.enabled or not markers:
         return topics
