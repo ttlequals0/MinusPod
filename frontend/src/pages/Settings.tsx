@@ -545,7 +545,7 @@ function Settings() {
     { key: 'adChapterTitleFormat', kind: 'str', useDefault: true, value: adChapterTitleFormat, set: setAdChapterTitleFormat },
     { key: 'adChapterHeldTitleFormat', kind: 'str', useDefault: true, value: adChapterHeldTitleFormat, set: setAdChapterHeldTitleFormat },
     { key: 'adChapterResumeTitle', kind: 'str', useDefault: true, value: adChapterResumeTitle, set: setAdChapterResumeTitle },
-    { key: 'adChapterMinConfidence', kind: 'val', useDefault: true, literal: 0.9, value: adChapterMinConfidence, set: setAdChapterMinConfidence },
+    { key: 'adChapterMinConfidence', kind: 'val', useDefault: true, value: adChapterMinConfidence, set: setAdChapterMinConfidence },
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
     { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
     { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },

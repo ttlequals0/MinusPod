@@ -85,12 +85,12 @@ function AdChaptersBlock({
           />
           <span className="text-sm font-medium text-foreground">Ad chapters</span>
         </label>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 ml-14 text-sm text-muted-foreground">
           Publish segments left in the audio as their own chapters, so apps that
           skip by chapter can jump past them. Needs Generate Chapters.
         </p>
         {disabled && (
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 ml-14 text-sm text-muted-foreground">
             Turn on Generate Chapters to use ad chapters.
           </p>
         )}
@@ -115,6 +115,7 @@ function AdChaptersBlock({
                 />
               ))}
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">Saved as you check them.</p>
           </div>
 
           <div>
@@ -129,7 +130,7 @@ function AdChaptersBlock({
                 Include segments waiting for review
               </span>
             </label>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 ml-14 text-sm text-muted-foreground">
               Held segments get a chapter too, titled with the waiting-for-review
               format. Rejecting one removes its chapter.
             </p>
