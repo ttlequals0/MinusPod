@@ -43,6 +43,8 @@ from config import (
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
+    resolve_ad_chapter_categories_map,
+    valid_ad_chapter_title_format,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
 )
@@ -522,6 +524,28 @@ def get_settings():
         settings, 'dai_differential_overrides_keep',
         registry_default('dai_differential_overrides_keep')))
 
+    ad_chapters_enabled = coerce_bool_setting(_setting_value(
+        settings, 'ad_chapters_enabled', registry_default('ad_chapters_enabled')))
+    ad_chapter_categories = resolve_ad_chapter_categories_map(
+        _setting_value(settings, 'ad_chapter_categories',
+                       registry_default('ad_chapter_categories')))
+    ad_chapters_include_held = coerce_bool_setting(_setting_value(
+        settings, 'ad_chapters_include_held',
+        registry_default('ad_chapters_include_held')))
+    ad_chapter_title_format = _setting_value(
+        settings, 'ad_chapter_title_format', registry_default('ad_chapter_title_format'))
+    ad_chapter_held_title_format = _setting_value(
+        settings, 'ad_chapter_held_title_format',
+        registry_default('ad_chapter_held_title_format'))
+    ad_chapter_resume_title = _setting_value(
+        settings, 'ad_chapter_resume_title', registry_default('ad_chapter_resume_title'))
+    try:
+        ad_chapter_min_confidence = float(_setting_value(
+            settings, 'ad_chapter_min_confidence',
+            registry_default('ad_chapter_min_confidence')))
+    except (ValueError, TypeError):
+        ad_chapter_min_confidence = registry_get_default('ad_chapter_min_confidence')
+
     # Learned positional prior experiment (#360)
     positional_prior_enabled = coerce_bool_setting(_setting_value(
         settings, 'positional_prior_enabled',
@@ -623,6 +647,14 @@ def get_settings():
         'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
         'chaptersInNotes': _sv('chapters_in_notes', chapters_in_notes),
+        'adChaptersEnabled': _sv('ad_chapters_enabled', ad_chapters_enabled),
+        'adChapterCategories': _sv('ad_chapter_categories', ad_chapter_categories),
+        'adChaptersIncludeHeld': _sv('ad_chapters_include_held', ad_chapters_include_held),
+        'adChapterTitleFormat': _sv('ad_chapter_title_format', ad_chapter_title_format),
+        'adChapterHeldTitleFormat': _sv(
+            'ad_chapter_held_title_format', ad_chapter_held_title_format),
+        'adChapterResumeTitle': _sv('ad_chapter_resume_title', ad_chapter_resume_title),
+        'adChapterMinConfidence': _sv('ad_chapter_min_confidence', ad_chapter_min_confidence),
         'chaptersModel': _sv('chapters_model', chapters_model),
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
@@ -769,6 +801,7 @@ def update_ad_detection_settings():
         _apply_max_ad_duration_fields,
         _apply_detection_tuning_fields,
         _apply_segment_category_actions,
+        _apply_ad_chapter_fields,
         _apply_community_sync_categories,
         _apply_jit_blocked_user_agents,
         _apply_user_agent_fields,
@@ -1188,6 +1221,54 @@ def _apply_segment_category_actions(db, data):
         merged.update(value)
         db.set_setting('segment_category_actions', json.dumps(merged), is_default=False)
         logger.info(f"Updated segment category actions: {merged}")
+    return None
+
+
+def _apply_ad_chapter_fields(db, data):
+    """Persist the ad chapter settings; the category map merges over the stored map."""
+    for key, setting in (('adChaptersEnabled', 'ad_chapters_enabled'),
+                         ('adChaptersIncludeHeld', 'ad_chapters_include_held')):
+        if key in data:
+            db.set_setting(setting, 'true' if data[key] else 'false', is_default=False)
+
+    for key, setting in (('adChapterTitleFormat', 'ad_chapter_title_format'),
+                         ('adChapterHeldTitleFormat', 'ad_chapter_held_title_format')):
+        if key in data:
+            if not valid_ad_chapter_title_format(data[key]):
+                return error_response(
+                    f'{key} must be text with an optional {{category}} placeholder', 400)
+            db.set_setting(setting, data[key].strip(), is_default=False)
+
+    if 'adChapterResumeTitle' in data:
+        title = str(data['adChapterResumeTitle'] or '').strip()
+        if not title:
+            return error_response('adChapterResumeTitle must not be empty', 400)
+        db.set_setting('ad_chapter_resume_title', title, is_default=False)
+
+    if 'adChapterMinConfidence' in data:
+        try:
+            value = float(data['adChapterMinConfidence'])
+        except (TypeError, ValueError):
+            return error_response('adChapterMinConfidence must be between 0 and 1', 400)
+        if not 0.0 <= value <= 1.0:
+            return error_response('adChapterMinConfidence must be between 0 and 1', 400)
+        db.set_setting('ad_chapter_min_confidence', str(value), is_default=False)
+
+    if 'adChapterCategories' in data:
+        value = data['adChapterCategories']
+        if not isinstance(value, dict):
+            return error_response('adChapterCategories must be an object', 400)
+        for cat, flag in value.items():
+            if cat not in SEGMENT_CATEGORIES:
+                return error_response(
+                    f"adChapterCategories: unknown category '{cat}'", 400)
+            if not isinstance(flag, bool):
+                return error_response(
+                    f"adChapterCategories: '{cat}' must be true or false", 400)
+        merged = resolve_ad_chapter_categories_map(db.get_setting('ad_chapter_categories'))
+        merged.update(value)
+        db.set_setting('ad_chapter_categories', json.dumps(merged), is_default=False)
+        logger.info(f"Updated ad chapter categories: {merged}")
     return None
 
 

@@ -24,6 +24,7 @@ from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
     CHAPTERS_IN_NOTES_VALUES,
+    AD_CHAPTERS_OVERRIDE_VALUES,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     PODPING_HOST_ACTIVE_DAYS,
     VALID_CHAPTERS_MODES,
@@ -416,11 +417,8 @@ def _normalize_segment_category_actions(value):
     return json.dumps(value), None
 
 
-def _deserialize_segment_category_actions(raw):
-    """Parse the stored segment_category_actions JSON back for API responses.
-
-    Returns the partial map as stored, or None if unset/unparsable.
-    """
+def _deserialize_json_map(raw):
+    """Nullable JSON object column back to a dict, or None if unset/unparsable."""
     if not raw:
         return None
     try:
@@ -462,7 +460,7 @@ def _deserialize_categories(raw):
 def _deserialize_p20_channel(raw):
     """Parse the stored p20_channel_json back for API responses.
 
-    None when unset/unparsable, mirroring _deserialize_segment_category_actions.
+    None when unset/unparsable, mirroring _deserialize_json_map.
     """
     if not raw:
         return None
@@ -876,12 +874,15 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
         'chaptersInNotes': podcast.get('chapters_in_notes'),
+        'adChaptersEnabled': podcast.get('ad_chapters_enabled_override'),
+        'adChapterCategories': _deserialize_json_map(
+            podcast.get('ad_chapter_categories_override')),
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
         'episodeLogs': podcast.get('episode_logs'),
         'titleSkipPatterns': _deserialize_title_skip_patterns(podcast.get('title_skip_patterns')),
         'titleSkipAction': podcast.get('title_skip_action') or 'serve_original',
-        'segmentCategoryActions': _deserialize_segment_category_actions(
+        'segmentCategoryActions': _deserialize_json_map(
             podcast.get('segment_category_actions')),
         'processingMode': resolve_feed_processing_mode(podcast),
         'cueOnlySafety': podcast.get('cue_only_safety'),
@@ -1675,6 +1676,27 @@ def update_feed(slug):
         if notes_err:
             return error_response(notes_err, 400)
         updates['chapters_in_notes'] = notes_val
+
+    if 'adChaptersEnabled' in data:
+        ac_val, ac_err = _normalize_override(
+            data['adChaptersEnabled'], AD_CHAPTERS_OVERRIDE_VALUES, 'adChaptersEnabled')
+        if ac_err:
+            return error_response(ac_err, 400)
+        updates['ad_chapters_enabled_override'] = ac_val
+
+    if 'adChapterCategories' in data:
+        cats = data['adChapterCategories']
+        if cats is None:
+            updates['ad_chapter_categories_override'] = None
+        elif not isinstance(cats, dict):
+            return error_response('adChapterCategories must be an object or null', 400)
+        else:
+            for cat, flag in cats.items():
+                if cat not in SEGMENT_CATEGORIES or not isinstance(flag, bool):
+                    return error_response(
+                        f"adChapterCategories: '{cat}' must be a known category "
+                        "with true or false", 400)
+            updates['ad_chapter_categories_override'] = json.dumps(cats)
 
     if 'queuePriority' in data:
         qp_val, qp_err = _normalize_queue_priority(data['queuePriority'])

@@ -642,6 +642,22 @@ paths:
                     - 'off'
                     - null
                   description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+                adChaptersEnabled:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - 'on'
+                    - 'off'
+                    - null
+                  description: Per-feed override for publishing kept ad segments as skippable chapters. null follows the global adChaptersEnabled setting.
+                adChapterCategories:
+                  type:
+                    - object
+                    - 'null'
+                  additionalProperties:
+                    type: boolean
+                  description: Per-feed override mapping each segment category to whether it gets an ad chapter. null follows the global adChapterCategories setting.
                 queuePriority:
                   type:
                     - string
@@ -4833,6 +4849,39 @@ paths:
                   type: boolean
                   description: Append the generated chapter list to served episode descriptions and the episode API description. Feeds can override per feed.
                   example: false
+                adChaptersEnabled:
+                  type: boolean
+                  description: Publish kept or held ad segments as skippable chapters in the generated chapter list.
+                  example: false
+                adChapterCategories:
+                  type: object
+                  additionalProperties:
+                    type: boolean
+                  description: Partial map of segment category to whether it gets an ad chapter, merged over the stored map.
+                  example: {sponsor: true, cross_promo: true}
+                adChaptersIncludeHeld:
+                  type: boolean
+                  description: Also publish held-for-review segments as ad chapters.
+                  example: false
+                adChapterTitleFormat:
+                  type: string
+                  description: Title template for an ad chapter, with an optional {category} placeholder.
+                  example: '[mp:{category}]'
+                adChapterHeldTitleFormat:
+                  type: string
+                  description: Title template for a held segment's ad chapter, with an optional {category} placeholder.
+                  example: '[mp:{category}?]'
+                adChapterResumeTitle:
+                  type: string
+                  description: Title of the chapter that marks the return to show content after an ad chapter.
+                  example: Show
+                adChapterMinConfidence:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  description: Minimum marker confidence required before a segment becomes an ad chapter.
+                  example: 0.9
                 audioBitrate:
                   type: string
                   enum: ['64k', '96k', '128k', '192k', '256k']
@@ -9567,6 +9616,22 @@ components:
             - 'off'
             - null
           description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+        adChaptersEnabled:
+          type:
+            - string
+            - 'null'
+          enum:
+            - 'on'
+            - 'off'
+            - null
+          description: Per-feed override for publishing kept ad segments as skippable chapters. null follows the global adChaptersEnabled setting.
+        adChapterCategories:
+          type:
+            - object
+            - 'null'
+          additionalProperties:
+            type: boolean
+          description: Per-feed override mapping each segment category to whether it gets an ad chapter. null follows the global adChapterCategories setting.
         queuePriority:
           type: string
           enum:
@@ -11482,6 +11547,65 @@ components:
           properties:
             value:
               type: boolean
+            isDefault:
+              type: boolean
+        adChaptersEnabled:
+          type: object
+          description: Publish kept or held ad segments as skippable chapters in the generated chapter list.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        adChapterCategories:
+          type: object
+          description: Map of segment category to whether it gets an ad chapter.
+          properties:
+            value:
+              type: object
+              additionalProperties:
+                type: boolean
+            isDefault:
+              type: boolean
+        adChaptersIncludeHeld:
+          type: object
+          description: Also publish held-for-review segments as ad chapters.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        adChapterTitleFormat:
+          type: object
+          description: Title template for an ad chapter, with an optional {category} placeholder.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        adChapterHeldTitleFormat:
+          type: object
+          description: Title template for a held segment's ad chapter, with an optional {category} placeholder.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        adChapterResumeTitle:
+          type: object
+          description: Title of the chapter that marks the return to show content after an ad chapter.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        adChapterMinConfidence:
+          type: object
+          description: Minimum marker confidence required before a segment becomes an ad chapter.
+          properties:
+            value:
+              type: number
+              format: float
             isDefault:
               type: boolean
         audioNormalizeEnabled:

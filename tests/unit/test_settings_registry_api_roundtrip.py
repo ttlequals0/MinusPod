@@ -55,3 +55,48 @@ def test_the_keep_override_round_trips(client):
     after = client.get(BASE).get_json()['daiDifferentialOverridesKeep']
     assert after['value'] is False
     assert after['isDefault'] is False
+
+
+def test_ad_chapter_settings_round_trip(client):
+    before = client.get(BASE).get_json()
+    assert before['adChaptersEnabled']['value'] is False
+    assert before['adChapterCategories']['value']['sponsor'] is True
+    assert before['adChapterMinConfidence']['value'] == 0.9
+
+    r = client.put(f'{BASE}/ad-detection', data=json.dumps({
+        'adChaptersEnabled': True,
+        'adChapterCategories': {'recap': True},
+        'adChaptersIncludeHeld': True,
+        'adChapterTitleFormat': 'Ad: {category}',
+        'adChapterHeldTitleFormat': 'Maybe {category}',
+        'adChapterResumeTitle': 'Back',
+        'adChapterMinConfidence': 0.5,
+    }), content_type='application/json')
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    after = client.get(BASE).get_json()
+    assert after['adChaptersEnabled']['value'] is True
+    assert after['adChapterCategories']['value']['recap'] is True
+    assert after['adChapterCategories']['value']['sponsor'] is True
+    assert after['adChaptersIncludeHeld']['value'] is True
+    assert after['adChapterTitleFormat']['value'] == 'Ad: {category}'
+    assert after['adChapterHeldTitleFormat']['value'] == 'Maybe {category}'
+    assert after['adChapterResumeTitle']['value'] == 'Back'
+    assert after['adChapterMinConfidence']['value'] == 0.5
+
+
+@pytest.mark.parametrize('payload', [
+    {'adChapterTitleFormat': '{nope}'},
+    {'adChapterTitleFormat': '   '},
+    {'adChapterHeldTitleFormat': 42},
+    {'adChapterResumeTitle': ''},
+    {'adChapterMinConfidence': 1.5},
+    {'adChapterMinConfidence': 'high'},
+    {'adChapterCategories': {'bogus': True}},
+    {'adChapterCategories': {'sponsor': 'yes'}},
+    {'adChapterCategories': []},
+])
+def test_ad_chapter_settings_validation(client, payload):
+    r = client.put(f'{BASE}/ad-detection', data=json.dumps(payload),
+                   content_type='application/json')
+    assert r.status_code == 400, r.get_data(as_text=True)
