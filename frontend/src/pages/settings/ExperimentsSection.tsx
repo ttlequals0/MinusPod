@@ -2,10 +2,6 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import { selectBase } from '../../components/fieldStyles';
 import ExperimentalBadge from '../../components/ExperimentalBadge';
 
-// ReviewerState lives with the section that owns it now that Ad Reviewer is a
-// regular feature; re-exported so existing imports keep resolving.
-export type { ReviewerState } from './AdReviewerSection';
-
 interface ExperimentsSectionProps {
   addressingMode: string;
   onAddressingModeChange: (v: string) => void;

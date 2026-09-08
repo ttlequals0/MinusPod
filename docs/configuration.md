@@ -24,7 +24,7 @@ Customize ad detection in Settings:
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)
 - **LLM Tunables** - See below
 
-Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under Experiments) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
+Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under AI & Processing) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
 
 ### Seed sponsors
 
@@ -286,7 +286,7 @@ When to enable it:
 
 Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With a typical pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
 
-Settings live under Experiments -> Ad Reviewer:
+Settings live under AI & Processing -> Ad Reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
 - **Review model** - `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)

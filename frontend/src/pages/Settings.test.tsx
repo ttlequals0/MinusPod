@@ -4,12 +4,11 @@
  * one, and re-seeds the textarea from the refetched settings.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Settings from './Settings';
 import type { Settings as SettingsShape, SettingValue } from '../api/types';
-import { within } from '@testing-library/react';
 
 // The Reset button that belongs to one prompt textarea, found by its label
 // rather than by position, so reordering settings sections cannot break it.
@@ -249,6 +248,29 @@ describe('Settings: per-prompt reset', () => {
     await user.click(resurrectBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
     expect(mockResetPrompt).toHaveBeenCalledWith('resurrect');
+  });
+});
+
+describe('Settings: Ad Reviewer placement', () => {
+  // Guards the move out of Experiments: order, not index, so an unrelated
+  // section landing between these headings does not fail the test.
+  function precedes(a: HTMLElement, b: HTMLElement) {
+    return Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }
+
+  it('renders Ad Reviewer under AI & Processing, before Seed sponsors and before Experiments', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    renderSettings();
+
+    const adReviewer = await screen.findByRole('heading', { name: 'Ad Reviewer' });
+    const seedSponsors = screen.getByRole('heading', { name: 'Seed sponsors' });
+    const aiHeader = screen.getByRole('heading', { name: 'AI & Processing' });
+
+    expect(precedes(aiHeader, adReviewer)).toBe(true);
+    expect(precedes(adReviewer, seedSponsors)).toBe(true);
+
+    const experiments = screen.queryByRole('heading', { name: 'Experiments' });
+    if (experiments) expect(precedes(adReviewer, experiments)).toBe(true);
   });
 });
 
