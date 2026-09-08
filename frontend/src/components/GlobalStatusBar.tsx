@@ -368,8 +368,9 @@ function GlobalStatusBar() {
       </button>
 
       {/* Expanded View */}
+      {/* Four running jobs plus the hold, queued and refresh blocks fit before scrolling; 70vh keeps a phone screen uncovered. */}
       {isExpanded && (
-        <div className="px-4 pb-3 border-t border-border/50 bg-accent/20 max-h-48 overflow-y-auto">
+        <div className="px-4 pb-3 border-t border-border/50 bg-accent/20 max-h-[min(70vh,26rem)] overflow-y-auto">
           {/* Running jobs, oldest first */}
           {jobs.map((j) => (
             <div key={`${j.slug}-${j.episodeId}`} data-testid="status-job" className="py-2 border-b border-border/30">
