@@ -280,3 +280,49 @@ def test_upsert_new_row_indexes_inside_the_insert_transaction(monkeypatch):
 
     assert proxy.commit_calls == 1
     assert any(e['episodeId'] == ep_id for e in db.search_grouped('Solstice')['episodes'])
+
+
+def test_rebuild_reads_everything_before_it_takes_the_write_lock(monkeypatch):
+    """The rebuild wipes the whole table, so it stays one transaction. Holding
+    that lock across per-row Python work stalled every other writer, so no
+    SELECT may run after the DELETE opens it."""
+    slug = _feed('rebuild-lock-order')
+    db.upsert_episode(slug, _eid(), original_url='https://example.com/a.mp3',
+                      title='Indexed episode', status='processed')
+    conn = db.get_connection()
+    order = []
+    real_execute = conn.execute
+    real_executemany = conn.executemany
+
+    def spy_execute(sql, *a):
+        order.append(('execute', ' '.join(str(sql).split())[:40]))
+        return real_execute(sql, *a)
+
+    def spy_executemany(sql, *a):
+        order.append(('executemany', ' '.join(str(sql).split())[:40]))
+        return real_executemany(sql, *a)
+
+    monkeypatch.setattr(conn, 'execute', spy_execute)
+    monkeypatch.setattr(conn, 'executemany', spy_executemany)
+
+    assert db.rebuild_search_index() > 0
+
+    kinds = [k for k, _ in order]
+    sqls = [q for _, q in order]
+    delete_at = next(i for i, q in enumerate(sqls) if q.startswith('DELETE FROM search_index'))
+    assert not any(q.startswith('SELECT') for q in sqls[delete_at:]), (
+        'a read ran while the rebuild held the write lock')
+    assert kinds[delete_at + 1:] == ['executemany'] * (len(kinds) - delete_at - 1)
+
+
+def test_rebuild_still_indexes_every_content_type(monkeypatch):
+    slug = _feed('rebuild-content-types')
+    db.upsert_episode(slug, _eid(), original_url='https://example.com/b.mp3',
+                      title='Findable episode', status='processed')
+
+    assert db.rebuild_search_index() > 0
+
+    conn = db.get_connection()
+    types = {r['content_type'] for r in conn.execute(
+        'SELECT DISTINCT content_type FROM search_index').fetchall()}
+    assert 'episode' in types and 'podcast' in types

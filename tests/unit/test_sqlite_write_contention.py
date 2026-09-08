@@ -29,13 +29,30 @@ def test_token_usage_totals_are_still_correct(temp_db):
     assert [m['callCount'] for m in summary['models']] == [2]
 
 
-def test_clean_feed_refresh_does_not_commit(temp_db, monkeypatch):
+def test_clean_feed_refresh_takes_no_write_lock(temp_db, monkeypatch):
+    """A guarded UPDATE still takes the write lock to evaluate its WHERE, so
+    the read has to decide first or a clean feed still queues behind writers."""
     temp_db.create_podcast('show-a', 'https://example.com/a.xml', 'Show A')
     conn = temp_db.get_connection()
+    statements = []
+    real_execute = conn.execute
+    monkeypatch.setattr(conn, 'execute',
+                        lambda sql, *a: (statements.append(str(sql)), real_execute(sql, *a))[1])
     commits = []
     monkeypatch.setattr(conn, 'commit', lambda: commits.append(1))
 
     temp_db.clear_refresh_failure_state('show-a')
+
+    assert not any('UPDATE' in q for q in statements)
+    assert commits == []
+
+
+def test_a_missing_feed_is_a_no_op(temp_db, monkeypatch):
+    conn = temp_db.get_connection()
+    commits = []
+    monkeypatch.setattr(conn, 'commit', lambda: commits.append(1))
+
+    temp_db.clear_refresh_failure_state('no-such-feed')
 
     assert commits == []
 

@@ -35,73 +35,55 @@ class SearchMixin:
         Returns count of indexed items.
         """
         conn = self.get_connection()
-        count = 0
 
-        # Clear existing index
+        # Every row is read and shaped before the write transaction opens. The
+        # rebuild wipes the whole table, so it has to stay one transaction, and
+        # holding the single write lock across this much per-row Python work
+        # stalled every other writer for tens of seconds.
+        rows = []
+        rows.extend(
+            ('podcast', r['slug'], r['slug'], r['title'], r['description'] or '', '')
+            for r in conn.execute("SELECT slug, title, description FROM podcasts")
+        )
+        # Episodes of every status; body is the transcript when one exists, else
+        # ''. Transcripts are capped to keep one index entry from going huge.
+        rows.extend(
+            ('episode', r['episode_id'], r['slug'], r['title'],
+             (r['transcript_text'] or '')[:100000], r['description'] or '')
+            for r in conn.execute("""
+                SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
+                FROM episodes e
+                JOIN podcasts p ON e.podcast_id = p.id
+                LEFT JOIN episode_details ed ON e.id = ed.episode_id
+            """)
+        )
+        rows.extend(
+            ('pattern', str(r['id']), r['scope'] or 'global',
+             r['sponsor'] or 'Unknown', r['text_template'] or '', '')
+            for r in conn.execute("""
+                SELECT ap.id, ap.text_template, ks.name AS sponsor, ap.scope
+                FROM ad_patterns ap
+                LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+                WHERE ap.is_active = 1
+            """)
+        )
+        rows.extend(
+            ('sponsor', str(r['id']), 'global', r['name'], r['aliases'] or '', '')
+            for r in conn.execute("""
+                SELECT id, name, aliases FROM known_sponsors WHERE is_active = 1
+            """)
+        )
+
         conn.execute("DELETE FROM search_index")
-
-        # Index podcasts
-        cursor = conn.execute("""
-            SELECT slug, title, description
-            FROM podcasts
-        """)
-        for row in cursor:
-            conn.execute("""
+        for start in range(0, len(rows), _INDEX_CHUNK):
+            conn.executemany("""
                 INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, ('podcast', row['slug'], row['slug'], row['title'],
-                  row['description'] or '', ''))
-            count += 1
-
-        # Index episodes of every status; body is the transcript when one exists, else ''.
-        cursor = conn.execute("""
-            SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
-            FROM episodes e
-            JOIN podcasts p ON e.podcast_id = p.id
-            LEFT JOIN episode_details ed ON e.id = ed.episode_id
-        """)
-        for row in cursor:
-            # Limit transcript size to avoid huge index entries
-            transcript = (row['transcript_text'] or '')[:100000]  # ~100k chars max
-            conn.execute("""
-                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, ('episode', row['episode_id'], row['slug'], row['title'],
-                  transcript, row['description'] or ''))
-            count += 1
-
-        # Index patterns
-        cursor = conn.execute("""
-            SELECT ap.id, ap.text_template, ks.name AS sponsor, ap.scope
-            FROM ad_patterns ap
-            LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
-            WHERE ap.is_active = 1
-        """)
-        for row in cursor:
-            conn.execute("""
-                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, ('pattern', str(row['id']), row['scope'] or 'global',
-                  row['sponsor'] or 'Unknown', row['text_template'] or '', ''))
-            count += 1
-
-        # Index sponsors
-        cursor = conn.execute("""
-            SELECT id, name, aliases
-            FROM known_sponsors
-            WHERE is_active = 1
-        """)
-        for row in cursor:
-            conn.execute("""
-                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, ('sponsor', str(row['id']), 'global', row['name'],
-                  row['aliases'] or '', ''))
-            count += 1
-
+            """, rows[start:start + _INDEX_CHUNK])
         conn.commit()
-        logger.info(f"Search index rebuilt with {count} items")
-        return count
+
+        logger.info(f"Search index rebuilt with {len(rows)} items")
+        return len(rows)
 
     def index_episode(self, episode_id: str, slug: str) -> bool:
         """Index or re-index a single episode in the search index."""

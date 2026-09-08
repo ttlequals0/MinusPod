@@ -302,26 +302,28 @@ class PodcastMixin:
     def clear_refresh_failure_state(self, slug: str):
         """Reset the refresh-failure columns after a successful refresh.
 
-        The guard lives in the WHERE clause so a failure written by a
-        concurrent refresh attempt is cleared even when the caller's row
-        snapshot predates it, and clean feeds cost no write or commit.
+        Most feeds are already clean, and a guarded UPDATE still takes the
+        write lock to evaluate its WHERE, so during a sweep that queues behind
+        every other writer for as long as the lock is held. The read decides
+        first: in WAL a reader never waits on a writer, so a clean feed now
+        costs no lock at all. The UPDATE keeps its own guard, since a
+        concurrent refresh may have written a failure since this read.
         """
         conn = self.get_connection()
-        cursor = conn.execute(
+        row = conn.execute(
+            "SELECT refresh_failure_count FROM podcasts WHERE slug = ?",
+            (slug,)
+        ).fetchone()
+        if not row or not row['refresh_failure_count']:
+            return
+        conn.execute(
             """UPDATE podcasts
                SET refresh_failure_count = 0, last_refresh_error = NULL,
                    last_refresh_error_at = NULL, last_refresh_failure_at = NULL
                WHERE slug = ? AND refresh_failure_count > 0""",
             (slug,)
         )
-        # A clean feed matches no row, and committing that still costs a trip
-        # through the single write lock during a refresh sweep. The rollback
-        # is connection-wide, so the caller must hold no other uncommitted
-        # work on this thread.
-        if cursor.rowcount:
-            conn.commit()
-        else:
-            conn.rollback()
+        conn.commit()
 
     def get_podcast_tags(self, slug: str) -> dict[str, list[str]]:
         """Return the source breakdown of a podcast's tags.

@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- The six-hourly search index rebuild no longer stalls every other database writer. It wiped the index and then re-inserted every row one at a time in Python, all inside the one transaction that wipe requires, holding SQLite's single write lock for over 30 seconds. The rows are now read and shaped before the write starts, and inserted in batches. The rebuild stays atomic.
+- Clearing a feed's refresh-failure state costs no write lock when there is nothing to clear. The guarded update still had to take the lock to evaluate its condition, so during a sweep every clean feed queued behind whatever writer held it. A read decides first, and in WAL a reader never waits on a writer.
+
 ## [2.96.5] - 2026-09-08
 
 ### Fixed
