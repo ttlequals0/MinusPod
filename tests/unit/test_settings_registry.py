@@ -65,6 +65,7 @@ SEED_SNAPSHOT = {
     'ad_addressing_mode': 'timestamps',
     'jit_blocked_user_agents': '[]',
     'process_new_episodes_first': '1',
+    'dai_differential_overrides_keep': 'true',
     'differential_hold_min_seconds': '10',
     'differential_measured_corr_max': '0.60',
     'enable_ad_review': 'false',
@@ -167,6 +168,7 @@ EXPECTED_AD_RESET_KEYS = {
     'learning_min_confidence', 'learning_min_confidence_long',
     'learning_min_pattern_duration', 'learning_max_pattern_duration',
     'differential_measured_corr_max', 'differential_hold_min_seconds',
+    'dai_differential_overrides_keep',
 }
 
 # Keys reset_setting() must refuse (return False). Membership captured from
@@ -448,12 +450,13 @@ class TestGetDefaults:
         # then logDownloadQuery (103 -> 104).
         # notificationTimezone added after that (104 -> 105), then
         # chaptersInNotes (105 -> 106). whisperPoolEnabled +
-        # whisperPoolMaxRequests + whisperPoolMaxEpisodes after that (106 -> 109).
+        # whisperPoolMaxRequests + whisperPoolMaxEpisodes after that (106 -> 109),
+        # then daiDifferentialOverridesKeep (109 -> 110).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 109
+        assert len(payload_keys) == 110
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

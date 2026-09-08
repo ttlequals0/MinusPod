@@ -33,7 +33,11 @@ from ad_reviewer import (
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
 from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
-from differential_fetcher import fetch_and_diff, is_likely_dai_feed
+from differential_fetcher import (
+    differential_region_overlapping,
+    fetch_and_diff,
+    is_likely_dai_feed,
+)
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import (clip_dai_core_spans, fold_marker_pair,
                            foldable_twin, invalidate_tail_provenance)
@@ -1321,6 +1325,45 @@ def _keep_overridden_by_pattern(ad) -> bool:
     return False
 
 
+class KeepDifferentialOverride:
+    """Second standing rule (#728): audio proven to differ across fetches
+    always cuts, whatever the category resolves to.
+
+    A category cannot settle this on its own. `cross_promo` covers both a
+    guest plugging their own show, which is why an operator sets keep, and a
+    paid dynamically-inserted ad for another podcast. The differential
+    separates them: injected audio differs between two fetches of the same
+    enclosure and host content does not.
+    """
+
+    def __init__(self, dai_differential=None, corr_max: float = 0.0,
+                 enabled: bool = False):
+        self.dai_differential = dai_differential
+        self.corr_max = corr_max
+        self.enabled = enabled and bool((dai_differential or {}).get('regions'))
+
+    def applies_to(self, ad) -> bool:
+        """True when `ad` overlaps a measured differential region; stamps the
+        marker with the region that overrode its keep."""
+        if not self.enabled:
+            return False
+        region = differential_region_overlapping(
+            self.dai_differential, ad.get('start', 0.0), ad.get('end', 0.0),
+            self.corr_max)
+        if region is None:
+            return False
+        ad['keep_overridden_by_differential'] = True
+        ad['keep_override_corr'] = region.get('corr')
+        return True
+
+
+def _keep_overridden(ad, differential_override=None) -> bool:
+    """Either standing override: a defined pattern, or differential evidence."""
+    if _keep_overridden_by_pattern(ad):
+        return True
+    return bool(differential_override and differential_override.applies_to(ad))
+
+
 def _clear_hold_for_keep(marker) -> bool:
     """Move a keep marker's hold to hold_cleared_reason: a kept span is never
     force-cut by a stale hold. True when there was a hold to clear."""
@@ -1332,7 +1375,31 @@ def _clear_hold_for_keep(marker) -> bool:
     return True
 
 
-def _partition_keep_ads(all_ads, actions_map):
+def _load_stored_dai_differential(slug, episode_id):
+    """Episode-level differential from episode_details, or None when absent
+    or unparseable. The recut path has no in-memory result to reuse."""
+    try:
+        raw = db.get_episode_dai_differential(slug, episode_id)
+        return json.loads(raw) if raw else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _make_keep_differential_override(dai_differential):
+    """Build the differential keep-override from settings, or a disabled one."""
+    return KeepDifferentialOverride(
+        dai_differential,
+        corr_max=db.get_setting_float(
+            'differential_measured_corr_max',
+            registry_get_default('differential_measured_corr_max')),
+        enabled=db.get_setting_bool(
+            'dai_differential_overrides_keep',
+            default=coerce_bool_setting(
+                registry_get_default('dai_differential_overrides_keep'))),
+    )
+
+
+def _partition_keep_ads(all_ads, actions_map, differential_override=None):
     """Split first-pass markers by resolved segment-category action.
 
     A marker resolving to 'keep' bypasses the validator, reviewer, and cut:
@@ -1340,8 +1407,9 @@ def _partition_keep_ads(all_ads, actions_map):
     list. It also overrides any existing hold, since a kept marker can
     never be force-cut via a stale hold: held_for_review is cleared and the
     original reason kept as hold_cleared_reason.
-    Exception: a marker from a defined pattern bypasses keep and lands in
-    the remove list with keep_overridden_by_pattern=True.
+    Exception: a marker from a defined pattern, or one overlapping a
+    measured differential region, bypasses keep and lands in the remove
+    list stamped with which override caught it.
 
     Returns (keep_ads, remove_ads); remove_ads is all_ads unchanged when no
     category resolves to 'keep'.
@@ -1353,7 +1421,7 @@ def _partition_keep_ads(all_ads, actions_map):
     for ad in all_ads:
         category = normalize_segment_category(ad.get('category'))
         if actions_map.get(category) == 'keep':
-            if _keep_overridden_by_pattern(ad):
+            if _keep_overridden(ad, differential_override):
                 remove_ads.append(ad)
                 continue
             ad['was_cut'] = False
@@ -1370,7 +1438,8 @@ def _partition_keep_ads(all_ads, actions_map):
     return keep_ads, remove_ads
 
 
-def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_map):
+def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_map,
+                                differential_override=None):
     """Backstop right before the pass-1 cut list reaches the audio
     processor: drops any marker whose resolved action is still 'keep'.
 
@@ -1384,8 +1453,9 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
     Stamps was_cut=False/action_applied='keep' on a caught marker (and its
     all_ads_with_validation master), clears any hold the same way the keep
     partition does, and removes it from the returned cut list.
-    Exception: a marker from a defined pattern stays in the cut list with
-    keep_overridden_by_pattern=True, never kept by keep maps.
+    Exception: a marker from a defined pattern, or one overlapping a
+    measured differential region, stays in the cut list, never kept by
+    keep maps.
     Returns ads_to_remove unchanged when no category resolves to 'keep'.
     """
     if not any(action == 'keep' for action in actions_map.values()):
@@ -1398,7 +1468,7 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
         else:
             remove.append(ad)
     for ad, category in caught:
-        if _keep_overridden_by_pattern(ad):
+        if _keep_overridden(ad, differential_override):
             remove.append(ad)
         else:
             ad['was_cut'] = False
@@ -4026,7 +4096,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             podcast_id=recut_podcast_id, segment_actions=segment_actions,
         )
         keep_ads, all_ads_with_validation = _partition_keep_ads(
-            all_ads_with_validation, segment_actions)
+            all_ads_with_validation, segment_actions,
+            _make_keep_differential_override(
+                _load_stored_dai_differential(slug, episode_id)))
         if keep_ads:
             # Match by identity, not span: recut mode never rebuilds marker
             # dicts, so a span-based match could drop a different marker
@@ -4498,6 +4570,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # uses only thread-local db connections plus the lock-guarded
         # status_service; audio analysis shares no mutable state with it.
         dai_differential = None
+        # Rebuilt from the differential once detection runs; the skip and
+        # cue-only paths reach the late keep partition without it.
+        keep_override = KeepDifferentialOverride()
         diff_thread = None
         diff_outcome = {}
         if not skip_detection:
@@ -4694,7 +4769,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # (which iterates all_ads_with_validation) never resurrects
                 # one. Merged back into the saved marker list below.
                 segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
-                keep_ads, all_ads = _partition_keep_ads(all_ads, segment_actions)
+                keep_override = _make_keep_differential_override(dai_differential)
+                keep_ads, all_ads = _partition_keep_ads(
+                    all_ads, segment_actions, keep_override)
 
                 # Resolve per-feed hold settings once for the full pipeline.
                 max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
@@ -4736,7 +4813,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # reviewer's resurrection pool and the terminal-snap/
                 # tail-completion sweeps see it, and join it to keep_ads.
                 late_keep_ads, all_ads_with_validation = _partition_keep_ads(
-                    all_ads_with_validation, segment_actions)
+                    all_ads_with_validation, segment_actions, keep_override)
                 if late_keep_ads:
                     late_keep_ids = {id(ad) for ad in late_keep_ads}
                     ads_to_remove = [ad for ad in ads_to_remove
@@ -4804,7 +4881,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Backstop: the late keep partition above should already have
             # caught everything, so this normally finds nothing.
             ads_to_remove = _apply_late_keep_safety_net(
-                ads_to_remove, all_ads_with_validation, segment_actions)
+                ads_to_remove, all_ads_with_validation, segment_actions,
+                keep_override)
 
             # Stamps action_applied on the final cut list, then syncs it
             # into the master list since sweep adjustments rebuild dicts,

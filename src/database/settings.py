@@ -662,6 +662,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'differential_measured_corr_max': SettingSpec(
         default='0.60', seeded=True, in_ad_reset=True,
         payload_key='differentialMeasuredCorrMax', payload_kind='float'),
+    'dai_differential_overrides_keep': SettingSpec(
+        default='true', seeded=True, in_ad_reset=True,
+        payload_key='daiDifferentialOverridesKeep', payload_kind='bool'),
     'differential_hold_min_seconds': SettingSpec(
         default='10', seeded=True, in_ad_reset=True,
         payload_key='differentialHoldMinSeconds', payload_kind='float'),

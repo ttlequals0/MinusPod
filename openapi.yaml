@@ -5089,6 +5089,14 @@ paths:
                     A longer span is split at its ad transitions and each piece
                     is learned separately (default 120).
                   example: 120
+                daiDifferentialOverridesKeep:
+                  type: boolean
+                  description: >-
+                    A marker overlapping a measured differential region is cut
+                    even when segmentCategoryActions maps its category to
+                    keep. Audio that differs between two fetches of the same
+                    enclosure was inserted, whatever the category says
+                    (default true).
                 differentialMeasuredCorrMax:
                   type: number
                   format: float
@@ -11041,6 +11049,17 @@ components:
           properties:
             value:
               type: integer
+            isDefault:
+              type: boolean
+        daiDifferentialOverridesKeep:
+          type: object
+          description: >-
+            A marker overlapping a measured differential region is cut even
+            when segmentCategoryActions maps its category to keep
+            (default true).
+          properties:
+            value:
+              type: boolean
             isDefault:
               type: boolean
         differentialMeasuredCorrMax:

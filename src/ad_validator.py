@@ -31,6 +31,7 @@ from utils.markers import (
     invalidate_tail_provenance,
     mark_distinct_merge,
 )
+from differential_fetcher import differential_region_overlapping
 from utils.text import extract_text_from_segments
 from utils.time import overlap_ratio
 
@@ -957,17 +958,11 @@ class AdValidator:
         # measured-corr gate as candidate minting (2.76.0): a high-corr
         # "differential" mostly matched across fetches and proves nothing;
         # legacy stored regions (corr hard-coded 0.0) still corroborate.
-        diff = (self._audio_analysis or {}).get('dai_differential') or {}
-        for region in diff.get('regions', []):
-            if region.get('kind') != 'differential':
-                continue
-            corr = region.get('corr')
-            if (not isinstance(corr, (int, float))
-                    or corr > self.differential_corr_max):
-                continue
-            if (float(region['start_s']) < float(ad.get('end', 0.0))
-                    and float(region['end_s']) > float(ad.get('start', 0.0))):
-                return 'dai_differential'
+        if differential_region_overlapping(
+                (self._audio_analysis or {}).get('dai_differential'),
+                ad.get('start', 0.0), ad.get('end', 0.0),
+                self.differential_corr_max):
+            return 'dai_differential'
         return None
 
     def _get_text_in_range(self, start: float, end: float) -> str:
