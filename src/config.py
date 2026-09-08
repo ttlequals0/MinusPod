@@ -181,7 +181,6 @@ AD_CHAPTER_KINDS = frozenset({'ad', 'resume'})
 DEFAULT_AD_CHAPTER_CATEGORIES = {
     cat: cat in ('sponsor', 'cross_promo') for cat in SEGMENT_CATEGORIES}
 DEFAULT_AD_CHAPTER_CATEGORIES_JSON = json.dumps(DEFAULT_AD_CHAPTER_CATEGORIES)
-AD_CHAPTERS_OVERRIDE_VALUES = ('on', 'off')
 
 
 def resolve_ad_chapter_categories_map(raw_json, baseline=None) -> dict[str, bool]:
@@ -905,6 +904,8 @@ def resolve_chapters_mode(podcast_row):
 # Chapter list in served descriptions (#720): per-feed 'on'/'off', NULL
 # follows the global chapters_in_notes setting.
 CHAPTERS_IN_NOTES_VALUES = EPISODE_LOGS_VALUES
+# Per-feed ad_chapters_enabled_override, same 'on'/'off' shape.
+AD_CHAPTERS_OVERRIDE_VALUES = EPISODE_LOGS_VALUES
 
 
 def resolve_chapters_in_notes(db, podcast_row) -> bool:

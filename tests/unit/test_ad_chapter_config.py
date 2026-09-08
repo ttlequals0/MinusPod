@@ -72,10 +72,8 @@ def test_title_format_validator():
     assert not valid_ad_chapter_title_format(None)
 
 
-def test_per_feed_categories_layer_over_global(tmp_path):
-    from database import Database
-    Database._instance = None
-    db = Database(str(tmp_path))
+def test_per_feed_categories_layer_over_global(temp_db):
+    db = temp_db
     db.set_setting('ad_chapter_categories', json.dumps({'recap': True}), is_default=False)
     db.create_podcast('example-podcast', 'https://example.com/feed', 'Example')
     db.update_podcast('example-podcast',
