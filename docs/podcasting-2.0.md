@@ -151,11 +151,11 @@ or unset to follow the global setting).
 
 ### Ad chapters
 
-A segment kept in the audio by its category action still sits in the file. With
-**Ad chapters** on (Settings > Transcripts & Chapters, `adChaptersEnabled`, off
-by default) MinusPod adds a chapter at the start of each kept segment and a
-resume chapter at its end, so an app that skips by chapter can jump past the
-break. Chapters have no end time, which is why the resume chapter exists. When
+A segment kept in the audio by its category action still sits in the file.
+**Ad chapters** (Settings > Transcripts & Chapters, `adChaptersEnabled`, off by
+default) adds a chapter at the start of each kept segment and a resume chapter
+at its end. An app that skips by chapter can then jump past the break.
+Chapters have no end time, which is why the resume chapter exists. When
 a generated chapter already starts within two seconds of the end, that chapter
 is the resume point instead.
 
