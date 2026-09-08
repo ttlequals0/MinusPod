@@ -65,6 +65,18 @@ SEGMENT_CATEGORIES = ('sponsor', 'cross_promo', 'self_promo', 'interaction',
 SEGMENT_ACTIONS = ('remove', 'beep', 'keep')
 DEFAULT_SEGMENT_ACTION = 'remove'
 
+# Display names for the categories. Mirrors SEGMENT_CATEGORY_LABELS in
+# frontend/src/utils/segmentCategory.ts; keep the two in sync.
+SEGMENT_CATEGORY_LABELS = {
+    'sponsor': 'Sponsor',
+    'cross_promo': 'Cross-promo',
+    'self_promo': 'Self-promo',
+    'interaction': 'Interaction',
+    'intro': 'Intro',
+    'outro': 'Outro',
+    'recap': 'Recap',
+}
+
 
 # Spelled-out forms a model reaches for instead of the canonical category.
 SEGMENT_CATEGORY_ALIASES = {

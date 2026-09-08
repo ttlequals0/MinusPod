@@ -40,6 +40,28 @@ def test_append_keeps_the_description_and_adds_the_block():
     assert append_chapters(None, CHAPTERS) == BLOCK
 
 
+def test_ad_chapter_lines_carry_category_suffix():
+    chapters = json.dumps({'version': '1.2.0', 'chapters': [
+        {'startTime': 0, 'title': 'Intro'},
+        {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 960, 'title': 'Show', 'kind': 'resume'},
+        {'startTime': 1200, 'title': '[mp:cross_promo?]', 'kind': 'ad',
+         'category': 'cross_promo', 'held': True},
+    ]})
+    assert format_chapter_block(chapters) == (
+        '<p>Chapters</p><p>00:00 Intro<br>15:00 [mp:sponsor] (Sponsor)<br>16:00 Show'
+        '<br>20:00 [mp:cross_promo?] (Cross-promo, awaiting review)</p>')
+
+
+def test_ad_chapter_without_a_known_category_falls_back():
+    chapters = json.dumps({'chapters': [
+        {'startTime': 30, 'title': 'A', 'kind': 'ad'},
+        {'startTime': 60, 'title': 'B', 'kind': 'ad', 'category': 'mystery'},
+    ]})
+    assert format_chapter_block(chapters) == (
+        '<p>Chapters</p><p>00:30 A (Ad)<br>01:00 B (mystery)</p>')
+
+
 def _db(global_value):
     db = MagicMock()
     db.get_setting_bool.return_value = global_value
