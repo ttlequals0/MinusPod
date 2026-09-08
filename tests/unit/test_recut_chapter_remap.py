@@ -427,3 +427,50 @@ def test_remap_disabled_ad_config_strips_stale_ad_chapters(monkeypatch):
         previous_cuts=[], original_duration=3600.0, audio_duration=3600.0,
         markers=markers, ad_config=AdChapterConfig.disabled())
     assert saved['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
+
+
+def test_remap_ad_only_stored_list_with_no_replacement_writes_empty_set(monkeypatch):
+    """Stale ad entries must leave the JSON and ID3 even with nothing to add."""
+    saved = {}
+    embedded = {}
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 300, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 360, 'title': 'Show', 'kind': 'resume'}]}
+    monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
+    monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
+                        lambda s, e, cj, cuts: saved.update(cj))
+    monkeypatch.setattr(processing, 'embed_chapters',
+                        lambda p, ch, duration=None: embedded.update(
+                            {'path': p, 'chapters': ch}) or True)
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+                'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
+    processing._remap_stored_chapters(
+        'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
+        previous_cuts=[], original_duration=3600.0, audio_path='/x.mp3',
+        audio_duration=3600.0, markers=markers,
+        ad_config=AdChapterConfig.disabled())
+    assert saved['chapters'] == []
+    assert embedded == {'path': '/x.mp3', 'chapters': []}
+
+
+def test_remap_ad_only_stored_list_with_no_eligible_marker_writes_empty_set(monkeypatch):
+    """Same cleanup when the config is on but no marker qualifies."""
+    saved = {}
+    embedded = {}
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 300, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'}]}
+    monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
+    monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
+                        lambda s, e, cj, cuts: saved.update(cj))
+    monkeypatch.setattr(processing, 'embed_chapters',
+                        lambda p, ch, duration=None: embedded.update(
+                            {'path': p, 'chapters': ch}) or True)
+    # Cut, not kept: nothing is left in the audio to publish as an ad chapter.
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'remove',
+                'category': 'sponsor', 'confidence': 0.95, 'was_cut': True}]
+    processing._remap_stored_chapters(
+        'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
+        previous_cuts=[], original_duration=3600.0, audio_path='/x.mp3',
+        audio_duration=3600.0, markers=markers, ad_config=AD_CFG)
+    assert saved['chapters'] == []
+    assert embedded == {'path': '/x.mp3', 'chapters': []}

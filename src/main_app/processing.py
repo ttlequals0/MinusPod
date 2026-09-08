@@ -3141,10 +3141,14 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
                 f"applied cuts persisted); keeping previous chapters JSON")
             return
         chapters_json = storage.get_chapters_json(slug, episode_id)
+        stored = (chapters_json or {}).get('chapters') or []
         # Stale ad chapters are rebuilt from the recut's markers, never remapped.
-        chapters = strip_ad_chapters((chapters_json or {}).get('chapters') or [])
+        chapters = strip_ad_chapters(stored)
+        had_ads = len(stored) != len(chapters)
         want_ads = ad_config is not None and ad_config.enabled and markers
-        if not chapters and not want_ads:
+        # had_ads still writes: the stale entries must leave the JSON and ID3
+        # even when nothing replaces them.
+        if not chapters and not want_ads and not had_ads:
             return
         if not original_duration:
             audio_logger.warning(
@@ -3167,7 +3171,7 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
         merged = _with_ad_chapters(remapped, markers, all_cuts,
                                    replacement_duration, resolved_duration,
                                    ad_config)
-        if not merged:
+        if not merged and not had_ads:
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Chapter remap swallowed every "
                 f"chapter; keeping previous chapters JSON")
@@ -3381,7 +3385,9 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                 slug, episode_id, chapters_json, all_cuts or [])
                             audio_logger.info(
                                 f"[{slug}:{episode_id}] Preserved {len(remapped)} "
-                                f"upstream JSON chapter(s) (no AI call)")
+                                f"upstream JSON chapter(s), "
+                                f"{_ad_chapter_count(chapters_json['chapters'])} "
+                                f"ad chapter entries (no AI call)")
                             if audio_path:
                                 embed_chapters(str(audio_path),
                                               chapters_json['chapters'],

@@ -31,7 +31,7 @@ AD_ENTRY = {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad',
 RESUME_ENTRY = {'startTime': 960, 'title': 'Show', 'kind': 'resume'}
 
 
-def _db(chapters_mode=None, chapters_enabled=None):
+def _db(chapters_mode=None, chapters_enabled=None, upstream_chapters_url=None):
     db = MagicMock()
 
     def get_setting(key):
@@ -43,12 +43,13 @@ def _db(chapters_mode=None, chapters_enabled=None):
 
     db.get_setting.side_effect = get_setting
     db.get_podcast_by_slug.return_value = {'chapters_mode': chapters_mode}
-    db.get_episode.return_value = {'upstream_chapters_url': None}
+    db.get_episode.return_value = {'upstream_chapters_url': upstream_chapters_url}
     return db
 
 
 def _run(monkeypatch, db, publisher_chapters, generator_chapters=None,
-         markers=None, ad_config=AD_CFG):
+         markers=None, ad_config=AD_CFG, fetch_return=None,
+         original_duration=None):
     """Drive the real _generate_assets with every IO seam mocked."""
     storage_mock = MagicMock()
     embed_mock = MagicMock()
@@ -68,7 +69,7 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None,
                         MagicMock(return_value=publisher_chapters))
     monkeypatch.setattr(processing, 'embed_chapters', embed_mock)
     monkeypatch.setattr(processing, 'fetch_upstream_chapters',
-                        MagicMock(return_value=None))
+                        MagicMock(return_value=fetch_return))
     monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 2.0)
     monkeypatch.setattr(processing, 'resolve_ad_chapter_config',
                         lambda db, row, slug=None: ad_config)
@@ -80,6 +81,7 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None,
         episode_description='desc', podcast_name='Pod', episode_title='Title',
         regenerate_chapters=True, audio_path='/tmp/fake-processed.mp3',
         audio_duration=3600.0, markers=markers,
+        original_duration=original_duration,
     )
     return storage_mock, embed_mock, generator_class
 
@@ -169,10 +171,35 @@ def test_publisher_preserve_path_unchanged_when_no_ads(monkeypatch):
 def test_chapters_mode_off_writes_nothing_even_with_ads(monkeypatch):
     storage_mock, embed_mock, generator_class = _run(
         monkeypatch, _db(chapters_mode='off'), publisher_chapters=PUBLISHER,
-        markers=KEPT_SPONSOR, ad_config=AdChapterConfig.disabled())
+        markers=KEPT_SPONSOR)
 
     storage_mock.save_chapters_and_applied_cuts.assert_not_called()
     embed_mock.assert_not_called()
+
+
+# ---------- upstream podcast:chapters JSON path ----------
+
+UPSTREAM = [{'startTime': 1, 'title': 'Cold Open'},
+            {'startTime': 300, 'title': 'Body'},
+            {'startTime': 1500, 'title': 'Outro'}]
+
+
+def test_upstream_json_path_merges_and_embeds(monkeypatch):
+    storage_mock, embed_mock, generator_class = _run(
+        monkeypatch,
+        _db(chapters_mode='auto',
+            upstream_chapters_url='https://pub.example.com/ch.json'),
+        publisher_chapters=[], markers=KEPT_SPONSOR, fetch_return=UPSTREAM,
+        original_duration=3600.0)
+
+    generator_class.return_value.generate_chapters.assert_not_called()
+    merged = _saved_chapters(storage_mock)
+    assert merged == [{'startTime': 1, 'title': 'Cold Open'},
+                      {'startTime': 300, 'title': 'Body'},
+                      AD_ENTRY, RESUME_ENTRY,
+                      {'startTime': 1500, 'title': 'Outro'}]
+    embed_mock.assert_called_once_with(
+        '/tmp/fake-processed.mp3', merged, duration=3600.0)
 
 
 # ---------- regenerate-chapters endpoint ----------
