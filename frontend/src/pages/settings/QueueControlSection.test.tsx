@@ -200,6 +200,7 @@ describe('QueueControlSection loading placeholder', () => {
       enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
     });
     renderSection();
-    await waitFor(() => expect(screen.queryAllByTestId('skeleton-rows')).toHaveLength(0));
+    await screen.findByLabelText('Offline queue toggle');
+    expect(screen.queryAllByTestId('skeleton-rows')).toHaveLength(0);
   });
 });

@@ -12,6 +12,8 @@ const mockGetSponsors = vi.fn();
 vi.mock('../api/sponsors', () => ({
   getSponsors: (...a: unknown[]) => mockGetSponsors(...a),
   deleteSponsor: vi.fn(),
+  addSponsor: vi.fn(),
+  updateSponsor: vi.fn(),
 }));
 
 vi.mock('../api/community', () => ({
@@ -19,6 +21,7 @@ vi.mock('../api/community', () => ({
     vocabulary_version: 1, all_tags: [], podcast_genres: [],
     sponsor_industries: [], special_tags: [],
   }),
+  updateSponsorTags: vi.fn(),
 }));
 
 function renderPage() {
@@ -36,16 +39,19 @@ describe('SponsorsPage loading placeholder', () => {
     mockGetSponsors.mockResolvedValue([]);
   });
 
-  it('shows header and row skeletons while the sponsor query is pending', () => {
+  it('shows filter-card and row skeletons while the sponsor query is pending', () => {
     mockGetSponsors.mockReturnValueOnce(new Promise(() => {}));
     renderPage();
-    expect(screen.getByTestId('skeleton-page-header')).toBeTruthy();
+    expect(screen.getByTestId('skeleton-filter-card')).toBeTruthy();
     expect(screen.getByTestId('skeleton-rows')).toBeTruthy();
+    // The page's own h1 is the only title during the wait.
+    expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
   });
 
   it('drops the skeletons once the sponsors land', async () => {
     renderPage();
     await screen.findByPlaceholderText('Search by name, alias, category...');
     expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+    expect(screen.queryByTestId('skeleton-filter-card')).toBeNull();
   });
 });
