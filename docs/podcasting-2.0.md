@@ -153,7 +153,7 @@ or unset to follow the global setting).
 
 A segment kept in the audio by its category action still sits in the file.
 **Ad chapters** (Settings > Transcripts & Chapters, `adChaptersEnabled`, off by
-default) adds a chapter at the start of each kept segment and a resume chapter
+default) adds a chapter at the start of each kept break and a resume chapter
 at its end. An app that skips by chapter can then jump past the break.
 Chapters have no end time, which is why the resume chapter exists. When
 a generated chapter already starts within two seconds of the end, that chapter
@@ -164,7 +164,8 @@ cross-promo by default), and a kept segment needs a detection confidence of at
 least **Minimum confidence** (0.9 by default). Turn on **Include segments
 waiting for review** to chapter held segments too. They use the
 waiting-for-review title format, and rejecting one removes its chapter without
-a recut. Confirming one recuts the episode, which rebuilds the chapter list.
+a recut. Confirming one queues a recut, which rebuilds the chapter list when
+it runs.
 
 Titles come from **Chapter title** (`[mp:{category}]` by default) and **Resume
 title** (`Show`). Each feed can turn ad chapters on or off and pick its own
