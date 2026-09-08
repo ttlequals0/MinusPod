@@ -1,6 +1,6 @@
 // The Dashboard field is the mobile fix (#717): a real input the tap lands on
 // directly, since iOS only raises the keyboard for focus inside the gesture.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, renderHook, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -157,10 +157,21 @@ describe('Dashboard search field', () => {
 });
 
 describe('Dashboard loading state', () => {
-  it('shows a layout skeleton while loading, not a page spinner', () => {
+  afterEach(() => localStorage.removeItem('dashboardViewMode'));
+
+  it('shows a card-grid skeleton in grid view, not a page spinner', () => {
+    localStorage.setItem('dashboardViewMode', JSON.stringify('grid'));
     mockFeedsQueryFn.mockReturnValueOnce(new Promise<never>(() => {}));
     renderDashboard();
-    expect(screen.getByTestId('skeleton-page-header')).toBeDefined();
     expect(screen.getByTestId('skeleton-stat-cards')).toBeDefined();
+    expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
+  });
+
+  it('shows a list skeleton when the persisted view mode is list', () => {
+    localStorage.setItem('dashboardViewMode', JSON.stringify('list'));
+    mockFeedsQueryFn.mockReturnValueOnce(new Promise<never>(() => {}));
+    renderDashboard();
+    expect(screen.getByTestId('skeleton-rows')).toBeDefined();
+    expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
   });
 });
