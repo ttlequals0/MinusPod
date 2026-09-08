@@ -100,3 +100,18 @@ def test_ad_chapter_settings_validation(client, payload):
     r = client.put(f'{BASE}/ad-detection', data=json.dumps(payload),
                    content_type='application/json')
     assert r.status_code == 400, r.get_data(as_text=True)
+
+
+def test_ad_chapter_settings_reject_without_partial_write(client):
+    def put(payload):
+        return client.put(BASE + '/ad-detection', data=json.dumps(payload),
+                          content_type='application/json')
+
+    def enabled():
+        return client.get(BASE).get_json()['adChaptersEnabled']['value']
+
+    assert put({'adChaptersEnabled': False}).status_code == 200
+    assert put({'adChaptersEnabled': True, 'adChapterTitleFormat': '{nope}'}).status_code == 400
+    assert enabled() is False
+    assert put({'adChaptersEnabled': 'false'}).status_code == 200
+    assert enabled() is False

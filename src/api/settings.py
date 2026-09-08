@@ -1226,10 +1226,12 @@ def _apply_segment_category_actions(db, data):
 
 def _apply_ad_chapter_fields(db, data):
     """Persist the ad chapter settings; the category map merges over the stored map."""
+    # Validate every field first so a bad value leaves nothing half-written.
+    writes = []
     for key, setting in (('adChaptersEnabled', 'ad_chapters_enabled'),
                          ('adChaptersIncludeHeld', 'ad_chapters_include_held')):
         if key in data:
-            db.set_setting(setting, 'true' if data[key] else 'false', is_default=False)
+            writes.append((setting, 'true' if coerce_bool_setting(data[key]) else 'false'))
 
     for key, setting in (('adChapterTitleFormat', 'ad_chapter_title_format'),
                          ('adChapterHeldTitleFormat', 'ad_chapter_held_title_format')):
@@ -1237,23 +1239,24 @@ def _apply_ad_chapter_fields(db, data):
             if not valid_ad_chapter_title_format(data[key]):
                 return error_response(
                     f'{key} must be text with an optional {{category}} placeholder', 400)
-            db.set_setting(setting, data[key].strip(), is_default=False)
+            writes.append((setting, data[key].strip()))
 
     if 'adChapterResumeTitle' in data:
-        title = str(data['adChapterResumeTitle'] or '').strip()
-        if not title:
+        title = data['adChapterResumeTitle']
+        if not isinstance(title, str) or not title.strip():
             return error_response('adChapterResumeTitle must not be empty', 400)
-        db.set_setting('ad_chapter_resume_title', title, is_default=False)
+        writes.append(('ad_chapter_resume_title', title.strip()))
 
     if 'adChapterMinConfidence' in data:
         try:
             value = float(data['adChapterMinConfidence'])
         except (TypeError, ValueError):
-            return error_response('adChapterMinConfidence must be between 0 and 1', 400)
+            value = -1.0
         if not 0.0 <= value <= 1.0:
             return error_response('adChapterMinConfidence must be between 0 and 1', 400)
-        db.set_setting('ad_chapter_min_confidence', str(value), is_default=False)
+        writes.append(('ad_chapter_min_confidence', str(value)))
 
+    merged = None
     if 'adChapterCategories' in data:
         value = data['adChapterCategories']
         if not isinstance(value, dict):
@@ -1267,7 +1270,11 @@ def _apply_ad_chapter_fields(db, data):
                     f"adChapterCategories: '{cat}' must be true or false", 400)
         merged = resolve_ad_chapter_categories_map(db.get_setting('ad_chapter_categories'))
         merged.update(value)
-        db.set_setting('ad_chapter_categories', json.dumps(merged), is_default=False)
+        writes.append(('ad_chapter_categories', json.dumps(merged)))
+
+    for setting, value in writes:
+        db.set_setting(setting, value, is_default=False)
+    if merged is not None:
         logger.info(f"Updated ad chapter categories: {merged}")
     return None
 
