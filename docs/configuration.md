@@ -19,6 +19,7 @@ Customize ad detection in Settings:
 - **AI Model** - Model for first pass ad detection
 - **Verification Model** - Separate model for the post-cut verification pass
 - **Chapters Model** - Model for chapter generation (a small model like Haiku works well here)
+- **Ad chapters** - Publish segments left in the audio as their own chapters, so a chapter-aware player can skip them. Off by default. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
 - **System Prompts** - Customizable prompts for first pass and verification detection
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)

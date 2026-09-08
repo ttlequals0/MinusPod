@@ -149,6 +149,30 @@ removes it and regenerating chapters updates it. Each feed can override the
 global value from its Feed Settings page (`chaptersInNotes`: `on`, `off`,
 or unset to follow the global setting).
 
+### Ad chapters
+
+A segment kept in the audio by its category action still sits in the file. With
+**Ad chapters** on (Settings > Transcripts & Chapters, `adChaptersEnabled`, off
+by default) MinusPod adds a chapter at the start of each kept segment and a
+resume chapter at its end, so an app that skips by chapter can jump past the
+break. Chapters have no end time, which is why the resume chapter exists. When
+a generated chapter already starts within two seconds of the end, that chapter
+is the resume point instead.
+
+Only categories checked under **Chapter these categories** qualify (sponsor and
+cross-promo by default), and a kept segment needs a detection confidence of at
+least **Minimum confidence** (0.9 by default). Turn on **Include segments
+waiting for review** to chapter held segments too. They use the
+waiting-for-review title format, and rejecting one removes its chapter without
+a recut. Confirming one recuts the episode, which rebuilds the chapter list.
+
+Titles come from **Chapter title** (`[mp:{category}]` by default) and **Resume
+title** (`Show`). Each feed can turn ad chapters on or off and pick its own
+category list from Feed Settings; a feed whose chapters mode is Off gets none.
+Existing episodes are not backfilled: use Regenerate Chapters on an episode to
+add them. In description chapter lists the category is appended after the
+title, for example `15:00 [mp:sponsor] (Sponsor)`.
+
 ### Deliberately stripped
 
 These describe the original audio's timeline or bytes. After ad

@@ -11,6 +11,17 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.8] - 2026-09-08
+
+### Added
+
+- Ad chapters: segments kept in the audio by their category action, and optionally segments waiting for review, are published as their own Podcasting 2.0 chapters with a resume chapter at the end of each break. Configurable under Settings > Transcripts & Chapters (`adChaptersEnabled`, `adChapterCategories`, `adChaptersIncludeHeld`, `adChapterTitleFormat`, `adChapterHeldTitleFormat`, `adChapterResumeTitle`, `adChapterMinConfidence`) with per-feed overrides for the on/off switch and the category list. Off by default. Adapted from the ad-chapters branch by mendelsimon.
+- Chapter lists in descriptions append the segment category after an ad chapter title, with "awaiting review" for held segments.
+
+### Changed
+
+- Recut, Regenerate Chapters, and corrections that do not change the audio (rejecting a held segment, recategorizing) rebuild ad chapters from the current markers. Ad chapters are exempt from the shortest-chapter filters.
+
 ## [2.96.7] - 2026-09-08
 
 ### Changed
