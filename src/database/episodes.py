@@ -1107,8 +1107,10 @@ class EpisodeMixin:
                     if row_inserted:
                         newly_inserted_pairs.append((ep['id'], slug))
 
-                # Batched inside this chunk's transaction: one DELETE + INSERT,
-                # never index_episode() per row (that commits per call).
+                # Indexed inside the chunk's own transaction so a row is never
+                # committed unindexed, which nothing would heal short of a
+                # manual rebuild. Never index_episode() per row (it commits
+                # per call).
                 if newly_inserted_pairs:
                     self.index_episodes(newly_inserted_pairs, conn=conn)
 

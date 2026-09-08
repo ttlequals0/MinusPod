@@ -122,7 +122,8 @@ class StatsMixin:
 
         Every LLM call bumps the same three global rows, so sending them
         separately triples the write statements each call holds the single
-        SQLite write lock for.
+        SQLite write lock for. No clamp_zero: use _bump_stat for a stat that
+        must not go negative.
         """
         if not deltas:
             return

@@ -524,6 +524,9 @@ def differential_region_overlapping(dai_differential, start: float, end: float,
     corr must be numeric and at or under corr_max; legacy stored regions
     carry a hard-coded 0.0 and still qualify. Shared by the validator's
     Layer 3 corroboration and the keep-map override so the two cannot drift.
+
+    Overlap is strict, not utils.time.ranges_overlap: a marker that merely
+    touches a region's edge shares no audio with it and is not evidence.
     """
     regions = (dai_differential or {}).get('regions') or []
     for region in regions:

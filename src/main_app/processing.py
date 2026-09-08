@@ -1340,7 +1340,7 @@ class KeepDifferentialOverride:
                  enabled: bool = False):
         self.dai_differential = dai_differential
         self.corr_max = corr_max
-        self.enabled = enabled and bool((dai_differential or {}).get('regions'))
+        self.enabled = enabled
 
     def applies_to(self, ad) -> bool:
         """True when `ad` overlaps a measured differential region; stamps the
@@ -1381,7 +1381,8 @@ def _load_stored_dai_differential(slug, episode_id):
     try:
         raw = db.get_episode_dai_differential(slug, episode_id)
         return json.loads(raw) if raw else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, AttributeError):
+        # AttributeError: db is None or the method is absent on an older db.
         return None
 
 
@@ -3874,17 +3875,11 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     # validator's _audio_corroboration_source can find it on the recut path.
     # The persisted audio_analysis_json does not include dai_differential
     # (that lives in episode_details.dai_differential_json separately).
-    try:
-        raw_dd = db.get_episode_dai_differential(slug, episode_id)
-        if raw_dd:
-            dd_parsed = json.loads(raw_dd)
-            if dd_parsed:
-                if audio_analysis is None:
-                    audio_analysis = {}
-                audio_analysis['dai_differential'] = dd_parsed
-    except (TypeError, ValueError, AttributeError):
-        # AttributeError: db is None or method absent on older db
-        pass
+    dd_parsed = _load_stored_dai_differential(slug, episode_id)
+    if dd_parsed:
+        if audio_analysis is None:
+            audio_analysis = {}
+        audio_analysis['dai_differential'] = dd_parsed
 
     validator = _build_validator(
         episode_duration, segments, episode_description,

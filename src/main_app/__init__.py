@@ -59,7 +59,9 @@ class SingleLineFormatter(logging.Formatter):
     """
 
     def format(self, record: logging.LogRecord) -> str:
-        message = record.getMessage()
+        # Args are interpolated only when present, so the common no-args
+        # record is not built twice per line at DEBUG volume.
+        message = record.getMessage() if record.args else str(record.msg)
         if '\n' not in message and '\r' not in message:
             return super().format(record)
         flat = copy.copy(record)

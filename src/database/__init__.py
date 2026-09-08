@@ -499,6 +499,10 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
         snapshot is stale (SQLITE_BUSY_SNAPSHOT is not retried by
         busy_timeout). Use it for multi-statement writes that can run
         alongside other writers (issue #566).
+
+        Do not hold one across per-row Python work: a transaction spanning a
+        whole feed's episodes held the write lock past every other writer's
+        busy_timeout. Chunk the rows and take a transaction per chunk.
         """
         return self._TransactionContext(self.get_connection(), immediate=immediate)
 
