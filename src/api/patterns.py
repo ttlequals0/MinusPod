@@ -1220,11 +1220,10 @@ def _correction_changes_audio(db, slug, correction_type, marker, data) -> bool:
     return False
 
 
-def _correction_changes_chapters(db, slug, podcast_row=None) -> bool:
+def _correction_changes_chapters(db, slug) -> bool:
     """True when the feed publishes ad chapters, so a non-audio correction
     still has to rebuild the chapter list."""
-    if podcast_row is None:
-        podcast_row = db.get_podcast_by_slug(slug)
+    podcast_row = db.get_podcast_by_slug(slug)
     return resolve_ad_chapter_config(db, podcast_row, slug=slug).enabled
 
 
@@ -1562,7 +1561,7 @@ def submit_correction(slug, episode_id):
         if _correction_changes_audio(db, slug, correction_type, target_marker, data):
             db.mark_episode_pending_recut(slug, episode_id)
         elif _correction_changes_chapters(db, slug):
-            # Local import: main_app.processing imports the api package.
+            # Local import: importing main_app pulls in the api blueprint.
             from main_app.processing import rebuild_ad_chapters
             rebuild_ad_chapters(slug, episode_id,
                                 _load_markers(db, slug, episode_id) or [])
