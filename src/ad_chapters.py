@@ -75,22 +75,24 @@ def strip_ad_chapters(chapters) -> list[dict]:
 def _marker_confidence(marker) -> float:
     for key in ('adjusted_confidence', 'confidence'):
         value = marker.get(key)
-        if value is not None:
-            try:
-                return float(value)
-            except (TypeError, ValueError):
-                return 1.0
+        if value is None:
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
     return 1.0
 
 
 def _eligible_spans(markers, cuts, replacement_duration, config) -> list[dict]:
     spans = []
     for marker in markers:
-        held = is_pending_review(marker)
-        if held:
-            if not config.include_held:
-                continue
-        elif marker.get('action_applied') != 'keep':
+        # A keep marker is eligible on its own, even if it also carries a hold.
+        is_keep = marker.get('action_applied') == 'keep'
+        held = not is_keep and is_pending_review(marker)
+        if not is_keep and not held:
+            continue
+        if held and not config.include_held:
             continue
         category = normalize_segment_category(marker.get('category'))
         if not config.categories.get(category):
@@ -144,11 +146,12 @@ def merge_ad_chapters(chapters, markers, cuts, episode_duration,
         return any(abs(ch['startTime'] - time_s) <= AD_CHAPTER_SNAP_SECONDS for ch in kept)
 
     end_s = int(round(episode_duration)) if episode_duration else None
+    default_title = registry_default('ad_chapter_title_format')
+    default_held_title = registry_default('ad_chapter_held_title_format')
     additions = []
     for span in spans:
         fmt = config.held_title_format if span['held'] else config.title_format
-        default = registry_default(
-            'ad_chapter_held_title_format' if span['held'] else 'ad_chapter_title_format')
+        default = default_held_title if span['held'] else default_title
         entry = {'startTime': span['start'],
                  'title': format_ad_chapter_title(fmt, span['category'], default),
                  'kind': 'ad', 'category': span['category']}

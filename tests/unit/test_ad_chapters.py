@@ -190,3 +190,14 @@ def test_resolve_config_bad_confidence_uses_default():
     db.get_setting.side_effect = lambda key: 'abc' if key == 'ad_chapter_min_confidence' else None
     db.resolve_ad_chapter_categories.return_value = {}
     assert resolve_ad_chapter_config(db, {}).min_confidence == 0.9
+
+
+def test_unparseable_adjusted_confidence_falls_back_to_confidence():
+    marker = kept(900.0, 960.0, adjusted_confidence='abc', confidence=0.1)
+    assert merge_ad_chapters(topics(), [marker], [], DURATION, 0.0, CFG) == topics()
+
+
+def test_keep_marker_with_hold_flag_is_never_treated_as_held():
+    marker = kept(900.0, 960.0, held_for_review=True)
+    result = merge_ad_chapters(topics(), [marker], [], DURATION, 0.0, CFG)
+    assert {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'} in result
