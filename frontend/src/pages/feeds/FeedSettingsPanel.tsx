@@ -1016,7 +1016,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               <div className="flex flex-col gap-2 flex-1 min-w-0">
                 <Checkbox
                   checked={feed.adChapterCategories == null}
-                  disabled={updateMutation.isPending}
+                  // Copying the global map needs the settings query resolved.
+                  disabled={updateMutation.isPending || !settings}
                   onChange={(checked) => updateMutation.mutate({
                     adChapterCategories: checked ? null : { ...globalAdChapterCategories },
                   })}
