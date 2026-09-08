@@ -13,6 +13,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import TriStateSelect from '../../components/TriStateSelect';
 import TriStateToggle from '../../components/TriStateToggle';
 import SegmentActionToggle from '../../components/SegmentActionToggle';
+import Checkbox from '../../components/Checkbox';
 import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, SEGMENT_CATEGORY_DESCRIPTIONS, DEFAULT_SEGMENT_ACTION,
   type SegmentCategory, type SegmentAction,
@@ -183,6 +184,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     (settings?.lowAdYieldAction?.value as LowAdYieldAction | undefined) ?? 'nothing';
   const globalLowAdYieldLabel = LOW_AD_YIELD_ACTION_LABELS[globalLowAdYieldAction]
     ?? LOW_AD_YIELD_ACTION_LABELS.nothing;
+
+  const globalAdChapterCategories: Partial<Record<SegmentCategory, boolean>> =
+    settings?.adChapterCategories?.value ?? {};
+  const adChaptersOn = feed.adChaptersEnabled === 'on'
+    || (feed.adChaptersEnabled == null && settings?.adChaptersEnabled?.value === true);
 
   // Retention 0 turns run log storage off everywhere, so the global option
   // has to say which way it currently falls.
@@ -979,6 +985,65 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </p>
             </div>
           </div>
+
+          {/* Per-feed ad chapters override */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Ad chapters:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <select
+                value={feed.adChaptersEnabled ?? ''}
+                onChange={(e) => updateMutation.mutate({
+                  adChaptersEnabled: e.target.value === '' ? null : e.target.value as 'on' | 'off',
+                })}
+                disabled={updateMutation.isPending}
+                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                aria-label="Ad chapters"
+              >
+                <option value="">Use global ({settings?.adChaptersEnabled?.value ? 'on' : 'off'})</option>
+                <option value="on">On</option>
+                <option value="off">Off</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Publish kept segments as chapters in this feed. Needs a chapters
+                mode other than Off.
+              </p>
+            </div>
+          </div>
+
+          {adChaptersOn && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+              <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chaptered categories:</span>
+              <div className="flex flex-col gap-2 flex-1 min-w-0">
+                <Checkbox
+                  checked={feed.adChapterCategories == null}
+                  disabled={updateMutation.isPending}
+                  onChange={(checked) => updateMutation.mutate({
+                    adChapterCategories: checked ? null : { ...globalAdChapterCategories },
+                  })}
+                  label="Use global categories"
+                />
+                {feed.adChapterCategories != null && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {SEGMENT_CATEGORIES.map((category) => (
+                      <Checkbox
+                        key={category}
+                        checked={feed.adChapterCategories?.[category]
+                          ?? globalAdChapterCategories[category] ?? false}
+                        disabled={updateMutation.isPending}
+                        onChange={(checked) => updateMutation.mutate({
+                          adChapterCategories: { ...feed.adChapterCategories, [category]: checked },
+                        })}
+                        label={SEGMENT_CATEGORY_LABELS[category]}
+                      />
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Which kept categories get a chapter in this feed.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Per-feed auto-process queue priority (#625) */}
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">

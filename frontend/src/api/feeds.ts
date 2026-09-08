@@ -324,6 +324,8 @@ export interface UpdateFeedPayload {
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   chaptersInNotes?: 'on' | 'off' | null;
+  adChaptersEnabled?: 'on' | 'off' | null;
+  adChapterCategories?: Partial<Record<SegmentCategory, boolean>> | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;

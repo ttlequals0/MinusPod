@@ -1272,3 +1272,55 @@ describe('FeedSettingsPanel chapters in description control', () => {
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersInNotes: null });
   });
 });
+
+describe('FeedSettingsPanel ad chapters overrides', () => {
+  const NAME = 'Ad chapters';
+  const GLOBAL_CATEGORIES = {
+    sponsor: true,
+    cross_promo: true,
+    self_promo: false,
+    interaction: false,
+    intro: false,
+    outro: false,
+    recap: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+    mockGetSettings.mockResolvedValue({
+      adChaptersEnabled: { value: true },
+      adChapterCategories: { value: GLOBAL_CATEGORIES },
+    });
+  });
+
+  it('sends the ad chapters override', async () => {
+    renderPanel(makeFeed({ adChaptersEnabled: null }));
+    const select = await screen.findByRole('combobox', { name: NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('');
+    await userEvent.selectOptions(select, 'off');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { adChaptersEnabled: 'off' });
+  });
+
+  it('shows the global label in the inherit option', async () => {
+    renderPanel(makeFeed());
+    expect(await screen.findByRole('option', { name: 'Use global (on)' })).toBeDefined();
+  });
+
+  it('lets a feed override the chaptered categories', async () => {
+    const { rerenderWithFeed } = renderPanel(makeFeed({ adChapterCategories: null }));
+    const useGlobal = await screen.findByRole('checkbox', { name: 'Use global categories' }) as HTMLInputElement;
+    expect(useGlobal.checked).toBe(true);
+    expect(screen.queryByRole('checkbox', { name: 'Sponsor' })).toBeNull();
+
+    await userEvent.click(useGlobal);
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { adChapterCategories: GLOBAL_CATEGORIES });
+
+    rerenderWithFeed(makeFeed({ adChapterCategories: { sponsor: false } }));
+    const sponsor = await screen.findByRole('checkbox', { name: 'Sponsor' }) as HTMLInputElement;
+    expect(sponsor.checked).toBe(false);
+
+    await userEvent.click(sponsor);
+    expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { adChapterCategories: { sponsor: true } });
+  });
+});

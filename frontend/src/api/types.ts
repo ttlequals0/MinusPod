@@ -81,6 +81,11 @@ export interface Feed {
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   // Chapter list in served descriptions (#720): null follows the global setting.
   chaptersInNotes?: 'on' | 'off' | null;
+  // Ad chapters: null follows the global setting.
+  adChaptersEnabled?: 'on' | 'off' | null;
+  // Null follows the global category map; a partial map overrides only the
+  // categories it names.
+  adChapterCategories?: Partial<Record<SegmentCategory, boolean>> | null;
   // Per-feed auto-process queue priority (#625). Server always resolves to
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
