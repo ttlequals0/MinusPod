@@ -1589,7 +1589,8 @@ def _stamp_pass2_marker_categories(markers):
     return markers
 
 
-def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
+def _partition_pass2_category_actions(processed_ads, original_ads, actions_map,
+                                      differential_override=None):
     """Apply the feed's category actions to paired pass-2 candidates.
 
     Pass 2 has parallel processed/original coordinate lists, so its keep
@@ -1599,6 +1600,11 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
     kept tail from the validator's end-of-episode extension while the original
     marker is persisted. Remaining candidates remain unstamped until confidence
     gating and review decide which ones the recut will actually render.
+
+    The same two standing overrides as pass 1 apply: a defined pattern, or a
+    span overlapping a measured differential region. The differential test
+    uses the original marker, since the regions are in original-audio
+    coordinates while the processed marker is not.
 
     Returns ``(remaining_processed, remaining_original, kept_processed,
     kept_original)``.
@@ -1616,7 +1622,10 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
         action = actions_map.get(category, DEFAULT_SEGMENT_ACTION)
         pattern_defined = bool(
             processed.get('pattern_defined') or original.get('pattern_defined'))
-        if action == 'keep' and not pattern_defined:
+        differential_cut = bool(
+            action == 'keep' and not pattern_defined and differential_override
+            and differential_override.applies_to(original))
+        if action == 'keep' and not pattern_defined and not differential_cut:
             for marker in (processed, original):
                 marker['was_cut'] = False
                 marker['action_applied'] = 'keep'
@@ -1626,8 +1635,10 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
             continue
 
         if action == 'keep':
-            processed['keep_overridden_by_pattern'] = True
-            original['keep_overridden_by_pattern'] = True
+            stamp = ('keep_overridden_by_differential' if differential_cut
+                     else 'keep_overridden_by_pattern')
+            processed[stamp] = True
+            original[stamp] = True
         remaining_processed.append(processed)
         remaining_original.append(original)
 
@@ -2767,7 +2778,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             original_segments=None, reuse_transcript=False,
                             max_ad_duration_override=None, cue_gate_enabled=False,
                             pass1_held_markers=None, pass1_kept_markers=None,
-                            skip_verification=False, segment_actions=None):
+                            skip_verification=False, segment_actions=None,
+                            differential_override=None):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -2893,6 +2905,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             verification_ads_processed,
             verification_ads_original,
             segment_actions,
+            differential_override,
         )
         if category_kept:
             v_ads_held.extend(category_kept)
@@ -4969,6 +4982,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 pass1_kept_markers=pass1_kept_markers,
                 skip_verification=skip_detection or skip_second_pass or cue_only,
                 segment_actions=segment_actions,
+                differential_override=keep_override,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and

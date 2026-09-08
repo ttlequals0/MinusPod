@@ -26,7 +26,9 @@ interface AdDetectionSectionProps {
   differentialMeasuredCorrMax: number;
   onDifferentialMeasuredCorrMaxChange: (value: number) => void;
   differentialHoldMinSeconds: number;
+  daiDifferentialOverridesKeep: boolean;
   onDifferentialHoldMinSecondsChange: (value: number) => void;
+  onDaiDifferentialOverridesKeepChange: (value: boolean) => void;
 }
 
 // Same shape as AudioCueDetectionSection's numRow, adapted to this section's
@@ -80,7 +82,9 @@ function AdDetectionSection({
   differentialMeasuredCorrMax,
   onDifferentialMeasuredCorrMaxChange,
   differentialHoldMinSeconds,
+  daiDifferentialOverridesKeep,
   onDifferentialHoldMinSecondsChange,
+  onDaiDifferentialOverridesKeepChange,
 }: AdDetectionSectionProps) {
   return (
     <CollapsibleSection title="Ad Detection">
@@ -266,6 +270,20 @@ function AdDetectionSection({
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 An uncorroborated differential candidate shorter than this is dropped instead of held for review. Set to 0 to hold a candidate of any length.
+              </p>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <ToggleSwitch
+                  checked={daiDifferentialOverridesKeep}
+                  onChange={onDaiDifferentialOverridesKeepChange}
+                  ariaLabel="Cut inserted ads in kept categories"
+                />
+                <span className="text-sm font-medium text-foreground">Cut inserted ads in kept categories</span>
+              </label>
+              <p className="mt-2 text-sm text-muted-foreground ml-14">
+                Audio that differs between two fetches was inserted, so it is cut even when its category is set to keep. A category cannot tell a guest plugging their own show from a paid ad for another podcast; this can. Turn it off to let a kept category keep inserted ads too.
               </p>
             </div>
           </div>

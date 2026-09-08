@@ -315,7 +315,9 @@ class PodcastMixin:
             (slug,)
         )
         # A clean feed matches no row, and committing that still costs a trip
-        # through the single write lock during a refresh sweep.
+        # through the single write lock during a refresh sweep. The rollback
+        # is connection-wide, so the caller must hold no other uncommitted
+        # work on this thread.
         if cursor.rowcount:
             conn.commit()
         else:

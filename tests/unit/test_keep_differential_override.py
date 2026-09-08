@@ -12,6 +12,7 @@ from main_app.processing import (  # noqa: E402
     KeepDifferentialOverride,
     _apply_late_keep_safety_net,
     _partition_keep_ads,
+    _partition_pass2_category_actions,
 )
 
 ACTIONS = {'cross_promo': 'keep', 'self_promo': 'keep', 'sponsor': 'remove'}
@@ -118,3 +119,53 @@ def test_a_kept_marker_holds_no_stale_review_hold():
     assert keep == [ad]
     assert ad['held_for_review'] is False
     assert ad['hold_cleared_reason'] == 'short_ad'
+
+
+class TestPass2:
+    """Pass 2 carries the same standing overrides, or an injected ad that
+    survived pass 1 is simply kept again."""
+
+    def test_injected_cross_promo_is_cut_in_pass_two(self):
+        original = _ad(5549.7, 5584.6)
+        processed = _ad(120.0, 155.0)
+        rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
+            [processed], [original], ACTIONS, _override())
+        assert kept_o == [] and kept_p == []
+        assert rem_o == [original]
+        assert original['keep_overridden_by_differential'] is True
+        assert processed['keep_overridden_by_differential'] is True
+
+    def test_organic_cross_promo_is_still_kept_in_pass_two(self):
+        original = _ad(5400.0, 5480.0)
+        processed = _ad(60.0, 140.0)
+        rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
+            [processed], [original], ACTIONS, _override())
+        assert kept_o == [original]
+        assert rem_o == []
+        assert original['action_applied'] == 'keep'
+
+    def test_processed_coordinates_are_not_used_for_the_overlap(self):
+        """Regions are original-audio coordinates. A processed span that
+        happens to land in a region must not decide this."""
+        original = _ad(5400.0, 5480.0)
+        processed = _ad(5549.7, 5584.6)
+        _, _, _, kept_o = _partition_pass2_category_actions(
+            [processed], [original], ACTIONS, _override())
+        assert kept_o == [original]
+
+    def test_pattern_override_still_wins_in_pass_two(self):
+        original = _ad(5400.0, 5480.0, pattern_defined=True)
+        processed = _ad(60.0, 140.0)
+        _, rem_o, _, kept_o = _partition_pass2_category_actions(
+            [processed], [original], ACTIONS, _override())
+        assert kept_o == []
+        assert rem_o == [original]
+        assert original['keep_overridden_by_pattern'] is True
+        assert 'keep_overridden_by_differential' not in original
+
+    def test_disabled_setting_keeps_pass_two_behaviour(self):
+        original = _ad(5549.7, 5584.6)
+        processed = _ad(120.0, 155.0)
+        _, _, _, kept_o = _partition_pass2_category_actions(
+            [processed], [original], ACTIONS, _override(enabled=False))
+        assert kept_o == [original]

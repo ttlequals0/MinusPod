@@ -608,6 +608,7 @@ export interface Settings {
   learningMaxPatternDuration: SettingValueNumber;
   differentialMeasuredCorrMax: SettingValueNumber;
   differentialHoldMinSeconds: SettingValueNumber;
+  daiDifferentialOverridesKeep: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
   chaptersInNotes: SettingValueBoolean;
@@ -727,6 +728,7 @@ export interface Settings {
     learningMaxPatternDuration: number;
     differentialMeasuredCorrMax: number;
     differentialHoldMinSeconds: number;
+    daiDifferentialOverridesKeep: boolean;
   };
 }
 
@@ -827,6 +829,7 @@ export interface UpdateSettingsPayload {
   learningMaxPatternDuration?: number;
   differentialMeasuredCorrMax?: number;
   differentialHoldMinSeconds?: number;
+  daiDifferentialOverridesKeep?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
   chaptersInNotes?: boolean;

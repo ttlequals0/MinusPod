@@ -1065,6 +1065,10 @@ class EpisodeMixin:
         never overwrites an existing episode's status or non-empty metadata.
         Returns count of newly inserted rows.
 
+        Not atomic across the feed: a chunk raising leaves earlier chunks
+        committed, and the caller records a refresh failure and retries. The
+        upsert is idempotent, so the retry reconciles.
+
         Each chunk runs in its own immediate transaction: a deferred begin
         upgrades to a write lock at the first INSERT, and that upgrade fails
         instantly with "database is locked" rather than waiting on
@@ -1087,7 +1091,9 @@ class EpisodeMixin:
         # current value), so it cannot distinguish "new" from "re-touched".
         # The downstream log line "Discovered N new episode(s)" needs the
         # real new-row count, not the upsert-touched count. Read outside the
-        # write transactions so the lock is not held across it.
+        # write transactions so the lock is not held across it, which lets a
+        # concurrent refresh of the same feed inflate the count and cost a
+        # redundant reindex; both are cosmetic.
         existing_ids = {
             row['episode_id'] for row in self.get_connection().execute(
                 "SELECT episode_id FROM episodes WHERE podcast_id = ?",
@@ -1107,10 +1113,9 @@ class EpisodeMixin:
                     if row_inserted:
                         newly_inserted_pairs.append((ep['id'], slug))
 
-                # Indexed inside the chunk's own transaction so a row is never
-                # committed unindexed, which nothing would heal short of a
-                # manual rebuild. Never index_episode() per row (it commits
-                # per call).
+                # Indexed in the chunk's own transaction, so a crash between
+                # commit and index cannot leave rows unindexed. Never
+                # index_episode() per row (it commits per call).
                 if newly_inserted_pairs:
                     self.index_episodes(newly_inserted_pairs, conn=conn)
 
