@@ -3207,6 +3207,51 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
             f"recut; keeping previous chapters JSON: {e}")
 
 
+def rebuild_ad_chapters(slug, episode_id, markers) -> bool:
+    """Rebuild ad chapters from `markers` without touching the audio cut.
+
+    Used after a correction that changes which segments count as ads but not
+    what is cut (a rejected hold, a recategorize between kept categories).
+    Returns True when the stored chapter set changed. Never raises.
+    """
+    try:
+        episode = db.get_episode(slug, episode_id)
+        if not episode or episode.get('status') != EpisodeStatus.PROCESSED.value:
+            return False
+        podcast_row = db.get_podcast_by_slug(slug)
+        ad_config = resolve_ad_chapter_config(db, podcast_row, slug=slug)
+        chapters_json = (storage.get_chapters_json(slug, episode_id)
+                         or {'version': '1.2.0', 'chapters': []})
+        current = chapters_json.get('chapters') or []
+        cuts = storage.get_applied_cuts(slug, episode_id) or []
+        path = storage.get_episode_path(slug, episode_id,
+                                        version=episode.get('processed_version'))
+        exists = path.exists()
+        duration = get_audio_duration(str(path)) if exists else None
+        merged = merge_ad_chapters(current, markers, cuts, duration,
+                                   get_replacement_duration(), ad_config)
+        if merged == current:
+            return False
+        # Embed first: a failed embed must leave the served JSON matching the
+        # ID3 already in the file.
+        if exists and not embed_chapters(str(path), merged, duration=duration):
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Ad chapter embed failed; "
+                f"keeping previous chapters")
+            return False
+        storage.save_chapters_json(slug, episode_id,
+                                   {**chapters_json, 'chapters': merged})
+        _refresh_rss_for_slug(slug, episode_id)
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Rebuilt ad chapters "
+            f"({len(merged)} entries, no AI call)")
+        return True
+    except Exception as e:
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Ad chapter rebuild failed: {e}")
+        return False
+
+
 def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       podcast_name, episode_title, regenerate_chapters=True,
                       audio_path=None, audio_duration=None,
