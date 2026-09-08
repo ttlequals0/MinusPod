@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { SkeletonRows } from '../../components/Skeleton';
 import { getErrorMessage } from '../../api/client';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import {
@@ -74,7 +75,7 @@ function DatabaseBackupSection() {
       storageKey="settings-section-scheduled-backups"
     >
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <SkeletonRows count={2} />
       ) : isError || !data ? (
         // A failed GET must not render the editable form from fallback defaults;
         // one Save click would overwrite the real stored settings.

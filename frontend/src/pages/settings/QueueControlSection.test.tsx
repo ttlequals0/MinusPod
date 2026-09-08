@@ -180,3 +180,26 @@ describe('QueueControlSection', () => {
     expect(mocked.getRateLimitHoldSettings).not.toHaveBeenCalled();
   });
 });
+
+describe('QueueControlSection loading placeholder', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('shows row skeletons instead of a Loading line while the queries are pending', async () => {
+    mocked.getOfflineQueueSettings.mockReturnValue(new Promise(() => {}));
+    mocked.getRateLimitHoldSettings.mockReturnValue(new Promise(() => {}));
+    renderSection();
+    await waitFor(() => expect(screen.getAllByTestId('skeleton-rows').length).toBe(2));
+    expect(screen.queryByText('Loading...')).toBeNull();
+  });
+
+  it('drops the skeletons once the settings land', async () => {
+    mocked.getOfflineQueueSettings.mockResolvedValue({
+      enabled: false, ttlHours: 48, deferredCount: 0,
+    });
+    mocked.getRateLimitHoldSettings.mockResolvedValue({
+      enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
+    });
+    renderSection();
+    await waitFor(() => expect(screen.queryAllByTestId('skeleton-rows')).toHaveLength(0));
+  });
+});

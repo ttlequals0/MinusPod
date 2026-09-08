@@ -7,7 +7,7 @@ import type { PromptName } from '../api/settings';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import type { BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
@@ -795,7 +795,12 @@ function Settings() {
   });
 
   if (settingsLoading) {
-    return <LoadingSpinner className="py-12" />;
+    return (
+      <div className="max-w-3xl mx-auto space-y-4 pb-20">
+        <SkeletonPageHeader />
+        <SkeletonRows count={6} />
+      </div>
+    );
   }
 
   return (

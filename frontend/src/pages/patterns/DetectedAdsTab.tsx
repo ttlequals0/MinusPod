@@ -14,7 +14,7 @@ import AdReviewModal, {
   type AdReviewSubmit,
 } from '../../components/AdReviewModal';
 import { Pagination } from '../../components/Pagination';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { SkeletonRows } from '../../components/Skeleton';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
 import { formatStatsDuration } from '../../utils/format';
 import { sortFeeds } from '../../utils/feedSort';
@@ -185,7 +185,7 @@ export default function DetectedAdsTab() {
       {notice && (
         <div className="text-success text-sm mb-3" role="status">{notice}</div>
       )}
-      {isLoading && <LoadingSpinner className="py-12" />}
+      {isLoading && <SkeletonRows count={6} />}
       {error && (
         <div className="text-destructive text-sm">
           Failed to load detected ads.

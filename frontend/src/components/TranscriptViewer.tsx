@@ -6,7 +6,7 @@ import { ApiError, getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
 import { btnGhost } from './buttonStyles';
 import { focusRing, inputBase, selectBase } from './fieldStyles';
-import LoadingSpinner from './LoadingSpinner';
+import { SkeletonRows } from './Skeleton';
 import { formatTimestamp } from '../utils/format';
 import { parseTimeInput } from '../utils/adReviewHelpers';
 import { usePagedList } from '../hooks/usePagedList';
@@ -180,7 +180,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4" onScroll={onScroll}>
-        {(query.isLoading || fallbackPending) && <LoadingSpinner className="py-8" />}
+        {(query.isLoading || fallbackPending) && <SkeletonRows count={6} />}
         {fallbackError && (
           <p className="text-sm text-destructive">{getErrorMessage(fallbackError)}</p>
         )}

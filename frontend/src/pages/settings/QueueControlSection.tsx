@@ -14,6 +14,7 @@ import {
   updateRateLimitHoldSettings,
 } from '../../api/settings';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { SkeletonRows } from '../../components/Skeleton';
 import SavedBadge from './SavedBadge';
 import { focusRing } from '../../components/fieldStyles';
 
@@ -96,7 +97,7 @@ function QueueHoldBlock<
   });
 
   if (isLoading || !active) {
-    return <p className="text-sm text-muted-foreground">Loading...</p>;
+    return <SkeletonRows count={3} />;
   }
   if (isError || !data) {
     // A failed GET must not render the editable form from fallback

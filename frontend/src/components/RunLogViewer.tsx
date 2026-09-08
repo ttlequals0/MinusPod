@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Modal } from './Modal';
-import LoadingSpinner from './LoadingSpinner';
+import { SkeletonRows } from './Skeleton';
 import { btnGhost, btnOutline } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { episodeRunLogDownloadUrl, getEpisodeRunLog } from '../api/feeds';
@@ -133,7 +133,7 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
       </div>
 
       <div className="flex-1 overflow-y-auto p-4" onScroll={onScroll}>
-        {isLoading && <LoadingSpinner className="py-8" />}
+        {isLoading && <SkeletonRows count={6} />}
         {error && (
           <p className="text-sm text-destructive">
             {error instanceof Error ? error.message : 'This log could not be loaded.'}

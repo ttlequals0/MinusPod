@@ -7,7 +7,7 @@ import { episodeOriginalUrl } from '../api/feeds';
 import { getSponsors } from '../api/sponsors';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { Modal, modalPanel } from './Modal';
-import LoadingSpinner from './LoadingSpinner';
+import { SkeletonRows } from './Skeleton';
 import { AuditionPlayButton } from './AuditionPlayButton';
 import { Pin } from './ad-editor/Pin';
 import { usePeaks } from './ad-editor/usePeaks';
@@ -289,7 +289,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
           </p>
         </div>
 
-        {isLoading && <LoadingSpinner className="py-8" />}
+        {isLoading && <SkeletonRows count={3} />}
 
         {isError && (
           <div className="space-y-3">

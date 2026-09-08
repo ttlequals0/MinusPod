@@ -274,3 +274,17 @@ describe('DetectedAdsTab', () => {
     expect(await screen.findAllByText('Beeped')).not.toHaveLength(0);
   });
 });
+
+describe('DetectedAdsTab loading placeholder', () => {
+  it('shows row skeletons while the detections query is pending', async () => {
+    mockGetDetections.mockReturnValueOnce(new Promise(() => {}));
+    renderTab();
+    expect(await screen.findByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once the detections land', async () => {
+    renderTab();
+    await screen.findAllByText('Episode One');
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});

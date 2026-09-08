@@ -131,3 +131,19 @@ describe('CommunityPatternsSection', () => {
     ).toBeDefined();
   });
 });
+
+describe('CommunityPatternsSection loading placeholder', () => {
+  it('shows row skeletons instead of a Loading line while the query is pending', async () => {
+    mockGet.mockReturnValueOnce(new Promise(() => {}));
+    renderSection();
+    expect(await screen.findByTestId('skeleton-rows')).toBeTruthy();
+    expect(screen.queryByText('Loading...')).toBeNull();
+  });
+
+  it('drops the skeletons once the settings land', async () => {
+    mockGet.mockResolvedValue(makeSettings());
+    renderSection();
+    await screen.findByText(/deactivates its already-synced community patterns/i);
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});

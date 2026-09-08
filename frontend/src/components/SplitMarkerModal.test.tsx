@@ -237,3 +237,17 @@ describe('SplitMarkerModal', () => {
     expect(mockSubmitSplit).not.toHaveBeenCalled();
   });
 });
+
+describe('SplitMarkerModal loading placeholder', () => {
+  it('shows skeletons while the candidates query is pending', async () => {
+    mockGetCandidates.mockReturnValueOnce(new Promise(() => {}));
+    renderModal();
+    expect(await screen.findByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once the candidates land', async () => {
+    renderModal();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});

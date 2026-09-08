@@ -80,3 +80,18 @@ describe('TranscriptNormalizationSection', () => {
     });
   });
 });
+
+describe('TranscriptNormalizationSection loading placeholder', () => {
+  it('shows row skeletons while the rules query is pending', async () => {
+    mocked.getNormalizations.mockReturnValueOnce(new Promise(() => {}));
+    renderSection();
+    expect(await screen.findByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once the rules land', async () => {
+    mocked.getNormalizations.mockResolvedValue([rule(1)]);
+    renderSection();
+    await screen.findByText('1 rules');
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});

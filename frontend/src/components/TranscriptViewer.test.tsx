@@ -105,3 +105,23 @@ describe('TranscriptViewer', () => {
     expect(screen.getByText('Plain text, no timestamps')).toBeTruthy();
   });
 });
+
+describe('TranscriptViewer loading placeholder', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOriginal.mockResolvedValue({ episodeId: 'a1b2c3d4e5f6', segments: SEGS });
+    mockFinal.mockResolvedValue({ episodeId: 'a1b2c3d4e5f6', segments: [SEGS[0], SEGS[2]] });
+  });
+
+  it('shows segment skeletons while the transcript query is pending', async () => {
+    mockOriginal.mockReturnValueOnce(new Promise(() => {}));
+    renderViewer();
+    expect(await screen.findByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once the segments land', async () => {
+    renderViewer();
+    await waitFor(() => screen.getByText('Welcome to the show.'));
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});

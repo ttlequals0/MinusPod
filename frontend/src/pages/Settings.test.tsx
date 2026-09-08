@@ -294,3 +294,19 @@ describe('Settings: Reset All copy', () => {
     );
   });
 });
+
+describe('Settings loading placeholder', () => {
+  it('shows header and row skeletons while the settings query is pending', () => {
+    mockGetSettings.mockReturnValueOnce(new Promise(() => {}));
+    renderSettings();
+    expect(screen.getByTestId('skeleton-page-header')).toBeTruthy();
+    expect(screen.getByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once the settings land', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    renderSettings();
+    await screen.findByLabelText('First Pass System Prompt');
+    expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
+  });
+});
