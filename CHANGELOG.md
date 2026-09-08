@@ -16,7 +16,7 @@ release notes.
 ### Changed
 
 - Ad Reviewer is a regular feature now, under Settings > AI & Processing next to Ad Detection. It is unchanged otherwise. Experiments keeps the addressing-mode experiment.
-- Pages that wait on the database show a placeholder in the shape of the content instead of a spinner in an empty page: the stats page per region, and the dashboard, feed, episode and patterns pages as a whole. Nothing jumps when the data lands.
+- Pages that wait on the database show a placeholder in the shape of the content instead of a spinner in an empty page. Stats does this per region; the dashboard, feed, episode and patterns pages do it as a whole. Nothing jumps when the data lands.
 - The status bar's expanded panel fits four running jobs plus the queue and refresh blocks before it scrolls, instead of a fixed 192 pixels.
 
 ### Fixed
