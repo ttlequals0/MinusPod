@@ -45,6 +45,7 @@ from config import (
     resolve_segment_category_actions_map,
     resolve_ad_chapter_categories_map,
     valid_ad_chapter_title_format,
+    validate_ad_chapter_categories,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
 )
@@ -297,6 +298,9 @@ def get_settings():
         except (TypeError, ValueError):
             return registry_get_default(key)
 
+    def _str_setting(key):
+        return _setting_value(settings, key, registry_default(key))
+
     queue_manual_boost = _int_setting('queue_manual_boost')
     queue_fresh_boost = _int_setting('queue_fresh_boost')
     queue_bulk_boost = _int_setting('queue_bulk_boost')
@@ -524,27 +528,17 @@ def get_settings():
         settings, 'dai_differential_overrides_keep',
         registry_default('dai_differential_overrides_keep')))
 
-    ad_chapters_enabled = coerce_bool_setting(_setting_value(
-        settings, 'ad_chapters_enabled', registry_default('ad_chapters_enabled')))
+    ad_chapters_enabled = coerce_bool_setting(_str_setting('ad_chapters_enabled'))
     ad_chapter_categories = resolve_ad_chapter_categories_map(
-        _setting_value(settings, 'ad_chapter_categories',
-                       registry_default('ad_chapter_categories')))
-    ad_chapters_include_held = coerce_bool_setting(_setting_value(
-        settings, 'ad_chapters_include_held',
-        registry_default('ad_chapters_include_held')))
-    ad_chapter_title_format = _setting_value(
-        settings, 'ad_chapter_title_format', registry_default('ad_chapter_title_format'))
-    ad_chapter_held_title_format = _setting_value(
-        settings, 'ad_chapter_held_title_format',
-        registry_default('ad_chapter_held_title_format'))
-    ad_chapter_resume_title = _setting_value(
-        settings, 'ad_chapter_resume_title', registry_default('ad_chapter_resume_title'))
-    try:
-        ad_chapter_min_confidence = float(_setting_value(
-            settings, 'ad_chapter_min_confidence',
-            registry_default('ad_chapter_min_confidence')))
-    except (ValueError, TypeError):
-        ad_chapter_min_confidence = registry_get_default('ad_chapter_min_confidence')
+        _str_setting('ad_chapter_categories'))
+    ad_chapters_include_held = coerce_bool_setting(
+        _str_setting('ad_chapters_include_held'))
+    ad_chapter_title_format = _str_setting('ad_chapter_title_format')
+    ad_chapter_held_title_format = _str_setting('ad_chapter_held_title_format')
+    ad_chapter_resume_title = _str_setting('ad_chapter_resume_title')
+    ad_chapter_min_confidence = _db_float(
+        'ad_chapter_min_confidence',
+        registry_get_default('ad_chapter_min_confidence'))
 
     # Learned positional prior experiment (#360)
     positional_prior_enabled = coerce_bool_setting(_setting_value(
@@ -1259,15 +1253,9 @@ def _apply_ad_chapter_fields(db, data):
     merged = None
     if 'adChapterCategories' in data:
         value = data['adChapterCategories']
-        if not isinstance(value, dict):
-            return error_response('adChapterCategories must be an object', 400)
-        for cat, flag in value.items():
-            if cat not in SEGMENT_CATEGORIES:
-                return error_response(
-                    f"adChapterCategories: unknown category '{cat}'", 400)
-            if not isinstance(flag, bool):
-                return error_response(
-                    f"adChapterCategories: '{cat}' must be true or false", 400)
+        error = validate_ad_chapter_categories(value)
+        if error:
+            return error_response(error, 400)
         merged = resolve_ad_chapter_categories_map(db.get_setting('ad_chapter_categories'))
         merged.update(value)
         writes.append(('ad_chapter_categories', json.dumps(merged)))

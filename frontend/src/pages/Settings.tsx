@@ -44,7 +44,6 @@ import SeedSponsorsSection from './settings/SeedSponsorsSection';
 import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import SegmentActionsSection from './settings/SegmentActionsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
-import { DEFAULT_AD_CHAPTER_CATEGORIES } from './settings/AdChaptersBlock';
 import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
 import AdReviewerSection from './settings/AdReviewerSection';
@@ -1202,7 +1201,7 @@ function Settings() {
           chaptersEnabled,
           enabled: adChaptersEnabled,
           categories: settings?.adChapterCategories?.value
-            ?? settings?.defaults?.adChapterCategories ?? DEFAULT_AD_CHAPTER_CATEGORIES,
+            ?? settings?.defaults?.adChapterCategories ?? {},
           includeHeld: adChaptersIncludeHeld,
           titleFormat: adChapterTitleFormat,
           heldTitleFormat: adChapterHeldTitleFormat,

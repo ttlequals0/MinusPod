@@ -212,14 +212,6 @@ def resolve_ad_chapter_categories_map(raw_json, baseline=None) -> dict[str, bool
     return merged
 
 
-def resolve_ad_chapters_enabled(db, podcast_row) -> bool:
-    """Per-feed 'on'/'off' override, else the global ad_chapters_enabled setting."""
-    override = (podcast_row or {}).get('ad_chapters_enabled_override')
-    if override in AD_CHAPTERS_OVERRIDE_VALUES:
-        return override == 'on'
-    return db.get_setting_bool('ad_chapters_enabled', False)
-
-
 def valid_ad_chapter_title_format(value) -> bool:
     """A title template must format with only `category` and be non-empty."""
     if not isinstance(value, str) or not value.strip():
@@ -229,6 +221,17 @@ def valid_ad_chapter_title_format(value) -> bool:
     except (KeyError, IndexError, ValueError):
         return False
     return True
+
+
+def validate_ad_chapter_categories(value) -> str | None:
+    """Error message for an adChapterCategories map, or None when it is valid."""
+    if not isinstance(value, dict):
+        return 'adChapterCategories must be an object'
+    for cat, flag in value.items():
+        if cat not in SEGMENT_CATEGORIES or not isinstance(flag, bool):
+            return (f"adChapterCategories: '{cat}' must be a known category "
+                    "with true or false")
+    return None
 
 
 # Hold reasons pass-2 auto-approval may release when the verification pass
@@ -920,11 +923,22 @@ CHAPTERS_IN_NOTES_VALUES = EPISODE_LOGS_VALUES
 AD_CHAPTERS_OVERRIDE_VALUES = EPISODE_LOGS_VALUES
 
 
-def resolve_chapters_in_notes(db, podcast_row) -> bool:
-    override = (podcast_row or {}).get('chapters_in_notes')
-    if override in CHAPTERS_IN_NOTES_VALUES:
+def _resolve_feed_toggle(db, podcast_row, column, setting, default) -> bool:
+    """Per-feed 'on'/'off' override in `column`, else the global `setting`."""
+    override = (podcast_row or {}).get(column)
+    if override in EPISODE_LOGS_VALUES:
         return override == 'on'
-    return db.get_setting_bool('chapters_in_notes', False)
+    return db.get_setting_bool(setting, default)
+
+
+def resolve_chapters_in_notes(db, podcast_row) -> bool:
+    return _resolve_feed_toggle(db, podcast_row, 'chapters_in_notes',
+                                'chapters_in_notes', False)
+
+
+def resolve_ad_chapters_enabled(db, podcast_row) -> bool:
+    return _resolve_feed_toggle(db, podcast_row, 'ad_chapters_enabled_override',
+                                'ad_chapters_enabled', False)
 
 
 def resolve_cue_template_score_with_source(db, podcast_id):

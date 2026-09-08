@@ -1,6 +1,6 @@
 """Ad chapters: segments left in the served audio published as their own
 Podcasting 2.0 chapters so a chapter-aware player can skip them."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from config import (
     AD_CHAPTER_KINDS, AD_CHAPTER_SNAP_SECONDS, CHAPTERS_MODE_OFF,
@@ -8,33 +8,39 @@ from config import (
     normalize_segment_category, resolve_ad_chapters_enabled,
     resolve_chapters_mode,
 )
-from database.settings import registry_default
+from database.settings import registry_current_value, registry_default
 from utils.time import adjust_timestamp
 
 
 @dataclass(frozen=True)
 class AdChapterConfig:
-    enabled: bool
-    categories: dict
-    include_held: bool
-    title_format: str
-    held_title_format: str
-    resume_title: str
-    min_confidence: float
+    enabled: bool = False
+    categories: dict = field(
+        default_factory=lambda: dict(DEFAULT_AD_CHAPTER_CATEGORIES))
+    include_held: bool = False
+    title_format: str = registry_default('ad_chapter_title_format')
+    held_title_format: str = registry_default('ad_chapter_held_title_format')
+    resume_title: str = registry_default('ad_chapter_resume_title')
+    min_confidence: float = float(registry_default('ad_chapter_min_confidence'))
 
     @classmethod
     def disabled(cls) -> 'AdChapterConfig':
-        return cls(enabled=False, categories=dict(DEFAULT_AD_CHAPTER_CATEGORIES),
-                   include_held=False,
-                   title_format=registry_default('ad_chapter_title_format'),
-                   held_title_format=registry_default('ad_chapter_held_title_format'),
-                   resume_title=registry_default('ad_chapter_resume_title'),
-                   min_confidence=float(registry_default('ad_chapter_min_confidence')))
+        return cls(enabled=False)
 
-
-def _setting(db, key) -> str:
-    value = db.get_setting(key)
-    return value if value else registry_default(key)
+    def held_status(self, marker) -> bool | None:
+        """None when the marker gets no chapter, else True if it is a held one."""
+        # A keep marker is eligible on its own, even if it also carries a hold.
+        is_keep = marker.get('action_applied') == 'keep'
+        held = not is_keep and is_pending_review(marker)
+        if not is_keep and not held:
+            return None
+        if held and not self.include_held:
+            return None
+        if not self.categories.get(normalize_segment_category(marker.get('category'))):
+            return None
+        if not held and _marker_confidence(marker) < self.min_confidence:
+            return None
+        return held
 
 
 def resolve_ad_chapter_config(db, podcast_row, slug=None) -> AdChapterConfig:
@@ -45,27 +51,19 @@ def resolve_ad_chapter_config(db, podcast_row, slug=None) -> AdChapterConfig:
         return AdChapterConfig.disabled()
     if not resolve_ad_chapters_enabled(db, podcast_row):
         return AdChapterConfig.disabled()
-    try:
-        min_confidence = float(_setting(db, 'ad_chapter_min_confidence'))
-    except (TypeError, ValueError):
-        min_confidence = float(registry_default('ad_chapter_min_confidence'))
     return AdChapterConfig(
         enabled=True,
         categories=db.resolve_ad_chapter_categories(slug, podcast_row),
         include_held=db.get_setting_bool('ad_chapters_include_held', False),
-        title_format=_setting(db, 'ad_chapter_title_format'),
-        held_title_format=_setting(db, 'ad_chapter_held_title_format'),
-        resume_title=_setting(db, 'ad_chapter_resume_title'),
-        min_confidence=min_confidence,
+        title_format=registry_current_value(db, 'ad_chapter_title_format'),
+        held_title_format=registry_current_value(db, 'ad_chapter_held_title_format'),
+        resume_title=registry_current_value(db, 'ad_chapter_resume_title'),
+        min_confidence=float(registry_current_value(db, 'ad_chapter_min_confidence')),
     )
 
 
-def format_ad_chapter_title(fmt, category, default) -> str:
-    """Render a title template; a template that cannot format falls back to default."""
-    try:
-        return fmt.format(category=category)
-    except (KeyError, IndexError, ValueError, AttributeError):
-        return default.format(category=category)
+def format_ad_chapter_title(fmt, category) -> str:
+    return fmt.format(category=category)
 
 
 def strip_ad_chapters(chapters) -> list[dict]:
@@ -87,17 +85,8 @@ def _marker_confidence(marker) -> float:
 def _eligible_spans(markers, cuts, replacement_duration, config) -> list[dict]:
     spans = []
     for marker in markers:
-        # A keep marker is eligible on its own, even if it also carries a hold.
-        is_keep = marker.get('action_applied') == 'keep'
-        held = not is_keep and is_pending_review(marker)
-        if not is_keep and not held:
-            continue
-        if held and not config.include_held:
-            continue
-        category = normalize_segment_category(marker.get('category'))
-        if not config.categories.get(category):
-            continue
-        if not held and _marker_confidence(marker) < config.min_confidence:
+        held = config.held_status(marker)
+        if held is None:
             continue
         start, end = marker.get('start'), marker.get('end')
         if start is None or end is None:
@@ -106,7 +95,8 @@ def _eligible_spans(markers, cuts, replacement_duration, config) -> list[dict]:
         end_s = max(1, int(round(adjust_timestamp(end, cuts, replacement_duration))))
         if end_s <= start_s:
             continue
-        spans.append({'start': start_s, 'end': end_s, 'category': category, 'held': held})
+        spans.append({'start': start_s, 'end': end_s, 'held': held,
+                      'category': normalize_segment_category(marker.get('category'))})
     spans.sort(key=lambda sp: sp['start'])
     # Overlapping spans would interleave ad/resume pairs; the first names the break.
     merged = []
@@ -119,15 +109,15 @@ def _eligible_spans(markers, cuts, replacement_duration, config) -> list[dict]:
 
 
 def merge_ad_chapters(chapters, markers, cuts, episode_duration,
-                      replacement_duration, config) -> list[dict]:
-    """Rebuild ad chapters from markers over the topic chapters in `chapters`.
+                      replacement_duration, config=None) -> list[dict]:
+    """Topic chapters from `chapters` plus ad chapters rebuilt from `markers`.
 
-    Stale ad entries are always stripped first, so the result is idempotent.
-    Chapters have no end time, so each break gets a resume chapter at its end
-    unless a topic chapter already starts within AD_CHAPTER_SNAP_SECONDS.
+    Stale ad entries are stripped first, so the result is idempotent. Chapters
+    carry no end time, so each break gets a resume entry unless a topic chapter
+    already starts within AD_CHAPTER_SNAP_SECONDS.
     """
     topics = strip_ad_chapters(chapters)
-    if not config.enabled or not markers:
+    if config is None or not config.enabled or not markers:
         return topics
     spans = _eligible_spans(markers, cuts or [], replacement_duration, config)
     if not spans:
@@ -146,14 +136,11 @@ def merge_ad_chapters(chapters, markers, cuts, episode_duration,
         return any(abs(ch['startTime'] - time_s) <= AD_CHAPTER_SNAP_SECONDS for ch in kept)
 
     end_s = int(round(episode_duration)) if episode_duration else None
-    default_title = registry_default('ad_chapter_title_format')
-    default_held_title = registry_default('ad_chapter_held_title_format')
     additions = []
     for span in spans:
         fmt = config.held_title_format if span['held'] else config.title_format
-        default = default_held_title if span['held'] else default_title
         entry = {'startTime': span['start'],
-                 'title': format_ad_chapter_title(fmt, span['category'], default),
+                 'title': format_ad_chapter_title(fmt, span['category']),
                  'kind': 'ad', 'category': span['category']}
         if span['held']:
             entry['held'] = True

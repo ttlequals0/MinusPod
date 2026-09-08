@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MAX, rerenderSegments, RerenderSegmentsResult } from '../../api/feeds';
 import { listCueTemplates } from '../../api/cueTemplates';
@@ -127,6 +127,38 @@ function CueOverrideRow({
           <p className="text-xs text-warning">{description}</p>
         </div>
       ) : inputRow}
+    </div>
+  );
+}
+
+function GlobalOverrideRow({
+  label, ariaLabel, value, globalOn, disabled, onChange, children,
+}: {
+  label: string;
+  ariaLabel: string;
+  value: 'on' | 'off' | null | undefined;
+  globalOn: boolean;
+  disabled: boolean;
+  onChange: (value: 'on' | 'off' | null) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+      <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">{label}:</span>
+      <div className="flex flex-col gap-1 flex-1 min-w-0">
+        <select
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value === '' ? null : e.target.value as 'on' | 'off')}
+          disabled={disabled}
+          className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+          aria-label={ariaLabel}
+        >
+          <option value="">Use global ({globalOn ? 'on' : 'off'})</option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+        <p className="text-xs text-muted-foreground">{children}</p>
+      </div>
     </div>
   );
 }
@@ -963,52 +995,30 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </div>
 
           {/* Per-feed chapter list in descriptions (#720) */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapter list:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <select
-                value={feed.chaptersInNotes ?? ''}
-                onChange={(e) => updateMutation.mutate({
-                  chaptersInNotes: e.target.value === '' ? null : e.target.value as 'on' | 'off',
-                })}
-                disabled={updateMutation.isPending}
-                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-                aria-label="Chapters in descriptions"
-              >
-                <option value="">Use global ({settings?.chaptersInNotes?.value ? 'on' : 'off'})</option>
-                <option value="on">On</option>
-                <option value="off">Off</option>
-              </select>
-              <p className="text-xs text-muted-foreground">
-                Append the chapter list to each episode&apos;s description in this
-                feed, so apps show it without starting playback.
-              </p>
-            </div>
-          </div>
+          <GlobalOverrideRow
+            label="Chapter list"
+            ariaLabel="Chapters in descriptions"
+            value={feed.chaptersInNotes}
+            globalOn={!!settings?.chaptersInNotes?.value}
+            disabled={updateMutation.isPending}
+            onChange={(chaptersInNotes) => updateMutation.mutate({ chaptersInNotes })}
+          >
+            Append the chapter list to each episode&apos;s description in this
+            feed, so apps show it without starting playback.
+          </GlobalOverrideRow>
 
           {/* Per-feed ad chapters override */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Ad chapters:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <select
-                value={feed.adChaptersEnabled ?? ''}
-                onChange={(e) => updateMutation.mutate({
-                  adChaptersEnabled: e.target.value === '' ? null : e.target.value as 'on' | 'off',
-                })}
-                disabled={updateMutation.isPending}
-                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-                aria-label="Ad chapters"
-              >
-                <option value="">Use global ({settings?.adChaptersEnabled?.value ? 'on' : 'off'})</option>
-                <option value="on">On</option>
-                <option value="off">Off</option>
-              </select>
-              <p className="text-xs text-muted-foreground">
-                Publish kept segments as chapters in this feed. Needs a chapters
-                mode other than Off.
-              </p>
-            </div>
-          </div>
+          <GlobalOverrideRow
+            label="Ad chapters"
+            ariaLabel="Ad chapters"
+            value={feed.adChaptersEnabled}
+            globalOn={!!settings?.adChaptersEnabled?.value}
+            disabled={updateMutation.isPending}
+            onChange={(adChaptersEnabled) => updateMutation.mutate({ adChaptersEnabled })}
+          >
+            Publish kept segments as chapters in this feed. Needs a chapters
+            mode other than Off.
+          </GlobalOverrideRow>
 
           {adChaptersOn && (
             <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">

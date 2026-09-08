@@ -131,16 +131,17 @@ function ChapterGeometryBlock({
   );
 }
 
-function ToggleRow({ checked, onChange, label, children }: {
+export function ToggleRow({ checked, onChange, label, disabled, children }: {
   checked: boolean;
   onChange: (enabled: boolean) => void;
   label: string;
+  disabled?: boolean;
   children: ReactNode;
 }) {
   return (
     <div>
-      <label className="flex items-center gap-3 cursor-pointer">
-        <ToggleSwitch checked={checked} onChange={onChange} ariaLabel={label} />
+      <label className={`flex items-center gap-3 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+        <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} ariaLabel={label} />
         <span className="text-sm font-medium text-foreground">{label}</span>
       </label>
       <p className="mt-2 text-sm text-muted-foreground ml-14">{children}</p>

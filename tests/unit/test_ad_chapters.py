@@ -6,8 +6,8 @@ from tests.app_bootstrap import bootstrap
 bootstrap('ad_chapters_test_')
 
 from ad_chapters import (  # noqa: E402
-    AdChapterConfig, format_ad_chapter_title, merge_ad_chapters,
-    resolve_ad_chapter_config, strip_ad_chapters,
+    AdChapterConfig, merge_ad_chapters, resolve_ad_chapter_config,
+    strip_ad_chapters,
 )
 
 DURATION = 3600.0
@@ -155,12 +155,6 @@ def test_strip_removes_only_ad_kinds():
     mixed = topics() + [{'startTime': 5, 'title': 'x', 'kind': 'ad'},
                         {'startTime': 6, 'title': 'y', 'kind': 'resume'}]
     assert strip_ad_chapters(mixed) == topics()
-
-
-def test_title_format_falls_back_on_bad_template():
-    assert format_ad_chapter_title('[mp:{category}]', 'sponsor', '[x:{category}]') == '[mp:sponsor]'
-    assert format_ad_chapter_title('{nope}', 'sponsor', '[x:{category}]') == '[x:sponsor]'
-    assert format_ad_chapter_title('Ad break', 'sponsor', '[x:{category}]') == 'Ad break'
 
 
 def test_resolve_config_gates_on_chapters_mode_and_global_flags():

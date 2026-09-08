@@ -3103,19 +3103,26 @@ def _ad_chapter_count(chapters):
     return len(chapters) - len(strip_ad_chapters(chapters))
 
 
-def _with_ad_chapters(chapters, markers, all_cuts, replacement_duration,
-                      audio_duration, ad_config):
-    """Topic chapters plus rebuilt ad chapters; unchanged when the feature is off."""
-    if ad_config is None or not ad_config.enabled:
-        return strip_ad_chapters(chapters)
-    return merge_ad_chapters(chapters, markers, all_cuts or [], audio_duration,
-                             replacement_duration, ad_config)
+def _publish_chapters(slug, episode_id, chapters_json, merged, all_cuts,
+                      audio_path, audio_duration, embed, label):
+    """Save a chapter set with its authoritative cut list, then embed it.
+
+    Both persist in ONE DB write: a later recut remaps from that cut list, and
+    fresh chapters paired with stale cuts would poison the remap.
+    """
+    storage.save_chapters_and_applied_cuts(
+        slug, episode_id, {**chapters_json, 'chapters': merged}, all_cuts or [])
+    audio_logger.info(
+        f"[{slug}:{episode_id}] {label}, {_ad_chapter_count(merged)} ad "
+        f"chapter entries")
+    if embed and audio_path:
+        embed_chapters(str(audio_path), merged, duration=audio_duration)
 
 
 def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
                             previous_cuts, original_duration,
                             audio_path=None, audio_duration=None,
-                            markers=None, ad_config=None):
+                            markers=None, podcast_row=None):
     """Recut-path chapter fixup (AI-free): remap the stored chapters JSON onto
     the recut timeline and re-embed it into the recut MP3.
 
@@ -3145,10 +3152,14 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
         # Stale ad chapters are rebuilt from the recut's markers, never remapped.
         chapters = strip_ad_chapters(stored)
         had_ads = len(stored) != len(chapters)
-        want_ads = ad_config is not None and ad_config.enabled and markers
         # had_ads still writes: the stale entries must leave the JSON and ID3
         # even when nothing replaces them.
-        if not chapters and not want_ads and not had_ads:
+        nothing_stored = not chapters and not had_ads
+        if nothing_stored and not markers:
+            return
+        ad_config = resolve_ad_chapter_config(
+            db, podcast_row or db.get_podcast_by_slug(slug), slug=slug)
+        if nothing_stored and not ad_config.enabled:
             return
         if not original_duration:
             audio_logger.warning(
@@ -3168,8 +3179,8 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
         remapped = _remap_chapters_for_recut(
             chapters, previous_cuts, all_cuts or [],
             replacement_duration, original_duration, resolved_duration)
-        merged = _with_ad_chapters(remapped, markers, all_cuts,
-                                   replacement_duration, resolved_duration,
+        merged = merge_ad_chapters(remapped, markers, all_cuts or [],
+                                   resolved_duration, replacement_duration,
                                    ad_config)
         if not merged and not had_ads:
             audio_logger.warning(
@@ -3210,24 +3221,27 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
 def rebuild_ad_chapters(slug, episode_id, markers) -> bool:
     """Rebuild ad chapters from `markers` without touching the audio cut.
 
-    Used after a correction that changes which segments count as ads but not
-    what is cut (a rejected hold, a recategorize between kept categories).
     Returns True when the stored chapter set changed. Never raises.
     """
     try:
         episode = db.get_episode(slug, episode_id)
         if not episode or episode.get('status') != EpisodeStatus.PROCESSED.value:
             return False
-        podcast_row = db.get_podcast_by_slug(slug)
-        ad_config = resolve_ad_chapter_config(db, podcast_row, slug=slug)
         chapters_json = (storage.get_chapters_json(slug, episode_id)
                          or {'version': '1.2.0', 'chapters': []})
         current = chapters_json.get('chapters') or []
+        ad_config = resolve_ad_chapter_config(
+            db, db.get_podcast_by_slug(slug), slug=slug)
+        # Disabled with nothing to strip: no file probe, no write.
+        if not ad_config.enabled and len(strip_ad_chapters(current)) == len(current):
+            return False
         cuts = storage.get_applied_cuts(slug, episode_id) or []
         path = storage.get_episode_path(slug, episode_id,
                                         version=episode.get('processed_version'))
         exists = path.exists()
-        duration = get_audio_duration(str(path)) if exists else None
+        duration = episode.get('new_duration')
+        if duration is None and exists:
+            duration = get_audio_duration(str(path))
         merged = merge_ad_chapters(current, markers, cuts, duration,
                                    get_replacement_duration(), ad_config)
         if merged == current:
@@ -3319,16 +3333,12 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
         chapters_enabled = db.get_setting('chapters_enabled')
         if not regenerate_chapters:
             audio_logger.info(f"[{slug}:{episode_id}] Skipping chapter regeneration (no AI call)")
-            if podcast_row is None:
-                podcast_row = db.get_podcast_by_slug(slug)
             _remap_stored_chapters(slug, episode_id, all_cuts,
                                    replacement_duration, previous_cuts,
                                    original_duration,
                                    audio_path=audio_path,
                                    audio_duration=audio_duration,
-                                   markers=markers,
-                                   ad_config=resolve_ad_chapter_config(
-                                       db, podcast_row, slug=slug))
+                                   markers=markers, podcast_row=podcast_row)
         elif chapters_enabled is None or chapters_enabled.lower() == 'true':
             if podcast_row is None:
                 podcast_row = db.get_podcast_by_slug(slug)
@@ -3373,22 +3383,15 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     ],
                 }
                 base = chapters_json['chapters']
-                merged = _with_ad_chapters(base, markers, all_cuts,
-                                           replacement_duration, audio_duration,
+                merged = merge_ad_chapters(base, markers, all_cuts or [],
+                                           audio_duration, replacement_duration,
                                            ad_config)
-                # Persisted in one DB write; no LLM call happens here. The cut
-                # step already embedded the publisher frames, so the re-embed
-                # below only runs when ad entries were added on top.
-                storage.save_chapters_and_applied_cuts(
-                    slug, episode_id, {**chapters_json, 'chapters': merged},
-                    all_cuts or [])
-                audio_logger.info(
-                    f"[{slug}:{episode_id}] Preserved {len(publisher)} "
-                    f"publisher chapter(s), {_ad_chapter_count(merged)} ad "
-                    f"chapter entries (no AI call)")
-                if merged != base and audio_path:
-                    embed_chapters(str(audio_path), merged,
-                                   duration=audio_duration)
+                # The cut step already embedded the publisher frames, so the
+                # re-embed only runs when ad entries were added on top.
+                _publish_chapters(
+                    slug, episode_id, chapters_json, merged, all_cuts,
+                    audio_path, audio_duration, merged != base,
+                    f"Preserved {len(publisher)} publisher chapter(s) (no AI call)")
                 return
             # Embedded chapters came up short. Some feeds publish chapters
             # only as a separate podcast:chapters JSON file (issue #560
@@ -3418,25 +3421,18 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                     for i, ch in enumerate(remapped)
                                 ],
                             }
-                            chapters_json['chapters'] = _with_ad_chapters(
-                                chapters_json['chapters'], markers, all_cuts,
-                                replacement_duration, audio_duration, ad_config)
+                            merged = merge_ad_chapters(
+                                chapters_json['chapters'], markers,
+                                all_cuts or [], audio_duration,
+                                replacement_duration, ad_config)
                             # Unlike the embedded-preserve path above, the
-                            # served file has no chapter frames yet (the cut
-                            # step only remapped what was already embedded),
-                            # so this mirrors the generate path's embed call
-                            # below rather than skipping it.
-                            storage.save_chapters_and_applied_cuts(
-                                slug, episode_id, chapters_json, all_cuts or [])
-                            audio_logger.info(
-                                f"[{slug}:{episode_id}] Preserved {len(remapped)} "
-                                f"upstream JSON chapter(s), "
-                                f"{_ad_chapter_count(chapters_json['chapters'])} "
-                                f"ad chapter entries (no AI call)")
-                            if audio_path:
-                                embed_chapters(str(audio_path),
-                                              chapters_json['chapters'],
-                                              duration=audio_duration)
+                            # served file has no chapter frames yet, so this
+                            # always embeds.
+                            _publish_chapters(
+                                slug, episode_id, chapters_json, merged,
+                                all_cuts, audio_path, audio_duration, True,
+                                f"Preserved {len(remapped)} upstream JSON "
+                                f"chapter(s) (no AI call)")
                             return
             chapters_gen = ChaptersGenerator()
             clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
@@ -3454,25 +3450,14 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 run_stats['chapters_degraded'] = True
                 run_stats['chapters_degraded_reason'] = chapters_gen.chapters_degradation_reason
             topic = (chapters or {}).get('chapters') or []
-            merged = _with_ad_chapters(topic, markers, all_cuts,
-                                       replacement_duration, audio_duration,
+            merged = merge_ad_chapters(topic, markers, all_cuts or [],
+                                       audio_duration, replacement_duration,
                                        ad_config)
             if merged:
-                # Chapters and the applied cut list they were generated
-                # against (all_cuts, original-episode coordinates) persist in
-                # ONE DB write: a later recut remaps from this authoritative
-                # list, and a failure between two separate writes would leave
-                # fresh chapters with stale cuts and poison that remap.
-                chapters_json = {**(chapters or {'version': '1.2.0'}),
-                                 'chapters': merged}
-                storage.save_chapters_and_applied_cuts(
-                    slug, episode_id, chapters_json, all_cuts or [])
-                audio_logger.info(
-                    f"[{slug}:{episode_id}] Generated {len(topic)} chapters, "
-                    f"{_ad_chapter_count(merged)} ad chapter entries")
-                if audio_path:
-                    embed_chapters(str(audio_path), merged,
-                                   duration=audio_duration)
+                _publish_chapters(
+                    slug, episode_id, chapters or {'version': '1.2.0'}, merged,
+                    all_cuts, audio_path, audio_duration, True,
+                    f"Generated {len(topic)} chapters")
     except Exception as e:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to generate Podcasting 2.0 assets: {e}")
 

@@ -38,6 +38,7 @@ from config import (
     CUE_ONLY_SAFETY_VALUES,
     LOW_AD_YIELD_ACTIONS,
     EPISODE_LOGS_VALUES,
+    validate_ad_chapter_categories,
     cue_only_missing_roles,
 )
 from differential_fetcher import is_likely_dai_feed
@@ -1688,14 +1689,10 @@ def update_feed(slug):
         cats = data['adChapterCategories']
         if cats is None:
             updates['ad_chapter_categories_override'] = None
-        elif not isinstance(cats, dict):
-            return error_response('adChapterCategories must be an object or null', 400)
         else:
-            for cat, flag in cats.items():
-                if cat not in SEGMENT_CATEGORIES or not isinstance(flag, bool):
-                    return error_response(
-                        f"adChapterCategories: '{cat}' must be a known category "
-                        "with true or false", 400)
+            error = validate_ad_chapter_categories(cats)
+            if error:
+                return error_response(error, 400)
             updates['ad_chapter_categories_override'] = json.dumps(cats)
 
     if 'queuePriority' in data:

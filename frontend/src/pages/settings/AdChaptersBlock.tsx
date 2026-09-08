@@ -1,20 +1,15 @@
 import Checkbox from '../../components/Checkbox';
 import NumberInput from '../../components/NumberInput';
-import ToggleSwitch from '../../components/ToggleSwitch';
 import { inputBase } from '../../components/fieldStyles';
+import { ToggleRow } from './Podcasting20Section';
 import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
 } from '../../utils/segmentCategory';
 
-// Mirrors config.DEFAULT_AD_CHAPTER_CATEGORIES, used until the settings load.
-export const DEFAULT_AD_CHAPTER_CATEGORIES = Object.fromEntries(
-  SEGMENT_CATEGORIES.map((c) => [c, c === 'sponsor' || c === 'cross_promo']),
-) as Record<SegmentCategory, boolean>;
-
 export interface AdChaptersBlockProps {
   chaptersEnabled: boolean;
   enabled: boolean;
-  categories: Record<SegmentCategory, boolean>;
+  categories: Partial<Record<SegmentCategory, boolean>>;
   includeHeld: boolean;
   titleFormat: string;
   heldTitleFormat: string;
@@ -76,19 +71,15 @@ function AdChaptersBlock({
   return (
     <div className={`ml-14 space-y-4 ${disabled ? 'opacity-50' : ''}`}>
       <div>
-        <label className={`flex items-center gap-3 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-          <ToggleSwitch
-            checked={enabled}
-            onChange={onEnabledChange}
-            disabled={disabled}
-            ariaLabel="Ad chapters"
-          />
-          <span className="text-sm font-medium text-foreground">Ad chapters</span>
-        </label>
-        <p className="mt-2 ml-14 text-sm text-muted-foreground">
+        <ToggleRow
+          checked={enabled}
+          onChange={onEnabledChange}
+          disabled={disabled}
+          label="Ad chapters"
+        >
           Publish segments left in the audio as their own chapters, so apps that
           skip by chapter can jump past them. Needs Generate Chapters.
-        </p>
+        </ToggleRow>
         {disabled && (
           <p className="mt-2 ml-14 text-sm text-muted-foreground">
             Turn on Generate Chapters to use ad chapters.
@@ -118,23 +109,15 @@ function AdChaptersBlock({
             <p className="mt-2 text-xs text-muted-foreground">Saved as you check them.</p>
           </div>
 
-          <div>
-            <label className={`flex items-center gap-3 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-              <ToggleSwitch
-                checked={includeHeld}
-                onChange={onIncludeHeldChange}
-                disabled={disabled}
-                ariaLabel="Include segments waiting for review"
-              />
-              <span className="text-sm font-medium text-foreground">
-                Include segments waiting for review
-              </span>
-            </label>
-            <p className="mt-2 ml-14 text-sm text-muted-foreground">
-              Held segments get a chapter too, titled with the waiting-for-review
-              format. Rejecting one removes its chapter.
-            </p>
-          </div>
+          <ToggleRow
+            checked={includeHeld}
+            onChange={onIncludeHeldChange}
+            disabled={disabled}
+            label="Include segments waiting for review"
+          >
+            Held segments get a chapter too, titled with the waiting-for-review
+            format. Rejecting one removes its chapter.
+          </ToggleRow>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <TextField

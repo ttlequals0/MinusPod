@@ -8,7 +8,6 @@ from tests.app_bootstrap import bootstrap
 bootstrap('ad_chapter_rebuild_test_')
 
 from ad_chapters import AdChapterConfig  # noqa: E402
-from api import patterns as patterns_api  # noqa: E402
 from main_app import app, processing  # noqa: E402
 
 CFG = AdChapterConfig(
@@ -107,8 +106,6 @@ def seeded(temp_db):
 @pytest.fixture
 def rebuilds(monkeypatch):
     calls = []
-    monkeypatch.setattr(patterns_api, 'resolve_ad_chapter_config',
-                        lambda db, row, slug=None: CFG)
     monkeypatch.setattr(processing, 'rebuild_ad_chapters',
                         lambda slug, episode_id, markers: calls.append(markers) or True)
     return calls

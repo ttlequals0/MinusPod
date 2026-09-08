@@ -3,14 +3,11 @@
 Covers the two podcasts columns exposed by GET /feeds/{slug} and settable
 through PATCH: ad_chapters_enabled_override and ad_chapter_categories_override.
 """
-import os
-import sys
-import tempfile
-
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='ad-chapter-api-test-'))
+from tests.app_bootstrap import bootstrap
+
+bootstrap('ad_chapter_api_test_')
 
 
 @pytest.fixture
@@ -30,11 +27,8 @@ def _authed(client):
 
 
 def _csrf_headers(client):
-    csrf = None
-    for cookie in client._cookies.values():
-        if cookie.key == 'minuspod_csrf':
-            csrf = cookie.value
-    return {'X-CSRF-Token': csrf} if csrf else {}
+    cookie = client.get_cookie('minuspod_csrf')
+    return {'X-CSRF-Token': cookie.value} if cookie else {}
 
 
 def test_get_feed_echoes_null_ad_chapter_overrides(app_client, seeded_feed):

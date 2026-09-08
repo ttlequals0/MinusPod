@@ -9,7 +9,6 @@ from config import (
     count_pending_review, is_pending_review, normalize_segment_category,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
-from ad_chapters import resolve_ad_chapter_config
 from utils.markers import BOUNDS_TOLERANCE_S, spans_match
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
@@ -1220,13 +1219,6 @@ def _correction_changes_audio(db, slug, correction_type, marker, data) -> bool:
     return False
 
 
-def _correction_changes_chapters(db, slug) -> bool:
-    """True when the feed publishes ad chapters, so a non-audio correction
-    still has to rebuild the chapter list."""
-    podcast_row = db.get_podcast_by_slug(slug)
-    return resolve_ad_chapter_config(db, podcast_row, slug=slug).enabled
-
-
 def _find_marker_by_bounds(db, slug, episode_id, start, end, tol=0.5):
     """Find the persisted marker matching (start, end) within tolerance,
     regardless of pending-review state (unlike _matches_held_marker). A
@@ -1560,7 +1552,7 @@ def submit_correction(slug, episode_id):
     if getattr(response, 'status_code', 500) < 400:
         if _correction_changes_audio(db, slug, correction_type, target_marker, data):
             db.mark_episode_pending_recut(slug, episode_id)
-        elif _correction_changes_chapters(db, slug):
+        else:
             # Local import: importing main_app pulls in the api blueprint.
             from main_app.processing import rebuild_ad_chapters
             rebuild_ad_chapters(slug, episode_id,
