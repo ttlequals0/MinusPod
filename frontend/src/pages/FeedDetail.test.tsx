@@ -205,3 +205,18 @@ describe('recents feed page', () => {
     expect(screen.queryByText('All statuses')).toBeNull();
   });
 });
+
+describe('FeedDetail loading state', () => {
+  it('shows a layout skeleton while loading, not a page spinner', () => {
+    mockGetFeed.mockReturnValue(new Promise(() => {}));
+    mockGetFeedsResponse.mockReturnValue(new Promise(() => {}));
+    mockGetEpisodes.mockReturnValue(new Promise(() => {}));
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <FeedDetail />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId('skeleton-page-header')).toBeDefined();
+    expect(screen.queryByTestId('spinner')).toBeNull();
+  });
+});

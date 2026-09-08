@@ -1299,3 +1299,17 @@ describe('Download menu', () => {
     expect(screen.queryByRole('button', { name: /download audio/i })).toBeNull();
   });
 });
+
+describe('EpisodeDetail loading state', () => {
+  it('shows a layout skeleton while loading, not a page spinner', () => {
+    (getEpisode as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    (getFeed as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <EpisodeDetail />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId('skeleton-page-header')).toBeDefined();
+    expect(screen.queryByTestId('spinner')).toBeNull();
+  });
+});

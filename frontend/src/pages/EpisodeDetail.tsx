@@ -11,6 +11,7 @@ import { getErrorMessage } from '../api/client';
 import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBadge';
 import PrevNextLink from '../components/PrevNextLink';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import Artwork from '../components/Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import { EPISODE_STATUS_COLORS, isFailedStatus } from '../utils/episodeStatus';
@@ -467,7 +468,12 @@ function EpisodeDetail() {
     episode?.hasOriginalAudio ? markerAudioUrl : undefined);
 
   if (isLoading) {
-    return <LoadingSpinner className="py-12" />;
+    return (
+      <div>
+        <SkeletonPageHeader />
+        <SkeletonRows count={4} />
+      </div>
+    );
   }
 
   if (error || !episode) {

@@ -19,10 +19,13 @@ const FEED: Feed = {
   episodeCount: 1,
 };
 
+// Indirected through a mock so a test can leave the feeds query pending.
+const mockFeedsQueryFn = vi.fn(async () => ({ feeds: [FEED], lastRefreshCompletedAt: null }));
+
 vi.mock('../api/feeds', () => ({
   feedsQueryOptions: {
     queryKey: ['feeds'],
-    queryFn: async () => ({ feeds: [FEED], lastRefreshCompletedAt: null }),
+    queryFn: () => mockFeedsQueryFn(),
   },
   refreshFeed: vi.fn(),
   refreshAllFeeds: vi.fn(),
@@ -150,5 +153,14 @@ describe('Dashboard search field', () => {
     await waitFor(() => screen.getByText('The Daily Tech Show'));
     fireEvent.mouseDown(document.body);
     expect(screen.queryByText('The Daily Tech Show')).toBeNull();
+  });
+});
+
+describe('Dashboard loading state', () => {
+  it('shows a layout skeleton while loading, not a page spinner', () => {
+    mockFeedsQueryFn.mockReturnValueOnce(new Promise<never>(() => {}));
+    renderDashboard();
+    expect(screen.getByTestId('skeleton-page-header')).toBeDefined();
+    expect(screen.getByTestId('skeleton-stat-cards')).toBeDefined();
   });
 });

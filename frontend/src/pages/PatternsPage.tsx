@@ -10,7 +10,7 @@ import {
 } from '../api/community';
 import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { ScopeBadge } from '../components/ScopeBadge';
@@ -285,7 +285,7 @@ function PatternsPage() {
 
       {activeTab === 'patterns' && (<>
 
-      {isLoading && <LoadingSpinner className="py-12" />}
+      {isLoading && <SkeletonRows count={6} />}
       {error && (
         <div className="text-center py-12">
           <p className="text-destructive">Failed to load patterns</p>

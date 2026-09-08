@@ -15,6 +15,7 @@ import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import FeedTypeBadge from '../components/FeedTypeBadge';
 import PodpingBadge from '../components/PodpingBadge';
@@ -280,7 +281,12 @@ function FeedDetail() {
   const isRecents = feed?.feedType === 'recents';
 
   if (feedLoading) {
-    return <LoadingSpinner className="py-12" />;
+    return (
+      <div>
+        <SkeletonPageHeader />
+        <SkeletonRows count={6} />
+      </div>
+    );
   }
 
   if (feedError || !feed) {
