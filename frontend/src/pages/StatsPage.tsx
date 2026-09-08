@@ -217,7 +217,7 @@ export default function StatsPage() {
 
       {/* Summary Cards */}
       {dashLoading && (
-        <SkeletonStatCards count={6} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8" />
+        <SkeletonStatCards count={7} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8" />
       )}
       {dashboard && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
