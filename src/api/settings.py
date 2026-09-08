@@ -518,6 +518,10 @@ def get_settings():
         settings, 'audio_cue_create_from_pairs',
         registry_default('audio_cue_create_from_pairs')))
 
+    dai_differential_overrides_keep = coerce_bool_setting(_setting_value(
+        settings, 'dai_differential_overrides_keep',
+        registry_default('dai_differential_overrides_keep')))
+
     # Learned positional prior experiment (#360)
     positional_prior_enabled = coerce_bool_setting(_setting_value(
         settings, 'positional_prior_enabled',
@@ -684,6 +688,8 @@ def get_settings():
         'learningMaxPatternDuration': _sv('learning_max_pattern_duration', learning_max_pattern_duration),
         'differentialMeasuredCorrMax': _sv('differential_measured_corr_max', differential_measured_corr_max),
         'differentialHoldMinSeconds': _sv('differential_hold_min_seconds', differential_hold_min_seconds),
+        'daiDifferentialOverridesKeep': _sv(
+            'dai_differential_overrides_keep', dai_differential_overrides_keep),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
@@ -1795,6 +1801,12 @@ def _apply_positional_prior_fields(db, data):
         enabled = coerce_bool_setting(data['positionalPriorEnabled'])
         db.set_setting('positional_prior_enabled', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated positional_prior_enabled to: {enabled}")
+
+    if 'daiDifferentialOverridesKeep' in data:
+        enabled = coerce_bool_setting(data['daiDifferentialOverridesKeep'])
+        db.set_setting('dai_differential_overrides_keep',
+                       'true' if enabled else 'false', is_default=False)
+        logger.info(f"Updated dai_differential_overrides_keep to: {enabled}")
     return
 
 
