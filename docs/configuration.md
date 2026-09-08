@@ -32,6 +32,32 @@ Four toggles decide which LLM passes are handed the running list of known sponso
 
 All four default on to match prior behavior. API: `PUT /api/v1/settings/ad-detection` with `seedSponsorsDetection`, `seedSponsorsVerification`, `seedSponsorsReviewer`, `seedSponsorsResurrect` (booleans).
 
+### Ad Reviewer
+
+The ad reviewer is an opt-in third LLM stage that sits between detection and audio cutting. After pass 1 detection (and again after pass 2), the reviewer takes each candidate ad along with 60 seconds of transcript on either side and decides one of three things: confirm the detection as is, adjust the start or end timestamps within a configured cap, or reject the segment as a false positive. The reviewer also gets a second look at validator-rejected detections whose confidence sits within 20 percentage points of your `min_cut_confidence` slider, and may resurrect them as real ads.
+
+When to enable it:
+
+- Comedy and fiction podcasts that include in-bit fake sponsor reads (Welcome to Night Vale was the torture test for this feature)
+- News shows that read sponsor-adjacent copy editorially without it actually being an ad break
+- Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
+- Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
+
+Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With a typical pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
+
+Settings live under AI & Processing -> Ad Reviewer:
+
+- **Enable ad reviewer** - master toggle, off by default
+- **Review model** - `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
+- **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
+- **Review prompt** - system prompt for the confirm/adjust/reject reviewer
+- **Resurrect prompt** - system prompt for the resurrect/reject reviewer over rejected detections
+
+Reviewer activity surfaces in two places:
+
+- The episode detail page shows the original timestamps on top and a `Reviewer: MM:SS - MM:SS` line beneath when the reviewer adjusted boundaries. Reviewer-rejected ads carry a `Source: Reviewer` tag in the rejected detections list.
+- The Stats page shows an Ad Reviewer Stats card with verdict counts (confirmed, adjusted, rejected, resurrected, failed), pass-1 and pass-2 adjustment counts, average boundary shift in seconds, and resurrection count. The card hides when the reviewer has not run.
+
 ### Text recurrence hints
 
 Settings > AI & Processing has a Text recurrence hints toggle. When on, MinusPod compares the current transcript against a show's last two or more processed episodes and flags spans of wording that repeat near-verbatim, such as intros, credits, and other boilerplate. Those spans go to pass 1 detection as a hint; nothing is ever cut on text recurrence alone.
@@ -272,32 +298,6 @@ and has to be caught by later validation, if it is caught at all.
 Yield is recorded from 2.92.0 on. Older runs carry no yield data and are
 excluded from the yield numbers, so the yield sample starts empty and can
 lag the compliance sample.
-
-### Ad Reviewer
-
-The ad reviewer is an opt-in third LLM stage that sits between detection and audio cutting. After pass 1 detection (and again after pass 2), the reviewer takes each candidate ad along with 60 seconds of transcript on either side and decides one of three things: confirm the detection as is, adjust the start or end timestamps within a configured cap, or reject the segment as a false positive. The reviewer also gets a second look at validator-rejected detections whose confidence sits within 20 percentage points of your `min_cut_confidence` slider, and may resurrect them as real ads.
-
-When to enable it:
-
-- Comedy and fiction podcasts that include in-bit fake sponsor reads (Welcome to Night Vale was the torture test for this feature)
-- News shows that read sponsor-adjacent copy editorially without it actually being an ad break
-- Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
-- Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
-
-Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With a typical pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
-
-Settings live under AI & Processing -> Ad Reviewer:
-
-- **Enable ad reviewer** - master toggle, off by default
-- **Review model** - `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
-- **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
-- **Review prompt** - system prompt for the confirm/adjust/reject reviewer
-- **Resurrect prompt** - system prompt for the resurrect/reject reviewer over rejected detections
-
-Reviewer activity surfaces in two places:
-
-- The episode detail page shows the original timestamps on top and a `Reviewer: MM:SS - MM:SS` line beneath when the reviewer adjusted boundaries. Reviewer-rejected ads carry a `Source: Reviewer` tag in the rejected detections list.
-- The Stats page shows an Ad Reviewer Stats card with verdict counts (confirmed, adjusted, rejected, resurrected, failed), pass-1 and pass-2 adjustment counts, average boundary shift in seconds, and resurrection count. The card hides when the reviewer has not run.
 
 ### Prompt placeholders
 

@@ -46,9 +46,6 @@ function AdReviewerSection({
   const update = <K extends keyof ReviewerState>(key: K, value: ReviewerState[K]) =>
     onChange({ ...reviewer, [key]: value });
 
-  // Clamp numeric input on edit so an empty or out-of-range value never reaches
-  // Save (the backend rejects them). maxShift stays out: it has weaker semantics
-  // and leans on the native min/max only.
   return (
     <CollapsibleSection
       title="Ad Reviewer"
@@ -100,6 +97,7 @@ function AdReviewerSection({
               Max boundary shift
             </label>
             <div className="flex items-center gap-3">
+              {/* Clamp on edit so an empty or out-of-range value never reaches Save (the backend rejects them). */}
               <NumberInput
                 id="reviewMaxBoundaryShift"
                 value={reviewer.maxShift}

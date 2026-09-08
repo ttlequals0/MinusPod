@@ -16,11 +16,17 @@ describe('Skeleton', () => {
     expect(plot.style.height).toBe('300px');
   });
 
-  it('is hidden from assistive tech and pulses', () => {
+  it('inner blocks are hidden from assistive tech and pulse', () => {
     render(<SkeletonRows count={2} />);
     const blocks = screen.getByTestId('skeleton-rows').querySelectorAll('[aria-hidden="true"]');
     expect(blocks.length).toBeGreaterThan(0);
     for (const b of blocks) expect(b.className).toContain('animate-pulse');
+  });
+
+  it('stat cards reserve a third line when the card renders one', () => {
+    render(<SkeletonStatCards count={1} lines={3} />);
+    const card = screen.getByTestId('skeleton-stat-cards').firstElementChild as HTMLElement;
+    expect(card.children).toHaveLength(3);
   });
 
   it('page header reserves a title and a control slot', () => {

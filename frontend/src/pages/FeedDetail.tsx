@@ -14,7 +14,6 @@ import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
-import LoadingSpinner from '../components/LoadingSpinner';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import FeedTypeBadge from '../components/FeedTypeBadge';
@@ -646,7 +645,7 @@ function FeedDetail() {
       )}
 
       {episodesLoading ? (
-        <LoadingSpinner />
+        <SkeletonRows count={6} />
       ) : (
         <EpisodeList
           episodes={episodes}

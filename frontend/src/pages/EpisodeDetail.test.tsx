@@ -1304,12 +1304,14 @@ describe('EpisodeDetail loading state', () => {
   it('shows a layout skeleton while loading, not a page spinner', () => {
     (getEpisode as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
     (getFeed as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
-    render(
+    const { container } = render(
       <QueryClientProvider client={makeClient()}>
         <EpisodeDetail />
       </QueryClientProvider>,
     );
     expect(screen.getByTestId('skeleton-page-header')).toBeDefined();
+    // Both shapes: the file stubs LoadingSpinner, so check the stub and the real class.
     expect(screen.queryByTestId('spinner')).toBeNull();
+    expect(container.querySelector('.animate-spin')).toBeNull();
   });
 });

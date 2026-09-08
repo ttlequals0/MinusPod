@@ -5,7 +5,7 @@ import { feedsQueryOptions, refreshFeed, refreshAllFeeds, deleteFeed } from '../
 import DropdownMenu from '../components/DropdownMenu';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
-import { SkeletonRows, SkeletonStatCards } from '../components/Skeleton';
+import { Skeleton, SkeletonRows, SkeletonStatCards } from '../components/Skeleton';
 import SearchResults from '../components/SearchResults';
 import type { SearchResultRow } from '../components/SearchResults';
 import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
@@ -94,6 +94,7 @@ function Dashboard() {
   if (isLoading) {
     return (
       <div>
+        <Skeleton className="h-10 w-full mb-6" />
         {viewMode === 'grid' ? (
           <SkeletonStatCards count={6} className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />
         ) : (

@@ -269,8 +269,8 @@ describe('Settings: Ad Reviewer placement', () => {
     expect(precedes(aiHeader, adReviewer)).toBe(true);
     expect(precedes(adReviewer, seedSponsors)).toBe(true);
 
-    const experiments = screen.queryByRole('heading', { name: 'Experiments' });
-    if (experiments) expect(precedes(adReviewer, experiments)).toBe(true);
+    const experiments = screen.getByRole('heading', { name: 'Experiments' });
+    expect(precedes(adReviewer, experiments)).toBe(true);
   });
 });
 

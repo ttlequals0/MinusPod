@@ -4,24 +4,22 @@
  * are animate-pulse rows in the muted tone, never a spinner in a blank page.
  */
 
+// Container announces the wait; the pulsing blocks inside stay aria-hidden.
+const LOADING_A11Y = { role: 'status', 'aria-busy': true, 'aria-label': 'Loading' } as const;
+
 export function Skeleton({ className = '' }: { className?: string }) {
   return <div aria-hidden className={`bg-muted rounded animate-pulse ${className}`} />;
 }
 
 /** A row of stat cards: label line over a value line, matching StatCard. */
-export function SkeletonStatCards({ count, className = '' }: { count: number; className?: string }) {
+export function SkeletonStatCards({ count, lines = 2, className = '' }: { count: number; lines?: 2 | 3; className?: string }) {
   return (
-    <div
-      className={className}
-      data-testid="skeleton-stat-cards"
-      role="status"
-      aria-busy="true"
-      aria-label="Loading"
-    >
+    <div className={className} data-testid="skeleton-stat-cards" {...LOADING_A11Y}>
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="bg-card rounded-lg border border-border p-4 space-y-3">
           <Skeleton className="h-3.5 w-2/3" />
           <Skeleton className="h-6 w-1/2" />
+          {lines === 3 && <Skeleton className="h-3 w-1/2" />}
         </div>
       ))}
     </div>
@@ -34,9 +32,7 @@ export function SkeletonChart({ height = 300 }: { height?: number }) {
     <div
       className="bg-card rounded-lg border border-border p-4"
       data-testid="skeleton-chart"
-      role="status"
-      aria-busy="true"
-      aria-label="Loading"
+      {...LOADING_A11Y}
     >
       <Skeleton className="h-5 w-56 mb-4" />
       <div aria-hidden className="w-full bg-muted rounded animate-pulse" style={{ height }} />
@@ -50,9 +46,7 @@ export function SkeletonRows({ count, className = '' }: { count: number; classNa
     <div
       className={`space-y-3 ${className}`}
       data-testid="skeleton-rows"
-      role="status"
-      aria-busy="true"
-      aria-label="Loading"
+      {...LOADING_A11Y}
     >
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border">
@@ -72,9 +66,7 @@ export function SkeletonPageHeader() {
     <div
       className="flex items-center justify-between gap-4 mb-6"
       data-testid="skeleton-page-header"
-      role="status"
-      aria-busy="true"
-      aria-label="Loading"
+      {...LOADING_A11Y}
     >
       <Skeleton className="h-8 w-40" />
       <Skeleton className="h-9 w-32" />

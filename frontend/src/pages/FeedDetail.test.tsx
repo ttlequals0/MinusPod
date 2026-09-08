@@ -28,7 +28,6 @@ vi.mock('./feeds/FeedStatsCards', () => ({ default: () => <div data-testid="feed
 vi.mock('./feeds/PodcastAdDistributionPanel', () => ({ default: () => <div data-testid="ad-distribution-panel" /> }));
 vi.mock('./feeds/CueTemplatesPanel', () => ({ default: () => <div data-testid="cue-templates-panel" /> }));
 vi.mock('../components/Artwork', () => ({ default: ({ alt }: { alt: string }) => <img alt={alt} /> }));
-vi.mock('../components/LoadingSpinner', () => ({ default: () => <div data-testid="spinner" /> }));
 
 const mockGetFeed = vi.fn();
 const mockGetFeedsResponse = vi.fn();
@@ -211,12 +210,24 @@ describe('FeedDetail loading state', () => {
     mockGetFeed.mockReturnValue(new Promise(() => {}));
     mockGetFeedsResponse.mockReturnValue(new Promise(() => {}));
     mockGetEpisodes.mockReturnValue(new Promise(() => {}));
-    render(
+    const { container } = render(
       <QueryClientProvider client={makeClient()}>
         <FeedDetail />
       </QueryClientProvider>,
     );
     expect(screen.getByTestId('skeleton-page-header')).toBeDefined();
-    expect(screen.queryByTestId('spinner')).toBeNull();
+    expect(container.querySelector('.animate-spin')).toBeNull();
+  });
+
+  it('shows skeleton rows while only the episode list is loading', async () => {
+    mockGetFeed.mockResolvedValue(makeFeed());
+    mockGetFeedsResponse.mockResolvedValue({ feeds: [], lastRefreshCompletedAt: null });
+    mockGetEpisodes.mockReturnValue(new Promise(() => {}));
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <FeedDetail />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('skeleton-rows')).toBeDefined();
   });
 });
