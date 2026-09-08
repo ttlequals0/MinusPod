@@ -94,7 +94,7 @@ function Dashboard() {
   if (isLoading) {
     return (
       <div>
-        <Skeleton className="h-10 w-full mb-6" />
+        <Skeleton className="h-[42px] w-full mb-6" />
         {viewMode === 'grid' ? (
           <SkeletonStatCards count={6} className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />
         ) : (

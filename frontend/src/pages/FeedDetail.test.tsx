@@ -228,6 +228,9 @@ describe('FeedDetail loading state', () => {
         <FeedDetail />
       </QueryClientProvider>,
     );
-    expect(await screen.findByTestId('skeleton-rows')).toBeDefined();
+    // Wait out the feedLoading branch, which renders skeleton rows of its own.
+    await screen.findByText('Test Feed');
+    expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
+    expect(screen.getByTestId('skeleton-rows')).toBeDefined();
   });
 });
