@@ -638,35 +638,25 @@ class EpisodeMixin:
 
     def save_episode_audio_analysis(self, slug: str, episode_id: str, audio_analysis_json: str):
         """Save audio analysis results for an episode."""
-        conn = self.get_connection()
-
         db_episode_id = self._get_episode_db_id(slug, episode_id)
         if not db_episode_id:
             logger.warning(f"Episode not found for audio analysis: {slug}/{episode_id}")
             return
-
-        # Check if details exist
-        cursor = conn.execute(
-            "SELECT id FROM episode_details WHERE episode_id = ?",
-            (db_episode_id,)
-        )
-        row = cursor.fetchone()
-
-        if row:
-            # Update existing
-            conn.execute(
-                "UPDATE episode_details SET audio_analysis_json = ? WHERE id = ?",
-                (audio_analysis_json, row['id'])
-            )
-        else:
-            # Insert new
-            conn.execute(
-                """INSERT INTO episode_details (episode_id, audio_analysis_json)
-                   VALUES (?, ?)""",
-                (db_episode_id, audio_analysis_json)
-            )
-
-        conn.commit()
+        # One immediate transaction: a locked UPDATE rolls back instead of
+        # leaving this thread's connection holding the write lock (#566).
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT id FROM episode_details WHERE episode_id = ?",
+                (db_episode_id,)).fetchone()
+            if row:
+                conn.execute(
+                    "UPDATE episode_details SET audio_analysis_json = ? WHERE id = ?",
+                    (audio_analysis_json, row['id']))
+            else:
+                conn.execute(
+                    """INSERT INTO episode_details (episode_id, audio_analysis_json)
+                       VALUES (?, ?)""",
+                    (db_episode_id, audio_analysis_json))
         logger.debug(f"[{slug}:{episode_id}] Saved audio analysis to database")
 
     def get_episode_audio_analysis(self, slug: str, episode_id: str):

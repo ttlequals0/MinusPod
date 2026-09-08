@@ -745,6 +745,7 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detect
         return result
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Audio analysis failed: {e}")
+        db.clear_leaked_transaction(audio_logger, 'audio analysis')
         return None
 
 
