@@ -368,8 +368,10 @@ describe('Held for Review: re-detect offer once every held marker is rejected', 
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
+    mockRegenerateChapters.mockReset();
     mockSubmitCorrection.mockResolvedValue({});
     mockReprocessEpisode.mockResolvedValue({});
+    mockRegenerateChapters.mockResolvedValue({});
   });
 
   it('offers Re-detect Ads after the last held marker is marked not an ad, and runs the llm mode', async () => {
@@ -441,6 +443,53 @@ describe('Held for Review: re-detect offer once every held marker is rejected', 
     await screen.findByText('Second Episode');
     expect(screen.queryByTestId('redetect-after-review')).toBeNull();
     routeParams.episodeId = 'ep-1';
+  });
+
+  it('offers Regenerate Chapters alongside it and fires the regeneration', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({
+      transcriptAvailable: true, transcriptVttAvailable: true, pendingReviewMarkers: [],
+    }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    const button = await screen.findByTestId('regenerate-chapters-after-review');
+    await user.click(button);
+    await waitFor(() => {
+      expect(mockRegenerateChapters).toHaveBeenCalledWith('test-feed', 'ep-1');
+    });
+    expect(screen.queryByTestId('held-review-cleared')).toBeNull();
+  });
+
+  it('omits Regenerate Chapters without a VTT transcript', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: false }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({
+      transcriptAvailable: true, transcriptVttAvailable: false, pendingReviewMarkers: [],
+    }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    await screen.findByTestId('redetect-after-review');
+    expect(screen.queryByTestId('regenerate-chapters-after-review')).toBeNull();
+  });
+
+  it('disables Regenerate Chapters while a regeneration is in flight', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({
+      transcriptAvailable: true, transcriptVttAvailable: true,
+      pendingReviewMarkers: [], chaptersRegenerating: true,
+    }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    const button = await screen.findByTestId('regenerate-chapters-after-review');
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(true));
   });
 
   it('does not offer it without a transcript to re-run detection on', async () => {

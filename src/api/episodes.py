@@ -14,7 +14,8 @@ from api import (
     _resolve_original_audio,
 )
 from config import (
-    is_pending_review, resolve_chapters_in_notes, resolve_feed_processing_mode,
+    is_pending_review, normalize_segment_category, resolve_chapters_in_notes,
+    resolve_feed_processing_mode, DEFAULT_SEGMENT_ACTION,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
 from ad_chapters import (
@@ -22,7 +23,7 @@ from ad_chapters import (
 )
 from ad_yield import latest_completed_run, low_ad_yield
 from audio_peaks import compute_peaks, PeaksError
-from audio_processor import get_replacement_duration
+from audio_processor import AudioProcessor, get_replacement_duration
 from chapters_generator import ChaptersGenerator
 from database.podcasts import is_local_feed, is_recents_feed, recents_cutoff
 from database.queue import (
@@ -85,6 +86,82 @@ def _check_recut_preconditions(db, slug, episode_id, episode):
         return error_response(
             'No ad detections to cut. Detect ads first with "reprocess" or "full".', 409)
     return None
+
+
+def _overlaps_any(marker, spans) -> bool:
+    return any(s['start'] < marker['end'] and s['end'] > marker['start']
+               for s in spans or ())
+
+
+def _marker_wants_cut(marker, action, false_positives, confirmed) -> bool:
+    """Whether the recorded decisions ask for this marker to leave the audio.
+
+    Conservative: anything not plainly kept, rejected, or awaiting review
+    counts as wanted, so an unclear marker costs a recut rather than a
+    silently dropped decision.
+    """
+    if action == 'keep':
+        return False
+    if _overlaps_any(marker, false_positives):
+        return False
+    # An approved hold stays held until a recut applies it, so the marker
+    # alone does not say it is wanted.
+    if marker.get('approved') or _overlaps_any(marker, confirmed):
+        return True
+    if is_pending_review(marker):
+        return False
+    return (marker.get('validation') or {}).get('decision') != 'REJECT'
+
+
+def _same_cut(a, b, tol=0.05) -> bool:
+    if abs(a['start'] - b['start']) > tol or abs(a['end'] - b['end']) > tol:
+        return False
+    # Legacy rows carry no replacement_duration; compare it only when stored.
+    if 'replacement_duration' in a and 'replacement_duration' in b:
+        return abs(a['replacement_duration'] - b['replacement_duration']) <= tol
+    return True
+
+
+def chapters_only_decisions(markers, applied_cuts, original_duration,
+                            actions=None, false_positives=(), confirmed=()):
+    """True when cutting the current markers reproduces the applied cuts.
+
+    The decisions then changed only which ad chapters the audio should carry,
+    so an apply can rebuild those instead of re-rendering the file. `actions`
+    is the feed's resolved category action map, so a recategorized marker is
+    judged the way the recut would judge it. Unknown inputs (no persisted cut
+    list, no known duration) answer False: a recut is the safe fallback.
+    """
+    if applied_cuts is None or not original_duration:
+        return False
+    # A marker without bounds cannot be compared; dropping it shortens the
+    # wanted list, which answers False rather than guessing.
+    resolved = [
+        (m, actions.get(normalize_segment_category(m.get('category')),
+                        DEFAULT_SEGMENT_ACTION)
+            if actions is not None else m.get('action_applied'))
+        for m in markers
+        if m.get('start') is not None and m.get('end') is not None
+    ]
+    wanted = AudioProcessor().compute_applied_cuts(
+        [dict(m, beep=(action == 'beep')) for m, action in resolved
+         if _marker_wants_cut(m, action, false_positives, confirmed)],
+        original_duration,
+        cut_barriers=[m for m, action in resolved if action == 'keep'],
+    )
+    return (len(wanted) == len(applied_cuts)
+            and all(_same_cut(w, a)
+                    for w, a in zip(wanted, applied_cuts, strict=True)))
+
+
+def _apply_needs_chapters_only(db, slug, episode_id, episode, markers) -> bool:
+    """chapters_only_decisions for one pending-recut episode."""
+    return chapters_only_decisions(
+        markers, db.get_applied_cuts(slug, episode_id),
+        episode.get('original_duration'),
+        actions=db.resolve_segment_actions(slug),
+        false_positives=db.get_false_positive_corrections(episode_id),
+        confirmed=db.get_confirmed_corrections(episode_id))
 
 
 # Reprocess-mode rules shared by the three reprocess endpoints
@@ -1784,6 +1861,32 @@ def _recut_handled_by_own_run(row) -> bool:
         or (row['status'] == EpisodeStatus.PENDING.value and row['has_queue_row']))
 
 
+def _start_chapter_rebuilds(db, rows):
+    """Rebuild the chapters of the chapters-only episodes on one daemon thread.
+
+    Each rebuild is a full-file remux, so the apply request must not wait on
+    them; one thread walks them in turn rather than starting an ffmpeg per
+    episode. A stamp is cleared only once its episode is rebuilt, so a failure
+    is retried by the next apply.
+    """
+    if not rows:
+        return
+    from main_app.processing import rebuild_ad_chapters
+
+    def _run():
+        for slug, episode_id, stamp, episode, markers in rows:
+            try:
+                rebuild_ad_chapters(slug, episode_id, markers, episode=episode)
+                db.clear_episode_pending_recut(slug, episode_id, before=stamp)
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] Chapter rebuild failed "
+                               f"during apply; leaving it stamped: {e}")
+
+    logger.info(f"Apply pending recuts: rebuilding chapters on {len(rows)} "
+                f"episode(s) with no audio change")
+    threading.Thread(target=_run, name='ad-chapters-apply', daemon=True).start()
+
+
 @api.route('/episodes/pending-recuts', methods=['GET'])
 @log_request
 def get_pending_recuts():
@@ -1797,15 +1900,26 @@ def get_pending_recuts():
     episodes = db.get_episodes_pending_recut(slug=slug)
     storage = get_storage()
 
+    def chapters_only(e):
+        """Whether an apply would rebuild this row's chapters instead of
+        recutting. Only asked of rows a recut cannot take, so the common
+        row costs no extra reads on this polled endpoint."""
+        slug, episode_id = e['podcast_slug'], e['episode_id']
+        episode = db.get_episode(slug, episode_id) or {}
+        return _apply_needs_chapters_only(db, slug, episode_id, episode,
+                                          _markers_from_row(episode) or [])
+
     def entry(e):
         running = _recut_handled_by_own_run(e)
         # Mirrors _check_recut_preconditions, so the UI can say which rows
         # an apply will rebuild now, which are mid-run, and which wait for
-        # a full reprocess.
+        # a full reprocess. A chapters-only row needs none of those inputs.
         data_ok = bool(
             e['has_segments'] and e['has_markers']
             and storage.get_original_path(
                 e['podcast_slug'], e['episode_id']).exists())
+        if not data_ok and not running:
+            data_ok = chapters_only(e)
         return {
             'slug': e['podcast_slug'],
             'episodeId': e['episode_id'],
@@ -1838,6 +1952,7 @@ def apply_pending_recuts():
     payload = request.get_json(silent=True)
     scope = (payload.get('slug') or None) if isinstance(payload, dict) else None
     queued, skipped = 0, 0
+    chapters_only = []
     for row in db.get_episodes_pending_recut(slug=scope):
         slug, episode_id = row['podcast_slug'], row['episode_id']
         episode = db.get_episode(slug, episode_id)
@@ -1847,6 +1962,14 @@ def apply_pending_recuts():
             continue
         if _recut_handled_by_own_run(row):
             skipped += 1
+            continue
+        # Chapters-only decisions are settled here, before the recut
+        # preconditions: they need neither the retained original nor the
+        # saved transcript, so they must not be reported as blocked.
+        markers = _markers_from_row(episode) or []
+        if _apply_needs_chapters_only(db, slug, episode_id, episode, markers):
+            chapters_only.append((slug, episode_id, row['pending_recut_at'],
+                                  episode, markers))
             continue
         if _check_recut_preconditions(db, slug, episode_id, episode) is not None:
             skipped += 1
@@ -1884,8 +2007,11 @@ def apply_pending_recuts():
                 f"[{slug}:{episode_id}] Failed to queue pending-recut apply")
             skipped += 1
 
-    logger.info(f"Apply pending recuts: {queued} queued, {skipped} skipped")
-    return json_response({'queued': queued, 'skipped': skipped})
+    logger.info(f"Apply pending recuts: {queued} queued, "
+                f"{len(chapters_only)} chapters-only, {skipped} skipped")
+    _start_chapter_rebuilds(db, chapters_only)
+    return json_response({'queued': queued, 'skipped': skipped,
+                          'chaptersRebuilding': len(chapters_only)})
 
 
 # ========== Episode Reprocessing Endpoint ==========

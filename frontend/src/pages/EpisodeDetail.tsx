@@ -1221,18 +1221,32 @@ function EpisodeDetail() {
           data-testid="held-review-cleared"
         >
           <p className="text-sm text-muted-foreground flex-1">
-            All held detections are marked not an ad. Run detection again on the
-            existing transcript to look for anything it missed.
+            All held detections are marked not an ad. Re-detect ads to look for
+            anything the first run missed, or regenerate the chapters so they
+            match the segments you kept.
           </p>
-          <button
-            onClick={() => { setHeldReviewCleared(false); reprocessMutation.mutate('llm'); }}
-            disabled={reprocessMutation.isPending || redetectDisabled}
-            title={redetectTooltip}
-            data-testid="redetect-after-review"
-            className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
-          >
-            Re-detect Ads
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => { setHeldReviewCleared(false); reprocessMutation.mutate('llm'); }}
+              disabled={reprocessMutation.isPending || redetectDisabled}
+              title={redetectTooltip}
+              data-testid="redetect-after-review"
+              className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
+            >
+              Re-detect Ads
+            </button>
+            {episode.transcriptVttAvailable && (
+              <button
+                onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
+                disabled={chaptersRegenerating}
+                title="Regenerate chapters from existing transcript"
+                data-testid="regenerate-chapters-after-review"
+                className={`w-full sm:w-auto ${rowActionBtn} ${btnSecondary} ${focusRing}`}
+              >
+                Regenerate Chapters
+              </button>
+            )}
+          </div>
         </div>
       )}
 

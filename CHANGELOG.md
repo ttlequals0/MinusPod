@@ -11,6 +11,18 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.11] - 2026-09-09
+
+### Changed
+- Reviewing a detection no longer rewrites the MP3 on each click. A decision that changed no audio used to rebuild the episode's ad chapters inside the request, waiting on a full-file ffmpeg remux that took about 10 seconds. Every decision is now stamped and applied in one pass per episode, the way recuts already were. The apply decides per episode whether the decisions need a recut or only a chapter rebuild, starts both in the background, and reports how many episodes took each path.
+
+### Fixed
+- The settings page logged two Chrome accessibility warnings: the password form had no username field, and the API key inputs sat outside any form. Both are fixed. Saving is unchanged.
+
+### Added
+- The banner shown after the last held detection is marked not an ad now also offers Regenerate Chapters, next to Re-detect Ads. It appears only when the episode has a VTT transcript to regenerate from.
+- The stall watchdog logs its pid and threshold when it starts, so "no stall" can be told apart from "not running".
+
 ## [2.96.10] - 2026-09-09
 
 ### Fixed

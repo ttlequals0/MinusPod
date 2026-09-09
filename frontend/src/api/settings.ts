@@ -121,9 +121,9 @@ export async function getPendingRecuts(slug?: string): Promise<{
   return apiRequest(`/episodes/pending-recuts${query}`);
 }
 
-/** Recut every pending episode once, or one feed's when `slug` is given. */
+/** Apply every pending episode once, or one feed's when `slug` is given. */
 export async function applyPendingRecuts(slug?: string): Promise<{
-  queued: number; skipped: number;
+  queued: number; skipped: number; chaptersRebuilding: number;
 }> {
   return apiRequest('/episodes/pending-recuts/apply', {
     method: 'POST',

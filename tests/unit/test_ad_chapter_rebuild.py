@@ -1,4 +1,6 @@
-"""Chapter-only rebuild after a correction that leaves the audio alone."""
+"""Chapter-only rebuild for decisions that leave the audio alone."""
+import threading
+import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -128,6 +130,40 @@ def test_missing_file_still_updates_json(monkeypatch):
     assert not embedded
 
 
+KEEP_MARKER = {'start': 900.0, 'end': 960.0, 'action_applied': 'keep',
+               'was_cut': False, 'category': 'sponsor', 'confidence': 0.95}
+
+
+def test_two_rebuilds_of_one_episode_do_not_remux_concurrently(monkeypatch):
+    """The apply pass and a pipeline run can reach the same episode at once."""
+    stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+    saved, embedded, refreshed = _wire(monkeypatch, stored)
+    counter_lock = threading.Lock()
+    state = {'active': 0, 'peak': 0}
+
+    def _tracked_embed(p, chapters, duration=None):
+        with counter_lock:
+            state['active'] += 1
+            state['peak'] = max(state['peak'], state['active'])
+        time.sleep(0.05)
+        with counter_lock:
+            state['active'] -= 1
+        embedded.append(chapters)
+        return True
+
+    monkeypatch.setattr(processing, 'embed_chapters', _tracked_embed)
+    threads = [threading.Thread(
+        target=processing.rebuild_ad_chapters,
+        args=('example-podcast', 'a1b2c3d4e5f6', [KEEP_MARKER])) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(5)
+    assert len(saved) == 2
+    assert state['peak'] == 1
+    assert not processing._embed_locks
+
+
 SLUG = 'ad-chapter-rebuild-test'
 EPISODE_ID = 'a1b2c3d4e5f6'
 HELD_AD = {'start': 900.0, 'end': 960.0, 'confidence': 0.95, 'category': 'sponsor',
@@ -158,7 +194,8 @@ def rebuilds(monkeypatch):
     calls = []
     monkeypatch.setattr(
         processing, 'rebuild_ad_chapters',
-        lambda slug, episode_id, markers, episode=None: calls.append(markers) or True)
+        lambda slug, episode_id, markers, episode=None:
+            calls.append(markers) or True)
     return calls
 
 
@@ -166,17 +203,16 @@ def _correct(client, payload):
     return client.post(f'/api/v1/episodes/{SLUG}/{EPISODE_ID}/corrections', json=payload)
 
 
-def test_reject_rebuilds_chapters_without_stamping_a_recut(client, seeded, rebuilds):
+def test_reject_stamps_the_episode_without_touching_the_audio(client, seeded, rebuilds):
     r = _correct(client, {'type': 'reject',
                           'original_ad': {'start': 900.0, 'end': 960.0}})
     assert r.status_code == 200
-    assert seeded.count_episodes_pending_recut() == 0
-    assert len(rebuilds) == 1
-    # Reloaded markers: the hold is already cleared when the rebuild runs.
-    assert rebuilds[0][0]['held_for_review'] is False
+    assert seeded.count_episodes_pending_recut() == 1
+    # No remux in the request: the apply pass rebuilds the chapters.
+    assert rebuilds == []
 
 
-def test_confirm_stamps_a_recut_instead_of_rebuilding(client, seeded, rebuilds):
+def test_confirm_stamps_the_episode_too(client, seeded, rebuilds):
     r = _correct(client, {'type': 'confirm',
                           'original_ad': {'start': 900.0, 'end': 960.0}})
     assert r.status_code == 200

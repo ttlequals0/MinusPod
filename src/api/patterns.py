@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
 from config import (
-    DEFAULT_SEGMENT_ACTION, MIN_AD_DURATION, SEGMENT_CATEGORIES,
-    count_pending_review, is_pending_review, normalize_segment_category,
+    MIN_AD_DURATION, SEGMENT_CATEGORIES,
+    count_pending_review, is_pending_review,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
 from utils.markers import BOUNDS_TOLERANCE_S, spans_match
@@ -1195,35 +1195,6 @@ def _find_marker_in_list(markers, start, end, tol=BOUNDS_TOLERANCE_S):
     return None
 
 
-def _correction_changes_audio(db, slug, correction_type, marker, data) -> bool:
-    """True when a correction's outcome differs from what the audio holds.
-
-    Drives the pending-recut stamp: a decision that matches the current cut
-    (confirming an already-cut ad, rejecting one that was never cut) needs no
-    audio work, so it must not queue one.
-    """
-    if correction_type == 'create':
-        return True
-    if marker is None:
-        # Client bounds can trail a recut or reprocess past the match
-        # tolerance. With no marker to compare against, stamp: an unneeded
-        # recut is idempotent, a skipped one silently drops the decision.
-        return correction_type in ('confirm', 'reject', 'adjust', 'split')
-    was_cut = bool(marker.get('was_cut'))
-    if correction_type == 'confirm':
-        return not was_cut
-    if correction_type == 'reject':
-        return was_cut
-    if correction_type in ('adjust', 'split'):
-        return True
-    if correction_type == 'recategorize':
-        actions = db.resolve_segment_actions(slug)
-        new_action = actions.get(
-            normalize_segment_category(data.get('category')), DEFAULT_SEGMENT_ACTION)
-        return new_action != marker.get('action_applied')
-    return False
-
-
 def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
     """Handle correction_type='recategorize': set one marker's category.
 
@@ -1509,7 +1480,7 @@ def submit_correction(slug, episode_id):
     # never honor. Recategorizing changes that verdict, so it is exempt. The
     # match ignores pending-review state: a keep-resolved marker clears its
     # hold, so a pending-review-scoped lookup would miss it.
-    episode_row, current_markers = _load_episode_markers(db, slug, episode_id)
+    current_markers = _load_markers(db, slug, episode_id)
     target_marker = _find_marker_in_list(
         current_markers, original_start, original_end, 0.5)
     if (correction_type != 'recategorize'
@@ -1543,19 +1514,11 @@ def submit_correction(slug, episode_id):
         # type added to validation but not here returns 400, not a 500.
         return error_response('Invalid correction type', 400)
 
-    # Stamp the episode for a later bulk apply rather than recutting now: one
-    # episode often collects several decisions, and each should not rewrite
-    # its audio.
+    # Stamp for a later bulk apply rather than doing the work now: one episode
+    # often collects several decisions, and each should not rewrite its audio or
+    # its chapters. The apply decides which of the two an episode needs.
     if getattr(response, 'status_code', 500) < 400:
-        if _correction_changes_audio(db, slug, correction_type, target_marker, data):
-            db.mark_episode_pending_recut(slug, episode_id)
-        else:
-            # Local import: importing main_app pulls in the api blueprint.
-            from main_app.processing import rebuild_ad_chapters
-            # Markers are re-read: the handler above may have rewritten them.
-            rebuild_ad_chapters(slug, episode_id,
-                                _load_markers(db, slug, episode_id) or [],
-                                episode=episode_row)
+        db.mark_episode_pending_recut(slug, episode_id)
     return response
 
 

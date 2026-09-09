@@ -45,3 +45,5 @@ def _loop():
 
 def start():
     threading.Thread(target=_loop, name='stall-watchdog', daemon=True).start()
+    logger.info("Stall watchdog started (pid %d, %.0fs threshold)",
+                os.getpid(), STALL_SECONDS)

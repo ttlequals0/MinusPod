@@ -184,6 +184,10 @@ function SecuritySection({
       )}
 
       <form onSubmit={handlePasswordSubmit} className="space-y-4">
+        {/* Single-user app: a hidden username keeps password managers and
+            Chrome's accessibility check happy without a visible field. */}
+        <input type="text" name="username" autoComplete="username"
+               value="minuspod" readOnly hidden />
         {isPasswordSet && (
           <div>
             <label htmlFor="currentPassword" className="block text-sm font-medium text-foreground mb-2">

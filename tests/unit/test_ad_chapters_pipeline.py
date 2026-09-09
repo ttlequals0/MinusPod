@@ -325,7 +325,10 @@ def test_regenerate_endpoint_without_ad_config_is_unchanged(app_client, seeded):
 def test_regenerate_endpoint_reports_the_run_on_the_episode(app_client, seeded):
     """The stamp marks a run in flight and a failure is kept for the detail page."""
     headers = _authed(app_client)
-    with patch('api.episodes.threading.Thread') as thread:
+    # Patch the module reference, not threading.Thread itself: a global patch
+    # also breaks the rate limiter's expiry Timer on any concurrent request.
+    thread = MagicMock()
+    with patch('api.episodes.threading', SimpleNamespace(Thread=thread)):
         resp = app_client.post(
             f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
             headers=headers)

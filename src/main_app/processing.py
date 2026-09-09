@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import replace
 
 import requests
@@ -3242,6 +3243,28 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
             f"recut; keeping previous chapters JSON: {e}")
 
 
+_embed_locks = {}
+_embed_locks_guard = threading.Lock()
+
+
+@contextmanager
+def _episode_embed_lock(key):
+    """Serialize chapter embeds per episode; the entry is dropped once idle."""
+    with _embed_locks_guard:
+        lock, waiters = _embed_locks.get(key, (threading.Lock(), 0))
+        _embed_locks[key] = (lock, waiters + 1)
+    try:
+        with lock:
+            yield
+    finally:
+        with _embed_locks_guard:
+            lock, waiters = _embed_locks[key]
+            if waiters > 1:
+                _embed_locks[key] = (lock, waiters - 1)
+            else:
+                del _embed_locks[key]
+
+
 def rebuild_ad_chapters(slug, episode_id, markers, episode=None) -> bool:
     """Rebuild ad chapters from `markers` without touching the audio cut.
 
@@ -3286,21 +3309,23 @@ def rebuild_ad_chapters(slug, episode_id, markers, episode=None) -> bool:
                                    get_replacement_duration(), ad_config)
         if merged == current:
             return False
-        # Embed first: a failed embed must leave the served JSON matching the
-        # ID3 already in the file.
-        if exists and not embed_chapters(str(path), public_chapters(merged),
-                                         duration=duration):
-            audio_logger.warning(
-                f"[{slug}:{episode_id}] Ad chapter embed failed; "
-                f"keeping previous chapters")
-            return False
-        storage.save_chapters_json(slug, episode_id,
-                                   {**chapters_json, 'chapters': merged})
-        _refresh_rss_for_slug(slug, episode_id)
-        audio_logger.info(
-            f"[{slug}:{episode_id}] Rebuilt ad chapters "
-            f"({len(merged)} entries, no AI call)")
-        return True
+
+        with _episode_embed_lock((slug, episode_id)):
+            # Embed first: a failed embed must leave the served JSON matching
+            # the ID3 already in the file.
+            if exists and not embed_chapters(str(path), public_chapters(merged),
+                                             duration=duration):
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Ad chapter embed failed; "
+                    f"keeping previous chapters")
+                return False
+            storage.save_chapters_json(slug, episode_id,
+                                       {**chapters_json, 'chapters': merged})
+            _refresh_rss_for_slug(slug, episode_id)
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Rebuilt ad chapters "
+                f"({len(merged)} entries, no AI call)")
+            return True
     except Exception as e:
         audio_logger.warning(
             f"[{slug}:{episode_id}] Ad chapter rebuild failed: {e}")
