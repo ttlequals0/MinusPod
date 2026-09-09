@@ -1,6 +1,7 @@
 """Unit tests for settings API validation (OpenRouter key format)."""
 import os
 import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -1034,3 +1035,105 @@ class TestChaptersInNotes:
         assert database.Database().get_setting('chapters_in_notes') == 'true'
         assert client.get('/api/v1/settings').get_json()['chaptersInNotes']['value'] is True
         database.Database().set_setting('chapters_in_notes', 'false', is_default=True)
+
+
+class TestProviderChangeLiftsRateLimitHold:
+    """A rate-limit hold (#696) belongs to the account and endpoint that
+    returned the 429, so pointing the app at a different provider, endpoint,
+    or key must lift it instead of leaving the queue paused."""
+
+    @pytest.fixture
+    def held(self):
+        db = database.Database()
+        until = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', until, is_default=False)
+        db.set_setting('rate_limit_hold_since', '2026-01-01T00:00:00Z', is_default=False)
+        yield db
+        db.clear_setting('rate_limit_hold_until')
+        db.clear_setting('rate_limit_hold_since')
+
+    def _put_settings(self, client, payload):
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = []
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            return client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps(payload),
+                content_type='application/json',
+            )
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_provider_change_lifts_hold(self, mock_fire, client, held):
+        resp = self._put_settings(client, {'llmProvider': 'openai-compatible'})
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') is None
+        assert held.get_setting('rate_limit_hold_since') is None
+        mock_fire.assert_called_once_with(held_since='2026-01-01T00:00:00Z')
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_base_url_change_lifts_hold(self, mock_fire, client, held):
+        resp = self._put_settings(client, {'openaiBaseUrl': 'https://example.com/v1'})
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') is None
+        mock_fire.assert_called_once()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_pricing_mode_change_leaves_hold(self, mock_fire, client, held):
+        until = held.get_setting('rate_limit_hold_until')
+        resp = self._put_settings(client, {'pricingSourceMode': 'free'})
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') == until
+        mock_fire.assert_not_called()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_provider_change_without_a_hold_fires_nothing(self, mock_fire, client):
+        db = database.Database()
+        assert db.get_setting('rate_limit_hold_until') is None
+        resp = self._put_settings(client, {'llmProvider': 'openai-compatible'})
+        assert resp.status_code == 200, resp.data
+        mock_fire.assert_not_called()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_provider_key_write_lifts_hold(self, mock_fire, client, held):
+        resp = client.put(
+            '/api/v1/settings/providers/anthropic',
+            data=json.dumps({'apiKey': 'sk-ant-new-account'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') is None
+        mock_fire.assert_called_once_with(held_since='2026-01-01T00:00:00Z')
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_provider_key_delete_lifts_hold(self, mock_fire, client, held):
+        resp = client.delete('/api/v1/settings/providers/anthropic')
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') is None
+        mock_fire.assert_called_once()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_whisper_key_write_leaves_hold(self, mock_fire, client, held):
+        """Whisper is a separate service; its key says nothing about the LLM
+        account that hit the limit."""
+        until = held.get_setting('rate_limit_hold_until')
+        resp = client.put(
+            '/api/v1/settings/providers/whisper',
+            data=json.dumps({'apiKey': 'whisper-key'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') == until
+        mock_fire.assert_not_called()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_model_only_write_leaves_hold(self, mock_fire, client, held):
+        until = held.get_setting('rate_limit_hold_until')
+        resp = client.put(
+            '/api/v1/settings/providers/whisper',
+            data=json.dumps({'model': 'whisper-1'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') == until
+        mock_fire.assert_not_called()

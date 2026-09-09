@@ -68,6 +68,7 @@ from offline_queue import (
 )
 from rate_limit_hold import (
     get_active_hold, is_rate_limit_hold_enabled, clear_hold,
+    clear_hold_for_provider_change,
     get_llm_usage_url, get_rate_limit_probe_minutes,
     RATE_LIMIT_PROBE_MINUTES_MIN, RATE_LIMIT_PROBE_MINUTES_MAX,
 )
@@ -1477,8 +1478,13 @@ def _apply_provider_fields(db, data):
     fresh client, probe again, refresh pricing in a background thread, and
     (only when the new provider's catalog probe returns a non-empty list)
     prune any saved model ID that the new provider does not advertise.
+
+    A change of provider, endpoint, or key also lifts an active rate-limit
+    hold: the pause belonged to the account that returned the 429.
     """
     provider_changed = False
+    # Narrower than provider_changed: pricing mode is not a new account.
+    credentials_changed = False
     if 'llmProvider' in data:
         if data['llmProvider'] not in VALID_LLM_PROVIDERS:
             return json_response(
@@ -1487,6 +1493,7 @@ def _apply_provider_fields(db, data):
         db.set_setting('llm_provider', data['llmProvider'], is_default=False)
         logger.info(f"Updated LLM provider to: {data['llmProvider']}")
         provider_changed = True
+        credentials_changed = True
 
     if 'openaiBaseUrl' in data:
         try:
@@ -1496,6 +1503,7 @@ def _apply_provider_fields(db, data):
         db.set_setting('openai_base_url', data['openaiBaseUrl'], is_default=False)
         logger.info(f"Updated OpenAI base URL to: {data['openaiBaseUrl']}")
         provider_changed = True
+        credentials_changed = True
 
     if 'pricingSourceMode' in data:
         valid_modes = ('auto', 'litellm', 'free')
@@ -1517,6 +1525,10 @@ def _apply_provider_fields(db, data):
             return error_response('provider_crypto_unavailable', 409)
         logger.info("Updated OpenRouter API key")
         provider_changed = True
+        credentials_changed = True
+
+    if credentials_changed:
+        clear_hold_for_provider_change(db, 'LLM provider settings changed')
 
     if provider_changed:
         # Clear the cached probe answers so the new endpoint gets re-probed:

@@ -310,10 +310,14 @@ function Settings() {
     else if (provider === 'whisper' && whisperApiConfig.baseUrl) body.baseUrl = whisperApiConfig.baseUrl;
     await updateProvider(provider, body);
     await reloadProviders();
+    // A new key can lift a rate-limit hold server-side; refetch so the
+    // paused banner does not sit there stale for the 30s staleTime.
+    queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
   };
   const handleProviderKeyClear = async (provider: ProviderName) => {
     await clearProvider(provider);
     await reloadProviders();
+    queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
   };
   const handleProviderKeyTest = (provider: ProviderName) => testProvider(provider);
   const [podcastSearchProvider, setPodcastSearchProvider] = useState('');
@@ -728,6 +732,8 @@ function Settings() {
       queryClient.invalidateQueries({ queryKey: ['models'] });
       queryClient.invalidateQueries({ queryKey: ['reviewerSettings'] });
       queryClient.invalidateQueries({ queryKey: ['whisperCapacity'] });
+      // A provider or base URL change lifts a rate-limit hold server-side.
+      queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
     },
   });
 

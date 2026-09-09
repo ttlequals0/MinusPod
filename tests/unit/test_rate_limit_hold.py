@@ -21,6 +21,7 @@ from main_app.processing import (
     _handle_processing_failure, is_transient_error, start_background_processing,
 )
 from rate_limit_hold import (
+    clear_hold_for_provider_change,
     get_active_hold,
     hold_message,
     hold_queue_for_provider_limit,
@@ -604,4 +605,27 @@ class TestHoldAlerts:
         future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
         db.set_setting('rate_limit_hold_until', future)
         rate_limit_hold_tick(db)
+        mock_fire.assert_not_called()
+
+
+class TestProviderChangeClear:
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_lifts_an_active_hold_once(self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)
+        db.set_setting('rate_limit_hold_since', '2026-01-01T00:00:00Z')
+        assert clear_hold_for_provider_change(db, 'provider changed') is True
+        assert is_queue_paused(db) is False
+        assert db.get_setting('rate_limit_hold_since') is None
+        mock_fire.assert_called_once_with(held_since='2026-01-01T00:00:00Z')
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_no_hold_is_a_no_op(self, mock_fire, seeded_episode):
+        assert clear_hold_for_provider_change(db, 'provider changed') is False
+        mock_fire.assert_not_called()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_lapsed_marker_is_not_a_hold(self, mock_fire, seeded_episode):
+        db.set_setting('rate_limit_hold_until', '2020-01-01T00:00:00Z')
+        assert clear_hold_for_provider_change(db, 'provider changed') is False
         mock_fire.assert_not_called()

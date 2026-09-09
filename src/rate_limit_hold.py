@@ -99,6 +99,20 @@ def clear_hold(db) -> str | None:
     return held_since
 
 
+def clear_hold_for_provider_change(db, reason: str) -> bool:
+    """Lift an active hold after a provider, endpoint, or credential change.
+
+    A hold belongs to the account and endpoint that returned the 429, so it
+    is meaningless once those change. Returns whether a hold was lifted.
+    """
+    if not get_active_hold(db)[0]:
+        return False
+    held_since = clear_hold(db)
+    logger.info(f"Rate-limit hold: queue pause lifted ({reason})")
+    fire_queue_resumed_event(held_since=held_since)
+    return True
+
+
 def clear_hold_if_unchanged(db, hold_until: str) -> tuple[bool, str | None]:
     """Drop the pause only while the marker still reads `hold_until`.
 

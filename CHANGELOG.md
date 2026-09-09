@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.13] - 2026-09-09
+
+### Fixed
+- A rate-limit pause now lifts when you change the LLM provider, endpoint, or API key. The pause belonged to the old account.
+
 ## [2.96.12] - 2026-09-09
 
 ### Fixed

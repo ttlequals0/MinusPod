@@ -18,6 +18,7 @@ from config import (
 )
 from database import Database
 from llm_client import get_effective_base_url, _normalize_base_url_for_provider, _opencode_headers
+from rate_limit_hold import clear_hold_for_provider_change
 from secrets_crypto import CryptoUnavailableError, is_available as crypto_available, rotate as rotate_passphrase
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
 from utils.http import safe_url_for_log
@@ -34,6 +35,10 @@ _PROVIDERS = {
     'whisper':    {'secret': 'whisper_api_key',    'base_url': 'whisper_api_base_url','base_env': 'WHISPER_API_BASE_URL','model': 'whisper_api_model', 'env': 'WHISPER_API_KEY'},
     'ollama':     {'secret': 'ollama_api_key',     'base_url': 'openai_base_url',     'base_env': 'OPENAI_BASE_URL',    'model': None,                'env': 'OLLAMA_API_KEY'},
 }
+
+# Providers whose key or endpoint feeds the LLM client, so a write here can
+# invalidate a rate-limit hold. Whisper is a separate service (#696).
+_LLM_PROVIDERS = ('anthropic', 'openai', 'openrouter', 'ollama')
 
 
 def _source_for(db, cfg) -> str:
@@ -79,6 +84,7 @@ def update_provider(provider):
     body = request.get_json(silent=True) or {}
     cfg = _PROVIDERS[provider]
     db = Database()
+    credentials_changed = False
 
     if 'apiKey' in body:
         api_key = body['apiKey']
@@ -88,6 +94,7 @@ def update_provider(provider):
             set_or_clear_secret(db, cfg['secret'], api_key)
         except SecretWriteRejected:
             return error_response('provider_crypto_unavailable', 409)
+        credentials_changed = True
 
     if cfg['base_url'] and 'baseUrl' in body:
         url = body['baseUrl']
@@ -97,6 +104,7 @@ def update_provider(provider):
             except SSRFError:
                 return error_response('base URL failed SSRF validation', 400)
             db.set_setting(cfg['base_url'], url)
+            credentials_changed = True
         # Empty baseUrl ignored; clear via DELETE /providers/<name>. Issue #235.
 
     if cfg['model'] and 'model' in body:
@@ -107,6 +115,9 @@ def update_provider(provider):
     # immediately (see issue #234: stale cache made Save Changes vanish).
     from llm_client import invalidate_provider_cache
     invalidate_provider_cache()
+
+    if credentials_changed and provider in _LLM_PROVIDERS:
+        clear_hold_for_provider_change(db, f'{provider} credentials changed')
 
     logger.info("provider=%s updated source=%s", provider, _source_for(db, cfg))
     return json_response(_provider_status(db, cfg), 200)
@@ -123,6 +134,9 @@ def clear_provider(provider):
         db.set_setting(cfg['base_url'], '')
     from llm_client import invalidate_provider_cache
     invalidate_provider_cache()
+    if provider in _LLM_PROVIDERS:
+        # Lift even with no key left: the next run fails for its own reason.
+        clear_hold_for_provider_change(db, f'{provider} credentials cleared')
     logger.info("provider=%s cleared", provider)
     return json_response(_provider_status(db, cfg), 200)
 
