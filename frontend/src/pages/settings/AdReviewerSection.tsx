@@ -46,6 +46,13 @@ function AdReviewerSection({
   const update = <K extends keyof ReviewerState>(key: K, value: ReviewerState[K]) =>
     onChange({ ...reviewer, [key]: value });
 
+  // Without an option of its own, a stored model the catalog lacks (proxy,
+  // private deployment, stale provider tag) displays as "Same as pass model".
+  const modelIsOrphan =
+    Boolean(reviewer.model) &&
+    reviewer.model !== 'same_as_pass' &&
+    !modelOptions.some((m) => m.id === reviewer.model);
+
   return (
     <CollapsibleSection
       title="Ad Reviewer"
@@ -81,6 +88,9 @@ function AdReviewerSection({
               className={`w-full ${selectBase}`}
             >
               <option value="same_as_pass">Same as pass model</option>
+              {modelIsOrphan && (
+                <option value={reviewer.model}>{reviewer.model} (current, not in catalog)</option>
+              )}
               {modelOptions.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}

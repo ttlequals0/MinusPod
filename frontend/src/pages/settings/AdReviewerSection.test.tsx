@@ -87,3 +87,35 @@ describe('AdReviewerSection: not framed as experimental', () => {
     expect(screen.queryByText(/experimental/i)).toBeNull();
   });
 });
+
+describe('AdReviewerSection: review model select', () => {
+  const options = [{ id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash' }];
+
+  it('shows an off-catalog stored model as the selected option', () => {
+    renderSection({
+      reviewer: { ...baseReviewer(), model: 'claude-opus-5' },
+      modelOptions: options,
+    });
+    const select = screen.getByLabelText('Review model') as HTMLSelectElement;
+    expect(select.value).toBe('claude-opus-5');
+    expect(screen.getByRole('option', { name: /claude-opus-5 \(current, not in catalog\)/ })).toBeDefined();
+  });
+
+  it('keeps same_as_pass on the default option', () => {
+    renderSection({ modelOptions: options });
+    const select = screen.getByLabelText('Review model') as HTMLSelectElement;
+    expect(select.value).toBe('same_as_pass');
+    expect(select.selectedOptions[0].textContent).toBe('Same as pass model');
+    expect(screen.queryByRole('option', { name: /not in catalog/ })).toBeNull();
+  });
+
+  it('adds no extra option when the stored model is in the catalog', () => {
+    renderSection({
+      reviewer: { ...baseReviewer(), model: 'z-ai/glm-5.3-flash' },
+      modelOptions: options,
+    });
+    const select = screen.getByLabelText('Review model') as HTMLSelectElement;
+    expect(select.value).toBe('z-ai/glm-5.3-flash');
+    expect(screen.queryByRole('option', { name: /not in catalog/ })).toBeNull();
+  });
+});

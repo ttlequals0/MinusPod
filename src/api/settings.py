@@ -1563,16 +1563,20 @@ def _apply_provider_fields(db, data):
             # exactly what the typed-model-ID entry exists for (proxies,
             # private deployments). The prune only targets settings the
             # request did not touch.
+            # Cleared review_model reads back as its registry default
+            # same_as_pass, so the reviewer falls back to the pass model.
             explicit = {
                 'claude_model': 'claudeModel',
                 'verification_model': 'verificationModel',
                 'chapters_model': 'chaptersModel',
+                'review_model': 'reviewModel',
             }
             for setting_key, json_key in explicit.items():
                 if json_key in data:
                     continue
                 current = db.get_setting(setting_key)
-                if current and current not in advertised:
+                # review_model's same_as_pass sentinel is never a catalog entry.
+                if current and current != 'same_as_pass' and current not in advertised:
                     logger.info(
                         "Clearing %s='%s' on provider change: not advertised by new provider",
                         setting_key, current,

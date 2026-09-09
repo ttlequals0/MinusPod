@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.14] - 2026-09-09
+
+### Fixed
+- A review model saved under a previous LLM provider survived a provider switch, so the reviewer kept calling a model the new provider does not serve. The settings page hid this, showing "Same as pass model" whenever the stored model was missing from the current catalog. Provider changes now clear the stale value, and the select shows an off-catalog model.
+
 ## [2.96.13] - 2026-09-09
 
 ### Fixed

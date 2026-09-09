@@ -440,6 +440,92 @@ class TestProviderChangeModelPruning:
         # Untouched stale selection: still pruned.
         assert db.get_setting('chapters_model') is None
 
+    def test_stale_review_model_is_pruned_and_falls_back_to_pass_model(self, client):
+        """review_model was missing from the prune map, so a reviewer model
+        saved against the old provider kept billing after a switch."""
+        db = database.Database()
+        db.set_setting('llm_provider', 'openai-compatible', is_default=False)
+        db.set_setting('claude_model', 'z-ai/glm-5.3-flash', is_default=False)
+        db.set_setting('review_model', 'claude-opus-5', is_default=False)
+
+        fake_model = MagicMock(id='z-ai/glm-5.3-flash')
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = [fake_model]
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'llmProvider': 'openrouter'}),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('review_model') is None
+
+        from ad_reviewer import AdReviewer
+        reviewer = AdReviewer.__new__(AdReviewer)
+        reviewer.db = db
+        assert reviewer._resolve_model('z-ai/glm-5.3-flash') == 'z-ai/glm-5.3-flash'
+
+        get_response = client.get('/api/v1/settings')
+        assert get_response.status_code == 200, get_response.data
+        assert json.loads(get_response.data)['reviewModel']['value'] == 'same_as_pass'
+
+    def test_review_model_written_by_the_same_request_survives_the_prune(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('review_model', 'claude-opus-5', is_default=False)
+
+        fake_model = MagicMock(id='z-ai/glm-5.3-flash')
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = [fake_model]
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({
+                    'llmProvider': 'openai-compatible',
+                    'reviewModel': 'my-proxy-reviewer',
+                }),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('review_model') == 'my-proxy-reviewer'
+
+    def test_empty_catalog_preserves_review_model(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('review_model', 'claude-opus-5', is_default=False)
+
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = []
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'llmProvider': 'openai-compatible'}),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('review_model') == 'claude-opus-5'
+
+    def test_same_as_pass_sentinel_is_not_pruned(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('review_model', 'same_as_pass', is_default=False)
+
+        fake_model = MagicMock(id='z-ai/glm-5.3-flash')
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = [fake_model]
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'llmProvider': 'openai-compatible'}),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('review_model') == 'same_as_pass'
+
 
 class TestAudioBitrateValidation:
     """audioBitrate round-trip + validation.

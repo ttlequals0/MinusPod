@@ -184,3 +184,21 @@ describe('TranscriptionSection whisper pool', () => {
       'At least 2 instances reporting large-v3, at least 2 requests total. Your cap is 4.')).toBeTruthy();
   });
 });
+
+describe('TranscriptionSection whisper model select', () => {
+  const models = [{ id: 'small', name: 'Small', vram: '~2GB', speed: '~2 min/60min', quality: 'Better' }];
+
+  it('shows a model missing from the list as the selected option', () => {
+    renderSection({ whisperBackend: 'local', whisperModel: 'distil-large-v3', whisperModels: models });
+    const select = screen.getByLabelText('Whisper Model') as HTMLSelectElement;
+    expect(select.value).toBe('distil-large-v3');
+    expect(screen.getByRole('option', { name: /distil-large-v3 \(current, not in list\)/ })).toBeDefined();
+  });
+
+  it('adds no extra option for a listed model', () => {
+    renderSection({ whisperBackend: 'local', whisperModel: 'small', whisperModels: models });
+    const select = screen.getByLabelText('Whisper Model') as HTMLSelectElement;
+    expect(select.value).toBe('small');
+    expect(screen.queryByRole('option', { name: /not in list/ })).toBeNull();
+  });
+});

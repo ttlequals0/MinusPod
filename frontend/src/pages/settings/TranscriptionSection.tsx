@@ -143,6 +143,11 @@ function TranscriptionSection({
               onChange={(e) => onWhisperModelChange(e.target.value)}
               className={`w-full ${selectBase}`}
             >
+              {/* WHISPER_MODEL accepts ids this list omits (distil, HF repos);
+                  without an option the select would show the first entry instead. */}
+              {whisperModel && whisperModels && !whisperModels.some((m) => m.id === whisperModel) && (
+                <option value={whisperModel}>{whisperModel} (current, not in list)</option>
+              )}
               {whisperModels?.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name} - {model.vram} VRAM, {model.quality}
