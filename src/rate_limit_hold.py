@@ -28,6 +28,9 @@ RATE_LIMIT_PROBE_AT_KEY = 'rate_limit_probe_at'
 # A provider reset farther out than this is treated as unusable reset info;
 # 24h covers the common per-minute and per-day windows.
 MAX_RESET_SECONDS = 24 * 3600
+# Ceiling on a usage-derived hold: rejects absurd payloads (milliseconds sent
+# as seconds) while allowing real weekly and monthly provider windows.
+MAX_HOLD_SECONDS = 30 * 24 * 3600
 # Below this, the in-process sleep-retry still handles it, so a lone
 # throttled window recovers without pausing the queue.
 MIN_HOLD_RESET_SECONDS = 300
@@ -186,9 +189,9 @@ def read_usage_status(usage_url: str) -> dict | None:
 
 
 def _capped_reset_iso(reset_at) -> str:
-    """Reset time capped at MAX_RESET_SECONDS out, so a bad payload cannot
-    pause the queue for days."""
-    return min(reset_at, utc_now() + timedelta(seconds=MAX_RESET_SECONDS)).strftime(ISO_FORMAT)
+    """Reset time capped at MAX_HOLD_SECONDS out, so a bad payload cannot
+    pause the queue for years."""
+    return min(reset_at, utc_now() + timedelta(seconds=MAX_HOLD_SECONDS)).strftime(ISO_FORMAT)
 
 
 def usage_reset_iso(payload: dict) -> str | None:

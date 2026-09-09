@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.12] - 2026-09-09
+
+### Fixed
+- A hold from a provider window longer than a day reported a reset 24 hours out instead of the real one, so the queue status gave the wrong resume time. Weekly and monthly windows now hold until their own reset, and a nonsense value is still capped at 30 days.
+
 ## [2.96.11] - 2026-09-09
 
 ### Changed

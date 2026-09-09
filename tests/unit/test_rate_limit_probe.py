@@ -12,12 +12,15 @@ _test_data_dir = bootstrap('rate_limit_probe_test_')
 from llm_client import ProviderRateLimitedError
 from main_app import db
 from main_app.processing import _handle_processing_failure
-from rate_limit_hold import MAX_RESET_SECONDS, probe_rate_limit
+from rate_limit_hold import MAX_HOLD_SECONDS, probe_rate_limit
 from tests.unit.provider_error_fakes import FakeProviderError, FakeResponse
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 
 SLUG = 'rate-limit-probe-feed'
 USAGE_URL = 'https://example-provider.test/v1/usage'
+ISO = '%Y-%m-%dT%H:%M:%SZ'
+# A real seven-day provider window, well past the old 24h cap.
+WEEK_SECONDS = 460241
 
 
 def _set_hold(seconds_from_now: float) -> None:
@@ -30,6 +33,23 @@ def _hold_delta_seconds() -> float:
     """Seconds between now and the currently stamped hold_until."""
     until = parse_iso_utc(db.get_setting('rate_limit_hold_until'))
     return (until - utc_now()).total_seconds()
+
+
+def _probe_payload(payload: dict) -> str:
+    """One probe against `payload`, ignoring the probe cadence stamp."""
+    db.clear_setting('rate_limit_probe_at')
+    with patch('rate_limit_hold.read_usage_status', return_value=payload):
+        assert probe_rate_limit(db) is True
+    return db.get_setting('rate_limit_hold_until')
+
+
+def _weekly_payloads(target) -> list[dict]:
+    """The same reset expressed in each field usage_reset_iso understands."""
+    return [
+        {'blocked': True, 'seconds_until_reset': (target - utc_now()).total_seconds()},
+        {'blocked': True, 'blocked_until': int(target.timestamp())},
+        {'blocked': True, 'blocked_until_iso': target.strftime(ISO)},
+    ]
 
 
 def _clear_state() -> None:
@@ -74,12 +94,35 @@ class TestUsageUrlProbe:
             assert probe_rate_limit(db) is True
         assert _hold_delta_seconds() < 200
 
-    def test_reset_far_in_the_future_is_capped(self):
-        """A bad payload must not pause the queue for days."""
-        payload = {'blocked': True, 'seconds_until_reset': 30 * 24 * 3600}
-        with patch('rate_limit_hold.read_usage_status', return_value=payload):
-            assert probe_rate_limit(db) is True
-        assert _hold_delta_seconds() <= MAX_RESET_SECONDS
+    def test_weekly_window_reset_is_not_truncated(self):
+        """A seven-day provider window holds until its own reset, not 24h out."""
+        target = utc_now() + timedelta(seconds=WEEK_SECONDS)
+        for payload in _weekly_payloads(target):
+            _probe_payload(payload)
+            assert WEEK_SECONDS - 60 < _hold_delta_seconds() <= WEEK_SECONDS
+
+    def test_absurd_reset_is_capped(self):
+        """Milliseconds sent as seconds must not pause the queue for a century."""
+        absurd = 3.1e9
+        target = utc_now() + timedelta(seconds=absurd)
+        for payload in ({'blocked': True, 'seconds_until_reset': absurd},
+                        {'blocked': True, 'blocked_until': int(target.timestamp())},
+                        {'blocked': True, 'blocked_until_iso': target.strftime(ISO)}):
+            _probe_payload(payload)
+            assert _hold_delta_seconds() <= MAX_HOLD_SECONDS
+
+    def test_repeat_probes_do_not_slide_the_hold(self):
+        """Probes minutes apart against the same window stamp the same reset."""
+        now = utc_now()
+        target = now + timedelta(seconds=WEEK_SECONDS)
+        stamps = []
+        for offset in (0, 600):
+            probe_at = now + timedelta(seconds=offset)
+            payload = {'blocked': True,
+                       'seconds_until_reset': (target - probe_at).total_seconds()}
+            with patch('rate_limit_hold.utc_now', return_value=probe_at):
+                stamps.append(_probe_payload(payload))
+        assert stamps[0] == stamps[1] == target.strftime(ISO)
 
     def test_blocked_until_epoch_used_when_seconds_absent(self):
         target = utc_now() + timedelta(seconds=500)
