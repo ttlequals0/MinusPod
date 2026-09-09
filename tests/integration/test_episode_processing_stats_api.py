@@ -35,6 +35,7 @@ STATS_API = {
     'downloadedDuration': 3305.7,
     'transcriptSegments': 132,
     'windows': {'total': 7, 'failed': 0},
+    'verificationWindows': None,
     'stageHits': {'fingerprint': 0, 'textPattern': 3, 'differential': 11, 'llm': 11},
     'detected': 12,
     'markers': {'cut': 6, 'held': 4, 'notCut': 5},
@@ -194,6 +195,65 @@ def test_partial_detection_absent_when_not_degraded(app_client, seeded):
     _authed(app_client)
     resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/bbb000000009')
     assert resp.get_json()['partialDetection'] is None
+
+
+def test_incomplete_coverage_reports_lost_windows_per_pass(app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('a1b2c3d4e5f6', original=1000, new=900)
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='a1b2c3d4e5f6', episode_title='Gaps', status='completed',
+        ads_detected=4,
+        processing_stats={**STATS_DB,
+                          'windows': {'total': 13, 'failed': 3},
+                          'verification_windows': {'total': 12, 'failed': 1}})
+
+    _authed(app_client)
+    data = app_client.get(f'/api/v1/feeds/{slug}/episodes/a1b2c3d4e5f6').get_json()
+    assert data['incompleteCoverage'] == {
+        'detection': {'failed': 3, 'total': 13},
+        'verification': {'failed': 1, 'total': 12},
+    }
+    # Reported without detection_degraded: the run completed on its own terms.
+    assert data['partialDetection'] is None
+
+
+def test_incomplete_coverage_absent_for_a_clean_run(app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('b1b2c3d4e5f6', original=1000, new=900)
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='b1b2c3d4e5f6', episode_title='Clean', status='completed',
+        ads_detected=4,
+        processing_stats={**STATS_DB,
+                          'verification_windows': {'total': 12, 'failed': 0}})
+
+    _authed(app_client)
+    data = app_client.get(f'/api/v1/feeds/{slug}/episodes/b1b2c3d4e5f6').get_json()
+    assert data['incompleteCoverage'] is None
+    assert data['processingRuns'][0]['stats']['verificationWindows'] == {
+        'total': 12, 'failed': 0}
+
+
+def test_incomplete_coverage_alongside_a_degraded_run(app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('c1b2c3d4e5f6', original=1000, new=900)
+    db.upsert_episode(slug, 'c1b2c3d4e5f6',
+                      detection_degraded='Ad detection failed: Overloaded')
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='c1b2c3d4e5f6', episode_title='Degraded', status='completed',
+        ads_detected=1,
+        processing_stats={**STATS_DB, 'windows': {'total': 13, 'failed': 13}})
+
+    _authed(app_client)
+    data = app_client.get(f'/api/v1/feeds/{slug}/episodes/c1b2c3d4e5f6').get_json()
+    assert data['partialDetection'] == {
+        'reason': 'Ad detection failed: Overloaded',
+        'windowsFailed': 13,
+        'windowsTotal': 13,
+    }
+    assert data['incompleteCoverage'] == {'detection': {'failed': 13, 'total': 13}}
 
 
 def test_history_rows_carry_downloaded_duration(app_client, seeded):

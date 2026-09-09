@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.15] - 2026-09-09
+
+### Fixed
+- A run that lost detection or verification windows still reported a clean episode. The episode page and the API now show how many failed, so you can tell what was never examined for ads.
+
 ## [2.96.14] - 2026-09-09
 
 ### Fixed

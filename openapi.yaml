@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.96.14
+  version: 2.96.15
   contact:
     name: MinusPod
   license:
@@ -10049,6 +10049,34 @@ components:
                   type: number
                 sampleSize:
                   type: integer
+            incompleteCoverage:
+              type:
+                - object
+                - 'null'
+              description: >
+                Windows the latest completed run lost, per pass. Null when both passes answered every
+                window. Set independently of partialDetection: a run that answers most windows still
+                completes, so the skipped stretches were never examined for ads. A pass key is present
+                only when that pass lost at least one window.
+              properties:
+                detection:
+                  type: object
+                  properties:
+                    failed:
+                      type: integer
+                    total:
+                      type:
+                        - integer
+                        - 'null'
+                verification:
+                  type: object
+                  properties:
+                    failed:
+                      type: integer
+                    total:
+                      type:
+                        - integer
+                        - 'null'
 
     LocalEpisodeEditFields:
       type: object
@@ -10332,6 +10360,16 @@ components:
                 - object
                 - 'null'
               description: Null when the run failed before detection or the detection mode does not report window counts
+              properties:
+                total:
+                  type: integer
+                failed:
+                  type: integer
+            verificationWindows:
+              type:
+                - object
+                - 'null'
+              description: Verification-pass window counts. Null when the verification pass was skipped or ended before its detection call.
               properties:
                 total:
                   type: integer

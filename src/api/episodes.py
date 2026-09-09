@@ -387,6 +387,7 @@ def _run_stats_to_api(stats):
         'downloadedDuration': stats.get('downloaded_duration'),
         'transcriptSegments': stats.get('transcript_segments'),
         'windows': stats.get('windows'),
+        'verificationWindows': stats.get('verification_windows'),
         'stageHits': {
             'fingerprint': stage_hits.get('fingerprint', 0),
             'textPattern': stage_hits.get('text_pattern', 0),
@@ -448,6 +449,21 @@ def _partial_detection(episode, runs):
         'windowsFailed': windows.get('failed'),
         'windowsTotal': windows.get('total'),
     }
+
+
+def _incomplete_coverage(runs):
+    """Windows the latest completed run lost, per pass. Independent of
+    detection_degraded: a run that answered most windows still completes, so
+    the skipped stretches were never examined for ads."""
+    latest_stats = ((latest_completed_run(runs) if runs else None) or {}).get('stats') or {}
+    coverage = {}
+    for key, pass_name in (('windows', 'detection'),
+                           ('verificationWindows', 'verification')):
+        counts = latest_stats.get(key) or {}
+        failed = counts.get('failed') or 0
+        if failed > 0:
+            coverage[pass_name] = {'failed': failed, 'total': counts.get('total')}
+    return coverage or None
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>', methods=['GET'])
@@ -567,6 +583,7 @@ def get_episode(slug, episode_id):
         'cueDetections': cue_detections,
         'adDetectionStatus': episode.get('ad_detection_status'),
         'partialDetection': _partial_detection(episode, processing_runs),
+        'incompleteCoverage': _incomplete_coverage(processing_runs),
         'daiDifferential': dai_differential,
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),

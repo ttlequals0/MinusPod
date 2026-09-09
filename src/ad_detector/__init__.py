@@ -3036,7 +3036,7 @@ class AdDetector:
 
             # Verification stamps every surviving ad so the merge downstream
             # can distinguish first-pass from verification.
-            (final_ads, all_raw_responses, _failed_windows, failure,
+            (final_ads, all_raw_responses, failed_windows, failure,
              category_missing, category_total, category_repaired,
              addressing) = self._run_detection_pass(
                 windows,
@@ -3110,6 +3110,8 @@ class AdDetector:
                 "prompt": f"Verification: Processed {len(windows)} windows",
                 "model": model,
                 "segment_actions": action_map,
+                "windows_total": len(windows),
+                "windows_failed": failed_windows,
             }
 
         except Exception as e:

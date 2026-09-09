@@ -1154,6 +1154,32 @@ describe('Partial detection (degraded pass-1)', () => {
   });
 });
 
+describe('Incomplete window coverage', () => {
+  it('names both passes and their counts when windows were lost', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      incompleteCoverage: {
+        detection: { failed: 3, total: 13 },
+        verification: { failed: 1, total: 12 },
+      },
+    }));
+    await waitFor(() => {
+      expect(screen.getByText(
+        '3 of 13 detection windows failed and 1 of 12 verification windows failed; '
+        + 'that part of the episode was not examined for ads.',
+      )).toBeDefined();
+    });
+  });
+
+  it('says nothing when coverage was complete', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], incompleteCoverage: null }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.queryByText(/windows failed/)).toBeNull();
+  });
+});
+
 describe('Regenerate Chapters: progress and result feedback', () => {
   beforeEach(() => {
     mockRegenerateChapters.mockReset();

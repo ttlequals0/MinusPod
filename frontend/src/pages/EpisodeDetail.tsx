@@ -509,6 +509,15 @@ function EpisodeDetail() {
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
+  const coverageGaps = [
+    ['detection', episode.incompleteCoverage?.detection] as const,
+    ['verification', episode.incompleteCoverage?.verification] as const,
+  ]
+    .filter(([, counts]) => counts)
+    .map(([pass, counts]) => (typeof counts!.total === 'number'
+      ? `${counts!.failed} of ${counts!.total} ${pass} windows failed`
+      : `${counts!.failed} ${pass} windows failed`));
+
   const redetectDisabled = REDETECT_DISABLED_MODES.has(feed?.processingMode);
   const chaptersRegenerating = regenerateChaptersMutation.isPending
     || !!episode.chaptersRegenerating;
@@ -786,6 +795,14 @@ function EpisodeDetail() {
               >
                 Re-run detection
               </button>
+            </div>
+          </div>
+        )}
+
+        {coverageGaps.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+              {coverageGaps.join(' and ')}; that part of the episode was not examined for ads.
             </div>
           </div>
         )}

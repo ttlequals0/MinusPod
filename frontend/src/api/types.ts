@@ -282,6 +282,13 @@ export interface EpisodeDetail extends Episode {
   // pattern/cross-fetch markers alone (degraded continue). Window counts
   // are null when not cheaply available from the run's stats blob.
   partialDetection?: { reason: string; windowsFailed: number | null; windowsTotal: number | null } | null;
+  // Windows the latest completed run lost, per pass. Set independently of
+  // partialDetection: a run that answered most windows still completes, so
+  // the skipped stretches were never examined for ads.
+  incompleteCoverage?: {
+    detection?: { failed: number; total: number | null };
+    verification?: { failed: number; total: number | null };
+  } | null;
   // Adjacent episodes in the same feed (newest-first order): `previous` is the
   // newer episode, `next` the older one. Either is null at a feed boundary.
   navigation?: { previous: EpisodeNeighbor | null; next: EpisodeNeighbor | null };
@@ -305,6 +312,7 @@ export interface ProcessingRunStats {
   downloadedDuration?: number | null;
   transcriptSegments?: number;
   windows?: { total: number; failed: number } | null;
+  verificationWindows?: { total: number; failed: number } | null;
   stageHits?: {
     fingerprint: number;
     textPattern: number;

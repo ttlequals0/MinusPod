@@ -2784,7 +2784,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             max_ad_duration_override=None, cue_gate_enabled=False,
                             pass1_held_markers=None, pass1_kept_markers=None,
                             skip_verification=False, segment_actions=None,
-                            differential_override=None):
+                            differential_override=None, run_stats=None):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -2865,6 +2865,14 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         verification_segments = verification_result.get('segments', [])
         verification_cue_count = verification_result.get('audio_cue_count', 0)
         storage.save_ads_json(slug, episode_id, verification_result, pass_number=2)
+
+        # Recorded before the status branch so a pass that lost windows still
+        # reports how much of the output audio went unexamined.
+        if run_stats is not None and verification_result.get('windows_total') is not None:
+            run_stats['verification_windows'] = {
+                'total': verification_result['windows_total'],
+                'failed': verification_result.get('windows_failed') or 0,
+            }
 
         v_status = verification_result.get('status')
         if v_status in ('no_segments', 'transcription_failed', 'detection_failed'):
@@ -5135,6 +5143,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 skip_verification=skip_detection or skip_second_pass or cue_only,
                 segment_actions=segment_actions,
                 differential_override=keep_override,
+                run_stats=run_stats,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and
