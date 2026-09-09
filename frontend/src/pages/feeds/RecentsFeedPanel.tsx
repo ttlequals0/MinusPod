@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateFeed, uploadFeedArtwork } from '../../api/feeds';
 import { getErrorMessage } from '../../api/client';
@@ -6,21 +5,27 @@ import type { Feed } from '../../api/types';
 import { btnPrimary } from '../../components/buttonStyles';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { fileInputBase, focusRing, inputBase } from '../../components/fieldStyles';
-import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
+import { useDraftField } from '../../hooks/useDraftField';
 
 // Title, description and artwork are the only editable parts of the recents feed.
 function RecentsFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
   const queryClient = useQueryClient();
-  const [title, setTitle] = useState(feed.title);
-  const [description, setDescription] = useState(feed.description ?? '');
-  useSyncFromQuery(feed, (f) => { setTitle(f.title); setDescription(f.description ?? ''); });
+  // Draft fields, so a background refetch does not overwrite an unsaved edit.
+  const titleField = useDraftField(feed, (f) => f.title);
+  const descriptionField = useDraftField(feed, (f) => f.description ?? '');
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     queryClient.invalidateQueries({ queryKey: ['feeds'] });
   };
   const save = useMutation({
-    mutationFn: () => updateFeed(slug, { title: title.trim(), description }),
-    onSuccess: invalidate,
+    mutationFn: () => updateFeed(slug, {
+      title: titleField.value.trim(), description: descriptionField.value,
+    }),
+    onSuccess: () => {
+      titleField.markClean(titleField.value);
+      descriptionField.markClean(descriptionField.value);
+      invalidate();
+    },
   });
   const artwork = useMutation({
     mutationFn: (file: File) => uploadFeedArtwork(slug, file),
@@ -42,16 +47,18 @@ function RecentsFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
           </p>
           <label className="block text-sm">
             <span className="font-medium text-foreground">Title</span>
-            <input aria-label="Feed title" value={title} onChange={(e) => setTitle(e.target.value)}
+            <input aria-label="Feed title" value={titleField.value}
+              onChange={(e) => titleField.setValue(e.target.value)}
               className={`mt-1 w-full ${inputBase}`} />
           </label>
           <label className="block text-sm">
             <span className="font-medium text-foreground">Description</span>
-            <textarea aria-label="Feed description" rows={3} value={description}
-              onChange={(e) => setDescription(e.target.value)} className={`mt-1 w-full ${inputBase}`} />
+            <textarea aria-label="Feed description" rows={3} value={descriptionField.value}
+              onChange={(e) => descriptionField.setValue(e.target.value)}
+              className={`mt-1 w-full ${inputBase}`} />
           </label>
           <div className="flex flex-wrap gap-2 items-center">
-            <button type="button" onClick={() => save.mutate()} disabled={save.isPending || !title.trim()}
+            <button type="button" onClick={() => save.mutate()} disabled={save.isPending || !titleField.value.trim()}
               className={`px-4 py-2 rounded ${btnPrimary} disabled:opacity-50 ${focusRing}`}>
               {save.isPending ? 'Saving...' : 'Save'}
             </button>

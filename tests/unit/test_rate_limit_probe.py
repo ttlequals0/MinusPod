@@ -12,7 +12,7 @@ _test_data_dir = bootstrap('rate_limit_probe_test_')
 from llm_client import ProviderRateLimitedError
 from main_app import db
 from main_app.processing import _handle_processing_failure
-from rate_limit_hold import probe_rate_limit
+from rate_limit_hold import MAX_RESET_SECONDS, probe_rate_limit
 from tests.unit.provider_error_fakes import FakeProviderError, FakeResponse
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 
@@ -74,6 +74,13 @@ class TestUsageUrlProbe:
             assert probe_rate_limit(db) is True
         assert _hold_delta_seconds() < 200
 
+    def test_reset_far_in_the_future_is_capped(self):
+        """A bad payload must not pause the queue for days."""
+        payload = {'blocked': True, 'seconds_until_reset': 30 * 24 * 3600}
+        with patch('rate_limit_hold.read_usage_status', return_value=payload):
+            assert probe_rate_limit(db) is True
+        assert _hold_delta_seconds() <= MAX_RESET_SECONDS
+
     def test_blocked_until_epoch_used_when_seconds_absent(self):
         target = utc_now() + timedelta(seconds=500)
         payload = {'blocked': True, 'blocked_until': int(target.timestamp())}
@@ -95,7 +102,7 @@ class TestUsageUrlProbe:
                 return object()
 
         with patch('rate_limit_hold.read_usage_status', return_value=None), \
-                patch('llm_client.get_llm_client', return_value=_Client()):
+                patch('rate_limit_hold.get_llm_client', return_value=_Client()):
             assert probe_rate_limit(db) is True
         assert db.get_setting('rate_limit_hold_until') is None
         mock_fire.assert_called_once()
@@ -117,7 +124,7 @@ class TestCompletionProbe:
             def messages_create(self, **kw):
                 return object()
 
-        with patch('llm_client.get_llm_client', return_value=_Client()):
+        with patch('rate_limit_hold.get_llm_client', return_value=_Client()):
             assert probe_rate_limit(db) is True
         assert db.get_setting('rate_limit_hold_until') is None
         mock_fire.assert_called_once()
@@ -130,7 +137,7 @@ class TestCompletionProbe:
             def messages_create(self, **kw):
                 raise err
 
-        with patch('llm_client.get_llm_client', return_value=_Client()):
+        with patch('rate_limit_hold.get_llm_client', return_value=_Client()):
             assert probe_rate_limit(db) is False
         assert 850 < _hold_delta_seconds() < 950
 
@@ -141,7 +148,7 @@ class TestCompletionProbe:
             def messages_create(self, **kw):
                 raise ValueError('boom')
 
-        with patch('llm_client.get_llm_client', return_value=_Client()):
+        with patch('rate_limit_hold.get_llm_client', return_value=_Client()):
             assert probe_rate_limit(db) is False
         assert db.get_setting('rate_limit_hold_until') == original
 
@@ -158,7 +165,7 @@ class TestCadence:
         db.set_setting('llm_usage_url', USAGE_URL)
         db.set_setting('rate_limit_probe_minutes', '0')
         with patch('rate_limit_hold.read_usage_status') as mock_read, \
-                patch('llm_client.get_llm_client') as mock_client:
+                patch('rate_limit_hold.get_llm_client') as mock_client:
             assert probe_rate_limit(db) is False
         mock_read.assert_not_called()
         mock_client.assert_not_called()
@@ -207,12 +214,12 @@ class TestFailureHandlerPrefersUsageEndpoint:
     def test_prefers_usage_endpoint_reset(self):
         db.set_setting('llm_usage_url', USAGE_URL)
         payload = {'blocked': True, 'seconds_until_reset': 38460}
-        with patch('main_app.processing.read_usage_status', return_value=payload):
+        with patch('rate_limit_hold.read_usage_status', return_value=payload):
             self._fail(retry_after=3600.0)
         assert 38400 < _hold_delta_seconds() < 38520
 
     def test_falls_back_when_usage_endpoint_fails(self):
         db.set_setting('llm_usage_url', USAGE_URL)
-        with patch('main_app.processing.read_usage_status', return_value=None):
+        with patch('rate_limit_hold.read_usage_status', return_value=None):
             self._fail(retry_after=600.0)
         assert 550 < _hold_delta_seconds() < 650

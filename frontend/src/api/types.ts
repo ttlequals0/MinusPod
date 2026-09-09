@@ -240,6 +240,9 @@ export interface EpisodeDetail extends Episode {
   transcriptVttUrl?: string;
   chaptersAvailable?: boolean;
   chaptersUrl?: string;
+  // Chapter regeneration runs in the background; the error is the last failure.
+  chaptersRegenerating?: boolean;
+  chaptersRegenError?: string | null;
   adMarkers?: AdSegment[];
   rejectedAdMarkers?: AdSegment[];
   pendingReviewMarkers?: AdSegment[];

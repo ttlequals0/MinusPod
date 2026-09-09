@@ -14,9 +14,10 @@ from datetime import timedelta
 
 from config import coerce_bool_setting
 from database.settings import registry_current_value, registry_default
+from llm_client import extract_retry_after, get_llm_client, is_rate_limit_error
 from utils.safe_http import safe_get, URLTrust
 from utils.time import ISO_FORMAT, epoch_to_iso, parse_iso_utc, utc_now, utc_now_iso
-from webhook_service import fire_queue_resumed_event
+from webhook_service import fire_queue_held_event, fire_queue_resumed_event
 
 logger = logging.getLogger('podcast.refresh')
 
@@ -135,8 +136,13 @@ def is_queue_paused(db) -> bool:
     return hold_is_active(get_hold_until(db))
 
 
-def hold_message(hold_until: str, error) -> str:
-    """error_message written on an episode the hold sent back to the queue."""
+def hold_message(hold_until: str | None, error) -> str:
+    """error_message written on an episode a 429 sent back to the queue.
+
+    hold_until is None when the hold feature is off: nothing was paused.
+    """
+    if not hold_until:
+        return f"LLM rate limit: {error}"
     return f"Paused (LLM rate limit until {hold_until}): {error}"
 
 
@@ -179,6 +185,12 @@ def read_usage_status(usage_url: str) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _capped_reset_iso(reset_at) -> str:
+    """Reset time capped at MAX_RESET_SECONDS out, so a bad payload cannot
+    pause the queue for days."""
+    return min(reset_at, utc_now() + timedelta(seconds=MAX_RESET_SECONDS)).strftime(ISO_FORMAT)
+
+
 def usage_reset_iso(payload: dict) -> str | None:
     """Absolute ISO reset time from a `blocked: true` usage payload.
 
@@ -187,18 +199,47 @@ def usage_reset_iso(payload: dict) -> str | None:
     """
     seconds = payload.get('seconds_until_reset')
     if isinstance(seconds, (int, float)) and not isinstance(seconds, bool):
-        return (utc_now() + timedelta(seconds=max(0.0, float(seconds)))).strftime(ISO_FORMAT)
+        return _capped_reset_iso(utc_now() + timedelta(seconds=max(0.0, float(seconds))))
     blocked_until = payload.get('blocked_until')
     if isinstance(blocked_until, (int, float)) and not isinstance(blocked_until, bool):
-        iso = epoch_to_iso(blocked_until)
-        if iso:
-            return iso
+        parsed = parse_iso_utc(epoch_to_iso(blocked_until))
+        if parsed:
+            return _capped_reset_iso(parsed)
     blocked_until_iso = payload.get('blocked_until_iso')
     if isinstance(blocked_until_iso, str):
         parsed = parse_iso_utc(blocked_until_iso)
         if parsed:
-            return parsed.strftime(ISO_FORMAT)
+            return _capped_reset_iso(parsed)
     return None
+
+
+def hold_queue_for_provider_limit(db, error, *, slug: str, episode_id: str,
+                                  podcast_name: str) -> str | None:
+    """Pause the queue for a 429 and alert once per pause; returns the effective
+    hold_until, or None when the hold feature is off.
+
+    A configured usage endpoint is preferred over the 429's own stated reset,
+    which can be wrong in either direction.
+    """
+    if not is_rate_limit_hold_enabled(db):
+        return None
+    hold_until_iso = None
+    usage_url = get_llm_usage_url(db)
+    if usage_url:
+        payload = read_usage_status(usage_url)
+        if payload is not None and payload.get('blocked') is True:
+            hold_until_iso = usage_reset_iso(payload)
+    if hold_until_iso is None:
+        hold_until_iso = (utc_now() + timedelta(
+            seconds=max(0.0, float(error.retry_after_seconds)))).strftime(ISO_FORMAT)
+    hold_until, started = record_hold_until(db, hold_until_iso)
+    logger.warning(f"[{slug}:{episode_id}] Rate-limit hold: paused until "
+                   f"{hold_until} (provider reset)")
+    # One alert per pause: a later 429 under it only moves the reset out.
+    if started:
+        fire_queue_held_event(hold_until=hold_until, error_message=error, slug=slug,
+                              episode_id=episode_id, podcast_name=podcast_name)
+    return hold_until
 
 
 def _warn_probe_failure(hold_until: str, message: str) -> None:
@@ -246,7 +287,6 @@ def _probe_via_completion(db) -> bool:
     model = db.get_setting('claude_model')
     if not model:
         return False
-    from llm_client import extract_retry_after, get_llm_client, is_rate_limit_error
     try:
         get_llm_client().messages_create(
             model=model, max_tokens=1, system='',

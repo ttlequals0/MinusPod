@@ -264,7 +264,7 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
         while waited < max_wait and not shutdown_event.is_set():
             shutdown_event.wait(timeout=10)
             waited += 10
-            episode = db.get_episode(slug, episode_id)
+            episode = db.get_episode_state(slug, episode_id)
             if episode and episode['status'] in ('processed', 'failed', 'permanently_failed', 'deferred'):
                 break
             # A rate-limit hold put the row back to pending.

@@ -164,6 +164,10 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     -- (issue #560 follow-up). Auto mode fetches it when the embedded chapter
     -- probe comes up short. NULL when the feed does not publish the tag.
     upstream_chapters_url TEXT,
+    -- Chapter regeneration runs in a background thread; the stamp marks it
+    -- in flight and the error is the last failure.
+    chapters_regen_started_at TEXT,
+    chapters_regen_error TEXT,
     season_number INTEGER,
     p20_item_json TEXT,
     tags TEXT NOT NULL DEFAULT '[]',

@@ -2,12 +2,12 @@
 import json
 import logging
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
 from utils.constants import EpisodeStatus
-from utils.time import ISO_FORMAT
+from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 # archive feed held the single write lock long enough for every other writer to
 # exceed its 30s busy_timeout and fail with "database is locked".
 DISCOVERY_UPSERT_CHUNK = 50
+
+# A regen stamp older than this belongs to a worker that died mid-run.
+CHAPTERS_REGEN_STALE_SECONDS = 900
+
+
+def _chapters_regen_cutoff() -> str:
+    """Stamps at or below this are stale and can be taken over."""
+    return (utc_now() - timedelta(seconds=CHAPTERS_REGEN_STALE_SECONDS)).strftime(ISO_FORMAT)
 
 AD_DATA_NULL_SET_SQL = """SET ad_markers_json = NULL,
                    first_pass_prompt = NULL,
@@ -125,6 +133,8 @@ class EpisodeMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT e.*, p.slug, p.title AS podcast_title,
+                      -- Fixed-width ISO stamps compare as strings; NULL yields NULL.
+                      (e.chapters_regen_started_at > ?) AS chapters_regen_active,
                       ed.transcript_text,
                       (ed.original_transcript_text IS NOT NULL) as has_original_transcript,
                       ed.transcript_vtt,
@@ -136,7 +146,7 @@ class EpisodeMixin:
                JOIN podcasts p ON e.podcast_id = p.id
                LEFT JOIN episode_details ed ON e.id = ed.episode_id
                WHERE p.slug = ? AND e.episode_id = ?""",
-            (slug, episode_id)
+            (_chapters_regen_cutoff(), slug, episode_id)
         )
         row = cursor.fetchone()
         return dict(row) if row else None
@@ -248,7 +258,7 @@ class EpisodeMixin:
                                'deferred_at', 'deferred_service', 'detection_degraded',
                                'low_yield_rerun_at', 'reprocess_source',
                                'season_number', 'p20_item_json',
-                               'pending_recut_at'):
+                               'pending_recut_at', 'chapters_regen_error'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -330,6 +340,68 @@ class EpisodeMixin:
         )
         row = cursor.fetchone()
         return row['id'] if row else None
+
+    def get_episode_state(self, slug: str, episode_id: str) -> dict | None:
+        """Just the fields a caller needs to decide whether to act on an episode."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT e.status, e.processed_version,
+                      (ed.transcript_vtt IS NOT NULL) AS has_transcript_vtt
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               LEFT JOIN episode_details ed ON e.id = ed.episode_id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def claim_chapters_regen(self, slug: str, episode_id: str) -> str | None:
+        """Stamp a chapter regeneration as in flight and return the stamp that owns
+        it. None when a fresh stamp exists or the episode is processing; a stale
+        stamp is taken over."""
+        conn = self.get_connection()
+        stamp = utc_now_iso()
+        cursor = conn.execute(
+            """UPDATE episodes
+               SET chapters_regen_started_at = ?, chapters_regen_error = NULL
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                 AND status != 'processing'
+                 AND (chapters_regen_started_at IS NULL
+                      OR chapters_regen_started_at <= ?)""",
+            (stamp, episode_id, slug, _chapters_regen_cutoff())
+        )
+        conn.commit()
+        return stamp if cursor.rowcount == 1 else None
+
+    def finish_chapters_regen(self, slug: str, episode_id: str, stamp: str,
+                              error: str | None = None):
+        """Clear the in-flight stamp; error is kept until the next run starts.
+        A stamp taken over by a newer run no longer matches, so its state stands."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """UPDATE episodes
+               SET chapters_regen_started_at = NULL, chapters_regen_error = ?
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                 AND chapters_regen_started_at = ?""",
+            (error, episode_id, slug, stamp)
+        )
+        conn.commit()
+        if cursor.rowcount == 0:
+            logger.info(f"[{slug}:{episode_id}] Chapter regen stamp {stamp} was taken over; "
+                        f"outcome dropped (error={error})")
+
+    def clear_chapters_regen_stamps(self) -> int:
+        """Drop every in-flight stamp; a restart killed the threads behind them."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """UPDATE episodes SET chapters_regen_started_at = NULL
+               WHERE chapters_regen_started_at IS NOT NULL"""
+        )
+        conn.commit()
+        return cursor.rowcount
 
     def save_episode_details(self, slug: str, episode_id: str,
                             transcript_text: str = None,

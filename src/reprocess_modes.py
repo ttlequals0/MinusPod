@@ -71,5 +71,6 @@ def reset_episode_for_reprocess(db, slug, episode_id, mode):
         error_message=None,
         deferred_at=None,
         deferred_service=None,
+        chapters_regen_error=None,
     )
     clear_episode_for_mode(db, slug, episode_id, mode)

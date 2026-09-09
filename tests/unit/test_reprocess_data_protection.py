@@ -87,6 +87,12 @@ class TestResetForReprocess:
         assert episode['status'] == 'pending'
         assert episode['reprocess_mode'] == 'full'
 
+    def test_reset_clears_a_stored_chapter_regen_error(self, seeded_episode):
+        """The rerun replaces the chapters the failed regeneration was for."""
+        db.upsert_episode(SLUG, seeded_episode, chapters_regen_error='LLM rate limit')
+        reset_episode_for_reprocess(db, SLUG, seeded_episode, 'full')
+        assert db.get_episode(SLUG, seeded_episode)['chapters_regen_error'] is None
+
 
 class TestTranscribeStageClear:
     """The fresh save in _download_and_transcribe wipes the stale row only

@@ -408,3 +408,14 @@ def test_stale_shadow_from_a_crash_is_dropped_on_the_next_rebuild():
     names = [r['name'] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'search_index_new%'")]
     assert names == []
+
+
+def test_a_shadow_owned_by_a_foreign_pid_counts_as_alive(monkeypatch):
+    """A pid we may not signal still exists, so its shadow is not ours to drop."""
+    from database.search import _shadow_owner_alive
+
+    def refuse(_pid, _sig):
+        raise PermissionError('not permitted')
+
+    monkeypatch.setattr('database.search.os.kill', refuse)
+    assert _shadow_owner_alive('search_index_new_4194304_1') is True

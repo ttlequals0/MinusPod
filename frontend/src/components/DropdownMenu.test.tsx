@@ -15,6 +15,16 @@ describe('DropdownMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('stays closed once the trigger is enabled again', async () => {
+    const menu = (disabled?: boolean) => (
+      <DropdownMenu triggerLabel="Act" triggerClassName="" items={items} disabled={disabled} />);
+    const { rerender } = render(menu());
+    await userEvent.click(screen.getByRole('button', { name: 'Act' }));
+    rerender(menu(true));
+    rerender(menu(false));
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
   it('opens rightward when the trigger has no room on its left', async () => {
     const { container } = render(
       <DropdownMenu triggerLabel="Act" triggerClassName="" items={items} />);

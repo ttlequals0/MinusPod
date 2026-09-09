@@ -1,10 +1,12 @@
 """The episode API description carries the chapter list when enabled (#720)."""
 import json
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 from api import get_database
+from tests.unit.thread_fakes import SyncThread
 
 SLUG = 'chapter-notes-slug'
 EPISODE_ID = 'abcdef012345'
@@ -59,11 +61,12 @@ def test_regenerating_chapters_force_refreshes_the_served_feed(app_client, seede
     from storage import Storage
     Storage().save_transcript_vtt(SLUG, EPISODE_ID, 'WEBVTT\n\n00:00.000 --> 00:01.000\nHi\n')
     headers = _authed(app_client)
-    with patch('api.episodes.ChaptersGenerator') as generator, \
+    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+         patch('api.episodes.ChaptersGenerator') as generator, \
          patch('api.episodes.embed_chapters', return_value=False), \
          patch('main_app.processing._refresh_rss_for_slug') as refresh:
         generator.return_value.generate_chapters.return_value = CHAPTERS
         resp = app_client.post(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
                                headers=headers)
-    assert resp.status_code == 200, resp.data
+    assert resp.status_code == 202, resp.data
     refresh.assert_called_once_with(SLUG, EPISODE_ID)

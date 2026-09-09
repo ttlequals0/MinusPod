@@ -1409,16 +1409,21 @@ class AdDetector:
                 # missing a category; checking first would just scan `ads`
                 # twice for the same answer.
                 window_label = f"{window_label_prefix} {result.window_idx + 1}"
-                category_repaired += self._repair_window_categories(
-                    ads=result.ads,
-                    transcript_excerpt=result.transcript_excerpt,
-                    model=model,
-                    llm_timeout=llm_timeout,
-                    max_retries=max_retries,
-                    slug=slug,
-                    episode_id=episode_id,
-                    window_label=window_label,
-                )
+                try:
+                    category_repaired += self._repair_window_categories(
+                        ads=result.ads,
+                        transcript_excerpt=result.transcript_excerpt,
+                        model=model,
+                        llm_timeout=llm_timeout,
+                        max_retries=max_retries,
+                        slug=slug,
+                        episode_id=episode_id,
+                        window_label=window_label,
+                    )
+                except ProviderRateLimitedError as e:
+                    # Same rule as a held window: the hold defers the episode.
+                    hold_error = e
+                    break
             if result.raw_response:
                 all_raw_responses.append(result.raw_response)
             all_window_ads.extend(result.ads)
@@ -1490,6 +1495,9 @@ class AdDetector:
                 allow_provider_schema=True),
         )
         if response is None:
+            # A rate-limit hold is queue-wide state, not a degraded window.
+            if isinstance(error, ProviderRateLimitedError):
+                raise error
             logger.warning(
                 f"[{slug}:{episode_id}] {window_label} category repair call "
                 f"failed, leaving {len(missing)} ad(s) uncategorized: {error}"

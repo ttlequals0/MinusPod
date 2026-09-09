@@ -6,17 +6,23 @@ _generate_assets branches (generate, publisher-preserve) and the manual
 regenerate-chapters endpoint.
 """
 import json
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from tests.app_bootstrap import bootstrap
+from tests.unit.thread_fakes import SyncThread
 
 _test_data_dir = bootstrap('ad_chapters_pipeline_test_', reset_storage=True)
 
 import chapters_generator
 from ad_chapters import AdChapterConfig, public_chapters
+from llm_client import ProviderRateLimitedError
 from main_app import processing
+from rate_limit_hold import hold_message
+from utils.time import utc_now_iso
 
 AD_CFG = AdChapterConfig(
     enabled=True, categories={'sponsor': True}, include_held=False,
@@ -49,7 +55,7 @@ def _db(chapters_mode=None, chapters_enabled=None, upstream_chapters_url=None):
 
 def _run(monkeypatch, db, publisher_chapters, generator_chapters=None,
          markers=None, ad_config=AD_CFG, fetch_return=None,
-         original_duration=None):
+         original_duration=None, generator_error=None):
     """Drive the real _generate_assets with every IO seam mocked."""
     storage_mock = MagicMock()
     embed_mock = MagicMock()
@@ -62,6 +68,8 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None,
         generator_chapters if generator_chapters is not None
         else {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
     )
+    if generator_error is not None:
+        generator_class.return_value.generate_chapters.side_effect = generator_error
 
     monkeypatch.setattr(processing, 'db', db)
     monkeypatch.setattr(processing, 'storage', storage_mock)
@@ -215,8 +223,10 @@ VTT = 'WEBVTT\n\n00:00:00.000 --> 00:20:00.000\nHello there\n'
 
 @pytest.fixture
 def seeded(app_client):
-    from api import get_database, get_storage
+    from api import get_database, get_storage, limiter
     from storage import Storage
+    # regenerate-chapters is rate limited; clear the counters per test.
+    limiter.reset()
     # Rebind Storage to the current Database; an earlier module may have reset it.
     Storage._instance = None
     db = get_database()
@@ -238,51 +248,50 @@ def _authed(client):
     return {'X-CSRF-Token': cookie.value} if cookie else {}
 
 
+def _post_regenerate(app_client, generated, ad_config=None):
+    headers = _authed(app_client)
+    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+         patch('api.episodes.ChaptersGenerator') as generator, \
+         patch('api.episodes.embed_chapters', return_value=False), \
+         patch('api.episodes.resolve_ad_chapter_config',
+               lambda db, row, slug=None: ad_config or AD_CFG), \
+         patch('main_app.processing._refresh_rss_for_slug'):
+        generator.return_value.generate_chapters.return_value = generated
+        return app_client.post(
+            f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+            headers=headers)
+
+
 def test_regenerate_endpoint_merges_ad_chapters(app_client, seeded):
     # Authoritative (empty) cut list: without one the endpoint cannot place
     # ad chapters and skips the merge.
     seeded.save_applied_cuts(SLUG, EPISODE_ID, [])
-    headers = _authed(app_client)
-    with patch('api.episodes.ChaptersGenerator') as generator, \
-         patch('api.episodes.embed_chapters', return_value=False), \
-         patch('api.episodes.resolve_ad_chapter_config',
-               lambda db, row, slug=None: AD_CFG), \
-         patch('main_app.processing._refresh_rss_for_slug'):
-        generator.return_value.generate_chapters.return_value = {
-            'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
-        resp = app_client.post(
-            f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
-            headers=headers)
+    resp = _post_regenerate(app_client, {
+        'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]})
 
-    assert resp.status_code == 200, resp.data
-    chapters = resp.get_json()['chapters']
-    # The response is the served projection; the stored list keeps the keys.
-    assert chapters == [{'startTime': 1, 'title': 'Intro'},
-                        {'startTime': 900, 'title': '[mp:sponsor]'},
-                        {'startTime': 960, 'title': 'Show'}]
-    assert resp.get_json()['chapterCount'] == 3
-    stored = json.loads(seeded.get_episode(SLUG, EPISODE_ID)['chapters_json'])
+    assert resp.status_code == 202, resp.data
+    row = seeded.get_episode(SLUG, EPISODE_ID)
+    stored = json.loads(row['chapters_json'])
     assert stored['chapters'] == [{'startTime': 1, 'title': 'Intro'},
                                   AD_ENTRY, RESUME_ENTRY]
+    # The served projection drops the internal keys.
+    assert public_chapters(stored['chapters']) == [
+        {'startTime': 1, 'title': 'Intro'},
+        {'startTime': 900, 'title': '[mp:sponsor]'},
+        {'startTime': 960, 'title': 'Show'}]
+    assert row['chapters_regen_started_at'] is None
+    assert row['chapters_regen_error'] is None
 
 
 def test_regenerate_endpoint_skips_ad_chapters_without_applied_cuts(app_client, seeded):
     """None cuts are unknown, not empty: ad spans would land at original offsets."""
     assert seeded.get_applied_cuts(SLUG, EPISODE_ID) is None
-    headers = _authed(app_client)
-    with patch('api.episodes.ChaptersGenerator') as generator, \
-         patch('api.episodes.embed_chapters', return_value=False), \
-         patch('api.episodes.resolve_ad_chapter_config',
-               lambda db, row, slug=None: AD_CFG), \
-         patch('main_app.processing._refresh_rss_for_slug'):
-        generator.return_value.generate_chapters.return_value = {
-            'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
-        resp = app_client.post(
-            f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
-            headers=headers)
+    resp = _post_regenerate(app_client, {
+        'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]})
 
-    assert resp.status_code == 200, resp.data
-    assert resp.get_json()['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
+    assert resp.status_code == 202, resp.data
+    stored = json.loads(seeded.get_episode(SLUG, EPISODE_ID)['chapters_json'])
+    assert stored['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
 
 
 def test_served_chapters_json_carries_no_internal_keys(app_client, monkeypatch):
@@ -304,17 +313,306 @@ def test_served_chapters_json_carries_no_internal_keys(app_client, monkeypatch):
 
 
 def test_regenerate_endpoint_without_ad_config_is_unchanged(app_client, seeded):
+    resp = _post_regenerate(app_client, {
+        'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]},
+        ad_config=AdChapterConfig.disabled())
+
+    assert resp.status_code == 202, resp.data
+    stored = json.loads(seeded.get_episode(SLUG, EPISODE_ID)['chapters_json'])
+    assert stored['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
+
+
+def test_regenerate_endpoint_reports_the_run_on_the_episode(app_client, seeded):
+    """The stamp marks a run in flight and a failure is kept for the detail page."""
     headers = _authed(app_client)
-    with patch('api.episodes.ChaptersGenerator') as generator, \
+    with patch('api.episodes.threading.Thread') as thread:
+        resp = app_client.post(
+            f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+            headers=headers)
+    assert resp.status_code == 202, resp.data
+    thread.return_value.start.assert_called_once()
+    # The job owns the run through the stamp the claim wrote.
+    stamp = seeded.get_episode(SLUG, EPISODE_ID)['chapters_regen_started_at']
+    assert thread.call_args.kwargs['args'] == (SLUG, EPISODE_ID, stamp)
+    detail = app_client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}').get_json()
+    assert detail['chaptersRegenerating'] is True
+    assert detail['chaptersRegenError'] is None
+
+    # A second start while one is in flight is refused.
+    resp = app_client.post(
+        f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+        headers=headers)
+    assert resp.status_code == 409, resp.data
+
+    resp = _post_regenerate(app_client, None)  # generator returns nothing
+    assert resp.status_code == 409, resp.data
+
+    seeded.finish_chapters_regen(SLUG, EPISODE_ID, stamp)
+    resp = _post_regenerate(app_client, None)
+    assert resp.status_code == 202, resp.data
+    detail = app_client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}').get_json()
+    assert detail['chaptersRegenerating'] is False
+    assert detail['chaptersRegenError'] == 'Failed to generate chapters'
+
+
+def test_regenerate_endpoint_refuses_while_the_queue_is_held(app_client, seeded):
+    """A rate-limit hold (#696) pauses new LLM runs, and a topic pass is one."""
+    from rate_limit_hold import clear_hold, record_hold_until
+
+    until = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    record_hold_until(seeded, until)
+    try:
+        resp = app_client.post(
+            f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+            headers=_authed(app_client))
+    finally:
+        clear_hold(seeded)
+
+    assert resp.status_code == 409, resp.data
+    assert until in resp.get_json()['error']
+    assert seeded.get_episode(SLUG, EPISODE_ID)['chapters_regen_started_at'] is None
+
+
+def test_regen_job_records_the_hold_on_a_provider_rate_limit(app_client, seeded):
+    """A 429 mid-regeneration pauses the queue and is reported on the episode."""
+    from rate_limit_hold import clear_hold, get_hold_until
+
+    error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
+    seeded.set_setting('rate_limit_hold_enabled', 'true')
+    try:
+        with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+             patch('api.episodes.ChaptersGenerator') as generator, \
+             patch('rate_limit_hold.fire_queue_held_event') as fire, \
+             patch('rate_limit_hold.get_llm_usage_url', lambda _db: ''):
+            generator.return_value.generate_chapters.side_effect = error
+            resp = app_client.post(
+                f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+                headers=_authed(app_client))
+        held_until = get_hold_until(seeded)
+    finally:
+        clear_hold(seeded)
+        seeded.set_setting('rate_limit_hold_enabled', 'false')
+
+    assert resp.status_code == 202, resp.data
+    assert held_until and held_until > utc_now_iso()
+    row = seeded.get_episode(SLUG, EPISODE_ID)
+    assert row['chapters_regen_started_at'] is None
+    assert row['chapters_regen_error'] == hold_message(held_until, error)
+    # A fresh pause alerts once, the same rule the failure handler follows.
+    assert fire.call_count == 1
+    assert fire.call_args.kwargs['hold_until'] == held_until
+    assert fire.call_args.kwargs['episode_id'] == EPISODE_ID
+    assert fire.call_args.kwargs['podcast_name'] == 'Ad Chapters'
+
+
+def test_regen_job_under_an_active_hold_does_not_alert_again(app_client, seeded):
+    """The endpoint refuses a start under an active hold, so this can only
+    happen when the pause lands mid-run; extending it is not a new pause."""
+    from rate_limit_hold import clear_hold, get_hold_until, record_hold_until
+
+    active_until = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime(
+        '%Y-%m-%dT%H:%M:%SZ')
+    stamp = seeded.claim_chapters_regen(SLUG, EPISODE_ID)
+    error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
+    seeded.set_setting('rate_limit_hold_enabled', 'true')
+    try:
+        with patch('api.episodes.ChaptersGenerator') as generator, \
+             patch('rate_limit_hold.fire_queue_held_event') as fire, \
+             patch('rate_limit_hold.get_llm_usage_url', lambda _db: ''):
+            generator.return_value.generate_chapters.side_effect = error
+            record_hold_until(seeded, active_until)
+            from api.episodes import _regenerate_chapters_job
+            _regenerate_chapters_job(SLUG, EPISODE_ID, stamp)
+        held_until = get_hold_until(seeded)
+    finally:
+        clear_hold(seeded)
+        seeded.set_setting('rate_limit_hold_enabled', 'false')
+
+    fire.assert_not_called()
+    assert held_until == active_until
+    row = seeded.get_episode(SLUG, EPISODE_ID)
+    assert row['chapters_regen_error'] == hold_message(active_until, error)
+
+
+def test_stale_regen_stamp_is_taken_over(app_client, seeded):
+    """A worker that died mid-run leaves a stamp; an old one does not block."""
+    conn = seeded.get_connection()
+    conn.execute(
+        "UPDATE episodes SET chapters_regen_started_at = '2020-01-01T00:00:00Z' "
+        "WHERE episode_id = ?", (EPISODE_ID,))
+    conn.commit()
+    detail = app_client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}').get_json()
+    assert detail['chaptersRegenerating'] is False
+
+    resp = _post_regenerate(app_client, {
+        'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]},
+        ad_config=AdChapterConfig.disabled())
+    assert resp.status_code == 202, resp.data
+    assert seeded.get_episode(SLUG, EPISODE_ID)['chapters_regen_started_at'] is None
+
+
+def test_regenerate_endpoint_refuses_an_episode_being_processed(app_client, seeded):
+    """A run in the pipeline rewrites the transcript the regeneration would read."""
+    conn = seeded.get_connection()
+    conn.execute("UPDATE episodes SET status = 'processing' WHERE episode_id = ?",
+                 (EPISODE_ID,))
+    conn.commit()
+    resp = app_client.post(
+        f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+        headers=_authed(app_client))
+    assert resp.status_code == 409, resp.data
+    assert 'processing' in resp.get_json()['error']
+    assert seeded.get_episode(SLUG, EPISODE_ID)['chapters_regen_started_at'] is None
+
+
+def test_restart_clears_stamps_left_by_killed_runs(app_client, seeded):
+    """No thread survives a restart, so every stamp left behind is dead."""
+    assert seeded.claim_chapters_regen(SLUG, EPISODE_ID)
+    detail = app_client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}').get_json()
+    assert detail['chaptersRegenerating'] is True
+
+    assert seeded.clear_chapters_regen_stamps() == 1
+    detail = app_client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}').get_json()
+    assert detail['chaptersRegenerating'] is False
+
+
+def test_a_taken_over_run_leaves_the_new_owner_alone(seeded):
+    """The old owner finishing late must not clear the run that replaced it."""
+    stale = '2020-01-01T00:00:00Z'
+    conn = seeded.get_connection()
+    conn.execute("UPDATE episodes SET chapters_regen_started_at = ? WHERE episode_id = ?",
+                 (stale, EPISODE_ID))
+    conn.commit()
+
+    stamp = seeded.claim_chapters_regen(SLUG, EPISODE_ID)
+    assert stamp and stamp != stale
+
+    seeded.finish_chapters_regen(SLUG, EPISODE_ID, stale, error='late failure')
+    row = seeded.get_episode(SLUG, EPISODE_ID)
+    assert row['chapters_regen_started_at'] == stamp
+    assert row['chapters_regen_error'] is None
+
+    seeded.finish_chapters_regen(SLUG, EPISODE_ID, stamp)
+    assert seeded.get_episode(SLUG, EPISODE_ID)['chapters_regen_started_at'] is None
+
+
+def test_regenerate_aborts_when_the_episode_moves_underneath_it(app_client, seeded):
+    """Chapters cut from a transcript a reprocess has replaced are not saved."""
+    before = seeded.get_episode(SLUG, EPISODE_ID)['chapters_json']
+    real_get_episode = type(seeded).get_episode
+    calls = []
+
+    def fake_get_episode(self, slug, episode_id):
+        row = real_get_episode(self, slug, episode_id)
+        calls.append(row)
+        # 1: the job's entry read, 2: the check right before the save.
+        return {**row, 'status': 'processing'} if len(calls) == 2 else row
+
+    with patch.object(type(seeded), 'get_episode', fake_get_episode):
+        resp = _post_regenerate(app_client, {
+            'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]},
+            ad_config=AdChapterConfig.disabled())
+
+    assert resp.status_code == 202, resp.data
+    row = seeded.get_episode(SLUG, EPISODE_ID)
+    assert row['chapters_json'] == before
+    assert 'reprocessed during chapter regeneration' in row['chapters_regen_error']
+
+
+def test_regenerate_merges_the_markers_as_of_the_save(app_client, seeded):
+    """A correction landing during the LLM pass must not be reverted by the merge."""
+    seeded.save_applied_cuts(SLUG, EPISODE_ID, [])
+    headers = _authed(app_client)
+
+    def reject_the_marker(*_args, **_kwargs):
+        seeded.save_episode_details(SLUG, EPISODE_ID, ad_markers=[])
+        return {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+
+    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+         patch('api.episodes.ChaptersGenerator') as generator, \
          patch('api.episodes.embed_chapters', return_value=False), \
          patch('api.episodes.resolve_ad_chapter_config',
-               lambda db, row, slug=None: AdChapterConfig.disabled()), \
+               lambda db, row, slug=None: AD_CFG), \
          patch('main_app.processing._refresh_rss_for_slug'):
-        generator.return_value.generate_chapters.return_value = {
-            'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+        generator.return_value.generate_chapters.side_effect = reject_the_marker
         resp = app_client.post(
             f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
             headers=headers)
 
-    assert resp.status_code == 200, resp.data
-    assert resp.get_json()['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
+    assert resp.status_code == 202, resp.data
+    stored = json.loads(seeded.get_episode(SLUG, EPISODE_ID)['chapters_json'])
+    assert stored['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
+
+
+def test_regenerate_does_not_save_once_its_stamp_was_taken_over(app_client, seeded):
+    """A run past the claim window lost the episode to a newer one."""
+    before = seeded.get_episode(SLUG, EPISODE_ID)['chapters_json']
+    newer = '2099-01-01T00:00:00Z'
+
+    def take_the_stamp_over(*_args, **_kwargs):
+        conn = seeded.get_connection()
+        conn.execute("UPDATE episodes SET chapters_regen_started_at = ? "
+                     "WHERE episode_id = ?", (newer, EPISODE_ID))
+        conn.commit()
+        return {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+
+    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+         patch('api.episodes.ChaptersGenerator') as generator, \
+         patch('main_app.processing._refresh_rss_for_slug'):
+        generator.return_value.generate_chapters.side_effect = take_the_stamp_over
+        resp = app_client.post(
+            f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+            headers=_authed(app_client))
+
+    assert resp.status_code == 202, resp.data
+    row = seeded.get_episode(SLUG, EPISODE_ID)
+    assert row['chapters_json'] == before
+    # The newer run still owns the episode; the loser wrote nothing.
+    assert row['chapters_regen_started_at'] == newer
+    assert row['chapters_regen_error'] is None
+
+
+def test_regenerate_endpoint_reports_a_thread_that_will_not_start(app_client, seeded):
+    """A refused thread leaves no stamp behind for the 15 minute takeover."""
+    refuses = SimpleNamespace(Thread=MagicMock(side_effect=RuntimeError('no threads')))
+    with patch('api.episodes.threading', refuses):
+        resp = app_client.post(
+            f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+            headers=_authed(app_client))
+
+    assert resp.status_code == 500, resp.data
+    row = seeded.get_episode(SLUG, EPISODE_ID)
+    assert row['chapters_regen_started_at'] is None
+    assert row['chapters_regen_error'] == 'Could not start regeneration thread'
+
+
+def test_regen_job_records_the_error_when_the_hold_write_fails(app_client, seeded):
+    """The run failed either way, so the episode must not report a clean finish."""
+    error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
+    stamp = seeded.claim_chapters_regen(SLUG, EPISODE_ID)
+
+    with patch('api.episodes.ChaptersGenerator') as generator, \
+         patch('api.episodes.hold_queue_for_provider_limit',
+               side_effect=RuntimeError('settings write failed')):
+        generator.return_value.generate_chapters.side_effect = error
+        from api.episodes import _regenerate_chapters_job
+        _regenerate_chapters_job(SLUG, EPISODE_ID, stamp)
+
+    row = seeded.get_episode(SLUG, EPISODE_ID)
+    assert row['chapters_regen_started_at'] is None
+    assert 'resets in 900s' in row['chapters_regen_error']
+
+
+def test_chapter_step_publishes_ad_chapters_when_the_hold_write_fails(monkeypatch):
+    """The audio is already cut; a failed hold write must not cost it its chapters."""
+    monkeypatch.setattr(processing, 'hold_queue_for_provider_limit',
+                        MagicMock(side_effect=RuntimeError('settings write failed')))
+    storage_mock, embed_mock, _ = _run(
+        monkeypatch, _db(chapters_mode='generate'), publisher_chapters=[],
+        markers=KEPT_SPONSOR,
+        generator_error=ProviderRateLimitedError('resets in 900s',
+                                                 retry_after_seconds=900.0))
+
+    merged = _saved_chapters(storage_mock)
+    assert merged == [AD_ENTRY, RESUME_ENTRY]
+    _assert_embedded(embed_mock, merged)

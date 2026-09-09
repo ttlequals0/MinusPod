@@ -204,26 +204,9 @@ class SchemaMixin:
         cursor = conn.execute(f"PRAGMA table_info({table})")
         return {row['name'] for row in cursor.fetchall()}
 
-    def _run_schema_migrations(self):
-        """Run schema migrations for existing databases."""
-        # Import here to avoid circular imports at module level
-        from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
-        from database.settings import DEFAULT_MODEL_PRICING
-
-        conn = self.get_connection()
-
-        # Ensure schema_migrations exists before any sub-step references
-        # it. Avoids cascading failures if an earlier sub-migration fails
-        # before reaching its own CREATE TABLE IF NOT EXISTS.
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-                name TEXT PRIMARY KEY,
-                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-        """)
-        conn.commit()
-
-        # -- Episodes table columns --
+    def _add_episode_columns(self, conn):
+        """Add every additive episodes column. Re-run after each table rebuild
+        below, whose hardcoded DDL carries only the columns of its own era."""
         ep_cols = self._get_table_columns(conn, 'episodes')
         episodes_migrations = [
             ('ad_detection_status', 'TEXT DEFAULT NULL'),
@@ -270,9 +253,35 @@ class SchemaMixin:
             # Lifetime time-saved counter dedup (#727): saving already credited
             # to the total_time_saved stat for this episode's latest cut.
             ('credited_time_saved', 'REAL'),
+            # Chapter regeneration runs in a background thread; the stamp
+            # marks it in flight and the error is the last failure.
+            ('chapters_regen_started_at', 'TEXT'),
+            ('chapters_regen_error', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
+
+    def _run_schema_migrations(self):
+        """Run schema migrations for existing databases."""
+        # Import here to avoid circular imports at module level
+        from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
+        from database.settings import DEFAULT_MODEL_PRICING
+
+        conn = self.get_connection()
+
+        # Ensure schema_migrations exists before any sub-step references
+        # it. Avoids cascading failures if an earlier sub-migration fails
+        # before reaching its own CREATE TABLE IF NOT EXISTS.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            )
+        """)
+        conn.commit()
+
+        # -- Episodes table columns --
+        self._add_episode_columns(conn)
 
         # -- Episode details table columns --
         det_cols = self._get_table_columns(conn, 'episode_details')
@@ -682,6 +691,8 @@ class SchemaMixin:
 
                 # Re-enable FK enforcement
                 conn.execute("PRAGMA foreign_keys = ON")
+                # The DDL above predates the later additive columns; put them back.
+                self._add_episode_columns(conn)
                 logger.info("Migration: Successfully updated episodes table CHECK constraint")
         except Exception as e:
             logger.error(f"Migration failed for episodes CHECK constraint: {e}")
@@ -763,6 +774,8 @@ class SchemaMixin:
 
                 # Re-enable FK enforcement
                 conn.execute("PRAGMA foreign_keys = ON")
+                # The DDL above predates the later additive columns; put them back.
+                self._add_episode_columns(conn)
                 logger.info("Migration: Successfully updated episodes table CHECK constraint for discovered status")
         except Exception as e:
             logger.error(f"Migration failed for episodes discovered CHECK constraint: {e}")
@@ -772,10 +785,7 @@ class SchemaMixin:
         # 'deferred' (offline queue, #482). Same table-rebuild pattern as the
         # 'discovered' block above; the guard matches the quoted CHECK literal
         # so the deferred_at/deferred_service COLUMNS (added by
-        # episodes_migrations earlier) don't satisfy it. episodes_new mirrors
-        # the live column set at this point: the 'discovered' rebuild set plus
-        # every later episodes_migrations addition, so the common-column copy
-        # drops nothing.
+        # _add_episode_columns earlier) don't satisfy it.
         try:
             cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='episodes'")
             create_sql = cursor.fetchone()
@@ -852,6 +862,8 @@ class SchemaMixin:
 
                 # Re-enable FK enforcement
                 conn.execute("PRAGMA foreign_keys = ON")
+                # The DDL above predates the later additive columns; put them back.
+                self._add_episode_columns(conn)
                 logger.info("Migration: Successfully updated episodes table CHECK constraint for deferred status")
         except Exception as e:
             logger.error(f"Migration failed for episodes deferred CHECK constraint: {e}")
@@ -2131,12 +2143,9 @@ class SchemaMixin:
     def _run_backfill_credited_time_saved(self, conn):
         """One-time backfill of `episodes.credited_time_saved` (#727).
 
-        The column landed as NULL on every row, so the next completed run
-        for an already-credited episode computed `delta = saving - 0` and
-        credited the saving again. Backfill each row's saving from its
-        stored durations, then reset `total_time_saved` to their sum,
-        correcting any prior inflation. Gated by `schema_migrations`;
-        writes are absolute so a re-run is a no-op.
+        The column landed as NULL, so a later run for an already-credited
+        episode computed `delta = saving - 0` and credited it twice. Resets
+        `total_time_saved` to the row sum, correcting any prior inflation.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'backfill_credited_time_saved'"

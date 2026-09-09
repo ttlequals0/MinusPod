@@ -11,6 +11,18 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.10] - 2026-09-09
+
+### Fixed
+- Regenerate Chapters ran inside the request. A topic pass longer than a reverse proxy's timeout (about 100 s behind common tunnels) failed in the browser with "Load failed". The server had finished and saved the chapters anyway. It now starts a background run and returns 202, so the response no longer carries the chapter list; poll the episode instead. The episode page polls for you, shows "Regenerating chapters..." while the run is in flight, and reports the outcome. A start is refused while the episode is processing or another regeneration is running. A stamp left behind by a killed run is cleared at the next restart, or taken over after 15 minutes.
+- The six-hourly search index rebuild inserted 500 entries per transaction, holding the write lock for up to 14 s at a time; chunks are now 50 entries.
+- A database old enough to still need the episodes CHECK-constraint rebuild lost every column added after that rebuild's hardcoded DDL. The episode page then failed to load. Each rebuild now re-adds the later columns.
+- Regenerate Chapters refuses to start while the queue is held for a provider rate limit. A 429 during chapter generation, in a regeneration or a processing run, now records the hold and pauses the queue (when the rate-limit hold is enabled) instead of being logged and dropped. The run keeps its cut audio and gets ad chapters only.
+
+### Added
+- Marking the last held detection "Not an ad" offers a Re-detect Ads button in place of the review list, the same run as the Reprocess menu's Re-detect Ads.
+- A watchdog in every worker logs when its process stops scheduling threads for 5 s or more, with each thread's position before and after the stall. Writers that hold the SQLite lock while starved of the GIL show up here rather than as unexplained "database is locked" waits.
+
 ## [2.96.9] - 2026-09-08
 
 ### Fixed

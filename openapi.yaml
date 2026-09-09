@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.96.9
+  version: 2.96.10
   contact:
     name: MinusPod
   license:
@@ -1959,13 +1959,15 @@ paths:
         requiring full reprocessing. The VTT transcript must already exist.
         The new chapters are also embedded into the processed MP3 as ID3
         frames so players that ignore podcast:chapters pick them up.
+        The work runs in the background because the topic pass can outlast
+        a reverse proxy's request timeout; the episode reports progress.
       operationId: regenerateChapters
       parameters:
         - $ref: '#/components/parameters/slug'
         - $ref: '#/components/parameters/episode_id'
       responses:
-        '200':
-          description: Chapters regenerated successfully
+        '202':
+          description: Regeneration started in the background. Poll the episode; chaptersRegenerating clears when it finishes and chaptersRegenError carries a failure.
           content:
             application/json:
               schema:
@@ -1973,24 +1975,12 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: Chapters regenerated
+                    example: Chapter regeneration started
                   episodeId:
                     type: string
-                  chapterCount:
-                    type: integer
-                  chapters:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        startTime:
-                          type: number
-                          description: Chapter start time in seconds
-                        title:
-                          type: string
-                  embedded:
-                    type: boolean
-                    description: Whether the chapters were also written into the processed MP3 as ID3 frames
+                  status:
+                    type: string
+                    enum: [started]
         '400':
           description: No VTT transcript available (full reprocess required)
           content:
@@ -1999,6 +1989,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: A regeneration is already running, the episode is being processed, or an LLM provider rate-limit hold is active
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -10009,6 +10001,14 @@ components:
                     - 'null'
             transcriptAvailable:
               type: boolean
+            chaptersRegenerating:
+              type: boolean
+              description: A chapter regeneration started by regenerate-chapters is still running
+            chaptersRegenError:
+              type:
+                - string
+                - 'null'
+              description: Why the last chapter regeneration failed; null after a successful one
             originalTranscriptAvailable:
               type: boolean
               description: Whether an original (pre-cut) transcript is available

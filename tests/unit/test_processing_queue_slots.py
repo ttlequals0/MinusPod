@@ -143,6 +143,17 @@ def test_hard_timeout_force_clears_only_that_slot(queue, monkeypatch):
     assert queue.get_current() == [('a', '1')]
 
 
+def test_hard_timeout_keeps_a_live_slot_from_another_worker(queue, monkeypatch):
+    """Another worker's run still owns its slot; clearing it would let a second
+    run of the same episode start alongside it."""
+    import processing_queue
+    monkeypatch.setattr('processing_queue.get_hard_timeout', lambda: 60)
+    # pid 1 always exists and is never this process.
+    queue._seed_slot('b', '2', started_at=time.time() - 3600, pid=1,
+                     pid_start=processing_queue._pid_start_time(1))
+    assert queue.is_processing('b', '2') is True
+
+
 def test_release_if_processing(queue):
     queue.acquire('a', '1', limit=1)
     assert queue.release_if_processing('x', 'y') is False

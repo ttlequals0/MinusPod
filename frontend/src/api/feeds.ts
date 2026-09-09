@@ -428,14 +428,11 @@ export async function reprocessAllEpisodes(
   });
 }
 
+// The run is started in the background; the episode reports its outcome.
 export interface RegenerateChaptersResult {
   message: string;
-  chapterCount: number;
-  chapters: Array<{
-    title: string;
-    startTime: number;
-    endTime?: number;
-  }>;
+  episodeId: string;
+  status: 'started';
 }
 
 export async function regenerateChapters(

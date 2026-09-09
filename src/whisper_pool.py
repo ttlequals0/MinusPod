@@ -12,6 +12,7 @@ from config import (
     WHISPER_BACKEND_API, WHISPER_POOL_MAX_EPISODES_RANGE,
     WHISPER_POOL_MAX_REQUESTS_RANGE, coerce_bool_setting,
 )
+from database.settings import registry_get_default
 from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger('podcast.whisper_pool')
@@ -41,7 +42,6 @@ def is_background_leader() -> bool:
 
 def _pool_int(db, key: str, bounds: tuple[int, int]) -> int:
     """One clamped pool numeric: the stored value, else the registry default."""
-    from database.settings import registry_get_default
     lo, hi = bounds
     return max(lo, min(hi, db.get_setting_int(key, registry_get_default(key))))
 

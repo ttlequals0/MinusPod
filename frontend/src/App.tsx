@@ -8,7 +8,7 @@ import Layout from './components/Layout';
 import GlobalStatusBar from './components/GlobalStatusBar';
 import Dashboard from './pages/Dashboard';
 import FeedDetail from './pages/FeedDetail';
-import EpisodeDetail from './pages/EpisodeDetail';
+import { KeyedEpisodeDetail } from './pages/EpisodeDetail';
 import AddFeed from './pages/AddFeed';
 import Settings from './pages/Settings';
 import PatternsPage from './pages/PatternsPage';
@@ -39,7 +39,7 @@ const router = createBrowserRouter(
           children: [
             { index: true, element: <Dashboard /> },
             { path: 'feeds/:slug', element: <FeedDetail /> },
-            { path: 'feeds/:slug/episodes/:episodeId', element: <EpisodeDetail /> },
+            { path: 'feeds/:slug/episodes/:episodeId', element: <KeyedEpisodeDetail /> },
             { path: 'add', element: <AddFeed /> },
             { path: 'search', element: <Search /> },
             { path: 'patterns', element: <PatternsPage /> },

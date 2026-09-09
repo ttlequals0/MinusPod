@@ -693,6 +693,7 @@ from main_app.background import (
 )
 from whisper_pool import mark_background_leader
 from podping_listener import podping_listener_loop
+import stall_watchdog
 from status_service import reconcile_startup_state
 
 # The logo as ASCII: mirrored waveform with the strikethrough (the minus)
@@ -763,6 +764,11 @@ def _startup():
     signal.signal(signal.SIGTERM, graceful_shutdown)
     signal.signal(signal.SIGINT, graceful_shutdown)
     logger.debug("Registered signal handlers for graceful shutdown")
+
+    # Every worker: a stall is per-process, and only the leader's threads
+    # would otherwise be sampled.
+    if _background_threads_enabled():
+        stall_watchdog.start()
 
     base_url = os.getenv('BASE_URL', 'http://localhost:8000')
 

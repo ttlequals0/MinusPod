@@ -191,7 +191,10 @@ class ProcessingQueue:
                 logger.warning(f"Clearing orphaned queue slot: {key} ({elapsed/60:.0f} min, process gone)")
                 _sync_status_clear(slug, episode_id)
                 continue
-            if elapsed > hard:
+            # Only this process can force-clear its own overrun run: another
+            # worker's live pid still owns its slot, and dropping it here would
+            # let a second run of the same episode start alongside it.
+            if elapsed > hard and int(slot.get('pid') or 0) == os.getpid():
                 logger.error(
                     f"Force-clearing stuck job: {key} ({elapsed/60:.0f} min exceeds hard "
                     f"timeout {hard/60:.0f} min). Raise 'processing_hard_timeout_seconds' if premature.")

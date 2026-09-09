@@ -72,6 +72,7 @@ from rate_limit_hold import (
     RATE_LIMIT_PROBE_MINUTES_MIN, RATE_LIMIT_PROBE_MINUTES_MAX,
 )
 from pricing_fetcher import force_refresh_pricing
+from transcriber import _get_chunk_settings, probe_whisper_health
 from whisper_pool import get_pool
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
@@ -2551,7 +2552,6 @@ def get_whisper_capacity():
     Refreshes only this worker's pool; the leader's dispatcher refreshes its
     own pool every pass (5s settings TTL), so no cross-process signal needed.
     """
-    from transcriber import _get_chunk_settings, probe_whisper_health
     pool = get_pool()
     pool.refresh(force=True)
     snap = pool.snapshot()

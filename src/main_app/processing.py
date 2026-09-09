@@ -7,7 +7,6 @@ import tempfile
 import threading
 import time
 from dataclasses import replace
-from datetime import timedelta
 
 import requests
 import requests.exceptions
@@ -46,8 +45,8 @@ from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import (clip_dai_core_spans, fold_marker_pair,
                            foldable_twin, invalidate_tail_provenance)
 from utils.time import (
-    adjust_timestamp, epoch_to_iso, ISO_FORMAT, merge_cut_spans, overlap_ratio,
-    ranges_overlap, span_inside_any_cut, utc_now, utc_now_iso,
+    adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio,
+    ranges_overlap, span_inside_any_cut, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from whisper_pool import get_pool, is_background_leader
@@ -117,8 +116,7 @@ from llm_client import (
 from database.queue import compute_queue_priority
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
-    get_llm_usage_url, hold_message, is_queue_paused, is_rate_limit_hold_enabled,
-    read_usage_status, record_hold_until, usage_reset_iso,
+    hold_message, hold_queue_for_provider_limit, is_queue_paused,
 )
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -146,8 +144,7 @@ from utils.text import (
 )
 from webhook_service import (
     fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED,
-    fire_cue_template_quiet_event, fire_queue_held_event,
-    fire_service_offline_event,
+    fire_cue_template_quiet_event, fire_service_offline_event,
 )
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -3480,16 +3477,30 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                             return
             chapters_gen = ChaptersGenerator()
             clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
-            chapters = chapters_gen.generate_chapters(
-                segments,
-                episode_description=episode_description,
-                ads_removed=all_cuts,
-                podcast_name=podcast_name,
-                episode_title=episode_title,
-                episode_id=episode_id,
-                replacement_duration=replacement_duration,
-                segment_markers=markers,
-            )
+            try:
+                chapters = chapters_gen.generate_chapters(
+                    segments,
+                    episode_description=episode_description,
+                    ads_removed=all_cuts,
+                    podcast_name=podcast_name,
+                    episode_title=episode_title,
+                    episode_id=episode_id,
+                    replacement_duration=replacement_duration,
+                    segment_markers=markers,
+                )
+            except ProviderRateLimitedError as e:
+                # The audio is already cut, so hold the queue and publish ad
+                # chapters only rather than failing the run.
+                hold_until = None
+                try:
+                    hold_until = hold_queue_for_provider_limit(
+                        db, e, slug=slug, episode_id=episode_id, podcast_name=podcast_name)
+                except Exception:
+                    audio_logger.exception(
+                        f"[{slug}:{episode_id}] Failed to record the rate-limit hold")
+                chapters = None
+                chapters_gen.chapters_degraded = True
+                chapters_gen.chapters_degradation_reason = hold_message(hold_until, e)
             if run_stats is not None and chapters_gen.chapters_degraded:
                 run_stats['chapters_degraded'] = True
                 run_stats['chapters_degraded_reason'] = chapters_gen.chapters_degradation_reason
@@ -3532,8 +3543,10 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         ads_removed_firstpass=first_pass_count,
         ads_removed_secondpass=verification_count,
         # A successful finalize clears any message left by an earlier failure
-        # or by the stuck-row sweep.
+        # or by the stuck-row sweep, including a failed chapter regeneration
+        # whose chapters this run has just replaced.
         error_message=None,
+        chapters_regen_error=None,
         reprocess_mode=None,
         reprocess_requested_at=None,
         deferred_at=None,
@@ -4396,58 +4409,39 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # Rate-limit hold (#696): a 429 with a reset sends the episode back to
     # the queue and pauses new starts until the reset. Runs before the
     # offline-queue branch: throttling is not an outage. retry_count untouched.
-    if isinstance(error, ProviderRateLimitedError) and is_rate_limit_hold_enabled(db):
-        hold_until_iso = None
-        usage_url = get_llm_usage_url(db)
-        if usage_url:
-            # The 429's own stated reset can be wrong in either direction; a
-            # configured usage endpoint's own numbers are more reliable.
-            payload = read_usage_status(usage_url)
-            if payload is not None and payload.get('blocked') is True:
-                hold_until_iso = usage_reset_iso(payload)
-        if hold_until_iso is None:
-            hold_until = utc_now() + timedelta(
-                seconds=max(0.0, float(error.retry_after_seconds)))
-            hold_until_iso = hold_until.strftime(ISO_FORMAT)
-        effective_until, hold_started = record_hold_until(db, hold_until_iso)
-        db.upsert_episode(
-            slug, episode_id,
-            status=EpisodeStatus.PENDING.value,
-            error_message=hold_message(effective_until, error),
-        )
-        # Release the claimed queue row in place so the episode keeps its
-        # priority and position. A run started outside the queue processor
-        # has no row, so it gets one at the boost its request would carry.
-        if not db.reopen_claimed_queue_row(slug, episode_id):
-            # episode_data predates the run; a JIT play may have had no row
-            # then, so read the row the run wrote.
-            row = db.get_episode(slug, episode_id) or episode_data or {}
-            podcast = db.get_podcast_by_slug(slug) or {}
-            # Only Play and Reprocess start outside the queue, so this is user
-            # intent: the mark clears the drainer's auto-process gate. Never
-            # over an existing stamp, which would relabel someone's reprocess.
-            if not row.get('reprocess_requested_at'):
-                db.upsert_episode(slug, episode_id,
-                                  reprocess_requested_at=utc_now_iso(),
-                                  reprocess_source=REPROCESS_SOURCE_JIT)
-            db.upsert_episode_for_processing(
-                slug, episode_id, row.get('original_url'),
-                title=episode_title, published_at=row.get('published_at'),
-                description=row.get('description'),
-                priority=compute_queue_priority(
-                    podcast.get('queue_priority'), row.get('published_at'),
-                    manual=True),
+    if isinstance(error, ProviderRateLimitedError):
+        hold_until = hold_queue_for_provider_limit(
+            db, error, slug=slug, episode_id=episode_id, podcast_name=podcast_name)
+        if hold_until:
+            db.upsert_episode(
+                slug, episode_id,
+                status=EpisodeStatus.PENDING.value,
+                error_message=hold_message(hold_until, error),
             )
-        audio_logger.warning(
-            f"[{slug}:{episode_id}] Rate-limit hold: paused until "
-            f"{hold_until_iso} (provider reset)")
-        # One alert per pause: a later 429 under it only moves the reset out.
-        if hold_started:
-            fire_queue_held_event(
-                hold_until=effective_until,
-                error_message=error, slug=slug, episode_id=episode_id,
-                podcast_name=podcast_name)
-        return
+            # Release the claimed queue row in place so the episode keeps its
+            # priority and position. A run started outside the queue processor
+            # has no row, so it gets one at the boost its request would carry.
+            if not db.reopen_claimed_queue_row(slug, episode_id):
+                # episode_data predates the run; a JIT play may have had no row
+                # then, so read the row the run wrote.
+                row = db.get_episode(slug, episode_id) or episode_data or {}
+                podcast = db.get_podcast_by_slug(slug) or {}
+                # Only Play and Reprocess start outside the queue, so this is user
+                # intent: the mark clears the drainer's auto-process gate. Never
+                # over an existing stamp, which would relabel someone's reprocess.
+                if not row.get('reprocess_requested_at'):
+                    db.upsert_episode(slug, episode_id,
+                                      reprocess_requested_at=utc_now_iso(),
+                                      reprocess_source=REPROCESS_SOURCE_JIT)
+                db.upsert_episode_for_processing(
+                    slug, episode_id, row.get('original_url'),
+                    title=episode_title, published_at=row.get('published_at'),
+                    description=row.get('description'),
+                    priority=compute_queue_priority(
+                        podcast.get('queue_priority'), row.get('published_at'),
+                        manual=True),
+                )
+            return
 
     # Offline queue (#482): endpoint-down failures defer instead of failing.
     # Only typed exceptions qualify -- never string matching -- so genuine

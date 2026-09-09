@@ -16,6 +16,10 @@ SEARCH_GROUP_NAMES = ('shows', 'episodes', 'transcripts', 'patterns', 'sponsors'
 # Episodes per indexing statement: two bound params each, plus one MATCH term each.
 _INDEX_CHUNK = 500
 
+# Rows per write transaction during a rebuild; bounds the lock hold when
+# bodies run to 100k characters.
+_REBUILD_TX_ROWS = 50
+
 # One definition for the migration and the rebuild's shadow table.
 SEARCH_INDEX_DDL = """CREATE VIRTUAL TABLE IF NOT EXISTS {name} USING fts5(
     content_type,
@@ -41,8 +45,11 @@ def _shadow_owner_alive(name: str) -> bool:
         return tid in {t.ident for t in threading.enumerate()}
     try:
         os.kill(pid, 0)
-    except (ProcessLookupError, PermissionError):
+    except ProcessLookupError:
         return False
+    except PermissionError:
+        # The pid exists, it just is not ours; same rule ProcessingQueue uses.
+        return True
     return True
 
 # search_index column order: content_type, content_id, podcast_slug, title, body, metadata.
@@ -117,9 +124,9 @@ class SearchMixin:
         try:
             # Short transactions per chunk, then one quick DDL swap: the old
             # table stays live and the write lock is never held across the fill.
-            for start in range(0, len(rows), _INDEX_CHUNK):
+            for start in range(0, len(rows), _REBUILD_TX_ROWS):
                 with self.transaction(immediate=True) as tx:
-                    tx.executemany(insert, rows[start:start + _INDEX_CHUNK])
+                    tx.executemany(insert, rows[start:start + _REBUILD_TX_ROWS])
             with self.transaction(immediate=True) as tx:
                 late = tx.execute(
                     "SELECT content_type, content_id, podcast_slug, title, body, metadata "

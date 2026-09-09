@@ -708,10 +708,8 @@ class StatsMixin:
                 'maxAudioCuesDetected', 'totalAudioCuesDetected',
             ]}
 
-        # Episode-scoped population: episodes still in the table with at least
-        # one completed run. The saved-time aggregates are restricted to
-        # episodes that actually got shorter, so avg * episodesWithTimeSaved
-        # == totalTimeSavedSeconds.
+        # Saved-time aggregates count only episodes that got shorter, so
+        # avg * episodesWithTimeSaved == totalTimeSavedSeconds.
         ep_where_sql = " AND p.slug = ?" if podcast_slug else ""
         ep_params = [podcast_slug] if podcast_slug else []
         saved = _SAVED_SECONDS_CASE_SQL

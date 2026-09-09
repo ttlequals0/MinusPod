@@ -258,6 +258,9 @@ function EpisodeDetail() {
   // When a "Confirm & Recut" action fires, this flag signals the correctionMutation
   // onSuccess to chain a recut immediately after the correction is stored.
   const pendingRecutRef = useRef(false);
+  // Rejecting the last held marker clears the review set; the banner that follows
+  // offers a re-detect.
+  const [heldReviewCleared, setHeldReviewCleared] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const queryClient = useQueryClient();
@@ -266,6 +269,7 @@ function EpisodeDetail() {
     queryKey: ['episode', slug, episodeId],
     queryFn: () => getEpisode(slug!, episodeId!),
     enabled: !!slug && !!episodeId,
+    refetchInterval: (query) => (query.state.data?.chaptersRegenerating ? 3000 : false),
   });
 
   // Fetched only for ``artworkUrl``, the fallback when the episode
@@ -282,6 +286,8 @@ function EpisodeDetail() {
     // only queues the run, so returning early would re-enable the button while
     // the cached status still said the episode was idle.
     onSuccess: async () => {
+      // A later run supersedes the cleared-review banner from an earlier one.
+      setHeldReviewCleared(false);
       await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
     // Processing is serialized by a lock, so a stale cached status leaves the
@@ -295,11 +301,16 @@ function EpisodeDetail() {
 
   const regenerateChaptersMutation = useMutation({
     mutationFn: () => regenerateChapters(slug!, episodeId!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+    // Awaited so isPending covers the refetch; the POST only starts the run,
+    // so returning early would re-enable the item before the row reports it.
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
-    onError: (error) => {
+    // A 409 means a run the cache did not know about is already in flight,
+    // so refetch for the same reason reprocess does.
+    onError: async (error) => {
       console.error('Failed to regenerate chapters:', error);
+      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
   });
 
@@ -343,13 +354,21 @@ function EpisodeDetail() {
       // visible owner. Stop it up front.
       markerAudition.stop();
     },
-    onSuccess: () => {
+    onSuccess: (_data, correction) => {
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
       if (pendingRecutRef.current) {
         pendingRecutRef.current = false;
         reprocessMutation.mutate('recut');
+      }
+      // episode here is the pre-refetch row, so a single held marker
+      // matching this reject means the review set just emptied.
+      const held = episode?.pendingReviewMarkers ?? [];
+      const oa = correction.originalAd;
+      if (correction.type === 'reject' && held.length === 1 && oa
+          && held[0].start === oa.start && held[0].end === oa.end) {
+        setHeldReviewCleared(true);
       }
     },
     onError: (error) => {
@@ -489,6 +508,13 @@ function EpisodeDetail() {
 
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
+
+  const redetectDisabled = REDETECT_DISABLED_MODES.has(feed?.processingMode);
+  const chaptersRegenerating = regenerateChaptersMutation.isPending
+    || !!episode.chaptersRegenerating;
+  const redetectTooltip = feed?.processingMode && redetectDisabled
+    ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
+    : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)';
 
   // An episode that hasn't gone through the pipeline yet reads "Process",
   // not "Reprocess". Keyed on processedAt presence, not status: status
@@ -692,14 +718,12 @@ function EpisodeDetail() {
                     onClick: () => reprocessMutation.mutate('recut') }] : []),
                   ...(episode.transcriptAvailable ? [{
                     title: 'Re-detect Ads', subtitle: 'Keep transcript, re-cut',
-                    disabled: REDETECT_DISABLED_MODES.has(feed?.processingMode),
-                    tooltip: feed?.processingMode && REDETECT_DISABLED_MODES.has(feed.processingMode)
-                      ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
-                      : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)',
+                    disabled: redetectDisabled,
+                    tooltip: redetectTooltip,
                     onClick: () => reprocessMutation.mutate('llm') }] : []),
                   ...(episode.transcriptVttAvailable ? [{
                     title: 'Regenerate Chapters', subtitle: 'Use existing transcript',
-                    disabled: regenerateChaptersMutation.isPending,
+                    disabled: chaptersRegenerating,
                     tooltip: 'Regenerate chapters from existing transcript',
                     onClick: () => regenerateChaptersMutation.mutate() }] : []),
                 ]}
@@ -715,17 +739,23 @@ function EpisodeDetail() {
           <p className="mt-2 text-xs text-destructive">{downloadError}</p>
         )}
 
-        {regenerateChaptersMutation.isPending && (
+        {chaptersRegenerating && (
           <p className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
             <LoadingSpinner size="sm" inline /> Regenerating chapters...
           </p>
         )}
-        {regenerateChaptersMutation.isSuccess && (
+        {regenerateChaptersMutation.isSuccess && !episode.chaptersRegenerating
+          && !episode.chaptersRegenError && (
           <p className="mt-2 text-sm text-success">Chapters regenerated.</p>
         )}
         {regenerateChaptersMutation.isError && (
           <p className="mt-2 text-sm text-destructive">
             {getErrorMessage(regenerateChaptersMutation.error, 'Failed to regenerate chapters')}
+          </p>
+        )}
+        {!episode.chaptersRegenerating && episode.chaptersRegenError && (
+          <p className="mt-2 text-sm text-destructive">
+            Chapter regeneration failed: {episode.chaptersRegenError}
           </p>
         )}
 
@@ -1184,6 +1214,28 @@ function EpisodeDetail() {
         );
       })()}
 
+      {heldReviewCleared && heldMarkers.length === 0 && episode.status !== 'processing'
+        && episode.transcriptAvailable && (
+        <div
+          className="bg-card rounded-lg border border-border p-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4"
+          data-testid="held-review-cleared"
+        >
+          <p className="text-sm text-muted-foreground flex-1">
+            All held detections are marked not an ad. Run detection again on the
+            existing transcript to look for anything it missed.
+          </p>
+          <button
+            onClick={() => { setHeldReviewCleared(false); reprocessMutation.mutate('llm'); }}
+            disabled={reprocessMutation.isPending || redetectDisabled}
+            title={redetectTooltip}
+            data-testid="redetect-after-review"
+            className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
+          >
+            Re-detect Ads
+          </button>
+        </div>
+      )}
+
       {heldMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-warning/30 p-6 mb-6" data-testid="held-for-review-section">
           <h2 className="text-xl font-semibold text-foreground mb-4">
@@ -1608,6 +1660,13 @@ function EpisodeDetail() {
 
     </div>
   );
+}
+
+// Keyed on the episode so per-episode transient state does not carry over when
+// Newer/Older swaps the episode under the same route.
+export function KeyedEpisodeDetail() {
+  const { episodeId } = useParams<{ episodeId: string }>();
+  return <EpisodeDetail key={episodeId} />;
 }
 
 export default EpisodeDetail;

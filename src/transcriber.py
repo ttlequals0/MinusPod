@@ -530,10 +530,8 @@ _HEALTH_INSTANCE_FIELDS = (
 # does not fire fresh outbound requests every tick.
 _HEALTH_CACHE_TTL_SECONDS = 120.0
 _health_cache = TTLCache(ttl_seconds=_HEALTH_CACHE_TTL_SECONDS)
-# A hanging backend costs samples * timeout, and the cache only absorbs
-# repeats once the first probe returns. The budget caps how many samples a
-# probe starts, and the in-flight set stops a 15s poll loop stacking more
-# against the same backend while one is still running.
+# The budget caps how many samples a probe starts; the in-flight set stops a
+# 15s poll loop stacking more against a backend still being probed.
 _HEALTH_PROBE_BUDGET_SECONDS = 15.0
 _health_inflight: set[str] = set()
 _health_inflight_lock = threading.Lock()

@@ -77,8 +77,11 @@ function DropdownMenu({
     });
   };
 
-  // A trigger that becomes disabled (a mutation started elsewhere) must
-  // not leave an open menu with live items behind it.
+  // A trigger that becomes disabled (a mutation started elsewhere) must not
+  // leave an open menu with live items behind it. Dropping the open state
+  // during render, not only hiding it, keeps re-enabling from popping the
+  // menu back open under the pointer.
+  if (disabled && open) setOpen(false);
   const isOpen = open && !disabled;
   useOutsideClick(rootRef, isOpen, () => setOpen(false));
 

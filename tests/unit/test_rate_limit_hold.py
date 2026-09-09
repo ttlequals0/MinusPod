@@ -23,6 +23,7 @@ from main_app.processing import (
 from rate_limit_hold import (
     get_active_hold,
     hold_message,
+    hold_queue_for_provider_limit,
     is_queue_paused,
     is_rate_limit_hold_enabled,
     rate_limit_hold_tick,
@@ -514,6 +515,19 @@ class TestToggleDefault:
         assert is_rate_limit_hold_enabled(db) is False
 
 
+class TestHoldHelperDisabled:
+    @patch('rate_limit_hold.fire_queue_held_event')
+    def test_toggle_off_records_no_hold(self, mock_fire, seeded_episode):
+        _set_hold_enabled(False)
+        held = hold_queue_for_provider_limit(
+            db, ProviderRateLimitedError('429', retry_after_seconds=900),
+            slug=SLUG, episode_id=seeded_episode, podcast_name='Rate Limit Hold Test')
+        assert held is None
+        assert not db.get_setting('rate_limit_hold_until')
+        assert not db.get_setting('rate_limit_hold_since')
+        mock_fire.assert_not_called()
+
+
 class TestActiveHold:
     def test_masks_a_marker_past_its_reset(self, seeded_episode):
         db.set_setting('rate_limit_hold_until', '2020-01-01T00:00:00Z')
@@ -528,7 +542,7 @@ class TestActiveHold:
 
 
 class TestHoldAlerts:
-    @patch('main_app.processing.fire_queue_held_event')
+    @patch('rate_limit_hold.fire_queue_held_event')
     def test_hold_entry_fires_queue_held_once(self, mock_fire, seeded_episode):
         _set_hold_enabled(True)
         _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=900))
@@ -539,7 +553,7 @@ class TestHoldAlerts:
         assert kwargs['hold_until'] == db.get_setting('rate_limit_hold_until')
         assert db.get_setting('rate_limit_hold_since')
 
-    @patch('main_app.processing.fire_queue_held_event')
+    @patch('rate_limit_hold.fire_queue_held_event')
     def test_shorter_reset_under_active_hold_does_not_fire(self, mock_fire, seeded_episode):
         _set_hold_enabled(True)
         _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=1800))
@@ -548,7 +562,7 @@ class TestHoldAlerts:
         assert mock_fire.call_count == 1
         assert db.get_setting('rate_limit_hold_until') == first_until
 
-    @patch('main_app.processing.fire_queue_held_event')
+    @patch('rate_limit_hold.fire_queue_held_event')
     def test_longer_reset_extends_hold_without_firing_again(self, mock_fire, seeded_episode):
         """One alert per pause: a user-requested episode claimed during the
         hold 429s too and pushes the reset out, which is not a new pause."""
@@ -559,7 +573,7 @@ class TestHoldAlerts:
         assert mock_fire.call_count == 1
         assert db.get_setting('rate_limit_hold_until') > first_until
 
-    @patch('main_app.processing.fire_queue_held_event')
+    @patch('rate_limit_hold.fire_queue_held_event')
     def test_hold_after_the_previous_one_lapsed_fires_again(self, mock_fire, seeded_episode):
         _set_hold_enabled(True)
         _fail(seeded_episode, ProviderRateLimitedError('429', retry_after_seconds=900))

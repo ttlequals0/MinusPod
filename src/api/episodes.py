@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+import threading
 
 from flask import Response, redirect, request, send_file, abort, url_for
 from werkzeug.utils import secure_filename
@@ -29,9 +30,12 @@ from database.queue import (
     QUEUE_PRIORITY_MAX, QUEUE_PRIORITY_MIN,
 )
 from embedded_chapters import embed_chapters
-from llm_client import start_episode_token_tracking, get_episode_token_totals
+from llm_client import (
+    ProviderRateLimitedError, start_episode_token_tracking, get_episode_token_totals,
+)
 import run_context
 from processing_queue import ProcessingQueue
+from rate_limit_hold import get_active_hold, hold_message, hold_queue_for_provider_limit
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT, batch_clear_episodes_for_mode,
     clear_episode_for_mode, reset_episode_for_reprocess,
@@ -41,7 +45,7 @@ from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
 from utils.text import (
-    extract_timed_spans_in_range, parse_transcript_segments,
+    extract_timed_spans_in_range, parse_transcript_segments, truncate,
 )
 from utils.time import epoch_to_iso, utc_now_iso
 
@@ -491,6 +495,8 @@ def get_episode(slug, episode_id):
         'transcriptAvailable': bool(episode.get('transcript_text')),
         'originalTranscriptAvailable': bool(episode.get('has_original_transcript')),
         'transcriptVttAvailable': transcript_vtt_available,
+        'chaptersRegenerating': bool(episode.get('chapters_regen_active')),
+        'chaptersRegenError': episode.get('chapters_regen_error'),
         'transcriptVttUrl': (f"/episodes/{slug}/{episode_id}.vtt{key_suffix}"
                              if transcript_vtt_available else None),
         'chaptersAvailable': chapters_available,
@@ -991,44 +997,93 @@ def reprocess_episode(slug, episode_id):
 @limiter.limit("10 per minute")
 @log_request
 def regenerate_chapters(slug, episode_id):
-    """Regenerate chapters for an episode without full reprocessing.
-
-    Uses existing VTT transcript to regenerate chapters with AI topic detection.
-    VTT segments are already adjusted (ads removed), so we don't use ad boundaries.
-    """
+    """Start chapter regeneration in a background thread; the episode row carries its state."""
     db = get_database()
-    storage = get_storage()
 
-    episode = db.get_episode(slug, episode_id)
+    episode = db.get_episode_state(slug, episode_id)
     if not episode:
         return error_response('Episode not found', 404)
-
-    # Get VTT transcript
-    vtt_content = storage.get_transcript_vtt(slug, episode_id)
-    if not vtt_content:
+    if not episode['has_transcript_vtt']:
         return error_response('No VTT transcript available - full reprocess required', 400)
+    hold_until, _ = get_active_hold(db)
+    if hold_until:
+        return error_response(
+            f'LLM provider is rate limited; new runs are held until {hold_until}', 409)
+    stamp = db.claim_chapters_regen(slug, episode_id)
+    if not stamp:
+        return error_response(
+            'Chapters are already being regenerated, or the episode is processing', 409)
 
-    # Parse VTT back to segments
-    segments = parse_vtt_to_segments(vtt_content)
+    try:
+        threading.Thread(target=_regenerate_chapters_job, args=(slug, episode_id, stamp),
+                         name=f"chapters-regen-{episode_id}", daemon=True).start()
+    except Exception:
+        logger.exception(f"[{slug}:{episode_id}] Could not start the regeneration thread")
+        db.finish_chapters_regen(slug, episode_id, stamp,
+                                 error='Could not start regeneration thread')
+        return error_response('Failed to start chapter regeneration', 500)
+    logger.info(f"[{slug}:{episode_id}] Chapter regeneration started")
+    return json_response({
+        'message': 'Chapter regeneration started',
+        'episodeId': episode_id,
+        'status': 'started',
+    }, 202)
+
+
+def _regenerate_chapters_job(slug, episode_id, stamp):
+    db = get_database()
+    error = None
+    podcast_name = slug
+    try:
+        episode = db.get_episode(slug, episode_id)
+        if not episode:
+            raise RuntimeError('Episode not found')
+        podcast = db.get_podcast_by_slug(slug) or {}
+        podcast_name = podcast.get('title') or slug
+        _regenerate_chapters(db, get_storage(), slug, episode_id, episode,
+                             podcast, podcast_name, stamp)
+    except ProviderRateLimitedError as exc:
+        error = truncate(str(exc), 500) or 'Chapter regeneration failed'
+        try:
+            hold_until = hold_queue_for_provider_limit(
+                db, exc, slug=slug, episode_id=episode_id, podcast_name=podcast_name)
+            error = hold_message(hold_until, exc)
+        except Exception:
+            logger.exception(f"Failed to record the rate-limit hold for {slug}:{episode_id}")
+    except Exception as exc:
+        logger.exception(f"Failed to regenerate chapters for {slug}:{episode_id}")
+        error = truncate(str(exc), 500) or 'Chapter regeneration failed'
+    finally:
+        db.finish_chapters_regen(slug, episode_id, stamp, error=error)
+
+
+def _markers_from_row(episode):
+    """Parsed ad markers from an episode row; None when absent or unreadable."""
+    if not episode.get('ad_markers_json'):
+        return None
+    try:
+        return json.loads(episode['ad_markers_json'])
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcast_name, stamp):
+    """Regenerate chapters from the VTT, save them, and embed them in the served MP3.
+
+    VTT segments are already ad-adjusted, so ad boundaries are not applied again.
+    """
+    segments = parse_vtt_to_segments(episode['transcript_vtt'])
     if not segments:
-        return error_response('Failed to parse VTT transcript', 500)
+        raise RuntimeError('Failed to parse VTT transcript')
 
-    # Get episode info
     episode_description = episode.get('description', '')
-    podcast = db.get_podcast_by_slug(slug)
-    podcast_name = podcast.get('title', slug) if podcast else slug
     episode_title = episode.get('title', 'Unknown')
 
     # Segment markers and applied cuts (both persisted from the run that
     # produced this VTT) let chapter regen give the topic detector the same
     # ad/segment-position hints the pipeline gets. Missing either just falls
     # back to no hints.
-    segment_markers = None
-    if episode.get('ad_markers_json'):
-        try:
-            segment_markers = json.loads(episode['ad_markers_json'])
-        except (json.JSONDecodeError, TypeError):
-            segment_markers = None
+    segment_markers = _markers_from_row(episode)
     marker_cuts = storage.get_applied_cuts(slug, episode_id)
 
     ctx = run_context.begin(slug, episode_id)
@@ -1050,52 +1105,52 @@ def regenerate_chapters(slug, episode_id):
             marker_cuts=marker_cuts,
         )
 
-        # marker_cuts None means no authoritative cuts persisted, not "no cuts":
+        # A reprocess finishing during the LLM call above rewrote the transcript
+        # these chapters came from, so they no longer describe the served audio.
+        current = db.get_episode(slug, episode_id)
+        if (current is None or current['status'] == EpisodeStatus.PROCESSING
+                or current['processed_version'] != episode.get('processed_version')
+                or current['processed_at'] != episode.get('processed_at')):
+            raise RuntimeError(
+                'Episode was reprocessed during chapter regeneration; chapters not saved')
+        # This run outlived its claim window and another took the stamp over.
+        if current['chapters_regen_started_at'] != stamp:
+            raise RuntimeError(
+                'Chapter regeneration was taken over by a newer run; chapters not saved')
+
+        # Markers and cuts are re-read here, not reused from entry: a correction
+        # applied during the LLM pass must not be reverted by the merge.
+        current_markers = _markers_from_row(current)
+        current_cuts = storage.get_applied_cuts(slug, episode_id)
+        # current_cuts None means no authoritative cuts persisted, not "no cuts":
         # skip the ad merge rather than place spans at original offsets.
-        if marker_cuts is None:
+        if current_cuts is None:
             logger.info(f"[{slug}:{episode_id}] No authoritative applied cuts "
                         f"persisted; skipping ad chapters")
         else:
             ad_config = resolve_ad_chapter_config(db, podcast, slug=slug)
             topic = (chapters or {}).get('chapters') or []
-            merged = merge_ad_chapters(topic, segment_markers, marker_cuts,
+            merged = merge_ad_chapters(topic, current_markers, current_cuts,
                                        segments[-1].get('end') if segments else None,
                                        get_replacement_duration(), ad_config)
             if merged:
                 chapters = {**(chapters or {'version': '1.2.0'}), 'chapters': merged}
 
-        if chapters and chapters.get('chapters'):
-            storage.save_chapters_json(slug, episode_id, chapters)
-            logger.info(f"[{slug}:{episode_id}] Regenerated {len(chapters['chapters'])} chapters from VTT")
-            # Also refresh the ID3 chapters in the served MP3 so players that
-            # ignore podcast:chapters see the new set (issue #523). Re-fetch
-            # the row: a reprocess finishing during the LLM call above may
-            # have bumped processed_version, and we must embed into the file
-            # that is actually served now, not the stale version read at entry.
-            embedded = False
-            current = db.get_episode(slug, episode_id) or episode
-            processed_path = storage.get_episode_path(
-                slug, episode_id, version=current.get('processed_version'))
-            served = public_chapters(chapters['chapters'])
-            if processed_path.exists():
-                embedded = embed_chapters(str(processed_path), served)
-            # Same seam a finished run uses, so the served feed (which may
-            # list the chapters, #720) picks up the new set.
-            from main_app.processing import _refresh_rss_for_slug
-            _refresh_rss_for_slug(slug, episode_id)
-            return json_response({
-                'message': 'Chapters regenerated',
-                'episodeId': episode_id,
-                'chapterCount': len(served),
-                'chapters': served,
-                'embedded': embedded
-            })
-        else:
-            return error_response('Failed to generate chapters', 500)
+        if not chapters or not chapters.get('chapters'):
+            raise RuntimeError('Failed to generate chapters')
 
-    except Exception:
-        logger.exception(f"Failed to regenerate chapters for {slug}:{episode_id}")
-        return error_response('Failed to regenerate chapters', 500)
+        storage.save_chapters_json(slug, episode_id, chapters)
+        logger.info(f"[{slug}:{episode_id}] Regenerated {len(chapters['chapters'])} chapters from VTT")
+        # Also refresh the ID3 chapters in the served MP3 so players that
+        # ignore podcast:chapters see the new set (issue #523).
+        processed_path = storage.get_episode_path(
+            slug, episode_id, version=current['processed_version'])
+        if processed_path.exists():
+            embed_chapters(str(processed_path), public_chapters(chapters['chapters']))
+        # Same seam a finished run uses, so the served feed (which may
+        # list the chapters, #720) picks up the new set.
+        from main_app.processing import _refresh_rss_for_slug
+        _refresh_rss_for_slug(slug, episode_id)
     finally:
         token_totals = get_episode_token_totals()
         run_context.end(ctx)

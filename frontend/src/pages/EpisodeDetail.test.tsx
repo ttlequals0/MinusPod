@@ -11,13 +11,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import EpisodeDetail from './EpisodeDetail';
+import EpisodeDetail, { KeyedEpisodeDetail } from './EpisodeDetail';
 import EpisodeList from '../components/EpisodeList';
 import type { Episode, EpisodeDetail as EpisodeDetailType } from '../api/types';
 
-// react-router stubs
+// react-router stubs. Mutable so a test can move the view to another episode.
+const routeParams = vi.hoisted(() => ({ slug: 'test-feed', episodeId: 'ep-1' }));
 vi.mock('react-router', () => ({
-  useParams: () => ({ slug: 'test-feed', episodeId: 'ep-1' }),
+  useParams: () => ({ ...routeParams }),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -360,6 +361,99 @@ describe('Held for Review: Dismiss', () => {
     const [, , payload] = mockSubmitCorrection.mock.calls[0] as [string, string, { type: string }];
     expect(payload.type).toBe('reject');
     expect(mockReprocessEpisode).not.toHaveBeenCalled();
+  });
+});
+
+describe('Held for Review: re-detect offer once every held marker is rejected', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+    mockSubmitCorrection.mockResolvedValue({});
+    mockReprocessEpisode.mockResolvedValue({});
+  });
+
+  it('offers Re-detect Ads after the last held marker is marked not an ad, and runs the llm mode', async () => {
+    const user = userEvent.setup();
+    const ep = makeEpisode({ transcriptAvailable: true });
+    renderDetail(ep);
+    await screen.findByTestId('dismiss-0');
+    // The refetch after the reject comes back with the held list empty.
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [] }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    const button = await screen.findByTestId('redetect-after-review');
+    expect(screen.queryByTestId('held-for-review-section')).toBeNull();
+    await user.click(button);
+    await waitFor(() => {
+      expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'llm');
+    });
+    expect(screen.queryByTestId('held-review-cleared')).toBeNull();
+  });
+
+  it('does not resurface the offer after a later reprocess', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [] }));
+    await user.click(screen.getByTestId('dismiss-0'));
+    await screen.findByTestId('redetect-after-review');
+
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Full Analysis'));
+
+    await waitFor(() => expect(screen.queryByTestId('held-review-cleared')).toBeNull());
+  });
+
+  it('does not offer it while other held markers remain', async () => {
+    const user = userEvent.setup();
+    const second = { ...heldMarker, start: 400, end: 500 };
+    renderDetail(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [heldMarker, second] }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [second] }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId('held-review-cleared')).toBeNull();
+  });
+
+  it('does not carry the offer to the next episode: the route keys on it', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true }));
+    const view = render(
+      <QueryClientProvider client={client}><KeyedEpisodeDetail /></QueryClientProvider>,
+    );
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [] }));
+    await user.click(screen.getByTestId('dismiss-0'));
+    await screen.findByTestId('redetect-after-review');
+
+    routeParams.episodeId = 'ep-2';
+    setupEpisodeMock(makeEpisode({
+      id: 'ep-2', title: 'Second Episode', transcriptAvailable: true, pendingReviewMarkers: [],
+    }));
+    view.rerender(
+      <QueryClientProvider client={client}><KeyedEpisodeDetail /></QueryClientProvider>,
+    );
+
+    await screen.findByText('Second Episode');
+    expect(screen.queryByTestId('redetect-after-review')).toBeNull();
+    routeParams.episodeId = 'ep-1';
+  });
+
+  it('does not offer it without a transcript to re-run detection on', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: false }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: false, pendingReviewMarkers: [] }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByTestId('held-for-review-section')).toBeNull());
+    expect(screen.queryByTestId('held-review-cleared')).toBeNull();
   });
 });
 
@@ -1076,6 +1170,71 @@ describe('Regenerate Chapters: progress and result feedback', () => {
     expect(menuItem).toHaveProperty('disabled', true);
 
     resolveRegenerate();
+  });
+});
+
+describe('Regenerate Chapters: background run reported by the episode', () => {
+  beforeEach(() => {
+    mockRegenerateChapters.mockReset();
+  });
+
+  it('shows progress and disables the item while the episode reports a run in flight', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [], transcriptVttAvailable: true, chaptersRegenerating: true,
+    }));
+
+    expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    const menuItem = screen.getByText('Regenerate Chapters').closest('button');
+    expect(menuItem).toHaveProperty('disabled', true);
+  });
+
+  it('shows the last failure the episode carries', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [], transcriptVttAvailable: true,
+      chaptersRegenError: 'Failed to generate chapters',
+    }));
+
+    expect(await screen.findByText('Chapter regeneration failed: Failed to generate chapters')).not.toBeNull();
+  });
+
+  it('refetches the episode when the start is refused', async () => {
+    const user = userEvent.setup();
+    mockRegenerateChapters.mockRejectedValueOnce(new Error('Chapters are already being regenerated'));
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    // The 409 came from a run the cache did not know about; the refetch shows it.
+    setupEpisodeMock(makeEpisode({
+      pendingReviewMarkers: [], transcriptVttAvailable: true, chaptersRegenerating: true,
+    }));
+
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Regenerate Chapters'));
+
+    expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
+  });
+
+  it('confirms only once a run started here has finished', async () => {
+    const user = userEvent.setup();
+    mockRegenerateChapters.mockResolvedValue({ status: 'started' });
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    // The refetch after the POST still reports the run in flight.
+    setupEpisodeMock(makeEpisode({
+      pendingReviewMarkers: [], transcriptVttAvailable: true, chaptersRegenerating: true,
+    }));
+
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Regenerate Chapters'));
+
+    expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
+    expect(screen.queryByText('Chapters regenerated.')).toBeNull();
+
+    // The next poll sees it finished.
+    setupEpisodeMock(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    expect(await screen.findByText('Chapters regenerated.', {}, { timeout: 5000 })).not.toBeNull();
+    expect(screen.queryByText('Regenerating chapters...')).toBeNull();
   });
 });
 

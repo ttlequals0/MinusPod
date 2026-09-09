@@ -39,7 +39,7 @@ def test_capacity_reflects_settings_and_local_backend(app_client):
         }, headers=hdr)
         # No real health endpoint behind this placeholder host: patch the
         # probe so an active pool never triggers outbound network I/O here.
-        with patch('transcriber.probe_whisper_health',
+        with patch('api.settings.probe_whisper_health',
                    return_value={'available': False}) as health_probe:
             body = app_client.get('/api/v1/settings/whisper/capacity').get_json()
         assert health_probe.called
@@ -49,7 +49,7 @@ def test_capacity_reflects_settings_and_local_backend(app_client):
         assert body['worstCaseInFlight'] == 8 and body['exceedsCapacity'] is True
         assert body['health'] == {'available': False}
         app_client.put('/api/v1/settings/ad-detection', json={'whisperBackend': 'local'}, headers=hdr)
-        with patch('transcriber.probe_whisper_health') as health_probe:
+        with patch('api.settings.probe_whisper_health') as health_probe:
             body = app_client.get('/api/v1/settings/whisper/capacity').get_json()
         assert not health_probe.called
         assert body['active'] is False and body['inactiveReason'] == 'local_backend'

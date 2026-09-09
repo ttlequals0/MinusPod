@@ -15,7 +15,7 @@ from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    get_llm_timeout, get_llm_max_retries,
+    get_llm_timeout, get_llm_max_retries, ProviderRateLimitedError,
 )
 from utils.llm_call import call_llm
 
@@ -367,6 +367,9 @@ class ChaptersGenerator:
                 pass_name=PASS_CHAPTER_GENERATION,
             )
             if response is None:
+                # A rate-limit hold is queue-wide state, not a degraded run.
+                if isinstance(last_error, ProviderRateLimitedError):
+                    raise last_error
                 logger.error(f"Failed to detect topic boundaries: {last_error}")
                 return None
 
@@ -414,6 +417,8 @@ class ChaptersGenerator:
             logger.warning(f"Chapter topic detection skipped: {e}")
             self._model_not_configured_message = str(e)
             return None
+        except ProviderRateLimitedError:
+            raise
         except Exception as e:
             logger.error(f"Failed to detect topic boundaries: {e}")
             return None
@@ -483,6 +488,8 @@ class ChaptersGenerator:
             self._model_not_configured_message = str(e)
             self._title_generation_failed = True
             return self._apply_generic_titles(chapters)
+        except ProviderRateLimitedError:
+            raise
         except Exception as e:
             logger.error(f"Failed to generate chapter titles: {e}")
             self._title_generation_failed = True
@@ -544,8 +551,7 @@ class ChaptersGenerator:
         )
         if response is None:
             # Caller (generate_chapter_titles) catches this and degrades to
-            # generic titles; retries/classification/webhooks already ran
-            # inside call_llm.
+            # generic titles, except a rate-limit hold, which propagates.
             raise last_error
 
         response_text = response.content.strip()
