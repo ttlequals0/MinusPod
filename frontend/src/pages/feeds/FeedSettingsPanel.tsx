@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MAX, rerenderSegments, RerenderSegmentsResult } from '../../api/feeds';
 import { listCueTemplates } from '../../api/cueTemplates';
@@ -13,6 +13,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import TriStateSelect from '../../components/TriStateSelect';
 import TriStateToggle from '../../components/TriStateToggle';
 import SegmentActionToggle from '../../components/SegmentActionToggle';
+import Checkbox from '../../components/Checkbox';
 import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, SEGMENT_CATEGORY_DESCRIPTIONS, DEFAULT_SEGMENT_ACTION,
   type SegmentCategory, type SegmentAction,
@@ -130,6 +131,38 @@ function CueOverrideRow({
   );
 }
 
+function GlobalOverrideRow({
+  label, ariaLabel, value, globalOn, disabled, onChange, children,
+}: {
+  label: string;
+  ariaLabel: string;
+  value: 'on' | 'off' | null | undefined;
+  globalOn: boolean;
+  disabled: boolean;
+  onChange: (value: 'on' | 'off' | null) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+      <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">{label}:</span>
+      <div className="flex flex-col gap-1 flex-1 min-w-0">
+        <select
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value === '' ? null : e.target.value as 'on' | 'off')}
+          disabled={disabled}
+          className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+          aria-label={ariaLabel}
+        >
+          <option value="">Use global ({globalOn ? 'on' : 'off'})</option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+        <p className="text-xs text-muted-foreground">{children}</p>
+      </div>
+    </div>
+  );
+}
+
 function FeedSettingsPanel({ feed, slug }: Props) {
   const queryClient = useQueryClient();
   // Mirrors the CollapsibleSection's persisted open state (same storage key)
@@ -183,6 +216,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     (settings?.lowAdYieldAction?.value as LowAdYieldAction | undefined) ?? 'nothing';
   const globalLowAdYieldLabel = LOW_AD_YIELD_ACTION_LABELS[globalLowAdYieldAction]
     ?? LOW_AD_YIELD_ACTION_LABELS.nothing;
+
+  const globalAdChapterCategories: Partial<Record<SegmentCategory, boolean>> =
+    settings?.adChapterCategories?.value ?? {};
+  const adChaptersOn = feed.adChaptersEnabled === 'on'
+    || (feed.adChaptersEnabled == null && settings?.adChaptersEnabled?.value === true);
 
   // Retention 0 turns run log storage off everywhere, so the global option
   // has to say which way it currently falls.
@@ -955,6 +993,68 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </p>
             </div>
           </div>
+
+          {/* Per-feed chapter list in descriptions (#720) */}
+          <GlobalOverrideRow
+            label="Chapter list"
+            ariaLabel="Chapters in descriptions"
+            value={feed.chaptersInNotes}
+            globalOn={!!settings?.chaptersInNotes?.value}
+            disabled={updateMutation.isPending}
+            onChange={(chaptersInNotes) => updateMutation.mutate({ chaptersInNotes })}
+          >
+            Append the chapter list to each episode&apos;s description in this
+            feed, so apps show it without starting playback.
+          </GlobalOverrideRow>
+
+          {/* Per-feed ad chapters override */}
+          <GlobalOverrideRow
+            label="Ad chapters"
+            ariaLabel="Ad chapters"
+            value={feed.adChaptersEnabled}
+            globalOn={!!settings?.adChaptersEnabled?.value}
+            disabled={updateMutation.isPending}
+            onChange={(adChaptersEnabled) => updateMutation.mutate({ adChaptersEnabled })}
+          >
+            Publish kept segments as chapters in this feed. Needs a chapters
+            mode other than Off.
+          </GlobalOverrideRow>
+
+          {adChaptersOn && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+              <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chaptered categories:</span>
+              <div className="flex flex-col gap-2 flex-1 min-w-0">
+                <Checkbox
+                  checked={feed.adChapterCategories == null}
+                  // Copying the global map needs the settings query resolved.
+                  disabled={updateMutation.isPending || !settings}
+                  onChange={(checked) => updateMutation.mutate({
+                    adChapterCategories: checked ? null : { ...globalAdChapterCategories },
+                  })}
+                  label="Use global categories"
+                />
+                {feed.adChapterCategories != null && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {SEGMENT_CATEGORIES.map((category) => (
+                      <Checkbox
+                        key={category}
+                        checked={feed.adChapterCategories?.[category]
+                          ?? globalAdChapterCategories[category] ?? false}
+                        disabled={updateMutation.isPending}
+                        onChange={(checked) => updateMutation.mutate({
+                          adChapterCategories: { ...feed.adChapterCategories, [category]: checked },
+                        })}
+                        label={SEGMENT_CATEGORY_LABELS[category]}
+                      />
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Which kept categories get a chapter in this feed.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Per-feed auto-process queue priority (#625) */}
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">

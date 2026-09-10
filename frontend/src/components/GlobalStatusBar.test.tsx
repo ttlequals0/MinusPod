@@ -47,7 +47,6 @@ function emptyHold(overrides = {}) {
     queuePaused: false,
     holdUntil: null,
     holdSince: null,
-    rateLimitHeld: 0,
     offlineHeld: 0,
     offlineServices: [],
     ...overrides,
@@ -92,36 +91,15 @@ describe('GlobalStatusBar queue holds', () => {
   it('appears on an otherwise idle queue when a rate-limit pause is active', () => {
     const holdUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     renderBar(makeStatus({
-      hold: emptyHold({ queuePaused: true, holdUntil, rateLimitHeld: 4 }),
+      hold: emptyHold({ queuePaused: true, holdUntil }),
     }));
-    expect(screen.getByText('Queue paused')).toBeDefined();
+    // The chip says when the pause lifts, not that it started.
+    expect(screen.getByText(/^Paused until \d{1,2}:\d{2}/)).toBeDefined();
   });
 
-  it('lists held episodes after the pause lifts, before the requeue tick', () => {
-    renderBar(makeStatus({
-      hold: emptyHold({ queuePaused: false, holdUntil: null, rateLimitHeld: 3 }),
-    }));
-    act(() => {
-      screen.getByRole('button', { name: 'Expand status bar' }).click();
-    });
-    const detail = holdRow('Provider rate limit lifted');
-    expect(detail.textContent).toContain('3 episodes waiting');
-  });
-
-  it('says when a lifted hold started and how long it ran', () => {
-    const holdSince = new Date(Date.now() - 75 * 60 * 1000).toISOString();
-    const holdUntil = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    renderBar(makeStatus({
-      hold: emptyHold({
-        queuePaused: false, holdSince, holdUntil, rateLimitHeld: 1,
-      }),
-    }));
-    act(() => {
-      screen.getByRole('button', { name: 'Expand status bar' }).click();
-    });
-    const detail = holdRow('Provider rate limit lifted');
-    expect(detail.textContent).toContain('after 1h 10m');
-    expect(detail.textContent).toContain('1 episode waiting');
+  it('hides once the pause has lifted', () => {
+    const { container } = renderBar(makeStatus({ hold: emptyHold() }));
+    expect(container.firstChild).toBeNull();
   });
 
   it('says when an active hold started alongside its reset time', () => {
@@ -133,10 +111,10 @@ describe('GlobalStatusBar queue holds', () => {
     act(() => {
       screen.getByRole('button', { name: 'Expand status bar' }).click();
     });
-    const detail = holdRow('Provider rate limit since');
-    // Both stamps render: when the pause began, and when it lifts.
-    expect(detail.textContent).toMatch(/since \d{1,2}:\d{2}/);
-    expect(detail.textContent).toContain('Resumes');
+    const detail = holdRow('Provider rate limit');
+    // The reset time leads; when the pause began follows it.
+    expect(detail.textContent).toMatch(/^Provider rate limit\. Resumes \d{1,2}:\d{2}/);
+    expect(detail.textContent).toMatch(/Paused since \d{1,2}:\d{2}/);
   });
 
   it('names the unreachable service rather than only counting held episodes', () => {
@@ -152,18 +130,17 @@ describe('GlobalStatusBar queue holds', () => {
     expect(screen.getByText('Whisper endpoint unreachable')).toBeDefined();
   });
 
-  it('shows the reset time and episode count once expanded', () => {
+  it('shows the reset time once expanded', () => {
     const holdUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     renderBar(makeStatus({
-      hold: emptyHold({ queuePaused: true, holdUntil, rateLimitHeld: 1 }),
+      hold: emptyHold({ queuePaused: true, holdUntil }),
     }));
     act(() => {
       screen.getByRole('button', { name: 'Expand status bar' }).click();
     });
     const detail = holdRow('Provider rate limit');
     expect(detail.textContent).toContain('in 29m');
-    // Singular, because one episode is waiting.
-    expect(detail.textContent).toContain('1 episode waiting');
+    expect(detail.textContent).toContain('Queued episodes wait in place');
   });
 
   it('says an offline wait does not stop the rest of the queue', () => {
@@ -222,5 +199,86 @@ describe('GlobalStatusBar queue holds', () => {
   it('tolerates a status frame with no hold block', () => {
     const { container } = renderBar(makeStatus());
     expect(container.firstChild).toBeNull();
+  });
+});
+
+function job(slug: string, id: string, title: string, stage = 'transcribing', progress = 20) {
+  return { slug, episodeId: id, title, podcastName: slug, stage, progress,
+    startedAt: Date.now() / 1000 - 60, elapsed: 60 };
+}
+
+describe('GlobalStatusBar multiple jobs', () => {
+  beforeEach(() => { FakeEventSource.instances = []; vi.stubGlobal('EventSource', FakeEventSource); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('shows the oldest job collapsed with a chip for the rest', () => {
+    const a = job('feed-a', '1', 'First'); const b = job('feed-b', '2', 'Second');
+    renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    expect(screen.getByText('First')).toBeDefined();
+    expect(screen.getByText('+1 running')).toBeDefined();
+  });
+
+  it('lists every job with its own stage once expanded', () => {
+    const a = job('feed-a', '1', 'First', 'transcribing');
+    const b = job('feed-b', '2', 'Second', 'detecting', 55);
+    renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    act(() => { screen.getByRole('button', { name: 'Expand status bar' }).click(); });
+    const rows = screen.getAllByTestId('status-job');
+    expect(rows).toHaveLength(2);
+    expect(rows[1].textContent).toContain('Second');
+    expect(rows[1].textContent).toContain('Detecting ads');
+  });
+
+  it('expanded panel is capped to the viewport, not a fixed 192px', () => {
+    const a = job('feed-a', '1', 'First');
+    const b = job('feed-b', '2', 'Second');
+    renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    act(() => { screen.getByRole('button', { name: 'Expand status bar' }).click(); });
+    const panel = screen.getAllByTestId('status-job')[0].parentElement as HTMLElement;
+    expect(panel.className).toContain('max-h-[min(70vh,26rem)]');
+    expect(panel.className).not.toContain('max-h-48');
+    expect(panel.className).toContain('overflow-y-auto');
+  });
+});
+
+describe('GlobalStatusBar completion invalidation', () => {
+  beforeEach(() => { FakeEventSource.instances = []; vi.stubGlobal('EventSource', FakeEventSource); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('invalidates when one of several jobs finishes', () => {
+    const a = job('feed-a', '1', 'First');
+    const b = job('feed-b', '2', 'Second');
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    render(
+      <QueryClientProvider client={client}>
+        <GlobalStatusBar />
+      </QueryClientProvider>,
+    );
+    const source = FakeEventSource.instances[0];
+    source.emit(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    invalidate.mockClear();
+    // The newer job ends; currentJob still names the older one, so only the
+    // key set says anything finished.
+    source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
+    expect(invalidate.mock.calls.map((c) => c[0]?.queryKey)).toEqual([
+      ['episode'], ['episodes'], ['feed'], ['feeds'],
+    ]);
+  });
+
+  it('does not invalidate while the same jobs keep running', () => {
+    const a = job('feed-a', '1', 'First');
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    render(
+      <QueryClientProvider client={client}>
+        <GlobalStatusBar />
+      </QueryClientProvider>,
+    );
+    const source = FakeEventSource.instances[0];
+    source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
+    invalidate.mockClear();
+    source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });

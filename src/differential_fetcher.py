@@ -514,3 +514,32 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
                 os.unlink(refetch_path)
         except OSError:
             pass
+
+
+def differential_region_overlapping(dai_differential, start: float, end: float,
+                                    corr_max: float):
+    """The measured `differential` region overlapping [start, end), or None.
+
+    A high-corr region mostly matched across fetches and proves nothing, so
+    corr must be numeric and at or under corr_max; legacy stored regions
+    carry a hard-coded 0.0 and still qualify. Shared by the validator's
+    Layer 3 corroboration and the keep-map override so the two cannot drift.
+
+    Overlap is strict, not utils.time.ranges_overlap: a marker that merely
+    touches a region's edge shares no audio with it and is not evidence.
+    """
+    regions = (dai_differential or {}).get('regions') or []
+    for region in regions:
+        if region.get('kind') != 'differential':
+            continue
+        corr = region.get('corr')
+        if not isinstance(corr, (int, float)) or isinstance(corr, bool):
+            continue
+        if corr > corr_max:
+            continue
+        try:
+            if float(region['start_s']) < float(end) and float(region['end_s']) > float(start):
+                return region
+        except (KeyError, TypeError, ValueError):
+            continue
+    return None

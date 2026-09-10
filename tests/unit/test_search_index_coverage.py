@@ -1,6 +1,10 @@
 """search_index coverage: every episode status must be indexed, not just processed,
 since rebuild_search_index and index_episode used to filter on status='processed'."""
 
+import sqlite3
+
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('search_index_coverage_')
@@ -280,3 +284,138 @@ def test_upsert_new_row_indexes_inside_the_insert_transaction(monkeypatch):
 
     assert proxy.commit_calls == 1
     assert any(e['episodeId'] == ep_id for e in db.search_grouped('Solstice')['episodes'])
+
+
+def test_rebuild_reads_everything_before_it_takes_the_write_lock(monkeypatch):
+    """Every source row is read before the first write to the shadow table, so
+    no read ever runs while the rebuild holds the write lock."""
+    slug = _feed('rebuild-lock-order')
+    db.upsert_episode(slug, _eid(), original_url='https://example.com/a.mp3',
+                      title='Indexed episode', status='processed')
+    conn = db.get_connection()
+    order = []
+    real_execute = conn.execute
+    real_executemany = conn.executemany
+
+    def spy_execute(sql, *a):
+        order.append(('execute', ' '.join(str(sql).split())[:120]))
+        return real_execute(sql, *a)
+
+    def spy_executemany(sql, *a):
+        order.append(('executemany', ' '.join(str(sql).split())[:120]))
+        return real_executemany(sql, *a)
+
+    monkeypatch.setattr(conn, 'execute', spy_execute)
+    monkeypatch.setattr(conn, 'executemany', spy_executemany)
+
+    assert db.rebuild_search_index() > 0
+
+    kinds = [k for k, _ in order]
+    sqls = [q for _, q in order]
+    first_write = next(i for i, q in enumerate(sqls) if q.startswith('INSERT INTO search_index_new'))
+    # The swap may read the old index for late rows, never a source table.
+    assert not any(q.startswith('SELECT') and 'FROM search_index' not in q
+                   for q in sqls[first_write:]), (
+        'a read ran while the rebuild held the write lock')
+    assert kinds[first_write] == 'executemany'
+    assert sqls[-2].startswith('DROP TABLE search_index')
+    assert sqls[-1].startswith('ALTER TABLE') and sqls[-1].endswith('RENAME TO search_index')
+
+
+def test_rebuild_still_indexes_every_content_type(monkeypatch):
+    slug = _feed('rebuild-content-types')
+    db.upsert_episode(slug, _eid(), original_url='https://example.com/b.mp3',
+                      title='Findable episode', status='processed')
+
+    assert db.rebuild_search_index() > 0
+
+    conn = db.get_connection()
+    types = {r['content_type'] for r in conn.execute(
+        'SELECT DISTINCT content_type FROM search_index').fetchall()}
+    assert 'episode' in types and 'podcast' in types
+
+
+def test_rebuild_swaps_a_shadow_table_and_keeps_the_fts_definition():
+    conn = db.get_connection()
+    before = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'search_index'").fetchone()['sql']
+    ep = _eid()
+    slug = _feed('swap-podcast')
+    db.upsert_episode(slug, ep, original_url='https://example.com/a.mp3',
+                      title='Rebuild swap marker title', status='processed')
+    count = db.rebuild_search_index()
+    assert count >= 1
+    names = {r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE name LIKE 'search_index%' AND type = 'table'")}
+    assert 'search_index_new' not in names
+    after = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'search_index'").fetchone()['sql']
+    assert after.replace('"', '') == before.replace('"', '')
+    assert any(r['content_id'] == ep for r in conn.execute(
+        "SELECT content_id FROM search_index WHERE search_index MATCH 'swap'"))
+
+
+def test_rows_indexed_during_the_fill_survive_the_swap(monkeypatch):
+    slug = _feed('late-write-podcast')
+    conn = db.get_connection()
+    late_ep = _eid()
+    real_execute = conn.execute
+    fired = []
+
+    def write_during_fill(sql, *a):
+        # Fires before the first chunk takes the write lock, like a request
+        # thread indexing an episode between chunks.
+        if not fired and str(sql).startswith('BEGIN IMMEDIATE'):
+            fired.append(True)
+            other = sqlite3.connect(str(db.db_path))
+            other.execute(
+                "INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata) "
+                "VALUES ('episode', ?, ?, 'Late arrival title', '', '')", (late_ep, slug))
+            other.commit()
+            other.close()
+        return real_execute(sql, *a)
+
+    monkeypatch.setattr(conn, 'execute', write_during_fill)
+    db.rebuild_search_index()
+    assert fired
+    assert any(r['content_id'] == late_ep for r in conn.execute(
+        "SELECT content_id FROM search_index WHERE search_index MATCH 'arrival'"))
+
+
+def test_failed_fill_drops_the_shadow_and_keeps_the_old_index(monkeypatch):
+    conn = db.get_connection()
+    before = conn.execute("SELECT COUNT(*) FROM search_index").fetchone()[0]
+
+    def boom(sql, *a):
+        raise sqlite3.OperationalError('disk I/O error')
+
+    monkeypatch.setattr(conn, 'executemany', boom)
+    with pytest.raises(sqlite3.OperationalError):
+        db.rebuild_search_index()
+    assert not conn.in_transaction
+    names = [r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'search_index_new%'")]
+    assert names == []
+    assert conn.execute("SELECT COUNT(*) FROM search_index").fetchone()[0] == before
+
+
+def test_stale_shadow_from_a_crash_is_dropped_on_the_next_rebuild():
+    conn = db.get_connection()
+    conn.execute(
+        "CREATE VIRTUAL TABLE search_index_new_4194304_1 USING fts5(content_type, content_id, podcast_slug, title, body, metadata)")
+    conn.commit()
+    db.rebuild_search_index()
+    names = [r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'search_index_new%'")]
+    assert names == []
+
+
+def test_a_shadow_owned_by_a_foreign_pid_counts_as_alive(monkeypatch):
+    """A pid we may not signal still exists, so its shadow is not ours to drop."""
+    from database.search import _shadow_owner_alive
+
+    def refuse(_pid, _sig):
+        raise PermissionError('not permitted')
+
+    monkeypatch.setattr('database.search.os.kill', refuse)
+    assert _shadow_owner_alive('search_index_new_4194304_1') is True

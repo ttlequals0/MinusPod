@@ -42,7 +42,7 @@ def _run_helper(tmp_path, segments, duration, tail_segments):
          patch.object(processing, 'resolve_tail_retranscribe_tunables',
                       return_value=_TUNABLES):
         merged, added = processing._retranscribe_tail_no_vad(
-            'show', 'ep1', '/audio.mp3', segments, 'Show', None)
+            'show', 'ep1', '/audio.mp3', segments, None)
     return merged, added, mock_t, extract, chunk
 
 
@@ -60,7 +60,7 @@ def test_tail_gap_appends_offset_flagged_segments(tmp_path):
     extract.assert_called_once_with('/audio.mp3', 100.0, 142.4)
     args, kwargs = mock_t.transcribe.call_args
     assert args == (str(chunk),)
-    assert kwargs == {'podcast_name': 'Show', 'language_override': None,
+    assert kwargs == {'language_override': None,
                       'vad_filter': False}
     assert not chunk.exists()  # temp chunk cleaned up
 
@@ -127,7 +127,7 @@ def test_transcribe_failure_is_non_fatal_and_cleans_up_chunk(tmp_path):
          patch.object(processing, 'resolve_tail_retranscribe_tunables',
                       return_value=_TUNABLES):
         merged, added = processing._retranscribe_tail_no_vad(
-            'show', 'ep1', '/audio.mp3', segments, 'Show', None)
+            'show', 'ep1', '/audio.mp3', segments, None)
     assert added is False
     assert merged == segments
     assert not chunk.exists()  # cleanup still runs on failure
@@ -156,9 +156,9 @@ def test_fresh_transcription_appends_tail_before_persist():
          patch.object(processing, '_retranscribe_tail_no_vad',
                       return_value=(extended, True)) as tail:
         audio_path, segments = processing._download_and_transcribe(
-            'show', 'ep1', 'http://example.com/e.mp3', 'Show')
+            'show', 'ep1', 'http://example.com/e.mp3')
     assert segments == extended
-    tail.assert_called_once_with('show', 'ep1', '/tmp/dl.mp3', base, 'Show', None)
+    tail.assert_called_once_with('show', 'ep1', '/tmp/dl.mp3', base, None)
     mock_t.segments_to_text.assert_called_once_with(extended)
     mock_storage.save_transcript.assert_called_once_with('show', 'ep1', 'joined')
     mock_storage.save_original_segments.assert_called_once_with(
@@ -187,11 +187,11 @@ def test_reuse_branch_extends_in_memory_and_refreshes_transcript(tmp_path):
          patch.object(processing, '_retranscribe_tail_no_vad',
                       return_value=(extended, True)) as tail:
         audio_path, segments = processing._download_and_transcribe(
-            'show', 'ep1', 'http://example.com/e.mp3', 'Show')
+            'show', 'ep1', 'http://example.com/e.mp3')
     assert audio_path == '/tmp/work.mp3'
     assert segments == extended
     tail.assert_called_once_with(
-        'show', 'ep1', '/tmp/work.mp3', base, 'Show', None)
+        'show', 'ep1', '/tmp/work.mp3', base, None)
     # Live transcript refreshed; write-once original stores are NOT re-written.
     mock_storage.save_transcript.assert_called_once_with('show', 'ep1', 'joined')
     mock_storage.save_original_segments.assert_not_called()

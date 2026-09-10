@@ -15,8 +15,15 @@ _data_dir = bootstrap('queue_verdict_test_')
 import main_app.background as background  # noqa: E402
 import main_app.processing as processing  # noqa: E402
 from database import Database  # noqa: E402
+from whisper_pool import WhisperPool  # noqa: E402
 
 URL = 'https://example.com/ep.mp3'
+
+
+def _inactive_pool():
+    """A pool double so these tests do not depend on the real singleton."""
+    return WhisperPool(lambda: {
+        'enabled': False, 'backend': 'local', 'max_requests': 4, 'max_episodes': 1})
 
 
 def _claimed_row(db, slug, episode_id):
@@ -183,11 +190,14 @@ class TestDrainerErrorPathKeepsRequeue:
         iterations = {'n': 0}
 
         def _is_set():
+            # 2 False calls: the outer loop check, then the dispatcher's
+            # inner claim-loop check that must pass to claim the row.
             iterations['n'] += 1
-            return iterations['n'] > 1
+            return iterations['n'] > 2
 
         with patch.object(background, 'db', db), \
              patch.object(background, 'shutdown_event') as ev, \
+             patch.object(background, 'get_pool', _inactive_pool), \
              patch('main_app.processing.start_background_processing', side_effect=_start), \
              patch('processing_timeouts.get_hard_timeout',
                    side_effect=RuntimeError('poll loop blew up')), \
@@ -209,12 +219,15 @@ def _drain_once(db, on_start, log):
     iterations = {'n': 0}
 
     def _is_set():
+        # 2 False calls: the outer loop check, then the dispatcher's
+        # inner claim-loop check that must pass to claim the row.
         iterations['n'] += 1
-        return iterations['n'] > 1
+        return iterations['n'] > 2
 
     with patch.object(background, 'db', db), \
          patch.object(background, 'shutdown_event') as ev, \
          patch.object(background, 'refresh_logger', log), \
+         patch.object(background, 'get_pool', _inactive_pool), \
          patch('main_app.processing.start_background_processing', side_effect=on_start), \
          patch('processing_timeouts.get_hard_timeout', return_value=7200), \
          patch('offline_queue.offline_queue_tick'):

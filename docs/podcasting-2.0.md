@@ -134,6 +134,47 @@ chapters with generated ones is what prompted issue #560.
 
 ## What MinusPod does not support, and why
 
+
+### Chapters in episode descriptions
+
+Most apps only show `podcast:chapters` once playback starts. To make the
+list readable while browsing, turn on **List chapters in episode
+descriptions** under Settings > Transcripts & Chapters (`chaptersInNotes`,
+off by default). Each episode's description in the served feed, and on the
+episode page, then ends with a `Chapters` block: one `mm:ss Title` line per
+chapter, `h:mm:ss` past an hour. It is built from the same generated
+chapters the JSON carries. The block is rendered when the description is served and
+is never written into the stored description, so turning the setting off
+removes it and regenerating chapters updates it. Each feed can override the
+global value from its Feed Settings page (`chaptersInNotes`: `on`, `off`,
+or unset to follow the global setting).
+
+### Ad chapters
+
+A segment kept in the audio by its category action still sits in the file.
+**Ad chapters** (Settings > Transcripts & Chapters, `adChaptersEnabled`, off by
+default) adds a chapter at the start of each kept break and a resume chapter
+at its end. An app that skips by chapter can then jump past the break.
+Chapters have no end time, which is why the resume chapter exists. When
+a generated chapter already starts within two seconds of the end, that chapter
+is the resume point instead.
+
+Only categories checked under **Chapter these categories** qualify (sponsor and
+cross-promo by default), and a kept segment needs a detection confidence of at
+least **Minimum confidence** (0.9 by default). Turn on **Include segments
+waiting for review** to chapter held segments too. They use the
+waiting-for-review title format, and rejecting one removes its chapter without
+a recut. Confirming one queues a recut, which rebuilds the chapter list when
+it runs.
+
+Titles come from **Chapter title** (`Ad: {label}` by default), **Title while
+waiting for review** (`Possible ad: {label}`), and **Resume title** (`Show`).
+`{label}` is the category name, such as Sponsor. `{category}` is its id, such
+as `sponsor`, for players that match chapter titles by keyword. Each feed can
+turn ad chapters on or off and pick its own category list from Feed Settings;
+a feed whose chapters mode is Off gets none. Existing episodes are not
+backfilled: use Regenerate Chapters on an episode to add them.
+
 ### Deliberately stripped
 
 These describe the original audio's timeline or bytes. After ad

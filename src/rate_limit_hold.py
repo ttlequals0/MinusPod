@@ -1,33 +1,48 @@
 """Rate-limit queue hold (#696): pause the queue until a 429 reset passes.
 
-A held 429 defers its episode and stamps HOLD_UNTIL_KEY; the queue
-processor blocks new claims until that time, and the tick below releases
-or expires held rows. The toggle gates only new holds, so the tick keeps
-draining after it is turned off.
+A held 429 sends its episode back to pending and stamps HOLD_UNTIL_KEY; no
+processing starts until that time, then the queue processor clears the
+marker on its next pass. Episodes never leave the normal queue.
+
+While a hold is active, probe_rate_limit() periodically re-checks it: an
+operator-configured usage URL (tier 1) or a minimal LLM completion (tier 2)
+can clear the hold early or re-stamp it with a fresher reset, since the
+429's own stated reset can be wrong in either direction.
 """
 import logging
+from datetime import timedelta
 
-from config import DEFER_SERVICE_RATE_LIMIT, coerce_bool_setting
-from utils.time import parse_iso_utc, utc_now, utc_now_iso
-from webhook_service import fire_queue_resumed_event
-
-# offline_queue is lazy-imported below: at module level it would drag
-# llm_client and transcriber into the LLM call path's import graph,
-# which utils.llm_call deliberately avoids.
+from config import coerce_bool_setting
+from database.settings import registry_current_value, registry_default
+from llm_client import extract_retry_after, get_llm_client, is_rate_limit_error
+from utils.safe_http import safe_get, URLTrust
+from utils.time import ISO_FORMAT, epoch_to_iso, parse_iso_utc, utc_now, utc_now_iso
+from webhook_service import fire_queue_held_event, fire_queue_resumed_event
 
 logger = logging.getLogger('podcast.refresh')
 
-RATE_LIMIT_DEFERRED_SERVICE = DEFER_SERVICE_RATE_LIMIT
 HOLD_UNTIL_KEY = 'rate_limit_hold_until'
 HOLD_SINCE_KEY = 'rate_limit_hold_since'
-HOLD_LABEL = 'Rate-limit hold'
+RATE_LIMIT_PROBE_AT_KEY = 'rate_limit_probe_at'
 
 # A provider reset farther out than this is treated as unusable reset info;
 # 24h covers the common per-minute and per-day windows.
 MAX_RESET_SECONDS = 24 * 3600
+# Ceiling on a usage-derived hold: rejects absurd payloads (milliseconds sent
+# as seconds) while allowing real weekly and monthly provider windows.
+MAX_HOLD_SECONDS = 30 * 24 * 3600
 # Below this, the in-process sleep-retry still handles it, so a lone
 # throttled window recovers without pausing the queue.
 MIN_HOLD_RESET_SECONDS = 300
+# Short: a hold probe running unusually long should not itself stall the
+# dispatcher, which calls it inline before its own 30s wait.
+PROBE_TIMEOUT_SECONDS = 8
+RATE_LIMIT_PROBE_MINUTES_MIN = 0
+RATE_LIMIT_PROBE_MINUTES_MAX = 60
+
+# hold_until values already warned about for a failed tier-1 probe, so a
+# repeatedly-failing usage URL logs once per hold instead of once per probe.
+_warned_probe_holds: set[str] = set()
 
 
 def is_rate_limit_hold_enabled(db=None) -> bool:
@@ -45,54 +60,92 @@ def is_rate_limit_hold_enabled(db=None) -> bool:
         return False
 
 
-def get_rate_limit_hold_ttl_hours(db) -> int:
-    """Configured TTL in hours, clamped to [1, 720]; default 48."""
-    from offline_queue import deferral_ttl_hours
-    return deferral_ttl_hours(db, 'rate_limit_hold_ttl_hours')
-
-
 def get_hold_until(db) -> str | None:
-    """ISO timestamp until which new queue claims pause, or None."""
+    """Raw pause marker, stale or not; readers want get_active_hold."""
     try:
         return db.get_setting(HOLD_UNTIL_KEY) or None
     except Exception:
         return None
 
 
-def record_hold_until(db, retry_at_iso: str) -> str:
+def record_hold_until(db, retry_at_iso: str, *, force: bool = False) -> tuple[str, bool]:
     """Stamp the pause marker, keeping whichever reset is later so a second
     429 can extend an active pause but never cut it short. Returns the
-    effective hold_until; equal to `retry_at_iso` when this call set it."""
+    effective hold_until and whether this call started a new pause (as
+    opposed to extending or falling inside an active one).
+
+    force=True (rate-limit probe re-stamps) skips the "later wins" guard:
+    the probe's fresher provider read is authoritative and may pull the
+    release closer as well as push it out.
+    """
     current = get_hold_until(db)
-    if current and parse_iso_utc(current) and parse_iso_utc(current) > parse_iso_utc(retry_at_iso):
-        return current
+    if not force and current and parse_iso_utc(current) and parse_iso_utc(current) > parse_iso_utc(retry_at_iso):
+        return current, False
     # Extending an active pause keeps its start; only a fresh pause stamps it.
-    if not hold_is_active(current):
+    started = not hold_is_active(current)
+    if started:
         db.set_setting(HOLD_SINCE_KEY, utc_now_iso())
     db.set_setting(HOLD_UNTIL_KEY, retry_at_iso)
-    return retry_at_iso
-
-
-def get_hold_since(db) -> str | None:
-    """When the active pause began, or None when nothing is held."""
-    try:
-        return db.get_setting(HOLD_SINCE_KEY) or None
-    except Exception:
-        return None
+    return retry_at_iso, started
 
 
 def clear_hold(db) -> str | None:
-    """Drop the pause marker and its start stamp; returns when the hold began."""
+    """Drop the pause marker, its start stamp, and the probe cadence stamp;
+    returns when the hold began."""
     held_since = db.get_setting(HOLD_SINCE_KEY)
     db.clear_setting(HOLD_UNTIL_KEY)
     db.clear_setting(HOLD_SINCE_KEY)
+    db.clear_setting(RATE_LIMIT_PROBE_AT_KEY)
     return held_since
+
+
+def clear_hold_for_provider_change(db, reason: str) -> bool:
+    """Lift an active hold after a provider, endpoint, or credential change.
+
+    A hold belongs to the account and endpoint that returned the 429, so it
+    is meaningless once those change. Returns whether a hold was lifted.
+    """
+    if not get_active_hold(db)[0]:
+        return False
+    held_since = clear_hold(db)
+    logger.info(f"Rate-limit hold: queue pause lifted ({reason})")
+    fire_queue_resumed_event(held_since=held_since)
+    return True
+
+
+def clear_hold_if_unchanged(db, hold_until: str) -> tuple[bool, str | None]:
+    """Drop the pause only while the marker still reads `hold_until`.
+
+    A 429 landing between a caller's read and this call owns a newer marker,
+    and resuming on it would put the queue straight back into the limit.
+    """
+    held_since = db.get_setting(HOLD_SINCE_KEY)
+    if not db.clear_setting_if_equal(HOLD_UNTIL_KEY, hold_until):
+        return False, None
+    db.clear_setting(HOLD_SINCE_KEY)
+    db.clear_setting(RATE_LIMIT_PROBE_AT_KEY)
+    return True, held_since
 
 
 def hold_is_active(hold_until: str | None) -> bool:
     """True when `hold_until` is a reset time still in the future."""
-    return bool(hold_until and parse_iso_utc(hold_until)
-                and parse_iso_utc(hold_until) > utc_now())
+    reset_at = parse_iso_utc(hold_until) if hold_until else None
+    return bool(reset_at and reset_at > utc_now())
+
+
+def get_active_hold(db) -> tuple[str | None, str | None]:
+    """(hold_until, hold_since) while the pause is active, else (None, None).
+
+    A marker past its reset waits on the processor's next pass to be
+    cleared; readers see no hold at all in that gap.
+    """
+    hold_until = get_hold_until(db)
+    if not hold_is_active(hold_until):
+        return None, None
+    try:
+        return hold_until, db.get_setting(HOLD_SINCE_KEY) or None
+    except Exception:
+        return hold_until, None
 
 
 def is_queue_paused(db) -> bool:
@@ -100,51 +153,208 @@ def is_queue_paused(db) -> bool:
     return hold_is_active(get_hold_until(db))
 
 
-def should_pause_claims(db) -> bool:
-    """True when the queue processor must not claim its next episode.
+def hold_message(hold_until: str | None, error) -> str:
+    """error_message written on an episode a 429 sent back to the queue.
 
-    A pending row the user asked for overrides the pause, so a Play or
-    Reprocess never parks behind a provider backoff window.
+    hold_until is None when the hold feature is off: nothing was paused.
     """
-    return is_queue_paused(db) and not db.has_user_requested_pending_row()
+    if not hold_until:
+        return f"LLM rate limit: {error}"
+    return f"Paused (LLM rate limit until {hold_until}): {error}"
 
 
 def rate_limit_hold_tick(db) -> None:
-    """One maintenance pass: release held episodes whose reset time passed,
-    expire holds whose TTL has run out, clear the pause marker when elapsed.
-
-    Runs for episodes already held even when the toggle is off; the toggle
-    gates only new holds.
-    """
+    """Clear a pause marker whose reset time has passed."""
     hold_until = get_hold_until(db)
-    held_count = db.count_deferred_episodes(service=RATE_LIMIT_DEFERRED_SERVICE)
-    if not held_count and not hold_is_active(hold_until):
+    if not hold_until or hold_is_active(hold_until):
         return
-
-    expired = db.expire_deferred_episodes(
-        get_rate_limit_hold_ttl_hours(db), service=RATE_LIMIT_DEFERRED_SERVICE,
-        label=HOLD_LABEL)
-    from offline_queue import notify_expired_episodes
-    notify_expired_episodes(db, expired, label=HOLD_LABEL)
-
-    # A failure may have recorded a newer hold while the expiry ran; its
-    # pause must outlive this pass.
-    if hold_is_active(get_hold_until(db)):
+    cleared, held_since = clear_hold_if_unchanged(db, hold_until)
+    if not cleared:
         return
+    logger.info("Rate-limit hold: queue pause lifted after provider reset")
+    fire_queue_resumed_event(held_since=held_since)
 
-    requeued = db.requeue_deferred_episodes({RATE_LIMIT_DEFERRED_SERVICE})
-    if requeued:
-        logger.info(f"Rate-limit hold: released {requeued} held episodes after provider reset")
 
-    held_since = None
-    cleared = False
-    if hold_until and get_hold_until(db) == hold_until:
-        # Reset time passed and nothing re-stamped it; clear the stale
-        # marker so the claim gate unblocks.
+def get_llm_usage_url(db) -> str:
+    """Operator-configured provider usage/limit endpoint; '' when unset."""
+    return registry_current_value(db, 'llm_usage_url') or ''
+
+
+def get_rate_limit_probe_minutes(db) -> int:
+    """Probe cadence in minutes; 0 disables probing. Default 5."""
+    try:
+        return int(registry_current_value(db, 'rate_limit_probe_minutes'))
+    except (TypeError, ValueError):
+        return int(registry_default('rate_limit_probe_minutes'))
+
+
+def read_usage_status(usage_url: str) -> dict | None:
+    """GET `usage_url` and return its parsed JSON object; None on any
+    transport, HTTP-status, or non-object-JSON failure."""
+    try:
+        response = safe_get(usage_url, trust=URLTrust.OPERATOR_CONFIGURED,
+                            timeout=PROBE_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as e:
+        logger.debug(f"Rate-limit probe: usage URL read failed: {e}")
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _capped_reset_iso(reset_at) -> str:
+    """Reset time capped at MAX_HOLD_SECONDS out, so a bad payload cannot
+    pause the queue for years."""
+    return min(reset_at, utc_now() + timedelta(seconds=MAX_HOLD_SECONDS)).strftime(ISO_FORMAT)
+
+
+def usage_reset_iso(payload: dict) -> str | None:
+    """Absolute ISO reset time from a `blocked: true` usage payload.
+
+    Prefers seconds_until_reset, then the blocked_until epoch, then
+    blocked_until_iso. None when nothing usable is present.
+    """
+    seconds = payload.get('seconds_until_reset')
+    if isinstance(seconds, (int, float)) and not isinstance(seconds, bool):
+        return _capped_reset_iso(utc_now() + timedelta(seconds=max(0.0, float(seconds))))
+    blocked_until = payload.get('blocked_until')
+    if isinstance(blocked_until, (int, float)) and not isinstance(blocked_until, bool):
+        parsed = parse_iso_utc(epoch_to_iso(blocked_until))
+        if parsed:
+            return _capped_reset_iso(parsed)
+    blocked_until_iso = payload.get('blocked_until_iso')
+    if isinstance(blocked_until_iso, str):
+        parsed = parse_iso_utc(blocked_until_iso)
+        if parsed:
+            return _capped_reset_iso(parsed)
+    return None
+
+
+def hold_queue_for_provider_limit(db, error, *, slug: str, episode_id: str,
+                                  podcast_name: str) -> str | None:
+    """Pause the queue for a 429 and alert once per pause; returns the effective
+    hold_until, or None when the hold feature is off.
+
+    A configured usage endpoint is preferred over the 429's own stated reset,
+    which can be wrong in either direction.
+    """
+    if not is_rate_limit_hold_enabled(db):
+        return None
+    hold_until_iso = None
+    usage_url = get_llm_usage_url(db)
+    if usage_url:
+        payload = read_usage_status(usage_url)
+        if payload is not None and payload.get('blocked') is True:
+            hold_until_iso = usage_reset_iso(payload)
+    if hold_until_iso is None:
+        hold_until_iso = (utc_now() + timedelta(
+            seconds=max(0.0, float(error.retry_after_seconds)))).strftime(ISO_FORMAT)
+    hold_until, started = record_hold_until(db, hold_until_iso)
+    logger.warning(f"[{slug}:{episode_id}] Rate-limit hold: paused until "
+                   f"{hold_until} (provider reset)")
+    # One alert per pause: a later 429 under it only moves the reset out.
+    if started:
+        fire_queue_held_event(hold_until=hold_until, error_message=error, slug=slug,
+                              episode_id=episode_id, podcast_name=podcast_name)
+    return hold_until
+
+
+def _warn_probe_failure(hold_until: str, message: str) -> None:
+    """WARNING once per hold_until (repeat failures log at DEBUG)."""
+    if hold_until in _warned_probe_holds:
+        logger.debug(message)
+        return
+    _warned_probe_holds.add(hold_until)
+    logger.warning(message)
+
+
+def _probe_usage_url(db, usage_url: str, hold_until: str) -> bool | None:
+    """Tier 1: check the operator's usage endpoint.
+
+    Returns True when the hold was cleared or re-stamped from this
+    response, None when the response was unusable so tier 2 should run.
+    """
+    payload = read_usage_status(usage_url)
+    if payload is None:
+        _warn_probe_failure(
+            hold_until, f"Rate-limit probe: usage URL unreachable or invalid ({usage_url})")
+        return None
+    blocked = payload.get('blocked')
+    if blocked is False:
         held_since = clear_hold(db)
-        cleared = True
-        logger.info("Rate-limit hold: queue pause lifted after provider reset")
-    # The settings-disable path clears the marker itself, so a release with
-    # no marker to clear still counts as a resume.
-    if requeued or cleared:
-        fire_queue_resumed_event(held_since=held_since, requeued=requeued)
+        fire_queue_resumed_event(held_since=held_since)
+        logger.info("Rate-limit probe: usage endpoint reports clear; resuming queue")
+        return True
+    if blocked is True:
+        reset_iso = usage_reset_iso(payload)
+        if reset_iso is not None:
+            record_hold_until(db, reset_iso, force=True)
+            logger.info(f"Rate-limit probe: usage endpoint re-stamped hold to {reset_iso}")
+            return True
+        _warn_probe_failure(
+            hold_until, f"Rate-limit probe: usage URL blocked with no usable reset ({usage_url})")
+        return None
+    _warn_probe_failure(
+        hold_until, f"Rate-limit probe: usage URL payload missing boolean 'blocked' ({usage_url})")
+    return None
+
+
+def _probe_via_completion(db) -> bool:
+    """Tier 2: one minimal completion through the configured LLM client."""
+    model = db.get_setting('claude_model')
+    if not model:
+        return False
+    try:
+        get_llm_client().messages_create(
+            model=model, max_tokens=1, system='',
+            messages=[{"role": "user", "content": "hi"}],
+            timeout=PROBE_TIMEOUT_SECONDS,
+        )
+    except Exception as e:
+        if is_rate_limit_error(e):
+            hold_after = extract_retry_after(e, max_seconds=MAX_RESET_SECONDS)
+            if hold_after is not None:
+                hold_until_iso = (utc_now() + timedelta(seconds=max(0.0, hold_after))).strftime(ISO_FORMAT)
+                record_hold_until(db, hold_until_iso, force=True)
+                logger.info(f"Rate-limit probe: completion probe re-stamped hold to {hold_until_iso}")
+            return False
+        logger.debug(f"Rate-limit probe: completion probe failed, leaving hold: {e}")
+        return False
+    held_since = clear_hold(db)
+    fire_queue_resumed_event(held_since=held_since)
+    logger.info("Rate-limit probe: completion probe succeeded; resuming queue")
+    return True
+
+
+def probe_rate_limit(db) -> bool:
+    """Probe an active rate-limit hold and clear or re-stamp it; never raises.
+
+    Runs at most once per rate_limit_probe_minutes. See module docstring
+    for the tier order (usage URL, then a minimal completion).
+    """
+    try:
+        return _probe_rate_limit(db)
+    except Exception:
+        logger.exception("Rate-limit probe crashed; leaving hold untouched")
+        return False
+
+
+def _probe_rate_limit(db) -> bool:
+    hold_until, _ = get_active_hold(db)
+    if not hold_until:
+        return False
+    minutes = get_rate_limit_probe_minutes(db)
+    if minutes <= 0:
+        return False
+    last_probe_at = parse_iso_utc(db.get_setting(RATE_LIMIT_PROBE_AT_KEY))
+    if last_probe_at and (utc_now() - last_probe_at).total_seconds() < minutes * 60:
+        return False
+    db.set_setting(RATE_LIMIT_PROBE_AT_KEY, utc_now_iso())
+
+    usage_url = get_llm_usage_url(db)
+    if usage_url:
+        result = _probe_usage_url(db, usage_url, hold_until)
+        if result is not None:
+            return result
+
+    return _probe_via_completion(db)

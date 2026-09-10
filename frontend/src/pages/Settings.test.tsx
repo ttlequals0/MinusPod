@@ -4,11 +4,18 @@
  * one, and re-seeds the textarea from the refetched settings.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Settings from './Settings';
 import type { Settings as SettingsShape, SettingValue } from '../api/types';
+
+// The Reset button that belongs to one prompt textarea, found by its label
+// rather than by position, so reordering settings sections cannot break it.
+function resetButtonFor(label: string) {
+  const field = screen.getByLabelText(label).closest('div') as HTMLElement;
+  return within(field).getByRole('button', { name: 'Reset' });
+}
 
 vi.mock('react-router', () => ({
   useLocation: () => ({ hash: '', pathname: '/settings', search: '' }),
@@ -61,6 +68,14 @@ vi.mock('../api/settings', () => ({
   resetPrompt: (...a: unknown[]) => mockResetPrompt(...a),
   getModels: vi.fn().mockResolvedValue([]),
   getWhisperModels: vi.fn().mockResolvedValue([]),
+  getWhisperCapacity: vi.fn().mockResolvedValue({
+    enabled: false, backend: 'openai-api', active: false, inactiveReason: 'disabled',
+    capacity: 1, inFlight: 0, transcribingEpisodes: 0,
+    maxEpisodes: { configured: 1, effective: 1 },
+    chunkWorkers: { configured: 4, effective: 4 },
+    worstCaseInFlight: 4, exceedsCapacity: false,
+    health: { available: false },
+  }),
   getSystemStatus: vi.fn().mockResolvedValue({}),
   runCleanup: vi.fn(),
   getProcessingEpisodes: vi.fn().mockResolvedValue([]),
@@ -71,7 +86,7 @@ vi.mock('../api/settings', () => ({
   }),
   updateOfflineQueueSettings: vi.fn(),
   getRateLimitHoldSettings: vi.fn().mockResolvedValue({
-    enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+    enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
   }),
   updateRateLimitHoldSettings: vi.fn(),
   refreshModels: vi.fn(),
@@ -180,7 +195,7 @@ describe('Settings: per-prompt reset', () => {
       expect(screen.getByLabelText('First Pass System Prompt')).toBeDefined();
     });
 
-    const [resetBtn] = screen.getAllByRole('button', { name: 'Reset' });
+    const resetBtn = resetButtonFor('First Pass System Prompt');
     await user.click(resetBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
 
@@ -200,7 +215,7 @@ describe('Settings: per-prompt reset', () => {
     // The refetch after the mutation returns the field already at default.
     mockGetSettings.mockResolvedValue(makeSettings({ systemPrompt: sv('default system prompt', true) }));
 
-    const [resetBtn] = screen.getAllByRole('button', { name: 'Reset' });
+    const resetBtn = resetButtonFor('First Pass System Prompt');
     await user.click(resetBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
 
@@ -223,11 +238,8 @@ describe('Settings: per-prompt reset', () => {
       expect(screen.getByLabelText('Review prompt (confirm / adjust / reject)')).toBeDefined();
     });
 
-    // system/verification/chapter are at their default (disabled); review
-    // and resurrect are customized (enabled), in that DOM order.
-    const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
-    expect(resetButtons).toHaveLength(5);
-    const [reviewBtn, resurrectBtn] = resetButtons.slice(3);
+    const reviewBtn = resetButtonFor('Review prompt (confirm / adjust / reject)');
+    const resurrectBtn = resetButtonFor('Resurrect prompt (resurrect / reject)');
 
     await user.click(reviewBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
@@ -236,6 +248,29 @@ describe('Settings: per-prompt reset', () => {
     await user.click(resurrectBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
     expect(mockResetPrompt).toHaveBeenCalledWith('resurrect');
+  });
+});
+
+describe('Settings: Ad Reviewer placement', () => {
+  // Guards the move out of Experiments: order, not index, so an unrelated
+  // section landing between these headings does not fail the test.
+  function precedes(a: HTMLElement, b: HTMLElement) {
+    return Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }
+
+  it('renders Ad Reviewer under AI & Processing, before Seed sponsors and before Experiments', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    renderSettings();
+
+    const adReviewer = await screen.findByRole('heading', { name: 'Ad Reviewer' });
+    const seedSponsors = screen.getByRole('heading', { name: 'Seed sponsors' });
+    const aiHeader = screen.getByRole('heading', { name: 'AI & Processing' });
+
+    expect(precedes(aiHeader, adReviewer)).toBe(true);
+    expect(precedes(adReviewer, seedSponsors)).toBe(true);
+
+    const experiments = screen.getByRole('heading', { name: 'Experiments' });
+    expect(precedes(adReviewer, experiments)).toBe(true);
   });
 });
 
@@ -257,5 +292,21 @@ describe('Settings: Reset All copy', () => {
     expect(resetAllBtn.getAttribute('title')).toBe(
       'Also clears your AI model choices; you may need to pick them again.'
     );
+  });
+});
+
+describe('Settings loading placeholder', () => {
+  it('shows header and row skeletons while the settings query is pending', () => {
+    mockGetSettings.mockReturnValueOnce(new Promise(() => {}));
+    renderSettings();
+    expect(screen.getByTestId('skeleton-page-header')).toBeTruthy();
+    expect(screen.getByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once the settings land', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    renderSettings();
+    await screen.findByLabelText('First Pass System Prompt');
+    expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
   });
 });

@@ -19,18 +19,45 @@ Customize ad detection in Settings:
 - **AI Model** - Model for first pass ad detection
 - **Verification Model** - Separate model for the post-cut verification pass
 - **Chapters Model** - Model for chapter generation (a small model like Haiku works well here)
+- **Ad chapters** - Publish segments left in the audio as their own chapters, so a chapter-aware player can skip them. Off by default. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
 - **System Prompts** - Customizable prompts for first pass and verification detection
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)
 - **LLM Tunables** - See below
 
-Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under Experiments) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
+Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under AI & Processing) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
 
 ### Seed sponsors
 
 Four toggles decide which LLM passes are handed the running list of known sponsors: Detection, Verification, Reviewer, and Resurrect. Turning one off does not turn off that pass; it just stops seeding its prompt with prior sponsors, so the pass judges each candidate on its own. Turning off Reviewer, for example, makes that pass an independent second opinion rather than a check that already expects the sponsor it is reviewing.
 
 All four default on to match prior behavior. API: `PUT /api/v1/settings/ad-detection` with `seedSponsorsDetection`, `seedSponsorsVerification`, `seedSponsorsReviewer`, `seedSponsorsResurrect` (booleans).
+
+### Ad Reviewer
+
+The ad reviewer is an opt-in third LLM stage that sits between detection and audio cutting. After pass 1 detection (and again after pass 2), the reviewer takes each candidate ad along with 60 seconds of transcript on either side and decides one of three things: confirm the detection as is, adjust the start or end timestamps within a configured cap, or reject the segment as a false positive. The reviewer also gets a second look at validator-rejected detections whose confidence sits within 20 percentage points of your `min_cut_confidence` slider, and may resurrect them as real ads.
+
+When to enable it:
+
+- Comedy and fiction podcasts that include in-bit fake sponsor reads (Welcome to Night Vale was the torture test for this feature)
+- News shows that read sponsor-adjacent copy editorially without it actually being an ad break
+- Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
+- Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
+
+Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With a typical pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
+
+Settings live under AI & Processing -> Ad Reviewer:
+
+- **Enable ad reviewer** - master toggle, off by default
+- **Review model** - `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
+- **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
+- **Review prompt** - system prompt for the confirm/adjust/reject reviewer
+- **Resurrect prompt** - system prompt for the resurrect/reject reviewer over rejected detections
+
+Reviewer activity surfaces in two places:
+
+- The episode detail page shows the original timestamps on top and a `Reviewer: MM:SS - MM:SS` line beneath when the reviewer adjusted boundaries. Reviewer-rejected ads carry a `Source: Reviewer` tag in the rejected detections list.
+- The Stats page shows an Ad Reviewer Stats card with verdict counts (confirmed, adjusted, rejected, resurrected, failed), pass-1 and pass-2 adjustment counts, average boundary shift in seconds, and resurrection count. The card hides when the reviewer has not run.
 
 ### Text recurrence hints
 
@@ -210,6 +237,20 @@ A per-feed **Skipped episodes** choice decides how a skipped episode is served: 
 
 API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each) and `titleSkipAction` (`serve_original` or `hide`) on `PATCH /api/v1/feeds/{slug}`.
 
+### Recents feed
+
+One optional combined feed at `/recents` carries every episode processed on
+this instance whose publish date is on or after the day the feed was
+created, across all subscribed and local feeds. Subscribe to it once and
+podcasts you add later show up in it without another OPML import. Create it
+from Add Feed (the option disappears once it exists); rename it, set a
+description, and replace its artwork (the MinusPod icon by default) from its
+feed page. Each item points at its source feed's audio, transcript, and
+chapters, so nothing is copied. Episodes published before the feed existed
+stay out even when they are reprocessed. The modified OPML export lists it
+alongside your other feeds; the original export skips it, since it has no
+upstream URL.
+
 ### Per-feed retention
 
 Global retention lives in Settings > Storage & Retention and applies to every feed. Any single feed can override it from its own settings page with the **Retention** control, which offers three choices:
@@ -258,32 +299,6 @@ and has to be caught by later validation, if it is caught at all.
 Yield is recorded from 2.92.0 on. Older runs carry no yield data and are
 excluded from the yield numbers, so the yield sample starts empty and can
 lag the compliance sample.
-
-### Ad Reviewer
-
-The ad reviewer is an opt-in third LLM stage that sits between detection and audio cutting. After pass 1 detection (and again after pass 2), the reviewer takes each candidate ad along with 60 seconds of transcript on either side and decides one of three things: confirm the detection as is, adjust the start or end timestamps within a configured cap, or reject the segment as a false positive. The reviewer also gets a second look at validator-rejected detections whose confidence sits within 20 percentage points of your `min_cut_confidence` slider, and may resurrect them as real ads.
-
-When to enable it:
-
-- Comedy and fiction podcasts that include in-bit fake sponsor reads (Welcome to Night Vale was the torture test for this feature)
-- News shows that read sponsor-adjacent copy editorially without it actually being an ad break
-- Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
-- Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
-
-Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With a typical pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
-
-Settings live under Experiments -> Ad Reviewer:
-
-- **Enable ad reviewer** - master toggle, off by default
-- **Review model** - `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
-- **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
-- **Review prompt** - system prompt for the confirm/adjust/reject reviewer
-- **Resurrect prompt** - system prompt for the resurrect/reject reviewer over rejected detections
-
-Reviewer activity surfaces in two places:
-
-- The episode detail page shows the original timestamps on top and a `Reviewer: MM:SS - MM:SS` line beneath when the reviewer adjusted boundaries. Reviewer-rejected ads carry a `Source: Reviewer` tag in the rejected detections list.
-- The Stats page shows an Ad Reviewer Stats card with verdict counts (confirmed, adjusted, rejected, resurrected, failed), pass-1 and pass-2 adjustment counts, average boundary shift in seconds, and resurrection count. The card hides when the reviewer has not run.
 
 ### Prompt placeholders
 
@@ -376,18 +391,59 @@ Only connection-level failures qualify: connection refused, DNS errors, timeouts
 
 ## Rate-Limit Hold
 
-Hosted LLM providers answer a 429 with the time their limit resets. Without this feature an episode that hits one burns its retries against a provider that will not answer for another hour, and every episode behind it does the same. The rate-limit hold parks the episode instead and stops the queue from claiming new work until the reset time passes, then carries on by itself.
+Hosted LLM providers answer a 429 with the time their limit resets. Without this feature an episode that hits one burns its retries against a provider that will not answer for another hour, and every episode behind it does the same. The rate-limit hold puts the episode back in the queue instead and stops the queue from claiming anything until the reset time passes, then carries on by itself.
 
 The feature is off by default. Configure it in **Settings > AI & Processing > Queue Control**.
 
 | Setting | Default | Notes |
 |---|---|---|
 | Enabled | off | Pause the queue when the provider reports a 429 with a reset time. |
-| Give up after | 48 hours | Episodes still held after this long are marked failed and logged. Range 1-720 hours. |
+| Usage endpoint | (unset) | Optional URL returning provider usage/limit JSON (env `LLM_USAGE_URL`); checked first while a hold is active. |
+| Check every | 5 minutes | How often the probe re-checks an active hold. Range 0-60 minutes; 0 turns it off (env `RATE_LIMIT_PROBE_MINUTES`). |
 
-Only a reset further out than five minutes triggers a hold. Shorter ones keep the existing in-process retry, so a single throttled window recovers without pausing the queue. The hold covers detection, review, and verification, so a throttle part-way through a run defers the whole episode rather than skipping that stage. Anything you ask for by hand carries the manual queue boost, so Play and Reprocess still run during a pause. Turning the toggle off lifts the pause and releases held episodes on the next maintenance pass, within about five minutes.
+Only a reset further out than five minutes triggers a hold. Shorter ones keep the existing in-process retry, so a single throttled window recovers without pausing the queue. The hold covers detection, review, and verification, so a throttle part-way through a run sends the whole episode back to the queue rather than skipping that stage. Nothing bypasses the pause: Play and Reprocess wait with the rest, because a hand-picked episode would only hit the same 429. Held episodes keep their queue position and status, so there is no give-up window and nothing to release. Turning the toggle off lifts an active pause at once.
 
-Held episodes sit under their own service name, so the offline queue's endpoint probes and give-up window never touch them, and a held episode does not inherit the clock of an earlier offline deferral.
+While a hold is active, a probe re-checks it instead of waiting out the provider's stated reset. With a usage endpoint configured it is checked first and can clear the hold early or push it out to a fresher reset; without one, a single minimal completion call does the same check.
+
+## Whisper Pool
+
+Off by default. With a remote Whisper backend (`WHISPER_BACKEND=openai-api`)
+that accepts several requests at once, the pool lets MinusPod process more
+than one episode at a time and share one cap on in-flight transcription
+requests between them. Configure it in **Settings > Transcription** under
+the remote backend fields.
+
+| Setting | Env | Default | Notes |
+|---|---|---|---|
+| Whisper pool | `WHISPER_POOL_ENABLED` | off | Nothing below applies while this is off or the backend is local. |
+| Max requests to backend | `WHISPER_POOL_MAX_REQUESTS` | 4 | Transcription requests in flight at once, across every episode. Range 1-64. Set it to what your backend accepts. |
+| Episodes at once | `WHISPER_POOL_MAX_EPISODES` | 1 | Episodes processed concurrently. Range 1-16. |
+
+While the pool is on, every run starts from the background worker, so a
+Play on an idle instance begins within a few seconds instead of at once.
+Each episode keeps at least one request slot. Leftover slots go to chunk
+parallelism, so "Concurrent chunks" is capped by the request cap divided
+by the episodes transcribing. `GET /api/v1/settings/whisper/capacity`
+reports the resolved numbers, and the settings page shows the worst case
+(episodes times concurrent chunks) against the cap. A 429 from the backend
+waits and retries instead of counting as a failed chunk. Turning the pool
+off lets runs in flight finish and returns new runs to the single-slot
+path.
+
+When a backend at `https://your-whisper-host/v1` exposes an optional
+health endpoint, MinusPod samples it to report the replica count, model,
+device, and compute type per instance, plus a suggested "Max requests"
+value based on their combined concurrency. This is entirely optional:
+without a health endpoint, nothing changes and the cap stays a manual
+setting. The probe always reads `{base}/health` (e.g.
+`https://your-whisper-host/v1/health`), so a server that exposes health at
+its root rather than under the API path reports nothing.
+
+For a worked example of a multi-replica backend, including the health
+endpoint this reads, see
+[whisper-pool](https://github.com/ttlequals0/whisper-pool). MinusPod works
+with any OpenAI-compatible Whisper server. That one happens to expose the
+fields described above.
 
 ## Outbound Requests
 

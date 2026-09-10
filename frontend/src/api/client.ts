@@ -189,7 +189,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
 }
 
 interface FileRequestOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'HEAD';
   body?: BodyInit | object;
   fallbackFilename?: string;
 }

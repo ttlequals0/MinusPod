@@ -34,6 +34,13 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- when enough survive the cut, else generate; 'generate' = always
     -- generate; 'off' = no chapter step
     chapters_mode TEXT,
+    -- Chapter list in served descriptions (#720): NULL = global setting,
+    -- 'on'/'off' = per-feed override
+    chapters_in_notes TEXT,
+    -- Ad chapters: NULL = global setting, 'on'/'off' = per-feed override;
+    -- the categories override is a JSON category -> bool map layered over global
+    ad_chapters_enabled_override TEXT,
+    ad_chapter_categories_override TEXT,
     -- Served-feed GUID scheme (#598): NULL/0 = pass upstream GUIDs through,
     -- 1 = serve MinusPod episode ids. New feeds are created with 1.
     own_episode_guids INTEGER,
@@ -100,8 +107,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     only_expose_processed_episodes INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',
     user_tags TEXT NOT NULL DEFAULT '[]',
-    -- Local feeds: 'subscribed' (upstream RSS) or 'local' (imported
-    -- archive with no upstream). Immutable after creation.
+    -- 'subscribed' (upstream RSS), 'local' (imported archive), or
+    -- 'recents' (the combined feed, #721). Immutable after creation.
     feed_type TEXT NOT NULL DEFAULT 'subscribed',
     p20_channel_json TEXT,
     author TEXT,
@@ -126,6 +133,9 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     processed_version INTEGER DEFAULT 0,
     original_duration REAL,
     new_duration REAL,
+    -- Lifetime time-saved counter dedup (#727): saving already credited
+    -- to the total_time_saved stat for this episode's latest cut.
+    credited_time_saved REAL,
     -- Duration declared by the feed (itunes:duration), captured at discovery.
     -- Compared against the downloaded copy to expose DAI fill variance (#519).
     rss_duration REAL,
@@ -154,6 +164,10 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     -- (issue #560 follow-up). Auto mode fetches it when the embedded chapter
     -- probe comes up short. NULL when the feed does not publish the tag.
     upstream_chapters_url TEXT,
+    -- Chapter regeneration runs in a background thread; the stamp marks it
+    -- in flight and the error is the last failure.
+    chapters_regen_started_at TEXT,
+    chapters_regen_error TEXT,
     season_number INTEGER,
     p20_item_json TEXT,
     tags TEXT NOT NULL DEFAULT '[]',

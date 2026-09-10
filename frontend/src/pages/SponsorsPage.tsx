@@ -7,7 +7,7 @@ import SponsorEditModal from '../components/SponsorEditModal';
 import { ConfirmModal } from '../components/Modal';
 import { TagChips } from '../components/TagChips';
 import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { Skeleton, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { formatDate } from '../utils/format';
@@ -96,7 +96,25 @@ function SponsorsSection() {
   const totalPages = Math.ceil((sorted?.length || 0) / limit);
   const paginated = sorted?.slice((page - 1) * limit, page * limit);
 
-  if (isLoading) return <LoadingSpinner className="py-12" />;
+  if (isLoading) {
+    return (
+      <div>
+        <div
+          className="bg-card rounded-lg border border-border p-4 mb-6"
+          role="status" aria-busy="true" aria-label="Loading"
+          data-testid="skeleton-filter-card"
+        >
+          <div className="flex flex-wrap gap-4 items-center">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-8 flex-1 min-w-[200px]" />
+            <Skeleton className="h-8 w-28" />
+            <Skeleton className="h-8 w-32" />
+          </div>
+        </div>
+        <SkeletonRows count={6} />
+      </div>
+    );
+  }
   if (error) return <div className="text-center py-12"><p className="text-destructive">Failed to load sponsors</p></div>;
 
   return (

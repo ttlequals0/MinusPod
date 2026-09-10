@@ -5,7 +5,7 @@ import { feedsQueryOptions, refreshFeed, refreshAllFeeds, deleteFeed } from '../
 import DropdownMenu from '../components/DropdownMenu';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { Skeleton, SkeletonRows, SkeletonStatCards } from '../components/Skeleton';
 import SearchResults from '../components/SearchResults';
 import type { SearchResultRow } from '../components/SearchResults';
 import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
@@ -92,7 +92,16 @@ function Dashboard() {
   const showSearchPanel = open && query.length > 0;
 
   if (isLoading) {
-    return <LoadingSpinner className="py-12" />;
+    return (
+      <div>
+        <Skeleton className="h-[42px] w-full mb-6" />
+        {viewMode === 'grid' ? (
+          <SkeletonStatCards count={6} className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />
+        ) : (
+          <SkeletonRows count={6} className="flex flex-col gap-2" />
+        )}
+      </div>
+    );
   }
 
   if (error) {

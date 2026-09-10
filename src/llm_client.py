@@ -25,16 +25,20 @@ import logging
 import os
 import socket
 import threading
+import uuid
+from urllib.parse import urlparse
 from types import SimpleNamespace
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Union
 
+import run_context
+
 import requests
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.rate_limit import (
-    parse_retry_after, parse_groq_rate_limit_body,
+    parse_retry_after, parse_groq_rate_limit_body, parse_upstream_reset,
     parse_google_retry_delay, parse_google_daily_quota,
 )
 from utils.http import safe_url_for_log
@@ -1332,78 +1336,36 @@ _llm_circuit_breaker = CircuitBreaker(
     "llm-api", failure_threshold=5, recovery_timeout=60,
     cause_classifier=lambda error: is_auth_error(error))
 
-# Per-episode token accumulator.
-#
-# Backed by a single lock-protected object rather than thread-local storage
-# so that ad-detection windows running on a ThreadPoolExecutor (2.5.23+) all
-# contribute to the same totals. The processing queue (fcntl flock on
-# .processing_queue.lock) guarantees only one episode is mid-accumulation at
-# any time per gunicorn worker process, so a single accumulator is correct.
-class _EpisodeAccumulator:
-    def __init__(self):
-        self._lock = threading.Lock()
-        self.active = False
-        self.input_tokens = 0
-        self.output_tokens = 0
-        self.cost = 0.0
-
-    def start(self):
-        with self._lock:
-            self.active = True
-            self.input_tokens = 0
-            self.output_tokens = 0
-            self.cost = 0.0
-
-    def add(self, input_tokens: int, output_tokens: int, cost: float) -> None:
-        with self._lock:
-            if not self.active:
-                return
-            self.input_tokens += input_tokens
-            self.output_tokens += output_tokens
-            self.cost += cost
-
-    def is_active(self) -> bool:
-        with self._lock:
-            return self.active
-
-    def collect_and_reset(self) -> dict:
-        with self._lock:
-            totals = {
-                'input_tokens': self.input_tokens,
-                'output_tokens': self.output_tokens,
-                'cost': self.cost,
-            }
-            self.active = False
-            self.input_tokens = 0
-            self.output_tokens = 0
-            self.cost = 0.0
-        return totals
-
-
-_episode_accumulator = _EpisodeAccumulator()
+# Per-run token accumulator, keyed by run_context (one per thread's run):
+# pool workers (ad-detection windows, reviewer batches) are bound to their
+# submitting thread's run, so totals aggregate per run, not per process.
 
 
 def _get_accumulator_active() -> bool:
-    """Return whether the per-episode accumulator is currently active."""
-    return _episode_accumulator.is_active()
+    """Return whether the calling thread's run has active token tracking."""
+    ctx = run_context.current()
+    return bool(ctx and ctx.tokens.is_active())
 
 
 def start_episode_token_tracking():
-    """Reset and activate the per-episode token accumulator.
-
-    Safe to call from any thread; updates from any thread will be aggregated
-    until ``get_episode_token_totals()`` is invoked.
-    """
-    _episode_accumulator.start()
-    logger.info(f"Episode token tracking: ACTIVATED (thread={threading.current_thread().name})")
+    """Reset and activate the calling run's token accumulator."""
+    ctx = run_context.current()
+    if ctx is None:
+        logger.debug("Episode token tracking requested outside a run; ignored")
+        return
+    ctx.tokens.start()
+    logger.info(f"Episode token tracking: ACTIVATED ({ctx.key})")
 
 
 def get_episode_token_totals() -> dict:
-    """Return accumulated totals, deactivate, and reset the accumulator."""
-    totals = _episode_accumulator.collect_and_reset()
+    """Return the calling run's totals, deactivate, and reset."""
+    ctx = run_context.current()
+    if ctx is None:
+        return {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+    totals = ctx.tokens.collect_and_reset()
     logger.info(
         f"Episode token totals: in={totals['input_tokens']} out={totals['output_tokens']}"
-        f" cost=${totals['cost']:.6f} (thread={threading.current_thread().name})"
+        f" cost=${totals['cost']:.6f} ({ctx.key})"
     )
     return totals
 
@@ -1431,7 +1393,9 @@ def _record_token_usage(model: str, usage: dict):
         f" cost=${cost:.6f} accum_active={accum_active}"
         f" (thread={threading.current_thread().name})"
     )
-    _episode_accumulator.add(input_tokens, output_tokens, cost)
+    ctx = run_context.current()
+    if ctx is not None:
+        ctx.tokens.add(input_tokens, output_tokens, cost)
 
 
 def get_llm_client(force_new: bool = False) -> LLMClient:
@@ -1497,6 +1461,19 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
         return _cached_client
 
 
+# OpenCode Go and Zen route a session's requests to one backend for prompt
+# caching and reject requests without the session header (#719). One id per
+# process: every MinusPod call shares the same system prompts.
+_OPENCODE_SESSION_ID = uuid.uuid4().hex
+
+
+def _opencode_headers(base_url: str) -> dict[str, str]:
+    host = (urlparse(base_url).hostname or '').lower()
+    if host != 'opencode.ai' and not host.endswith('.opencode.ai'):
+        return {}
+    return {'x-opencode-session': _OPENCODE_SESSION_ID, 'x-opencode-client': 'minuspod'}
+
+
 def _build_client(provider: str) -> LLMClient | None:
     """Build an LLM client for a given provider without caching."""
     if provider == PROVIDER_ANTHROPIC:
@@ -1520,7 +1497,8 @@ def _build_client(provider: str) -> LLMClient | None:
             api_key = get_effective_ollama_api_key() or 'not-needed'
         else:
             api_key = get_effective_openai_api_key()
-        return OpenAICompatibleClient(base_url=base_url, api_key=api_key)
+        return OpenAICompatibleClient(base_url=base_url, api_key=api_key,
+                                      extra_headers=_opencode_headers(base_url))
     return None
 
 
@@ -2000,22 +1978,30 @@ def classify_daily_quota_exhaustion(error: Exception) -> dict | None:
 def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> float | None:
     """Pull a recommended wait (seconds) from a provider rate-limit exception.
 
-    Reads the `Retry-After` header off the attached ``httpx.Response`` first; when
-    that is absent (Google/Gemini, including via OpenRouter, put the wait in the
-    body instead), falls back to the body's RetryInfo ``retryDelay`` / "retry in
-    Ns" hint. Returns ``None`` when neither is present so callers fall through to
+    Reads, in order: the larger of the `Retry-After` header and a body-carried
+    reset field, then Google/Gemini's RetryInfo ``retryDelay`` / "retry in Ns"
+    hint. Returns ``None`` when nothing is usable, so callers fall through to
     their existing backoff curve.
+
+    A body reset can exceed the header (or be the only value present), so the
+    in-process sleep this drives can reach the caller's `max_seconds` cap.
     """
     response = getattr(error, 'response', None)
     headers = getattr(response, 'headers', None) if response is not None else None
+    header_seconds = None
     if headers is not None:
         raw = headers.get('Retry-After') or headers.get('retry-after')
-        parsed = parse_retry_after(raw, max_seconds=max_seconds)
-        if parsed is not None:
-            return parsed
-    # No usable header: Google/Gemini (incl. via OpenRouter) put the recommended
-    # wait in the body (RetryInfo.retryDelay / "retry in Ns"). Fall back to the
-    # exception's str when no body is reachable but its text carries the hint
-    # (mirrors the classify_* helpers' `or str(error)` guard).
-    return parse_google_retry_delay(
-        extract_error_body(error) or str(error), max_seconds=max_seconds)
+        header_seconds = parse_retry_after(raw, max_seconds=max_seconds)
+
+    body = extract_error_body(error) or str(error)
+    reset_seconds = parse_upstream_reset(body, max_seconds=max_seconds)
+
+    if header_seconds is not None and reset_seconds is not None:
+        return max(header_seconds, reset_seconds)
+    if reset_seconds is not None:
+        return reset_seconds
+    if header_seconds is not None:
+        return header_seconds
+    # No header and no reset field: Google/Gemini (incl. via OpenRouter) put a
+    # retry delay in the body instead (RetryInfo.retryDelay / "retry in Ns").
+    return parse_google_retry_delay(body, max_seconds=max_seconds)

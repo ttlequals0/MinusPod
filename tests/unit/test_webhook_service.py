@@ -695,12 +695,11 @@ class TestQueueAndServiceAlerts:
         mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
                                    'events': ['Queue Held']}]
         assert webhook_service.fire_queue_held_event(
-            '2026-09-03T18:00:00Z', 24, 'rate limited', 'example-podcast',
+            '2026-09-03T18:00:00Z', 'rate limited', 'example-podcast',
             'a1b2c3d4e5f6', 'Example Podcast') is True
         ctx = mock_dispatch.call_args[0][1]
         assert ctx['event'] == 'Queue Held'
         assert ctx['hold_until'] == '2026-09-03T18:00:00Z'
-        assert ctx['ttl_hours'] == 24
         assert ctx['slug'] == 'example-podcast'
 
     @patch('webhook_service.threading.Thread', SyncThread)
@@ -718,13 +717,13 @@ class TestQueueAndServiceAlerts:
     @patch('webhook_service.email_service.send_event_email')
     @patch('webhook_service._prepare_and_dispatch')
     @patch('webhook_service.load_webhooks')
-    def test_resumed_and_reachable_carry_requeued(self, mock_load, mock_dispatch, _mock_email):
+    def test_resumed_and_reachable_contexts(self, mock_load, mock_dispatch, _mock_email):
         mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
                                    'events': ['Queue Resumed', 'Service Reachable']}]
-        webhook_service.fire_queue_resumed_event('2026-09-03T17:00:00Z', 3)
+        webhook_service.fire_queue_resumed_event('2026-09-03T17:00:00Z')
         webhook_service.fire_service_reachable_event('whisper', 2)
         contexts = [c[0][1] for c in mock_dispatch.call_args_list]
-        assert contexts[0]['requeued'] == 3 and contexts[0]['held_since'] == '2026-09-03T17:00:00Z'
+        assert contexts[0]['held_since'] == '2026-09-03T17:00:00Z'
         assert contexts[1]['service'] == 'whisper' and contexts[1]['requeued'] == 2
 
 
@@ -734,7 +733,7 @@ def test_queue_held_event_carries_hold_until_local(monkeypatch):
     monkeypatch.setattr(webhook_service, 'get_notification_timezone', lambda db=None: 'America/New_York')
     captured = {}
     monkeypatch.setattr(webhook_service, '_fire_alert_event', lambda event, ctx, note: captured.update(ctx))
-    webhook_service.fire_queue_held_event('2026-01-01T12:30:00Z', 24, 'rate limited', 'my-podcast', 'a1b2c3d4e5f6', 'My Podcast')
+    webhook_service.fire_queue_held_event('2026-01-01T12:30:00Z', 'rate limited', 'my-podcast', 'a1b2c3d4e5f6', 'My Podcast')
     assert captured['hold_until'] == '2026-01-01T12:30:00Z'
     assert captured['hold_until_local'] == '2026-01-01T07:30:00-05:00'
     assert local_iso('not a date', 'UTC') is None

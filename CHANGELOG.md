@@ -11,6 +11,170 @@ release notes.
 
 ## [Unreleased]
 
+## [2.96.15] - 2026-09-09
+
+### Fixed
+- A run that lost detection or verification windows still reported a clean episode. The episode page and the API now show how many failed, so you can tell what was never examined for ads.
+
+## [2.96.14] - 2026-09-09
+
+### Fixed
+- A review model saved under a previous LLM provider survived a provider switch, so the reviewer kept calling a model the new provider does not serve. The settings page hid this, showing "Same as pass model" whenever the stored model was missing from the current catalog. Provider changes now clear the stale value, and the select shows an off-catalog model.
+
+## [2.96.13] - 2026-09-09
+
+### Fixed
+- A rate-limit pause now lifts when you change the LLM provider, endpoint, or API key. The pause belonged to the old account.
+
+## [2.96.12] - 2026-09-09
+
+### Fixed
+- A hold from a provider window longer than a day reported a reset 24 hours out instead of the real one, so the queue status gave the wrong resume time. Weekly and monthly windows now hold until their own reset, and a nonsense value is still capped at 30 days.
+
+## [2.96.11] - 2026-09-09
+
+### Changed
+- Reviewing a detection no longer rewrites the MP3 on each click. A decision that changed no audio used to rebuild the episode's ad chapters inside the request, waiting on a full-file ffmpeg remux that took about 10 seconds. Every decision is now stamped and applied in one pass per episode, the way recuts already were. The apply decides per episode whether the decisions need a recut or only a chapter rebuild, starts both in the background, and reports how many episodes took each path.
+
+### Fixed
+- The settings page logged two Chrome accessibility warnings: the password form had no username field, and the API key inputs sat outside any form. Both are fixed. Saving is unchanged.
+
+### Added
+- The banner shown after the last held detection is marked not an ad now also offers Regenerate Chapters, next to Re-detect Ads. It appears only when the episode has a VTT transcript to regenerate from.
+- The stall watchdog logs its pid and threshold when it starts, so "no stall" can be told apart from "not running".
+
+## [2.96.10] - 2026-09-09
+
+### Fixed
+- Regenerate Chapters ran inside the request. A topic pass longer than a reverse proxy's timeout (about 100 s behind common tunnels) failed in the browser with "Load failed". The server had finished and saved the chapters anyway. It now starts a background run and returns 202, so the response no longer carries the chapter list; poll the episode instead. The episode page polls for you, shows "Regenerating chapters..." while the run is in flight, and reports the outcome. A start is refused while the episode is processing or another regeneration is running. A stamp left behind by a killed run is cleared at the next restart, or taken over after 15 minutes.
+- The six-hourly search index rebuild inserted 500 entries per transaction, holding the write lock for up to 14 s at a time; chunks are now 50 entries.
+- A database old enough to still need the episodes CHECK-constraint rebuild lost every column added after that rebuild's hardcoded DDL. The episode page then failed to load. Each rebuild now re-adds the later columns.
+- Regenerate Chapters refuses to start while the queue is held for a provider rate limit. A 429 during chapter generation, in a regeneration or a processing run, now records the hold and pauses the queue (when the rate-limit hold is enabled) instead of being logged and dropped. The run keeps its cut audio and gets ad chapters only.
+
+### Added
+- Marking the last held detection "Not an ad" offers a Re-detect Ads button in place of the review list, the same run as the Reprocess menu's Re-detect Ads.
+- A watchdog in every worker logs when its process stops scheduling threads for 5 s or more, with each thread's position before and after the stall. Writers that hold the SQLite lock while starved of the GIL show up here rather than as unexplained "database is locked" waits.
+
+## [2.96.9] - 2026-09-08
+
+### Fixed
+- An audio-analysis save that timed out on the SQLite write lock left its connection in an open write transaction for the rest of the run. Every other writer then failed with "database is locked" until the run ended. The save, and the cross-fetch differential save with the same shape, now run as one upsert in an immediate transaction. A statement that opens a transaction and then fails now rolls it back on the spot, and an immediate transaction clears any leaked one before it begins. No writer can leave the thread's connection holding the lock.
+- Installs upgraded from 2.96.8 with the ad chapter title formats still at their defaults get the new readable defaults; customised formats are kept.
+- The startup search-index rebuild held the write lock for the whole insert (14 s on a 16k-item index). It now fills a shadow table in short transactions and swaps it in with one quick DDL transaction.
+
+### Changed
+- Ad chapter titles gain `{label}`, the category name (Sponsor, Self-promo). The defaults are now `Ad: {label}` and `Possible ad: {label}`; the `[mp:sponsor]` machine form stays available through `{category}`. Description chapter lists no longer append the category after an ad chapter title.
+
+## [2.96.8] - 2026-09-08
+
+### Added
+
+- Ad chapters: segments kept in the audio by their category action, and optionally segments waiting for review, are published as their own Podcasting 2.0 chapters. A resume chapter marks the end of each break unless a chapter already sits there. Settings live under Settings > Transcripts & Chapters: `adChaptersEnabled`, `adChapterCategories`, `adChaptersIncludeHeld`, `adChapterTitleFormat`, `adChapterHeldTitleFormat`, `adChapterResumeTitle`, `adChapterMinConfidence`. Feeds can override the on/off switch and the category list. Off by default. Adapted from the ad-chapters branch by mendelsimon.
+- Chapter lists in descriptions append the segment category after an ad chapter title, with "awaiting review" for held segments.
+
+### Changed
+
+- Recut, Regenerate Chapters, and corrections that do not change the audio (rejecting a held segment, recategorizing) rebuild ad chapters from the current markers. Ad chapters are exempt from the shortest-chapter filters.
+
+## [2.96.7] - 2026-09-08
+
+### Changed
+
+- Every remaining region that waits on the database shows a content-shaped placeholder instead of a spinner or a "Loading..." line: the sponsors, history, search and settings pages, the detected-ads and ad-review tabs, the transcript, run log and split-marker viewers, feed tags, and the community patterns, database backup, queue control and transcript normalization settings. The login check and the OPML import progress keep their spinner, since those are waits rather than data.
+
+## [2.96.6] - 2026-09-08
+
+### Changed
+
+- Ad Reviewer is a regular feature now, under Settings > AI & Processing next to Ad Detection. It is unchanged otherwise. Experiments keeps the addressing-mode experiment.
+- Pages that wait on the database show a placeholder in the shape of the content instead of a spinner in an empty page. Stats does this per region; the dashboard, feed, episode and patterns pages do it as a whole. Nothing jumps when the data lands.
+- The status bar's expanded panel fits four running jobs plus the queue and refresh blocks before it scrolls, instead of a fixed 192 pixels.
+
+### Fixed
+
+- The six-hourly search index rebuild no longer stalls every other database writer. It wiped the index and then re-inserted every row one at a time in Python, all inside the one transaction that wipe requires, holding SQLite's single write lock for over 30 seconds. The rows are now read and shaped before the write starts, and inserted in batches. The rebuild stays atomic.
+- Clearing a feed's refresh-failure state costs no write lock when there is nothing to clear. The guarded update still had to take the lock to evaluate its condition, so during a sweep every clean feed queued behind whatever writer held it. A read decides first, and in WAL a reader never waits on a writer.
+
+## [2.96.5] - 2026-09-08
+
+### Fixed
+
+- Feed discovery no longer starves every other database writer. A refresh wrote a whole feed's discovered episodes inside one transaction holding SQLite's single write lock, and on a large archive feed that ran to 80 seconds. Every other writer waited out its 30 second timeout and failed with "database is locked": RSS refreshes across the whole sweep, pattern-match recording, podping host stamps, and an episode that lost 15 minutes of processing. Discovery now writes in chunks of 50 so the lock is released between them, and reads its existing-episode snapshot outside the write path.
+- A marker whose category resolves to `keep` is cut anyway when its span overlaps a measured cross-fetch differential region (#728). `cross_promo` covers both a guest plugging their own show, which is why an operator maps it to keep, and a paid dynamically-inserted ad for another podcast; the category cannot tell them apart but the differential can, since injected audio differs between two fetches of the same enclosure and host content does not. Turn off "Cut inserted ads in kept categories" under Settings > Ad Detection > Differential detection to restore the old behaviour.
+- The pass-2 verification sweep applies the same rule, so an inserted ad a kept category sheltered in pass 1 is not simply kept again.
+- SQLite write contention. Every LLM call bumped three global counters as three separate statements inside its write transaction, and a refresh sweep committed once per feed even when the feed was clean and the update matched no row. SQLite allows one writer, so those extra trips queued behind each other and write transactions were observed waiting 5 to 16 seconds under a concurrent pool. The three counters are now one statement, and a clean feed costs no commit.
+- Log records are no longer split across lines. A logged prompt body carries newlines, and a container runtime turns each into its own log line with no level prefix, so a scraper re-sniffs the level from the text and files a line beginning "CRITICAL:" as a critical entry. The console formatter now collapses newlines in the message. Exception tracebacks keep their line breaks, and the per-episode run log still records the original text.
+
+## [2.96.4] - 2026-09-07
+
+### Added
+
+- Rate-limit hold: a probe now re-checks an active hold instead of waiting out the provider's stated reset. With `llmUsageUrl` set, it checks that endpoint every `rateLimitProbeMinutes` (default 5, 0 disables) and clears the hold early or re-stamps it with a fresher reset, in either direction. Without a usage URL, a single minimal completion call does the same check.
+- A self-hosted Whisper backend can expose an optional health endpoint reporting its model, device, compute type, and concurrency limit. `GET /settings/whisper/capacity` and the Whisper connection test now sample it (round-robining behind a load balancer reveals each replica), and Settings > Transcription shows the detected instance count and a suggested `whisperPoolMaxRequests` when it differs from the configured cap, or a warning when replicas disagree on model, device, or compute type.
+
+### Fixed
+
+- The Whisper health probe now runs only while the pool is active, so disabling it or switching to the local backend stops it polling a stale URL. Its result is cached for 120 seconds, so the settings page's 15-second poll no longer refires it. Sampling takes up to 8 requests instead of 3, and needs three repeated replicas rather than two before stopping early. When sampling runs out before an instance repeats three times running, it never demonstrably wrapped the replica set, so Settings > Transcription now reports "at least N" rather than stating N as the total. A probe also stops starting new samples after 15 seconds, and while one is running against a backend, other requests for that backend reuse the last result rather than starting their own. A backend that hangs still costs the request that started the probe, but no longer multiplies across the settings page's polling.
+- A provider's rate-limit reset field can arrive empty, non-numeric, or explicitly null. Such a field still counted as present, so the fallback to a parseable reset nested in a proxied body (`error.metadata.raw`) never ran. The hold fell back to the generic Retry-After header. The nested reset is now read whenever the outer field does not parse.
+
+## [2.96.3] - 2026-09-07
+
+### Fixed
+
+- The tail re-transcription pass now sends `vad_filter=false` to a remote Whisper backend. It re-runs the untranscribed tail of an episode with voice detection off, but on the API backend the request was identical to a normal one, so a server that supports the switch never saw it and quiet post-rolls stayed missing. Servers without the switch ignore the field; a server that rejects it outright with a non-200 naming the field gets one retry without it instead of losing the tail.
+- The stats dashboard and per-podcast stats summed a join between processing history and episodes, so a reprocessed episode's time saved was counted once per run instead of once. Episode length, time saved, and total episode count now come from each episode's current row, counted once regardless of how many times it was reprocessed. Ads removed, audio cues, cost, tokens, and processing time still count every run, since each reprocess costs real time and money. New fields `totalRuns` and `episodesWithTimeSaved` on the dashboard, and `runCount` per podcast, show both denominators. The lifetime time-saved counter also credited the same saving on every reprocess; it now credits only the change since it was last credited, and survives the episode being deleted. This upgrade backfills the per-episode credit for episodes already processed, so the lifetime total matches the dashboard total from the first boot.
+- A provider's generic one-hour Retry-After header sat next to a body carrying the true, farther-out reset time. The hold read the header first and released the queue an hour early, into a still-limited provider. That burned a full transcription and a round of detection windows before taking another short hold. The hold now takes the later of the header and the provider's own reset time (`seconds_until_reset`, `resets_at`, or `resets_at_iso` in the body), so it lasts until the provider clears.
+
+## [2.96.2] - 2026-09-06
+
+### Added
+
+- Whisper pool: opt-in parallel processing against a remote Whisper backend. Settings > Transcription gains a toggle (`whisperPoolEnabled`, default off), a cap on transcription requests in flight (`whisperPoolMaxRequests`, 1-64, default 4), and a count of episodes to process at once (`whisperPoolMaxEpisodes`, 1-16, default 1). While the pool is on, every run starts from the background worker and up to that many episodes run concurrently, each keeping at least one request slot. A 429 from the backend waits instead of failing a chunk. `GET /settings/whisper/capacity` reports the resolved numbers. `GET /status` carries `jobs` (every running job, oldest first; `currentJob` stays as the oldest) and `whisper` (the pool snapshot), and the status bar lists each running job. With the toggle off nothing changes.
+
+### Changed
+
+- Rate-limit hold: a 429 with a reset time now puts the episode back in the normal queue and pauses all processing until the reset passes. The queue row is released in place, so the episode keeps the priority and position it was claimed at, and a fresh episode still goes ahead of a bulk backlog when the queue resumes. Held episodes are no longer parked as `deferred`, so there is no give-up window and nothing to requeue or expire. Gone with that: `ttlHours`, the "Give up after" input, and `holdCount` on `/settings/rate-limit-hold`; `rateLimitHeld` on the `hold` block of `/status`; `ttl_hours` on the `Queue Held` webhook and email; `requeued` on `Queue Resumed`. `holdUntil` and `holdSince` are null once the reset has passed. A one-time migration returns episodes an older hold left as `deferred` to their original queue rows.
+
+- The modified OPML export lists the recents feed alongside local feeds. The original export still skips both, since neither has an upstream URL.
+
+### Fixed
+
+- The rate-limit hold did not hold. Play, Reprocess, and bulk-queued episodes bypassed the pause, so each one ran a full transcription, hit its own 429, and was parked; one instance parked 26 episodes in a row over two hours. The pause now sits on the one entry point every run goes through, so a Play or Reprocess during a hold waits in the queue at its usual boost instead of starting.
+- After the reset passed, the pause marker and the parked episodes waited for a maintenance pass that runs once every ten queue iterations, and each iteration blocks for a whole episode. The status bar kept saying "Provider rate limit lifted. Held episodes requeue shortly" for hours. The marker is now cleared on the first pass after the reset, and there is nothing left to requeue.
+- Feed cards on the dashboard are the same height whether or not a feed has a Podping line, a refresh date, or status pills. The "Refresh failing" warning sits on the Updated line. Episode rows on a feed page reserve the same space for the description, duration, ad count, and status badge, so a list lines up too.
+
+## [2.96.1] - 2026-09-06
+
+### Added
+
+- Recents feed (#721): an opt-in combined feed at `/recents` with every episode processed on the instance whose publish date is on or after the day the feed was created, across all subscribed and local feeds. Create it once from Add Feed, rename it, set a description, and replace its artwork (the MinusPod icon by default). Every item points at its source feed's audio, transcript, and chapters, so subscribing to it once keeps up with podcasts added later. Old episodes that get reprocessed stay out.
+
+### Changed
+
+- Dependencies: gunicorn 26.2.0, cryptography 50.0.1, nh3 0.3.7, huggingface-hub 1.30.0, rapidfuzz 3.14.6; frontend @tanstack/react-query 5.102.8, vitest 4.1.11, eslint 10.9.1, swagger-ui-dist 5.32.14, @testing-library/user-event 14.6.6.
+
+### Fixed
+
+- Episode publish dates are stored as true UTC. A publisher's local offset used to survive normalization, which put episodes out of order across feeds and could misplace them against the recents cutoff.
+- The status bar chip for a rate-limit pause now reads "Paused until HH:MM" instead of "Queue paused", and the expanded line leads with when the queue resumes, then when the pause began.
+- On phones, the episode page Download and Reprocess menus (and every other dropdown) open centered on the screen under their button instead of clipping off whichever edge the button wrapped to. On wider screens a menu opens toward the side that has room.
+
+## [2.96.0] - 2026-09-05
+
+### Added
+
+- The episode page has a Download menu next to Reprocess with the cut (ad-free) audio and, when retained, the original. `GET /feeds/{slug}/episodes/{id}/processed.mp3` is new: it serves the current cut under the normal session auth (the public feed route needs a feed key) and stays available while a reprocess runs. `?download=1` on it, or on the existing `original.mp3`, sends the file as an attachment named after the episode title. The Reprocess menu now uses the shared dropdown, so it closes on outside click and Escape like the other menus.
+
+- Generated chapters can be listed in episode descriptions (#720), for apps that only surface chapters during playback. A "List chapters in episode descriptions" toggle under Transcripts & Chapters (`chaptersInNotes`, default off) appends a `Chapters` block to each episode's description in the served feed and in the episode API: one `mm:ss Title` line per chapter, `h:mm:ss` past an hour. Each feed can override it on its settings page (`chaptersInNotes`: `on`, `off`, or null for the global value). The block is rendered when the description is served and never written to the stored description. Regenerating chapters re-renders the cached feed so the new list shows on the next fetch.
+
+### Fixed
+
+- Transcripts no longer lose 7-17% of each episode. Whisper was seeded with a 312-character sponsor-vocabulary `initial_prompt`, and the batched pipeline prepends it to every VAD clip with no decode fallback. On roughly one clip in ten, large-v3 answered the prompt instead of the audio: the vocabulary list, "Thanks for watching!", or an early stop. The rest of that clip was dropped, sponsor reads included. Measured on stored transcripts, coverage was 83-93% of the audio; the same audio with no prompt covers 97%. The prompt and the scrubber that existed only to clean up its echoes are gone, on both the local and API backends. Sponsor spellings are still normalized after transcription by the existing corrections table.
+- The Queue Held alert fires once per pause. A user-requested episode claimed during a hold (Play and Reprocess bypass the pause on purpose) hits the same 429 and pushes the reset time out, and each of those extensions re-sent the alert. Extensions are now silent; the next alert comes after the pause lifts and a new one starts.
+- OpenAI-compatible calls to OpenCode Go or Zen (`opencode.ai` base URLs) send the `x-opencode-session` header the provider requires from 2026-09-06, plus `x-opencode-client`. The session id is stable for the life of the process so the provider can route every call to the same backend for prompt caching (#719).
+- Bare closing-phrase hallucinations with trailing punctuation ("Thanks for watching!", "Bye.") are now filtered like their unpunctuated forms.
+- The transcription batch-size ceiling no longer sticks forever. It only ever ratcheted down, and any error mentioning CUDA counted as an OOM, so one transient error had pinned it at 1 and every later episode decoded one clip at a time, about 30% slower than the duration tier. Now only an actual out-of-memory error lowers the size (other CUDA errors retry at the same size), and after two days the next run probes one size up: a genuine ceiling costs one OOM retry and is re-recorded, a bogus one climbs back to the tier. Ceilings recorded by earlier versions carry no timestamp and are probed from on upgrade.
+
 ## [2.95.3] - 2026-09-05
 
 ### Added

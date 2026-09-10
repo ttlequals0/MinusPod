@@ -29,6 +29,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MIN,
     AD_REVIEWER_PARALLEL_ADS_MAX,
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
+    WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
     coerce_bool_setting,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
@@ -42,6 +43,9 @@ from config import (
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
+    resolve_ad_chapter_categories_map,
+    valid_ad_chapter_title_format,
+    validate_ad_chapter_categories,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
 )
@@ -63,10 +67,14 @@ from offline_queue import (
     TTL_HOURS_MIN, TTL_HOURS_MAX,
 )
 from rate_limit_hold import (
-    get_hold_until, get_rate_limit_hold_ttl_hours,
-    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE, clear_hold,
+    get_active_hold, is_rate_limit_hold_enabled, clear_hold,
+    clear_hold_for_provider_change,
+    get_llm_usage_url, get_rate_limit_probe_minutes,
+    RATE_LIMIT_PROBE_MINUTES_MIN, RATE_LIMIT_PROBE_MINUTES_MAX,
 )
 from pricing_fetcher import force_refresh_pricing
+from transcriber import _get_chunk_settings, probe_whisper_health
+from whisper_pool import get_pool
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
     get_llm_client, create_client_for_provider,
@@ -81,7 +89,7 @@ from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from webhook_service import (
     render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS,
-    get_notification_timezone,
+    get_notification_timezone, fire_queue_resumed_event,
 )
 import email_service
 from email.utils import parseaddr
@@ -211,6 +219,8 @@ def get_settings():
     chapters_value = _setting_value(
         settings, 'chapters_enabled', registry_default('chapters_enabled'))
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
+    chapters_in_notes = coerce_bool_setting(_setting_value(
+        settings, 'chapters_in_notes', registry_default('chapters_in_notes')))
     only_expose_processed_value = _setting_value(
         settings, 'only_expose_processed_default',
         registry_default('only_expose_processed_default'))
@@ -289,6 +299,9 @@ def get_settings():
             return int(_setting_value(settings, key, registry_default(key)))
         except (TypeError, ValueError):
             return registry_get_default(key)
+
+    def _str_setting(key):
+        return _setting_value(settings, key, registry_default(key))
 
     queue_manual_boost = _int_setting('queue_manual_boost')
     queue_fresh_boost = _int_setting('queue_fresh_boost')
@@ -439,6 +452,13 @@ def get_settings():
         'transcribe_concurrent_chunks', registry_get_default('transcribe_concurrent_chunks'))
     transcribe_chunk_overlap_seconds = _db_int(
         'transcribe_chunk_overlap_seconds', registry_get_default('transcribe_chunk_overlap_seconds'))
+    whisper_pool_max_requests = _db_int(
+        'whisper_pool_max_requests', registry_get_default('whisper_pool_max_requests'))
+    whisper_pool_max_episodes = _db_int(
+        'whisper_pool_max_episodes', registry_get_default('whisper_pool_max_episodes'))
+    whisper_pool_enabled_raw = _setting_value(
+        settings, 'whisper_pool_enabled', registry_default('whisper_pool_enabled'))
+    whisper_pool_enabled = coerce_bool_setting(whisper_pool_enabled_raw)
 
     # Per-stage LLM tunables: resolved value (DB > env > default) and env-default provenance.
     from config import (
@@ -505,6 +525,22 @@ def get_settings():
     audio_cue_create_from_pairs = coerce_bool_setting(_setting_value(
         settings, 'audio_cue_create_from_pairs',
         registry_default('audio_cue_create_from_pairs')))
+
+    dai_differential_overrides_keep = coerce_bool_setting(_setting_value(
+        settings, 'dai_differential_overrides_keep',
+        registry_default('dai_differential_overrides_keep')))
+
+    ad_chapters_enabled = coerce_bool_setting(_str_setting('ad_chapters_enabled'))
+    ad_chapter_categories = resolve_ad_chapter_categories_map(
+        _str_setting('ad_chapter_categories'))
+    ad_chapters_include_held = coerce_bool_setting(
+        _str_setting('ad_chapters_include_held'))
+    ad_chapter_title_format = _str_setting('ad_chapter_title_format')
+    ad_chapter_held_title_format = _str_setting('ad_chapter_held_title_format')
+    ad_chapter_resume_title = _str_setting('ad_chapter_resume_title')
+    ad_chapter_min_confidence = _db_float(
+        'ad_chapter_min_confidence',
+        registry_get_default('ad_chapter_min_confidence'))
 
     # Learned positional prior experiment (#360)
     positional_prior_enabled = coerce_bool_setting(_setting_value(
@@ -606,6 +642,15 @@ def get_settings():
         'opmlOriginalUrl': opml_original_url,
         'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
+        'chaptersInNotes': _sv('chapters_in_notes', chapters_in_notes),
+        'adChaptersEnabled': _sv('ad_chapters_enabled', ad_chapters_enabled),
+        'adChapterCategories': _sv('ad_chapter_categories', ad_chapter_categories),
+        'adChaptersIncludeHeld': _sv('ad_chapters_include_held', ad_chapters_include_held),
+        'adChapterTitleFormat': _sv('ad_chapter_title_format', ad_chapter_title_format),
+        'adChapterHeldTitleFormat': _sv(
+            'ad_chapter_held_title_format', ad_chapter_held_title_format),
+        'adChapterResumeTitle': _sv('ad_chapter_resume_title', ad_chapter_resume_title),
+        'adChapterMinConfidence': _sv('ad_chapter_min_confidence', ad_chapter_min_confidence),
         'chaptersModel': _sv('chapters_model', chapters_model),
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
@@ -671,6 +716,8 @@ def get_settings():
         'learningMaxPatternDuration': _sv('learning_max_pattern_duration', learning_max_pattern_duration),
         'differentialMeasuredCorrMax': _sv('differential_measured_corr_max', differential_measured_corr_max),
         'differentialHoldMinSeconds': _sv('differential_hold_min_seconds', differential_hold_min_seconds),
+        'daiDifferentialOverridesKeep': _sv(
+            'dai_differential_overrides_keep', dai_differential_overrides_keep),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
@@ -685,6 +732,9 @@ def get_settings():
         'transcribeMaxChunkSeconds': _sv('transcribe_max_chunk_seconds', transcribe_max_chunk_seconds),
         'transcribeConcurrentChunks': _sv('transcribe_concurrent_chunks', transcribe_concurrent_chunks),
         'transcribeChunkOverlapSeconds': _sv('transcribe_chunk_overlap_seconds', transcribe_chunk_overlap_seconds),
+        'whisperPoolEnabled': _sv('whisper_pool_enabled', whisper_pool_enabled),
+        'whisperPoolMaxRequests': _sv('whisper_pool_max_requests', whisper_pool_max_requests),
+        'whisperPoolMaxEpisodes': _sv('whisper_pool_max_episodes', whisper_pool_max_episodes),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'stageTunables': tunables_payload,
@@ -747,6 +797,7 @@ def update_ad_detection_settings():
         _apply_max_ad_duration_fields,
         _apply_detection_tuning_fields,
         _apply_segment_category_actions,
+        _apply_ad_chapter_fields,
         _apply_community_sync_categories,
         _apply_jit_blocked_user_agents,
         _apply_user_agent_fields,
@@ -1074,6 +1125,20 @@ def _apply_processing_flags(db, data):
         db.set_setting('chapters_enabled', value, is_default=False)
         logger.info(f"Updated chapters generation to: {value}")
 
+    if 'chaptersInNotes' in data:
+        value = 'true' if data['chaptersInNotes'] else 'false'
+        changed = (db.get_setting('chapters_in_notes') or 'false') != value
+        db.set_setting('chapters_in_notes', value, is_default=False)
+        logger.info(f"Updated chapters in descriptions to: {value}")
+        if changed:
+            # Re-render now (local feeds included) rather than wait for a
+            # scheduled refresh that would 304-skip the change.
+            from main_app.feeds import rebuild_all_served_feeds
+            try:
+                rebuild_all_served_feeds()
+            except Exception as e:
+                logger.warning(f"Served feed rebuild after chaptersInNotes change failed: {e}")
+
     if 'omitTemperature' in data:
         value = 'true' if data['omitTemperature'] else 'false'
         db.set_setting('omit_temperature', value, is_default=False)
@@ -1152,6 +1217,64 @@ def _apply_segment_category_actions(db, data):
         merged.update(value)
         db.set_setting('segment_category_actions', json.dumps(merged), is_default=False)
         logger.info(f"Updated segment category actions: {merged}")
+    return None
+
+
+def _apply_ad_chapter_fields(db, data):
+    """Persist the ad chapter settings; the category map merges over the stored map.
+
+    An empty title string resets that field to its default, matching the
+    contract _apply_user_agent_fields uses for the other free-text settings.
+    """
+    # Validate every field first so a bad value leaves nothing half-written.
+    writes = []
+    for key, setting in (('adChaptersEnabled', 'ad_chapters_enabled'),
+                         ('adChaptersIncludeHeld', 'ad_chapters_include_held')):
+        if key in data:
+            writes.append((setting, 'true' if coerce_bool_setting(data[key]) else 'false'))
+
+    for key, setting in (('adChapterTitleFormat', 'ad_chapter_title_format'),
+                         ('adChapterHeldTitleFormat', 'ad_chapter_held_title_format'),
+                         ('adChapterResumeTitle', 'ad_chapter_resume_title')):
+        if key not in data:
+            continue
+        title = data[key]
+        if not isinstance(title, str):
+            return error_response(f'{key} must be a string', 400)
+        if not title.strip():
+            writes.append((setting, ''))
+            continue
+        # Only the two format fields carry {label} or {category} placeholders.
+        if setting != 'ad_chapter_resume_title' and not valid_ad_chapter_title_format(title):
+            return error_response(
+                f'{key} must be text using only the {{label}} and {{category}} placeholders', 400)
+        writes.append((setting, title.strip()))
+
+    if 'adChapterMinConfidence' in data:
+        value = data['adChapterMinConfidence']
+        if not SETTINGS_REGISTRY['ad_chapter_min_confidence'].validator(str(value)):
+            return error_response('adChapterMinConfidence must be between 0 and 1', 400)
+        writes.append(('ad_chapter_min_confidence', str(float(value))))
+
+    merged = None
+    if 'adChapterCategories' in data:
+        value = data['adChapterCategories']
+        error = validate_ad_chapter_categories(value)
+        if error:
+            return error_response(error, 400)
+        merged = resolve_ad_chapter_categories_map(db.get_setting('ad_chapter_categories'))
+        merged.update(value)
+        writes.append(('ad_chapter_categories', json.dumps(merged)))
+
+    for setting, value in writes:
+        # Only the title fields can be blank here, and blank means reset.
+        if value == '':
+            db.clear_setting(setting)
+            logger.info(f"Reset {setting} to the default")
+        else:
+            db.set_setting(setting, value, is_default=False)
+    if merged is not None:
+        logger.info(f"Updated ad chapter categories: {merged}")
     return None
 
 
@@ -1289,6 +1412,10 @@ def _apply_transcribe_chunk_fields(db, data):
         ('transcribeChunkOverlapSeconds', 'transcribe_chunk_overlap_seconds', 1, 600),
         ('whisperApiTimeoutSeconds', 'whisper_api_timeout_seconds',
          WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX),
+        ('whisperPoolMaxRequests', 'whisper_pool_max_requests',
+         *WHISPER_POOL_MAX_REQUESTS_RANGE),
+        ('whisperPoolMaxEpisodes', 'whisper_pool_max_episodes',
+         *WHISPER_POOL_MAX_EPISODES_RANGE),
     ):
         if field_name not in data:
             continue
@@ -1302,31 +1429,45 @@ def _apply_transcribe_chunk_fields(db, data):
             )
         parsed[db_key] = value
 
-    if not parsed:
-        return None
+    pool_enabled = None
+    if 'whisperPoolEnabled' in data:
+        if not isinstance(data['whisperPoolEnabled'], bool):
+            return json_response({'error': 'whisperPoolEnabled must be a boolean'}, 400)
+        pool_enabled = data['whisperPoolEnabled']
 
-    # Cross-field: overlap must stay below the chunk size. An overlap >= chunk
-    # makes every chunk span its whole neighbor, wasting work and degenerating
-    # the merge dedupe. Validate the effective values (incoming where present,
-    # stored otherwise) so changing one field can't cross the other.
-    def _effective(db_key, fallback):
-        if db_key in parsed:
-            return parsed[db_key]
-        stored = db.get_setting(db_key)
-        try:
-            return int(stored) if stored else fallback
-        except (ValueError, TypeError):
-            return fallback
+    pool_touched = ('whisperPoolEnabled' in data
+                    or 'whisper_pool_max_requests' in parsed
+                    or 'whisper_pool_max_episodes' in parsed)
 
-    if _effective('transcribe_chunk_overlap_seconds', 30) >= _effective('transcribe_max_chunk_seconds', 600):
-        return json_response(
-            {'error': 'transcribeChunkOverlapSeconds must be less than transcribeMaxChunkSeconds'},
-            400,
-        )
+    if parsed:
+        # Cross-field: overlap must stay below the chunk size. An overlap >= chunk
+        # makes every chunk span its whole neighbor, wasting work and degenerating
+        # the merge dedupe. Validate the effective values (incoming where present,
+        # stored otherwise) so changing one field can't cross the other.
+        def _effective(db_key, fallback):
+            if db_key in parsed:
+                return parsed[db_key]
+            stored = db.get_setting(db_key)
+            try:
+                return int(stored) if stored else fallback
+            except (ValueError, TypeError):
+                return fallback
+
+        if _effective('transcribe_chunk_overlap_seconds', 30) >= _effective('transcribe_max_chunk_seconds', 600):
+            return json_response(
+                {'error': 'transcribeChunkOverlapSeconds must be less than transcribeMaxChunkSeconds'},
+                400,
+            )
+
+    if pool_enabled is not None:
+        db.set_setting('whisper_pool_enabled', 'true' if pool_enabled else 'false', is_default=False)
+        logger.info(f"Updated whisper_pool_enabled to: {pool_enabled}")
 
     for db_key, value in parsed.items():
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
+    if pool_touched:
+        get_pool().refresh(force=True)
     return None
 
 
@@ -1337,8 +1478,13 @@ def _apply_provider_fields(db, data):
     fresh client, probe again, refresh pricing in a background thread, and
     (only when the new provider's catalog probe returns a non-empty list)
     prune any saved model ID that the new provider does not advertise.
+
+    A change of provider, endpoint, or key also lifts an active rate-limit
+    hold: the pause belonged to the account that returned the 429.
     """
     provider_changed = False
+    # Narrower than provider_changed: pricing mode is not a new account.
+    credentials_changed = False
     if 'llmProvider' in data:
         if data['llmProvider'] not in VALID_LLM_PROVIDERS:
             return json_response(
@@ -1347,6 +1493,7 @@ def _apply_provider_fields(db, data):
         db.set_setting('llm_provider', data['llmProvider'], is_default=False)
         logger.info(f"Updated LLM provider to: {data['llmProvider']}")
         provider_changed = True
+        credentials_changed = True
 
     if 'openaiBaseUrl' in data:
         try:
@@ -1356,6 +1503,7 @@ def _apply_provider_fields(db, data):
         db.set_setting('openai_base_url', data['openaiBaseUrl'], is_default=False)
         logger.info(f"Updated OpenAI base URL to: {data['openaiBaseUrl']}")
         provider_changed = True
+        credentials_changed = True
 
     if 'pricingSourceMode' in data:
         valid_modes = ('auto', 'litellm', 'free')
@@ -1377,6 +1525,10 @@ def _apply_provider_fields(db, data):
             return error_response('provider_crypto_unavailable', 409)
         logger.info("Updated OpenRouter API key")
         provider_changed = True
+        credentials_changed = True
+
+    if credentials_changed:
+        clear_hold_for_provider_change(db, 'LLM provider settings changed')
 
     if provider_changed:
         # Clear the cached probe answers so the new endpoint gets re-probed:
@@ -1411,16 +1563,20 @@ def _apply_provider_fields(db, data):
             # exactly what the typed-model-ID entry exists for (proxies,
             # private deployments). The prune only targets settings the
             # request did not touch.
+            # Cleared review_model reads back as its registry default
+            # same_as_pass, so the reviewer falls back to the pass model.
             explicit = {
                 'claude_model': 'claudeModel',
                 'verification_model': 'verificationModel',
                 'chapters_model': 'chaptersModel',
+                'review_model': 'reviewModel',
             }
             for setting_key, json_key in explicit.items():
                 if json_key in data:
                     continue
                 current = db.get_setting(setting_key)
-                if current and current not in advertised:
+                # review_model's same_as_pass sentinel is never a catalog entry.
+                if current and current != 'same_as_pass' and current not in advertised:
                     logger.info(
                         "Clearing %s='%s' on provider change: not advertised by new provider",
                         setting_key, current,
@@ -1451,6 +1607,7 @@ def _apply_whisper_fields(db, data):
             )
         db.set_setting('whisper_backend', data['whisperBackend'], is_default=False)
         logger.info(f"Updated whisper backend to: {data['whisperBackend']}")
+        get_pool().refresh(force=True)
 
     if 'whisperApiBaseUrl' in data:
         if data['whisperApiBaseUrl']:
@@ -1746,6 +1903,12 @@ def _apply_positional_prior_fields(db, data):
         enabled = coerce_bool_setting(data['positionalPriorEnabled'])
         db.set_setting('positional_prior_enabled', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated positional_prior_enabled to: {enabled}")
+
+    if 'daiDifferentialOverridesKeep' in data:
+        enabled = coerce_bool_setting(data['daiDifferentialOverridesKeep'])
+        db.set_setting('dai_differential_overrides_keep',
+                       'true' if enabled else 'false', is_default=False)
+        logger.info(f"Updated dai_differential_overrides_keep to: {enabled}")
     return
 
 
@@ -2277,8 +2440,7 @@ def _offline_queue_view(db) -> dict:
     return {
         'enabled': is_offline_queue_enabled(db),
         'ttlHours': get_offline_queue_ttl_hours(db),
-        'deferredCount': db.count_deferred_episodes(
-            exclude_service=RATE_LIMIT_DEFERRED_SERVICE),
+        'deferredCount': db.count_deferred_episodes(),
     }
 
 
@@ -2309,12 +2471,11 @@ def update_offline_queue_settings():
     return json_response(view)
 
 
-def _apply_toggle_ttl_update(db, data, prefix: str):
-    """Validate and store {enabled, ttlHours} for a deferral feature.
+def _apply_enabled_update(db, data, prefix: str):
+    """Validate and store {enabled} for a queue-wait feature.
 
     `prefix` is the settings key stem ('offline_queue', 'rate_limit_hold').
-    Returns an error response on invalid input, else None. Shared by the
-    offline-queue and rate-limit-hold PUT handlers (#482, #696).
+    Returns an error response on invalid input, else None.
     """
     if not isinstance(data, dict) or not data:
         return error_response('No data provided', 400)
@@ -2324,6 +2485,14 @@ def _apply_toggle_ttl_update(db, data, prefix: str):
             return error_response('enabled must be a boolean', 400)
         db.set_setting(f'{prefix}_enabled',
                        'true' if data['enabled'] else 'false', is_default=False)
+    return None
+
+
+def _apply_toggle_ttl_update(db, data, prefix: str):
+    """_apply_enabled_update plus the ttlHours give-up window (#482)."""
+    error = _apply_enabled_update(db, data, prefix)
+    if error:
+        return error
 
     if 'ttlHours' in data:
         ttl = data['ttlHours']
@@ -2339,9 +2508,9 @@ def _rate_limit_hold_view(db) -> dict:
     """Rate-limit hold settings payload shared by GET and PUT (#696)."""
     return {
         'enabled': is_rate_limit_hold_enabled(db),
-        'ttlHours': get_rate_limit_hold_ttl_hours(db),
-        'holdUntil': get_hold_until(db),
-        'holdCount': db.count_deferred_episodes(service=RATE_LIMIT_DEFERRED_SERVICE),
+        'holdUntil': get_active_hold(db)[0],
+        'llmUsageUrl': get_llm_usage_url(db),
+        'rateLimitProbeMinutes': get_rate_limit_probe_minutes(db),
     }
 
 
@@ -2357,23 +2526,64 @@ def get_rate_limit_hold_settings():
 def update_rate_limit_hold_settings():
     """Update rate-limit hold configuration (#696).
 
-    When enabled, a provider 429 carrying a reset time defers the episode
-    and pauses new queue claims until the reset instead of failing the job.
-    ttlHours bounds how long a held episode waits before being marked
-    permanently failed.
+    When enabled, a provider 429 carrying a reset time sends the episode
+    back to the queue and pauses new claims until the reset instead of
+    failing the job. llmUsageUrl and rateLimitProbeMinutes configure the
+    probe that periodically re-checks an active hold.
     """
     data = request.get_json()
     db = get_database()
-    error = _apply_toggle_ttl_update(db, data, 'rate_limit_hold')
+    error = _apply_enabled_update(db, data, 'rate_limit_hold')
     if error:
         return error
-    if data.get('enabled') is False:
-        # Escape hatch: lifting the hold releases the pause and lets the
-        # tick requeue every held episode on its next pass.
-        clear_hold(db)
+    if 'llmUsageUrl' in data:
+        usage_url = data['llmUsageUrl']
+        if usage_url:
+            try:
+                validate_base_url(usage_url)
+            except SSRFError as e:
+                return json_response({'error': f'Invalid LLM usage URL: {e}'}, 400)
+        db.set_setting('llm_usage_url', usage_url, is_default=False)
+    if 'rateLimitProbeMinutes' in data:
+        minutes = data['rateLimitProbeMinutes']
+        if not isinstance(minutes, int) or isinstance(minutes, bool) \
+                or minutes < RATE_LIMIT_PROBE_MINUTES_MIN or minutes > RATE_LIMIT_PROBE_MINUTES_MAX:
+            return error_response(
+                'rateLimitProbeMinutes must be an integer between '
+                f'{RATE_LIMIT_PROBE_MINUTES_MIN} and {RATE_LIMIT_PROBE_MINUTES_MAX}', 400)
+        db.set_setting('rate_limit_probe_minutes', str(minutes), is_default=False)
+    if data.get('enabled') is False and get_active_hold(db)[0]:
+        # Escape hatch: turning the hold off lifts an active pause.
+        fire_queue_resumed_event(held_since=clear_hold(db))
     view = _rate_limit_hold_view(db)
     logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
     return json_response(view)
+
+
+@api.route('/settings/whisper/capacity', methods=['GET'])
+@log_request
+def get_whisper_capacity():
+    """Resolved Whisper pool: what is configured, what is active, what is in flight.
+
+    Refreshes only this worker's pool; the leader's dispatcher refreshes its
+    own pool every pass (5s settings TTL), so no cross-process signal needed.
+    """
+    pool = get_pool()
+    pool.refresh(force=True)
+    snap = pool.snapshot()
+    configured = _get_chunk_settings()['concurrent_chunks']
+    effective = pool.chunk_workers(configured)
+    worst = snap['maxEpisodes']['effective'] * configured
+    # Probe only while the pool is active (enabled and on the API backend),
+    # so disabling it or switching to local stops polling a stale URL.
+    health = probe_whisper_health() if snap['active'] else {'available': False}
+    snap.update({
+        'chunkWorkers': {'configured': configured, 'effective': effective},
+        'worstCaseInFlight': worst,
+        'exceedsCapacity': bool(snap['active'] and worst > snap['capacity']),
+        'health': health,
+    })
+    return json_response(snap)
 
 
 # ========== Update check settings ==========

@@ -46,7 +46,7 @@ describe('PendingRecutsBar', () => {
 
   it('names the count and applies in one pass', async () => {
     mocked.getPendingRecuts.mockResolvedValue(pending(2));
-    mocked.applyPendingRecuts.mockResolvedValue({ queued: 2, skipped: 0 });
+    mocked.applyPendingRecuts.mockResolvedValue({ queued: 2, skipped: 0, chaptersRebuilding: 0 });
     renderBar();
     const user = userEvent.setup();
     const button = await screen.findByRole('button', { name: 'Apply recuts (2)' });
@@ -58,13 +58,23 @@ describe('PendingRecutsBar', () => {
 
   it('says why when nothing could be recut, rather than looking inert', async () => {
     mocked.getPendingRecuts.mockResolvedValue(pending(2));
-    mocked.applyPendingRecuts.mockResolvedValue({ queued: 0, skipped: 2 });
+    mocked.applyPendingRecuts.mockResolvedValue({ queued: 0, skipped: 2, chaptersRebuilding: 0 });
     renderBar();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Apply recuts (2)' }));
     expect(
-      await screen.findByText(/Nothing could be recut\. 2 episodes are already queued to run or missing what a recut needs/),
+      await screen.findByText(/2 skipped: already queued to run, or missing what a recut needs/),
     ).toBeTruthy();
+  });
+
+  it('names the episodes whose chapters are being rebuilt instead', async () => {
+    mocked.getPendingRecuts.mockResolvedValue(pending(2));
+    mocked.applyPendingRecuts.mockResolvedValue({ queued: 1, skipped: 0, chaptersRebuilding: 1 });
+    renderBar();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Apply recuts (2)' }));
+    expect(await screen.findByText(
+      /Recutting 1 episode\. Rebuilding chapters on 1 episode that needs no recut\./)).toBeTruthy();
   });
 
   it('shows in-flight rows as recutting and re-arms for a new decision', async () => {
@@ -73,7 +83,7 @@ describe('PendingRecutsBar', () => {
     mocked.getPendingRecuts.mockResolvedValueOnce(pending(2));
     mocked.getPendingRecuts.mockResolvedValueOnce(
       pending(2, { recutReady: false, inFlight: true }));
-    mocked.applyPendingRecuts.mockResolvedValue({ queued: 2, skipped: 0 });
+    mocked.applyPendingRecuts.mockResolvedValue({ queued: 2, skipped: 0, chaptersRebuilding: 0 });
     renderBar();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Apply recuts (2)' }));

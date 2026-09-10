@@ -1,15 +1,20 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StatsPage from './StatsPage';
 import type { AddressingStats, DashboardStats, Feed, ReviewerStats } from '../api/types';
 
 // vi.mock factories are hoisted above module-scope const declarations, so
 // fixture data referenced inside them has to be built via vi.hoisted too.
-const { DASHBOARD, REVIEWER_STATS, FEED, mockGetAddressingStats } = vi.hoisted(() => {
+const {
+  DASHBOARD, REVIEWER_STATS, FEED,
+  mockGetAddressingStats, mockGetDashboardStats, mockGetStatsByDay,
+} = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
+    totalRuns: 0,
+    episodesWithTimeSaved: 0,
     avgTimeSavedSeconds: 0,
     minTimeSavedSeconds: 0,
     maxTimeSavedSeconds: 0,
@@ -69,12 +74,14 @@ const { DASHBOARD, REVIEWER_STATS, FEED, mockGetAddressingStats } = vi.hoisted((
     REVIEWER_STATS: reviewerStats,
     FEED: feed,
     mockGetAddressingStats: vi.fn().mockResolvedValue(addressingStats),
+    mockGetDashboardStats: vi.fn().mockResolvedValue(dashboard),
+    mockGetStatsByDay: vi.fn().mockResolvedValue({ days: [] }),
   };
 });
 
 vi.mock('../api/stats', () => ({
-  getDashboardStats: vi.fn().mockResolvedValue(DASHBOARD),
-  getStatsByDay: vi.fn().mockResolvedValue({ days: [] }),
+  getDashboardStats: (...args: unknown[]) => mockGetDashboardStats(...args),
+  getStatsByDay: (...args: unknown[]) => mockGetStatsByDay(...args),
   getStatsByPodcast: vi.fn().mockResolvedValue({ podcasts: [] }),
   getReviewerStats: vi.fn().mockResolvedValue(REVIEWER_STATS),
   getAddressingStats: (...args: unknown[]) => mockGetAddressingStats(...args),
@@ -143,5 +150,35 @@ describe('StatsPage addressing yield', () => {
     renderPage();
     // The timestamps card in the fixture has yieldRuns 0.
     expect(await screen.findByText('No yield data yet')).toBeTruthy();
+  });
+});
+
+describe('StatsPage loading placeholders', () => {
+  beforeEach(() => {
+    mockGetDashboardStats.mockReset();
+    mockGetDashboardStats.mockResolvedValue(DASHBOARD);
+    mockGetStatsByDay.mockReset();
+    mockGetStatsByDay.mockResolvedValue({ days: [] });
+  });
+
+  it('shows summary card skeletons while the dashboard query is pending, not a page spinner', async () => {
+    mockGetDashboardStats.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    // The by-day chart heading proves the rest of the page rendered rather
+    // than the whole page waiting behind one spinner.
+    expect(await screen.findByText('Episodes Processed by Day')).toBeTruthy();
+    expect(screen.getAllByTestId('skeleton-stat-cards').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows a chart skeleton while the by-day query is pending', async () => {
+    mockGetStatsByDay.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    expect(await screen.findByText('Total Episodes')).toBeTruthy();
+    expect(screen.getAllByTestId('skeleton-chart').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('points at AI & Processing for enabling the reviewer', async () => {
+    renderPage();
+    expect(await screen.findByText(/Enable Ad Reviewer in Settings, AI & Processing section/)).toBeTruthy();
   });
 });

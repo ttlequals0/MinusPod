@@ -4,6 +4,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## A
 
+**Ad chapter** - A chapter MinusPod adds for a segment it left in the audio (kept by category action, or waiting for review) so a chapter-aware player can skip it. [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
+
 **Ad Review** - The Patterns page tab that lists every detection across all feeds so you can confirm or reject them in one place, with a play button for the flagged audio. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
 **Ad Reviewer** - An optional second LLM that double-checks each planned cut before it happens and can confirm, adjust, reject, or resurrect a detection. Off by default. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
@@ -118,7 +120,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## R
 
-**Rate-limit hold** - An opt-in hold that parks an episode when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming new work until that time passes. Unlike the offline queue it pauses everything, though anything you ask for by hand still runs. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
+**Rate-limit hold** - An opt-in hold that puts an episode back in the queue when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming any work until that time passes. Unlike the offline queue it pauses everything, Play and Reprocess included. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 
 **Recut** - Re-cutting the retained original audio using the current ad markers, with no download, transcription, or LLM involved. What "Approve & Recut" does. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
 

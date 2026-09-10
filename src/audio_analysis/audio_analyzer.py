@@ -18,7 +18,7 @@ from .transition_detector import TransitionDetector
 from .cue_template_matcher import AudioCueTemplateMatcher
 from .silence_detector import SilenceDetector
 from .splice_detector import SpliceDetector
-from run_log import run_in_worker_thread
+from run_context import run_in_worker_thread
 from config import (
     AUDIO_CUE_FORMANT_ATTEN_DB,
     resolve_cue_template_score,
@@ -358,8 +358,7 @@ class AudioAnalyzer:
 
         pool = ThreadPoolExecutor(max_workers=n_components)
         try:
-            vol_future = pool.submit(run_in_worker_thread,
-                                     self.volume_analyzer.analyze, audio_path)
+            vol_future = pool.submit(run_in_worker_thread(self.volume_analyzer.analyze), audio_path)
 
             # Audio cue detection (issue #350) -- opt-in. Settings are read per
             # run so the toggle takes effect without a restart. Runs its own
@@ -370,9 +369,9 @@ class AudioAnalyzer:
                 # Matcher path surfaces near-misses via detect_with_debug; spectral uses detect().
                 is_matcher = isinstance(cue_detector, AudioCueTemplateMatcher)
                 cue_future = pool.submit(
-                    run_in_worker_thread,
-                    cue_detector.detect_with_debug if is_matcher
-                    else cue_detector.detect,
+                    run_in_worker_thread(
+                        cue_detector.detect_with_debug if is_matcher
+                        else cue_detector.detect),
                     audio_path,
                 )
 
@@ -380,8 +379,7 @@ class AudioAnalyzer:
             # Runs its own ffmpeg silencedetect pass; skipped when flag is off (default).
             silence_future = None
             if silence_detector:
-                silence_future = pool.submit(run_in_worker_thread,
-                                             silence_detector.detect, audio_path)
+                silence_future = pool.submit(run_in_worker_thread(silence_detector.detect), audio_path)
 
             if status_callback:
                 status_callback("analyzing: volume", 30)
@@ -407,8 +405,8 @@ class AudioAnalyzer:
             splice_future = None
             if splice_enabled:
                 splice_future = pool.submit(
-                    run_in_worker_thread,
-                    self.splice_detector.detect, audio_path, duration, frames)
+                    run_in_worker_thread(self.splice_detector.detect),
+                    audio_path, duration, frames)
 
             # Transition detection (runs on volume frames, no extra I/O)
             if frames and self.transition_detector:

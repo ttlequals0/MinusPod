@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+import run_context
 from transcriber import (
     _chunk_bounds_ahead,
     _ChunkPrefetcher,
@@ -165,17 +166,31 @@ class TestChunkPrefetcher:
             idents.append(threading.get_ident())
             return None
 
-        with patch('transcriber.extract_audio_chunk', side_effect=extract), \
-             patch('run_log.register_worker_thread') as reg, \
-             patch('run_log.unregister_worker_thread') as unreg:
-            p = _ChunkPrefetcher('/tmp/in.mp3')
-            try:
-                p.take(0, 1800, 1800, 30)
-            finally:
-                p.close()
-        assert reg.called
-        assert unreg.called
-        assert idents and idents[0] != threading.get_ident()
+        class _FakeRecorder:
+            def __init__(self):
+                self.registered = []
+                self.unregistered = []
+
+            def register_thread(self):
+                self.registered.append(threading.get_ident())
+
+            def unregister_thread(self):
+                self.unregistered.append(threading.get_ident())
+
+        ctx = run_context.begin('feed', 'ep')
+        ctx.recorder = _FakeRecorder()
+        try:
+            with patch('transcriber.extract_audio_chunk', side_effect=extract):
+                p = _ChunkPrefetcher('/tmp/in.mp3')
+                try:
+                    p.take(0, 1800, 1800, 30)
+                finally:
+                    p.close()
+            assert ctx.recorder.registered
+            assert ctx.recorder.unregistered
+            assert idents and idents[0] != threading.get_ident()
+        finally:
+            run_context.end(ctx)
 
 
 def _wait_for(condition, timeout=30.0):

@@ -133,3 +133,18 @@ describe('HistoryPage: failure reason', () => {
     expect(withTitle[0].getAttribute('title')).toBe('Processing failed');
   });
 });
+
+describe('HistoryPage loading placeholder', () => {
+  it('shows header and row skeletons while the history query is pending', () => {
+    mockGetProcessingHistory.mockReturnValueOnce(new Promise(() => {}));
+    renderPage([]);
+    expect(screen.getByTestId('skeleton-page-header')).toBeTruthy();
+    expect(screen.getByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once the history lands', async () => {
+    renderPage([makeEntry()]);
+    await screen.findAllByText('Episode One');
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});

@@ -1,6 +1,8 @@
 """Full-text search mixin for MinusPod database."""
 import html
 import logging
+import os
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +15,42 @@ SEARCH_GROUP_NAMES = ('shows', 'episodes', 'transcripts', 'patterns', 'sponsors'
 
 # Episodes per indexing statement: two bound params each, plus one MATCH term each.
 _INDEX_CHUNK = 500
+
+# Rows per write transaction during a rebuild; bounds the lock hold when
+# bodies run to 100k characters.
+_REBUILD_TX_ROWS = 50
+
+# One definition for the migration and the rebuild's shadow table.
+SEARCH_INDEX_DDL = """CREATE VIRTUAL TABLE IF NOT EXISTS {name} USING fts5(
+    content_type,
+    content_id,
+    podcast_slug,
+    title,
+    body,
+    metadata,
+    tokenize='porter unicode61'
+)"""
+_SHADOW_PREFIX = 'search_index_new'
+
+
+def _shadow_owner_alive(name: str) -> bool:
+    """True when the pid and thread named in a shadow table are still running."""
+    try:
+        pid, tid = (int(x) for x in name[len(_SHADOW_PREFIX) + 1:].split('_'))
+    except ValueError:
+        return False
+    if pid <= 0:
+        return False
+    if pid == os.getpid():
+        return tid in {t.ident for t in threading.enumerate()}
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # The pid exists, it just is not ours; same rule ProcessingQueue uses.
+        return True
+    return True
 
 # search_index column order: content_type, content_id, podcast_slug, title, body, metadata.
 _SNIPPET_COL = {'title': 3, 'body': 4, 'metadata': 5}
@@ -35,73 +73,93 @@ class SearchMixin:
         Returns count of indexed items.
         """
         conn = self.get_connection()
-        count = 0
+        self._drop_stale_shadows(conn)
+        # Rows indexed during the fill land in the old table above this mark and
+        # the swap carries them over; FTS5 rowid reuse means a shrink or delete
+        # mid-fill is missed until the next rebuild.
+        high_water = conn.execute(
+            "SELECT COALESCE(MAX(rowid), 0) FROM search_index").fetchone()[0]
 
-        # Clear existing index
-        conn.execute("DELETE FROM search_index")
+        # Every row is read and shaped before any write: holding the write
+        # lock across this much per-row Python work stalled other writers.
+        rows = []
+        rows.extend(
+            ('podcast', r['slug'], r['slug'], r['title'], r['description'] or '', '')
+            for r in conn.execute("SELECT slug, title, description FROM podcasts")
+        )
+        # Episodes of every status; body is the transcript when one exists, else
+        # ''. Transcripts are capped to keep one index entry from going huge.
+        rows.extend(
+            ('episode', r['episode_id'], r['slug'], r['title'],
+             (r['transcript_text'] or '')[:100000], r['description'] or '')
+            for r in conn.execute("""
+                SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
+                FROM episodes e
+                JOIN podcasts p ON e.podcast_id = p.id
+                LEFT JOIN episode_details ed ON e.id = ed.episode_id
+            """)
+        )
+        rows.extend(
+            ('pattern', str(r['id']), r['scope'] or 'global',
+             r['sponsor'] or 'Unknown', r['text_template'] or '', '')
+            for r in conn.execute("""
+                SELECT ap.id, ap.text_template, ks.name AS sponsor, ap.scope
+                FROM ad_patterns ap
+                LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+                WHERE ap.is_active = 1
+            """)
+        )
+        rows.extend(
+            ('sponsor', str(r['id']), 'global', r['name'], r['aliases'] or '', '')
+            for r in conn.execute("""
+                SELECT id, name, aliases FROM known_sponsors WHERE is_active = 1
+            """)
+        )
 
-        # Index podcasts
-        cursor = conn.execute("""
-            SELECT slug, title, description
-            FROM podcasts
-        """)
-        for row in cursor:
-            conn.execute("""
-                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, ('podcast', row['slug'], row['slug'], row['title'],
-                  row['description'] or '', ''))
-            count += 1
-
-        # Index episodes of every status; body is the transcript when one exists, else ''.
-        cursor = conn.execute("""
-            SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
-            FROM episodes e
-            JOIN podcasts p ON e.podcast_id = p.id
-            LEFT JOIN episode_details ed ON e.id = ed.episode_id
-        """)
-        for row in cursor:
-            # Limit transcript size to avoid huge index entries
-            transcript = (row['transcript_text'] or '')[:100000]  # ~100k chars max
-            conn.execute("""
-                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, ('episode', row['episode_id'], row['slug'], row['title'],
-                  transcript, row['description'] or ''))
-            count += 1
-
-        # Index patterns
-        cursor = conn.execute("""
-            SELECT ap.id, ap.text_template, ks.name AS sponsor, ap.scope
-            FROM ad_patterns ap
-            LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
-            WHERE ap.is_active = 1
-        """)
-        for row in cursor:
-            conn.execute("""
-                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, ('pattern', str(row['id']), row['scope'] or 'global',
-                  row['sponsor'] or 'Unknown', row['text_template'] or '', ''))
-            count += 1
-
-        # Index sponsors
-        cursor = conn.execute("""
-            SELECT id, name, aliases
-            FROM known_sponsors
-            WHERE is_active = 1
-        """)
-        for row in cursor:
-            conn.execute("""
-                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, ('sponsor', str(row['id']), 'global', row['name'],
-                  row['aliases'] or '', ''))
-            count += 1
-
+        shadow = f"{_SHADOW_PREFIX}_{os.getpid()}_{threading.get_ident()}"
+        conn.execute(SEARCH_INDEX_DDL.format(name=shadow))
         conn.commit()
-        logger.info(f"Search index rebuilt with {count} items")
-        return count
+        insert = (f"INSERT INTO {shadow} (content_type, content_id, podcast_slug, title, body, metadata) "  # noqa: S608
+                  "VALUES (?, ?, ?, ?, ?, ?)")
+        try:
+            # Short transactions per chunk, then one quick DDL swap: the old
+            # table stays live and the write lock is never held across the fill.
+            for start in range(0, len(rows), _REBUILD_TX_ROWS):
+                with self.transaction(immediate=True) as tx:
+                    tx.executemany(insert, rows[start:start + _REBUILD_TX_ROWS])
+            with self.transaction(immediate=True) as tx:
+                late = tx.execute(
+                    "SELECT content_type, content_id, podcast_slug, title, body, metadata "
+                    "FROM search_index WHERE rowid > ?", (high_water,)).fetchall()
+                for r in late:
+                    tx.execute(f"DELETE FROM {shadow} WHERE content_type = ? AND content_id = ?",  # noqa: S608
+                               (r[0], r[1]))
+                    tx.execute(insert, tuple(r))
+                tx.execute("DROP TABLE search_index")
+                tx.execute(f'ALTER TABLE "{shadow}" RENAME TO search_index')
+        except Exception:
+            conn.rollback()
+            conn.execute(f'DROP TABLE IF EXISTS "{shadow}"')
+            conn.commit()
+            raise
+
+        logger.info(f"Search index rebuilt with {len(rows)} items")
+        return len(rows)
+
+    def _drop_stale_shadows(self, conn) -> None:
+        """Remove shadow tables whose rebuild is gone; a live one is left alone."""
+        names = [r['name'] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?",
+            (f"{_SHADOW_PREFIX}%",))]
+        dropped = 0
+        for name in names:
+            if _shadow_owner_alive(name):
+                continue
+            conn.execute(f'DROP TABLE IF EXISTS "{name}"')
+            dropped += 1
+        if dropped:
+            conn.commit()
+            logger.warning(f"Dropped {dropped} stale search index shadow table(s)")
 
     def index_episode(self, episode_id: str, slug: str) -> bool:
         """Index or re-index a single episode in the search index."""

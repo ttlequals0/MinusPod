@@ -62,8 +62,7 @@ def _run_transcribe(vad_filter, duration=72.5):
                       'get_batched_pipeline', return_value=model), \
          patch.object(transcriber_mod.WhisperModelSingleton,
                       'get_current_model_name', return_value='small'), \
-         patch.object(Transcriber, 'get_audio_duration', return_value=duration), \
-         patch.object(Transcriber, 'get_initial_prompt', return_value=''):
+         patch.object(Transcriber, 'get_audio_duration', return_value=duration):
         Transcriber().transcribe('/tail.wav', preprocessed=True,
                                  vad_filter=vad_filter)
     return model.transcribe.call_args.kwargs
@@ -81,6 +80,12 @@ def test_vad_transcription_passes_no_clips():
     assert kwargs['vad_filter'] is True
     assert kwargs['vad_parameters'] is not None
     assert kwargs['clip_timestamps'] is None
+
+
+def test_no_initial_prompt_is_sent():
+    # The sponsor-vocabulary prompt cost 7-17% of each episode's speech on the
+    # batched pipeline (2.96.0).
+    assert _run_transcribe(vad_filter=True).get('initial_prompt') is None
 
 
 def test_novad_with_unknown_duration_falls_back_to_no_clips():
@@ -104,8 +109,7 @@ def test_clips_cover_the_preprocessed_file_not_the_raw_chunk():
          patch.object(Transcriber, 'get_audio_duration',
                       side_effect=lambda p: durations[p]), \
          patch.object(Transcriber, 'preprocess_audio',
-                      return_value='/tail.preprocessed.wav'), \
-         patch.object(Transcriber, 'get_initial_prompt', return_value=''):
+                      return_value='/tail.preprocessed.wav'):
         Transcriber().transcribe('/tail.wav', vad_filter=False)
 
     clips = model.transcribe.call_args.kwargs['clip_timestamps']

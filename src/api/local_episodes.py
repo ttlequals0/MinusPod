@@ -72,7 +72,9 @@ def _require_local_feed(db, slug):
 
 def _rebuild(slug, podcast=None):
     from local_feed_builder import rebuild_local_feed
+    from recents_feed import rebuild_recents_feed
     rebuild_local_feed(slug, podcast=podcast)
+    rebuild_recents_feed()
 
 
 def _parse_int_field(source, name, default=None):

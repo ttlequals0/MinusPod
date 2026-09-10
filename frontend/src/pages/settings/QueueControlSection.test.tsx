@@ -4,7 +4,8 @@
  * rate-limit hold blocks with their failed-GET guards.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import QueueControlSection from './QueueControlSection';
 import { SettingsSearchContext } from '../../context/SettingsSearchContext';
@@ -58,7 +59,7 @@ describe('QueueControlSection', () => {
       enabled: false, ttlHours: 48, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
     });
     renderSection();
     const toggle = screen.getByRole('switch', { name: 'Process new episodes first' });
@@ -70,7 +71,7 @@ describe('QueueControlSection', () => {
       enabled: false, ttlHours: 48, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
     });
     renderSection();
     expect((screen.getByLabelText('Play / Reprocess') as HTMLInputElement).value).toBe('20');
@@ -83,20 +84,20 @@ describe('QueueControlSection', () => {
       enabled: false, ttlHours: 48, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: true, ttlHours: 48,
-      holdUntil: '2026-08-30T20:00:00Z', holdCount: 2,
+      enabled: true, holdUntil: '2026-08-30T20:00:00Z', llmUsageUrl: '', rateLimitProbeMinutes: 5,
     });
     renderSection();
     await waitFor(() => {
       expect(screen.getByText(/Queue paused until/)).toBeTruthy();
     });
-    expect(screen.getByText(/2 episodes waiting/)).toBeTruthy();
+    // No give-up window: held episodes stay in the normal queue.
+    expect(screen.queryByLabelText('Give up after:', { selector: '#rate-limit-hold-ttl' })).toBeNull();
   });
 
   it('renders the offline queue failed-GET guard instead of the editable form', async () => {
     mocked.getOfflineQueueSettings.mockRejectedValue(new Error('boom'));
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
     });
     renderSection();
     await waitFor(() => {
@@ -113,7 +114,7 @@ describe('QueueControlSection', () => {
       enabled: true, ttlHours: 12, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
     });
     renderSection({}, new Set(['settings-section-queue-control']));
     await waitFor(() => {
@@ -122,15 +123,84 @@ describe('QueueControlSection', () => {
     expect(mocked.getOfflineQueueSettings).toHaveBeenCalled();
   });
 
+  it('renders the usage URL and probe interval with their current values', async () => {
+    mocked.getOfflineQueueSettings.mockResolvedValue({
+      enabled: false, ttlHours: 48, deferredCount: 0,
+    });
+    mocked.getRateLimitHoldSettings.mockResolvedValue({
+      enabled: false, holdUntil: null,
+      llmUsageUrl: 'https://your-proxy:8001/v1/usage', rateLimitProbeMinutes: 10,
+    });
+    renderSection();
+    await waitFor(() => {
+      expect((screen.getByLabelText('Usage endpoint (optional)') as HTMLInputElement).value)
+        .toBe('https://your-proxy:8001/v1/usage');
+    });
+    expect((screen.getByLabelText('Check every:') as HTMLInputElement).value).toBe('10');
+  });
+
+  it('saves an edited usage URL and probe interval together', async () => {
+    mocked.getOfflineQueueSettings.mockResolvedValue({
+      enabled: false, ttlHours: 48, deferredCount: 0,
+    });
+    mocked.getRateLimitHoldSettings.mockResolvedValue({
+      enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
+    });
+    mocked.updateRateLimitHoldSettings.mockResolvedValue({
+      enabled: false, holdUntil: null,
+      llmUsageUrl: 'https://your-proxy:8001/v1/usage', rateLimitProbeMinutes: 15,
+    });
+    const user = userEvent.setup();
+    renderSection();
+    const urlInput = await screen.findByLabelText('Usage endpoint (optional)');
+    await user.type(urlInput, 'https://your-proxy:8001/v1/usage');
+    const minutesInput = screen.getByLabelText('Check every:');
+    await user.clear(minutesInput);
+    await user.type(minutesInput, '15');
+    const block = urlInput.closest('.space-y-4') as HTMLElement;
+    await user.click(within(block).getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(mocked.updateRateLimitHoldSettings).toHaveBeenCalledWith({
+        enabled: false,
+        llmUsageUrl: 'https://your-proxy:8001/v1/usage',
+        rateLimitProbeMinutes: 15,
+      });
+    });
+  });
+
   it('does not fetch while collapsed and unmatched', () => {
     mocked.getOfflineQueueSettings.mockResolvedValue({
       enabled: false, ttlHours: 48, deferredCount: 0,
     });
     mocked.getRateLimitHoldSettings.mockResolvedValue({
-      enabled: false, ttlHours: 48, holdUntil: null, holdCount: 0,
+      enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
     });
     renderSection({}, new Set(['settings-section-something-else']));
     expect(mocked.getOfflineQueueSettings).not.toHaveBeenCalled();
     expect(mocked.getRateLimitHoldSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe('QueueControlSection loading placeholder', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('shows row skeletons instead of a Loading line while the queries are pending', async () => {
+    mocked.getOfflineQueueSettings.mockReturnValue(new Promise(() => {}));
+    mocked.getRateLimitHoldSettings.mockReturnValue(new Promise(() => {}));
+    renderSection();
+    await waitFor(() => expect(screen.getAllByTestId('skeleton-rows').length).toBe(2));
+    expect(screen.queryByText('Loading...')).toBeNull();
+  });
+
+  it('drops the skeletons once the settings land', async () => {
+    mocked.getOfflineQueueSettings.mockResolvedValue({
+      enabled: false, ttlHours: 48, deferredCount: 0,
+    });
+    mocked.getRateLimitHoldSettings.mockResolvedValue({
+      enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5,
+    });
+    renderSection();
+    await screen.findByLabelText('Offline queue toggle');
+    expect(screen.queryAllByTestId('skeleton-rows')).toHaveLength(0);
   });
 });

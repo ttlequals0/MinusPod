@@ -101,6 +101,18 @@ describe('SecuritySection warning: password set', () => {
   });
 });
 
+describe('SecuritySection password form', () => {
+  it('carries a hidden username field for password managers', () => {
+    const { container } = renderSection({ isPasswordSet: true, cryptoReady: true });
+
+    const username = container.querySelector('input[autocomplete="username"]');
+    expect(username).not.toBeNull();
+    expect((username as HTMLInputElement).hidden).toBe(true);
+    expect(username!.closest('form')).toBe(
+      container.querySelector('#newPassword')!.closest('form'));
+  });
+});
+
 const ADD_BUTTON_NAME = '+ Add agent';
 
 describe('SecuritySection blocked user agents', () => {

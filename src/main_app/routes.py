@@ -24,7 +24,8 @@ from config import (
     title_matches_skip_patterns,
     user_agent_is_jit_blocked,
 )
-from database.podcasts import is_local_feed
+from ad_chapters import public_chapters
+from database.podcasts import has_upstream, is_local_feed
 from database.queue import compute_queue_priority
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
 from user_agent import download_user_agent
@@ -159,7 +160,9 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     # fallback below. Also avoids an SSRF-blocked fetch_feed call on every
     # lookup.
     podcast = db.get_podcast_by_slug(slug)
-    original_feed = None if is_local_feed(podcast) else rss_parser.fetch_feed(feed_map[slug]['in'])
+    # An unknown row keeps the historical fetch; only local/recents rows skip it.
+    original_feed = (rss_parser.fetch_feed(feed_map[slug]['in'])
+                     if podcast is None or has_upstream(podcast) else None)
     if original_feed:
         parsed_feed = rss_parser.parse_feed(original_feed, source=slug)
         podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
@@ -728,7 +731,8 @@ def register_routes(app):
         # Podcasting 2.0 chapters.json is fetched cross-origin by
         # podcast players; the wildcard Access-Control-Allow-Origin
         # is intentional. No credentials travel with the request.
-        response = Response(json.dumps(chapters), mimetype='application/json+chapters')
+        body = {**chapters, 'chapters': public_chapters(chapters.get('chapters'))}
+        response = Response(json.dumps(body), mimetype='application/json+chapters')
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response
 

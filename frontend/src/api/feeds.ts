@@ -1,4 +1,4 @@
-import { apiRequest, buildQueryString } from './client';
+import { apiFileRequest, apiRequest, buildQueryString } from './client';
 import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
@@ -9,6 +9,18 @@ export const CUE_SCORE_MAX = 0.99;
 // with the session cookie (GET needs no CSRF).
 export function episodeOriginalUrl(slug: string, episodeId: string): string {
   return `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`;
+}
+
+// Saves the original or the current cut. A HEAD preflight surfaces a 401
+// (login redirect) or 404 as an error; the navigation itself then streams
+// the attachment to disk without buffering the file in memory.
+export async function downloadEpisodeAudio(
+  slug: string, episodeId: string, kind: 'original' | 'cut',
+): Promise<void> {
+  const file = kind === 'cut' ? 'processed' : 'original';
+  const path = `/feeds/${slug}/episodes/${episodeId}/${file}.mp3?download=1`;
+  await apiFileRequest(path, { method: 'HEAD' });
+  window.location.assign(`/api/v1${path}`);
 }
 
 // Direct URL for a run's raw JSONL log; the browser downloads it with the
@@ -181,6 +193,26 @@ export async function addLocalFeed(payload: AddLocalFeedPayload): Promise<AddLoc
   });
 }
 
+export interface AddRecentsFeedPayload {
+  title?: string;
+  description?: string;
+}
+
+export interface AddRecentsFeedResult {
+  slug: string;
+  feedType: 'recents';
+  feedUrl: string;
+  message: string;
+}
+
+// The single combined feed of newly published episodes (#721).
+export async function addRecentsFeed(payload: AddRecentsFeedPayload): Promise<AddRecentsFeedResult> {
+  return apiRequest<AddRecentsFeedResult>('/feeds', {
+    method: 'POST',
+    body: { feedType: 'recents', ...payload },
+  });
+}
+
 export interface UploadFeedArtworkResult {
   message: string;
   artworkUrl: string;
@@ -291,6 +323,9 @@ export interface UpdateFeedPayload {
   detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
+  chaptersInNotes?: 'on' | 'off' | null;
+  adChaptersEnabled?: 'on' | 'off' | null;
+  adChapterCategories?: Partial<Record<SegmentCategory, boolean>> | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;
@@ -393,14 +428,11 @@ export async function reprocessAllEpisodes(
   });
 }
 
+// The run is started in the background; the episode reports its outcome.
 export interface RegenerateChaptersResult {
   message: string;
-  chapterCount: number;
-  chapters: Array<{
-    title: string;
-    startTime: number;
-    endTime?: number;
-  }>;
+  episodeId: string;
+  status: 'started';
 }
 
 export async function regenerateChapters(

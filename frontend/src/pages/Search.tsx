@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { search, rebuildSearchIndex, getSearchStats } from '../api/search';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonRows } from '../components/Skeleton';
 import { btnSecondary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
 import { renderSnippet } from '../utils/searchSnippet';
@@ -198,7 +198,7 @@ function Search() {
       </div>
 
       {/* Results */}
-      {isLoading && debouncedQuery.length >= 2 && <LoadingSpinner className="py-12" />}
+      {isLoading && debouncedQuery.length >= 2 && <SkeletonRows count={5} />}
 
       {error && (
         <div className="p-4 rounded-lg bg-destructive/10 text-destructive">

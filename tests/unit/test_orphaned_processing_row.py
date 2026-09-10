@@ -34,7 +34,8 @@ def test_periodic_block_resets_stuck_processing_rows():
          patch.object(background, 'shutdown_event') as ev, \
          patch.object(background, 'reset_stuck_processing_episodes') as reset, \
          patch('offline_queue.offline_queue_tick'):
-        # The periodic block runs every 10 iterations; give it 12.
+        # The periodic block now runs on the first pass (then every 5
+        # minutes of wall-clock time); 12 passes is well within that.
         ev.is_set.side_effect = lambda: ticks['n'] >= 12
         ev.wait.side_effect = fake_wait
         background.background_queue_processor()
@@ -58,6 +59,10 @@ class TestWaiterOrphanDetection:
         }
         mock_queue = MagicMock()
         mock_queue.is_processing.return_value = queue_says_processing
+        # The dispatcher bounds its claims on the registry and hands the sweep
+        # the running set, so both have to answer with real values.
+        mock_queue.slot_count.return_value = 0
+        mock_queue.get_current.return_value = []
         mock_db = MagicMock()
         mock_db.claim_next_queued_episode.side_effect = [queue_row, None]
         mock_db.is_auto_process_enabled_for_podcast.return_value = True
@@ -144,7 +149,7 @@ class TestSweepIsLockAware:
         mock_db.get_connection.return_value = conn
         queue = MagicMock()
         queue.get_current.return_value = (
-            ('example-podcast', 'a1b2c3d4e5f6') if lock_held else None)
+            [('example-podcast', 'a1b2c3d4e5f6')] if lock_held else [])
 
         with patch.object(background, 'db', mock_db), \
              patch('processing_queue.ProcessingQueue', return_value=queue):

@@ -2,7 +2,8 @@
 import json
 import logging
 
-from config import coerce_bool_setting, resolve_segment_category_actions_map
+from config import (coerce_bool_setting, resolve_ad_chapter_categories_map,
+                    resolve_segment_category_actions_map)
 from utils.constants import EpisodeStatus
 from utils.time import utc_now_iso
 
@@ -56,6 +57,25 @@ def effective_keep_original(override, global_keep: bool) -> bool:
 def is_local_feed(podcast: dict | None) -> bool:
     """True when the row is a local (imported-archive) feed."""
     return bool(podcast) and podcast.get('feed_type') == 'local'
+
+
+# Combined feed of recent processed episodes (#721): one row, fixed slug.
+RECENTS_SLUG = 'recents'
+
+
+def has_upstream(podcast) -> bool:
+    """Subscribed feeds have an upstream RSS to fetch; local and recents feeds do not."""
+    return bool(podcast) and podcast.get('feed_type', 'subscribed') not in ('local', 'recents')
+
+
+def is_recents_feed(podcast: dict | None) -> bool:
+    return bool(podcast) and podcast.get('feed_type') == 'recents'
+
+
+def recents_cutoff(podcast: dict) -> str:
+    """Membership starts on the day the row was created: a date-only string
+    sorts before any timestamp of that day, so `published_at >= cutoff` works."""
+    return (podcast.get('created_at') or '')[:10]
 
 
 class PodcastMixin:
@@ -241,7 +261,9 @@ class PodcastMixin:
                 'last_checked_at', 'source_url', 'network_id', 'dai_platform',
                 'network_id_override', 'audio_analysis_override', 'auto_process_override',
                 'language_override', 'title_override', 'detection_notes', 'detection_mode',
-                'chapters_mode', 'own_episode_guids',
+                'chapters_mode', 'chapters_in_notes',
+                'ad_chapters_enabled_override', 'ad_chapter_categories_override',
+                'own_episode_guids',
                 'cue_template_score_override',
                 *self._CUE_OVERRIDE_COLS,
                 *self._SNAP_FLAG_COLS,
@@ -283,11 +305,20 @@ class PodcastMixin:
     def clear_refresh_failure_state(self, slug: str):
         """Reset the refresh-failure columns after a successful refresh.
 
-        The guard lives in the WHERE clause so a failure written by a
-        concurrent refresh attempt is cleared even when the caller's row
-        snapshot predates it, and clean feeds cost no write.
+        Most feeds are already clean, and a guarded UPDATE still takes the
+        write lock to evaluate its WHERE, so during a sweep that queues behind
+        every other writer for as long as the lock is held. The read decides
+        first: in WAL a reader never waits on a writer, so a clean feed now
+        costs no lock at all. The UPDATE keeps its own guard, since a
+        concurrent refresh may have written a failure since this read.
         """
         conn = self.get_connection()
+        row = conn.execute(
+            "SELECT refresh_failure_count FROM podcasts WHERE slug = ?",
+            (slug,)
+        ).fetchone()
+        if not row or not row['refresh_failure_count']:
+            return
         conn.execute(
             """UPDATE podcasts
                SET refresh_failure_count = 0, last_refresh_error = NULL,
@@ -630,3 +661,13 @@ class PodcastMixin:
             self.get_setting('segment_category_actions'))
         per_feed_raw = podcast.get('segment_category_actions') if podcast else None
         return resolve_segment_category_actions_map(per_feed_raw, baseline=global_resolved)
+
+    def resolve_ad_chapter_categories(self, slug: str,
+                                      podcast: dict | None = None) -> dict[str, bool]:
+        """Per-feed override -> global ad_chapter_categories -> defaults."""
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        global_resolved = resolve_ad_chapter_categories_map(
+            self.get_setting('ad_chapter_categories'))
+        per_feed_raw = podcast.get('ad_chapter_categories_override') if podcast else None
+        return resolve_ad_chapter_categories_map(per_feed_raw, baseline=global_resolved)

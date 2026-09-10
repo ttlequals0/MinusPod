@@ -1,5 +1,6 @@
 """Feed routes: /feeds/* endpoints."""
 import json
+import sqlite3
 import logging
 import os
 import re
@@ -22,6 +23,8 @@ from cancel import cancel_processing
 from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
+    CHAPTERS_IN_NOTES_VALUES,
+    AD_CHAPTERS_OVERRIDE_VALUES,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     PODPING_HOST_ACTIVE_DAYS,
     VALID_CHAPTERS_MODES,
@@ -35,6 +38,7 @@ from config import (
     CUE_ONLY_SAFETY_VALUES,
     LOW_AD_YIELD_ACTIONS,
     EPISODE_LOGS_VALUES,
+    validate_ad_chapter_categories,
     cue_only_missing_roles,
 )
 from differential_fetcher import is_likely_dai_feed
@@ -49,7 +53,9 @@ from utils.feed_guid import compute_feed_guid
 from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
-from database.podcasts import EPISODE_STATUSES, PodcastMixin, is_local_feed
+from utils.paths import RECENTS_ARTWORK_PATH
+from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, is_local_feed,
+                               is_recents_feed, recents_cutoff)
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
@@ -315,6 +321,15 @@ def _normalize_low_ad_yield_action(value):
     return None, f"lowAdYieldAction must be one of: {', '.join(LOW_AD_YIELD_ACTIONS)}"
 
 
+def _normalize_override(value, allowed, key):
+    """Enum-or-null per-feed override: None clears it (stored NULL)."""
+    if value is None:
+        return None, None
+    if value in allowed:
+        return value, None
+    return None, f"{key} must be one of: {', '.join(allowed)}"
+
+
 def _normalize_episode_logs(value):
     """Validate the per-feed episodeLogs override (#660).
 
@@ -403,11 +418,8 @@ def _normalize_segment_category_actions(value):
     return json.dumps(value), None
 
 
-def _deserialize_segment_category_actions(raw):
-    """Parse the stored segment_category_actions JSON back for API responses.
-
-    Returns the partial map as stored, or None if unset/unparsable.
-    """
+def _deserialize_json_map(raw):
+    """Nullable JSON object column back to a dict, or None if unset/unparsable."""
     if not raw:
         return None
     try:
@@ -446,18 +458,8 @@ def _deserialize_categories(raw):
     return parsed if isinstance(parsed, list) else None
 
 
-def _deserialize_p20_channel(raw):
-    """Parse the stored p20_channel_json back for API responses.
-
-    None when unset/unparsable, mirroring _deserialize_segment_category_actions.
-    """
-    if not raw:
-        return None
-    try:
-        parsed = json.loads(raw)
-    except (TypeError, ValueError):
-        return None
-    return parsed if isinstance(parsed, dict) else None
+# p20_channel_json is a nullable JSON object column like the rest.
+_deserialize_p20_channel = _deserialize_json_map
 
 
 from config import AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN
@@ -862,12 +864,16 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'p20': _deserialize_p20_channel(podcast.get('p20_channel_json')),
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
+        'chaptersInNotes': podcast.get('chapters_in_notes'),
+        'adChaptersEnabled': podcast.get('ad_chapters_enabled_override'),
+        'adChapterCategories': _deserialize_json_map(
+            podcast.get('ad_chapter_categories_override')),
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
         'episodeLogs': podcast.get('episode_logs'),
         'titleSkipPatterns': _deserialize_title_skip_patterns(podcast.get('title_skip_patterns')),
         'titleSkipAction': podcast.get('title_skip_action') or 'serve_original',
-        'segmentCategoryActions': _deserialize_segment_category_actions(
+        'segmentCategoryActions': _deserialize_json_map(
             podcast.get('segment_category_actions')),
         'processingMode': resolve_feed_processing_mode(podcast),
         'cueOnlySafety': podcast.get('cue_only_safety'),
@@ -904,11 +910,11 @@ def _podping_context_for_feed(db):
 def _podping_coverage(podcast, enabled, host_is_active):
     """Why this feed is or is not covered by podping, most specific first.
 
-    None when the listener is off instance-wide: that is a global setting, not a
-    fact about this feed. The UI only distinguishes received from everything
+    None when the listener is off instance-wide (a global setting, not a fact
+    about this feed) or the feed has no upstream that could ping. The UI only distinguishes received from everything
     else; the finer states are here for API consumers and diagnostics.
     """
-    if not enabled:
+    if not enabled or not has_upstream(podcast):
         return None
     if podcast.get('podping_uses') == 0:
         return 'declined'
@@ -932,6 +938,9 @@ def _feed_artwork_url(podcast) -> str:
 def _podcast_listing_fields(podcast, podping) -> dict:
     """Extra fields shared by the feed list and detail responses (not PATCH)."""
     enabled, host_is_active = podping
+    # The recents row owns no episodes; its counts are its membership.
+    recents_total = (get_database().count_recent_processed_episodes(recents_cutoff(podcast))
+                     if is_recents_feed(podcast) else None)
     declaration = PodcastMixin._podping_declaration_from_row(podcast)
     return {
         # The proxy whenever we hold the file. A cover that was rejected at
@@ -945,8 +954,8 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         # reliable field to read and resorted to a HEAD probe of the proxy
         # URL (#625 Task 13 review).
         'hasArtwork': get_storage().has_artwork(podcast['slug']),
-        'episodeCount': podcast.get('episode_count', 0),
-        'processedCount': podcast.get('processed_count', 0),
+        'episodeCount': recents_total if recents_total is not None else podcast.get('episode_count', 0),
+        'processedCount': recents_total if recents_total is not None else podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
         'lastPodpingAt': podcast.get('last_podping_at'),
         'podpingCoverage': _podping_coverage(podcast, enabled, host_is_active),
@@ -987,6 +996,32 @@ def list_feeds():
     })
 
 
+def _add_recents_feed(data, db):
+    title = data.get('title')
+    if title is not None and not isinstance(title, str):
+        return error_response('title must be a string', 400)
+    title = (title or 'Recents').strip() or 'Recents'
+    description = data.get('description')
+    if description is not None and not isinstance(description, str):
+        return error_response('description must be a string', 400)
+    try:
+        db.create_podcast(RECENTS_SLUG, 'recents://', title, feed_type='recents')
+    except sqlite3.IntegrityError:
+        return error_response('A recents feed already exists', 409)
+    if description:
+        db.update_podcast(RECENTS_SLUG, description=description)
+    if RECENTS_ARTWORK_PATH.exists():
+        get_storage().save_artwork(RECENTS_SLUG, RECENTS_ARTWORK_PATH.read_bytes(), 'image/png')
+    from main_app.feeds import invalidate_feed_cache, rebuild_served_rss
+    rebuild_served_rss(RECENTS_SLUG)
+    invalidate_feed_cache()
+    return json_response({
+        'slug': RECENTS_SLUG, 'feedType': 'recents',
+        'feedUrl': _public_feed_url(RECENTS_SLUG, get_feed_auth_key(db)),
+        'message': 'Recents feed created',
+    }, 201)
+
+
 def _add_local_feed(data, db):
     """Create a local (imported-archive) feed: no upstream URL, no fetch --
     metadata comes entirely from the request body. Task 6 branch of add_feed,
@@ -1010,6 +1045,8 @@ def _add_local_feed(data, db):
             400,
         )
 
+    if slug == RECENTS_SLUG:
+        return error_response(f'"{RECENTS_SLUG}" is reserved for the recents feed', 400)
     existing = db.get_podcast_by_slug(slug)
     if existing:
         return error_response(f'Feed with slug "{slug}" already exists', 409)
@@ -1101,6 +1138,8 @@ def add_feed():
     """
     data = request.get_json()
 
+    if data and data.get('feedType') == 'recents':
+        return _add_recents_feed(data, get_database())
     if data and data.get('feedType') == 'local':
         return _add_local_feed(data, get_database())
 
@@ -1155,6 +1194,8 @@ def add_feed():
             '(max 200 chars), not a reserved word.',
             400,
         )
+    if slug == RECENTS_SLUG:
+        return error_response(f'"{RECENTS_SLUG}" is reserved for the recents feed', 400)
 
     db = get_database()
 
@@ -1340,6 +1381,9 @@ def import_opml():
         if not slug:
             failed.append({'url': source_url, 'error': 'Could not generate slug'})
             continue
+        if slug == RECENTS_SLUG:
+            failed.append({'url': source_url, 'error': f'"{RECENTS_SLUG}" is reserved for the recents feed'})
+            continue
 
         # Check if slug already exists
         existing = db.get_podcast_by_slug(slug)
@@ -1474,6 +1518,12 @@ def update_feed(slug):
     if not data:
         return error_response('No data provided', 400)
 
+    if is_recents_feed(podcast):
+        extra = set(data) - {'title', 'description'}
+        if extra:
+            return error_response(
+                f"The recents feed only accepts title and description, not: {', '.join(sorted(extra))}", 400)
+
     # Map API field names to database field names. Note: the source `title` is
     # RSS-managed (a refresh overwrites it), so it is intentionally NOT editable
     # here -- user renames go through `titleOverride` below (#375).
@@ -1494,7 +1544,7 @@ def update_feed(slug):
     # from), so a subscribed feed 400s rather than silently accepting a value
     # a refresh would immediately overwrite or ignore.
     for field in _LOCAL_ONLY_FIELDS:
-        if field in data and not is_local_feed(podcast):
+        if field in data and has_upstream(podcast):
             return error_response(
                 f'field {field} is only editable on local feeds', 400)
 
@@ -1610,6 +1660,30 @@ def update_feed(slug):
         if chapters_err:
             return error_response(chapters_err, 400)
         updates['chapters_mode'] = chapters_val
+
+    if 'chaptersInNotes' in data:
+        notes_val, notes_err = _normalize_override(
+            data['chaptersInNotes'], CHAPTERS_IN_NOTES_VALUES, 'chaptersInNotes')
+        if notes_err:
+            return error_response(notes_err, 400)
+        updates['chapters_in_notes'] = notes_val
+
+    if 'adChaptersEnabled' in data:
+        ac_val, ac_err = _normalize_override(
+            data['adChaptersEnabled'], AD_CHAPTERS_OVERRIDE_VALUES, 'adChaptersEnabled')
+        if ac_err:
+            return error_response(ac_err, 400)
+        updates['ad_chapters_enabled_override'] = ac_val
+
+    if 'adChapterCategories' in data:
+        cats = data['adChapterCategories']
+        if cats is None:
+            updates['ad_chapter_categories_override'] = None
+        else:
+            error = validate_ad_chapter_categories(cats)
+            if error:
+                return error_response(error, 400)
+            updates['ad_chapter_categories_override'] = json.dumps(cats)
 
     if 'queuePriority' in data:
         qp_val, qp_err = _normalize_queue_priority(data['queuePriority'])
@@ -1763,7 +1837,8 @@ def update_feed(slug):
                 or 'title_skip_action' in updates
                 or 'title' in updates or 'author' in updates
                 or 'explicit' in updates or 'categories' in updates
-                or 'p20_channel_json' in updates or 'description' in updates):
+                or 'p20_channel_json' in updates or 'description' in updates
+                or 'chapters_in_notes' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed
@@ -1836,17 +1911,15 @@ def delete_feed(slug):
         # in-memory display state must be cleared explicitly.
         status_service = get_status_service()
         queue = ProcessingQueue()
-        current = queue.get_current()
-        if current and current[0] == slug:
-            # Signal the running thread to abort. If it was signalled it owns
-            # the fcntl lock and clears the shared state itself on exit; only
-            # force-release as a fallback when no local thread was found, to
-            # avoid zeroing the state file while a live worker still holds the
-            # lock (which would report false-idle). Mirrors cancel_episode_processing.
-            signalled = cancel_processing(slug, current[1])
+        for current_slug, current_episode_id in queue.get_current():
+            if current_slug != slug:
+                continue
+            # Signal the running thread to abort; the running slot is released by the
+            # worker itself on exit. Force-release only as a fallback. Mirrors cancel_episode_processing.
+            signalled = cancel_processing(slug, current_episode_id)
             if not signalled:
-                queue.release_if_processing(slug, current[1])
-            status_service.clear_if_matches(slug, current[1])
+                queue.release_if_processing(slug, current_episode_id)
+            status_service.clear_if_matches(slug, current_episode_id)
         status_service.remove_feed_from_queue(slug)      # drop queued display entries for this feed
         status_service.remove_feed_refresh(slug)         # drop any in-progress refresh badge
 
@@ -1886,6 +1959,8 @@ def delete_feed(slug):
             except Exception as e:
                 logger.warning(f"[{slug}] could not clear import job files: {e}")
 
+        from recents_feed import rebuild_recents_feed
+        rebuild_recents_feed()
         logger.info(f"Deleted feed: {slug}")
         return json_response({'message': 'Feed deleted', 'slug': slug})
 
@@ -1911,8 +1986,8 @@ def refresh_feed(slug):
     if not podcast:
         return error_response('Feed not found', 404)
 
-    if is_local_feed(podcast):
-        return error_response('Local feed has no upstream to refresh', 400)
+    if not has_upstream(podcast):
+        return error_response('Feed has no upstream to refresh', 400)
 
     if not podcast.get('source_url'):
         return error_response('Feed has no source URL', 400)
@@ -2079,18 +2154,18 @@ def get_artwork(slug):
 @limiter.limit("60 per minute")
 @log_request
 def upload_feed_artwork(slug):
-    """Upload cover art for a local feed (Task 6).
+    """Upload cover art for a local or recents feed.
 
     Subscribed feeds get their artwork from the upstream RSS
     <itunes:image>/<image> on refresh, so a direct upload here would just be
-    silently clobbered by the next refresh -- local feeds only.
+    silently clobbered by the next refresh.
     """
     db = get_database()
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return error_response('Feed not found', 404)
-    if not is_local_feed(podcast):
-        return error_response('Artwork upload is only available for local feeds', 400)
+    if has_upstream(podcast):
+        return error_response('Artwork upload is only available for local and recents feeds', 400)
 
     upload = request.files.get('file')
     if upload is None:
@@ -2125,9 +2200,9 @@ def upload_feed_artwork(slug):
                        'recommend at least 1400x1400')
     except Exception as e:
         logger.warning(f"[{slug}] artwork dimension check failed: {e}")
-
-    from local_feed_builder import rebuild_local_feed
-    rebuild_local_feed(slug)
+    # Local rebuilds the archive feed; recents re-renders the combined one.
+    from main_app.feeds import rebuild_served_rss
+    rebuild_served_rss(slug, podcast)
 
     response = {
         'message': 'Artwork uploaded',

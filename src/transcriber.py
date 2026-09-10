@@ -1,6 +1,7 @@
 """Transcription using Faster Whisper."""
 import io
 import json
+from datetime import timedelta
 import logging
 import math
 import struct
@@ -8,19 +9,22 @@ import tempfile
 import os
 import re
 import subprocess
+import threading
+import time
 import wave
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from run_log import run_in_worker_thread
+import run_context
+from run_context import run_in_worker_thread
 from user_agent import download_user_agent
 from utils.audio import get_audio_duration
 from utils.errors import (
     ServiceUnavailableError, AudioTooLargeError, AudioExtractionError,
     AudioExtractionTimeout,
 )
-from utils.time import format_vtt_timestamp
+from utils.time import format_vtt_timestamp, parse_iso_utc, utc_now, utc_now_iso
 from utils.gpu import (clear_gpu_memory, get_available_memory_gb,
                        get_gpu_device_name, get_gpu_memory_info)
 from utils.url import SSRFError
@@ -30,7 +34,10 @@ from utils.safe_http import (
     URLTrust, safe_get, safe_post, stream_to_file_capped,
     ResponseTooLargeError,
 )
+from utils.rate_limit import parse_retry_after
 from utils.subprocess_registry import tracked_run
+from utils.ttl_cache import TTLCache
+from whisper_pool import get_pool
 from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
@@ -96,90 +103,16 @@ BATCH_SIZE_TIERS = [
     (120 * 60, 8),      # 90-120 min: batch_size=8
 ]
 
-# Podcast-aware initial prompt with sponsor vocabulary. Whisper sometimes
-# regurgitates its own initial_prompt into silent gaps, so every term in this
-# list is also the scrubber's vocabulary: VOCABULARY_HALLUCINATION_PATTERNS
-# below derives from it, so a term cannot be seeded without being scrubbable.
-# (The podcast name, also interpolated into the prompt by get_initial_prompt,
-# is not a fixed vocabulary term and is intentionally not covered here.)
-# Do NOT add bare words that also occur in ordinary editorial speech: a seeded
-# term that is common English (GLP-1 drug names like Wegovy/Ozempic/Mounjaro;
-# words like calm/indeed/audible) gets hallucinated into gaps AND makes the
-# scrubber delete real speech. Keep only distinctive brand spellings.
-AD_VOCABULARY_TERMS = [
-    "promo code", "discount code", "use code",
-    "sponsored by", "brought to you by",
-    "Athletic Greens", "AG1", "BetterHelp", "Squarespace", "NordVPN",
-    "ExpressVPN", "HelloFresh", "Masterclass", "ZipRecruiter",
-    "Raycon", "Manscaped", "Stamps.com", "LinkedIn",
-    "SimpliSafe", "Casper", "Helix Sleep", "Brooklinen", "Bombas",
-    "Headspace", "Mint Mobile", "Dollar Shave Club",
-]
-AD_VOCABULARY = ", ".join(AD_VOCABULARY_TERMS)
-
-# Hallucination patterns to filter out (Whisper artifacts)
+# Whisper artifacts on silence and music. Matched after trailing punctuation
+# is stripped, so a bare phrase or bare punctuation is an artifact.
 HALLUCINATION_PATTERNS = re.compile(
-    r'^(thanks for watching|thank you for watching|please subscribe|'
-    r'like and subscribe|see you next time|bye\.?|'
+    r'^(?:thanks for watching|thank you for watching|please subscribe|'
+    r'like and subscribe|see you next time|bye|'
     r'subtitles by the amara\.org community|'
-    r'\[music\]|\[applause\]|\[laughter\]|\[silence\]|'
-    r'\.+|\s*|you)$',
+    r'\[music\]|\[applause\]|\[laughter\]|\[silence\]|you)?$',
     re.IGNORECASE
 )
-
-# Vocabulary hallucination scrubbing (Whisper sometimes outputs the initial
-# prompt). The pattern derives from AD_VOCABULARY_TERMS so the scrubber always
-# covers exactly what we seed; _is_vocabulary_regurgitation (used by
-# filter_hallucinations) then decides whether a matching segment is a bare
-# vocabulary list (drop it) or real speech around a brand (keep it).
-def _compile_vocabulary_pattern(terms):
-    """Alternation over the seeded terms, or a never-match pattern when empty.
-
-    An empty term list must NOT compile to ``()``: that matches every string
-    and would blank the transcript.
-    """
-    if not terms:
-        return re.compile(r'(?!x)x')  # matches nothing
-    return re.compile(
-        "(?:" + "|".join(re.escape(term) for term in terms) + ")",
-        re.IGNORECASE,
-    )
-
-
-VOCABULARY_HALLUCINATION_PATTERNS = _compile_vocabulary_pattern(AD_VOCABULARY_TERMS)
-
-# Max fraction of a segment's letters that may remain after removing seeded
-# terms for it to still count as regurgitation (a bare vocabulary list) rather
-# than real speech that merely names a sponsor.
-_VOCAB_REGURGITATION_MAX_RESIDUE = 0.15
-
-
-def _letter_count(text):
-    """Count alphabetic characters, Unicode-aware so non-Latin speech counts.
-
-    A regex like ``[^a-z]`` would treat Chinese/Cyrillic/etc. as non-letters
-    and undercount the residue, wrongly scrubbing real non-English speech.
-    """
-    return sum(1 for c in text if c.isalpha())
-
-
-def _is_vocabulary_regurgitation(text):
-    """True when a segment is essentially a list of seeded vocabulary terms.
-
-    Whisper echoing its initial_prompt produces runs of sponsor names with no
-    connective speech. Strip the seeded terms; if almost no alphabetic content
-    remains, it is regurgitation, however long. A genuine sponsor mention keeps
-    real words around the brand and is left alone. Length-independent, so a long
-    multi-brand run is caught as readily as a single echoed term.
-    """
-    # Cheap reject first: most segments contain no seeded term at all.
-    if not VOCABULARY_HALLUCINATION_PATTERNS.search(text):
-        return False
-    total = _letter_count(text)
-    if not total:
-        return False
-    residue = _letter_count(VOCABULARY_HALLUCINATION_PATTERNS.sub(' ', text))
-    return residue <= _VOCAB_REGURGITATION_MAX_RESIDUE * total
+TRAILING_PUNCTUATION = '.!?,;:\u2026'
 
 
 # Filter chain preprocess_audio applies; also folded into chunk extraction
@@ -403,7 +336,7 @@ class _ChunkPrefetcher:
             # run_in_worker_thread keeps the pool thread's ffmpeg log lines
             # inside the episode's run log.
             self._pending[bounds] = self._executor.submit(
-                run_in_worker_thread, extract_audio_chunk,
+                run_in_worker_thread(extract_audio_chunk),
                 self._audio_path, start, end, preprocess=True,
             )
 
@@ -589,6 +522,184 @@ def check_whisper_connectivity(timeout: float = 5.0) -> bool:
         return False
 
 
+_HEALTH_INSTANCE_FIELDS = (
+    'model', 'device', 'compute_type', 'batch_size', 'max_concurrent', 'vad_filter',
+)
+
+# Cached probe results, keyed by base URL, so a 15s settings-page poll loop
+# does not fire fresh outbound requests every tick.
+_HEALTH_CACHE_TTL_SECONDS = 120.0
+_health_cache = TTLCache(ttl_seconds=_HEALTH_CACHE_TTL_SECONDS)
+# The budget caps how many samples a probe starts; the in-flight set stops a
+# 15s poll loop stacking more against a backend still being probed.
+_HEALTH_PROBE_BUDGET_SECONDS = 15.0
+_health_inflight: set[str] = set()
+_health_inflight_lock = threading.Lock()
+# Last successful probe per base URL, kept past the cache TTL only to answer
+# a caller that arrives while that URL's probe is still running.
+_health_last_good: dict[str, tuple[float, dict]] = {}
+_HEALTH_LAST_GOOD_MAX = 32
+_HEALTH_LAST_GOOD_MAX_AGE_SECONDS = 3 * _HEALTH_CACHE_TTL_SECONDS
+
+
+def _last_good_health(cache_key: str) -> dict | None:
+    """Last successful probe for a backend, if recent enough to still show."""
+    entry = _health_last_good.get(cache_key)
+    if entry is None:
+        return None
+    stamped_at, result = entry
+    if time.monotonic() - stamped_at > _HEALTH_LAST_GOOD_MAX_AGE_SECONDS:
+        return None
+    return result
+
+
+def _remember_health(cache_key: str, result: dict) -> None:
+    """Record a successful probe, evicting the oldest entry when full."""
+    entries = list(_health_last_good.items())
+    if len(entries) >= _HEALTH_LAST_GOOD_MAX and cache_key not in _health_last_good:
+        _health_last_good.pop(min(entries, key=lambda kv: kv[1][0])[0], None)
+    _health_last_good[cache_key] = (time.monotonic(), result)
+
+
+def _coerce_hashable(value):
+    """Stringify a list/dict health field so the mismatch set comprehension stays hashable."""
+    return str(value) if isinstance(value, (list, dict)) else value
+
+
+def _clamped_concurrency(value) -> int:
+    """One instance's usable max_concurrent, floored at 1.
+
+    Accepts the int, float, and numeric-string spellings backends use; bool
+    and anything unparseable count as 1.
+    """
+    if isinstance(value, bool):
+        return 1
+    try:
+        return max(1, int(float(value)))
+    except (TypeError, ValueError, OverflowError):
+        return 1
+
+
+def probe_whisper_health(base_url: str | None = None, samples: int = 8,
+                         timeout: float = 5.0, api_key: str | None = None,
+                         refresh: bool = False,
+                         budget: float = _HEALTH_PROBE_BUDGET_SECONDS) -> dict:
+    """Sample a self-hosted Whisper backend's optional /health endpoint.
+
+    Behind a load balancer, repeated calls round-robin across replicas,
+    revealing the replica count and total concurrency accepted. Stops early
+    after three consecutive already-seen instances. Results are cached per
+    base URL for 120s; refresh=True skips that read and re-probes, then
+    stores the fresh result so an on-demand check such as the connection
+    test also clears a stale entry. One probe runs per backend at a time,
+    and a caller arriving mid-probe (refresh included) gets the cached or
+    last good result instead of queuing. `budget` caps how many further
+    samples start, not the wall time of one already in flight. Never
+    raises: an unusable sample is skipped, and a probe that finds nothing
+    returns {'available': False}.
+    """
+    settings = None
+    if base_url is None:
+        settings = _get_whisper_settings()
+        base_url = settings['api_base_url']
+    if not base_url:
+        return {'available': False}
+    if api_key is None:
+        api_key = settings['api_key'] if settings else ''
+
+    cache_key = base_url.rstrip('/')
+    if not refresh:
+        cached = _health_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+    # Per backend, so a test against a new URL is never blocked by a probe
+    # hanging on the old one.
+    with _health_inflight_lock:
+        busy = cache_key in _health_inflight
+        if not busy:
+            _health_inflight.add(cache_key)
+    if busy:
+        # A non-refresh caller only gets here after its own cache read missed,
+        # so fall back to the last good probe rather than blanking the panel
+        # for as long as the running probe takes.
+        return (_health_cache.get(cache_key) or _last_good_health(cache_key)
+                or {'available': False})
+    try:
+        return _probe_whisper_health(cache_key, samples, timeout, api_key, refresh, budget)
+    finally:
+        with _health_inflight_lock:
+            _health_inflight.discard(cache_key)
+
+
+def _probe_whisper_health(cache_key: str, samples: int, timeout: float,
+                          api_key: str | None, refresh: bool, budget: float) -> dict:
+    """probe_whisper_health's body, run with this backend marked in flight."""
+    url = f"{cache_key}/health"
+    headers = _bearer_headers(api_key)
+    give_up_at = time.monotonic() + budget
+
+    bodies: dict[str, dict] = {}
+    repeat_streak = 0
+    converged = False
+    for attempt in range(max(1, samples)):
+        if attempt and time.monotonic() >= give_up_at:
+            break
+        try:
+            response = safe_get(url, trust=URLTrust.OPERATOR_CONFIGURED,
+                                timeout=timeout, headers=headers)
+            if response.status_code != 200:
+                continue
+            body = response.json()
+        except Exception as e:
+            logger.debug(f"Whisper health probe failed: {e}")
+            continue
+        if not isinstance(body, dict) or not isinstance(body.get('instance'), str):
+            continue
+
+        instance = body['instance']
+        if instance in bodies:
+            repeat_streak += 1
+        else:
+            repeat_streak = 0
+            bodies[instance] = body
+        if repeat_streak >= 3:
+            converged = True
+            break
+
+    if not bodies:
+        # On a refresh the cache may hold a good probe; one failed on-demand
+        # check is not reason enough to blank the panel for 120s.
+        if not refresh:
+            _health_cache.set(cache_key, {'available': False})
+        return {'available': False}
+
+    instances = [
+        {'instance': inst,
+         **{f: _coerce_hashable(bodies[inst].get(f)) for f in _HEALTH_INSTANCE_FIELDS}}
+        for inst in bodies
+    ]
+    suggested = sum(_clamped_concurrency(inst['max_concurrent']) for inst in instances)
+    mismatch = [
+        field for field in ('model', 'compute_type', 'device')
+        if len({inst[field] for inst in instances}) > 1
+    ]
+
+    result = {
+        'available': True,
+        'instances': instances,
+        'suggested_max_requests': suggested,
+        'mismatch': mismatch,
+        # Sampling ran out before an instance repeated three times running,
+        # so it never demonstrably wrapped the replica set: the count is a
+        # lower bound. A balancer that is not round robin lands here.
+        'sampled_floor': not converged,
+    }
+    _health_cache.set(cache_key, result)
+    _remember_health(cache_key, result)
+    return result
+
+
 def _transcription_url(base_url: str) -> str:
     """Endpoint URL for an OpenAI-compatible transcription request. Shared
     by the real upload path and the connection probe so they cannot drift."""
@@ -772,6 +883,12 @@ def _get_chunk_settings() -> dict[str, int]:
         max(1, defaults['max_chunk_seconds'] - 1),
     )
     return defaults
+
+
+def _log_prefix() -> str:
+    """"[slug:episode_id] " for the calling run, else empty."""
+    ctx = run_context.current()
+    return f"[{ctx.key}] " if ctx else ''
 
 
 # Canonical lookup: keys are what we accept, values are the literal constants
@@ -1062,6 +1179,21 @@ def _whisper_api_rejects_word_timestamps(response) -> bool:
     )
 
 
+def _whisper_api_rejects_vad_filter(response) -> bool:
+    """True when the server 400s an unrecognized `vad_filter` form field.
+
+    Narrow to that field name so only this specific rejection retries; any
+    other non-200 falls through unchanged.
+    """
+    if response is None or response.status_code == 200:
+        return False
+    try:
+        body = (response.text or '').lower()
+    except Exception:
+        return False
+    return 'vad_filter' in body
+
+
 def _effective_language(language_override: str | None, whisper_settings: dict[str, str]) -> str:
     """Resolve the effective Whisper language as a lowercased code.
 
@@ -1104,10 +1236,10 @@ class Transcriber:
     def _transcribe_via_api(
         self,
         audio_path: str,
-        podcast_name: str = None,
         whisper_settings: dict[str, str] = None,
         language_override: str | None = None,
         preprocessed: bool = False,
+        vad_filter: bool = True,
     ) -> list[dict] | None:
         """Transcribe audio using an OpenAI-compatible whisper API.
 
@@ -1116,11 +1248,13 @@ class Transcriber:
 
         Args:
             audio_path: Path to the audio file to transcribe.
-            podcast_name: Optional podcast name for context-aware prompting.
             whisper_settings: Pre-fetched settings dict from _get_whisper_settings().
             preprocessed: The file already went through the preprocess filter
                 chain (extract_audio_chunk(preprocess=True)); skip the
                 redundant preprocess pass.
+            vad_filter: False sends `vad_filter=false` so a server that
+                supports the switch keeps quiet audio (tail pass, spec 1.2).
+                True sends nothing, leaving the server's own default alone.
 
         Returns:
             List of transcript segments, or None on failure.
@@ -1171,7 +1305,6 @@ class Transcriber:
 
             # Build request
             url = _transcription_url(base_url)
-            initial_prompt = self.get_initial_prompt(podcast_name)
 
             headers = _bearer_headers(api_key)
 
@@ -1179,11 +1312,13 @@ class Transcriber:
                 'model': model,
                 'response_format': 'verbose_json',
             }
+            # Only sent when disabling VAD: a server without the switch
+            # ignores an unknown field, but never send a redundant default.
+            if not vad_filter:
+                form_data_base['vad_filter'] = 'false'
             language = _effective_language(language_override, whisper_settings)
             if language and language != 'auto':
                 form_data_base['language'] = language
-            if initial_prompt:
-                form_data_base['prompt'] = initial_prompt
 
             # Defensive: refuse to upload tiny or missing files. Avoids
             # remote "empty audio" / decode failures when preprocessing
@@ -1217,56 +1352,105 @@ class Transcriber:
                 ['segment', 'word'],
                 ['segment'],
             )
-            for gran_idx, granularities in enumerate(granularity_modes):
-                form_data = {
-                    **form_data_base,
-                    'timestamp_granularities[]': granularities,
-                }
-                for attempt in range(max_attempts):
-                    try:
-                        with open(transcribe_path, 'rb') as audio_file:
-                            response = safe_post(
-                                url,
-                                trust=URLTrust.OPERATOR_CONFIGURED,
-                                timeout=_api_timeout(whisper_settings),
-                                max_redirects=HTTP_MAX_REDIRECTS_API,
-                                files={'file': (os.path.basename(transcribe_path), audio_file)},
-                                data=form_data,
-                                headers=headers,
+            # Some servers 400 an unrecognized vad_filter field instead of
+            # ignoring it; drop it and retry once rather than lose the upload.
+            vad_filter_retried = False
+            while True:
+                for gran_idx, granularities in enumerate(granularity_modes):
+                    form_data = {
+                        **form_data_base,
+                        'timestamp_granularities[]': granularities,
+                    }
+                    # Wall-clock deadline for 429 retries (which do not consume an
+                    # attempt slot, see below) so a Retry-After: 0 loop cannot spin.
+                    # Set on the first permit below, per granularity mode.
+                    retry_deadline = None
+                    attempt = 0
+                    while attempt < max_attempts:
+                        try:
+                            with open(transcribe_path, 'rb') as audio_file:
+                                permit_wait_start = time.monotonic()
+                                with get_pool().slot():
+                                    # Waiting on our own admission control is not
+                                    # the provider throttling us, so it never
+                                    # eats the 429 window.
+                                    now = time.monotonic()
+                                    if retry_deadline is None:
+                                        retry_deadline = now + _api_timeout(whisper_settings)
+                                    else:
+                                        retry_deadline += now - permit_wait_start
+                                    response = safe_post(
+                                        url,
+                                        trust=URLTrust.OPERATOR_CONFIGURED,
+                                        timeout=_api_timeout(whisper_settings),
+                                        max_redirects=HTTP_MAX_REDIRECTS_API,
+                                        files={'file': (os.path.basename(transcribe_path), audio_file)},
+                                        data=form_data,
+                                        headers=headers,
+                                    )
+                        except SSRFError as exc:
+                            logger.warning(f"Whisper API URL blocked: {exc}")
+                            return None
+                        except requests.RequestException as exc:
+                            logger.warning(
+                                "Whisper API attempt %d/%d failed: %s",
+                                attempt + 1, max_attempts, exc,
                             )
-                    except SSRFError as exc:
-                        logger.warning(f"Whisper API URL blocked: {exc}")
-                        return None
-                    except requests.RequestException as exc:
+                            last_request_exc = exc
+                            response = None
+                            attempt += 1
+                            continue
+                        if response.status_code == 429 and get_pool().active:
+                            if time.monotonic() >= retry_deadline:
+                                logger.warning(
+                                    "%sWhisper API still busy (429) after the "
+                                    "retry deadline; giving up", _log_prefix())
+                                return None
+                            # Floor so a Retry-After: 0 (or absent) header still yields.
+                            parsed_retry_after = parse_retry_after(
+                                (response.headers or {}).get('Retry-After'), max_seconds=300.0)
+                            retry_after = max(
+                                parsed_retry_after if parsed_retry_after is not None else 5.0, 0.5)
+                            logger.warning(
+                                "%sWhisper API busy (429); waiting %.1fs before retrying",
+                                _log_prefix(), retry_after)
+                            time.sleep(retry_after)
+                            response = None
+                            continue
+                        if response.status_code < 500:
+                            break
                         logger.warning(
-                            "Whisper API attempt %d/%d failed: %s",
-                            attempt + 1, max_attempts, exc,
+                            "Whisper API attempt %d/%d returned %d",
+                            attempt + 1, max_attempts, response.status_code,
                         )
-                        last_request_exc = exc
-                        response = None
-                        continue
-                    if response.status_code < 500:
-                        break
-                    logger.warning(
-                        "Whisper API attempt %d/%d returned %d",
-                        attempt + 1, max_attempts, response.status_code,
-                    )
+                        attempt += 1
 
-                if response is None:
-                    # Every attempt raised at the transport layer -- the
-                    # endpoint is unreachable, which the offline queue (#482)
-                    # must be able to tell apart from a bad response.
-                    raise ServiceUnavailableError(
-                        'whisper', f"Whisper API unreachable: {last_request_exc}")
-                if response.status_code == 200:
+                    if response is None:
+                        # Every attempt raised at the transport layer, so the
+                        # endpoint is unreachable. The offline queue (#482) must
+                        # tell that apart from a bad response.
+                        raise ServiceUnavailableError(
+                            'whisper', f"Whisper API unreachable: {last_request_exc}")
+                    if response.status_code == 200:
+                        break
+                    if gran_idx == 0 and _whisper_api_rejects_word_timestamps(response):
+                        logger.warning(
+                            "Whisper API does not support word timestamps; "
+                            "retrying with segment-only timestamps"
+                        )
+                        continue
+                    # Non-200 with no word-timestamp signal, so give up here.
                     break
-                if gran_idx == 0 and _whisper_api_rejects_word_timestamps(response):
+
+                if (response.status_code != 200 and not vad_filter_retried
+                        and 'vad_filter' in form_data_base
+                        and _whisper_api_rejects_vad_filter(response)):
                     logger.warning(
-                        "Whisper API does not support word timestamps; "
-                        "retrying with segment-only timestamps"
+                        "Whisper API rejected vad_filter field; retrying without it"
                     )
+                    form_data_base.pop('vad_filter', None)
+                    vad_filter_retried = True
                     continue
-                # Non-200 with no word-timestamp signal -- give up here.
                 break
 
             if response is None or response.status_code != 200:
@@ -1331,12 +1515,6 @@ class Transcriber:
             _unlink_quiet(preprocessed_path)
             _unlink_quiet(flac_path)
 
-    def get_initial_prompt(self, podcast_name: str = None) -> str:
-        """Generate a podcast-aware initial prompt for Whisper."""
-        if podcast_name:
-            return f"Podcast: {podcast_name}. {AD_VOCABULARY}"
-        return f"This is a podcast episode. {AD_VOCABULARY}"
-
     def filter_hallucinations(self, segments: list[dict]) -> list[dict]:
         """Filter out common Whisper hallucinations and artifacts."""
         filtered = []
@@ -1344,14 +1522,8 @@ class Transcriber:
             text = seg.get('text', '').strip()
             if not text:
                 continue
-            if HALLUCINATION_PATTERNS.match(text):
+            if HALLUCINATION_PATTERNS.match(text.rstrip(TRAILING_PUNCTUATION)):
                 logger.debug("Filtered hallucination segment (%d chars)", len(text))
-                continue
-            # Whisper sometimes echoes its initial_prompt vocabulary into a
-            # silent gap. Drop a segment that is essentially a list of seeded
-            # terms (any length); a genuine sponsor mention keeps real speech.
-            if _is_vocabulary_regurgitation(text):
-                logger.debug("Filtered vocabulary hallucination (%d chars)", len(text))
                 continue
             # Skip repeated segments (Whisper loop artifacts)
             if filtered and text == filtered[-1].get('text', '').strip():
@@ -1437,17 +1609,21 @@ class Transcriber:
         return duration
 
     # Largest batch size proven to fit this device's VRAM: recorded when a run
-    # completes after an OOM downshift, so later episodes start at a size that fits.
+    # completes below the duration tier, so later episodes start at a size that
+    # fits. After the TTL the next run probes one size up, so a transient OOM
+    # cannot pin every later episode for good.
     BATCH_CEILING_SETTING = 'transcribe_batch_size_ceiling'
+    BATCH_CEILING_TTL_DAYS = 2
 
     @staticmethod
     def _batch_ceiling_device() -> str:
         """Device name the stored ceiling applies to; VRAM differs per GPU model."""
         return get_gpu_device_name()
 
-    def _batch_size_ceiling(self) -> int | None:
-        """Stored ceiling as a positive int, or None when unset, malformed, or
-        recorded for a different device."""
+    def _read_ceiling(self) -> dict | None:
+        """Stored ceiling for this device as {'size', 'recorded_at'}, or None
+        when unset, malformed, or recorded for a different device. recorded_at
+        is None for pre-2.96.0 payloads, which read as expired."""
         # Inline import: see _get_whisper_settings above, Database would be a
         # circular import at module level.
         from database import Database
@@ -1462,47 +1638,65 @@ class Transcriber:
             parsed = json.loads(raw)
         except (TypeError, ValueError):
             parsed = None
-        if isinstance(parsed, dict):
-            if parsed.get('device') != self._batch_ceiling_device():
-                return None
-            size = parsed.get('size')
-        else:
-            # Legacy bare int from an earlier build: valid for the current
-            # device, rewritten in the new format on the next persist.
-            size = raw
-        try:
-            return max(1, int(size))
-        except (TypeError, ValueError):
+        if not isinstance(parsed, dict) or parsed.get('device') != self._batch_ceiling_device():
             return None
+        try:
+            size = max(1, int(parsed['size']))
+        except (KeyError, TypeError, ValueError):
+            return None
+        return {'size': size, 'recorded_at': parsed.get('recorded_at')}
+
+    def _ceiling_expired(self, entry: dict) -> bool:
+        recorded_at = parse_iso_utc(entry['recorded_at'])
+        return (recorded_at is None
+                or utc_now() - recorded_at > timedelta(days=self.BATCH_CEILING_TTL_DAYS))
+
+    def _batch_size_ceiling(self) -> int | None:
+        """Unexpired stored ceiling as a positive int, else None."""
+        entry = self._read_ceiling()
+        if entry is None or self._ceiling_expired(entry):
+            return None
+        return entry['size']
 
     def record_batch_size_ceiling(self, batch_size: int) -> None:
         """Persist batch_size as this device's ceiling. Called only after a
-        completed run, since only completion proves a size fits; ratchets down.
+        completed run, since only completion proves a size fits; ratchets down
+        against an unexpired ceiling and keeps its timestamp so it still ages out.
         """
         from database import Database
         candidate = max(1, int(batch_size))
-        existing = self._batch_size_ceiling()
-        value = min(existing, candidate) if existing else candidate
-        payload = json.dumps({'device': self._batch_ceiling_device(), 'size': value})
+        entry = self._read_ceiling()
+        live = entry if entry and not self._ceiling_expired(entry) else None
+        value = min(live['size'], candidate) if live else candidate
+        recorded_at = live['recorded_at'] if live and value == live['size'] else utc_now_iso()
+        payload = json.dumps({
+            'device': self._batch_ceiling_device(), 'size': value, 'recorded_at': recorded_at,
+        })
         try:
             Database().set_setting(self.BATCH_CEILING_SETTING, payload)
         except Exception as e:
             logger.debug(f"Could not persist batch size ceiling: {e}")
 
-    def get_batch_size_for_duration(self, duration_seconds: float | None) -> int:
-        """Get optimal batch size based on audio duration to prevent CUDA OOM."""
+    @staticmethod
+    def _tier_batch_size(duration_seconds: float | None) -> int:
+        """Batch size from audio duration alone; longer episodes need smaller batches."""
         if duration_seconds is None:
-            # Default to conservative batch size if duration unknown
-            tier = 8
-        else:
-            tier = 4  # Fallback for very long episodes (> 120 min)
-            for threshold, batch_size in BATCH_SIZE_TIERS:
-                if duration_seconds < threshold:
-                    tier = batch_size
-                    break
+            return 8
+        for threshold, batch_size in BATCH_SIZE_TIERS:
+            if duration_seconds < threshold:
+                return batch_size
+        return 4
 
-        ceiling = self._batch_size_ceiling()
-        return min(tier, ceiling) if ceiling else tier
+    def get_batch_size_for_duration(self, duration_seconds: float | None) -> int:
+        """Duration tier, clamped by an unexpired ceiling; an expired one is
+        probed one size up."""
+        tier = self._tier_batch_size(duration_seconds)
+        entry = self._read_ceiling()
+        if entry is None:
+            return tier
+        if self._ceiling_expired(entry):
+            return min(tier, entry['size'] * 2)
+        return min(tier, entry['size'])
 
     def clear_cuda_cache(self):
         """Clear CUDA cache to free GPU memory.
@@ -1696,7 +1890,6 @@ class Transcriber:
     def transcribe(
         self,
         audio_path: str,
-        podcast_name: str = None,
         language_override: str | None = None,
         vad_filter: bool = True,
         preprocessed: bool = False,
@@ -1711,7 +1904,8 @@ class Transcriber:
         language overrides without mutating shared settings.
 
         ``vad_filter=False`` disables Whisper's VAD (tail re-transcription,
-        spec 1.2). Local backend only; API backends have no VAD switch.
+        spec 1.2). The API backend forwards it as a `vad_filter=false` form
+        field; servers without the switch ignore it.
 
         ``preprocessed=True`` means the caller already applied the preprocess
         filter chain (chunks from extract_audio_chunk(preprocess=True)), so
@@ -1720,15 +1914,11 @@ class Transcriber:
         # Check whisper backend setting
         whisper_settings = _get_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
-            if not vad_filter:
-                # OpenAI-compatible endpoints expose no VAD switch; any VAD
-                # is server-side config. The tail still gets transcribed as
-                # its own upload, which is the intended effect (spec 1.2).
-                logger.info("vad_filter=False not forwardable to API backend; sending audio as-is")
             return self._transcribe_via_api(
-                audio_path, podcast_name, whisper_settings,
+                audio_path, whisper_settings,
                 language_override=language_override,
                 preprocessed=preprocessed,
+                vad_filter=vad_filter,
             )
 
         language_setting = _effective_language(language_override, whisper_settings)
@@ -1756,9 +1946,6 @@ class Transcriber:
                 audio_duration = (self.get_audio_duration(preprocessed_path)
                                   or audio_duration)
 
-            # Create podcast-aware prompt with sponsor vocabulary
-            initial_prompt = self.get_initial_prompt(podcast_name)
-
             # Adjust batch size based on device and audio duration
             device = resolve_whisper_device()
             if device == "cuda":
@@ -1769,8 +1956,7 @@ class Transcriber:
             else:
                 batch_size = 8  # Smaller batch for CPU
 
-            # Success-time ceiling recording needs the pre-downshift start size.
-            initial_batch_size = batch_size
+            tier_batch_size = self._tier_batch_size(audio_duration)
 
             # Retry logic for CUDA OOM errors
             max_retries = 3
@@ -1795,7 +1981,6 @@ class Transcriber:
                     segments_generator, info = model.transcribe(
                         transcribe_path,
                         language=transcribe_language,
-                        initial_prompt=initial_prompt,
                         beam_size=5,
                         batch_size=batch_size,
                         word_timestamps=True,  # Enable word-level timestamps for boundary refinement
@@ -1893,27 +2078,33 @@ class Transcriber:
                     duration_min = result[-1]['end'] / 60 if result else 0
                     logger.info(f"Transcription completed: {len(result)} segments, {duration_min:.1f} minutes")
 
-                    if device == "cuda" and batch_size < initial_batch_size:
-                        # Completing at the downshifted size proves it fits;
-                        # failures never persist anything.
+                    if device == "cuda" and batch_size < tier_batch_size:
+                        # Completing below the tier (downshift, clamp, or probe)
+                        # proves the size fits; failures never persist anything.
                         self.record_batch_size_ceiling(batch_size)
 
                     return result
 
                 except Exception as inner_e:
                     error_str = str(inner_e).lower()
-                    is_oom = 'out of memory' in error_str or 'cuda' in error_str
+                    is_oom = 'out of memory' in error_str
 
-                    if is_oom and retry_count < max_retries - 1:
+                    if ('cuda' in error_str or is_oom) and retry_count < max_retries - 1:
                         retry_count += 1
-                        # Reduce batch size for retry
-                        old_batch_size = batch_size
-                        batch_size = max(1, batch_size // 2)
-                        logger.warning(
-                            f"CUDA OOM detected (attempt {retry_count}/{max_retries}). "
-                            f"Reducing batch size: {old_batch_size} -> {batch_size}"
-                        )
-                        # Clear cache and retry
+                        if is_oom:
+                            old_batch_size = batch_size
+                            batch_size = max(1, batch_size // 2)
+                            logger.warning(
+                                f"CUDA OOM detected (attempt {retry_count}/{max_retries}). "
+                                f"Reducing batch size: {old_batch_size} -> {batch_size}"
+                            )
+                        else:
+                            # Only an OOM says the size does not fit; anything
+                            # else is retried as-is so it cannot pin a ceiling.
+                            logger.warning(
+                                f"CUDA error (attempt {retry_count}/{max_retries}), "
+                                f"retrying at batch size {batch_size}: {inner_e}"
+                            )
                         self.clear_cuda_cache()
                         continue
                     # Non-OOM error or max retries reached
@@ -1942,7 +2133,6 @@ class Transcriber:
     def _transcribe_chunked_parallel_api(
         self,
         audio_path: str,
-        podcast_name: str | None,
         duration: float,
         whisper_settings: dict[str, str],
         language_override: str | None = None,
@@ -1957,7 +2147,8 @@ class Transcriber:
         chunk_settings = _get_chunk_settings()
         chunk_duration = chunk_settings['max_chunk_seconds']
         overlap = chunk_settings['chunk_overlap_seconds']
-        max_workers = chunk_settings['concurrent_chunks']
+        max_workers = get_pool().chunk_workers(chunk_settings['concurrent_chunks'])
+        prefix = _log_prefix()
 
         # Single-shot if entire audio fits in one chunk
         if duration <= chunk_duration:
@@ -1965,7 +2156,7 @@ class Transcriber:
                 f"Audio duration {duration/60:.1f}min fits in one chunk "
                 f"({chunk_duration}s), single-shot API transcription"
             )
-            return self.transcribe(audio_path, podcast_name, language_override=language_override)
+            return self.transcribe(audio_path, language_override=language_override)
 
         # Build chunk plan: list of (idx, start, end_with_overlap)
         plan: list[tuple[int, float, float]] = []
@@ -2011,17 +2202,17 @@ class Transcriber:
                     preprocess=True, flac=extract_as_flac,
                 )
             except AudioExtractionTimeout as e:
-                logger.error(f"Chunk {chunk_idx + 1}: {e}")
+                logger.error(f"{prefix}Chunk {chunk_idx + 1}: {e}")
                 extraction_failures.append(chunk_idx)
                 extraction_timeouts.append(chunk_idx)
                 return chunk_idx, None
             if not chunk_path:
-                logger.error(f"Chunk {chunk_idx + 1}: ffmpeg extract failed")
+                logger.error(f"{prefix}Chunk {chunk_idx + 1}: ffmpeg extract failed")
                 extraction_failures.append(chunk_idx)
                 return chunk_idx, None
             try:
                 segs = self._transcribe_via_api(
-                    chunk_path, podcast_name, whisper_settings,
+                    chunk_path, whisper_settings,
                     language_override=language_override,
                     preprocessed=True,
                 )
@@ -2039,11 +2230,11 @@ class Transcriber:
             except ServiceUnavailableError as e:
                 # list.append is thread-safe; recorded so an endpoint-down
                 # abort can defer the episode (#482) instead of failing it.
-                logger.error(f"Chunk {chunk_idx + 1} failed: {e}")
+                logger.error(f"{prefix}Chunk {chunk_idx + 1} failed: {e}")
                 connectivity_errors.append(e)
                 return chunk_idx, None
             except Exception as e:
-                logger.error(f"Chunk {chunk_idx + 1} failed: {e}")
+                logger.error(f"{prefix}Chunk {chunk_idx + 1} failed: {e}")
                 return chunk_idx, None
             finally:
                 _unlink_quiet(chunk_path)
@@ -2056,7 +2247,7 @@ class Transcriber:
         exe = ThreadPoolExecutor(max_workers=max_workers)
         try:
             futures = [
-                exe.submit(run_in_worker_thread, _process_chunk, i, s, e)
+                exe.submit(run_in_worker_thread(_process_chunk), i, s, e)
                 for i, s, e in plan
             ]
             for completed, fut in enumerate(as_completed(futures), 1):
@@ -2065,7 +2256,7 @@ class Transcriber:
                 if segs is None:
                     failed += 1
                 logger.info(
-                    f"Chunk {chunk_idx + 1} complete "
+                    f"{prefix}Chunk {chunk_idx + 1} complete "
                     f"({completed}/{num_chunks}): "
                     f"{len(segs) if segs else 0} segments"
                 )
@@ -2075,7 +2266,7 @@ class Transcriber:
                 # Returning here still runs the finally below (pool shutdown).
                 if failed > max_failed_chunks:
                     logger.error(
-                        f"Too many failed chunks ({failed} > {max_failed_chunks}); "
+                        f"{prefix}Too many failed chunks ({failed} > {max_failed_chunks}); "
                         f"aborting transcription early"
                     )
                     # Classify the abort as an outage only when connectivity
@@ -2152,7 +2343,6 @@ class Transcriber:
     def transcribe_chunked(
         self,
         audio_path: str,
-        podcast_name: str = None,
         language_override: str | None = None,
     ) -> list[dict]:
         """Transcribe audio files with dynamic chunking to prevent OOM errors.
@@ -2165,7 +2355,6 @@ class Transcriber:
 
         Args:
             audio_path: Path to the audio file to transcribe
-            podcast_name: Optional podcast name for context-aware prompting
             language_override: Optional per-feed language; when set, takes
                 precedence over the global whisper_language setting for this
                 call only (forwarded to each chunk's transcribe()).
@@ -2183,10 +2372,11 @@ class Transcriber:
         # WhisperModelSingleton constraints, so chunks can run concurrently.
         whisper_settings = _get_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
-            return self._transcribe_chunked_parallel_api(
-                audio_path, podcast_name, duration, whisper_settings,
-                language_override=language_override,
-            )
+            with get_pool().transcribing():
+                return self._transcribe_chunked_parallel_api(
+                    audio_path, duration, whisper_settings,
+                    language_override=language_override,
+                )
 
         # Get current model and device for memory calculation
         model_name = WhisperModelSingleton.get_configured_model()
@@ -2205,7 +2395,7 @@ class Transcriber:
                 f"({chunk_duration/60:.0f}min), trying regular transcription"
             )
             try:
-                result = self.transcribe(audio_path, podcast_name, language_override=language_override)
+                result = self.transcribe(audio_path, language_override=language_override)
                 if result is not None:
                     return result
                 # If transcribe returns None but didn't raise, fall through to chunked
@@ -2302,7 +2492,7 @@ class Transcriber:
                 try:
                     # Transcribe chunk (will handle its own batch sizing and retries)
                     chunk_segments = self.transcribe(
-                        chunk_path, podcast_name,
+                        chunk_path,
                         language_override=language_override, preprocessed=True,
                     )
 

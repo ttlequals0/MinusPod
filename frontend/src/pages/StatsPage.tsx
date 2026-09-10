@@ -10,11 +10,11 @@ import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
 import { formatCost, formatStatsDuration as formatDuration } from '../utils/format';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonStatCards, SkeletonChart } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { selectBase } from '../components/fieldStyles';
 
-type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
+type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
 interface SortThProps {
   field: PodcastSortField;
@@ -197,10 +197,6 @@ export default function StatsPage() {
     [theme.primary, topPodcasts.length]
   );
 
-  if (dashLoading && dayLoading && podLoading) {
-    return <LoadingSpinner className="py-12" />;
-  }
-
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
@@ -220,6 +216,9 @@ export default function StatsPage() {
       </div>
 
       {/* Summary Cards */}
+      {dashLoading && (
+        <SkeletonStatCards count={7} lines={3} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8" />
+      )}
       {dashboard && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           <StatCard
@@ -253,7 +252,7 @@ export default function StatsPage() {
             max={formatDuration(dashboard.maxEpisodeLengthSeconds)}
           />
           <StatCard
-            label="Avg Tokens/Episode"
+            label="Avg Tokens/Run"
             value={formatTokenCount(dashboard.avgInputTokens + dashboard.avgOutputTokens)}
             min={`In: ${formatTokenCount(dashboard.avgInputTokens)}`}
             max={`Out: ${formatTokenCount(dashboard.avgOutputTokens)}`}
@@ -268,11 +267,17 @@ export default function StatsPage() {
       )}
 
       {/* Totals Row */}
+      {dashLoading && (
+        <SkeletonStatCards count={6} className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8" />
+      )}
       {dashboard && (
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Episodes</p>
             <p className="text-xl font-bold text-foreground">{dashboard.totalEpisodesProcessed}</p>
+            {dashboard.totalRuns !== dashboard.totalEpisodesProcessed && (
+              <p className="text-xs text-muted-foreground mt-1">{dashboard.totalRuns} processing runs</p>
+            )}
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Ads Removed</p>
@@ -285,6 +290,10 @@ export default function StatsPage() {
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Time Saved</p>
             <p className="text-xl font-bold text-foreground">{formatDuration(dashboard.totalTimeSavedSeconds)}</p>
+            {dashboard.episodesWithTimeSaved > 0 &&
+              dashboard.episodesWithTimeSaved !== dashboard.totalEpisodesProcessed && (
+                <p className="text-xs text-muted-foreground mt-1">from {dashboard.episodesWithTimeSaved} episodes</p>
+              )}
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total LLM Cost</p>
@@ -301,6 +310,7 @@ export default function StatsPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Top Podcasts by Ads */}
+        {podLoading && <SkeletonChart />}
         {topPodcasts.length > 0 && (
           <div className="bg-card rounded-lg border border-border p-4">
             <h2 className="text-lg font-semibold text-foreground mb-4">Top Podcasts by Ads Removed</h2>
@@ -327,6 +337,7 @@ export default function StatsPage() {
         )}
 
         {/* Episodes by Day of Week */}
+        {dayLoading && <SkeletonChart />}
         {byDay?.days && (
           <div className="bg-card rounded-lg border border-border p-4">
             <h2 className="text-lg font-semibold text-foreground mb-4">Episodes Processed by Day</h2>
@@ -355,7 +366,7 @@ export default function StatsPage() {
           <h2 className="text-lg font-semibold text-foreground mb-4">Ad Reviewer Stats</h2>
           {reviewer.totalReviews === 0 && (
             <p className="text-sm text-muted-foreground mb-4">
-              No reviews yet. Enable Ad Reviewer in Settings, Experiments section, then reprocess an episode.
+              No reviews yet. Enable Ad Reviewer in Settings, AI & Processing section, then reprocess an episode.
             </p>
           )}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -473,6 +484,8 @@ export default function StatsPage() {
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <span className="text-muted-foreground">Episodes</span>
                 <span className="text-foreground text-right">{p.episodeCount}</span>
+                <span className="text-muted-foreground">Runs</span>
+                <span className="text-foreground text-right">{p.runCount}</span>
                 <span className="text-muted-foreground">Total Ads</span>
                 <span className="text-foreground text-right">{p.totalAds}</span>
                 <span className="text-muted-foreground">Avg Ads</span>
@@ -501,12 +514,13 @@ export default function StatsPage() {
                 <tr>
                   <SortTh field="podcastTitle" label="Podcast" align="left" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="episodeCount" label="Episodes" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="runCount" label="Runs" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="totalAds" label="Total Ads" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="avgAds" label="Avg Ads" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="avgTimeSavedSeconds" label="Avg Time Saved" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="avgEpisodeLengthSeconds" label="Avg Length" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   <SortTh field="totalCost" label="Total Cost" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="avgTokensPerEpisode" label="Avg Tokens" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="avgTokensPerEpisode" label="Avg Tokens/Run" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -514,6 +528,7 @@ export default function StatsPage() {
                   <tr key={p.podcastSlug} className="hover:bg-muted/50">
                     <td className="px-4 py-3 text-sm text-foreground font-medium truncate max-w-[200px]">{p.podcastTitle}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.episodeCount}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{p.runCount}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.totalAds}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.avgAds}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatDuration(p.avgTimeSavedSeconds)}</td>

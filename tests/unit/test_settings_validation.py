@@ -1,6 +1,7 @@
 """Unit tests for settings API validation (OpenRouter key format)."""
 import os
 import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -438,6 +439,92 @@ class TestProviderChangeModelPruning:
         assert db.get_setting('claude_model') == 'my-proxy-model'
         # Untouched stale selection: still pruned.
         assert db.get_setting('chapters_model') is None
+
+    def test_stale_review_model_is_pruned_and_falls_back_to_pass_model(self, client):
+        """review_model was missing from the prune map, so a reviewer model
+        saved against the old provider kept billing after a switch."""
+        db = database.Database()
+        db.set_setting('llm_provider', 'openai-compatible', is_default=False)
+        db.set_setting('claude_model', 'z-ai/glm-5.3-flash', is_default=False)
+        db.set_setting('review_model', 'claude-opus-5', is_default=False)
+
+        fake_model = MagicMock(id='z-ai/glm-5.3-flash')
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = [fake_model]
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'llmProvider': 'openrouter'}),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('review_model') is None
+
+        from ad_reviewer import AdReviewer
+        reviewer = AdReviewer.__new__(AdReviewer)
+        reviewer.db = db
+        assert reviewer._resolve_model('z-ai/glm-5.3-flash') == 'z-ai/glm-5.3-flash'
+
+        get_response = client.get('/api/v1/settings')
+        assert get_response.status_code == 200, get_response.data
+        assert json.loads(get_response.data)['reviewModel']['value'] == 'same_as_pass'
+
+    def test_review_model_written_by_the_same_request_survives_the_prune(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('review_model', 'claude-opus-5', is_default=False)
+
+        fake_model = MagicMock(id='z-ai/glm-5.3-flash')
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = [fake_model]
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({
+                    'llmProvider': 'openai-compatible',
+                    'reviewModel': 'my-proxy-reviewer',
+                }),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('review_model') == 'my-proxy-reviewer'
+
+    def test_empty_catalog_preserves_review_model(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('review_model', 'claude-opus-5', is_default=False)
+
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = []
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'llmProvider': 'openai-compatible'}),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('review_model') == 'claude-opus-5'
+
+    def test_same_as_pass_sentinel_is_not_pruned(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('review_model', 'same_as_pass', is_default=False)
+
+        fake_model = MagicMock(id='z-ai/glm-5.3-flash')
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = [fake_model]
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'llmProvider': 'openai-compatible'}),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('review_model') == 'same_as_pass'
 
 
 class TestAudioBitrateValidation:
@@ -1020,3 +1107,119 @@ class TestQueueBoostSettings:
             content_type='application/json',
         )
         assert resp.status_code == 400
+
+
+class TestChaptersInNotes:
+    def test_round_trips_and_rebuilds_served_feeds(self, client):
+        assert client.get('/api/v1/settings').get_json()['chaptersInNotes']['value'] is False
+        with patch('main_app.feeds.rebuild_all_served_feeds') as rebuild:
+            resp = client.put('/api/v1/settings/ad-detection',
+                              data=json.dumps({'chaptersInNotes': True}),
+                              content_type='application/json')
+        assert resp.status_code == 200, resp.data
+        rebuild.assert_called_once()
+        assert database.Database().get_setting('chapters_in_notes') == 'true'
+        assert client.get('/api/v1/settings').get_json()['chaptersInNotes']['value'] is True
+        database.Database().set_setting('chapters_in_notes', 'false', is_default=True)
+
+
+class TestProviderChangeLiftsRateLimitHold:
+    """A rate-limit hold (#696) belongs to the account and endpoint that
+    returned the 429, so pointing the app at a different provider, endpoint,
+    or key must lift it instead of leaving the queue paused."""
+
+    @pytest.fixture
+    def held(self):
+        db = database.Database()
+        until = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', until, is_default=False)
+        db.set_setting('rate_limit_hold_since', '2026-01-01T00:00:00Z', is_default=False)
+        yield db
+        db.clear_setting('rate_limit_hold_until')
+        db.clear_setting('rate_limit_hold_since')
+
+    def _put_settings(self, client, payload):
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = []
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            return client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps(payload),
+                content_type='application/json',
+            )
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_provider_change_lifts_hold(self, mock_fire, client, held):
+        resp = self._put_settings(client, {'llmProvider': 'openai-compatible'})
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') is None
+        assert held.get_setting('rate_limit_hold_since') is None
+        mock_fire.assert_called_once_with(held_since='2026-01-01T00:00:00Z')
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_base_url_change_lifts_hold(self, mock_fire, client, held):
+        resp = self._put_settings(client, {'openaiBaseUrl': 'https://example.com/v1'})
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') is None
+        mock_fire.assert_called_once()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_pricing_mode_change_leaves_hold(self, mock_fire, client, held):
+        until = held.get_setting('rate_limit_hold_until')
+        resp = self._put_settings(client, {'pricingSourceMode': 'free'})
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') == until
+        mock_fire.assert_not_called()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_provider_change_without_a_hold_fires_nothing(self, mock_fire, client):
+        db = database.Database()
+        assert db.get_setting('rate_limit_hold_until') is None
+        resp = self._put_settings(client, {'llmProvider': 'openai-compatible'})
+        assert resp.status_code == 200, resp.data
+        mock_fire.assert_not_called()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_provider_key_write_lifts_hold(self, mock_fire, client, held):
+        resp = client.put(
+            '/api/v1/settings/providers/anthropic',
+            data=json.dumps({'apiKey': 'sk-ant-new-account'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') is None
+        mock_fire.assert_called_once_with(held_since='2026-01-01T00:00:00Z')
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_provider_key_delete_lifts_hold(self, mock_fire, client, held):
+        resp = client.delete('/api/v1/settings/providers/anthropic')
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') is None
+        mock_fire.assert_called_once()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_whisper_key_write_leaves_hold(self, mock_fire, client, held):
+        """Whisper is a separate service; its key says nothing about the LLM
+        account that hit the limit."""
+        until = held.get_setting('rate_limit_hold_until')
+        resp = client.put(
+            '/api/v1/settings/providers/whisper',
+            data=json.dumps({'apiKey': 'whisper-key'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') == until
+        mock_fire.assert_not_called()
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_model_only_write_leaves_hold(self, mock_fire, client, held):
+        until = held.get_setting('rate_limit_hold_until')
+        resp = client.put(
+            '/api/v1/settings/providers/whisper',
+            data=json.dumps({'model': 'whisper-1'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') == until
+        mock_fire.assert_not_called()

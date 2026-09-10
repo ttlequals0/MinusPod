@@ -348,3 +348,17 @@ describe('AdReviewTab reviewer filter', () => {
     }
   });
 });
+
+describe('AdReviewTab loading placeholder', () => {
+  it('shows row skeletons while the detections query is pending', async () => {
+    mockGetDetections.mockReturnValueOnce(new Promise(() => {}));
+    renderTab();
+    expect(await screen.findByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once the detections land', async () => {
+    renderTab();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});

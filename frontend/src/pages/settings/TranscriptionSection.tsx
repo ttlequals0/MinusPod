@@ -1,5 +1,9 @@
-import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig } from '../../api/types';
-import CollapsibleSection from '../../components/CollapsibleSection';
+import { useQuery } from '@tanstack/react-query';
+import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig, type WhisperHealthProbe } from '../../api/types';
+import { getWhisperCapacity } from '../../api/settings';
+import CollapsibleSection, {
+  useCollapsibleOpen, useSectionVisible,
+} from '../../components/CollapsibleSection';
 import ConnectionTestButton from './ConnectionTestButton';
 import LanguageCombobox from '../../components/LanguageCombobox';
 import NumberInput from '../../components/NumberInput';
@@ -38,6 +42,12 @@ interface TranscriptionSectionProps {
   onTranscribeChunkOverlapSecondsChange: (value: number) => void;
   skipFlacCompression: boolean;
   onSkipFlacCompressionChange: (value: boolean) => void;
+  whisperPoolEnabled: boolean;
+  onWhisperPoolEnabledChange: (value: boolean) => void;
+  whisperPoolMaxRequests: number;
+  onWhisperPoolMaxRequestsChange: (value: number) => void;
+  whisperPoolMaxEpisodes: number;
+  onWhisperPoolMaxEpisodesChange: (value: number) => void;
   softTimeoutMinutes: number;
   hardTimeoutMinutes: number;
   softMinMinutes: number;
@@ -51,6 +61,7 @@ interface TranscriptionSectionProps {
 }
 
 const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
+const STORAGE_KEY = 'settings-section-transcription';
 
 function TranscriptionSection({
   whisperModel,
@@ -79,6 +90,12 @@ function TranscriptionSection({
   onWhisperApiTimeoutSecondsChange,
   skipFlacCompression,
   onSkipFlacCompressionChange,
+  whisperPoolEnabled,
+  onWhisperPoolEnabledChange,
+  whisperPoolMaxRequests,
+  onWhisperPoolMaxRequestsChange,
+  whisperPoolMaxEpisodes,
+  onWhisperPoolMaxEpisodesChange,
   softTimeoutMinutes,
   hardTimeoutMinutes,
   softMinMinutes,
@@ -92,8 +109,13 @@ function TranscriptionSection({
 }: TranscriptionSectionProps) {
   const whisperStatus = providersState?.whisper ?? NONE_STATUS;
   const cryptoReady = providersState?.cryptoReady ?? false;
+  // Capacity poll should only run while the section is on screen, but its
+  // fields must stay in the DOM while collapsed so settings search can
+  // still match "whisper", "chunk", "overlap", etc.
+  const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);
+  const visible = useSectionVisible(STORAGE_KEY, open);
   return (
-    <CollapsibleSection title="Transcription">
+    <CollapsibleSection title="Transcription" storageKey={STORAGE_KEY} onToggle={setOpen}>
       <div className="space-y-4">
         <div>
           <label htmlFor="whisperBackend" className="block text-sm font-medium text-foreground mb-2">
@@ -121,6 +143,11 @@ function TranscriptionSection({
               onChange={(e) => onWhisperModelChange(e.target.value)}
               className={`w-full ${selectBase}`}
             >
+              {/* WHISPER_MODEL accepts ids this list omits (distil, HF repos);
+                  without an option the select would show the first entry instead. */}
+              {whisperModel && whisperModels && !whisperModels.some((m) => m.id === whisperModel) && (
+                <option value={whisperModel}>{whisperModel} (current, not in list)</option>
+              )}
               {whisperModels?.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name} - {model.vram} VRAM, {model.quality}
@@ -261,6 +288,61 @@ function TranscriptionSection({
               </div>
             </div>
 
+            <div className="pt-2 border-t border-border">
+              <h4 className="text-sm font-medium text-foreground mb-3">Whisper pool</h4>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <ToggleSwitch
+                  checked={whisperPoolEnabled}
+                  onChange={onWhisperPoolEnabledChange}
+                  ariaLabel="Whisper pool toggle"
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Process several episodes at once on the remote Whisper backend
+                </span>
+              </label>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Runs up to the number of episodes below at the same time, sharing one cap on
+                requests to the backend. Set the cap to what your backend accepts.
+              </p>
+              <div className="space-y-3 mt-3">
+                <div className="flex items-center gap-3">
+                  <label htmlFor="whisperPoolMaxRequests" className="text-sm text-muted-foreground w-44">
+                    Max requests to backend:
+                  </label>
+                  {/* Bounds mirror WHISPER_POOL_MAX_REQUESTS_RANGE in src/config.py. */}
+                  <NumberInput
+                    id="whisperPoolMaxRequests"
+                    value={whisperPoolMaxRequests}
+                    min={1}
+                    max={64}
+                    fallback={4}
+                    disabled={!whisperPoolEnabled}
+                    parse={(s) => parseInt(s, 10)}
+                    onCommit={onWhisperPoolMaxRequestsChange}
+                  />
+                  <span className="text-sm text-muted-foreground">across all running episodes</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label htmlFor="whisperPoolMaxEpisodes" className="text-sm text-muted-foreground w-44">
+                    Episodes at once:
+                  </label>
+                  {/* Bounds mirror WHISPER_POOL_MAX_EPISODES_RANGE in src/config.py. */}
+                  <NumberInput
+                    id="whisperPoolMaxEpisodes"
+                    value={whisperPoolMaxEpisodes}
+                    min={1}
+                    max={16}
+                    fallback={1}
+                    disabled={!whisperPoolEnabled}
+                    parse={(s) => parseInt(s, 10)}
+                    onCommit={onWhisperPoolMaxEpisodesChange}
+                  />
+                  <span className="text-sm text-muted-foreground">each keeps at least one request slot</span>
+                </div>
+                <WhisperCapacityLine enabled={whisperPoolEnabled} visible={visible} />
+              </div>
+            </div>
+
           </>
         )}
 
@@ -366,6 +448,63 @@ function TranscriptionSection({
         </div>
       </div>
     </CollapsibleSection>
+  );
+}
+
+function WhisperCapacityLine({ enabled, visible }: { enabled: boolean; visible: boolean }) {
+  const { data } = useQuery({
+    queryKey: ['whisperCapacity'],
+    queryFn: getWhisperCapacity,
+    enabled: enabled && visible,
+    refetchInterval: 15000,
+  });
+  if (!enabled || !data) return null;
+  const tone = data.exceedsCapacity ? 'text-warning' : 'text-muted-foreground';
+  return (
+    <>
+      <p className={`text-xs ${tone}`}>
+        Up to {data.worstCaseInFlight} requests in flight against a cap of {data.capacity}.
+        {data.exceedsCapacity && ` The pool holds them to ${data.capacity}, so raise the cap or lower the dials.`}
+        {data.leader && <> Currently {data.inFlight} in flight, {data.transcribingEpisodes} transcribing.</>}
+      </p>
+      <WhisperHealthLine health={data.health} configuredMaxRequests={data.capacity} />
+    </>
+  );
+}
+
+const MISMATCH_FIELD_LABELS: Record<string, string> = {
+  compute_type: 'compute type',
+  model: 'model',
+  device: 'device',
+};
+
+function WhisperHealthLine({ health, configuredMaxRequests }: {
+  health: WhisperHealthProbe | undefined;
+  configuredMaxRequests: number;
+}) {
+  if (!health?.available) return null;
+  if (health.mismatch && health.mismatch.length > 0) {
+    const fields = health.mismatch.map((f) => MISMATCH_FIELD_LABELS[f] ?? f);
+    return (
+      <p className="text-xs text-warning">
+        Instances disagree on {fields.join(', ')}.
+      </p>
+    );
+  }
+  const instances = health.instances ?? [];
+  const count = instances.length;
+  const model = instances[0]?.model ?? 'unknown';
+  const suggested = health.suggested_max_requests ?? count;
+  // Both numbers are hedged: the request total is summed over the same
+  // undercounted instances, so it is equally a floor.
+  const countLabel = `${count} ${count === 1 ? 'instance' : 'instances'}`;
+  const hedge = health.sampled_floor ? 'at least ' : '';
+  const lead = health.sampled_floor ? `At least ${countLabel}` : countLabel;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {lead} reporting {model}, {hedge}{suggested} requests total.
+      {suggested !== configuredMaxRequests && ` Your cap is ${configuredMaxRequests}.`}
+    </p>
   );
 }
 

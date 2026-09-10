@@ -23,7 +23,7 @@ from llm_client import (
     get_effective_provider, model_matches_provider,
     StructuralRateLimitError, ProviderRateLimitedError,
 )
-from run_log import run_in_worker_thread
+from run_context import run_in_worker_thread
 from sponsor_normalize import segment_category_for
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
@@ -1277,7 +1277,7 @@ class AdDetector:
         ordered = [None] * total
         with ThreadPoolExecutor(max_workers=max_workers,
                                 thread_name_prefix='addet-window') as executor:
-            futures = {executor.submit(run_in_worker_thread, _run_one, i): i
+            futures = {executor.submit(run_in_worker_thread(_run_one), i): i
                        for i in range(total)}
             for fut in as_completed(futures):
                 i = futures[fut]
@@ -1409,16 +1409,21 @@ class AdDetector:
                 # missing a category; checking first would just scan `ads`
                 # twice for the same answer.
                 window_label = f"{window_label_prefix} {result.window_idx + 1}"
-                category_repaired += self._repair_window_categories(
-                    ads=result.ads,
-                    transcript_excerpt=result.transcript_excerpt,
-                    model=model,
-                    llm_timeout=llm_timeout,
-                    max_retries=max_retries,
-                    slug=slug,
-                    episode_id=episode_id,
-                    window_label=window_label,
-                )
+                try:
+                    category_repaired += self._repair_window_categories(
+                        ads=result.ads,
+                        transcript_excerpt=result.transcript_excerpt,
+                        model=model,
+                        llm_timeout=llm_timeout,
+                        max_retries=max_retries,
+                        slug=slug,
+                        episode_id=episode_id,
+                        window_label=window_label,
+                    )
+                except ProviderRateLimitedError as e:
+                    # Same rule as a held window: the hold defers the episode.
+                    hold_error = e
+                    break
             if result.raw_response:
                 all_raw_responses.append(result.raw_response)
             all_window_ads.extend(result.ads)
@@ -1490,6 +1495,9 @@ class AdDetector:
                 allow_provider_schema=True),
         )
         if response is None:
+            # A rate-limit hold is queue-wide state, not a degraded window.
+            if isinstance(error, ProviderRateLimitedError):
+                raise error
             logger.warning(
                 f"[{slug}:{episode_id}] {window_label} category repair call "
                 f"failed, leaving {len(missing)} ad(s) uncategorized: {error}"
@@ -3028,7 +3036,7 @@ class AdDetector:
 
             # Verification stamps every surviving ad so the merge downstream
             # can distinguish first-pass from verification.
-            (final_ads, all_raw_responses, _failed_windows, failure,
+            (final_ads, all_raw_responses, failed_windows, failure,
              category_missing, category_total, category_repaired,
              addressing) = self._run_detection_pass(
                 windows,
@@ -3102,6 +3110,8 @@ class AdDetector:
                 "prompt": f"Verification: Processed {len(windows)} windows",
                 "model": model,
                 "segment_actions": action_map,
+                "windows_total": len(windows),
+                "windows_failed": failed_windows,
             }
 
         except Exception as e:

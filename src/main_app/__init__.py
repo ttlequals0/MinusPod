@@ -1,4 +1,5 @@
 """Main Flask web server for podcast ad removal with web UI."""
+import copy
 import fcntl
 import json
 import logging
@@ -43,6 +44,31 @@ class _RequestIDFilter(logging.Filter):
         except Exception:
             pass
         return True
+
+
+class SingleLineFormatter(logging.Formatter):
+    """Text formatter that keeps one record on one line.
+
+    Docker splits a multi-line record into separate lines, and the
+    continuation lines carry no level prefix, so a scraper re-sniffs their
+    level from the text: a logged prompt body whose line reads "CRITICAL:"
+    arrives as a critical entry. The record is copied rather than mutated,
+    since the per-episode run log handler formats the same record and wants
+    the real line breaks. An exc_info traceback is appended by the base
+    formatter and keeps its own.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        # Args are interpolated only when present, so the common no-args
+        # record is not built twice per line at DEBUG volume.
+        message = record.getMessage() if record.args else str(record.msg)
+        if '\n' not in message and '\r' not in message:
+            return super().format(record)
+        flat = copy.copy(record)
+        flat.msg = (message.replace('\r\n', '\\n')
+                    .replace('\n', '\\n').replace('\r', '\\n'))
+        flat.args = ()
+        return super().format(flat)
 
 
 class JSONFormatter(logging.Formatter):
@@ -96,7 +122,7 @@ def setup_logging():
     if log_format == 'json':
         formatter = JSONFormatter(datefmt='%Y-%m-%dT%H:%M:%S')
     else:
-        formatter = logging.Formatter(
+        formatter = SingleLineFormatter(
             '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
@@ -383,7 +409,8 @@ def graceful_shutdown(signum, frame):
 
     current = processing_queue.get_current()
     if current:
-        logger.info(f"Shutdown signal sent, processing in progress: {current[0]}:{current[1]}")
+        for cur_slug, cur_episode_id in current:
+            logger.info(f"Shutdown signal sent, processing in progress: {cur_slug}:{cur_episode_id}")
         logger.info("Gunicorn graceful-timeout will allow processing to finish")
 
     # Release the background-leader flock explicitly. Linux frees the
@@ -660,8 +687,13 @@ register_routes(app)
 # Re-export public API for downstream consumers
 from main_app.feeds import refresh_rss_feed, refresh_all_feeds, invalidate_feed_cache, get_feed_map
 from main_app.processing import start_background_processing
-from main_app.background import background_rss_refresh, background_queue_processor, reset_stuck_processing_episodes
+from main_app.background import (
+    background_rss_refresh, background_queue_processor,
+    reset_stuck_processing_episodes,
+)
+from whisper_pool import mark_background_leader
 from podping_listener import podping_listener_loop
+import stall_watchdog
 from status_service import reconcile_startup_state
 
 # The logo as ASCII: mirrored waveform with the strikethrough (the minus)
@@ -715,10 +747,16 @@ def _startup():
     """
 
     is_leader = _try_become_background_leader()
+    if is_leader:
+        mark_background_leader()
 
     # Reset any episodes stuck in 'processing' status from previous crash.
     # Leader-only - the followers would just race the same UPDATE.
     if is_leader:
+        # Slots without a recorded start time cannot be told from a recycled
+        # pid. Ones that carry it are left alone: a respawned leader has
+        # sibling workers whose runs are still live.
+        processing_queue.drop_slots_without_start_time()
         reset_stuck_processing_episodes()
         reconcile_startup_state(db)
 
@@ -726,6 +764,11 @@ def _startup():
     signal.signal(signal.SIGTERM, graceful_shutdown)
     signal.signal(signal.SIGINT, graceful_shutdown)
     logger.debug("Registered signal handlers for graceful shutdown")
+
+    # Every worker: a stall is per-process, and only the leader's threads
+    # would otherwise be sampled.
+    if _background_threads_enabled():
+        stall_watchdog.start()
 
     base_url = os.getenv('BASE_URL', 'http://localhost:8000')
 

@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  episodeOriginalUrl, getEpisode, getFeed, reprocessEpisode, regenerateChapters,
+  downloadEpisodeAudio, episodeOriginalUrl, getEpisode, getFeed, reprocessEpisode, regenerateChapters,
   updateLocalEpisode, uploadLocalEpisodeArtwork,
 } from '../api/feeds';
 import type { LocalEpisodePatch } from '../api/feeds';
@@ -11,6 +11,7 @@ import { getErrorMessage } from '../api/client';
 import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBadge';
 import PrevNextLink from '../components/PrevNextLink';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import Artwork from '../components/Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import { EPISODE_STATUS_COLORS, isFailedStatus } from '../utils/episodeStatus';
@@ -38,7 +39,8 @@ import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import EpisodeLogsCard from '../components/EpisodeLogsCard';
 import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
-import { focusRing } from '../components/fieldStyles';
+import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
+import { fileInputBase, focusRing } from '../components/fieldStyles';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -207,7 +209,7 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
                 e.target.value = '';
                 if (file) artworkMutation.mutate(file);
               }}
-              className={`block w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:text-sm ${btnSecondary} file:transition-colors ${focusRing}`}
+              className={fileInputBase}
             />
             {artworkMutation.isPending && <p className="mt-1 text-sm text-muted-foreground">Uploading...</p>}
             {artworkMutation.isSuccess && <p className="mt-1 text-sm text-success">Artwork updated.</p>}
@@ -242,7 +244,7 @@ function EpisodeDetail() {
   // Transient banner for a rejected correction or reprocess; the backend's
   // own message is shown verbatim.
   const [correctionError, setCorrectionError] = useState<string | null>(null);
-  const [showReprocessMenu, setShowReprocessMenu] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [editorSelectedAdIndex, setEditorSelectedAdIndex] = useState(0);
   // Held/rejected row currently open in the standalone waveform editor
   // (issue #563). Independent of showEditor/AdEditor state.
@@ -256,6 +258,9 @@ function EpisodeDetail() {
   // When a "Confirm & Recut" action fires, this flag signals the correctionMutation
   // onSuccess to chain a recut immediately after the correction is stored.
   const pendingRecutRef = useRef(false);
+  // Rejecting the last held marker clears the review set; the banner that follows
+  // offers a re-detect.
+  const [heldReviewCleared, setHeldReviewCleared] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const queryClient = useQueryClient();
@@ -264,6 +269,7 @@ function EpisodeDetail() {
     queryKey: ['episode', slug, episodeId],
     queryFn: () => getEpisode(slug!, episodeId!),
     enabled: !!slug && !!episodeId,
+    refetchInterval: (query) => (query.state.data?.chaptersRegenerating ? 3000 : false),
   });
 
   // Fetched only for ``artworkUrl``, the fallback when the episode
@@ -280,7 +286,8 @@ function EpisodeDetail() {
     // only queues the run, so returning early would re-enable the button while
     // the cached status still said the episode was idle.
     onSuccess: async () => {
-      setShowReprocessMenu(false);
+      // A later run supersedes the cleared-review banner from an earlier one.
+      setHeldReviewCleared(false);
       await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
     // Processing is serialized by a lock, so a stale cached status leaves the
@@ -294,11 +301,16 @@ function EpisodeDetail() {
 
   const regenerateChaptersMutation = useMutation({
     mutationFn: () => regenerateChapters(slug!, episodeId!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+    // Awaited so isPending covers the refetch; the POST only starts the run,
+    // so returning early would re-enable the item before the row reports it.
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
-    onError: (error) => {
+    // A 409 means a run the cache did not know about is already in flight,
+    // so refetch for the same reason reprocess does.
+    onError: async (error) => {
       console.error('Failed to regenerate chapters:', error);
+      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
   });
 
@@ -342,13 +354,21 @@ function EpisodeDetail() {
       // visible owner. Stop it up front.
       markerAudition.stop();
     },
-    onSuccess: () => {
+    onSuccess: (_data, correction) => {
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
       if (pendingRecutRef.current) {
         pendingRecutRef.current = false;
         reprocessMutation.mutate('recut');
+      }
+      // episode here is the pre-refetch row, so a single held marker
+      // matching this reject means the review set just emptied.
+      const held = episode?.pendingReviewMarkers ?? [];
+      const oa = correction.originalAd;
+      if (correction.type === 'reject' && held.length === 1 && oa
+          && held[0].start === oa.start && held[0].end === oa.end) {
+        setHeldReviewCleared(true);
       }
     },
     onError: (error) => {
@@ -467,7 +487,12 @@ function EpisodeDetail() {
     episode?.hasOriginalAudio ? markerAudioUrl : undefined);
 
   if (isLoading) {
-    return <LoadingSpinner className="py-12" />;
+    return (
+      <div>
+        <SkeletonPageHeader />
+        <SkeletonRows count={4} />
+      </div>
+    );
   }
 
   if (error || !episode) {
@@ -484,6 +509,22 @@ function EpisodeDetail() {
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
+  const coverageGaps = [
+    ['detection', episode.incompleteCoverage?.detection] as const,
+    ['verification', episode.incompleteCoverage?.verification] as const,
+  ]
+    .filter(([, counts]) => counts)
+    .map(([pass, counts]) => (typeof counts!.total === 'number'
+      ? `${counts!.failed} of ${counts!.total} ${pass} windows failed`
+      : `${counts!.failed} ${pass} windows failed`));
+
+  const redetectDisabled = REDETECT_DISABLED_MODES.has(feed?.processingMode);
+  const chaptersRegenerating = regenerateChaptersMutation.isPending
+    || !!episode.chaptersRegenerating;
+  const redetectTooltip = feed?.processingMode && redetectDisabled
+    ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
+    : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)';
+
   // An episode that hasn't gone through the pipeline yet reads "Process",
   // not "Reprocess". Keyed on processedAt presence, not status: status
   // cycles back through pending/processing on every reprocess (a
@@ -494,6 +535,23 @@ function EpisodeDetail() {
   // "has this ever finished processing" signal throughout that window.
   const neverProcessed = !episode.processedAt;
   const reprocessLabel = neverProcessed ? 'Process' : 'Reprocess';
+
+  // Fetch-then-save rather than a plain link, so a 401 or a swept file
+  // shows an error here instead of replacing the page with the JSON body.
+  const downloadTo = (kind: 'original' | 'cut') => () => {
+    setDownloadError(null);
+    downloadEpisodeAudio(slug!, episodeId!, kind)
+      .catch((e: unknown) => setDownloadError(getErrorMessage(e, 'Download failed')));
+  };
+  const downloadItems: DropdownMenuItem[] = [];
+  if (episode?.processedAt) {
+    downloadItems.push({ title: 'Cut audio', subtitle: 'Ads removed, current version',
+      onClick: downloadTo('cut') });
+  }
+  if (episode?.hasOriginalAudio) {
+    downloadItems.push({ title: 'Original audio', subtitle: 'As published, before any cuts',
+      onClick: downloadTo('original') });
+  }
 
   // Detected-Ads header row 2: pass counts and time saved.
   const showPassCounts = episode.adsRemovedFirstPass !== undefined
@@ -640,77 +698,45 @@ function EpisodeDetail() {
                   LLM: ${episode.llmCost.toFixed(2)} ({episode.inputTokens != null && episode.inputTokens >= 1000 ? `${(episode.inputTokens / 1000).toFixed(1)}K` : episode.inputTokens ?? 0} in / {episode.outputTokens != null && episode.outputTokens >= 1000 ? `${(episode.outputTokens / 1000).toFixed(1)}K` : episode.outputTokens ?? 0} out)
                 </span>
               )}
-              <div className="relative">
-                <button
-                  onClick={() => setShowReprocessMenu(!showReprocessMenu)}
-                  disabled={reprocessMutation.isPending || episode.status === 'processing'}
-                  className={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ${focusRing}`}
-                >
-                  {reprocessMutation.isPending
-                    ? (neverProcessed ? 'Processing...' : 'Reprocessing...')
-                    : reprocessLabel}
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {showReprocessMenu && !reprocessMutation.isPending && episode.status !== 'processing' && (
-                  <div className="absolute top-full right-0 mt-1 w-52 bg-card border border-border rounded-lg shadow-lg z-10 overflow-hidden">
-                    <button
-                      onClick={() => reprocessMutation.mutate('reprocess')}
-                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent ${focusRing}`}
-                      title="Use learned patterns + AI analysis"
-                    >
-                      <div className="font-medium">{reprocessLabel}</div>
-                      <div className="text-xs text-muted-foreground">Use patterns + AI</div>
-                    </button>
-                    <button
-                      onClick={() => reprocessMutation.mutate('full')}
-                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border ${focusRing}`}
-                      title="Skip pattern DB, AI analyzes everything fresh"
-                    >
-                      <div className="font-medium">Full Analysis</div>
-                      <div className="text-xs text-muted-foreground">Skip patterns, AI only</div>
-                    </button>
-                    {episode.hasOriginalAudio && (
-                      <button
-                        onClick={() => reprocessMutation.mutate('recut')}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border ${focusRing}`}
-                        title="Re-cut the original audio from your current ad edits (no transcription or AI)"
-                      >
-                        <div className="font-medium">Recut Audio</div>
-                        <div className="text-xs text-muted-foreground">Apply edits, no AI</div>
-                      </button>
-                    )}
-                    {episode.transcriptAvailable && (
-                      <button
-                        onClick={() => reprocessMutation.mutate('llm')}
-                        disabled={REDETECT_DISABLED_MODES.has(feed?.processingMode)}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent ${focusRing}`}
-                        title={feed?.processingMode && REDETECT_DISABLED_MODES.has(feed.processingMode)
-                          ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
-                          : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)'}
-                      >
-                        <div className="font-medium">Re-detect Ads</div>
-                        <div className="text-xs text-muted-foreground">Keep transcript, re-cut</div>
-                      </button>
-                    )}
-                    {episode.transcriptVttAvailable && (
-                      <button
-                        onClick={() => {
-                          regenerateChaptersMutation.mutate();
-                          setShowReprocessMenu(false);
-                        }}
-                        disabled={regenerateChaptersMutation.isPending}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border disabled:opacity-50 ${focusRing}`}
-                        title="Regenerate chapters from existing transcript"
-                      >
-                        <div className="font-medium">Regenerate Chapters</div>
-                        <div className="text-xs text-muted-foreground">Use existing transcript</div>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              {downloadItems.length > 0 && (
+                <DropdownMenu
+                  triggerLabel="Download"
+                  triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnSecondary} rounded flex items-center gap-1`}
+                  chevronClassName="w-3 h-3"
+                  title="Download audio"
+                  items={downloadItems}
+                />
+              )}
+              <DropdownMenu
+                triggerLabel={reprocessMutation.isPending
+                  ? (neverProcessed ? 'Processing...' : 'Reprocessing...')
+                  : reprocessLabel}
+                triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
+                chevronClassName="w-3 h-3"
+                disabled={reprocessMutation.isPending || episode.status === 'processing'}
+                items={[
+                  { title: reprocessLabel, subtitle: 'Use patterns + AI',
+                    tooltip: 'Use learned patterns + AI analysis',
+                    onClick: () => reprocessMutation.mutate('reprocess') },
+                  { title: 'Full Analysis', subtitle: 'Skip patterns, AI only',
+                    tooltip: 'Skip pattern DB, AI analyzes everything fresh',
+                    onClick: () => reprocessMutation.mutate('full') },
+                  ...(episode.hasOriginalAudio ? [{
+                    title: 'Recut Audio', subtitle: 'Apply edits, no AI',
+                    tooltip: 'Re-cut the original audio from your current ad edits (no transcription or AI)',
+                    onClick: () => reprocessMutation.mutate('recut') }] : []),
+                  ...(episode.transcriptAvailable ? [{
+                    title: 'Re-detect Ads', subtitle: 'Keep transcript, re-cut',
+                    disabled: redetectDisabled,
+                    tooltip: redetectTooltip,
+                    onClick: () => reprocessMutation.mutate('llm') }] : []),
+                  ...(episode.transcriptVttAvailable ? [{
+                    title: 'Regenerate Chapters', subtitle: 'Use existing transcript',
+                    disabled: chaptersRegenerating,
+                    tooltip: 'Regenerate chapters from existing transcript',
+                    onClick: () => regenerateChaptersMutation.mutate() }] : []),
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -718,18 +744,27 @@ function EpisodeDetail() {
         {verificationVerdict && (
           <p className="mt-2 text-xs text-muted-foreground">{verificationVerdict}</p>
         )}
+        {downloadError && (
+          <p className="mt-2 text-xs text-destructive">{downloadError}</p>
+        )}
 
-        {regenerateChaptersMutation.isPending && (
+        {chaptersRegenerating && (
           <p className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
             <LoadingSpinner size="sm" inline /> Regenerating chapters...
           </p>
         )}
-        {regenerateChaptersMutation.isSuccess && (
+        {regenerateChaptersMutation.isSuccess && !episode.chaptersRegenerating
+          && !episode.chaptersRegenError && (
           <p className="mt-2 text-sm text-success">Chapters regenerated.</p>
         )}
         {regenerateChaptersMutation.isError && (
           <p className="mt-2 text-sm text-destructive">
             {getErrorMessage(regenerateChaptersMutation.error, 'Failed to regenerate chapters')}
+          </p>
+        )}
+        {!episode.chaptersRegenerating && episode.chaptersRegenError && (
+          <p className="mt-2 text-sm text-destructive">
+            Chapter regeneration failed: {episode.chaptersRegenError}
           </p>
         )}
 
@@ -760,6 +795,14 @@ function EpisodeDetail() {
               >
                 Re-run detection
               </button>
+            </div>
+          </div>
+        )}
+
+        {coverageGaps.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+              {coverageGaps.join(' and ')}; that part of the episode was not examined for ads.
             </div>
           </div>
         )}
@@ -820,9 +863,9 @@ function EpisodeDetail() {
           </div>
         )}
 
-        {episode.description && (
+        {(episode.description || episode.chapterNotes) && (
           <RichText
-            html={episode.description}
+            html={(episode.description ?? '') + (episode.chapterNotes ?? '')}
             className="mt-4 block text-muted-foreground wrap-break-word"
           />
         )}
@@ -1187,6 +1230,42 @@ function EpisodeDetail() {
           />
         );
       })()}
+
+      {heldReviewCleared && heldMarkers.length === 0 && episode.status !== 'processing'
+        && episode.transcriptAvailable && (
+        <div
+          className="bg-card rounded-lg border border-border p-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4"
+          data-testid="held-review-cleared"
+        >
+          <p className="text-sm text-muted-foreground flex-1">
+            All held detections are marked not an ad. Re-detect ads to look for
+            anything the first run missed, or regenerate the chapters so they
+            match the segments you kept.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => { setHeldReviewCleared(false); reprocessMutation.mutate('llm'); }}
+              disabled={reprocessMutation.isPending || redetectDisabled}
+              title={redetectTooltip}
+              data-testid="redetect-after-review"
+              className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
+            >
+              Re-detect Ads
+            </button>
+            {episode.transcriptVttAvailable && (
+              <button
+                onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
+                disabled={chaptersRegenerating}
+                title="Regenerate chapters from existing transcript"
+                data-testid="regenerate-chapters-after-review"
+                className={`w-full sm:w-auto ${rowActionBtn} ${btnSecondary} ${focusRing}`}
+              >
+                Regenerate Chapters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {heldMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-warning/30 p-6 mb-6" data-testid="held-for-review-section">
@@ -1612,6 +1691,13 @@ function EpisodeDetail() {
 
     </div>
   );
+}
+
+// Keyed on the episode so per-episode transient state does not carry over when
+// Newer/Older swaps the episode under the same route.
+export function KeyedEpisodeDetail() {
+  const { episodeId } = useParams<{ episodeId: string }>();
+  return <EpisodeDetail key={episodeId} />;
 }
 
 export default EpisodeDetail;

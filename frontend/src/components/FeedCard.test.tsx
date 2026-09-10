@@ -69,3 +69,23 @@ describe('FeedCard footer alignment', () => {
     }
   });
 });
+
+describe('FeedCard fixed slots', () => {
+  // Every card reserves the same rows so a grid of feeds lines up.
+  it('renders the refresh, podping and status slots even when the feed has none', () => {
+    const { container } = renderCard(makeFeed({
+      lastRefreshed: undefined, podpingCoverage: null, statusCounts: undefined,
+    }));
+    expect(screen.getByText('Not refreshed yet')).toBeDefined();
+    expect(container.querySelector('.h-4.mt-1')).not.toBeNull();
+    expect(container.querySelector('.min-h-\\[1\\.375rem\\]')).not.toBeNull();
+  });
+
+  it('keeps the refresh warning on the updated line', () => {
+    renderCard(makeFeed({
+      lastRefreshed: '2026-09-06T00:00:00Z', lastRefreshError: 'boom',
+    }));
+    const warning = screen.getByText('Refresh failing');
+    expect(warning.parentElement?.textContent).toContain('Updated');
+  });
+});

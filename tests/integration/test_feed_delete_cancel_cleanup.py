@@ -28,7 +28,9 @@ def _clean_processing_state():
     from cancel import _cancel_events, _cancel_events_lock
 
     def _reset():
-        ProcessingQueue().release()
+        q = ProcessingQueue()
+        for slug, episode_id in q.get_current():
+            q.release(slug, episode_id)
         with _cancel_events_lock:
             _cancel_events.clear()
 
@@ -59,7 +61,7 @@ def test_cancel_missing_episode_returns_200_not_404(app_client):
 
     assert resp.status_code == 200
     assert event.is_set()
-    assert ProcessingQueue().get_current() is None
+    assert ProcessingQueue().get_current() == []
 
 
 def test_delete_feed_signals_active_job_and_clears_status(app_client):
@@ -85,7 +87,7 @@ def test_delete_feed_signals_active_job_and_clears_status(app_client):
     assert status_service.get_status().current_job is None    # display cleared
     # Lock is NOT force-released here: the signalled thread owns it and clears
     # state on exit. Forcing a release would false-idle a live cross-worker job.
-    assert ProcessingQueue().get_current() == (slug, ep)
+    assert ProcessingQueue().get_current() == [(slug, ep)]
 
 
 def test_delete_feed_force_releases_when_no_local_thread(app_client):
@@ -107,7 +109,7 @@ def test_delete_feed_force_releases_when_no_local_thread(app_client):
     resp = app_client.delete(f'/api/v1/feeds/{slug}')
 
     assert resp.status_code == 200
-    assert ProcessingQueue().get_current() is None
+    assert ProcessingQueue().get_current() == []
     assert status_service.get_status().current_job is None
 
 

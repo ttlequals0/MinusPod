@@ -18,6 +18,7 @@ _COLLAPSE_BATCH_ROWS = 500
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import SCHEMA_SQL, TABLE_DDL
+from database.search import SEARCH_INDEX_DDL
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 from config import count_pending_review
 from utils.markers import collapse_duplicate_markers
@@ -203,26 +204,9 @@ class SchemaMixin:
         cursor = conn.execute(f"PRAGMA table_info({table})")
         return {row['name'] for row in cursor.fetchall()}
 
-    def _run_schema_migrations(self):
-        """Run schema migrations for existing databases."""
-        # Import here to avoid circular imports at module level
-        from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
-        from database.settings import DEFAULT_MODEL_PRICING
-
-        conn = self.get_connection()
-
-        # Ensure schema_migrations exists before any sub-step references
-        # it. Avoids cascading failures if an earlier sub-migration fails
-        # before reaching its own CREATE TABLE IF NOT EXISTS.
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-                name TEXT PRIMARY KEY,
-                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-        """)
-        conn.commit()
-
-        # -- Episodes table columns --
+    def _add_episode_columns(self, conn):
+        """Add every additive episodes column. Re-run after each table rebuild
+        below, whose hardcoded DDL carries only the columns of its own era."""
         ep_cols = self._get_table_columns(conn, 'episodes')
         episodes_migrations = [
             ('ad_detection_status', 'TEXT DEFAULT NULL'),
@@ -266,9 +250,38 @@ class SchemaMixin:
             # when an audio-affecting correction lands, cleared when a recut
             # completes, so one episode edited several times recuts once.
             ('pending_recut_at', 'TEXT'),
+            # Lifetime time-saved counter dedup (#727): saving already credited
+            # to the total_time_saved stat for this episode's latest cut.
+            ('credited_time_saved', 'REAL'),
+            # Chapter regeneration runs in a background thread; the stamp
+            # marks it in flight and the error is the last failure.
+            ('chapters_regen_started_at', 'TEXT'),
+            ('chapters_regen_error', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
+
+    def _run_schema_migrations(self):
+        """Run schema migrations for existing databases."""
+        # Import here to avoid circular imports at module level
+        from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
+        from database.settings import DEFAULT_MODEL_PRICING
+
+        conn = self.get_connection()
+
+        # Ensure schema_migrations exists before any sub-step references
+        # it. Avoids cascading failures if an earlier sub-migration fails
+        # before reaching its own CREATE TABLE IF NOT EXISTS.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            )
+        """)
+        conn.commit()
+
+        # -- Episodes table columns --
+        self._add_episode_columns(conn)
 
         # -- Episode details table columns --
         det_cols = self._get_table_columns(conn, 'episode_details')
@@ -348,6 +361,11 @@ class SchemaMixin:
             ('skip_ad_detection', 'INTEGER'),
             # Per-feed chapter mode (#560)
             ('chapters_mode', 'TEXT'),
+            # Chapter list in served descriptions (#720)
+            ('chapters_in_notes', 'TEXT'),
+            # Ad chapters per-feed overrides
+            ('ad_chapters_enabled_override', 'TEXT'),
+            ('ad_chapter_categories_override', 'TEXT'),
             # Served-feed GUID scheme (#598): NULL/0 = upstream GUIDs,
             # 1 = MinusPod episode ids. Existing feeds stay NULL (off).
             ('own_episode_guids', 'INTEGER'),
@@ -673,6 +691,8 @@ class SchemaMixin:
 
                 # Re-enable FK enforcement
                 conn.execute("PRAGMA foreign_keys = ON")
+                # The DDL above predates the later additive columns; put them back.
+                self._add_episode_columns(conn)
                 logger.info("Migration: Successfully updated episodes table CHECK constraint")
         except Exception as e:
             logger.error(f"Migration failed for episodes CHECK constraint: {e}")
@@ -754,6 +774,8 @@ class SchemaMixin:
 
                 # Re-enable FK enforcement
                 conn.execute("PRAGMA foreign_keys = ON")
+                # The DDL above predates the later additive columns; put them back.
+                self._add_episode_columns(conn)
                 logger.info("Migration: Successfully updated episodes table CHECK constraint for discovered status")
         except Exception as e:
             logger.error(f"Migration failed for episodes discovered CHECK constraint: {e}")
@@ -763,10 +785,7 @@ class SchemaMixin:
         # 'deferred' (offline queue, #482). Same table-rebuild pattern as the
         # 'discovered' block above; the guard matches the quoted CHECK literal
         # so the deferred_at/deferred_service COLUMNS (added by
-        # episodes_migrations earlier) don't satisfy it. episodes_new mirrors
-        # the live column set at this point: the 'discovered' rebuild set plus
-        # every later episodes_migrations addition, so the common-column copy
-        # drops nothing.
+        # _add_episode_columns earlier) don't satisfy it.
         try:
             cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='episodes'")
             create_sql = cursor.fetchone()
@@ -843,6 +862,8 @@ class SchemaMixin:
 
                 # Re-enable FK enforcement
                 conn.execute("PRAGMA foreign_keys = ON")
+                # The DDL above predates the later additive columns; put them back.
+                self._add_episode_columns(conn)
                 logger.info("Migration: Successfully updated episodes table CHECK constraint for deferred status")
         except Exception as e:
             logger.error(f"Migration failed for episodes deferred CHECK constraint: {e}")
@@ -954,17 +975,7 @@ class SchemaMixin:
         # Migration: Create FTS5 search index table
         try:
             fresh = not self._table_exists(conn, 'search_index')
-            conn.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-                    content_type,
-                    content_id,
-                    podcast_slug,
-                    title,
-                    body,
-                    metadata,
-                    tokenize='porter unicode61'
-                )
-            """)
+            conn.execute(SEARCH_INDEX_DDL.format(name='search_index'))
             conn.commit()
             if fresh:
                 logger.info("Migration: Created FTS5 search_index table")
@@ -1439,12 +1450,34 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"legacy skip_second_pass reset failed: {e}")
 
+        # Episodes a pre-2.96.2 rate-limit hold parked as deferred go back
+        # to the queue they were claimed from.
+        try:
+            self._run_requeue_rate_limit_held_episodes(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"rate-limit held episode requeue failed: {e}")
+
+        # Episodes credited under the pre-2.96.3 counter have a NULL
+        # credited_time_saved, which would double-credit them on the next run.
+        try:
+            self._run_backfill_credited_time_saved(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"credited_time_saved backfill failed: {e}")
+
         # Repair covers left stale by the skipped-download bug (#596).
         try:
             self._run_redownload_stale_artwork(conn)
         except Exception as e:
             conn.rollback()
             logger.error(f"artwork re-download priming failed: {e}")
+
+        try:
+            self._run_ad_chapter_title_defaults(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"ad chapter title default migration failed: {e}")
 
         # One-shot clear of system-seeded model defaults (2.86.4): a stale
         # model id written by the old hardcoded-default seeding logic must
@@ -1946,6 +1979,25 @@ class SchemaMixin:
         conn.commit()
         logger.info("opus48-cost-fix: complete")
 
+    def _run_ad_chapter_title_defaults(self, conn):
+        """2.96.9: move untouched ad chapter title defaults from the machine form
+        to the readable {label} form. Customised rows (is_default = 0) are kept."""
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'ad_chapter_title_defaults_2969'"
+        ).fetchone()
+        if gate is not None:
+            return
+        for key, old, new in (
+                ('ad_chapter_title_format', '[mp:{category}]', 'Ad: {label}'),
+                ('ad_chapter_held_title_format', '[mp:{category}?]', 'Possible ad: {label}')):
+            conn.execute(
+                "UPDATE settings SET value = ? WHERE key = ? AND is_default = 1 AND value = ?",
+                (new, key, old))
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('ad_chapter_title_defaults_2969')")
+        conn.commit()
+
     def _run_redownload_stale_artwork(self, conn):
         """One-time artwork_cached clear so every cover re-downloads once (#596).
 
@@ -2085,6 +2137,99 @@ class SchemaMixin:
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
             "('reset_legacy_skip_second_pass')"
+        )
+        conn.commit()
+
+    def _run_backfill_credited_time_saved(self, conn):
+        """One-time backfill of `episodes.credited_time_saved` (#727).
+
+        The column landed as NULL, so a later run for an already-credited
+        episode computed `delta = saving - 0` and credited it twice. Resets
+        `total_time_saved` to the row sum, correcting any prior inflation.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'backfill_credited_time_saved'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        cur = conn.execute(
+            """UPDATE episodes SET credited_time_saved = original_duration - new_duration
+               WHERE original_duration > 0 AND new_duration > 0
+                 AND new_duration < original_duration"""
+        )
+        total = conn.execute(
+            """SELECT COALESCE(SUM(original_duration - new_duration), 0) AS total
+               FROM episodes
+               WHERE original_duration > 0 AND new_duration > 0
+                 AND new_duration < original_duration"""
+        ).fetchone()['total']
+
+        conn.execute(
+            """INSERT INTO stats (key, value, updated_at) VALUES
+                   ('total_time_saved', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(key) DO UPDATE SET
+                 value = excluded.value, updated_at = excluded.updated_at""",
+            (total,)
+        )
+        if cur.rowcount:
+            logger.info(
+                "Migration: backfilled credited_time_saved on %d episode(s), "
+                "total_time_saved reset to %.1f (#727)",
+                cur.rowcount, total,
+            )
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('backfill_credited_time_saved')"
+        )
+        conn.commit()
+
+    def _run_requeue_rate_limit_held_episodes(self, conn):
+        """One-time requeue of episodes a pre-2.96.2 rate-limit hold parked.
+
+        Those holds set status 'deferred' with deferred_service
+        'llm_rate_limit' and closed the queue row. The hold now leaves
+        episodes pending in place, so reopen each row (keeping its priority
+        and created_at) and put the episode back to pending. Gated by
+        `schema_migrations`.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'requeue_rate_limit_held_episodes'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        held = "e.status = 'deferred' AND e.deferred_service = 'llm_rate_limit'"
+        conn.execute(
+            f"""INSERT INTO auto_process_queue
+                   (podcast_id, episode_id, original_url, title, published_at,
+                    description, priority, status, attempts, error_message)
+                SELECT e.podcast_id, e.episode_id, e.original_url, e.title,
+                       e.published_at, e.description, 0, 'pending', 0, NULL
+                FROM episodes e WHERE {held}
+                ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
+                  status = 'pending',
+                  error_message = NULL,
+                  updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"""  # noqa: S608
+        )
+        cur = conn.execute(
+            f"""UPDATE episodes SET
+                  status = 'pending',
+                  deferred_at = NULL,
+                  deferred_service = NULL,
+                  updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                WHERE id IN (SELECT e.id FROM episodes e WHERE {held})"""  # noqa: S608
+        )
+        if cur.rowcount:
+            logger.info(
+                "Migration: returned %d rate-limit held episode(s) to the queue (#696)",
+                cur.rowcount,
+            )
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('requeue_rate_limit_held_episodes')"
         )
         conn.commit()
 

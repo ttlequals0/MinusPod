@@ -308,9 +308,29 @@ class TestEmbedChapters:
     def test_failure_leaves_original_untouched(self, tmp_path):
         mp3 = self._make_mp3(tmp_path)
         before = mp3.read_bytes()
-        assert embed_chapters(str(mp3), []) is False
+        # A non-empty list whose entries are all unusable is still a failure.
         assert embed_chapters(str(mp3), [{'startTime': 60, 'title': 'Past end'}]) is False
         assert mp3.read_bytes() == before
+
+    def test_empty_list_removes_every_chapter(self, tmp_path):
+        meta = tmp_path / "old.ffmeta"
+        meta.write_text(
+            ";FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=5000\ntitle=Old A\n"
+            "[CHAPTER]\nTIMEBASE=1/1000\nSTART=5000\nEND=10000\ntitle=Old B\n"
+        )
+        mp3 = self._make_mp3(tmp_path, meta=meta)
+        assert embed_chapters(str(mp3), []) is True
+        assert probe_chapters(str(mp3)) == []
+
+    def test_hidden_and_internal_keys_never_reach_the_ffmetadata(self, tmp_path):
+        from ad_chapters import public_chapters
+        mp3 = self._make_mp3(tmp_path)
+        merged = [{'startTime': 0, 'title': 'Intro'},
+                  {'startTime': 2, 'title': 'Displaced', 'hidden': True},
+                  {'startTime': 4, 'title': '[mp:sponsor]', 'kind': 'ad',
+                   'category': 'sponsor'}]
+        assert embed_chapters(str(mp3), public_chapters(merged)) is True
+        assert [c['title'] for c in probe_chapters(str(mp3))] == ['Intro', '[mp:sponsor]']
 
     def test_unreadable_file_returns_false(self):
         assert embed_chapters('/nonexistent/file.mp3', [{'startTime': 0, 'title': 'X'}]) is False

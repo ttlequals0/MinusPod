@@ -25,6 +25,7 @@ import pytest
 import main_app.processing as processing
 from ad_reviewer import AdReviewer, ReviewVerdict, reasoning_contradicts_cut, reasoning_affirms_ad
 from config import HOLD_REASON_REVIEWER_CONTRADICTION
+from llm_client import ProviderRateLimitedError
 
 
 def _mock_segments():
@@ -901,3 +902,18 @@ def test_dai_core_widens_tiny_recovered_span_before_duration_floor():
     accepted = result.accepted_after_review[0]
     assert (accepted['start'], accepted['end']) == (120.0, 150.0)
     assert result.verdicts[0].verdict == 'adjust'
+
+
+def test_trim_recovery_propagates_a_provider_hold():
+    """call_llm returns the hold as last_error; swallowing it would lose the pause."""
+    reviewer = _build_reviewer({'review_max_boundary_shift': '60'})
+    verdict = ReviewVerdict(pool='accepted', pass_num=1, verdict='confirmed',
+                            original_start=120.0, original_end=180.0,
+                            reasoning=TRIM_REASONING)
+    error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
+
+    with patch('ad_reviewer.call_llm', return_value=(None, error)), \
+         pytest.raises(ProviderRateLimitedError):
+        reviewer._recover_contradiction_trim(
+            verdict, ad={'start': 120.0, 'end': 180.0}, segments=_mock_segments(),
+            model='claude-test', pass_num=1, slug='s', episode_id='1')

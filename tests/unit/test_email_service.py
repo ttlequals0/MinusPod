@@ -355,11 +355,11 @@ class TestSendTestEmail:
 
 def test_new_alert_formatters_render():
     cases = {
-        'Queue Held': {'hold_until': '2026-09-03T18:00:00Z', 'ttl_hours': 24,
+        'Queue Held': {'hold_until': '2026-09-03T18:00:00Z',
                        'error_message': 'rate limited', 'slug': 'example-podcast',
                        'episode_id': 'a1b2c3d4e5f6', 'podcast_name': 'Example Podcast',
                        'timestamp': 't'},
-        'Queue Resumed': {'held_since': '2026-09-03T17:00:00Z', 'requeued': 3, 'timestamp': 't'},
+        'Queue Resumed': {'held_since': '2026-09-03T17:00:00Z', 'timestamp': 't'},
         'Service Offline': {'service': 'llm', 'error_message': 'down', 'slug': 'example-podcast',
                             'episode_id': 'a1b2c3d4e5f6', 'podcast_name': 'Example Podcast',
                             'timestamp': 't'},

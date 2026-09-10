@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -43,6 +43,10 @@ export async function getModels(provider?: string): Promise<ClaudeModel[]> {
   const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
   const response = await apiRequest<{ models: ClaudeModel[] }>(`/settings/models${params}`);
   return response.models;
+}
+
+export async function getWhisperCapacity(): Promise<WhisperCapacity> {
+  return apiRequest<WhisperCapacity>('/settings/whisper/capacity');
 }
 
 export async function getWhisperModels(): Promise<WhisperModel[]> {
@@ -117,9 +121,9 @@ export async function getPendingRecuts(slug?: string): Promise<{
   return apiRequest(`/episodes/pending-recuts${query}`);
 }
 
-/** Recut every pending episode once, or one feed's when `slug` is given. */
+/** Apply every pending episode once, or one feed's when `slug` is given. */
 export async function applyPendingRecuts(slug?: string): Promise<{
-  queued: number; skipped: number;
+  queued: number; skipped: number; chaptersRebuilding: number;
 }> {
   return apiRequest('/episodes/pending-recuts/apply', {
     method: 'POST',
@@ -286,10 +290,12 @@ export async function updateOfflineQueueSettings(
 
 export interface RateLimitHoldSettings {
   enabled: boolean;
-  ttlHours: number;
   /** ISO timestamp until which new queue claims pause, or null when idle. */
   holdUntil: string | null;
-  holdCount: number;
+  /** Provider usage/limit endpoint the hold probe checks first; empty when unset. */
+  llmUsageUrl: string;
+  /** Minutes between hold probes; 0 disables probing. */
+  rateLimitProbeMinutes: number;
 }
 
 export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings> {
@@ -297,7 +303,7 @@ export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings>
 }
 
 export async function updateRateLimitHoldSettings(
-  args: Partial<Pick<RateLimitHoldSettings, 'enabled' | 'ttlHours'>>,
+  args: Partial<Pick<RateLimitHoldSettings, 'enabled' | 'llmUsageUrl' | 'rateLimitProbeMinutes'>>,
 ): Promise<RateLimitHoldSettings> {
   return apiRequest<RateLimitHoldSettings>('/settings/rate-limit-hold', {
     method: 'PUT',

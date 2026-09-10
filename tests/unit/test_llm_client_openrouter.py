@@ -2,6 +2,8 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
+from tests.unit.rate_limit_fixtures import PRODUCTION_RESET_BODY
+
 
 class TestGetEffectiveOpenrouterApiKey(unittest.TestCase):
     """Verify DB-first, env-fallback logic for OpenRouter API key."""
@@ -232,6 +234,36 @@ class TestExtractRetryAfter(unittest.TestCase):
         from llm_client import extract_retry_after
         err = Exception("rate limit (429)")
         err.response = _FakeResponse({"Retry-After": "9999"})
+        self.assertEqual(extract_retry_after(err, max_seconds=300.0), 300.0)
+
+
+class TestExtractRetryAfterUpstreamReset(unittest.TestCase):
+    """A body-carried reset must win over a shorter generic header (#696 regression)."""
+
+    def test_body_reset_beats_generic_hour_header(self):
+        from llm_client import extract_retry_after
+        err = Exception("rate limit (429)")
+        err.body = PRODUCTION_RESET_BODY
+        err.response = _FakeResponse({"Retry-After": "3600"})
+        self.assertEqual(extract_retry_after(err, max_seconds=86400), 8129.0)
+
+    def test_body_reset_without_header(self):
+        from llm_client import extract_retry_after
+        err = Exception("rate limit (429)")
+        err.body = PRODUCTION_RESET_BODY
+        self.assertEqual(extract_retry_after(err, max_seconds=86400), 8129.0)
+
+    def test_header_fallback_intact_when_body_has_no_reset(self):
+        from llm_client import extract_retry_after
+        err = Exception("rate limit (429)")
+        err.body = {"error": {"message": "slow down"}}
+        err.response = _FakeResponse({"Retry-After": "45"})
+        self.assertEqual(extract_retry_after(err), 45.0)
+
+    def test_max_seconds_clamps_body_derived_value(self):
+        from llm_client import extract_retry_after
+        err = Exception("rate limit (429)")
+        err.body = {"error": {"seconds_until_reset": 99999}}
         self.assertEqual(extract_retry_after(err, max_seconds=300.0), 300.0)
 
 

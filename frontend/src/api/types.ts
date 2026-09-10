@@ -28,7 +28,7 @@ export interface Feed {
   // Local (imported-archive) feeds have no upstream RSS: subscribed is the
   // default for feeds pulled from a source URL. Absent on backends that
   // predate local feeds, which read as 'subscribed'.
-  feedType?: 'subscribed' | 'local';
+  feedType?: 'subscribed' | 'local' | 'recents';
   description?: string;
   artworkUrl?: string;
   // Explicit "do we hold an uploaded file" signal (artworkUrl is never
@@ -79,6 +79,13 @@ export interface Feed {
   detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
+  // Chapter list in served descriptions (#720): null follows the global setting.
+  chaptersInNotes?: 'on' | 'off' | null;
+  // Ad chapters: null follows the global setting.
+  adChaptersEnabled?: 'on' | 'off' | null;
+  // Null follows the global category map; a partial map overrides only the
+  // categories it names.
+  adChapterCategories?: Partial<Record<SegmentCategory, boolean>> | null;
   // Per-feed auto-process queue priority (#625). Server always resolves to
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
@@ -170,6 +177,9 @@ export interface AdDistribution {
 export interface Episode {
   id: string;
   title: string;
+  // Set on rows of the recents feed: the feed the episode belongs to.
+  feedSlug?: string;
+  feedTitle?: string;
   description?: string;
   published: string;
   duration?: number;
@@ -221,6 +231,8 @@ export interface EpisodeDetail extends Episode {
   processedUrl?: string;
   hasOriginalAudio?: boolean;
   originalAudioUrl?: string;
+  // Chapter list rendered for the description when enabled (#720); empty otherwise.
+  chapterNotes?: string;
   transcript?: string;
   originalTranscriptAvailable?: boolean;
   transcriptAvailable?: boolean;
@@ -228,6 +240,9 @@ export interface EpisodeDetail extends Episode {
   transcriptVttUrl?: string;
   chaptersAvailable?: boolean;
   chaptersUrl?: string;
+  // Chapter regeneration runs in the background; the error is the last failure.
+  chaptersRegenerating?: boolean;
+  chaptersRegenError?: string | null;
   adMarkers?: AdSegment[];
   rejectedAdMarkers?: AdSegment[];
   pendingReviewMarkers?: AdSegment[];
@@ -267,6 +282,13 @@ export interface EpisodeDetail extends Episode {
   // pattern/cross-fetch markers alone (degraded continue). Window counts
   // are null when not cheaply available from the run's stats blob.
   partialDetection?: { reason: string; windowsFailed: number | null; windowsTotal: number | null } | null;
+  // Windows the latest completed run lost, per pass. Set independently of
+  // partialDetection: a run that answered most windows still completes, so
+  // the skipped stretches were never examined for ads.
+  incompleteCoverage?: {
+    detection?: { failed: number; total: number | null };
+    verification?: { failed: number; total: number | null };
+  } | null;
   // Adjacent episodes in the same feed (newest-first order): `previous` is the
   // newer episode, `next` the older one. Either is null at a feed boundary.
   navigation?: { previous: EpisodeNeighbor | null; next: EpisodeNeighbor | null };
@@ -290,6 +312,7 @@ export interface ProcessingRunStats {
   downloadedDuration?: number | null;
   transcriptSegments?: number;
   windows?: { total: number; failed: number } | null;
+  verificationWindows?: { total: number; failed: number } | null;
   stageHits?: {
     fingerprint: number;
     textPattern: number;
@@ -437,6 +460,44 @@ export interface SettingValueNumber {
   isDefault: boolean;
 }
 
+export interface WhisperHealthInstance {
+  instance: string;
+  model: string;
+  device: string;
+  compute_type: string;
+  batch_size: number;
+  max_concurrent: number;
+  vad_filter: boolean;
+}
+
+// Result of sampling a self-hosted Whisper backend's optional /health
+// endpoint. `available: false` means no health data was collected.
+export interface WhisperHealthProbe {
+  available: boolean;
+  instances?: WhisperHealthInstance[];
+  suggested_max_requests?: number;
+  mismatch?: string[];
+  // True when every sample turned up a new instance, so the count is a
+  // lower bound rather than the confirmed replica count.
+  sampled_floor?: boolean;
+}
+
+export interface WhisperCapacity {
+  enabled: boolean;
+  backend: string;
+  active: boolean;
+  inactiveReason: 'disabled' | 'local_backend' | null;
+  capacity: number;
+  inFlight: number;
+  transcribingEpisodes: number;
+  maxEpisodes: { configured: number; effective: number };
+  chunkWorkers: { configured: number; effective: number };
+  worstCaseInFlight: number;
+  exceedsCapacity: boolean;
+  leader: boolean;
+  health: WhisperHealthProbe;
+}
+
 export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter';
 // Corner the MinusPod cover-art badge renders in (issue #600).
 export type BadgePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
@@ -526,6 +587,9 @@ export interface Settings {
   transcribeConcurrentChunks: SettingValueNumber;
   transcribeChunkOverlapSeconds: SettingValueNumber;
   whisperApiTimeoutSeconds: SettingValueNumber;
+  whisperPoolEnabled: SettingValueBoolean;
+  whisperPoolMaxRequests: SettingValueNumber;
+  whisperPoolMaxEpisodes: SettingValueNumber;
   audioCueDetectionEnabled: SettingValueBoolean;
   audioCueFreqMinHz: SettingValueNumber;
   audioCueFreqMaxHz: SettingValueNumber;
@@ -560,8 +624,17 @@ export interface Settings {
   learningMaxPatternDuration: SettingValueNumber;
   differentialMeasuredCorrMax: SettingValueNumber;
   differentialHoldMinSeconds: SettingValueNumber;
+  daiDifferentialOverridesKeep: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
+  chaptersInNotes: SettingValueBoolean;
+  adChaptersEnabled: SettingValueBoolean;
+  adChapterCategories: { value: Record<SegmentCategory, boolean>; isDefault: boolean };
+  adChaptersIncludeHeld: SettingValueBoolean;
+  adChapterTitleFormat: SettingValue;
+  adChapterHeldTitleFormat: SettingValue;
+  adChapterResumeTitle: SettingValue;
+  adChapterMinConfidence: SettingValueNumber;
   chaptersModel: SettingValue;
   minCutConfidence: SettingValueNumber;
   whisperBackend: SettingValue;
@@ -615,6 +688,13 @@ export interface Settings {
     feedAuthEnabled: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
+    adChaptersEnabled: boolean;
+    adChapterCategories: Record<SegmentCategory, boolean>;
+    adChaptersIncludeHeld: boolean;
+    adChapterTitleFormat: string;
+    adChapterHeldTitleFormat: string;
+    adChapterResumeTitle: string;
+    adChapterMinConfidence: number;
     chaptersModel: string;
     minCutConfidence: number;
     llmProvider: LlmProvider;
@@ -641,6 +721,9 @@ export interface Settings {
     transcribeConcurrentChunks: number;
     transcribeChunkOverlapSeconds: number;
     whisperApiTimeoutSeconds: number;
+    whisperPoolEnabled: boolean;
+    whisperPoolMaxRequests: number;
+    whisperPoolMaxEpisodes: number;
     audioCueDetectionEnabled: boolean;
     audioCueFreqMinHz: number;
     audioCueFreqMaxHz: number;
@@ -675,6 +758,7 @@ export interface Settings {
     learningMaxPatternDuration: number;
     differentialMeasuredCorrMax: number;
     differentialHoldMinSeconds: number;
+    daiDifferentialOverridesKeep: boolean;
   };
 }
 
@@ -738,6 +822,9 @@ export interface UpdateSettingsPayload {
   transcribeConcurrentChunks?: number;
   transcribeChunkOverlapSeconds?: number;
   whisperApiTimeoutSeconds?: number;
+  whisperPoolEnabled?: boolean;
+  whisperPoolMaxRequests?: number;
+  whisperPoolMaxEpisodes?: number;
   audioCueDetectionEnabled?: boolean;
   audioCueFreqMinHz?: number;
   audioCueFreqMaxHz?: number;
@@ -772,8 +859,18 @@ export interface UpdateSettingsPayload {
   learningMaxPatternDuration?: number;
   differentialMeasuredCorrMax?: number;
   differentialHoldMinSeconds?: number;
+  daiDifferentialOverridesKeep?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
+  chaptersInNotes?: boolean;
+  adChaptersEnabled?: boolean;
+  // Partial map, merged over the stored global map by the backend.
+  adChapterCategories?: Partial<Record<SegmentCategory, boolean>>;
+  adChaptersIncludeHeld?: boolean;
+  adChapterTitleFormat?: string;
+  adChapterHeldTitleFormat?: string;
+  adChapterResumeTitle?: string;
+  adChapterMinConfidence?: number;
   chaptersModel?: string;
   minCutConfidence?: number;
   llmProvider?: LlmProvider;
@@ -1004,6 +1101,9 @@ export interface ProcessingHistoryStats {
 
 export interface DashboardStats {
   totalEpisodesProcessed: number;
+  // Completed processing runs, including reprocesses of the same episode (#727).
+  totalRuns: number;
+  episodesWithTimeSaved: number;
   avgTimeSavedSeconds: number;
   minTimeSavedSeconds: number;
   maxTimeSavedSeconds: number;
@@ -1044,6 +1144,8 @@ export interface PodcastStats {
   podcastSlug: string;
   podcastTitle: string;
   episodeCount: number;
+  // Completed processing runs, including reprocesses of the same episode (#727).
+  runCount: number;
   totalAds: number;
   avgAds: number;
   avgEpisodeLengthSeconds: number;

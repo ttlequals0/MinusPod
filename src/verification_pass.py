@@ -100,7 +100,7 @@ class VerificationPass:
                 progress_callback("transcribing", 85)
             logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio")
             try:
-                verification_segments = self._transcribe_verification(processed_audio_path, podcast_name, slug=slug)
+                verification_segments = self._transcribe_verification(processed_audio_path, slug=slug)
             except (ServiceUnavailableError, AudioExtractionError) as e:
                 # Verification is best-effort: a Whisper outage (or a chunk
                 # extraction failure, #556) here must not fail or defer an
@@ -151,6 +151,12 @@ class VerificationPass:
             progress_callback=progress_callback,
             audio_analysis=processed_analysis,
         )
+        # Window counts ride along on every post-detection return so the run
+        # stats can report coverage the verification scan never examined.
+        window_counts = {
+            'windows_total': verification_result.get('windows_total'),
+            'windows_failed': verification_result.get('windows_failed'),
+        }
         detection_error = verification_result.get('error')
         if verification_result.get('status') == 'failed' or detection_error:
             # Enough detection windows failed that an unknown share of the
@@ -161,13 +167,14 @@ class VerificationPass:
                     'status': 'detection_failed', 'error': detection_error,
                     'rate_limited_hold': verification_result.get('rate_limited_hold', False),
                     'retry_after_seconds': verification_result.get('retry_after_seconds'),
-                    'audio_cue_count': verification_cue_count}
+                    'audio_cue_count': verification_cue_count, **window_counts}
 
         processed_ads = verification_result.get('ads', [])
 
         if not processed_ads:
             return {'ads': [], 'ads_processed': [], 'segments': verification_segments,
-                    'status': 'clean', 'audio_cue_count': verification_cue_count}
+                    'status': 'clean', 'audio_cue_count': verification_cue_count,
+                    **window_counts}
 
         # Tag all ads as verification stage
         for ad in processed_ads:
@@ -216,10 +223,10 @@ class VerificationPass:
             'segments': verification_segments,
             'status': 'found_ads',
             'audio_cue_count': verification_cue_count,
+            **window_counts,
         }
 
     def _transcribe_verification(self, audio_path: str,
-                                 podcast_name: str = None,
                                  slug: str = None) -> list[dict]:
         """Re-transcribe for verification using the shared Transcriber.
 
@@ -233,7 +240,7 @@ class VerificationPass:
         """
         language_override = get_feed_language_override(self.db, slug)
         return self.transcriber.transcribe_chunked(
-            audio_path, podcast_name, language_override=language_override,
+            audio_path, language_override=language_override,
         )
 
 

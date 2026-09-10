@@ -50,6 +50,11 @@ def on_starting(server):
     try:
         from database import Database
         db = Database()
+        # No chapter regeneration thread survived the restart, so every stamp is dead.
+        cleared = db.clear_chapters_regen_stamps()
+        if cleared:
+            _log.warning("gunicorn on_starting: cleared %d stale chapter "
+                         "regeneration stamps", cleared)
         try:
             if hasattr(db, '_local') and hasattr(db._local, 'connection'):
                 conn = db._local.connection

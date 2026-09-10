@@ -25,7 +25,7 @@ from config import (
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
-from run_log import run_in_worker_thread
+from run_context import run_in_worker_thread
 from llm_client import (
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
     ProviderRateLimitedError, StructuralRateLimitError,
@@ -988,7 +988,7 @@ class AdReviewer:
         ordered = [None] * len(ads)
         with ThreadPoolExecutor(max_workers=max_workers,
                                 thread_name_prefix='reviewer') as executor:
-            futures = {executor.submit(run_in_worker_thread, _run_one, i): i
+            futures = {executor.submit(run_in_worker_thread(_run_one), i): i
                        for i in range(len(ads))}
             for fut in as_completed(futures):
                 idx = futures[fut]
@@ -1301,7 +1301,8 @@ class AdReviewer:
         One small follow-up call through the shared call_llm seam turns the
         reasoning back into {"ad_start": float, "ad_end": float}. Returns
         (start, end) strictly inside the original span, or None on any
-        failure; it never raises into the pipeline.
+        failure. Only a provider rate-limit hold propagates, so the run
+        records it instead of losing it here.
 
         Two call sites share this recovery: the contradiction-hold branch
         uses the result only to enrich the held marker's proposed bounds
@@ -1351,6 +1352,9 @@ class AdReviewer:
             logger.warning(f"[{slug}:{episode_id}] {call_label} raised: {e}")
             return None
         if response is None:
+            # A rate-limit hold is queue-wide state, not a degraded review.
+            if isinstance(error, ProviderRateLimitedError):
+                raise error
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} failed: {error}. "
                 f"Holding without proposed bounds."

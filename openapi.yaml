@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.95.3
+  version: 2.96.15
   contact:
     name: MinusPod
   license:
@@ -235,13 +235,15 @@ paths:
         - Feeds
       summary: Add a new feed
       description: >-
-        Add a new podcast feed. Two shapes: a subscribed feed (default),
-        which requires sourceUrl and fetches/parses it before saving; or a
+        Add a new podcast feed. Three shapes: a subscribed feed (default),
+        which requires sourceUrl and fetches/parses it before saving; a
         local (archive-import) feed, set with feedType: "local", which
         takes no sourceUrl and no upstream is ever fetched: metadata comes
-        entirely from the request body. The local branch still validates
-        slug (or derives one from title) but skips URL/SSRF validation
-        since there is no URL.
+        entirely from the request body; or the single combined recents feed,
+        feedType: "recents", served at /recents with a fixed slug, taking
+        only title and description (409 when one already exists). The local
+        branch still validates slug (or derives one from title) but skips
+        URL/SSRF validation since there is no URL.
       operationId: addFeed
       requestBody:
         required: true
@@ -263,7 +265,7 @@ paths:
                   example: my-podcast
                 feedType:
                   type: string
-                  enum: [subscribed, local]
+                  enum: [subscribed, local, recents]
                   default: subscribed
                   description: >-
                     "local" creates an archive-import feed with no upstream
@@ -553,7 +555,10 @@ paths:
       tags:
         - Feeds
       summary: Update feed settings
-      description: Update podcast feed settings like network override, DAI platform, processing overrides, and the source RSS URL
+      description: >-
+        Update podcast feed settings like network override, DAI platform, processing overrides,
+        and the source RSS URL. The recents feed accepts only title and description; any other
+        field returns 400.
       operationId: updateFeed
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -628,6 +633,31 @@ paths:
                     - 'off'
                     - null
                   description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null resets to the default 'auto' behavior.
+                chaptersInNotes:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - 'on'
+                    - 'off'
+                    - null
+                  description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+                adChaptersEnabled:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - 'on'
+                    - 'off'
+                    - null
+                  description: Per-feed override for publishing kept ad segments as skippable chapters. null follows the global adChaptersEnabled setting.
+                adChapterCategories:
+                  type:
+                    - object
+                    - 'null'
+                  additionalProperties:
+                    type: boolean
+                  description: Per-feed override mapping each segment category to whether it gets an ad chapter. null follows the global adChapterCategories setting.
                 queuePriority:
                   type:
                     - string
@@ -1159,7 +1189,10 @@ paths:
       tags:
         - Episodes
       summary: List episodes for a feed
-      description: Returns paginated list of episodes for a podcast
+      description: >-
+        Returns paginated list of episodes for a podcast. For the recents feed the rows come from
+        the source feeds (see feedSlug and feedTitle); they are all processed, so a status filter
+        other than processed returns an empty page.
       operationId: listEpisodes
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -1926,13 +1959,15 @@ paths:
         requiring full reprocessing. The VTT transcript must already exist.
         The new chapters are also embedded into the processed MP3 as ID3
         frames so players that ignore podcast:chapters pick them up.
+        The work runs in the background because the topic pass can outlast
+        a reverse proxy's request timeout; the episode reports progress.
       operationId: regenerateChapters
       parameters:
         - $ref: '#/components/parameters/slug'
         - $ref: '#/components/parameters/episode_id'
       responses:
-        '200':
-          description: Chapters regenerated successfully
+        '202':
+          description: Regeneration started in the background. Poll the episode; chaptersRegenerating clears when it finishes and chaptersRegenError carries a failure.
           content:
             application/json:
               schema:
@@ -1940,24 +1975,12 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: Chapters regenerated
+                    example: Chapter regeneration started
                   episodeId:
                     type: string
-                  chapterCount:
-                    type: integer
-                  chapters:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        startTime:
-                          type: number
-                          description: Chapter start time in seconds
-                        title:
-                          type: string
-                  embedded:
-                    type: boolean
-                    description: Whether the chapters were also written into the processed MP3 as ID3 frames
+                  status:
+                    type: string
+                    enum: [started]
         '400':
           description: No VTT transcript available (full reprocess required)
           content:
@@ -1966,6 +1989,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: A regeneration is already running, the episode is being processed, or an LLM provider rate-limit hold is active
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -2129,9 +2154,37 @@ paths:
       parameters:
         - $ref: '#/components/parameters/slug'
         - $ref: '#/components/parameters/episode_id'
+        - $ref: '#/components/parameters/audio_download'
       responses:
         '200':
           description: Original audio stream
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episode_id}/processed.mp3:
+    get:
+      tags:
+        - Episodes
+      summary: Stream the current cut (ad-free) audio
+      description: |
+        Returns the current processed version of the episode under the
+        session auth the UI already has. The public feed route serves the
+        same file but needs a feed key when authenticated feeds are on.
+        404 when the episode has not been processed or the file is missing.
+        Supports Range requests.
+      operationId: serveProcessedAudio
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+        - $ref: '#/components/parameters/audio_download'
+      responses:
+        '200':
+          description: Processed audio stream
           content:
             audio/mpeg:
               schema:
@@ -2480,7 +2533,7 @@ paths:
       tags:
         - Stats
       summary: Get dashboard statistics
-      description: Returns aggregate stats with avg/min/max for time saved, ads removed, cost, processing time, episode length, and token usage. Optionally filtered by podcast.
+      description: Returns aggregate stats with avg/min/max for time saved, ads removed, cost, processing time, episode length, and token usage. Optionally filtered by podcast. Episode-scoped fields (totalEpisodesProcessed, episodesWithTimeSaved, and the episode length and time-saved figures) count each surviving episode once; run-scoped fields (ads, audio cues, cost, tokens, processing time, totalRuns) count every completed processing run, including reprocesses.
       parameters:
         - name: podcast_slug
           in: query
@@ -2496,6 +2549,10 @@ paths:
                 type: object
                 properties:
                   totalEpisodesProcessed:
+                    type: integer
+                  totalRuns:
+                    type: integer
+                  episodesWithTimeSaved:
                     type: integer
                   avgTimeSavedSeconds:
                     type: number
@@ -2556,6 +2613,7 @@ paths:
       tags:
         - Stats
       summary: Get per-podcast aggregate stats
+      description: episodeCount counts distinct surviving episodes with at least one completed run; runCount counts every completed processing run, including reprocesses.
       responses:
         '200':
           description: Per-podcast stats ordered by total ads
@@ -2574,6 +2632,8 @@ paths:
                         podcastTitle:
                           type: string
                         episodeCount:
+                          type: integer
+                        runCount:
                           type: integer
                         totalAds:
                           type: integer
@@ -4421,6 +4481,21 @@ paths:
                   maximum: 600
                   description: Overlap, in seconds, between consecutive transcription chunks.
                   example: 30
+                whisperPoolEnabled:
+                  type: boolean
+                  description: Bound concurrent requests to the remote Whisper API to avoid rate limits.
+                whisperPoolMaxRequests:
+                  type: integer
+                  minimum: 1
+                  maximum: 64
+                  description: Maximum concurrent in-flight requests to the remote Whisper API when the pool is enabled.
+                  example: 4
+                whisperPoolMaxEpisodes:
+                  type: integer
+                  minimum: 1
+                  maximum: 16
+                  description: Maximum episodes transcribing concurrently against the remote Whisper API when the pool is enabled.
+                  example: 1
                 whisperComputeType:
                   type: string
                   enum: [auto, float16, int8_float16, int8, float32]
@@ -4762,6 +4837,49 @@ paths:
                   type: boolean
                   description: Generate podcast:chapters JSON for each processed episode.
                   example: true
+                chaptersInNotes:
+                  type: boolean
+                  description: Append the generated chapter list to served episode descriptions and the episode API description. Feeds can override per feed.
+                  example: false
+                adChaptersEnabled:
+                  type: boolean
+                  description: Publish kept or held ad segments as skippable chapters in the generated chapter list.
+                  example: false
+                adChapterCategories:
+                  type: object
+                  additionalProperties:
+                    type: boolean
+                  description: Partial map of segment category to whether it gets an ad chapter, merged over the stored map.
+                  example: {sponsor: true, cross_promo: true}
+                adChaptersIncludeHeld:
+                  type: boolean
+                  description: Also publish held-for-review segments as ad chapters.
+                  example: false
+                adChapterTitleFormat:
+                  type: string
+                  description: >-
+                    Title template for an ad chapter; {label} is the category name
+                    and {category} its id. Send an empty string to restore the default.
+                  example: 'Ad: {label}'
+                adChapterHeldTitleFormat:
+                  type: string
+                  description: >-
+                    Title template for a held segment's ad chapter; {label} is the
+                    category name and {category} its id. Send an empty string to restore the default.
+                  example: 'Possible ad: {label}'
+                adChapterResumeTitle:
+                  type: string
+                  description: >-
+                    Title of the chapter that marks the return to show content after an
+                    ad chapter. Send an empty string to restore the default.
+                  example: Show
+                adChapterMinConfidence:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  description: Minimum marker confidence required before a segment becomes an ad chapter.
+                  example: 0.9
                 audioBitrate:
                   type: string
                   enum: ['64k', '96k', '128k', '192k', '256k']
@@ -5018,6 +5136,14 @@ paths:
                     A longer span is split at its ad transitions and each piece
                     is learned separately (default 120).
                   example: 120
+                daiDifferentialOverridesKeep:
+                  type: boolean
+                  description: >-
+                    A marker overlapping a measured differential region is cut
+                    even when segmentCategoryActions maps its category to
+                    keep. Audio that differs between two fetches of the same
+                    enclosure was inserted, whatever the category says
+                    (default true).
                 differentialMeasuredCorrMax:
                   type: number
                   format: float
@@ -5813,8 +5939,8 @@ paths:
       summary: Get rate-limit hold configuration
       description: >-
         Rate-limit queue hold (#696). When enabled, a provider 429 carrying a
-        reset time defers the episode and pauses new queue claims until the
-        reset instead of failing the job.
+        reset time sends the episode back to the queue and pauses new queue
+        claims until the reset instead of failing the job.
       operationId: getRateLimitHoldSettings
       responses:
         '200':
@@ -5826,20 +5952,18 @@ paths:
                 properties:
                   enabled:
                     type: boolean
-                  ttlHours:
-                    type: integer
-                    minimum: 1
-                    maximum: 720
-                    description: Hours a held episode waits before being marked permanently failed.
                   holdUntil:
                     type:
                       - string
                       - 'null'
                     format: date-time
                     description: Until when new queue claims pause; null when no hold is active.
-                  holdCount:
+                  llmUsageUrl:
+                    type: string
+                    description: Operator-configured provider usage/limit endpoint the hold probe checks first; empty when unset.
+                  rateLimitProbeMinutes:
                     type: integer
-                    description: Episodes currently held by the rate-limit hold.
+                    description: Minutes between hold probes; 0 disables probing.
     put:
       tags:
         - Settings
@@ -5854,12 +5978,15 @@ paths:
               properties:
                 enabled:
                   type: boolean
-                  description: Pause the queue on a provider 429 with a reset time longer than five minutes. Off by default; setting false clears an active pause and releases held episodes.
-                ttlHours:
+                  description: Pause the queue on a provider 429 with a reset time longer than five minutes. Off by default; setting false clears an active pause.
+                llmUsageUrl:
+                  type: string
+                  description: Provider usage/limit endpoint the hold probe checks first (tier 1); an empty string clears it. Must pass the same SSRF check as the other operator-configured base URLs.
+                rateLimitProbeMinutes:
                   type: integer
-                  minimum: 1
-                  maximum: 720
-                  description: Hours a held episode waits before being marked permanently failed.
+                  minimum: 0
+                  maximum: 60
+                  description: Minutes between hold probes; 0 disables probing.
       responses:
         '200':
           description: Rate-limit hold settings updated
@@ -5870,15 +5997,80 @@ paths:
                 properties:
                   enabled:
                     type: boolean
-                  ttlHours:
-                    type: integer
                   holdUntil:
                     type:
                       - string
                       - 'null'
                     format: date-time
-                  holdCount:
+                  llmUsageUrl:
+                    type: string
+                  rateLimitProbeMinutes:
                     type: integer
+
+  /settings/whisper/capacity:
+    get:
+      tags:
+        - Settings
+      summary: Resolved Whisper pool capacity and in-flight counts
+      description: >-
+        What the operator configured, whether the pool is active (enabled and
+        the backend is the remote OpenAI-compatible API), and what is
+        currently in flight against it. Read from this process's own pool
+        instance; the queue leader refreshes its own pool every dispatcher
+        pass, so no cross-process signal is needed.
+      operationId: getWhisperCapacity
+      responses:
+        '200':
+          description: Pool state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  backend:
+                    type: string
+                  active:
+                    type: boolean
+                    description: enabled and backend is openai-api
+                  inactiveReason:
+                    type:
+                      - string
+                      - 'null'
+                    enum: [disabled, local_backend, null]
+                  capacity:
+                    type: integer
+                  inFlight:
+                    type: integer
+                  transcribingEpisodes:
+                    type: integer
+                  maxEpisodes:
+                    type: object
+                    properties:
+                      configured:
+                        type: integer
+                      effective:
+                        type: integer
+                  chunkWorkers:
+                    type: object
+                    properties:
+                      configured:
+                        type: integer
+                      effective:
+                        type: integer
+                  worstCaseInFlight:
+                    type: integer
+                  exceedsCapacity:
+                    type: boolean
+                  leader:
+                    type: boolean
+                    description: >-
+                      Whether this process is the background leader that runs
+                      transcriptions. inFlight/transcribingEpisodes are only
+                      meaningful when true; other workers always report 0.
+                  health:
+                    $ref: '#/components/schemas/WhisperHealthProbe'
 
   /settings/update-check:
     get:
@@ -8675,6 +8867,17 @@ components:
         type: string
         example: my-podcast
 
+    audio_download:
+      name: download
+      in: query
+      required: false
+      description: >-
+        When `1`, the file is sent as an attachment named after the episode
+        title (`<Title>-original.mp3` or `<Title>-cut.mp3`) instead of
+        streamed inline.
+      schema:
+        type: string
+        enum: ['1']
     episode_id:
       name: episode_id
       in: path
@@ -8767,6 +8970,49 @@ components:
         reachable: { type: boolean, description: 'The server returned any HTTP response' }
         status:    { type: integer, description: 'HTTP status code, when a response was received' }
         detail:    { type: string, description: 'Human-readable outcome' }
+        health:
+          allOf:
+            - $ref: '#/components/schemas/WhisperHealthProbe'
+          description: 'whisper only, present when ok is true: result of sampling the backend''s optional /health endpoint'
+    WhisperHealthProbe:
+      type: object
+      description: >-
+        Result of sampling a self-hosted Whisper backend's optional /health
+        endpoint. Behind a load balancer, repeated calls round-robin across
+        replicas, so sampling reveals the replica count and total concurrency.
+        Not necessarily live: a result is cached for 120 seconds, and a request
+        arriving while a probe for that backend is already running is answered
+        from the last successful probe, which may be up to 6 minutes old.
+      properties:
+        available:
+          type: boolean
+          description: The backend exposes a working /health endpoint
+        instances:
+          type: array
+          items:
+            type: object
+            properties:
+              instance:      { type: string }
+              model:         { type: string }
+              device:        { type: string }
+              compute_type:  { type: string }
+              batch_size:    { type: integer }
+              max_concurrent: { type: integer }
+              vad_filter:    { type: boolean }
+        suggested_max_requests:
+          type: integer
+          description: Sum of each distinct instance's max_concurrent, floored at 1 per instance
+        mismatch:
+          type: array
+          items:
+            type: string
+          description: Fields (model, compute_type, device) whose values differ across instances
+        sampled_floor:
+          type: boolean
+          description: >-
+            Sampling ran out before any instance repeated three times in a row,
+            so it never demonstrably wrapped the replica set. The instance count
+            and suggested_max_requests are lower bounds, not confirmed totals.
     CueMatch:
       type: object
       description: One cue match within an episode
@@ -9185,13 +9431,16 @@ components:
           description: URL-safe identifier for the feed
         feedType:
           type: string
-          enum: [subscribed, local]
+          enum: [subscribed, local, recents]
           description: >-
             "subscribed" (default) mirrors an upstream RSS feed; "local" is
             an archive-import feed MinusPod builds and serves itself, with
-            no upstream. Several fields and actions (refresh, Podping,
-            differential fetch, sourceUrl) are meaningless for a local
-            feed; see the Local Feeds guide.
+            no upstream; "recents" is the single combined feed of every
+            processed episode published on or after its creation, which
+            accepts only title and description on PATCH. Several fields and
+            actions (refresh, Podping, differential fetch, sourceUrl) are
+            meaningless for local and recents feeds; see the Local Feeds
+            guide.
         title:
           type: string
           description: Podcast title. Mirrors the upstream RSS <title> for a subscribed feed (overwritten on refresh); user-set and PATCHable for a local feed.
@@ -9356,6 +9605,31 @@ components:
             - 'off'
             - null
           description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null means not set, which resolves to 'auto'.
+        chaptersInNotes:
+          type:
+            - string
+            - 'null'
+          enum:
+            - 'on'
+            - 'off'
+            - null
+          description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+        adChaptersEnabled:
+          type:
+            - string
+            - 'null'
+          enum:
+            - 'on'
+            - 'off'
+            - null
+          description: Per-feed override for publishing kept ad segments as skippable chapters. null follows the global adChaptersEnabled setting.
+        adChapterCategories:
+          type:
+            - object
+            - 'null'
+          additionalProperties:
+            type: boolean
+          description: Per-feed override mapping each segment category to whether it gets an ad chapter. null follows the global adChapterCategories setting.
         queuePriority:
           type: string
           enum:
@@ -9590,6 +9864,12 @@ components:
     EpisodeSummary:
       type: object
       properties:
+        feedSlug:
+          type: string
+          description: Set on rows of the recents feed; the feed the episode belongs to.
+        feedTitle:
+          type: string
+          description: Set on rows of the recents feed; the source feed's title.
         episodeId:
           type: string
         title:
@@ -9721,6 +10001,14 @@ components:
                     - 'null'
             transcriptAvailable:
               type: boolean
+            chaptersRegenerating:
+              type: boolean
+              description: A chapter regeneration started by regenerate-chapters is still running
+            chaptersRegenError:
+              type:
+                - string
+                - 'null'
+              description: Why the last chapter regeneration failed; null after a successful one
             originalTranscriptAvailable:
               type: boolean
               description: Whether an original (pre-cut) transcript is available
@@ -9761,6 +10049,34 @@ components:
                   type: number
                 sampleSize:
                   type: integer
+            incompleteCoverage:
+              type:
+                - object
+                - 'null'
+              description: >
+                Windows the latest completed run lost, per pass. Null when both passes answered every
+                window. Set independently of partialDetection: a run that answers most windows still
+                completes, so the skipped stretches were never examined for ads. A pass key is present
+                only when that pass lost at least one window.
+              properties:
+                detection:
+                  type: object
+                  properties:
+                    failed:
+                      type: integer
+                    total:
+                      type:
+                        - integer
+                        - 'null'
+                verification:
+                  type: object
+                  properties:
+                    failed:
+                      type: integer
+                    total:
+                      type:
+                        - integer
+                        - 'null'
 
     LocalEpisodeEditFields:
       type: object
@@ -10044,6 +10360,16 @@ components:
                 - object
                 - 'null'
               description: Null when the run failed before detection or the detection mode does not report window counts
+              properties:
+                total:
+                  type: integer
+                failed:
+                  type: integer
+            verificationWindows:
+              type:
+                - object
+                - 'null'
+              description: Verification-pass window counts. Null when the verification pass was skipped or ended before its detection call.
               properties:
                 total:
                   type: integer
@@ -10563,6 +10889,30 @@ components:
               type: integer
             isDefault:
               type: boolean
+        whisperPoolEnabled:
+          type: object
+          description: Bound concurrent requests to the remote Whisper API to avoid rate limits.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        whisperPoolMaxRequests:
+          type: object
+          description: Maximum concurrent in-flight requests to the remote Whisper API when the pool is enabled.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        whisperPoolMaxEpisodes:
+          type: object
+          description: Maximum episodes transcribing concurrently against the remote Whisper API when the pool is enabled.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
         whisperComputeType:
           type: object
           properties:
@@ -10808,6 +11158,17 @@ components:
           properties:
             value:
               type: integer
+            isDefault:
+              type: boolean
+        daiDifferentialOverridesKeep:
+          type: object
+          description: >-
+            A marker overlapping a measured differential region is cut even
+            when segmentCategoryActions maps its category to keep
+            (default true).
+          properties:
+            value:
+              type: boolean
             isDefault:
               type: boolean
         differentialMeasuredCorrMax:
@@ -11222,6 +11583,73 @@ components:
           properties:
             value:
               type: boolean
+            isDefault:
+              type: boolean
+        chaptersInNotes:
+          type: object
+          description: Append the generated chapter list to served episode descriptions and the episode API description.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        adChaptersEnabled:
+          type: object
+          description: Publish kept or held ad segments as skippable chapters in the generated chapter list.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        adChapterCategories:
+          type: object
+          description: Map of segment category to whether it gets an ad chapter.
+          properties:
+            value:
+              type: object
+              additionalProperties:
+                type: boolean
+            isDefault:
+              type: boolean
+        adChaptersIncludeHeld:
+          type: object
+          description: Also publish held-for-review segments as ad chapters.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        adChapterTitleFormat:
+          type: object
+          description: Title template for an ad chapter; {label} is the category name and {category} its id, both optional.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        adChapterHeldTitleFormat:
+          type: object
+          description: Title template for a held segment's ad chapter; {label} is the category name and {category} its id, both optional.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        adChapterResumeTitle:
+          type: object
+          description: Title of the chapter that marks the return to show content after an ad chapter.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        adChapterMinConfidence:
+          type: object
+          description: Minimum marker confidence required before a segment becomes an ad chapter.
+          properties:
+            value:
+              type: number
+              format: float
             isDefault:
               type: boolean
         audioNormalizeEnabled:
@@ -11817,6 +12245,34 @@ components:
             elapsed:
               type: number
               description: Seconds since the job started
+        jobs:
+          type: array
+          description: Every episode currently processing, oldest first. currentJob is jobs[0].
+          items:
+            type: object
+            properties:
+              slug:
+                type: string
+              episodeId:
+                type: string
+              title:
+                type: string
+              podcastName:
+                type: string
+              stage:
+                type: string
+                description: Current processing stage (e.g. pass1:transcribing)
+              progress:
+                type: number
+                description: Progress percentage (0-100)
+              startedAt:
+                type: number
+                description: Unix timestamp the job started
+              elapsed:
+                type: number
+                description: Seconds since the job started
+        whisper:
+          $ref: '#/components/schemas/WhisperPoolSnapshot'
         queueLength:
           type: integer
           description: Number of episodes waiting to be processed
@@ -11871,16 +12327,13 @@ components:
             - string
             - 'null'
           format: date-time
-          description: The provider's own rate-limit reset time, or null
+          description: The provider's own rate-limit reset time while the pause is active, or null
         holdSince:
           type:
             - string
             - 'null'
           format: date-time
-          description: When the current pause began, or null when nothing is held
-        rateLimitHeld:
-          type: integer
-          description: Episodes held by the rate-limit hold
+          description: When the current pause began, or null when the queue is not paused
         offlineHeld:
           type: integer
           description: |
@@ -11909,6 +12362,42 @@ components:
                   - string
                   - 'null'
                 format: date-time
+
+    WhisperPoolSnapshot:
+      type: object
+      description: Bounded admission state for remote Whisper requests, as read by this process's pool.
+      properties:
+        enabled:
+          type: boolean
+        backend:
+          type: string
+        active:
+          type: boolean
+          description: enabled and backend is openai-api
+        inactiveReason:
+          type:
+            - string
+            - 'null'
+          enum: [disabled, local_backend, null]
+        capacity:
+          type: integer
+        inFlight:
+          type: integer
+        transcribingEpisodes:
+          type: integer
+        maxEpisodes:
+          type: object
+          properties:
+            configured:
+              type: integer
+            effective:
+              type: integer
+        leader:
+          type: boolean
+          description: >-
+            Whether this process is the background leader that runs
+            transcriptions. inFlight/transcribingEpisodes are only
+            meaningful when true; other workers always report 0.
 
     ProcessingHistoryEntry:
       type: object

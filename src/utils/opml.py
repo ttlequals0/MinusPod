@@ -36,7 +36,8 @@ def build_opml_xml(podcasts: list[dict], mode: str, base_url: str,
         if mode == 'modified':
             feed_url = modified_feed_url(base_url, podcast['slug'], feed_auth_key)
         else:
-            if podcast.get('feed_type') == 'local':
+            # Local and recents feeds have no upstream to point at.
+            if podcast.get('feed_type') in ('local', 'recents'):
                 continue
             feed_url = podcast.get('source_url', '')
         ET.SubElement(body, 'outline', type='rss', text=title, title=title,

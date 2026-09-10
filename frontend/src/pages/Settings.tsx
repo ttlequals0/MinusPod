@@ -7,7 +7,7 @@ import type { PromptName } from '../api/settings';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import type { BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
@@ -46,6 +46,7 @@ import SegmentActionsSection from './settings/SegmentActionsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
+import AdReviewerSection from './settings/AdReviewerSection';
 import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
 import PositionalPriorSection from './settings/PositionalPriorSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
@@ -254,6 +255,13 @@ function Settings() {
   const [maxAudioDownloadMb, setMaxAudioDownloadMb] = useState(500);
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
+  const [chaptersInNotes, setChaptersInNotes] = useState(false);
+  const [adChaptersEnabled, setAdChaptersEnabled] = useState(false);
+  const [adChaptersIncludeHeld, setAdChaptersIncludeHeld] = useState(false);
+  const [adChapterTitleFormat, setAdChapterTitleFormat] = useState('Ad: {label}');
+  const [adChapterHeldTitleFormat, setAdChapterHeldTitleFormat] = useState('Possible ad: {label}');
+  const [adChapterResumeTitle, setAdChapterResumeTitle] = useState('Show');
+  const [adChapterMinConfidence, setAdChapterMinConfidence] = useState(0.9);
   const [chaptersModel, setChaptersModel] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0);
   const [minContentBetweenAdsSeconds, setMinContentBetweenAdsSeconds] = useState(12);
@@ -267,6 +275,7 @@ function Settings() {
   const [learningMaxPatternDuration, setLearningMaxPatternDuration] = useState(120);
   const [differentialMeasuredCorrMax, setDifferentialMeasuredCorrMax] = useState(0.6);
   const [differentialHoldMinSeconds, setDifferentialHoldMinSeconds] = useState(10);
+  const [daiDifferentialOverridesKeep, setDaiDifferentialOverridesKeep] = useState(true);
   // Neutral placeholder (cast); replaced by hydration before the form renders.
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('' as LlmProvider);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
@@ -281,6 +290,9 @@ function Settings() {
   const [transcribeConcurrentChunks, setTranscribeConcurrentChunks] = useState(4);
   const [transcribeChunkOverlapSeconds, setTranscribeChunkOverlapSeconds] = useState(30);
   const [whisperApiTimeoutSeconds, setWhisperApiTimeoutSeconds] = useState(600);
+  const [whisperPoolEnabled, setWhisperPoolEnabled] = useState(false);
+  const [whisperPoolMaxRequests, setWhisperPoolMaxRequests] = useState(4);
+  const [whisperPoolMaxEpisodes, setWhisperPoolMaxEpisodes] = useState(1);
   const [providersState, setProvidersState] = useState<ProvidersResponse | null>(null);
   const [providersError, setProvidersError] = useState<string | null>(null);
 
@@ -298,10 +310,14 @@ function Settings() {
     else if (provider === 'whisper' && whisperApiConfig.baseUrl) body.baseUrl = whisperApiConfig.baseUrl;
     await updateProvider(provider, body);
     await reloadProviders();
+    // A new key can lift a rate-limit hold server-side; refetch so the
+    // paused banner does not sit there stale for the 30s staleTime.
+    queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
   };
   const handleProviderKeyClear = async (provider: ProviderName) => {
     await clearProvider(provider);
     await reloadProviders();
+    queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
   };
   const handleProviderKeyTest = (provider: ProviderName) => testProvider(provider);
   const [podcastSearchProvider, setPodcastSearchProvider] = useState('');
@@ -505,6 +521,9 @@ function Settings() {
     { key: 'transcribeConcurrentChunks', kind: 'val', useDefault: true, literal: 4, value: transcribeConcurrentChunks, set: setTranscribeConcurrentChunks },
     { key: 'transcribeChunkOverlapSeconds', kind: 'val', useDefault: true, literal: 30, value: transcribeChunkOverlapSeconds, set: setTranscribeChunkOverlapSeconds },
     { key: 'whisperApiTimeoutSeconds', kind: 'val', useDefault: true, literal: 600, value: whisperApiTimeoutSeconds, set: setWhisperApiTimeoutSeconds },
+    { key: 'whisperPoolEnabled', kind: 'val', useDefault: true, literal: false, value: whisperPoolEnabled, set: setWhisperPoolEnabled },
+    { key: 'whisperPoolMaxRequests', kind: 'val', useDefault: true, literal: 4, value: whisperPoolMaxRequests, set: setWhisperPoolMaxRequests },
+    { key: 'whisperPoolMaxEpisodes', kind: 'val', useDefault: true, literal: 1, value: whisperPoolMaxEpisodes, set: setWhisperPoolMaxEpisodes },
     // Audio output
     { key: 'audioBitrate', kind: 'str', useDefault: true, value: audioBitrate, set: setAudioBitrate },
     { key: 'audioNormalizeEnabled', kind: 'val', useDefault: true, value: audioNormalizeEnabled, set: setAudioNormalizeEnabled },
@@ -523,6 +542,13 @@ function Settings() {
     { key: 'episodeLogLevel', kind: 'str', useDefault: true, value: episodeLogLevel, set: (v) => setEpisodeLogLevel(v as EpisodeLogLevel) },
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
     { key: 'chaptersEnabled', kind: 'val', useDefault: true, value: chaptersEnabled, set: setChaptersEnabled },
+    { key: 'chaptersInNotes', kind: 'val', useDefault: true, value: chaptersInNotes, set: setChaptersInNotes },
+    { key: 'adChaptersEnabled', kind: 'val', useDefault: true, value: adChaptersEnabled, set: setAdChaptersEnabled },
+    { key: 'adChaptersIncludeHeld', kind: 'val', useDefault: true, value: adChaptersIncludeHeld, set: setAdChaptersIncludeHeld },
+    { key: 'adChapterTitleFormat', kind: 'str', useDefault: true, value: adChapterTitleFormat, set: setAdChapterTitleFormat },
+    { key: 'adChapterHeldTitleFormat', kind: 'str', useDefault: true, value: adChapterHeldTitleFormat, set: setAdChapterHeldTitleFormat },
+    { key: 'adChapterResumeTitle', kind: 'str', useDefault: true, value: adChapterResumeTitle, set: setAdChapterResumeTitle },
+    { key: 'adChapterMinConfidence', kind: 'val', useDefault: true, value: adChapterMinConfidence, set: setAdChapterMinConfidence },
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
     { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
     { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },
@@ -543,6 +569,7 @@ function Settings() {
     { key: 'learningMaxPatternDuration', kind: 'val', useDefault: true, literal: 120, value: learningMaxPatternDuration, set: setLearningMaxPatternDuration },
     { key: 'differentialMeasuredCorrMax', kind: 'val', useDefault: true, literal: 0.6, value: differentialMeasuredCorrMax, set: setDifferentialMeasuredCorrMax },
     { key: 'differentialHoldMinSeconds', kind: 'val', useDefault: true, literal: 10, value: differentialHoldMinSeconds, set: setDifferentialHoldMinSeconds },
+    { key: 'daiDifferentialOverridesKeep', kind: 'val', useDefault: true, literal: true, value: daiDifferentialOverridesKeep, set: setDaiDifferentialOverridesKeep },
     // Audio cue detection (nested `audioCue` state)
     { key: 'audioCueDetectionEnabled', kind: 'val', useDefault: true, value: audioCue.enabled, obj: 'audioCue', prop: 'enabled' },
     { key: 'audioCueFreqMinHz', kind: 'val', useDefault: true, value: audioCue.freqMinHz, obj: 'audioCue', prop: 'freqMinHz' },
@@ -704,6 +731,9 @@ function Settings() {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['models'] });
       queryClient.invalidateQueries({ queryKey: ['reviewerSettings'] });
+      queryClient.invalidateQueries({ queryKey: ['whisperCapacity'] });
+      // A provider or base URL change lifts a rate-limit hold server-side.
+      queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
     },
   });
 
@@ -783,7 +813,12 @@ function Settings() {
   });
 
   if (settingsLoading) {
-    return <LoadingSpinner className="py-12" />;
+    return (
+      <div className="max-w-3xl mx-auto pb-20">
+        <SkeletonPageHeader />
+        <SkeletonRows count={6} />
+      </div>
+    );
   }
 
   return (
@@ -1037,6 +1072,12 @@ function Settings() {
         onTranscribeChunkOverlapSecondsChange={setTranscribeChunkOverlapSeconds}
         skipFlacCompression={skipFlacCompression}
         onSkipFlacCompressionChange={setSkipFlacCompression}
+        whisperPoolEnabled={whisperPoolEnabled}
+        onWhisperPoolEnabledChange={setWhisperPoolEnabled}
+        whisperPoolMaxRequests={whisperPoolMaxRequests}
+        onWhisperPoolMaxRequestsChange={setWhisperPoolMaxRequests}
+        whisperPoolMaxEpisodes={whisperPoolMaxEpisodes}
+        onWhisperPoolMaxEpisodesChange={setWhisperPoolMaxEpisodes}
         softTimeoutMinutes={softTimeoutMinutes}
         hardTimeoutMinutes={hardTimeoutMinutes}
         softMinMinutes={processingTimeouts ? Math.max(1, Math.ceil(processingTimeouts.limits.softMin / 60)) : 5}
@@ -1078,7 +1119,21 @@ function Settings() {
         differentialMeasuredCorrMax={differentialMeasuredCorrMax}
         onDifferentialMeasuredCorrMaxChange={setDifferentialMeasuredCorrMax}
         differentialHoldMinSeconds={differentialHoldMinSeconds}
+        daiDifferentialOverridesKeep={daiDifferentialOverridesKeep}
+        onDaiDifferentialOverridesKeepChange={setDaiDifferentialOverridesKeep}
         onDifferentialHoldMinSecondsChange={setDifferentialHoldMinSeconds}
+      />
+
+      <AdReviewerSection
+        reviewer={reviewer}
+        onChange={setReviewer}
+        onResetPrompts={() => resetPromptsMutation.mutate()}
+        resetIsPending={resetPromptsMutation.isPending}
+        modelOptions={models?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
+        reviewPromptIsDefault={settings?.reviewPrompt.isDefault}
+        resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
+        onResetReviewPrompt={() => resetPromptMutation.mutate('review')}
+        onResetResurrectPrompt={() => resetPromptMutation.mutate('resurrect')}
       />
 
       <SeedSponsorsSection
@@ -1117,15 +1172,6 @@ function Settings() {
       <SettingsGroupHeader title="Experiments" />
 
       <ExperimentsSection
-        reviewer={reviewer}
-        onChange={setReviewer}
-        onResetPrompts={() => resetPromptsMutation.mutate()}
-        resetIsPending={resetPromptsMutation.isPending}
-        modelOptions={models?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
-        reviewPromptIsDefault={settings?.reviewPrompt.isDefault}
-        resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
-        onResetReviewPrompt={() => resetPromptMutation.mutate('review')}
-        onResetResurrectPrompt={() => resetPromptMutation.mutate('resurrect')}
         addressingMode={settings?.adAddressingMode?.value ?? settings?.defaults?.adAddressingMode ?? 'timestamps'}
         onAddressingModeChange={(v) => tunableMutation.mutate({ adAddressingMode: v })}
       />
@@ -1153,8 +1199,29 @@ function Settings() {
       <Podcasting20Section
         vttTranscriptsEnabled={vttTranscriptsEnabled}
         chaptersEnabled={chaptersEnabled}
+        chaptersInNotes={chaptersInNotes}
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
+        onChaptersInNotesChange={setChaptersInNotes}
+        adChapters={{
+          chaptersEnabled,
+          enabled: adChaptersEnabled,
+          categories: settings?.adChapterCategories?.value
+            ?? settings?.defaults?.adChapterCategories ?? {},
+          includeHeld: adChaptersIncludeHeld,
+          titleFormat: adChapterTitleFormat,
+          heldTitleFormat: adChapterHeldTitleFormat,
+          resumeTitle: adChapterResumeTitle,
+          minConfidence: adChapterMinConfidence,
+          onEnabledChange: setAdChaptersEnabled,
+          onCategoryChange: (category, checked) =>
+            tunableMutation.mutate({ adChapterCategories: { [category]: checked } }),
+          onIncludeHeldChange: setAdChaptersIncludeHeld,
+          onTitleFormatChange: setAdChapterTitleFormat,
+          onHeldTitleFormatChange: setAdChapterHeldTitleFormat,
+          onResumeTitleChange: setAdChapterResumeTitle,
+          onMinConfidenceChange: setAdChapterMinConfidence,
+        }}
         geometry={
           settings?.stageTunables && settings?.stageTunableDefaults
             ? {

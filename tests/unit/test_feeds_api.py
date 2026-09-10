@@ -493,3 +493,35 @@ def test_patch_detection_notes_clear_and_limit(app_client, seeded_feed):
     r = app_client.patch(f'/api/v1/feeds/{slug}', json={'detectionNotes': 'y' * 1001},
                          headers=_csrf_headers(app_client))
     assert r.status_code == 400
+
+
+def test_get_feed_echoes_null_chapters_in_notes(app_client, seeded_feed):
+    _authed(app_client)
+    assert app_client.get(f"/api/v1/feeds/{seeded_feed['slug']}").get_json()['chaptersInNotes'] is None
+
+
+@pytest.mark.parametrize('value', ['on', 'off'])
+def test_patch_sets_chapters_in_notes_override(app_client, seeded_feed, value):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'chaptersInNotes': value},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert resp.get_json()['chaptersInNotes'] == value
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['chapters_in_notes'] == value
+
+
+def test_patch_null_clears_chapters_in_notes_override(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    app_client.patch(f'/api/v1/feeds/{slug}', json={'chaptersInNotes': 'on'}, headers=headers)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'chaptersInNotes': None}, headers=headers)
+    assert resp.get_json()['chaptersInNotes'] is None
+
+
+def test_patch_rejects_unknown_chapters_in_notes_value(app_client, seeded_feed):
+    _authed(app_client)
+    resp = app_client.patch(f"/api/v1/feeds/{seeded_feed['slug']}", json={'chaptersInNotes': 'maybe'},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 400

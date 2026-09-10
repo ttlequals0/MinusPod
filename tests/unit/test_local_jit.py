@@ -93,7 +93,7 @@ def test_fresh_episode_reuses_retained_original_no_download(tmp_path):
                       return_value='/tmp/reused.mp3') as copy_fn, \
          patch.object(processing, '_download_episode_audio') as download_fn:
         audio_path, out_segments = processing._download_and_transcribe(
-            'show', 'ep1', 'http://example.com/e.mp3', 'Show')
+            'show', 'ep1', 'http://example.com/e.mp3')
 
     assert audio_path == '/tmp/reused.mp3'
     assert out_segments == segments
@@ -110,7 +110,7 @@ def test_local_missing_original_raises_without_downloading():
          patch.object(processing, '_download_episode_audio') as download_fn:
         with pytest.raises(Exception, match='original audio missing'):
             processing._download_and_transcribe(
-                'arc', 's01e01', 'local://s01e01', 'Archive',
+                'arc', 's01e01', 'local://s01e01',
                 podcast=_local('arc'))
 
     download_fn.assert_not_called()
@@ -139,7 +139,7 @@ def test_non_local_missing_original_still_downloads():
          patch.object(processing, '_download_episode_audio',
                       return_value='/tmp/dl.mp3') as download_fn:
         audio_path, _ = processing._download_and_transcribe(
-            'sub', 'abc123def456', 'http://cdn.example.com/e.mp3', 'Show',
+            'sub', 'abc123def456', 'http://cdn.example.com/e.mp3',
             podcast={'feed_type': 'subscribed'})
 
     assert audio_path == '/tmp/dl.mp3'
@@ -156,7 +156,7 @@ def test_skip_transcription_local_missing_original_raises_without_downloading():
          patch.object(processing, '_download_episode_audio') as download_fn:
         with pytest.raises(Exception, match='original audio missing'):
             processing._download_and_transcribe(
-                'arc', 's01e01', 'local://s01e01', 'Archive',
+                'arc', 's01e01', 'local://s01e01',
                 skip_transcription=True, podcast=_local('arc'))
 
     download_fn.assert_not_called()
@@ -179,7 +179,7 @@ def test_existing_transcript_local_missing_original_raises_without_downloading()
          patch.object(processing, '_download_episode_audio') as download_fn:
         with pytest.raises(Exception, match='original audio missing'):
             processing._download_and_transcribe(
-                'arc', 's01e01', 'local://s01e01', 'Archive',
+                'arc', 's01e01', 'local://s01e01',
                 podcast=_local('arc'))
 
     download_fn.assert_not_called()

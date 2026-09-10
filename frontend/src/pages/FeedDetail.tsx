@@ -14,14 +14,16 @@ import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
+import FeedTypeBadge from '../components/FeedTypeBadge';
 import PodpingBadge from '../components/PodpingBadge';
-import { feedDisplayTitle } from '../utils/feedTitle';
+import { feedDisplayTitle, feedHasUpstream } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
 import LocalFeedPanel from './feeds/LocalFeedPanel';
 import FeedStatsCards from './feeds/FeedStatsCards';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
+import RecentsFeedPanel from './feeds/RecentsFeedPanel';
 import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
@@ -275,9 +277,15 @@ function FeedDetail() {
     ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;
   const hasSelection = selectedIds.size > 0;
+  const isRecents = feed?.feedType === 'recents';
 
   if (feedLoading) {
-    return <LoadingSpinner className="py-12" />;
+    return (
+      <div>
+        <SkeletonPageHeader />
+        <SkeletonRows count={6} />
+      </div>
+    );
   }
 
   if (feedError || !feed) {
@@ -381,11 +389,7 @@ function FeedDetail() {
                 <h1 className="text-2xl font-bold text-foreground min-w-0 break-words">
                   {feedDisplayTitle(feed)}
                 </h1>
-                {feed.feedType === 'local' && (
-                  <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
-                    Local
-                  </span>
-                )}
+                <FeedTypeBadge feedType={feed.feedType} className="mt-1.5" />
                 {feed.titleOverride && (
                   <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
                     Custom
@@ -413,7 +417,7 @@ function FeedDetail() {
                 coverage={feed.podpingCoverage}
                 lastPodpingAt={feed.lastPodpingAt}
               />
-              {feed.feedType !== 'local' && feed.lastRefreshError && (
+              {feedHasUpstream(feed) && feed.lastRefreshError && (
                 <span
                   className="text-warning"
                   title={feed.lastRefreshError}
@@ -448,6 +452,7 @@ function FeedDetail() {
               items-center, so the buttons keep flex's default stretch and the
               icon-only delete stays the same height as the labelled ones. */}
           <div className="flex flex-wrap justify-end gap-2">
+            {!isRecents && (
             <DropdownMenu
               triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : (
                 <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">Reprocess All</span></>
@@ -483,7 +488,8 @@ function FeedDetail() {
                 },
               ]}
             />
-            {feed.feedType !== 'local' && (
+            )}
+            {feedHasUpstream(feed) && (
               <DropdownMenu
                 triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
                   <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh Feed</span></>
@@ -520,18 +526,20 @@ function FeedDetail() {
         </div>
       </div>
 
-      {slug && <FeedStatsCards feed={feed} slug={slug} />}
+      {slug && !isRecents && <FeedStatsCards feed={feed} slug={slug} />}
 
-      {slug && <FeedSettingsPanel feed={feed} slug={slug} />}
+      {slug && isRecents && <RecentsFeedPanel feed={feed} slug={slug} />}
+
+      {slug && !isRecents && <FeedSettingsPanel feed={feed} slug={slug} />}
 
       {slug && feed.feedType === 'local' && <LocalFeedPanel feed={feed} slug={slug} />}
 
-      {slug && <PodcastAdDistributionPanel slug={slug} />}
+      {slug && !isRecents && <PodcastAdDistributionPanel slug={slug} />}
 
-      {slug && <CueTemplatesPanel slug={slug} />}
+      {slug && !isRecents && <CueTemplatesPanel slug={slug} />}
 
       {/* Decisions made on this feed's episodes, not yet in the audio. */}
-      {slug && <PendingRecutsBar slug={slug} />}
+      {slug && !isRecents && <PendingRecutsBar slug={slug} />}
 
       {/* Episodes header with status filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -540,6 +548,7 @@ function FeedDetail() {
         </h2>
         {/* The pair shares one row and shrinks to fit rather than stacking:
             wrapping put each select on its own line at ordinary phone widths. */}
+        {!isRecents && (
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
           <select
             value={statusFilter}
@@ -572,6 +581,7 @@ function FeedDetail() {
             <option value="episode_number:asc">Episode # (Low-High)</option>
           </select>
         </div>
+        )}
       </div>
 
       {/* Bulk action toolbar */}
@@ -635,15 +645,15 @@ function FeedDetail() {
       )}
 
       {episodesLoading ? (
-        <LoadingSpinner />
+        <SkeletonRows count={6} />
       ) : (
         <EpisodeList
           episodes={episodes}
           feedSlug={slug!}
           feedArtworkUrl={feed.artworkUrl}
-          selectedIds={selectedIds}
-          onToggle={handleToggleSelect}
-          onSelectAll={handleSelectAll}
+          selectedIds={isRecents ? undefined : selectedIds}
+          onToggle={isRecents ? undefined : handleToggleSelect}
+          onSelectAll={isRecents ? undefined : handleSelectAll}
         />
       )}
 
@@ -829,6 +839,11 @@ function FeedDetail() {
               {feed?.feedType === 'local' && (
                 <p className="text-sm text-warning mt-1">
                   This is a local feed: the imported originals are the only copy and will be deleted.
+                </p>
+              )}
+              {isRecents && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Only the combined feed is removed; the source feeds and episodes stay.
                 </p>
               )}
             </div>

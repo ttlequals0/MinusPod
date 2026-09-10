@@ -43,6 +43,17 @@ def legacy_db_path(tmp_path):
             UNIQUE(podcast_id, episode_id)
         )
     """)
+    conn.execute("""
+        CREATE TABLE episode_details (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            episode_id INTEGER UNIQUE NOT NULL,
+            transcript_text TEXT,
+            ad_markers_json TEXT,
+            claude_prompt TEXT,
+            claude_raw_response TEXT,
+            FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
+        )
+    """)
     conn.execute(
         "INSERT INTO podcasts (slug, source_url, title) VALUES (?, ?, ?)",
         ('migration-feed', 'https://example.com/feed.xml', 'Migration Feed'),
@@ -93,5 +104,22 @@ def test_deferred_migration_preserves_rows_and_allows_deferred(legacy_db_path, m
     ).fetchone()
     assert deferred['status'] == 'deferred'
     assert deferred['deferred_service'] == 'llm'
+
+    Database._instance = None
+
+
+def test_rebuild_restores_columns_added_after_its_ddl(legacy_db_path):
+    """The rebuild's hardcoded DDL predates later additive columns."""
+    from database import Database
+
+    Database._instance = None
+    db = Database(data_dir=str(legacy_db_path.parent))
+    cols = {row['name'] for row in db.get_connection().execute("PRAGMA table_info(episodes)")}
+    assert {'chapters_regen_started_at', 'chapters_regen_error',
+            'credited_time_saved', 'upstream_chapters_url'} <= cols
+
+    episode = db.get_episode('migration-feed', 'ep-0')
+    assert episode['episode_id'] == 'ep-0'
+    assert not episode['chapters_regen_active']
 
     Database._instance = None

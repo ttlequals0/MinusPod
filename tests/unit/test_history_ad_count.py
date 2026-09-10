@@ -114,7 +114,7 @@ class TestCompletionLogLineIncludesVerification:
     def test_log_includes_verification_count(self, caplog):
         db = MagicMock()
         # Mock get_episode_token_totals so we don't read/reset the
-        # module-level _episode_accumulator that other tests share.
+        # calling thread's run-context token accumulator.
         token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
         with caplog.at_level(logging.INFO, logger='podcast.audio'), \
                 patch('main_app.processing.get_episode_token_totals',
@@ -152,3 +152,35 @@ class TestCompletionLogLineIncludesVerification:
         )
         assert complete_line is not None
         assert '0 ads removed' in complete_line
+
+
+class TestCreditTimeSavedIsUnconditional:
+    """credit_time_saved must run on every completed pass with both
+    durations, even when the recut removed the saving, so the lifetime
+    counter corrects downward instead of just accumulating."""
+
+    def test_positive_saving_credits_the_delta(self):
+        db = MagicMock()
+        token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+        with patch('main_app.processing.get_episode_token_totals', return_value=token_stub):
+            _log_completion_summary(
+                slug='s', episode_id='e',
+                pass1_cut_count=1, verification_count=0,
+                original_duration=3600.0, new_duration=3300.0,
+                processing_time=60.0, db=db,
+            )
+        db.credit_time_saved.assert_called_once_with('s', 'e', 300.0)
+
+    def test_recut_that_removes_the_saving_credits_zero(self):
+        """A recut where new_duration >= original_duration must still call
+        credit_time_saved(0.0) so a prior positive credit is subtracted."""
+        db = MagicMock()
+        token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+        with patch('main_app.processing.get_episode_token_totals', return_value=token_stub):
+            _log_completion_summary(
+                slug='s', episode_id='e',
+                pass1_cut_count=0, verification_count=0,
+                original_duration=3600.0, new_duration=3650.0,
+                processing_time=60.0, db=db,
+            )
+        db.credit_time_saved.assert_called_once_with('s', 'e', 0.0)

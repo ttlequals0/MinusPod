@@ -369,7 +369,7 @@ class TestCueOnlyPipelineWiring:
              patch.object(processing.storage, 'get_original_path', return_value=None), \
              patch.object(processing.transcriber, 'transcribe_chunked') as tr:
             path, segments = processing._download_and_transcribe(
-                'slug', 'ep1', 'http://example.com/e.mp3', 'Pod', skip_transcription=True)
+                'slug', 'ep1', 'http://example.com/e.mp3', skip_transcription=True)
         tr.assert_not_called()
         assert path == '/tmp/a.mp3'
         assert segments == []
@@ -382,7 +382,7 @@ class TestCueOnlyPipelineWiring:
                           return_value='/tmp/copy.mp3') as copy, \
              patch.object(processing.transcriber, 'transcribe_chunked') as tr:
             path, segments = processing._download_and_transcribe(
-                'slug', 'ep1', 'http://example.com/e.mp3', 'Pod', skip_transcription=True)
+                'slug', 'ep1', 'http://example.com/e.mp3', skip_transcription=True)
         dl.assert_not_called()
         copy.assert_called_once_with('/tmp/orig.mp3')
         tr.assert_not_called()

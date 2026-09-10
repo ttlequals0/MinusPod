@@ -14,6 +14,7 @@ from tests.app_bootstrap import bootstrap
 _data_dir = bootstrap('run_log_pipeline_test_', reset_storage=True)
 
 import main_app.processing as processing  # noqa: E402
+import run_context  # noqa: E402
 import run_log  # noqa: E402
 from ad_detector import AdDetector  # noqa: E402
 from ad_reviewer import AdReviewer  # noqa: E402
@@ -156,6 +157,7 @@ class TestFallbackFailurePath:
 
 class TestSlotGuard:
     def test_a_slot_holding_another_run_is_not_finalized(self, db, tmp_path):
+        ctx = run_context.begin(SLUG, EPISODE_ID)
         other = run_log.RunLogRecorder('other-feed', 'other-ep', logging.INFO, tmp_path)
         other.attach()
         try:
@@ -169,6 +171,7 @@ class TestSlotGuard:
         finally:
             other.detach()
             other.discard()
+            run_context.end(ctx)
 
         assert _history_row(db)['log_file'] is None
 
@@ -204,6 +207,7 @@ class TestWorkerThreadRegistration:
             worker_logger.info('window %s has no run tag', window_idx)
             return SimpleNamespace(failed=False)
 
+        ctx = run_context.begin('w-feed', 'w-ep')
         recorder.attach()
         try:
             AdDetector._run_windows(
@@ -211,6 +215,7 @@ class TestWorkerThreadRegistration:
                 progress_base=0, progress_range=10, worker=worker)
         finally:
             recorder.detach()
+            run_context.end(ctx)
 
         lines = _log_lines(recorder.temp_path)
         recorder.discard()
@@ -228,15 +233,17 @@ class TestWorkerThreadRegistration:
             lambda *a, **k: (worker_logger.info('chunk failed without a tag'),
                              [{'start': 0.0, 'end': 1.0, 'text': 'hi'}])[1])
 
+        ctx = run_context.begin('w-feed', 'w-ep')
         recorder.attach()
         try:
             with patch.object(transcriber_mod, 'extract_audio_chunk',
                               return_value='/tmp/does-not-exist.flac'):
                 transcriber_mod.Transcriber._transcribe_chunked_parallel_api(
-                    fake, '/tmp/audio.mp3', 'Show', 1800.0,
+                    fake, '/tmp/audio.mp3', 1800.0,
                     {'skip_flac_compression': 'true'})
         finally:
             recorder.detach()
+            run_context.end(ctx)
 
         lines = _log_lines(recorder.temp_path)
         recorder.discard()
@@ -251,6 +258,7 @@ class TestWorkerThreadRegistration:
             lambda **kwargs: (worker_logger.info('reviewing without a tag'),
                               ('verdict', kwargs['ad']))[1])
 
+        ctx = run_context.begin('w-feed', 'w-ep')
         recorder.attach()
         try:
             AdReviewer._run_review_batch(
@@ -259,6 +267,7 @@ class TestWorkerThreadRegistration:
                 model='m', max_shift=5, max_workers=2)
         finally:
             recorder.detach()
+            run_context.end(ctx)
 
         lines = _log_lines(recorder.temp_path)
         recorder.discard()

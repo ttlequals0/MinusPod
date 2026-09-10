@@ -1,7 +1,7 @@
 /**
  * Tests for the Chapter Density group in the Transcripts & Chapters section.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Podcasting20Section from './Podcasting20Section';
@@ -10,15 +10,19 @@ import { baseDefaults, baseTunables, inputFor } from './tunablesTestFixtures';
 
 function Harness({
   onSave = () => {},
+  onChaptersInNotesChange = () => {},
 }: {
   onSave?: (payload: UpdateSettingsPayload) => void;
+  onChaptersInNotesChange?: (enabled: boolean) => void;
 }) {
   return (
     <Podcasting20Section
       vttTranscriptsEnabled
       chaptersEnabled
+      chaptersInNotes={false}
       onVttTranscriptsEnabledChange={() => {}}
       onChaptersEnabledChange={() => {}}
+      onChaptersInNotesChange={onChaptersInNotesChange}
       geometry={{
         tunables: baseTunables,
         defaults: baseDefaults,
@@ -85,5 +89,14 @@ describe('chapter density controls', () => {
       'Shortest chapter must not exceed the target chapter length.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save Chapter Density' })
       .hasAttribute('disabled')).toBe(true);
+  });
+});
+
+describe('chapters in episode description toggle', () => {
+  it('fires the change handler when switched on', async () => {
+    const onChange = vi.fn();
+    render(<Harness onChaptersInNotesChange={onChange} />);
+    await userEvent.click(screen.getByRole('switch', { name: 'List chapters in episode descriptions' }));
+    expect(onChange).toHaveBeenCalledWith(true);
   });
 });

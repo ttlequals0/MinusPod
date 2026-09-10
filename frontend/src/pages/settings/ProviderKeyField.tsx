@@ -101,7 +101,8 @@ function ProviderKeyField({
   }
 
   return (
-    <div>
+    // A form wrapper: Chrome warns about a password input outside one.
+    <form onSubmit={(e) => e.preventDefault()}>
       <div className="flex items-center gap-2 mb-2">
         <label htmlFor={`key-${provider}`} className="text-sm font-medium text-foreground">{label}</label>
         <StatusChip source={status.source} />
@@ -170,7 +171,7 @@ function ProviderKeyField({
           <p>The environment variable, if one is set, will be used instead.</p>
         </ConfirmModal>
       )}
-    </div>
+    </form>
   );
 }
 

@@ -78,10 +78,9 @@ def test_transcribe_vad_filter_false_reaches_model():
     assert kwargs['vad_parameters'] is None
 
 
-def test_api_backend_still_routes_with_vad_filter_false():
-    """OpenAI-compatible endpoints expose no VAD switch (VAD there is
-    server-side config); the call must not break -- the tail is simply
-    sent as its own upload (spec 1.2)."""
+def test_api_backend_forwards_vad_filter_false():
+    """The tail upload must carry vad_filter=False, or a server that
+    supports the switch never sees it and the pass is a normal one."""
     t = Transcriber()
     api_settings = dict(_local_settings(), backend='openai-api')
     with patch('transcriber._get_whisper_settings',
@@ -91,3 +90,4 @@ def test_api_backend_still_routes_with_vad_filter_false():
         result = t.transcribe('/nonexistent.wav', vad_filter=False)
     assert result == []
     api.assert_called_once()
+    assert api.call_args.kwargs['vad_filter'] is False

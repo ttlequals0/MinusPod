@@ -42,13 +42,13 @@ interface QueueHold {
   queuePaused: boolean;
   holdUntil: string | null;
   holdSince: string | null;
-  rateLimitHeld: number;
   offlineHeld: number;
   offlineServices: OfflineService[];
 }
 
 interface StatusData {
   currentJob: ProcessingJob | null;
+  jobs?: ProcessingJob[];
   queueLength: number;
   queuedEpisodes: QueuedEpisode[];
   feedRefreshes: FeedRefresh[];
@@ -91,42 +91,39 @@ function resumesText(iso: string | null): string {
   return `Resumes ${formatClock(iso)}${relative ? ` (${relative})` : ''}.`;
 }
 
-/** "1h 15m" between two stamps, or null when either is missing. */
-function spanText(fromIso: string | null, toIso: string | null): string | null {
-  if (!fromIso || !toIso) return null;
-  const mins = Math.round(
-    (new Date(toIso).getTime() - new Date(fromIso).getTime()) / 60000);
-  if (!Number.isFinite(mins) || mins < 1) return null;
-  if (mins < 60) return `${mins}m`;
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
-}
-
-/** The rate-limit line: how long the pause has run and when it ends. */
+/** The rate-limit line: when the pause ends first, then when it began. */
 function rateLimitText(hold: QueueHold): string {
-  const started = hold.holdSince ? ` since ${formatClock(hold.holdSince)}` : '';
-  if (hold.queuePaused) {
-    return `Provider rate limit${started}. ${resumesText(hold.holdUntil)}`;
-  }
-  const ran = spanText(hold.holdSince, hold.holdUntil);
-  const lifted = hold.holdUntil ? ` at ${formatClock(hold.holdUntil)}` : '';
-  return `Provider rate limit lifted${lifted}${ran ? ` after ${ran}` : ''}. `
-    + 'Held episodes requeue shortly.';
+  const started = hold.holdSince ? ` Paused since ${formatClock(hold.holdSince)}.` : '';
+  return `Provider rate limit. ${resumesText(hold.holdUntil)}${started}`;
 }
 
 /** Short summary for the collapsed bar, or null when nothing is held. */
 function holdSummary(hold: QueueHold | undefined): string | null {
   if (!hold) return null;
-  if (hold.queuePaused) return 'Queue paused';
+  if (hold.queuePaused) {
+    return hold.holdUntil ? `Paused until ${formatClock(hold.holdUntil)}` : 'Queue paused';
+  }
   if (hold.offlineHeld > 0) {
     const down = hold.offlineServices.filter((s) => s.reachable === false);
     return down.length === 1
       ? `${serviceLabel(down[0].service)} unreachable`
       : 'Waiting on a service';
   }
-  if (hold.rateLimitHeld > 0) return 'Episodes held';
   return null;
 }
 
+
+/** The running jobs in a frame, keyed slug:episodeId. Older frames carry only
+ *  currentJob, so that is the fallback. */
+function jobKeys(status: StatusData | null): Set<string> {
+  const list = status?.jobs ?? (status?.currentJob ? [status.currentJob] : []);
+  return new Set(list.map((job) => `${job.slug}:${job.episodeId}`));
+}
+
+/** Server elapsed plus seconds ticked locally since the frame carrying it arrived. */
+function jobElapsed(job: ProcessingJob, now: number, receivedAt: number): number {
+  return job.elapsed + (now - receivedAt) / 1000;
+}
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) {
@@ -146,29 +143,25 @@ function GlobalStatusBar() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  // When the current status frame arrived: elapsed is the server's own
+  // job.elapsed plus seconds ticked locally since this frame landed, so a
+  // client clock skewed from the server's never shows a wrong duration.
+  const [receivedAt, setReceivedAt] = useState(() => Date.now());
   const [, setReconnectAttempt] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const prevStatusRef = useRef<StatusData | null>(null);
   const queryClient = useQueryClient();
 
-  // Reset the elapsed counter when the current job changes (during render).
-  const currentJobStarted = status?.currentJob?.startedAt;
-  const [lastJobStarted, setLastJobStarted] = useState(currentJobStarted);
-  if (currentJobStarted !== lastJobStarted) {
-    setLastJobStarted(currentJobStarted);
-    setElapsed(0);
-  }
+  const jobs = status?.jobs ?? (status?.currentJob ? [status.currentJob] : []);
 
-  // Tick the elapsed counter every second while a job is running.
+  // Tick the elapsed counter every second while any job is running.
   useEffect(() => {
-    if (!currentJobStarted) return;
-    const interval = setInterval(() => {
-      setElapsed(Date.now() / 1000 - currentJobStarted);
-    }, 1000);
+    if (jobs.length === 0) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [currentJobStarted]);
+  }, [jobs.length]);
 
   useEffect(() => {
     function connect() {
@@ -201,16 +194,17 @@ function GlobalStatusBar() {
         try {
           const data = JSON.parse(event.data) as StatusData;
           setStatus(data);
-          if (data.currentJob) {
-            setElapsed(data.currentJob.elapsed);
-          }
+          setNow(Date.now());
+          setReceivedAt(Date.now());
 
           // Invalidate React Query caches on status transitions so
           // pages (FeedDetail, EpisodeDetail, Dashboard) pick up
           // changes without manual refresh.
           const prev = prevStatusRef.current;
-          if (prev?.currentJob && !data.currentJob) {
-            // Job just completed
+          const nextKeys = jobKeys(data);
+          if ([...jobKeys(prev)].some((key) => !nextKeys.has(key))) {
+            // A job in the previous frame is missing from this one, so it
+            // finished. A count would miss one ending as another starts.
             queryClient.invalidateQueries({ queryKey: ['episode'] });
             queryClient.invalidateQueries({ queryKey: ['episodes'] });
             queryClient.invalidateQueries({ queryKey: ['feed'] });
@@ -280,6 +274,7 @@ function GlobalStatusBar() {
 
   const currentJob = status?.currentJob;
   const stageLabel = currentJob ? getStageLabel(currentJob.stage) : '';
+  const extra = jobs.length - 1;
 
   return (
     <div
@@ -324,7 +319,7 @@ function GlobalStatusBar() {
 
             {/* Elapsed time */}
             <span className="text-xs text-muted-foreground shrink-0 w-14 text-right">
-              {formatDuration(elapsed)}
+              {formatDuration(jobElapsed(currentJob, now, receivedAt))}
             </span>
           </>
         ) : (
@@ -337,6 +332,13 @@ function GlobalStatusBar() {
         {summary && currentJob && (
           <span className="px-1.5 py-0.5 text-xs font-medium bg-warning/10 text-warning rounded shrink-0">
             {summary}
+          </span>
+        )}
+
+        {/* Other running jobs */}
+        {extra > 0 && (
+          <span className="px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded shrink-0">
+            +{extra} running
           </span>
         )}
 
@@ -367,45 +369,35 @@ function GlobalStatusBar() {
 
       {/* Expanded View */}
       {isExpanded && (
-        <div className="px-4 pb-3 border-t border-border/50 bg-accent/20 max-h-48 overflow-y-auto">
-          {/* Current job details */}
-          {currentJob && (
-            <div className="py-2 border-b border-border/30">
+        // 26rem fits four running jobs plus the hold, queued and refresh blocks; the 70vh cap keeps a phone screen uncovered.
+        <div className="px-4 pb-3 border-t border-border/50 bg-accent/20 max-h-[min(70vh,26rem)] overflow-y-auto">
+          {/* Running jobs, oldest first */}
+          {jobs.map((j) => (
+            <div key={`${j.slug}-${j.episodeId}`} data-testid="status-job" className="py-2 border-b border-border/30">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {currentJob.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {currentJob.podcastName}
-                  </p>
+                  <p className="text-sm font-medium text-foreground truncate">{j.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{j.podcastName}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-medium text-primary">{stageLabel}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDuration(elapsed)}
-                  </p>
+                  <p className="text-sm font-medium text-primary">{getStageLabel(j.stage)}</p>
+                  <p className="text-xs text-muted-foreground">{formatDuration(jobElapsed(j, now, receivedAt))}</p>
                 </div>
               </div>
               <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${currentJob.progress}%` }}
-                />
+                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${j.progress}%` }} />
               </div>
             </div>
-          )}
+          ))}
 
           {/* Queue holds: why work is not moving, and when it resumes */}
           {summary && hold && (
             <div className="py-2 border-b border-border/30">
               <p className="text-xs font-medium text-warning mb-1">{summary}</p>
               <ul className="space-y-1">
-                {(hold.queuePaused || hold.rateLimitHeld > 0) && (
+                {hold.queuePaused && (
                   <li className="text-xs text-foreground">
-                    {rateLimitText(hold)}
-                    {hold.rateLimitHeld > 0
-                      && ` ${countLabel(hold.rateLimitHeld, 'episode')} waiting.`}
+                    {rateLimitText(hold)} Queued episodes wait in place.
                   </li>
                 )}
                 {hold.offlineServices.map((svc) => (

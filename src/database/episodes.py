@@ -2,15 +2,30 @@
 import json
 import logging
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
 from utils.constants import EpisodeStatus
+from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
 # Columns the ad-detection and cut stages regenerate (issue #349 LLM-only
 # reprocess). Shared by clear_episode_ad_data and batch_clear_episode_ad_data.
+# Episodes per discovery write transaction. One transaction spanning a large
+# archive feed held the single write lock long enough for every other writer to
+# exceed its 30s busy_timeout and fail with "database is locked".
+DISCOVERY_UPSERT_CHUNK = 50
+
+# A regen stamp older than this belongs to a worker that died mid-run.
+CHAPTERS_REGEN_STALE_SECONDS = 900
+
+
+def _chapters_regen_cutoff() -> str:
+    """Stamps at or below this are stale and can be taken over."""
+    return (utc_now() - timedelta(seconds=CHAPTERS_REGEN_STALE_SECONDS)).strftime(ISO_FORMAT)
+
 AD_DATA_NULL_SET_SQL = """SET ad_markers_json = NULL,
                    first_pass_prompt = NULL,
                    first_pass_response = NULL,
@@ -30,13 +45,15 @@ def normalize_published_at(value: str | None) -> str | None:
     """
     if not value:
         return value
-    if value[0].isdigit():
-        return value
+    # Stored as true UTC: cross-feed ordering and the recents cutoff compare
+    # these strings directly, so a publisher's local offset must not survive.
     try:
-        parsed = parsedate_to_datetime(value)
-        return parsed.strftime('%Y-%m-%dT%H:%M:%SZ')
+        parsed = datetime.fromisoformat(value) if value[0].isdigit() else parsedate_to_datetime(value)
     except (ValueError, TypeError):
         return value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).strftime(ISO_FORMAT)
 
 
 def _serialize_applied_cut(cut: dict) -> dict:
@@ -116,6 +133,8 @@ class EpisodeMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT e.*, p.slug, p.title AS podcast_title,
+                      -- Fixed-width ISO stamps compare as strings; NULL yields NULL.
+                      (e.chapters_regen_started_at > ?) AS chapters_regen_active,
                       ed.transcript_text,
                       (ed.original_transcript_text IS NOT NULL) as has_original_transcript,
                       ed.transcript_vtt,
@@ -127,7 +146,7 @@ class EpisodeMixin:
                JOIN podcasts p ON e.podcast_id = p.id
                LEFT JOIN episode_details ed ON e.id = ed.episode_id
                WHERE p.slug = ? AND e.episode_id = ?""",
-            (slug, episode_id)
+            (_chapters_regen_cutoff(), slug, episode_id)
         )
         row = cursor.fetchone()
         return dict(row) if row else None
@@ -239,7 +258,7 @@ class EpisodeMixin:
                                'deferred_at', 'deferred_service', 'detection_degraded',
                                'low_yield_rerun_at', 'reprocess_source',
                                'season_number', 'p20_item_json',
-                               'pending_recut_at'):
+                               'pending_recut_at', 'chapters_regen_error'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -321,6 +340,68 @@ class EpisodeMixin:
         )
         row = cursor.fetchone()
         return row['id'] if row else None
+
+    def get_episode_state(self, slug: str, episode_id: str) -> dict | None:
+        """Just the fields a caller needs to decide whether to act on an episode."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT e.status, e.processed_version,
+                      (ed.transcript_vtt IS NOT NULL) AS has_transcript_vtt
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               LEFT JOIN episode_details ed ON e.id = ed.episode_id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def claim_chapters_regen(self, slug: str, episode_id: str) -> str | None:
+        """Stamp a chapter regeneration as in flight and return the stamp that owns
+        it. None when a fresh stamp exists or the episode is processing; a stale
+        stamp is taken over."""
+        conn = self.get_connection()
+        stamp = utc_now_iso()
+        cursor = conn.execute(
+            """UPDATE episodes
+               SET chapters_regen_started_at = ?, chapters_regen_error = NULL
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                 AND status != 'processing'
+                 AND (chapters_regen_started_at IS NULL
+                      OR chapters_regen_started_at <= ?)""",
+            (stamp, episode_id, slug, _chapters_regen_cutoff())
+        )
+        conn.commit()
+        return stamp if cursor.rowcount == 1 else None
+
+    def finish_chapters_regen(self, slug: str, episode_id: str, stamp: str,
+                              error: str | None = None):
+        """Clear the in-flight stamp; error is kept until the next run starts.
+        A stamp taken over by a newer run no longer matches, so its state stands."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """UPDATE episodes
+               SET chapters_regen_started_at = NULL, chapters_regen_error = ?
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                 AND chapters_regen_started_at = ?""",
+            (error, episode_id, slug, stamp)
+        )
+        conn.commit()
+        if cursor.rowcount == 0:
+            logger.info(f"[{slug}:{episode_id}] Chapter regen stamp {stamp} was taken over; "
+                        f"outcome dropped (error={error})")
+
+    def clear_chapters_regen_stamps(self) -> int:
+        """Drop every in-flight stamp; a restart killed the threads behind them."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """UPDATE episodes SET chapters_regen_started_at = NULL
+               WHERE chapters_regen_started_at IS NOT NULL"""
+        )
+        conn.commit()
+        return cursor.rowcount
 
     def save_episode_details(self, slug: str, episode_id: str,
                             transcript_text: str = None,
@@ -627,38 +708,34 @@ class EpisodeMixin:
         row = cursor.fetchone()
         return row['transcript'] if row else None
 
-    def save_episode_audio_analysis(self, slug: str, episode_id: str, audio_analysis_json: str):
-        """Save audio analysis results for an episode."""
-        conn = self.get_connection()
+    _DETAIL_JSON_UPSERT = {
+        'audio_analysis_json': """
+            INSERT INTO episode_details (episode_id, audio_analysis_json)
+            VALUES (?, ?)
+            ON CONFLICT(episode_id) DO UPDATE
+            SET audio_analysis_json = excluded.audio_analysis_json""",
+        'dai_differential_json': """
+            INSERT INTO episode_details (episode_id, dai_differential_json)
+            VALUES (?, ?)
+            ON CONFLICT(episode_id) DO UPDATE
+            SET dai_differential_json = excluded.dai_differential_json""",
+    }
 
+    def _upsert_episode_detail_json(self, slug, episode_id, column, value) -> bool:
+        """Set one JSON column on episode_details in a single immediate
+        transaction, so a locked write rolls back instead of leaking (#566)."""
         db_episode_id = self._get_episode_db_id(slug, episode_id)
         if not db_episode_id:
-            logger.warning(f"Episode not found for audio analysis: {slug}/{episode_id}")
-            return
+            logger.warning(f"Episode not found for {column}: {slug}/{episode_id}")
+            return False
+        with self.transaction(immediate=True) as conn:
+            conn.execute(self._DETAIL_JSON_UPSERT[column], (db_episode_id, value))
+        return True
 
-        # Check if details exist
-        cursor = conn.execute(
-            "SELECT id FROM episode_details WHERE episode_id = ?",
-            (db_episode_id,)
-        )
-        row = cursor.fetchone()
-
-        if row:
-            # Update existing
-            conn.execute(
-                "UPDATE episode_details SET audio_analysis_json = ? WHERE id = ?",
-                (audio_analysis_json, row['id'])
-            )
-        else:
-            # Insert new
-            conn.execute(
-                """INSERT INTO episode_details (episode_id, audio_analysis_json)
-                   VALUES (?, ?)""",
-                (db_episode_id, audio_analysis_json)
-            )
-
-        conn.commit()
-        logger.debug(f"[{slug}:{episode_id}] Saved audio analysis to database")
+    def save_episode_audio_analysis(self, slug: str, episode_id: str, audio_analysis_json: str):
+        """Save audio analysis results for an episode."""
+        if self._upsert_episode_detail_json(slug, episode_id, 'audio_analysis_json', audio_analysis_json):
+            logger.debug(f"[{slug}:{episode_id}] Saved audio analysis to database")
 
     def get_episode_audio_analysis(self, slug: str, episode_id: str):
         """Return the raw audio_analysis_json for an episode, or None."""
@@ -675,33 +752,8 @@ class EpisodeMixin:
     def save_episode_dai_differential(self, slug: str, episode_id: str,
                                       dai_differential_json: str):
         """Save the cross-fetch differential result for an episode."""
-        conn = self.get_connection()
-
-        db_episode_id = self._get_episode_db_id(slug, episode_id)
-        if not db_episode_id:
-            logger.warning(f"Episode not found for dai differential: {slug}/{episode_id}")
-            return
-
-        cursor = conn.execute(
-            "SELECT id FROM episode_details WHERE episode_id = ?",
-            (db_episode_id,)
-        )
-        row = cursor.fetchone()
-
-        if row:
-            conn.execute(
-                "UPDATE episode_details SET dai_differential_json = ? WHERE id = ?",
-                (dai_differential_json, row['id'])
-            )
-        else:
-            conn.execute(
-                """INSERT INTO episode_details (episode_id, dai_differential_json)
-                   VALUES (?, ?)""",
-                (db_episode_id, dai_differential_json)
-            )
-
-        conn.commit()
-        logger.debug(f"[{slug}:{episode_id}] Saved dai differential to database")
+        if self._upsert_episode_detail_json(slug, episode_id, 'dai_differential_json', dai_differential_json):
+            logger.debug(f"[{slug}:{episode_id}] Saved DAI differential to database")
 
     def get_episode_dai_differential(self, slug: str, episode_id: str):
         """Return the raw dai_differential_json for an episode, or None."""
@@ -850,6 +902,56 @@ class EpisodeMixin:
             (podcast_id,)
         )
         return [dict(row) for row in cursor.fetchall()]
+
+    # Membership of the recents feed (#721): processed episodes across
+    # subscribed and local feeds published on or after the cutoff. Publish
+    # date only: a backlog episode processed later keeps its old date.
+    _RECENTS_WHERE = ("FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+                      "WHERE e.status = 'processed' AND e.processed_file IS NOT NULL "
+                      "AND p.feed_type IN ('subscribed', 'local') "
+                      "AND e.published_at IS NOT NULL AND e.published_at >= ?")
+    _RECENTS_SOURCE_COLS = ("p.slug AS source_slug, "
+                            "COALESCE(NULLIF(p.title_override, ''), NULLIF(p.title, ''), p.slug) AS source_title, "
+                            "p.feed_type AS source_feed_type, p.chapters_in_notes AS source_chapters_in_notes")
+
+    def count_recent_processed_episodes(self, since: str) -> int:
+        return self.get_connection().execute(
+            f"SELECT COUNT(*) {self._RECENTS_WHERE}", (since,)).fetchone()[0]
+
+    def get_recent_processed_episodes(self, since: str, limit: int | None = None,
+                                      offset: int = 0, sort_by: str = 'published_at',
+                                      sort_dir: str = 'desc', details: bool = False) -> list[dict]:
+        """Each row carries its source feed's slug, display title, feed type and
+        chapters override. details=True adds chapters_json and has_transcript_vtt
+        for the feed renderer; typeof() reads the record header instead of
+        copying the VTT text."""
+        sort_col = sort_by if sort_by in self.VALID_SORT_COLUMNS else 'published_at'
+        direction = 'ASC' if str(sort_dir).lower() == 'asc' else 'DESC'
+        cols = f"e.*, {self._RECENTS_SOURCE_COLS}"
+        join = ''
+        if details:
+            cols += ", d.chapters_json, typeof(d.transcript_vtt) = 'text' AS has_transcript_vtt"
+            join = "LEFT JOIN episode_details d ON d.episode_id = e.id "
+        where = self._RECENTS_WHERE.replace('WHERE ', f'{join}WHERE ', 1)
+        query = f"SELECT {cols} {where} ORDER BY e.{sort_col} {direction}, e.id DESC"
+        params: list = [since]
+        if limit:
+            query += " LIMIT ? OFFSET ?"
+            params += [limit, offset]
+        return [dict(r) for r in self.get_connection().execute(query, params).fetchall()]
+
+    def get_chapters_json_for_podcast(self, podcast_id: int) -> dict[str, str]:
+        """{episode_id: chapters_json} for a feed's processed episodes; one
+        query instead of a full-row join per served item. Processed only:
+        the timestamps are on the cut timeline, so they must not be listed
+        against original audio."""
+        cursor = self.get_connection().execute(
+            """SELECT e.episode_id, d.chapters_json
+               FROM episodes e JOIN episode_details d ON d.episode_id = e.id
+               WHERE e.podcast_id = ? AND e.status = 'processed'
+                     AND d.chapters_json IS NOT NULL""",
+            (podcast_id,))
+        return {row['episode_id']: row['chapters_json'] for row in cursor.fetchall()}
 
     _EPISODE_JSON_COLS = frozenset({'ad_markers_json', 'audio_analysis_json',
                                     'original_segments_json'})
@@ -1006,9 +1108,16 @@ class EpisodeMixin:
         never overwrites an existing episode's status or non-empty metadata.
         Returns count of newly inserted rows.
 
-        Runs in an immediate transaction: a deferred begin upgrades to a write
-        lock at the first INSERT, and that upgrade fails instantly with
-        "database is locked" rather than waiting on busy_timeout (issue #566).
+        Not atomic across the feed: a chunk raising leaves earlier chunks
+        committed, and the caller records a refresh failure and retries. The
+        upsert is idempotent, so the retry reconciles.
+
+        Each chunk runs in its own immediate transaction: a deferred begin
+        upgrades to a write lock at the first INSERT, and that upgrade fails
+        instantly with "database is locked" rather than waiting on
+        busy_timeout (issue #566). Chunking bounds how long that lock is
+        held, since one transaction spanning a large archive feed starved
+        every other writer past its busy_timeout (#728 follow-up).
         """
         podcast = self.get_podcast_by_slug(slug)
         if not podcast:
@@ -1019,33 +1128,39 @@ class EpisodeMixin:
         inserted = 0
         skipped = 0
 
-        with self.transaction(immediate=True) as conn:
-            # Snapshot existing GUIDs so we can count real inserts. SQLite's
-            # cursor.rowcount is 1 for both the INSERT and the UPDATE branch of
-            # an UPSERT (and even for an UPDATE that sets every column to its
-            # current value), so it cannot distinguish "new" from "re-touched".
-            # The downstream log line "Discovered N new episode(s)" needs the
-            # real new-row count, not the upsert-touched count.
-            existing_ids = {
-                row['episode_id'] for row in conn.execute(
-                    "SELECT episode_id FROM episodes WHERE podcast_id = ?",
-                    (podcast_id,),
-                ).fetchall()
-            }
+        # Snapshot existing GUIDs so we can count real inserts. SQLite's
+        # cursor.rowcount is 1 for both the INSERT and the UPDATE branch of
+        # an UPSERT (and even for an UPDATE that sets every column to its
+        # current value), so it cannot distinguish "new" from "re-touched".
+        # The downstream log line "Discovered N new episode(s)" needs the
+        # real new-row count, not the upsert-touched count. Read outside the
+        # write transactions so the lock is not held across it, which lets a
+        # concurrent refresh of the same feed inflate the count and cost a
+        # redundant reindex; both are cosmetic.
+        existing_ids = {
+            row['episode_id'] for row in self.get_connection().execute(
+                "SELECT episode_id FROM episodes WHERE podcast_id = ?",
+                (podcast_id,),
+            ).fetchall()
+        }
 
-            newly_inserted_pairs = []
-            for ep in episodes:
-                row_inserted, row_skipped = self._upsert_one_discovered_episode(
-                    conn, podcast_id, slug, ep, existing_ids)
-                inserted += row_inserted
-                skipped += row_skipped
-                if row_inserted:
-                    newly_inserted_pairs.append((ep['id'], slug))
+        for start in range(0, len(episodes), DISCOVERY_UPSERT_CHUNK):
+            chunk = episodes[start:start + DISCOVERY_UPSERT_CHUNK]
+            with self.transaction(immediate=True) as conn:
+                newly_inserted_pairs = []
+                for ep in chunk:
+                    row_inserted, row_skipped = self._upsert_one_discovered_episode(
+                        conn, podcast_id, slug, ep, existing_ids)
+                    inserted += row_inserted
+                    skipped += row_skipped
+                    if row_inserted:
+                        newly_inserted_pairs.append((ep['id'], slug))
 
-            # Batched inside this same transaction: one DELETE + INSERT for the
-            # whole discovery, never index_episode() per row (that commits per call).
-            if newly_inserted_pairs:
-                self.index_episodes(newly_inserted_pairs, conn=conn)
+                # Indexed in the chunk's own transaction, so a crash between
+                # commit and index cannot leave rows unindexed. Never
+                # index_episode() per row (it commits per call).
+                if newly_inserted_pairs:
+                    self.index_episodes(newly_inserted_pairs, conn=conn)
 
         if skipped:
             logger.warning(

@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import sqlite3
+import string
 from typing import Any
 from urllib.parse import urlparse
 
@@ -64,6 +65,18 @@ SEGMENT_CATEGORIES = ('sponsor', 'cross_promo', 'self_promo', 'interaction',
                       'intro', 'outro', 'recap')
 SEGMENT_ACTIONS = ('remove', 'beep', 'keep')
 DEFAULT_SEGMENT_ACTION = 'remove'
+
+# Display names for the categories. Mirrors SEGMENT_CATEGORY_LABELS in
+# frontend/src/utils/segmentCategory.ts; keep the two in sync.
+SEGMENT_CATEGORY_LABELS = {
+    'sponsor': 'Sponsor',
+    'cross_promo': 'Cross-promo',
+    'self_promo': 'Self-promo',
+    'interaction': 'Interaction',
+    'intro': 'Intro',
+    'outro': 'Outro',
+    'recap': 'Recap',
+}
 
 
 # Spelled-out forms a model reaches for instead of the canonical category.
@@ -173,6 +186,55 @@ def resolve_segment_category_actions_map(
         if cat in SEGMENT_CATEGORIES and action in SEGMENT_ACTIONS:
             merged[cat] = action
     return merged
+
+
+# Ad chapters: segments left in the audio published as skippable chapters.
+AD_CHAPTER_SNAP_SECONDS = 2.0
+AD_CHAPTER_KINDS = frozenset({'ad', 'resume'})
+DEFAULT_AD_CHAPTER_CATEGORIES = {
+    cat: cat in ('sponsor', 'cross_promo') for cat in SEGMENT_CATEGORIES}
+DEFAULT_AD_CHAPTER_CATEGORIES_JSON = json.dumps(DEFAULT_AD_CHAPTER_CATEGORIES)
+
+
+def resolve_ad_chapter_categories_map(raw_json, baseline=None) -> dict[str, bool]:
+    """Full category -> bool map; unknown keys and non-bool values are ignored."""
+    merged = dict(baseline) if baseline is not None else dict(DEFAULT_AD_CHAPTER_CATEGORIES)
+    if not raw_json:
+        return merged
+    try:
+        parsed = json.loads(raw_json)
+    except (TypeError, ValueError):
+        return merged
+    if not isinstance(parsed, dict):
+        return merged
+    for cat, flag in parsed.items():
+        if cat in SEGMENT_CATEGORIES and isinstance(flag, bool):
+            merged[cat] = flag
+    return merged
+
+
+def valid_ad_chapter_title_format(value) -> bool:
+    """A title template must be non-empty and use only bare {category} or {label}
+    fields; parsed rather than formatted so {category.foo} and friends are rejected."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        fields = list(string.Formatter().parse(value))
+    except ValueError:
+        return False
+    return all(name is None or (name in ('category', 'label') and not spec and not conv)
+               for _, name, spec, conv in fields)
+
+
+def validate_ad_chapter_categories(value) -> str | None:
+    """Error message for an adChapterCategories map, or None when it is valid."""
+    if not isinstance(value, dict):
+        return 'adChapterCategories must be an object'
+    for cat, flag in value.items():
+        if cat not in SEGMENT_CATEGORIES or not isinstance(flag, bool):
+            return (f"adChapterCategories: '{cat}' must be a known category "
+                    "with true or false")
+    return None
 
 
 # Hold reasons pass-2 auto-approval may release when the verification pass
@@ -368,7 +430,6 @@ FEED_REFRESH_FAILURE_COUNT_INTERVAL = 600  # Seconds between counted failures
 # NULL reads as DEFER_SERVICE_LLM.
 DEFER_SERVICE_LLM = 'llm'
 DEFER_SERVICE_WHISPER = 'whisper'
-DEFER_SERVICE_RATE_LIMIT = 'llm_rate_limit'
 
 # ============================================================
 # Text Pattern Matching Thresholds
@@ -858,6 +919,31 @@ def resolve_chapters_mode(podcast_row):
     return mode if mode in VALID_CHAPTERS_MODES else CHAPTERS_MODE_AUTO
 
 
+# Chapter list in served descriptions (#720): per-feed 'on'/'off', NULL
+# follows the global chapters_in_notes setting.
+CHAPTERS_IN_NOTES_VALUES = EPISODE_LOGS_VALUES
+# Per-feed ad_chapters_enabled_override, same 'on'/'off' shape.
+AD_CHAPTERS_OVERRIDE_VALUES = EPISODE_LOGS_VALUES
+
+
+def _resolve_feed_toggle(db, podcast_row, column, setting, default) -> bool:
+    """Per-feed 'on'/'off' override in `column`, else the global `setting`."""
+    override = (podcast_row or {}).get(column)
+    if override in EPISODE_LOGS_VALUES:
+        return override == 'on'
+    return db.get_setting_bool(setting, default)
+
+
+def resolve_chapters_in_notes(db, podcast_row) -> bool:
+    return _resolve_feed_toggle(db, podcast_row, 'chapters_in_notes',
+                                'chapters_in_notes', False)
+
+
+def resolve_ad_chapters_enabled(db, podcast_row) -> bool:
+    return _resolve_feed_toggle(db, podcast_row, 'ad_chapters_enabled_override',
+                                'ad_chapters_enabled', False)
+
+
 def resolve_cue_template_score_with_source(db, podcast_id):
     """Per-feed cue match threshold with source tag ('override' or 'global')."""
     try:
@@ -1284,6 +1370,12 @@ API_CHUNK_DURATION_SECONDS = 600
 # Whisper backend identifiers
 WHISPER_BACKEND_LOCAL = 'local'
 WHISPER_BACKEND_API = 'openai-api'
+
+# Whisper pool bounds. The settings registry validator, the POST /settings
+# range check and the pool's own reader clamp all read these, so an env var
+# or a direct DB write cannot route around the range.
+WHISPER_POOL_MAX_REQUESTS_RANGE = (1, 64)
+WHISPER_POOL_MAX_EPISODES_RANGE = (1, 16)
 
 # Whisper compute-type values accepted by faster-whisper/CTranslate2.
 # 'auto' resolves to float16 on CUDA and int8 on CPU at init time.

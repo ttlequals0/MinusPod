@@ -153,6 +153,10 @@ def embed_chapters(audio_path: str, chapters: list[dict],
     duration is the file's duration in seconds when the caller already knows
     it; omitted, it is probed.
 
+    An empty chapter list means "remove every chapter frame", so a rebuild
+    that ends up with nothing can still clear stale frames. A non-empty list
+    whose entries are all unusable stays a failure.
+
     Returns True on success; failures leave the original file untouched.
     """
     if not duration:
@@ -161,7 +165,7 @@ def embed_chapters(audio_path: str, chapters: list[dict],
         logger.warning(f"Chapter embed skipped: no duration for {audio_path}")
         return False
     spans = chapters_to_spans(chapters, duration)
-    if not spans:
+    if not spans and chapters:
         logger.warning(f"Chapter embed skipped: no usable chapters for {audio_path}")
         return False
 
@@ -180,7 +184,9 @@ def embed_chapters(audio_path: str, chapters: list[dict],
             'ffmpeg', '-y',
             '-i', audio_path,
             '-f', 'ffmetadata', '-i', meta_path,
-            '-map', '0', '-map_metadata', '0', '-map_chapters', '1',
+            # -1 drops every chapter frame: an empty set is "remove them all".
+            '-map', '0', '-map_metadata', '0',
+            '-map_chapters', '1' if spans else '-1',
             '-c', 'copy', '-f', 'mp3',
             tmp_path,
         ]
@@ -190,7 +196,8 @@ def embed_chapters(audio_path: str, chapters: list[dict],
             logger.warning(f"Chapter embed failed for {audio_path}: {stderr}")
             return False
         os.replace(tmp_path, audio_path)
-        logger.info(f"Embedded {len(spans)} chapters into {audio_path}")
+        logger.info(f"Embedded {len(spans)} chapters into {audio_path}" if spans
+                    else f"Removed all embedded chapters from {audio_path}")
         return True
     except (OSError, subprocess.SubprocessError) as e:
         logger.warning(f"Chapter embed failed for {audio_path}: {e}")

@@ -30,8 +30,11 @@ from config import (
     SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
     SILENCE_SNAP_MAX_DISTANCE_SECONDS,
     resolve_segment_category_actions_map,
+    DEFAULT_AD_CHAPTER_CATEGORIES_JSON, resolve_ad_chapter_categories_map,
+    valid_ad_chapter_title_format,
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     resolve_jit_blocked_user_agents,
+    WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
 )
 from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
@@ -45,6 +48,30 @@ logger = logging.getLogger(__name__)
 def _valid_notification_timezone(tz: str) -> bool:
     """UTC is always acceptable, even on a host with no tzdata installed."""
     return tz == 'UTC' or is_valid_timezone(tz)
+
+
+def _int_in_range(bounds: tuple[int, int]) -> Callable[[str], bool]:
+    """Validator accepting only an integer string inside `bounds`."""
+    lo, hi = bounds
+
+    def check(value: str) -> bool:
+        try:
+            return lo <= int(value) <= hi
+        except (TypeError, ValueError):
+            return False
+    return check
+
+
+def _float_in_range(bounds: tuple[float, float]) -> Callable[[str], bool]:
+    """Validator accepting only a float string inside `bounds`."""
+    lo, hi = bounds
+
+    def check(value: str) -> bool:
+        try:
+            return lo <= float(value) <= hi
+        except (TypeError, ValueError):
+            return False
+    return check
 
 # Default pricing for known Anthropic models (USD per 1M tokens)
 # claude-sonnet-5/fable-5/opus-4-8 values from LiteLLM 2026-07-02.
@@ -127,6 +154,10 @@ def _payload_max_audio_download_mb() -> int:
 def _payload_segment_category_actions() -> dict[str, str]:
     return resolve_segment_category_actions_map(
         registry_default('segment_category_actions'))
+
+
+def _payload_ad_chapter_categories() -> dict[str, bool]:
+    return resolve_ad_chapter_categories_map(registry_default('ad_chapter_categories'))
 
 
 def _payload_community_sync_categories() -> list[str]:
@@ -259,8 +290,13 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # not exposed through the general settings payload.
     'rate_limit_hold_enabled': SettingSpec(
         default='false', seeded=True, resettable=False),
-    'rate_limit_hold_ttl_hours': SettingSpec(
-        default='48', seeded=True, resettable=False),
+    # Rate-limit hold probe: re-checks an active hold instead of waiting out
+    # the provider's stated reset, which can be wrong in either direction.
+    'llm_usage_url': SettingSpec(
+        default='', env='LLM_USAGE_URL', seeded=True, resettable=False),
+    'rate_limit_probe_minutes': SettingSpec(
+        default='5', env='RATE_LIMIT_PROBE_MINUTES', seeded=True, resettable=False,
+        validator=_int_in_range((0, 60))),
     'processing_soft_timeout_seconds': SettingSpec(
         default='3600', env='PROCESSING_SOFT_TIMEOUT', seeded=True,
         resettable=False),
@@ -360,6 +396,35 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'chapters_enabled': SettingSpec(
         default='true', seeded=True, in_ad_reset=True,
         payload_key='chaptersEnabled', payload_kind='bool'),
+    'chapters_in_notes': SettingSpec(
+        default='false', seeded=True, in_ad_reset=True,
+        payload_key='chaptersInNotes', payload_kind='bool'),
+    # Ad chapters: publish kept or held segments as skippable chapters.
+    'ad_chapters_enabled': SettingSpec(
+        default='false', seeded=True, in_ad_reset=True,
+        payload_key='adChaptersEnabled', payload_kind='bool'),
+    'ad_chapter_categories': SettingSpec(
+        default=DEFAULT_AD_CHAPTER_CATEGORIES_JSON, seeded=True, in_ad_reset=True,
+        payload_key='adChapterCategories',
+        payload_factory=_payload_ad_chapter_categories),
+    'ad_chapters_include_held': SettingSpec(
+        default='false', seeded=True, in_ad_reset=True,
+        payload_key='adChaptersIncludeHeld', payload_kind='bool'),
+    'ad_chapter_title_format': SettingSpec(
+        default='Ad: {label}', seeded=True, in_ad_reset=True,
+        payload_key='adChapterTitleFormat',
+        validator=valid_ad_chapter_title_format),
+    'ad_chapter_held_title_format': SettingSpec(
+        default='Possible ad: {label}', seeded=True, in_ad_reset=True,
+        payload_key='adChapterHeldTitleFormat',
+        validator=valid_ad_chapter_title_format),
+    'ad_chapter_resume_title': SettingSpec(
+        default='Show', seeded=True, in_ad_reset=True,
+        payload_key='adChapterResumeTitle'),
+    'ad_chapter_min_confidence': SettingSpec(
+        default='0.9', seeded=True, in_ad_reset=True,
+        payload_key='adChapterMinConfidence', payload_kind='float',
+        validator=_float_in_range((0.0, 1.0))),
     'pricing_source_mode': SettingSpec(
         default='auto', in_ad_reset=True,
         payload_key='pricingSourceMode'),
@@ -396,6 +461,19 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='30', seeded=True, in_ad_reset=True,
         reset_factory=lambda: os.environ.get('TRANSCRIBE_CHUNK_OVERLAP_SECONDS', '30'),
         payload_key='transcribeChunkOverlapSeconds', payload_kind='int'),
+
+    # Whisper pool (parallel processing against a remote backend)
+    'whisper_pool_enabled': SettingSpec(
+        default='false', env='WHISPER_POOL_ENABLED', seeded=True, in_ad_reset=True,
+        payload_key='whisperPoolEnabled', payload_kind='bool'),
+    'whisper_pool_max_requests': SettingSpec(
+        default='4', env='WHISPER_POOL_MAX_REQUESTS', seeded=True, in_ad_reset=True,
+        validator=_int_in_range(WHISPER_POOL_MAX_REQUESTS_RANGE),
+        payload_key='whisperPoolMaxRequests', payload_kind='int'),
+    'whisper_pool_max_episodes': SettingSpec(
+        default='1', env='WHISPER_POOL_MAX_EPISODES', seeded=True, in_ad_reset=True,
+        validator=_int_in_range(WHISPER_POOL_MAX_EPISODES_RANGE),
+        payload_key='whisperPoolMaxEpisodes', payload_kind='int'),
 
     # -- Whisper --
     'whisper_model': SettingSpec(
@@ -628,6 +706,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'differential_measured_corr_max': SettingSpec(
         default='0.60', seeded=True, in_ad_reset=True,
         payload_key='differentialMeasuredCorrMax', payload_kind='float'),
+    'dai_differential_overrides_keep': SettingSpec(
+        default='true', seeded=True, in_ad_reset=True,
+        payload_key='daiDifferentialOverridesKeep', payload_kind='bool'),
     'differential_hold_min_seconds': SettingSpec(
         default='10', seeded=True, in_ad_reset=True,
         payload_key='differentialHoldMinSeconds', payload_kind='float'),
@@ -861,6 +942,18 @@ class SettingsMixin:
         conn = self.get_connection()
         conn.execute("DELETE FROM settings WHERE key = ?", (key,))
         conn.commit()
+
+    def clear_setting_if_equal(self, key: str, expected: str) -> bool:
+        """Delete a setting row only while it still holds `expected`.
+
+        One statement, so a writer racing the caller between its read and this
+        delete keeps its own value. Returns whether a row was deleted.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "DELETE FROM settings WHERE key = ? AND value = ?", (key, expected))
+        conn.commit()
+        return cursor.rowcount > 0
 
     def reset_setting(self, key: str):
         """Reset a setting to its default value (SETTINGS_REGISTRY-driven).

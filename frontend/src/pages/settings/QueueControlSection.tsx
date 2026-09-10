@@ -14,6 +14,7 @@ import {
   updateRateLimitHoldSettings,
 } from '../../api/settings';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { SkeletonRows } from '../../components/Skeleton';
 import SavedBadge from './SavedBadge';
 import { focusRing } from '../../components/fieldStyles';
 
@@ -30,22 +31,38 @@ interface QueueControlSectionProps {
   onQueueBulkBoostChange: (value: number) => void;
 }
 
-interface HoldBlockConfig<T extends { enabled: boolean; ttlHours: number }> {
+interface HoldBlockConfig<
+  T extends {
+    enabled: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }
+> {
   queryKey: string[];
   load: () => Promise<T>;
-  save: (args: { enabled: boolean; ttlHours: number }) => Promise<unknown>;
+  save: (args: {
+    enabled: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }) => Promise<unknown>;
   toggleLabel: string;
   ariaLabel: string;
   description: ReactNode;
-  ttlInputId: string;
+  /** Omit for a feature with no give-up window. */
+  ttlInputId?: string;
+  /** Rate-limit-hold only: renders the usage URL + probe interval fields. */
+  probeFields?: boolean;
   loadErrorText: string;
-  /** Rendered under the TTL field while the feature holds episodes. */
+  /** Rendered under the toggle while the feature holds the queue. */
   status?: (data: T) => ReactNode | null;
 }
 
-// Shared shape of the offline-queue and rate-limit-hold settings: a toggle
-// plus a give-up window, with draft state and an explicit Save (#482, #696).
-function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
+// Shared shape of the offline-queue and rate-limit-hold settings: a toggle,
+// an optional give-up window, draft state and an explicit Save (#482, #696).
+function QueueHoldBlock<
+  T extends {
+    enabled: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }
+>(
   { config, active }: { config: HoldBlockConfig<T>; active: boolean }
 ) {
   const qc = useQueryClient();
@@ -55,13 +72,22 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
     enabled: active,
   });
 
-  const [draft, setDraft] = useState<{ enabled?: boolean; ttlHours?: number }>({});
+  const [draft, setDraft] = useState<{
+    enabled?: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const enabled = draft.enabled ?? data?.enabled ?? false;
   const ttlHours = draft.ttlHours ?? data?.ttlHours ?? 48;
+  const llmUsageUrl = draft.llmUsageUrl ?? data?.llmUsageUrl ?? '';
+  const rateLimitProbeMinutes = draft.rateLimitProbeMinutes ?? data?.rateLimitProbeMinutes ?? 5;
 
   const save = useMutation({
-    mutationFn: () => config.save({ enabled, ttlHours }),
+    mutationFn: () => config.save({
+      enabled,
+      ...(config.ttlInputId ? { ttlHours } : {}),
+      ...(config.probeFields ? { llmUsageUrl, rateLimitProbeMinutes } : {}),
+    }),
     onSuccess: () => {
       setSaveError(null);
       setDraft({});
@@ -71,7 +97,7 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
   });
 
   if (isLoading || !active) {
-    return <p className="text-sm text-muted-foreground">Loading...</p>;
+    return <SkeletonRows count={3} />;
   }
   if (isError || !data) {
     // A failed GET must not render the editable form from fallback
@@ -102,33 +128,77 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
       </label>
       <p className="text-sm text-muted-foreground -mt-2">{config.description}</p>
 
-      <div className="space-y-1">
-        <div className="flex items-center gap-3">
-          <label
-            htmlFor={config.ttlInputId}
-            className="text-sm text-muted-foreground whitespace-nowrap"
-          >
-            Give up after:
-          </label>
-          <NumberInput
-            id={config.ttlInputId}
-            value={ttlHours}
-            min={1}
-            max={720}
-            step={1}
-            fallback={48}
-            parse={(s) => parseInt(s, 10)}
-            onCommit={(v) => setDraft((d) => ({ ...d, ttlHours: v }))}
-            className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
-          />
-          <span className="text-xs text-muted-foreground">hours</span>
+      {config.ttlInputId && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <label
+              htmlFor={config.ttlInputId}
+              className="text-sm text-muted-foreground whitespace-nowrap"
+            >
+              Give up after:
+            </label>
+            <NumberInput
+              id={config.ttlInputId}
+              value={ttlHours}
+              min={1}
+              max={720}
+              step={1}
+              fallback={48}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={(v) => setDraft((d) => ({ ...d, ttlHours: v }))}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
+            />
+            <span className="text-xs text-muted-foreground">hours</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Episodes still waiting after this long are marked failed and
+            logged. Applies to episodes already in the queue even if you
+            turn the toggle off.
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Episodes still waiting after this long are marked failed and
-          logged. Applies to episodes already in the queue even if you
-          turn the toggle off.
-        </p>
-      </div>
+      )}
+
+      {config.probeFields && (
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="llmUsageUrl" className="block text-sm font-medium text-foreground mb-2">
+              Usage endpoint (optional)
+            </label>
+            <input
+              type="text"
+              id="llmUsageUrl"
+              value={llmUsageUrl}
+              onChange={(e) => setDraft((d) => ({ ...d, llmUsageUrl: e.target.value }))}
+              placeholder="https://your-proxy:8001/v1/usage"
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+            />
+            <p className="mt-1 text-sm text-muted-foreground">
+              Checked first while the queue is paused; without one, a single test
+              call to the LLM provider stands in.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <label htmlFor="rateLimitProbeMinutes" className="text-sm text-muted-foreground whitespace-nowrap">
+              Check every:
+            </label>
+            <NumberInput
+              id="rateLimitProbeMinutes"
+              value={rateLimitProbeMinutes}
+              min={0}
+              max={60}
+              step={1}
+              fallback={5}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={(v) => setDraft((d) => ({ ...d, rateLimitProbeMinutes: v }))}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
+            />
+            <span className="text-xs text-muted-foreground">minutes</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            0 turns off checking; the queue then waits out the provider's own reset.
+          </p>
+        </div>
+      )}
 
       {config.status?.(data)}
 
@@ -291,24 +361,22 @@ function QueueControlSection({
               save: updateRateLimitHoldSettings,
               toggleLabel: 'Pause the queue when the LLM provider is rate limited',
               ariaLabel: 'Rate-limit hold toggle',
-              ttlInputId: 'rate-limit-hold-ttl',
+              probeFields: true,
               loadErrorText: 'Could not load rate-limit hold settings.',
               description: (
                 <>
                   When the provider answers 429 with a reset longer than five
-                  minutes, episodes stop retrying and wait; shorter resets keep
-                  retrying normally. The queue stays paused until the reset
-                  passes, then processes on its own. Off by default. Turning the
-                  toggle off lifts the pause and releases held episodes; Play
-                  and Reprocess always run.
+                  minutes, the episode goes back to the queue and nothing else
+                  is claimed until the reset passes; shorter resets keep
+                  retrying normally. Play and Reprocess wait with the rest.
+                  Off by default. Turning the toggle off lifts an active pause.
                 </>
               ),
               status: (data) => {
                 const holdUntil = data.holdUntil ? String(data.holdUntil) : null;
                 if (!holdUntil) return null;
-                const count = Number(data.holdCount ?? 0);
                 return `Queue paused until ${new Date(holdUntil).toLocaleString()} (provider
-                  rate limit). ${count} episode${count === 1 ? '' : 's'} waiting.`;
+                  rate limit).`;
               },
             }}
           />

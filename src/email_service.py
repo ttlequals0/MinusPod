@@ -20,8 +20,8 @@ import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import make_msgid
-from pathlib import Path
 
+from utils.paths import LOGO_PATH
 from utils.url import validate_outbound_host
 
 logger = logging.getLogger('podcast.email')
@@ -33,10 +33,6 @@ DEFAULT_EVENTS = [
     'Feed Refresh Failed', 'Update Available', 'Cue Template Quiet',
     'Queue Held', 'Queue Resumed', 'Service Offline', 'Service Reachable',
 ]
-# Repo layout: <root>/src/email_service.py and <root>/static/ui/logo.png.
-# Container layout: /app/src/email_service.py and /app/static/ui/logo.png.
-# parent.parent resolves to the right root in both.
-LOGO_PATH = Path(__file__).resolve().parent.parent / 'static' / 'ui' / 'logo.png'
 
 
 @dataclass
@@ -248,21 +244,19 @@ def _fmt_queue_held(ctx):
     subject = f"[MinusPod] Queue Held until {_value(held_until)}"
     rows = [
         ('Held until', _value(held_until)),
-        ('Hold TTL (hours)', _value(ctx.get('ttl_hours'))),
         ('Tripped by', _episode_ref(ctx)),
         ('Error', _value(ctx.get('error_message'))),
         ('Timestamp', _display_timestamp(ctx)),
     ]
     return subject, rows, ('The LLM provider returned a rate limit with a reset time. '
-                           'Processing resumes on its own when it passes. Play or '
-                           'Reprocess on an episode bypasses the hold.')
+                           'The episode is back in the queue and processing resumes '
+                           'on its own when the reset passes.')
 
 
 def _fmt_queue_resumed(ctx):
-    subject = f"[MinusPod] Queue Resumed: {_value(ctx.get('requeued'))} episodes re-queued"
+    subject = "[MinusPod] Queue Resumed: provider rate limit lifted"
     rows = [
         ('Held since', _value(ctx.get('held_since'))),
-        ('Episodes re-queued', _value(ctx.get('requeued'))),
         ('Timestamp', _display_timestamp(ctx)),
     ]
     return subject, rows, None

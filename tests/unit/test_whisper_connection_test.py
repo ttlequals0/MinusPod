@@ -312,3 +312,72 @@ class TestEndpoint:
         r = self._post(client, {'baseUrl': 'http://transcriber:8001/v3',
                                 'skipFlacCompression': 'yes'})
         assert r.status_code == 400
+
+    def test_detail_gains_health_clause_when_backend_reports_health(self, client):
+        with patch('api.providers.transcriber._get_whisper_settings',
+                   return_value=dict(SAVED)), \
+             patch('api.providers.transcriber.probe_transcription_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}), \
+             patch('api.providers.transcriber.probe_whisper_health',
+                   return_value={
+                       'available': True,
+                       'instances': [
+                           {'instance': 'whisper-1', 'model': 'large-v3'},
+                           {'instance': 'whisper-2', 'model': 'large-v3'},
+                           {'instance': 'whisper-3', 'model': 'large-v3'},
+                       ],
+                       'suggested_max_requests': 3, 'mismatch': [],
+                       'sampled_floor': True}) as health:
+            r = self._post(client, {'baseUrl': 'http://transcriber:8001/v3'})
+        data = r.get_json()
+        assert data['detail'] == 'Connected. At least 3 instances reporting large-v3.'
+        assert health.call_args.kwargs['refresh'] is True
+        assert health.call_args.kwargs['api_key'] == 'sk-saved'
+
+    def test_detail_states_an_exact_count_when_sampling_converged(self, client):
+        with patch('api.providers.transcriber._get_whisper_settings',
+                   return_value=dict(SAVED)), \
+             patch('api.providers.transcriber.probe_transcription_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}), \
+             patch('api.providers.transcriber.probe_whisper_health',
+                   return_value={
+                       'available': True,
+                       'instances': [{'instance': 'whisper-1', 'model': 'large-v3'}],
+                       'suggested_max_requests': 1, 'mismatch': [],
+                       'sampled_floor': False}):
+            r = self._post(client, {'baseUrl': 'http://transcriber:8001/v3'})
+        assert r.get_json()['detail'] == 'Connected. 1 instance reporting large-v3.'
+
+    def test_detail_reports_disagreement_instead_of_one_replica_model(self, client):
+        # Must not echo instances[0]'s model as if the fleet were uniform;
+        # Settings warns about the same mismatch from this payload.
+        with patch('api.providers.transcriber._get_whisper_settings',
+                   return_value=dict(SAVED)), \
+             patch('api.providers.transcriber.probe_transcription_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}), \
+             patch('api.providers.transcriber.probe_whisper_health',
+                   return_value={
+                       'available': True,
+                       'instances': [
+                           {'instance': 'whisper-1', 'model': 'large-v3'},
+                           {'instance': 'whisper-2', 'model': 'medium'},
+                       ],
+                       'suggested_max_requests': 2, 'mismatch': ['model', 'compute_type'],
+                       'sampled_floor': False}):
+            r = self._post(client, {'baseUrl': 'http://transcriber:8001/v3'})
+        assert r.get_json()['detail'] == (
+            'Connected. 2 instances, disagreeing on model, compute type.')
+
+    def test_detail_unchanged_when_health_unavailable(self, client):
+        with patch('api.providers.transcriber._get_whisper_settings',
+                   return_value=dict(SAVED)), \
+             patch('api.providers.transcriber.probe_transcription_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}), \
+             patch('api.providers.transcriber.probe_whisper_health',
+                   return_value={'available': False}):
+            r = self._post(client, {'baseUrl': 'http://transcriber:8001/v3'})
+        assert r.get_json()['detail'] == 'Connected.'

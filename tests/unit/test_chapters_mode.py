@@ -6,7 +6,8 @@ already remapped onto the cut timeline (audio_processor.py), instead of
 generating new ones with the chapter LLM. 'generate' keeps the pre-#560
 behavior unconditionally; 'off' skips the chapter step entirely.
 """
-from unittest.mock import MagicMock
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 from tests.app_bootstrap import bootstrap
 
@@ -19,7 +20,14 @@ from config import (
     CHAPTERS_MODE_OFF,
     resolve_chapters_mode,
 )
+from llm_client import ProviderRateLimitedError
 from main_app import processing
+import rate_limit_hold
+from rate_limit_hold import hold_message
+from utils.time import utc_now_iso
+
+KEPT_SPONSOR = [{'start': 900.0, 'end': 960.0, 'action_applied': 'keep',
+                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
 
 
 # ---------- resolve_chapters_mode ----------
@@ -62,7 +70,8 @@ def _db(chapters_mode=None, chapters_enabled=None, upstream_chapters_url=None):
 
 
 def _run(monkeypatch, db, publisher_chapters, generator_chapters=None, podcast_row=None,
-         original_duration=None, fetch_return=None, run_stats=None, markers=None):
+         original_duration=None, fetch_return=None, run_stats=None, markers=None,
+         generator_error=None):
     """Invoke the real _generate_assets with all IO seams mocked, returning
     (storage_mock, probe_mock, generator_class_mock, embed_mock, fetch_mock)."""
     storage_mock = MagicMock()
@@ -74,10 +83,12 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None, podcast_r
     transcript_gen_class.return_value.generate_text.return_value = None
 
     generator_class = MagicMock()
+    generator_class.return_value.generate_chapters.side_effect = generator_error
     generator_class.return_value.generate_chapters.return_value = (
         generator_chapters if generator_chapters is not None
         else {'chapters': [{'startTime': 0, 'title': 'Generated'}]}
     )
+    generator_class.return_value.chapters_degraded = False
 
     monkeypatch.setattr(processing, 'db', db)
     monkeypatch.setattr(processing, 'storage', storage_mock)
@@ -85,6 +96,7 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None, podcast_r
     monkeypatch.setattr(processing, 'embed_chapters', embed_mock)
     monkeypatch.setattr(processing, 'fetch_upstream_chapters', fetch_mock)
     monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(rate_limit_hold, 'get_llm_usage_url', lambda _db: '')
     monkeypatch.setattr('transcript_generator.TranscriptGenerator', transcript_gen_class)
     monkeypatch.setattr(chapters_generator, 'ChaptersGenerator', generator_class)
 
@@ -165,6 +177,54 @@ def test_generator_chapters_degraded_flag_propagates_to_run_stats(monkeypatch):
 
     assert run_stats['chapters_degraded'] is True
     assert run_stats['chapters_degraded_reason'] == 'chapter topic detection failed'
+
+
+RATE_LIMIT_ERROR = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
+
+
+def test_provider_rate_limit_holds_the_queue_and_still_publishes(monkeypatch):
+    """A 429 in the chapter step must record the hold (#696) and let the run
+    finish: the audio is already cut, so it publishes ad chapters only."""
+    db = _db(chapters_mode='generate')
+    run_stats = {}
+    with patch.object(rate_limit_hold, 'fire_queue_held_event') as fire:
+        storage_mock, _, _, _, _ = _run(monkeypatch, db, [], run_stats=run_stats,
+                                        markers=KEPT_SPONSOR,
+                                        generator_error=RATE_LIMIT_ERROR)
+
+    # A fresh pause alerts once, the same rule the failure handler follows.
+    assert fire.call_count == 1
+    assert fire.call_args.kwargs['slug'] == 'testslug'
+    assert fire.call_args.kwargs['podcast_name'] == 'Pod'
+    held_until = dict(c.args for c in db.set_setting.call_args_list)['rate_limit_hold_until']
+    assert held_until > utc_now_iso()
+    assert run_stats['chapters_degraded'] is True
+    assert run_stats['chapters_degraded_reason'] == hold_message(held_until, RATE_LIMIT_ERROR)
+    # Ad chapters still publish: the cut audio must not go out without them.
+    saved = storage_mock.save_chapters_and_applied_cuts.call_args.args[2]['chapters']
+    # The resume entry falls past audio_duration, so only the ad entry lands.
+    assert [ch['startTime'] for ch in saved] == [900]
+
+
+def test_provider_rate_limit_under_an_active_hold_does_not_alert_again(monkeypatch):
+    """A 429 landing inside an existing pause extends it at most; one pause,
+    one alert."""
+    active_until = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime(
+        '%Y-%m-%dT%H:%M:%SZ')
+    db = _db(chapters_mode='generate')
+    db.get_setting.side_effect = lambda key: {
+        'chapters_enabled': None,
+        'vtt_transcripts_enabled': 'false',
+        'rate_limit_hold_until': active_until,
+    }.get(key)
+
+    run_stats = {}
+    with patch.object(rate_limit_hold, 'fire_queue_held_event') as fire:
+        _run(monkeypatch, db, [], run_stats=run_stats, markers=KEPT_SPONSOR,
+             generator_error=RATE_LIMIT_ERROR)
+
+    fire.assert_not_called()
+    assert run_stats['chapters_degraded_reason'] == hold_message(active_until, RATE_LIMIT_ERROR)
 
 
 def test_auto_with_one_publisher_chapter_falls_back_to_generate(monkeypatch):

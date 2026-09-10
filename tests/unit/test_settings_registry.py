@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from config import (
     SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION,
+    DEFAULT_AD_CHAPTER_CATEGORIES_JSON,
     DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
 )
 from database import Database
@@ -40,6 +41,7 @@ _SEED_ENV_VARS = (
     'VAD_GAP_MID_MIN_SECONDS', 'VAD_GAP_TAIL_MIN_SECONDS',
     'TRANSCRIBE_MAX_CHUNK_SECONDS', 'TRANSCRIBE_CONCURRENT_CHUNKS',
     'TRANSCRIBE_CHUNK_OVERLAP_SECONDS', 'TZ',
+    'LLM_USAGE_URL', 'RATE_LIMIT_PROBE_MINUTES',
 )
 
 # Snapshot of _seed_default_settings output captured from the pre-registry
@@ -53,6 +55,14 @@ SEED_SNAPSHOT = {
     'audio_normalize_intensity': 'normal',
     'auto_process_enabled': 'true',
     'chapters_enabled': 'true',
+    'chapters_in_notes': 'false',
+    'ad_chapters_enabled': 'false',
+    'ad_chapter_categories': DEFAULT_AD_CHAPTER_CATEGORIES_JSON,
+    'ad_chapters_include_held': 'false',
+    'ad_chapter_title_format': 'Ad: {label}',
+    'ad_chapter_held_title_format': 'Possible ad: {label}',
+    'ad_chapter_resume_title': 'Show',
+    'ad_chapter_min_confidence': '0.9',
     'community_sync_categories': DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     'detect_show_segments': '0',
     'seed_sponsors_detection': 'true',
@@ -63,6 +73,7 @@ SEED_SNAPSHOT = {
     'ad_addressing_mode': 'timestamps',
     'jit_blocked_user_agents': '[]',
     'process_new_episodes_first': '1',
+    'dai_differential_overrides_keep': 'true',
     'differential_hold_min_seconds': '10',
     'differential_measured_corr_max': '0.60',
     'enable_ad_review': 'false',
@@ -77,7 +88,8 @@ SEED_SNAPSHOT = {
     'offline_queue_enabled': 'false',
     'llm_json_schema_enabled': 'false',
     'rate_limit_hold_enabled': 'false',
-    'rate_limit_hold_ttl_hours': '48',
+    'llm_usage_url': '',
+    'rate_limit_probe_minutes': '5',
     'offline_queue_ttl_hours': '48',
     'omit_temperature': 'false',
     'only_expose_processed_default': 'false',
@@ -100,6 +112,9 @@ SEED_SNAPSHOT = {
     'transcribe_concurrent_chunks': '4',
     'whisper_api_timeout_seconds': '600',
     'transcribe_max_chunk_seconds': '600',
+    'whisper_pool_enabled': 'false',
+    'whisper_pool_max_requests': '4',
+    'whisper_pool_max_episodes': '1',
     'transition_threshold_db': '3.5',
     'verification_miss_autocut_min_confidence': '0',
     'verification_miss_hold_min_confidence': '0.60',
@@ -115,12 +130,18 @@ SEED_SNAPSHOT = {
 EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
-    'chapters_enabled', 'chapters_model',
+    'chapters_enabled', 'chapters_in_notes', 'chapters_model',
+    'ad_chapters_enabled', 'ad_chapter_categories',
+    'ad_chapters_include_held', 'ad_chapter_title_format',
+    'ad_chapter_held_title_format', 'ad_chapter_resume_title',
+    'ad_chapter_min_confidence',
     'min_cut_confidence', 'auto_process_enabled', 'audio_bitrate',
     'audio_normalize_enabled', 'audio_normalize_intensity',
     'whisper_api_timeout_seconds',
     'transcribe_max_chunk_seconds', 'transcribe_concurrent_chunks',
-    'transcribe_chunk_overlap_seconds', 'ad_detection_parallel_windows',
+    'transcribe_chunk_overlap_seconds',
+    'whisper_pool_enabled', 'whisper_pool_max_requests', 'whisper_pool_max_episodes',
+    'ad_detection_parallel_windows',
     'ad_reviewer_parallel_ads', 'max_artwork_bytes', 'max_rss_bytes',
     'max_audio_download_mb',
     'llm_provider', 'openai_base_url', 'pricing_source_mode',
@@ -159,6 +180,7 @@ EXPECTED_AD_RESET_KEYS = {
     'learning_min_confidence', 'learning_min_confidence_long',
     'learning_min_pattern_duration', 'learning_max_pattern_duration',
     'differential_measured_corr_max', 'differential_hold_min_seconds',
+    'dai_differential_overrides_keep',
 }
 
 # Keys reset_setting() must refuse (return False). Membership captured from
@@ -438,12 +460,16 @@ class TestGetDefaults:
         # settings have no payload keys (dedicated endpoint).
         # downloadUserAgent + feedUserAgent after that (101 -> 103),
         # then logDownloadQuery (103 -> 104).
-        # notificationTimezone added after that (104 -> 105).
+        # notificationTimezone added after that (104 -> 105), then
+        # chaptersInNotes (105 -> 106). whisperPoolEnabled +
+        # whisperPoolMaxRequests + whisperPoolMaxEpisodes after that (106 -> 109),
+        # then daiDifferentialOverridesKeep (109 -> 110),
+        # then the seven adChapter* keys (110 -> 117).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 105
+        assert len(payload_keys) == 117
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

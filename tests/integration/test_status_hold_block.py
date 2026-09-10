@@ -13,7 +13,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='status-hold-test-'))
 
-HOLD_KEYS = {'queuePaused', 'holdUntil', 'holdSince', 'rateLimitHeld',
+HOLD_KEYS = {'queuePaused', 'holdUntil', 'holdSince',
              'offlineHeld', 'offlineServices'}
 
 
@@ -79,7 +79,6 @@ def test_status_reports_an_empty_hold_when_nothing_is_held(clean_hold, app_clien
     assert hold['queuePaused'] is False
     assert hold['holdUntil'] is None
     assert hold['holdSince'] is None
-    assert hold['rateLimitHeld'] == 0
     assert hold['offlineHeld'] == 0
     assert hold['offlineServices'] == []
 
@@ -102,7 +101,10 @@ def test_a_past_reset_time_is_not_a_pause(clean_hold, app_client):
 
     clean_hold.set_setting(
         HOLD_UNTIL_KEY, (utc_now() - timedelta(minutes=5)).isoformat())
-    assert _hold(app_client)['queuePaused'] is False
+    hold = _hold(app_client)
+    assert hold['queuePaused'] is False
+    # The stale marker waits on the processor's next pass; hide it meanwhile.
+    assert hold['holdUntil'] is None
 
 
 def test_offline_services_report_the_last_probe_verdict(deferred_on, app_client):
@@ -131,3 +133,10 @@ def test_an_unprobed_service_reports_reachable_as_unknown(deferred_on, app_clien
         entry = _hold(app_client)['offlineServices'][0]
         assert entry['reachable'] is None
         assert entry['checkedAt'] is None
+
+
+def test_status_carries_jobs_and_whisper(clean_hold, app_client):
+    body = app_client.get('/api/v1/status').get_json()
+    assert body['jobs'] == []
+    assert body['currentJob'] is None
+    assert set(body['whisper']) >= {'enabled', 'active', 'capacity', 'inFlight'}
