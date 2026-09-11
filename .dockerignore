@@ -62,8 +62,6 @@ scripts
 benchmarks
 
 # Local-only tooling and notes
-.superpowers
-superpowers
 .claude
 .claude-mem
 .playwright-mcp
