@@ -4,6 +4,13 @@
 
 ---
 
+## Contents
+
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [CPU-only image (no GPU)](#cpu-only-image-no-gpu)
+- [Intel hybrid CPU tuning (optional)](#intel-hybrid-cpu-tuning-optional)
+
 ## Requirements
 
 - Docker with NVIDIA GPU support (for local Whisper), **or** a [remote Whisper backend](transcription.md) (no GPU needed)
@@ -33,7 +40,7 @@
 
 ## Quick Start
 
-Minimum setup before first boot: `BASE_URL`, `MINUSPOD_MASTER_PASSPHRASE`, a provider credential (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_BASE_URL` for a local endpoint), and `OPENAI_MODEL` to pick a model up front. Skip `OPENAI_MODEL` if you would rather choose a model in Settings > AI models on first run; either way, MinusPod will not process an episode until a model is configured. Everything else is configured from the web UI or the API: env vars only seed a setting the first time it is unset, and the stored value wins after that.
+Before processing an episode, set `BASE_URL`, configure provider access (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_BASE_URL` for a local endpoint), and choose a model. `OPENAI_MODEL` seeds the model settings, or you can choose each model under Settings > AI & Processing > AI Models. Compose starts without `MINUSPOD_MASTER_PASSPHRASE`. Set it to encrypt provider keys saved through the UI and API-downloaded database backups. Env vars seed unset settings; stored values win afterward.
 
 ```bash
 # 1. Create environment file
@@ -53,9 +60,18 @@ docker-compose up -d
 
 Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
-Compose refuses protected API access until you set an application password under Settings > Security. Setup from loopback is allowed. Remote setup also requires `MINUSPOD_SETUP_TOKEN` in `.env` and the same value in the `X-MinusPod-Setup-Token` request header. Remove the token after setup. Direct source runs keep the earlier passwordless default unless `MINUSPOD_REQUIRE_AUTH=true` is set.
+Compose refuses protected API access until you set an application password under Settings > Security. Setup from loopback is allowed. Remote setup requires `MINUSPOD_SETUP_TOKEN` in `.env` and the same value in the `X-MinusPod-Setup-Token` request header:
 
-`MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring a backup requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
+```bash
+curl -sS -X PUT http://your-server:8000/api/v1/auth/password \
+  -H 'Content-Type: application/json' \
+  -H 'X-MinusPod-Setup-Token: one-time-setup-token' \
+  --data '{"newPassword":"a-long-application-password"}'
+```
+
+Remove the token after setup. Direct source runs keep the passwordless default unless `MINUSPOD_REQUIRE_AUTH=true` is set.
+
+`MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring an encrypted API download requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
 
 ### CPU-only image (no GPU)
 
@@ -67,7 +83,7 @@ Reuse the same `.env` and `data/` directory as the Quick Start, then:
 docker compose -f docker-compose.cpu.yml up -d
 ```
 
-That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a specific release, set `MINUSPOD_VERSION=2.29.1-cpu` in your `.env`. The `:latest` tag always points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag. Both of those follow every release as it ships. If you would rather update only to vetted builds, set `MINUSPOD_VERSION=stable-cpu` (or `stable` for the GPU compose): these tags move only after a release has soaked in production (see [Releasing & Channels](releasing.md)).
+That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a release, set `MINUSPOD_VERSION=X.Y.Z-cpu` in `.env`. The `:latest` tag always points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag. Both follow every release. For vetted builds, set `MINUSPOD_VERSION=stable-cpu` (or `stable` for GPU): these tags move only after a production soak (see [Releasing & Channels](releasing.md)).
 
 Local CPU transcription with `faster-whisper` is slow on amd64 and slower on arm64. For anything beyond a quick test, offload Whisper to a remote API in your `.env`:
 

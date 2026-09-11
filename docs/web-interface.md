@@ -7,6 +7,17 @@
 ## Contents
 
 - [Overview](#overview)
+- [Feed Display Title](#feed-display-title)
+- [Sponsors and Normalizations](#sponsors-and-normalizations)
+- [Ad Review Modes](#ad-review-modes)
+- [Waveform Ad Editor](#waveform-ad-editor)
+- [Adding a New Ad](#adding-a-new-ad)
+- [Ad Review tab](#ad-review-tab)
+- [Audio Cue Templates](#audio-cue-templates)
+- [Held for Review](#held-for-review)
+- [Partial Detection](#partial-detection)
+- [Processing stats](#processing-stats)
+- [Screenshots](#screenshots)
 
 ## Overview
 
@@ -45,7 +56,7 @@ The server includes a web-based management UI at `/ui/`:
 - Whisper pool (Settings > Transcription): optionally process several episodes at once on a remote Whisper backend, with a cap on requests in flight
 - Rate-limit hold (Settings > Queue Control): optionally pause the queue while the LLM provider reports a 429 with a reset time, instead of failing episodes
 - Processing Queue panel (Settings): the waiting list is paginated, and each row has a priority field with -/+ buttons that can raise or lower its place in the queue
-- Real-time status bar showing processing progress across all pages. It also appears when the queue is holding work with nothing running, naming the provider reset time for a rate-limit pause, or the service that is down for an offline wait
+- Status bar showing processing progress across all pages through 2-second polling, with failure backoff up to 30 seconds. It also appears when the queue holds work with nothing running. The message names the provider reset time for a rate-limit pause or the unavailable service for an offline wait
 - Outbound Requests (Settings > Data & Security): the User-Agent MinusPod sends when it fetches feeds, audio, and artwork, editable per string with a Reset back to the default, plus a toggle for whether download logs include URL query strings
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button

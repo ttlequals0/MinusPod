@@ -1,5 +1,14 @@
 # Frontend Development Guide
 
+## Contents
+
+- [Quick Start](#quick-start)
+- [Technology Stack](#technology-stack)
+- [Project Structure](#project-structure)
+- [Key Patterns](#key-patterns)
+- [Development Tips](#development-tips)
+- [Building for Production](#building-for-production)
+
 ## Quick Start
 
 ```bash
@@ -21,13 +30,13 @@ npm run test
 
 ## Technology Stack
 
-- **React 19** - UI framework
-- **TypeScript 6** - Type safety
-- **Vite 8** - Build tool
-- **TanStack Query 5** - Server state management
-- **Tailwind CSS 4** - Styling
-- **Lucide React** - Icons
-- **React Router 8** - Routing
+- **React 19.2.8** - UI framework
+- **TypeScript 6.0.3** - Type safety
+- **Vite 8.2.2** - Build tool
+- **TanStack Query 5.102.8** - Server state management
+- **Tailwind CSS 4.3.3** - Styling
+- **Lucide React 1.33.0** - Icons
+- **React Router 8.3.0** - Routing
 - **Fetch API** - HTTP client
 
 ## Project Structure
@@ -49,6 +58,7 @@ src/
 |   |-- FeedCard.tsx
 |   |-- FeedListItem.tsx
 |   |-- GlobalStatusBar.tsx
+|   |-- ChunkLoadRecovery.tsx
 |   |-- Layout.tsx
 |   |-- LoadingSpinner.tsx
 |   |-- PatternDetailModal.tsx
@@ -65,6 +75,7 @@ src/
 |   |-- HistoryPage.tsx
 |   |-- Login.tsx
 |   |-- PatternsPage.tsx
+|   |-- patterns/          # Ad review and unresolved corrections
 |   |-- Search.tsx
 |   `-- Settings.tsx
 |-- App.tsx           # Route configuration

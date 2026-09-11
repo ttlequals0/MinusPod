@@ -66,6 +66,8 @@ Operator checklist:
 
 MinusPod ships the rest by default: CSRF, login lockout, SSRF guards, artwork magic-number validation, XXE defense, baseline security headers, non-root container, rate limits on destructive endpoints. See [`CHANGELOG.md`](../CHANGELOG.md) for the full list.
 
+Compose requires a password before normal API use. Initial loopback setup needs no token; remote setup needs `MINUSPOD_SETUP_TOKEN` in the `X-MinusPod-Setup-Token` header. Later changes use the current password instead of CSRF. Setting or changing a password revokes older sessions and signs the caller into a new one. Removing it revokes every session, including the caller's.
+
 **Cloudflare WAF example.** Allow only Pocket Casts on the feed host, block admin paths:
 
 ```
@@ -80,7 +82,8 @@ Every outbound fetch MinusPod makes itself (RSS sources, enclosures, artwork,
 webhooks) runs through one SSRF-checked path. Operator-typed targets may point
 at loopback or LAN addresses; URLs taken out of feed content may not, and cloud
 metadata and link-local addresses are refused at both tiers. Redirects are
-rechecked on every hop, and HTTPS to HTTP downgrades are refused.
+rechecked on every hop, HTTPS to HTTP downgrades are refused, and IPv4-mapped
+IPv6 addresses are normalized before policy checks.
 
 The resolved address is also pinned. A hostname is resolved once per hop, every
 returned address is checked, and the connection goes to one of those addresses,
@@ -112,11 +115,15 @@ By default the feed URLs are open: anyone who learns them can read your RSS and 
 
 Settings > Data & Security > Authenticated Feeds locks this down. Existing global keys remain valid until you rotate them. Security > Feed subscriber keys can also create a credential scoped to one feed, label it for a device or subscriber, and revoke it without changing any other subscription.
 
-- Every feed and episode URL carries `?key=<64-hex-key>` (RSS, mp3, transcript vtt, chapters.json). Cover art carries the key inside the filename instead (`cover-minuspod-<version>-<key>.jpg`) because some podcast apps refuse image URLs with query strings.
+- RSS, MP3, transcript, chapter, and artwork URLs carry `?key=<credential>`. Global credentials are 64 hex characters. Scoped credentials use a 16-character key ID, a dot, and a 64-character secret. Legacy cover URLs with a credential in the filename remain accepted.
 - Requests without the key get a 401. The admin UI/API and `/health` are unaffected.
-- The key is shown in the settings UI and the API on purpose - you need it to subscribe.
+- The global key remains visible so you can subscribe. A scoped secret and feed URL appear only in its create response; later list responses show its label, ID, and timestamps without the secret.
 
-Enabling or rotating the global key changes every global URL, so podcast apps using that key must re-add the feeds. A scoped subscriber receives RSS with only its own credential in enclosure, transcript, chapter, and artwork URLs. The cached feed never stores that credential. Request logs omit query strings by default, and public feed responses use `Referrer-Policy: no-referrer`.
+Enabling or rotating the global key changes every global URL, so podcast apps using that key must re-add the feeds. A scoped subscriber receives RSS with only its own credential in enclosure, transcript, chapter, and artwork URLs. The cached feed never stores that credential. Revoking a scoped key stops it at once. You may then delete its audit record; deleting the record does not make the token valid again.
+
+A key scoped to Recents can read `/recents`, its cover, and assets for episodes currently eligible for that feed. It cannot read source RSS or an unrelated, expired, or unprocessed episode. When an item falls outside the Recents window or item limit, that key can no longer read its asset.
+
+Request and gunicorn access logs omit query strings by default. Source URLs shown in the UI or written to logs also drop user information and query strings. Legacy credential-bearing artwork paths are redacted, and public feed responses use `Referrer-Policy: no-referrer`. `LOG_DOWNLOAD_QUERY=true` is an explicit diagnostic override and can expose signed CDN or listener tokens.
 
 ### Provider admission controls
 

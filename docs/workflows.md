@@ -7,6 +7,17 @@ behind each stage, see [How It Works](how-it-works.md).
 
 ---
 
+## Contents
+
+- [The job](#the-job)
+- [How work arrives](#how-work-arrives)
+- [The standard pipeline](#the-standard-pipeline)
+- [Five kinds of evidence, five outcomes](#five-kinds-of-evidence-five-outcomes)
+- [Processing modes](#processing-modes)
+- [Re-running an episode](#re-running-an-episode)
+- [Learning loop](#learning-loop)
+- [When something breaks](#when-something-breaks)
+
 ## The job
 
 <picture>

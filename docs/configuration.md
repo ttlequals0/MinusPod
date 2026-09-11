@@ -126,7 +126,7 @@ Defaults match what the code used before this feature, so existing installs beha
 
 #### Fallback when the provider rejects a value
 
-If the provider returns a 4xx because your tunables don't fit the model, the call is logged at WARNING and retried once with the built-in defaults. The fallback flag is keyed by `(episode_id, pass_name)`, so two episodes processing in parallel won't step on each other's flag. It clears at the start of the next pass, so your values get a fresh attempt there.
+If a provider rejects temperature, reasoning, or thinking settings, that in-flight call can retry once with a compatible fallback. A concurrent call that records the same incompatibility does not consume the retry. Reasoning exhaustion retries with reasoning disabled. Processing history stores a sanitized notice for each pass whose reasoning or thinking value was rejected. The notice includes requested and fallback values but no provider error text. The episode page shows notices from the latest completed run. A later pass tries its configured values again.
 
 #### Env-var defaults
 

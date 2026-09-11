@@ -11,6 +11,10 @@ release notes.
 
 ## [2.96.21] - 2026-09-11
 
+### Changed
+
+- Updated operator and API documentation for authentication, backups, processing recovery, feed credentials, provider budgets, uploads, deployment, and releases.
+
 ### Fixed
 
 - Custom model ID and pricing fields now have 44 px touch targets.

@@ -7,10 +7,12 @@
 ## Contents
 
 - [Prerequisites](#prerequisites)
+- [Supported topology](#supported-topology)
 - [Minimum production environment](#minimum-production-environment)
 - [Health monitoring](#health-monitoring)
 - [Common issues](#common-issues)
 - [Backup and recovery](#backup-and-recovery)
+- [SQLite diagnostics](#sqlite-diagnostics)
 - [Updating](#updating)
 - [Logs](#logs)
 - [Resource usage](#resource-usage)
@@ -27,6 +29,12 @@ This page covers running MinusPod in production: health monitoring, backups, upd
 - An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance)
 
 The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is `ttlequals0/minuspod:<version>-cpu` and `:cpu`. See [Installation](installation.md) for variant selection.
+
+## Supported topology
+
+The supported topology is one MinusPod container with multiple gunicorn workers and one local persistent `data` volume. SQLite coordinates those workers. Put remote Whisper replicas behind their own endpoint for more transcription capacity.
+
+Multiple MinusPod containers or hosts sharing the same SQLite database and data directory are not supported. Redis can share rate limits across workers or hosts, but it does not make the application database, process ownership records, or file operations safe for multiple app containers.
 
 ## Minimum production environment
 
@@ -53,7 +61,7 @@ curl http://localhost:8000/api/v1/health
         "database": true,
         "storage": true
     },
-    "version": "2.29.1"
+    "version": "X.Y.Z"
 }
 ```
 
@@ -64,15 +72,24 @@ A non-200 response or `"status": "degraded"` means one of the checks failed; ins
 ### Episode stuck in processing
 
 ```bash
+# Authenticate once; this saves the session and CSRF cookies
+curl -sS -c cookies.txt -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  --data '{"password":"your-application-password"}'
+
 # Check current processing status
-curl http://localhost:8000/api/v1/status
+curl -b cookies.txt http://localhost:8000/api/v1/status
 
 # Cancel stuck episode
-curl -X POST http://localhost:8000/api/v1/feeds/{slug}/episodes/{id}/cancel
+CSRF=$(awk '$6 == "minuspod_csrf" { print $7 }' cookies.txt)
+curl -b cookies.txt -H "X-CSRF-Token: $CSRF" -X POST \
+  http://localhost:8000/api/v1/feeds/{slug}/episodes/{id}/cancel
 
-# Or restart container (graceful shutdown will complete current)
+# Or restart the container
 docker-compose restart
 ```
+
+Cancellation is durable across gunicorn workers. A request can return HTTP 202 while the owner reaches its next cancellation check. The episode resets after that worker stops. If it dies, the next startup or admission pass marks the run interrupted and returns the episode and queue row to pending without using a retry attempt.
 
 ### Out of memory
 
@@ -144,6 +161,12 @@ MINUSPOD_MASTER_PASSPHRASE=your-passphrase \
 
 The command verifies SQLite integrity and refuses an existing destination or stale WAL sidecars. Keep the current database until the prepared file passes review. Move the old `podcast.db`, `podcast.db-wal`, and `podcast.db-shm` out of the data directory, then rename the prepared file to `podcast.db` and start the service. Migrations run on startup and support an older snapshot.
 
+## SQLite diagnostics
+
+Settings > Data & Security > Database Stats shows journal mode, busy timeout, database and WAL sizes, free pages, slow statements, long transactions, and commit timing. Instrumentation counters cover the responding worker process and reset when it restarts.
+
+Run a passive checkpoint from that panel or with `POST /api/v1/system/database/checkpoint`. A successful response reports `logPages`, `checkpointedPages`, and `durationMs`. HTTP 409 with `busy: true` means active readers prevented a complete checkpoint; it does not corrupt or discard the WAL.
+
 ## Updating
 
 ```bash
@@ -157,6 +180,10 @@ docker-compose -f docker-compose.cpu.yml up -d
 ```
 
 Database migrations run automatically on startup. Take a backup (see above) before pulling a major version.
+
+The shipped Compose files allow 360 seconds for container shutdown. Keep `MINUSPOD_STOP_GRACE_PERIOD` longer than `GUNICORN_GRACEFUL_TIMEOUT` (330 seconds), which in turn must outlast `MINUSPOD_SHUTDOWN_DRAIN_SECONDS` (300 seconds). Shutdown stops new admission and gives active processing that drain window before workers exit; interrupted work remains pending for recovery.
+
+Portainer and similar stack managers keep a saved Compose definition. Pulling a repository file or image does not update it. When an upgrade changes settings such as `stop_grace_period`, copy the change into the live stack before redeploying.
 
 ## Logs
 

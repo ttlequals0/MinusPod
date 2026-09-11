@@ -36,7 +36,9 @@ servers:
 
 tags:
   - name: Auth
-    description: Authentication management (optional password protection)
+    description: >-
+      Authentication management. Direct source runs may be passwordless;
+      shipped Compose deployments require first-password setup.
   - name: Feeds
     description: Podcast feed management
   - name: Episodes
@@ -128,13 +130,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '503':
+          description: Authentication is required but the first password has not been set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/logout:
     post:
       tags:
         - Auth
       summary: Logout and clear session
-      description: Clears the current session, requiring re-authentication.
+      description: >-
+        Clears the current session. An authenticated logout requires the
+        CSRF cookie/header pair; an unauthenticated caller may clear stale state.
       operationId: logout
       security: []
       responses:
@@ -149,6 +159,12 @@ paths:
                     type: boolean
                   message:
                     type: string
+        '403':
+          description: Missing or invalid CSRF token for an authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/password:
     put:
@@ -158,11 +174,22 @@ paths:
       description: |
         Set or change the application password. Rate limited to 3 attempts per hour.
 
-        - If no password is set, creates a new password
-        - If password is set, requires current password for verification
-        - Set newPassword to empty string to remove password protection
-        - Minimum password length: 12 characters
+        - Initial setup is allowed from loopback. When required auth is on,
+          remote setup needs the configured value in X-MinusPod-Setup-Token.
+        - An existing password requires currentPassword instead of CSRF.
+        - A new or changed password rotates the session generation, revokes
+          every older session, and authenticates this request's new session.
+        - Empty or null newPassword removes protection and clears this session.
+        - A non-empty newPassword must contain at least 12 characters.
       operationId: setPassword
+      security: []
+      parameters:
+        - name: X-MinusPod-Setup-Token
+          in: header
+          required: false
+          description: Required only for remote initial setup when required auth is enabled.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -176,8 +203,8 @@ paths:
                   type: string
                   description: Current password (required if password is already set)
                 newPassword:
-                  type: string
-                  description: New password (min 12 chars, or empty to remove protection)
+                  type: [string, 'null']
+                  description: New password (at least 12 characters, or empty/null to remove protection)
       responses:
         '200':
           description: Password updated successfully
@@ -185,9 +212,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [message, passwordSet]
                 properties:
-                  success:
-                    type: boolean
                   message:
                     type: string
                   passwordSet:
@@ -200,6 +226,18 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           description: Current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Remote initial setup token missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Password changed concurrently; retry with current state
           content:
             application/json:
               schema:
@@ -984,18 +1022,38 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [slug, message, outcome, episodeCount, lastRefreshed, lastPodpingAt]
                 properties:
                   slug:
                     type: string
                   message:
                     type: string
+                  outcome:
+                    $ref: '#/components/schemas/RefreshOutcome'
                   episodeCount:
                     type: integer
                   lastRefreshed:
-                    type: string
+                    type: [string, 'null']
                     format: date-time
+                  lastPodpingAt:
+                    type: [string, 'null']
+                    format: date-time
+        '400':
+          description: Feed has no upstream source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '502':
+          description: Upstream fetch failed or returned content that could not be parsed as RSS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /feeds/refresh:
     post:
@@ -1031,12 +1089,15 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  feedCount:
-                    type: integer
+                $ref: '#/components/schemas/RefreshAllResult'
+        '207':
+          description: Refresh pass completed with at least one feed failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshAllResult'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /feeds/refresh-artwork:
     post:
@@ -1094,8 +1155,11 @@ paths:
       tags:
         - Feeds
       summary: Get feed artwork
-      description: Returns the cached podcast artwork image
+      description: >-
+        Returns cached podcast artwork without admin authentication. Safe
+        legacy slugs are accepted up to 200 characters.
       operationId: getFeedArtwork
+      security: []
       parameters:
         - $ref: '#/components/parameters/slug'
       responses:
@@ -1110,6 +1174,19 @@ paths:
               schema:
                 type: string
                 format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+    head:
+      tags: [Feeds]
+      summary: Check cached feed artwork
+      description: Same public validation and response headers as GET, without a body.
+      operationId: headFeedArtwork
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      responses:
+        '200':
+          description: Artwork exists
         '404':
           $ref: '#/components/responses/NotFound'
     post:
@@ -2852,9 +2929,32 @@ paths:
       summary: Assign an unassigned correction to a feed
       parameters:
         - $ref: '#/components/parameters/correction_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, confirm]
+              properties:
+                slug: { type: string }
+                confirm: { type: boolean, const: true }
       responses:
         '200':
           description: Correction assigned after explicit confirmation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [assigned, correctionId, slug]
+                properties:
+                  assigned: { type: boolean, const: true }
+                  correctionId: { type: integer }
+                  slug: { type: string }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
           description: Correction was already assigned
 
@@ -2870,6 +2970,14 @@ paths:
       responses:
         '200':
           description: Unassigned correction deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, correctionId]
+                properties:
+                  deleted: { type: boolean, const: true }
+                  correctionId: { type: integer }
         '404':
           description: Correction not found
         '409':
@@ -3945,11 +4053,18 @@ paths:
       tags:
         - Status
       summary: Get current processing status
-      description: Returns current processing status including active episode and queue depth
+      description: >-
+        Returns shared processing status including active jobs and queue depth.
+        The browser polls this route every 2 seconds and backs off to 30
+        seconds after failures.
       operationId: getStatus
       responses:
         '200':
           description: Current status
+          headers:
+            ETag:
+              description: Hash of the returned status payload.
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -3961,18 +4076,21 @@ paths:
         - Status
       summary: Real-time status stream (SSE)
       description: |
-        Server-Sent Events stream of processing status updates.
+        Compatibility Server-Sent Events stream of processing status updates.
+        A stream lasts at most 30 seconds and polls shared state every 2 seconds.
+        Concurrent streams are bounded to one fewer than the configured
+        gunicorn thread count.
 
         Authentication is snapshotted once at connect time, not on the
-        HTTP handshake -- the endpoint is in `AUTH_EXEMPT_PATHS` because
+        HTTP handshake. The endpoint is in `AUTH_EXEMPT_PATHS` because
         browser `EventSource` clients cannot surface a 401 response.
         An unauthenticated connect receives a single
         `event: auth-failed` SSE frame and the stream closes; the
         frontend handler redirects to `/ui/login` on that event. An
         authenticated connect opens the real data stream.
 
-        A session that lapses mid-stream is caught on the client's next
-        non-SSE API call, which 401-redirects normally.
+        A password change or removal revokes the stream on its next state
+        poll with `event: auth-failed`.
       operationId: streamStatus
       responses:
         '200':
@@ -3991,6 +4109,8 @@ paths:
 
                   Unauthenticated stream: single frame
                   `event: auth-failed\ndata: {}\n\n` then close.
+        '410':
+          description: SSE compatibility is disabled because no stream slots are configured
 
   /detections:
     get:
@@ -5857,24 +5977,53 @@ paths:
 
   /feeds/{slug}/subscriber-keys:
     parameters:
-      - $ref: '#/components/parameters/Slug'
+      - $ref: '#/components/parameters/slug'
     get:
       tags: [Feeds]
       summary: List feed subscriber keys
       responses:
         '200':
           description: Labels and timestamps without secret values
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeedSubscriberKeyRecord'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
       tags: [Feeds]
       summary: Create a feed subscriber key
       description: Returns the scoped token and feed URL once.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                  maxLength: 100
       responses:
         '201':
           description: Scoped token and feed URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedSubscriberKeyCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /feeds/{slug}/subscriber-keys/{key_id}:
     parameters:
-      - $ref: '#/components/parameters/Slug'
+      - $ref: '#/components/parameters/slug'
       - name: key_id
         in: path
         required: true
@@ -5887,6 +6036,15 @@ paths:
       responses:
         '200':
           description: Key revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties:
+                  revoked: { type: boolean, const: true }
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /feeds/{slug}/subscriber-keys/{key_id}/record:
     parameters:
@@ -5906,6 +6064,13 @@ paths:
       responses:
         '200':
           description: Revoked key record deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted: { type: boolean, const: true }
         '404':
           description: Subscriber key not found
         '409':
@@ -5918,15 +6083,43 @@ paths:
       responses:
         '200':
           description: Settings and current reservation totals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderBudget'
     put:
       tags: [Settings]
       summary: Update provider admission settings
       description: >-
         Provider charges and enforcement remain in USD. A non-USD save uses the
         current server-fetched reference rate and records its currency and date.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderBudgetUpdate'
       responses:
         '200':
           description: Updated settings and reservation totals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderBudget'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          description: Update limit of 10 requests per hour exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Currency service unavailable for a non-USD update
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /settings/provider-budget/currencies:
     get:
@@ -5935,6 +6128,16 @@ paths:
       responses:
         '200':
           description: Supported ISO currency codes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [currencies]
+                properties:
+                  currencies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CurrencyOption'
         '503':
           description: Currency service unavailable
 
@@ -5947,9 +6150,31 @@ paths:
           in: path
           required: true
           schema: { type: string, pattern: '^[A-Z]{3}$' }
+        - name: from
+          in: query
+          schema: { type: string, pattern: '^[A-Z]{3}$' }
+          description: Existing display currency for preview conversion.
+        - name: fromRate
+          in: query
+          schema: { type: string }
+          description: Positive decimal local-per-USD rate for the existing currency.
+        - name: dailyLimit
+          in: query
+          schema: { type: string }
+          description: Non-negative decimal amount to convert for preview.
+        - name: unknownReserve
+          in: query
+          schema: { type: string }
+          description: Non-negative decimal amount to convert for preview.
       responses:
         '200':
           description: Current USD reference rate and source date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderBudgetRate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '503':
           description: Currency service unavailable
 
@@ -9073,9 +9298,11 @@ components:
       name: session
       description: |
         Flask session cookie issued by ``POST /auth/login``. Every mutating
-        endpoint additionally requires a matching ``X-CSRF-Token`` header
-        (double-submit). Public endpoints (``/auth/login``, ``/auth/logout``,
-        ``/auth/status``, ``/health``, ``/health/live``) declare ``security: []``.
+        endpoint normally requires a matching ``X-CSRF-Token`` header
+        (double-submit). ``/auth/password`` instead verifies the current
+        password, or the remote setup token during first setup. Auth routes,
+        health probes, and public feed-artwork reads declare ``security: []``;
+        logout still enforces CSRF when its session is authenticated.
 
   parameters:
     correction_id:
@@ -13039,6 +13266,130 @@ components:
           type: string
         recipients:
           type: string
+
+    RefreshOutcome:
+      type: object
+      required: [success, status, new_episodes, queued_episodes, error]
+      properties:
+        success: { type: boolean }
+        status:
+          type: string
+          enum: [refreshed, coalesced, not_modified, fetch_failed, parse_failed, internal_error]
+        new_episodes: { type: integer, minimum: 0 }
+        queued_episodes: { type: integer, minimum: 0 }
+        error: { type: [string, 'null'] }
+
+    RefreshAllResult:
+      type: object
+      required: [message, feedCount, success, succeeded, failed, outcomes]
+      properties:
+        message: { type: string }
+        feedCount: { type: integer, minimum: 0 }
+        success: { type: boolean }
+        succeeded: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        outcomes:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/RefreshOutcome'
+
+    FeedSubscriberKeyRecord:
+      type: object
+      required: [id, label, created_at, last_used_at, revoked_at]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{16}$' }
+        label: { type: string }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, 'null'], format: date-time }
+        revoked_at: { type: [string, 'null'], format: date-time }
+
+    FeedSubscriberKeyCreated:
+      type: object
+      required: [id, token, label, created_at, feedUrl]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{16}$' }
+        token:
+          type: string
+          pattern: '^[0-9a-f]{16}\.[0-9a-f]{64}$'
+          description: Bearer credential returned only at creation.
+        label: { type: string }
+        created_at: { type: string, format: date-time }
+        feedUrl: { type: string, format: uri }
+
+    ProviderBudgetFxRate:
+      type: object
+      required: [localPerUsd, source, sourceDate, fetchedAt]
+      properties:
+        localPerUsd: { type: string }
+        source: { type: string }
+        sourceDate: { type: [string, 'null'], format: date }
+        fetchedAt: { type: [string, 'null'], format: date-time }
+
+    ProviderBudgetStatus:
+      type: object
+      required: [provider, spentMicrousd, reservedMicrousd, activeReservations]
+      properties:
+        provider: { type: string }
+        spentMicrousd: { type: integer, minimum: 0 }
+        reservedMicrousd: { type: integer, minimum: 0 }
+        activeReservations: { type: integer, minimum: 0 }
+
+    ProviderBudget:
+      type: object
+      required: [enabled, dailyLimitMicrousd, maxReservations, unknownCost,
+        unknownReserveMicrousd, displayCurrency, dailyLimit, unknownReserve,
+        fxRate, status]
+      properties:
+        enabled: { type: boolean }
+        dailyLimitMicrousd: { type: integer, minimum: 0 }
+        maxReservations: { type: integer, minimum: 1, maximum: 64 }
+        unknownCost: { type: string, enum: [deny, allow, reserve] }
+        unknownReserveMicrousd: { type: integer, minimum: 0 }
+        displayCurrency: { type: string, pattern: '^[A-Z]{3}$' }
+        dailyLimit: { type: string }
+        unknownReserve: { type: string }
+        fxRate: { $ref: '#/components/schemas/ProviderBudgetFxRate' }
+        status: { $ref: '#/components/schemas/ProviderBudgetStatus' }
+
+    ProviderBudgetUpdate:
+      type: object
+      required: [enabled, maxReservations, unknownCost]
+      properties:
+        enabled: { type: boolean }
+        maxReservations: { type: integer, minimum: 1, maximum: 64 }
+        unknownCost: { type: string, enum: [deny, allow, reserve] }
+        displayCurrency:
+          type: string
+          pattern: '^[A-Za-z]{3}$'
+          description: When present, dailyLimit and unknownReserve are required decimal strings.
+        dailyLimit: { type: string }
+        unknownReserve: { type: string }
+        dailyLimitMicrousd:
+          type: integer
+          minimum: 0
+          description: Required when displayCurrency is absent.
+        unknownReserveMicrousd:
+          type: integer
+          minimum: 0
+          description: Required when displayCurrency is absent.
+
+    CurrencyOption:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, pattern: '^[A-Z]{3}$' }
+        name: { type: string }
+
+    ProviderBudgetRate:
+      type: object
+      required: [currency, localPerUsd, source, sourceDate, dailyLimit, unknownReserve]
+      properties:
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        localPerUsd: { type: string }
+        source: { type: string }
+        sourceDate: { type: [string, 'null'], format: date }
+        dailyLimit: { type: string }
+        unknownReserve: { type: string }
 
     Error:
       type: object

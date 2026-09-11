@@ -58,7 +58,7 @@ services:
       # =================================================================
       # 2.0.0+ Security (defaults shown; override via .env when needed)
       # =================================================================
-      # Encrypts provider API keys + scheduled DB backups at rest.
+      # Encrypts provider API keys and API-downloaded database backups.
       # Strongly recommended in any non-throwaway deployment.
       - MINUSPOD_MASTER_PASSPHRASE=${MINUSPOD_MASTER_PASSPHRASE:-}
       - MINUSPOD_REQUIRE_AUTH=${MINUSPOD_REQUIRE_AUTH:-true}

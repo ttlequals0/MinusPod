@@ -4,6 +4,14 @@
 
 ---
 
+## Contents
+
+- [Standard](#standard)
+- [Security](#security)
+- [Advanced](#advanced)
+- [Optional](#optional)
+- [Deprecated](#deprecated)
+
 Grouped by how often you'll touch them. **Standard** is what a typical deployment sets; **Security** is the hardening surface; **Advanced** are tuning knobs for edge cases; **Optional** are opt-in features.
 
 ## Standard
@@ -82,7 +90,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `GUNICORN_GRACEFUL_TIMEOUT` | `330` | Seconds between SIGTERM and SIGKILL on shutdown. |
 | `MINUSPOD_STOP_GRACE_PERIOD` | `360s` | Compose container shutdown grace. Keep it longer than `GUNICORN_GRACEFUL_TIMEOUT`. |
 | `MINUSPOD_BIND_ADDRESS` | `0.0.0.0` | Host address used by the Compose port mapping. Set `127.0.0.1` when a local reverse proxy, VPN, or wrapper is the only intended entry point. |
-| `SECRET_KEY` | _(auto-generated)_ | Flask session signing key. If unset, a random value is generated on first boot and persisted at `$DATA_DIR/.secret_key`. Set explicitly only for multi-instance deployments sharing a session store. Rotating invalidates all existing sessions. |
+| `SECRET_KEY` | _(auto-generated)_ | Flask session signing key. If unset, a random value is generated and stored in the SQLite `settings` table. Set it explicitly only when required by a custom deployment. Rotating it invalidates every existing session. |
 | `SESSION_LIFETIME_HOURS` | `24` | How long authenticated sessions stay valid, in hours. |
 | `OMP_NUM_THREADS` | _(library default)_ | Caps OpenMP threads for local `faster-whisper` CPU transcription. On hybrid Intel CPUs the default can push work onto the slow E-cores and thrash the cache; set it to your performance-core count (more threads is not faster). No effect with a remote Whisper API or on GPU. See [Installation](installation.md#intel-hybrid-cpu-tuning-optional). |
 

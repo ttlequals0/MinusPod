@@ -10,6 +10,7 @@
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Using OpenRouter](#using-openrouter)
 - [LLM Pricing](#llm-pricing)
+- [Custom model pricing](#custom-model-pricing)
 - [Reviewer Calibration Self-Test](#reviewer-calibration-self-test)
 
 ## Using Claude Code Wrapper (Max Subscription)
@@ -42,7 +43,7 @@ Instead of using API credits, you can use the [Claude Code OpenAI Wrapper](https
 
 **Other OpenAI-Compatible Endpoints:**
 
-The `openai-compatible` provider can work with other endpoints by configuring `OPENAI_BASE_URL` and `OPENAI_API_KEY` accordingly. The model is selected via the Settings UI.
+The `openai-compatible` provider can work with other endpoints by configuring `OPENAI_BASE_URL` and `OPENAI_API_KEY` accordingly. Select models under Settings > AI & Processing > AI Models, or use `OPENAI_MODEL` to seed unset model settings.
 
 **Example `.env` for OpenAI-compatible mode:**
 
@@ -56,7 +57,7 @@ OPENAI_API_KEY=not-needed
 BASE_URL=http://localhost:8000
 ```
 
-Note: The AI model is configured via the Settings UI, not environment variables.
+`OPENAI_MODEL` is optional. It seeds any unset detection, verification, and chapters model; later Settings choices take precedence.
 
 ## Using Ollama (Local or Cloud)
 
@@ -239,6 +240,10 @@ All of these can be changed at runtime from the Settings UI. No container restar
 
 MinusPod tracks token usage and cost for every LLM call. The Settings page and `GET /api/v1/system/token-usage` show per-model breakdowns.
 
+### Custom model pricing
+
+Settings > AI & Processing > AI Models shows pricing fields for each configured model ID, including IDs you type. Enter input and output rates in USD per 1 million tokens. An operator override wins over catalog pricing and appears as `pricingSource: "operator"`. Leave both fields blank to use the catalog. Save both as `0` to mark a model explicitly free; missing pricing is different.
+
 ### Where pricing data comes from
 
 Pricing is fetched automatically based on your configured provider:
@@ -268,7 +273,7 @@ Different sources use different names for the same model. A normalization step s
 
 ### Offline / air-gapped installs
 
-If the pricing fetch fails on startup and no pricing data exists in the database, MinusPod seeds from a built-in table of Anthropic model prices. Non-Anthropic models will show $0 until the next successful fetch. Existing cached pricing in the database is never lost on fetch failure.
+If the pricing fetch fails on startup and the database has no pricing data, MinusPod seeds a built-in table of Anthropic prices. A non-Anthropic model without a catalog row has unknown pricing and accrues $0 until a match or operator override exists. Existing cached pricing is kept when a fetch fails.
 
 ### Pricing accuracy
 
