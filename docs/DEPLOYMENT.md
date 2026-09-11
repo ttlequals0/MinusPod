@@ -4,6 +4,19 @@
 
 ---
 
+## Contents
+
+- [Prerequisites](#prerequisites)
+- [Minimum production environment](#minimum-production-environment)
+- [Health monitoring](#health-monitoring)
+- [Common issues](#common-issues)
+- [Backup and recovery](#backup-and-recovery)
+- [Updating](#updating)
+- [Logs](#logs)
+- [Resource usage](#resource-usage)
+- [Cloudflare tunnel](#cloudflare-tunnel-optional)
+- [Security notes](#security-notes)
+
 This page covers running MinusPod in production: health monitoring, backups, updates, and the common operational issues. For first-time install see [Installation](installation.md); for the complete environment variable reference see [Environment Variables](environment-variables.md).
 
 ## Prerequisites
@@ -23,7 +36,7 @@ The full reference is in [Environment Variables](environment-variables.md). The 
 |----------|-----|
 | `ANTHROPIC_API_KEY` (or other provider key) | Required for ad detection |
 | `BASE_URL` | Public URL embedded in generated RSS feeds |
-| `MINUSPOD_MASTER_PASSPHRASE` | Encrypts provider keys at rest. Losing it makes stored keys unrecoverable (env fallback still works). |
+| `MINUSPOD_MASTER_PASSPHRASE` | Encrypts provider keys and downloadable backups at rest. Store it separately from the backup. |
 
 If you are behind a reverse proxy or Cloudflare tunnel, also set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (or higher for multi-hop chains) so login lockout and per-IP rate limits key on the real client IP.
 
@@ -94,7 +107,7 @@ If GPU not available, set `WHISPER_DEVICE=cpu` (slower but works).
 
 ## Backup and recovery
 
-There is no scheduled automatic backup. Use one of the two paths below.
+Scheduled backups are available under Settings > Data & Security and are off by default. They create private, plaintext SQLite snapshots. The API path below creates an encrypted envelope when a master passphrase is configured.
 
 ### On-demand SQLite backup (API)
 
@@ -105,7 +118,7 @@ curl -sS -b cookies.txt \
   http://localhost:8000/api/v1/system/backup
 ```
 
-When `MINUSPOD_MASTER_PASSPHRASE` is set, the response is AES-GCM encrypted (filename ends `.db.enc`). Restoring it requires the same passphrase that created it; store the passphrase somewhere separate from the backup. Append `?encrypted=false` to download plaintext when you have another protection layer.
+When `MINUSPOD_MASTER_PASSPHRASE` is set, new downloads use the self-contained, authenticated `MPBK02` envelope and require the passphrase that created them. Legacy `MPBK01` downloads also require an intact database from the same instance for its KDF salt. See the authoritative [restore and passphrase rotation procedure](security-and-storage.md#restore-and-passphrase-rotation). Append `?encrypted=false` only when another protection layer covers the plaintext file.
 
 ### Manual filesystem backup
 
@@ -121,19 +134,15 @@ docker-compose start
 
 ### Restore
 
+Stop the service and prepare a new database artifact without overwriting the current database:
+
 ```bash
 docker-compose stop
-
-# Replace the database file with your backup
-cp <your-backup>.db data/podcast.db
-
-# Or, if restoring an AES-GCM-encrypted backup, decrypt it first using the
-# same MINUSPOD_MASTER_PASSPHRASE that created it.
-
-docker-compose start
+MINUSPOD_MASTER_PASSPHRASE=your-passphrase \
+  python scripts/restore_backup.py backup.db.enc data/podcast-restored.db
 ```
 
-Migrations run on startup and are forward-compatible; restoring an older snapshot into a newer image is supported.
+The command verifies SQLite integrity and refuses an existing destination or stale WAL sidecars. Keep the current database until the prepared file passes review. Move the old `podcast.db`, `podcast.db-wal`, and `podcast.db-shm` out of the data directory, then rename the prepared file to `podcast.db` and start the service. Migrations run on startup and support an older snapshot.
 
 ## Updating
 
@@ -192,9 +201,11 @@ Without `MINUSPOD_TRUSTED_PROXY_COUNT=1`, login lockout and per-IP rate limits w
 ## Security notes
 
 - Set `MINUSPOD_MASTER_PASSPHRASE` to encrypt provider API keys at rest. Without it they sit as plaintext in the SQLite DB. See [Security & Storage](security-and-storage.md).
-- Set a password in Settings > Security before exposing the UI publicly. Without one the instance is fully open: anyone who can reach it can read everything, change settings, delete feeds, and download a full database backup. The password is the only gate on the API.
-- Use `SESSION_COOKIE_SECURE=true` whenever you serve over HTTPS. Default is `true`; set to `false` only for plain-HTTP localhost development.
-- RSS feed URLs contain a slug but no auth, so podcast apps can fetch them. Treat slugs as semi-private.
+- Compose refuses normal API use until an application password is set. Complete setup from loopback or set a one-time `MINUSPOD_SETUP_TOKEN`, send it as `X-MinusPod-Setup-Token` when setting the first password, then remove it.
+- Bind `MINUSPOD_BIND_ADDRESS=127.0.0.1` when a local proxy, VPN, or wrapper is the only intended entry point.
+- Compose blocks unauthenticated requests from starting paid processing. Set `MINUSPOD_ALLOW_PUBLIC_PROCESSING=true` only when that behavior is intended, or enable Authenticated Feeds.
+- `SESSION_COOKIE_SECURE=auto` follows `BASE_URL`. Set it explicitly only for an unusual proxy setup.
+- RSS URLs are public by default. Authenticated Feeds adds an existing global credential or a revocable key scoped to one feed. Treat every credential-bearing URL like a password.
 - Cloudflare Tunnel or a VPN is recommended for remote access. Direct port-forwarding works but skips Cloudflare's WAF.
 - The compose file runs the container with `no-new-privileges` and `cap_drop: ALL`, then adds back only the capabilities the entrypoint needs to drop root and fix volume ownership (`SETUID`, `SETGID`, `CHOWN`, `DAC_OVERRIDE`, `FOWNER`). Keep the `cap_add` block as-is: removing it leaves a bare `cap_drop: ALL`, which crash-loops the container before gunicorn starts. The same block is mirrored in `docker-compose.cpu.yml`.
 

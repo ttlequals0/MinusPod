@@ -4,6 +4,16 @@
 
 ---
 
+## Contents
+
+- [Remote access and security](#remote-access-security)
+- [Authenticated feeds](#authenticated-feeds-optional)
+- [Provider admission controls](#provider-admission-controls)
+- [Data storage](#data-storage)
+- [Database backups](#database-backup-sensitivity)
+- [Restore and passphrase rotation](#restore-and-passphrase-rotation)
+- [Custom assets](#custom-assets-optional)
+
 ## Remote access / security
 
 The docker-compose includes an optional Cloudflare tunnel service for secure remote access without port forwarding:
@@ -90,7 +100,7 @@ at hosts you control.
 
 ### Rate limiting storage
 
-Rate limits are tracked per worker (memory-backed), so with the default two workers each declared limit is effectively doubled. For exact limits or multi-host scaling, set `RATE_LIMIT_STORAGE_URI=redis://redis:6379` and add a Redis sidecar. Don't drop below two workers. The UI freezes during bulk RSS refresh with only one.
+The default `memory-threadsafe://` backend tracks limits inside each worker. With two workers, a client can receive up to twice a declared limit. Set `RATE_LIMIT_STORAGE_URI=redis://redis:6379` and provide Redis when the limit must apply across every worker or host. Validate Redis connectivity before exposing the service. Keep two or more application workers because long refresh requests can occupy one worker.
 
 ### Request correlation
 
@@ -100,13 +110,19 @@ Every response carries an `X-Request-ID` header. If you supply one on the reques
 
 By default the feed URLs are open: anyone who learns them can read your RSS and download episodes, and a request for an unprocessed episode kicks off transcription. If your server is reachable from the internet, that can get expensive.
 
-Settings > Data & Security > Authenticated Feeds locks this down with a single private key. When enabled:
+Settings > Data & Security > Authenticated Feeds locks this down. Existing global keys remain valid until you rotate them. Security > Feed subscriber keys can also create a credential scoped to one feed, label it for a device or subscriber, and revoke it without changing any other subscription.
 
 - Every feed and episode URL carries `?key=<64-hex-key>` (RSS, mp3, transcript vtt, chapters.json). Cover art carries the key inside the filename instead (`cover-minuspod-<version>-<key>.jpg`) because some podcast apps refuse image URLs with query strings.
 - Requests without the key get a 401. The admin UI/API and `/health` are unaffected.
 - The key is shown in the settings UI and the API on purpose - you need it to subscribe.
 
-Enabling or rotating the key changes every URL, so podcast apps must re-add your feeds. The OPML export (`mode=modified`) includes the key, which makes re-subscribing a two-step job: export, re-import in the app. Served feeds also rebuild themselves with the current key on their next authenticated fetch, and the "Regenerate feeds" button forces that for everything at once. Regenerating re-fetches each source feed and re-renders the RSS - it never re-processes episodes or touches stats.
+Enabling or rotating the global key changes every global URL, so podcast apps using that key must re-add the feeds. A scoped subscriber receives RSS with only its own credential in enclosure, transcript, chapter, and artwork URLs. The cached feed never stores that credential. Request logs omit query strings by default, and public feed responses use `Referrer-Policy: no-referrer`.
+
+### Provider admission controls
+
+Security > Provider admission can reserve a daily allowance and limit concurrent provider runs. Reservation writes use one SQLite transaction, so workers cannot both claim the final slot. Each reservation records its processing run, and an expired lease still holds its concurrency slot while that run has a live owner. Unknown-cost requests can be denied, admitted without a reservation, or charged a fixed reservation. A timed-out or lost response stays charged as uncertain until a later result reconciles it. This is an admission limit, not a guaranteed provider spending cap, because a final charge can exceed its estimate.
+
+Compose deployments disable unauthenticated just-in-time processing by default. Set `MINUSPOD_ALLOW_PUBLIC_PROCESSING=true` only when a public request should be allowed to start transcription and provider work. Enabling Authenticated Feeds also permits a valid global or feed-scoped subscriber credential to start that work.
 
 ### Getting the feeds into an app
 
@@ -139,7 +155,7 @@ The SQLite backup files produced by `GET /api/v1/system/backup`, by the periodic
 - Webhook HMAC secrets
 - Password hash (scrypt)
 
-Treat the file like a credential. The `MINUSPOD_MASTER_PASSPHRASE` encryption applies to the download and cleanup paths only. When it is set, those two paths produce AES-GCM encrypted `.db.enc` files, and restoring requires the same passphrase the source used. Without a passphrase, they write unencrypted `.db` files and log a WARN at creation time. Scheduled backups are a separate path: their snapshots are always plain SQLite files, whether or not a passphrase is set.
+Treat the file like a credential. When `MINUSPOD_MASTER_PASSPHRASE` is set, downloadable backups use the versioned `MPBK02` envelope. Its authenticated header carries the PBKDF2 iteration count, random KDF salt, nonce, and plaintext size, so recovery does not require a live database. Decryption writes a private temporary file and publishes plaintext only after AES-GCM authentication succeeds. Legacy `MPBK01` files still require a database from the same instance for its salt. Scheduled snapshots remain plain SQLite files.
 
 ### Scheduled database backups
 
@@ -152,20 +168,31 @@ The copies are written with SQLite's online backup API, so they stay consistent 
 
 The default destination is `/app/data/backups/` inside the container. When MinusPod creates the destination directory it sets mode `0700`; a directory you point it at that already exists keeps its own permissions. Each backup file is written with mode `0600`, so other UIDs on the host cannot read a dump that holds provider secrets. These files carry the same sensitive contents listed under [Database backup sensitivity](#database-backup-sensitivity) above, and unlike the download path they are never encrypted. Point the destination at a directory you trust, and treat it like a credential store.
 
-To restore from a scheduled snapshot:
+### Restore and passphrase rotation
 
-1. Stop the container.
-2. Copy the snapshot over `data/podcast.db`.
-3. Delete any stale `data/podcast.db-wal` and `data/podcast.db-shm` files. The snapshot has no sidecars of its own; leftover ones from the old database can corrupt the restore.
-4. Start the container.
+Prepare a new database file while MinusPod is stopped:
+
+```bash
+MINUSPOD_MASTER_PASSPHRASE=your-passphrase \
+  python scripts/restore_backup.py backup.db.enc data/podcast-restored.db
+```
+
+The restore command refuses a destination that exists, refuses stale `-wal` or `-shm` sidecars, verifies `PRAGMA integrity_check`, and publishes with mode `0600`. Keep the old `podcast.db` until this prepared file passes review. With every worker stopped, move the old database and its sidecars out of the data directory, move the prepared file to `podcast.db`, then start MinusPod. Never place a restored database beside stale sidecars from another database.
+
+Rotate the provider-key passphrase offline:
+
+```bash
+python scripts/rotate_master_passphrase.py
+```
+
+The script takes an exclusive maintenance lock and refuses to run while an application worker holds its shared runtime lock. It snapshots the database before changing the salt or encrypted settings, updates them in one transaction, then verifies every encrypted value with the new passphrase. Update `MINUSPOD_MASTER_PASSPHRASE` in the deployment before restarting all workers together.
 
 ### Decrypting a backup
 
-Encrypted backup files (`*.db.enc`) use AES-GCM with a key derived from `MINUSPOD_MASTER_PASSPHRASE` via PBKDF2 (600k iterations, SHA-256). The per-instance salt is stored in the running DB's `settings` table (`provider_crypto_salt`), not in the backup envelope. Decryption needs three things:
+Encrypted `MPBK02` backup files use AES-GCM with a key derived from `MINUSPOD_MASTER_PASSPHRASE` via PBKDF2 with 600,000 iterations and SHA-256. Decryption needs two things:
 
 1. The encrypted file.
 2. The same `MINUSPOD_MASTER_PASSPHRASE` that produced it.
-3. The live container's DB (for the salt row).
 
 The ship-in-repo CLI handles this:
 
@@ -174,9 +201,7 @@ MINUSPOD_MASTER_PASSPHRASE=your-passphrase \
     python scripts/decrypt_backup.py /path/to/backup.db.enc /path/to/backup.db
 ```
 
-Runs from inside the container or any host with the repo checked out and `cryptography` installed. `DATA_PATH` points at the running instance's data dir (default `/app/data`).
-
-**Important caveat:** the salt is per-DB, not per-passphrase. If you rotate the passphrase (`POST /api/v1/settings/providers/rotate-passphrase`), old backups made under the previous passphrase are still decryptable, because rotation re-encrypts rows under a new salt + new DEK in place. But if you lose the DB entirely (full-volume loss, fresh install) and only have backup files, you cannot decrypt them even with the original passphrase. The salt is gone. Treat the passphrase and the DB together as the recovery bundle.
+Runs from inside the container or any host with the repo checked out and `cryptography` installed. `MPBK02` stores its own salt. For a legacy `MPBK01` backup, pass `--salt-db` to `scripts/decrypt_backup_standalone.py` with an intact database from the same instance.
 
 Unencrypted `.db` files are regular SQLite databases. Restore them with `sqlite3` or by copying into place on a stopped instance.
 

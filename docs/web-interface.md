@@ -4,6 +4,10 @@
 
 ---
 
+## Contents
+
+- [Overview](#overview)
+
 ## Overview
 
 The server includes a web-based management UI at `/ui/`:

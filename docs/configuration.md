@@ -4,6 +4,19 @@
 
 ---
 
+## Contents
+
+- [Configuration](#configuration)
+- [Experiments](#experiments)
+- [Reprocessing](#reprocessing)
+- [Community Patterns (Optional)](#community-patterns-optional)
+- [Offline Queue](#offline-queue)
+- [Rate-Limit Hold](#rate-limit-hold)
+- [Whisper Pool](#whisper-pool)
+- [Outbound Requests](#outbound-requests)
+- [Scheduled Database Backups](#scheduled-database-backups)
+- [Feed Refresh and Podping](#feed-refresh-and-podping)
+
 ## Configuration
 
 All configuration is in the web UI or REST API. No config files needed.
@@ -156,7 +169,7 @@ You can set the Anthropic, OpenAI-compatible, OpenRouter, Ollama, and remote Whi
 
 Two things have to be in place first:
 
-1. `MINUSPOD_MASTER_PASSPHRASE` set in the container environment. PBKDF2 derives the encryption key from it, so treat it like any other production secret: back it up, keep it stable, don't commit it. To rotate, use Settings > Security > Provider Key Encryption (or `POST /api/v1/settings/providers/rotate-passphrase`). The call re-encrypts every stored key in one transaction, then you must update the env var to the new value before the next restart, or the next boot won't decrypt anything.
+1. `MINUSPOD_MASTER_PASSPHRASE` set in the container environment. PBKDF2 derives the encryption key from it, so treat it like any other production secret: back it up, keep it stable, and do not commit it. To rotate, stop every worker and run `python scripts/rotate_master_passphrase.py`. The online rotation endpoint refuses the request because sibling workers cannot safely receive a new passphrase.
 2. An admin password set in the UI, so Settings is reachable. The password gates the surface only; it isn't part of the crypto. Changing it leaves stored keys untouched.
 
 If the passphrase is missing, the key inputs collapse to a "Setup required" note, the API returns `409 provider_crypto_unavailable`, and env-var credentials keep working. GET responses never include key values, only booleans plus a `db`/`env`/`none` source marker.

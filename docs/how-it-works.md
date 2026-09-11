@@ -4,6 +4,11 @@
 
 ---
 
+## Contents
+
+- [How It Works](#how-it-works)
+- [Advanced Features (Quick Reference)](#advanced-features-quick-reference)
+
 ## How It Works
 
 1. **Transcription** - Whisper converts audio to text with timestamps (local GPU via faster-whisper, or remote API via OpenAI-compatible endpoint)

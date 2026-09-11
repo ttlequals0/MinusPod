@@ -4,6 +4,14 @@
 
 ---
 
+## Contents
+
+- [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
+- [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
+- [Using OpenRouter](#using-openrouter)
+- [LLM Pricing](#llm-pricing)
+- [Reviewer Calibration Self-Test](#reviewer-calibration-self-test)
+
 ## Using Claude Code Wrapper (Max Subscription)
 
 Instead of using API credits, you can use the [Claude Code OpenAI Wrapper](https://github.com/ttlequals0/claude-code-openai-wrapper) to use your Claude Max subscription instead.

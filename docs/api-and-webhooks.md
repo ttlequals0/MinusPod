@@ -4,6 +4,13 @@
 
 ---
 
+## Contents
+
+- [API](#api)
+- [Notifications](#notifications)
+- [Webhooks](#webhooks)
+- [Email notifications](#email-notifications)
+
 ## API
 
 REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full specification: [`openapi.yaml`](../openapi.yaml).
@@ -54,17 +61,22 @@ Key endpoints:
 - `GET /api/v1/stats/dashboard` - Aggregate stats (avg/min/max time saved, ads, cost, tokens) with optional podcast filter
 - `GET /api/v1/stats/by-day` - Episodes processed by day of week
 - `GET /api/v1/stats/by-podcast` - Per-podcast stats (ads, time saved, tokens, cost)
-- `GET /api/v1/status` - Current processing status, including a `hold` block describing why the queue is not moving
-- `GET /api/v1/status/stream` - SSE endpoint for real-time status updates
+- `GET /api/v1/status` - Current processing status with an ETag/version and bounded wait support; the browser uses this cross-worker polling contract
+- `GET /api/v1/status/stream` - Authenticated, finite SSE compatibility endpoint
 - `GET /api/v1/system/updates` - Latest stable and edge release info from GitHub Releases, cached 6 hours in-process (`?refresh=true` forces a live fetch, throttled to once per 30 seconds); returns 502 if GitHub is unreachable
 - `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
 - `GET /api/v1/system/model-pricing` - All known LLM model pricing rates
 - `POST /api/v1/system/model-pricing/refresh` - Force refresh pricing from provider source
 - `GET /api/v1/system/queue` - Auto-process queue status
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
+- `GET /api/v1/system/status` - System state including worker-scoped SQLite WAL, checkpoint, transaction, and busy diagnostics
+- `POST /api/v1/system/database/checkpoint` - Run a passive WAL checkpoint; returns 409 when active readers prevent completion
 - `GET /api/v1/system/backup` - Download SQLite database backup
 - `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running)
 - `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`)
+- `GET/PUT /api/v1/settings/provider-budget` - Read or update durable provider admission settings and current reserved/spent amounts
+- `GET/POST /api/v1/feeds/{slug}/subscriber-keys` - List scoped subscriber credentials or create one; the secret and feed URL appear only in the create response
+- `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}` - Revoke one scoped subscriber credential without changing global or sibling credentials
 - `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status)
 - `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)

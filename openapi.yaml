@@ -95,7 +95,7 @@ paths:
       tags:
         - Auth
       summary: Login with password
-      description: Authenticate with the configured password. Rate limited to 5 attempts per minute.
+      description: Authenticate with the configured password. Rate limited to 3 attempts per minute and 10 attempts per hour.
       operationId: login
       security: []
       requestBody:
@@ -161,7 +161,7 @@ paths:
         - If no password is set, creates a new password
         - If password is set, requires current password for verification
         - Set newPassword to empty string to remove password protection
-        - Minimum password length: 8 characters
+        - Minimum password length: 12 characters
       operationId: setPassword
       requestBody:
         required: true
@@ -177,7 +177,7 @@ paths:
                   description: Current password (required if password is already set)
                 newPassword:
                   type: string
-                  description: New password (min 8 chars, or empty to remove protection)
+                  description: New password (min 12 chars, or empty to remove protection)
       responses:
         '200':
           description: Password updated successfully
@@ -4239,35 +4239,15 @@ paths:
     post:
       tags:
         - Settings
-      summary: Rotate the master passphrase used to encrypt provider keys
+      summary: Report that master-passphrase rotation must run offline
       description: |
-        Re-encrypts every stored provider key under a new passphrase + new
-        salt in a single SQLite transaction. The caller MUST update
-        `MINUSPOD_MASTER_PASSPHRASE` in the container environment to the new
-        value before the next restart, otherwise stored keys will not decrypt.
+        Online rotation is refused because sibling workers cannot safely
+        receive the replacement passphrase. Stop all workers and run
+        `python scripts/rotate_master_passphrase.py`, update the deployment
+        environment, then restart every worker together.
       operationId: rotateMasterPassphrase
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [oldPassphrase, newPassphrase]
-              properties:
-                oldPassphrase: { type: string, description: 'Current MINUSPOD_MASTER_PASSPHRASE value' }
-                newPassphrase: { type: string }
       responses:
-        '200':
-          description: Rotation complete
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  rotated: { type: integer, description: 'Number of secret rows re-encrypted' }
-        '400': { description: 'Missing or invalid input (e.g., current passphrase mismatch, new equals old)' }
-        '409': { description: 'provider_crypto_unavailable (MINUSPOD_MASTER_PASSPHRASE unset)' }
-        '500': { description: 'Rotation failed (rolled back)' }
+        '409': { description: 'Rotation requires the offline command' }
   /settings/providers/{provider}/test:
     post:
       tags:
@@ -5432,6 +5412,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/SystemStatus'
 
+  /system/database/checkpoint:
+    post:
+      tags:
+        - System
+      summary: Run a passive SQLite WAL checkpoint
+      operationId: checkpointDatabase
+      responses:
+        '200':
+          description: Checkpoint completed
+        '409':
+          description: Active readers prevented the checkpoint from completing
+
   /system/updates:
     get:
       tags:
@@ -5745,6 +5737,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /feeds/{slug}/subscriber-keys:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+    get:
+      tags: [Feeds]
+      summary: List feed subscriber keys
+      responses:
+        '200':
+          description: Labels and timestamps without secret values
+    post:
+      tags: [Feeds]
+      summary: Create a feed subscriber key
+      description: Returns the scoped token and feed URL once.
+      responses:
+        '201':
+          description: Scoped token and feed URL
+
+  /feeds/{slug}/subscriber-keys/{key_id}:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9a-f]{16}$'
+    delete:
+      tags: [Feeds]
+      summary: Revoke a feed subscriber key
+      responses:
+        '200':
+          description: Key revoked
+
+  /settings/provider-budget:
+    get:
+      tags: [Settings]
+      summary: Read provider admission settings
+      responses:
+        '200':
+          description: Settings and current reservation totals
+    put:
+      tags: [Settings]
+      summary: Update provider admission settings
+      responses:
+        '200':
+          description: Updated settings and reservation totals
 
   /system/backup:
     get:

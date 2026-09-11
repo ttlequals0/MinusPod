@@ -74,6 +74,8 @@ docker-compose up -d
 
 Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
+Compose requires an application password before it serves the normal API. Set the first password from the same host. For remote setup, put a temporary `MINUSPOD_SETUP_TOKEN` in `.env`, send it in the `X-MinusPod-Setup-Token` header when setting the first password, then remove it. Compose also prevents unauthenticated feed requests from starting paid processing. Enable Authenticated Feeds, or set `MINUSPOD_ALLOW_PUBLIC_PROCESSING=true` if public just-in-time processing is intentional.
+
 `MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring a backup requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
 
 **No NVIDIA GPU?** Pull the CPU variant (`docker compose -f docker-compose.cpu.yml up -d`; multi-arch, runs natively on amd64 and arm64) and offload Whisper to a remote API. Full CPU setup and the 2.0.0+ upgrade notes are in [docs/installation.md](docs/installation.md).

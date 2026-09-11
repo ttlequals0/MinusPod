@@ -11,6 +11,36 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- Feed authentication can issue a separate, revocable subscriber key for each feed and device. A scoped RSS response carries only that key, while existing global feed keys remain valid until the operator rotates them.
+- Provider admission controls can reserve a daily allowance, limit concurrent provider runs, retain a live run's slot after lease expiry, and keep uncertain charges accounted for after a lost response.
+- Encrypted database downloads use a self-contained, versioned streaming envelope. The new cold restore command authenticates and checks a backup before publishing a private SQLite file, and the offline passphrase rotation command refuses to run while application workers are active.
+- Local single and batch uploads reserve their destination paths in SQLite, recover abandoned reservations, and avoid overwriting files during concurrent uploads.
+- System Status shows worker-scoped SQLite transaction, WAL, and checkpoint diagnostics, with controls to pause new processing and request a passive checkpoint.
+
+### Changed
+
+- Compose requires password setup before normal API use and blocks unauthenticated feed requests from starting processing by default. Both controls have explicit compatibility overrides. Compose now passes the master-passphrase, cookie, HSTS, and rate-limit settings into both image variants, supports a private host bind, and gives Gunicorn 360 seconds to drain on shutdown.
+- Every ffmpeg and ffprobe media input is restricted to local files and pipes. ffmpeg also disables interactive standard input.
+- Public feed responses suppress referrers, scoped feed tokens are never written into cached RSS, and request logs redact feed credentials from paths and referrers. Gunicorn access logs omit query strings.
+- SQLite is the shared authority for processing capacity and run ownership across workers. Shutdown can pause intake, drain active work, and preserve queued jobs for restart.
+- Corrections are scoped to their podcast. Legacy corrections with no scope can be assigned from the unresolved corrections panel.
+- Status polling uses versioned, bounded requests that cannot apply an older response over a newer one. The authenticated SSE compatibility endpoint has bounded clients and a 30-second lifetime.
+- The frontend lazy-loads route pages, tests unexpected network access, and runs Vitest in CI. Dependency updates include the current Vitest, ESLint, Swagger UI, Testing Library user-event, and Redis client releases.
+
+### Fixed
+
+- Changing or removing the application password now revokes every older signed session across workers. Login and password replacement use atomic password-hash and session-generation checks, closing concurrent stale-login and first-password races.
+- Provider encryption salt initialization is atomic across workers, and passphrase rotation can no longer leave sibling workers using an old cached key.
+- Encrypted backups carry their own KDF salt, stream through private temporary files, and expose no plaintext unless AES-GCM authentication succeeds. Restore refuses existing targets and stale SQLite sidecars.
+- IPv4-mapped IPv6 forms of the Azure platform metadata address are blocked after address normalization.
+- The public artwork exemption accepts safe legacy slugs and HEAD requests while enforcing the route's 200-character slug limit.
+- Cross-worker cancellation and pending deletion fences prevent a stale worker from publishing work after cancellation or feed deletion.
+- Search rebuilds keep the active FTS index available, journal concurrent source changes, and swap only after replay succeeds. Failed and stale shadow tables are cleaned safely.
+- Feed discovery and queue updates use bounded writes, avoid unchanged row updates, preserve active processing ownership, and report structured refresh failures without exposing private source URLs.
+- API mutations no longer replay POST requests unless a caller explicitly marks the operation safe to retry.
+
 ## [2.96.15] - 2026-09-09
 
 ### Fixed

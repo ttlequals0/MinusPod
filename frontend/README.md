@@ -4,7 +4,7 @@
 
 ```bash
 # Install dependencies
-npm install
+npm ci
 
 # Start dev server (proxies to backend at localhost:8000)
 npm run dev
@@ -14,17 +14,20 @@ npm run build
 
 # Run linter
 npm run lint
+
+# Run tests
+npm run test
 ```
 
 ## Technology Stack
 
-- **React 18** - UI framework
-- **TypeScript 5** - Type safety
-- **Vite 5** - Build tool
+- **React 19** - UI framework
+- **TypeScript 6** - Type safety
+- **Vite 8** - Build tool
 - **TanStack Query 5** - Server state management
-- **Tailwind CSS 3** - Styling
+- **Tailwind CSS 4** - Styling
 - **Lucide React** - Icons
-- **React Router 6** - Routing
+- **React Router 8** - Routing
 - **Fetch API** - HTTP client
 
 ## Project Structure
@@ -96,10 +99,10 @@ const mutation = useMutation({
 
 ### Theme Support
 
-Use Tailwind's dark mode classes:
+Use the semantic theme tokens defined in `index.css`:
 
 ```tsx
-<div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+<div className="bg-background text-foreground border-border">
     Content
 </div>
 ```

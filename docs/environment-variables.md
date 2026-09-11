@@ -45,7 +45,10 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MINUSPOD_MASTER_PASSPHRASE` | _(unset)_ | Unlocks encrypted provider-key store. Strongly recommended for production; first boot migrates any plaintext rows to `enc:v1:`. Losing it makes stored keys unrecoverable (env fallback still works). |
-| `SESSION_COOKIE_SECURE` | `true` | Set to `false` only when serving over plain HTTP. |
+| `MINUSPOD_REQUIRE_AUTH` | `true` in Compose | Refuse the API until an application password is set. Direct source runs default to `false` for development compatibility. |
+| `MINUSPOD_SETUP_TOKEN` | _(unset)_ | One-time header value for remote first-password setup when required auth is enabled. Send it as `X-MinusPod-Setup-Token`. Loopback setup does not need a token. Remove it after setup. |
+| `MINUSPOD_ALLOW_PUBLIC_PROCESSING` | `false` in Compose | Allow an unauthenticated podcast request to start processing an unprocessed episode. Authenticated feed credentials can start processing regardless. Direct source runs default to `true` for compatibility. |
+| `SESSION_COOKIE_SECURE` | `auto` in Compose | Follow `BASE_URL`. Set `true` or `false` only when proxy termination makes that result incorrect. An unset value uses the same automatic behavior. |
 | `SESSION_COOKIE_SAMESITE` | `Strict` | Override to `Lax` only if a specific integration breaks. |
 | `MINUSPOD_ENABLE_HSTS` | `false` | Set to `true` once the deployment is HTTPS-only. HSTS traps browsers so don't flip this on a dual-protocol setup. |
 | `MINUSPOD_TRUSTED_PROXY_COUNT` | `0` | Reverse-proxy hops to trust when reading `X-Forwarded-For`. `1` behind Cloudflare / cloudflared / nginx / Traefik, higher for a multi-proxy chain. **Leaving this at `0` behind a proxy breaks login lockout** (the proxy IP is private/loopback, which the lockout excludes) and per-IP rate limits (they key on the proxy instead of the client); audit logs + auth-failure webhooks also carry the wrong IP. Startup logs a WARN when unset. |
@@ -77,13 +80,15 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `GUNICORN_WORKERS` | `2` | Worker count. Lower means single-threaded UI blocking during RSS refresh; higher multiplies per-worker rate-limit counters (when using `memory://`). |
 | `GUNICORN_TIMEOUT` | `600` | Per-request hard timeout. |
 | `GUNICORN_GRACEFUL_TIMEOUT` | `330` | Seconds between SIGTERM and SIGKILL on shutdown. |
+| `MINUSPOD_STOP_GRACE_PERIOD` | `360s` | Compose container shutdown grace. Keep it longer than `GUNICORN_GRACEFUL_TIMEOUT`. |
+| `MINUSPOD_BIND_ADDRESS` | `0.0.0.0` | Host address used by the Compose port mapping. Set `127.0.0.1` when a local reverse proxy, VPN, or wrapper is the only intended entry point. |
 | `SECRET_KEY` | _(auto-generated)_ | Flask session signing key. If unset, a random value is generated on first boot and persisted at `$DATA_DIR/.secret_key`. Set explicitly only for multi-instance deployments sharing a session store. Rotating invalidates all existing sessions. |
 | `SESSION_LIFETIME_HOURS` | `24` | How long authenticated sessions stay valid, in hours. |
 | `OMP_NUM_THREADS` | _(library default)_ | Caps OpenMP threads for local `faster-whisper` CPU transcription. On hybrid Intel CPUs the default can push work onto the slow E-cores and thrash the cache; set it to your performance-core count (more threads is not faster). No effect with a remote Whisper API or on GPU. See [Installation](installation.md#intel-hybrid-cpu-tuning-optional). |
 
 ### LLM stage tunables
 
-Every per-stage LLM control in Settings > Ad Detection has a matching env var: the setting key in uppercase. Set one to pin the control (the UI renders it read-only with a note); unset it to hand control back to the stored value. Defaults match the pre-tunable behavior, so an unset variable changes nothing. Annotated list in [`.env.example`](../.env.example); behavior detail in [Configuration](configuration.md#env-var-overrides).
+Every per-stage LLM control in Settings > Ad Detection has a matching env var: the setting key in uppercase. Set one to pin the control (the UI renders it read-only with a note); unset it to hand control back to the stored value. Defaults match the pre-tunable behavior, so an unset variable changes nothing. See the annotated list in [`.env.example`](../.env.example) and the [configuration guide](configuration.md#configuration).
 
 The stage prefixes are `DETECTION_`, `VERIFICATION_`, `REVIEWER_`, `CHAPTER_BOUNDARY_`, and `CHAPTER_TITLE_`. Each takes the same four suffixes:
 

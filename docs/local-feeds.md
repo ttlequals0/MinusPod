@@ -4,6 +4,20 @@
 
 ---
 
+## Contents
+
+- [Creating a local feed](#creating-a-local-feed)
+- [Editing feed metadata](#editing-feed-metadata)
+- [Adding episodes](#adding-episodes)
+- [Processing behavior](#processing-behavior)
+- [Served feed size](#served-feed-size)
+- [Episode artwork in the served feed](#episode-artwork-in-the-served-feed)
+- [Podcasting 2.0 fields](#podcasting-20-fields)
+- [What doesn't apply to local feeds](#what-doesnt-apply-to-local-feeds)
+- [Retention, backups, and originals](#retention-backups-and-originals)
+- [OPML export](#opml-export)
+- [Reference](#reference)
+
 A local feed is a podcast feed MinusPod builds and serves from your own audio files instead of an upstream RSS feed. Use it to turn an archive of MP3s into a real, subscribable Podcasting 2.0 feed: upload or import episodes, MinusPod runs them through the same ad-removal pipeline as any subscribed feed (if there's anything to remove), and generates transcripts and chapters for them.
 
 There is no upstream for a local feed. MinusPod is the publisher, not a proxy. That changes a few things covered below: how episodes get added, what happens to your original files, and what parts of a normal feed's settings don't apply.
