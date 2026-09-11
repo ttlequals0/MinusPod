@@ -594,55 +594,78 @@ class StatusService:
 
 
 def reconcile_startup_state(db) -> None:
-    """Clear stale processing state left by the previous container run.
-
-    At boot, every job in the file belongs to the previous container run
-    (single-process container). Reads processing_status.json; resets each
-    job's episode DB status to 'pending' and drops all queued_episodes
-    display entries so the UI is clean before the queue processor thread
-    starts.
-
-    db - Database instance (provides get_connection())
-    """
+    """Clear display and episode state that has no active durable run."""
     ss = StatusService()
     with ss._status_transaction():
-        # Raw read, not _load(): expiring the jobs here would hide them from
-        # the DB reset below and leave the rows stuck on 'processing' (#2522).
         status = ss._read_status_file()
         jobs = list(ss._jobs(status).values())
-        queued = status.get('queued_episodes', [])
+        queued = list(status.get('queued_episodes', []))
+
+    stale_jobs = []
+    conn = db.get_connection()
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        for job in jobs:
+            slug = job.get('slug', '')
+            episode_id = job.get('episode_id', '')
+            active = conn.execute(
+                "SELECT r.run_id FROM processing_runs r "
+                "JOIN podcasts p ON p.id = r.podcast_id "
+                "WHERE p.slug = ? AND r.episode_id = ? "
+                "AND r.state IN ('running', 'cancel_requested')",
+                (slug, episode_id),
+            ).fetchone()
+            if active and (
+                    not job.get('run_id') or job.get('run_id') == active['run_id']):
+                continue
+            stale_jobs.append(job)
+            if active:
+                continue
+            conn.execute(
+                """UPDATE episodes SET
+                   status = 'pending',
+                   error_message = 'Reset after container restart (no retry penalty)'
+                   WHERE episode_id = ?
+                     AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                     AND status = 'processing'
+                     AND NOT EXISTS (
+                       SELECT 1 FROM processing_runs r
+                       WHERE r.podcast_id = episodes.podcast_id
+                         AND r.episode_id = episodes.episode_id
+                         AND r.state IN ('running', 'cancel_requested')
+                     )""",
+                (episode_id, slug),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    with ss._status_transaction():
+        status = ss._read_status_file()
+        current_jobs = ss._jobs(status)
         changed = False
-
-        if jobs:
-            status['jobs'] = {}
-            changed = True
+        for job in stale_jobs:
+            key = ss._key(job.get('slug', ''), job.get('episode_id', ''))
+            if current_jobs.get(key) == job:
+                current_jobs.pop(key)
+                changed = True
         if queued:
-            status['queued_episodes'] = []
-            changed = True
-
+            remaining = [
+                entry for entry in status.get('queued_episodes', [])
+                if entry not in queued
+            ]
+            if len(remaining) != len(status.get('queued_episodes', [])):
+                status['queued_episodes'] = remaining
+                changed = True
         if changed:
             status['last_updated'] = time.time()
             ss._write_status_file(status)
 
-    # Outside the status lock: SQLite can block for busy_timeout (30s) and
-    # every get_status() in both workers would queue behind it.
     if queued:
         logger.warning(f"Startup: dropping {len(queued)} stale queue display entries")
-    for job in jobs:
-        slug = job.get('slug', '')
-        episode_id = job.get('episode_id', '')
+    for job in stale_jobs:
         logger.warning(
-            f"Startup: clearing stale job from previous run: {slug}:{episode_id}"
+            "Startup: clearing stale job from previous run: %s:%s",
+            job.get('slug', ''), job.get('episode_id', ''),
         )
-        # Mirror reset_stuck_processing_episodes: reset to pending, no retry penalty.
-        conn = db.get_connection()
-        conn.execute(
-            """UPDATE episodes SET
-               status = 'pending',
-               error_message = 'Reset after container restart (no retry penalty)'
-               WHERE episode_id = ?
-                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
-                 AND status = 'processing'""",
-            (episode_id, slug),
-        )
-        conn.commit()

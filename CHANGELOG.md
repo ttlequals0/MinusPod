@@ -9,6 +9,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.96.19] - 2026-09-11
+
+### Fixed
+
+- Startup recovery now returns episodes and queue claims owned by a dead process to pending without waiting for the stuck-job timeout.
+- Every LLM call already in flight can retry rejected custom pass settings with defaults, even when another call records the fallback first.
+
 ## [2.96.18] - 2026-09-11
 
 ### Fixed

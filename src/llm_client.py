@@ -404,24 +404,29 @@ def _apply_pass_fallback(
     temperature: float,
     reasoning_effort: Union[int, str] | None,
 ):
-    """If the pass already tripped its fallback flag, swap in defaults."""
+    """Return effective tunables and whether this call started in fallback."""
     if pass_name and is_fallback_set(episode_id, pass_name):
         defaults = get_pass_defaults(pass_name)
-        return defaults.max_tokens, defaults.temperature, defaults.reasoning_effort
-    return max_tokens, temperature, reasoning_effort
+        return (
+            defaults.max_tokens,
+            defaults.temperature,
+            defaults.reasoning_effort,
+            True,
+        )
+    return max_tokens, temperature, reasoning_effort, False
 
 
 def _should_fallback_retry(
     error: Exception,
-    episode_id: str | None,
     pass_name: str | None,
+    started_in_fallback: bool,
 ) -> bool:
-    """True for a first 4xx (non-429) in a tracked pass -- caller retries once with defaults."""
-    if not pass_name:
-        return False
-    if is_fallback_set(episode_id, pass_name):
-        return False
-    return is_fallback_eligible_error(error)
+    """True when this call sent user tunables rejected by the provider."""
+    return (
+        bool(pass_name)
+        and not started_in_fallback
+        and is_fallback_eligible_error(error)
+    )
 
 
 def _log_fallback(
@@ -526,6 +531,7 @@ class LLMClient(ABC):
         user_reasoning: Union[int, str] | None,
         episode_id: str | None,
         pass_name: str | None,
+        started_in_fallback: bool,
         send_fn,
     ):
         """Run send_fn(eff_max, eff_temp, eff_reasoning) with one retry on
@@ -555,7 +561,8 @@ class LLMClient(ABC):
                     raise
                 return response, eff_max, eff_temp, eff_reasoning
 
-            will_fallback = _should_fallback_retry(e, episode_id, pass_name)
+            will_fallback = _should_fallback_retry(
+                e, pass_name, started_in_fallback)
             if not is_rate_limit_error(e) and not will_fallback:
                 self._record_circuit_breaker(success=False, error=e)
             if not will_fallback:
@@ -688,7 +695,7 @@ class AnthropicClient(LLMClient):
 
         # If a previous call in this pass already tripped the fallback flag,
         # use the built-in defaults from llm_capabilities instead of user values.
-        eff_max, eff_temp, eff_reasoning = _apply_pass_fallback(
+        eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
@@ -729,6 +736,7 @@ class AnthropicClient(LLMClient):
             eff_max, eff_temp, eff_reasoning,
             max_tokens, temperature, reasoning_effort,
             episode_id, pass_name,
+            started_in_fallback,
             _send,
         )
 
@@ -897,7 +905,7 @@ class OpenAICompatibleClient(LLMClient):
 
         all_messages = [{"role": "system", "content": system}] + messages
 
-        eff_max, eff_temp, eff_reasoning = _apply_pass_fallback(
+        eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
@@ -996,6 +1004,7 @@ class OpenAICompatibleClient(LLMClient):
             eff_max, eff_temp, eff_reasoning,
             max_tokens, temperature, reasoning_effort,
             episode_id, pass_name,
+            started_in_fallback,
             _send,
         )
 

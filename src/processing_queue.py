@@ -106,9 +106,9 @@ class ProcessingQueue:
                 and current_start != recorded_start)
 
     def _reconcile_dead_owners(self, conn) -> list[tuple[str, str, str]]:
-        """Interrupt leases only when their process identity is proven dead."""
+        """Recover processing state only when its process identity is proven dead."""
         rows = conn.execute(
-            "SELECT r.run_id, r.episode_id, r.owner_pid, r.owner_pid_start, "
+            "SELECT r.run_id, r.podcast_id, r.episode_id, r.owner_pid, r.owner_pid_start, "
             "r.heartbeat_at, p.slug FROM processing_runs r "
             "JOIN podcasts p ON p.id = r.podcast_id "
             "WHERE r.state IN ('running', 'cancel_requested')"
@@ -125,6 +125,29 @@ class ProcessingQueue:
                     (row['run_id'], row['owner_pid'], row['owner_pid_start']),
                 )
                 if cursor.rowcount:
+                    successor = conn.execute(
+                        "SELECT 1 FROM processing_runs WHERE podcast_id = ? "
+                        "AND episode_id = ? "
+                        "AND state IN ('running', 'cancel_requested')",
+                        (row['podcast_id'], row['episode_id']),
+                    ).fetchone()
+                    if not successor:
+                        conn.execute(
+                            "UPDATE episodes SET status = 'pending', "
+                            "error_message = 'Reset after worker crash (no retry penalty)' "
+                            "WHERE podcast_id = ? AND episode_id = ? "
+                            "AND status = 'processing'",
+                            (row['podcast_id'], row['episode_id']),
+                        )
+                        conn.execute(
+                            "UPDATE auto_process_queue SET status = 'pending', "
+                            "error_message = "
+                            "'Reset after worker crash (no attempt penalty)', "
+                            "updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                            "WHERE podcast_id = ? AND episode_id = ? "
+                            "AND status = 'processing'",
+                            (row['podcast_id'], row['episode_id']),
+                        )
                     recovered.append((row['slug'], row['episode_id'], row['run_id']))
                 continue
             try:
@@ -361,9 +384,13 @@ class ProcessingQueue:
     def reconcile_dead_owners(self) -> int:
         """Reclaim proven-dead owners during startup or before admission."""
         conn = self._database().get_connection()
-        conn.execute('BEGIN IMMEDIATE')
-        recovered = self._reconcile_dead_owners(conn)
-        conn.commit()
+        try:
+            conn.execute('BEGIN IMMEDIATE')
+            recovered = self._reconcile_dead_owners(conn)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
         for slug, episode_id, run_id in recovered:
             _sync_status_clear(slug, episode_id, run_id)
         return len(recovered)

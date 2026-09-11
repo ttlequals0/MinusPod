@@ -10,6 +10,7 @@ from llm_client import (
     ProviderRateLimitedError,
     StructuralRateLimitError,
 )
+from llm_capabilities import PASS_AD_DETECTION_1, clear_fallback, is_fallback_set
 from tests.unit.provider_error_fakes import FakeProviderError, FakeResponse, call_window
 from utils import llm_call
 
@@ -166,6 +167,75 @@ def test_anthropic_reasoning_exhaustion_retry_omits_thinking(
     assert [item.args for item in usage_callback.call_args_list] == [
         ('claude-test', {'input_tokens': 100, 'output_tokens': 4096}),
         ('claude-test', {'input_tokens': 100, 'output_tokens': 2}),
+    ]
+    assert len(no_retry_wait) == 1
+
+
+def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
+        monkeypatch, no_retry_wait):
+    episode_id = 'reasoning-fallback'
+    clear_fallback(episode_id, PASS_AD_DETECTION_1)
+    exhausted = SimpleNamespace(
+        choices=[SimpleNamespace(
+            message=SimpleNamespace(
+                content='', reasoning=None, reasoning_content=None,
+                reasoning_details=None),
+            finish_reason='length',
+        )],
+        usage=SimpleNamespace(
+            prompt_tokens=100,
+            completion_tokens=8192,
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=8192),
+        ),
+    )
+    answered = SimpleNamespace(
+        choices=[SimpleNamespace(
+            message=SimpleNamespace(
+                content='[]', reasoning=None, reasoning_content=None),
+            finish_reason='stop',
+        )],
+        usage=SimpleNamespace(prompt_tokens=100, completion_tokens=2),
+    )
+    sdk = MagicMock()
+    sdk.chat.completions.create.side_effect = [
+        exhausted,
+        FakeProviderError('reasoning is required', status_code=400),
+        answered,
+    ]
+    client = OpenAICompatibleClient(api_key='test-key')
+    client._client = sdk
+    client._token_param_cache['test-model'] = 'max_tokens'
+    usage_callback = MagicMock()
+    client.set_usage_callback(usage_callback)
+    monkeypatch.setattr('llm_client.get_effective_provider',
+                        lambda: 'openai-compatible')
+
+    response, error = llm_call.call_llm_for_window(
+        llm_client=client,
+        model='test-model',
+        system_prompt='sys',
+        prompt='user',
+        llm_timeout=1.0,
+        max_retries=1,
+        max_tokens=8192,
+        slug='t',
+        episode_id=episode_id,
+        window_label='w',
+        reasoning_effort='high',
+        pass_name=PASS_AD_DETECTION_1,
+    )
+
+    assert error is None
+    assert response.content == '[]'
+    first, rejected, recovered = sdk.chat.completions.create.call_args_list
+    assert first.kwargs['reasoning_effort'] == 'high'
+    assert rejected.kwargs['reasoning_effort'] == 'none'
+    assert 'reasoning_effort' not in recovered.kwargs
+    assert recovered.kwargs['max_tokens'] == 4096
+    assert is_fallback_set(episode_id, PASS_AD_DETECTION_1) is True
+    assert [item.args for item in usage_callback.call_args_list] == [
+        ('test-model', {'input_tokens': 100, 'output_tokens': 8192}),
+        ('test-model', {'input_tokens': 100, 'output_tokens': 2}),
     ]
     assert len(no_retry_wait) == 1
 
