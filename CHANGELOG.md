@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.96.21] - 2026-09-11
+
+### Fixed
+
+- Custom model ID and pricing fields now have 44 px touch targets.
+
 ## [2.96.20] - 2026-09-11
 
 ### Added

@@ -91,7 +91,9 @@ describe('AIModelsSection: typing a model ID', () => {
     expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('SELECT');
 
     await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
-    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('INPUT');
+    const input = screen.getByLabelText('Ad Detection Model');
+    expect(input.tagName).toBe('INPUT');
+    expect(input.className).toContain('min-h-[44px]');
 
     await user.click(screen.getAllByRole('button', { name: 'Choose from list' })[0]);
     expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('SELECT');
@@ -138,6 +140,19 @@ describe('AIModelsSection: custom pricing', () => {
     const outputs = screen.getAllByLabelText('Output, USD per 1 million tokens') as HTMLInputElement[];
     expect(inputs[0].value).toBe('0');
     expect(outputs[0].value).toBe('0');
+  });
+
+  it('uses 44 px pricing inputs with the shared focus ring', () => {
+    renderSection();
+
+    const inputs = [
+      ...screen.getAllByLabelText('Input, USD per 1 million tokens'),
+      ...screen.getAllByLabelText('Output, USD per 1 million tokens'),
+    ];
+    for (const input of inputs) {
+      expect(input.className).toContain('min-h-[44px]');
+      expect(input.className).toContain('focus-visible:ring-2');
+    }
   });
 
   it('saves both positive rates for the selected model', async () => {

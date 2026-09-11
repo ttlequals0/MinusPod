@@ -106,7 +106,7 @@ function AIModelsSection({
             placeholder="Provider's exact model ID"
             spellCheck={false}
             autoComplete="off"
-            className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+            className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
           />
         ) : (
         <select
@@ -295,7 +295,7 @@ function ModelPricingFields({
             inputMode="decimal"
             value={inputRate}
             onChange={(event) => { setInputRate(event.target.value); setMessage(null); }}
-            className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+            className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
           />
         </div>
         <div>
@@ -310,7 +310,7 @@ function ModelPricingFields({
             inputMode="decimal"
             value={outputRate}
             onChange={(event) => { setOutputRate(event.target.value); setMessage(null); }}
-            className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+            className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
           />
         </div>
       </div>
