@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.96.19
+  version: 2.96.20
   contact:
     name: MinusPod
   license:
@@ -5048,6 +5048,17 @@ paths:
                     LiteLLM catalog; 'free' disables cost tracking (use only for local models with no cost).
                   enum: [auto, litellm, free]
                   example: auto
+                modelPricingOverrides:
+                  type: object
+                  description: >-
+                    Partial map of model IDs to operator pricing in USD per 1 million
+                    tokens. Operator pricing takes precedence over catalog pricing.
+                    Set an entry to null to remove its override. Both rates may be 0
+                    for a free model.
+                  additionalProperties:
+                    oneOf:
+                      - $ref: '#/components/schemas/ModelPricingOverride'
+                      - type: 'null'
                 openrouterApiKey:
                   type: string
                   description: API key for OpenRouter (only used when provider is openrouter)
@@ -10627,6 +10638,64 @@ components:
               description: Ads the second scan of the output audio found and cut. 0 means the scan ran and came back clean. Absent or null means the scan did not run, either because it was skipped (see verificationSkipped and detectionSkipped) or because it failed.
             secondsRemoved:
               type: number
+            thinkingNotices:
+              type: array
+              description: >-
+                Reasoning and thinking compatibility notices recorded by this
+                run. Present only when a provider rejected a requested setting
+                and the client retried with pass defaults. Provider error text
+                is never stored.
+              items:
+                $ref: '#/components/schemas/ThinkingCompatibilityNotice'
+
+    ThinkingCompatibilityNotice:
+      type: object
+      required: [pass, provider, model, requested, compatibility, fallback]
+      properties:
+        pass:
+          type: string
+          enum:
+            - ad_detection_pass_1
+            - reviewer_pass_1
+            - ad_detection_pass_2
+            - reviewer_pass_2
+            - chapter_generation
+          description: Pipeline pass that made the rejected request.
+        provider:
+          type: string
+          enum: [anthropic, openrouter, openai-compatible, ollama, unknown]
+          description: Configured provider identifier. Endpoint URLs are not stored.
+        model:
+          type: string
+          description: Model identifier, or redacted when the value was not safe to retain.
+        requested:
+          oneOf:
+            - type: integer
+            - type: string
+              enum: [none, low, medium, high]
+          description: Requested reasoning effort or Anthropic thinking token budget.
+        compatibility:
+          type: string
+          enum: [required, unsupported, incompatible]
+          description: >-
+            What the provider response proved. incompatible means the response
+            identified the setting but did not reliably say whether thinking
+            is required or unsupported.
+        fallback:
+          type: object
+          required: [maxTokens, temperature, reasoningEffort]
+          description: Pass defaults used for the retry.
+          properties:
+            maxTokens:
+              type: integer
+            temperature:
+              type: number
+            reasoningEffort:
+              type:
+                - integer
+                - string
+                - 'null'
+              description: Null means the retry omitted the reasoning setting.
 
     CueDetection:
       type: object
@@ -10871,6 +10940,24 @@ components:
           type: number
           nullable: true
           description: Output cost per million tokens (USD), present when pricing is known
+        pricingSource:
+          type: string
+          nullable: true
+          description: Pricing source, including operator when a configured override applies
+
+    ModelPricingOverride:
+      type: object
+      additionalProperties: false
+      required: [inputCostPerMtok, outputCostPerMtok]
+      properties:
+        inputCostPerMtok:
+          type: number
+          minimum: 0
+          description: Input price in USD per 1 million tokens
+        outputCostPerMtok:
+          type: number
+          minimum: 0
+          description: Output price in USD per 1 million tokens
 
     WhisperModel:
       type: object
@@ -11927,6 +12014,15 @@ components:
               type: string
               description: Pricing source mode (auto, litellm, free)
               enum: [auto, litellm, free]
+            isDefault:
+              type: boolean
+        modelPricingOverrides:
+          type: object
+          properties:
+            value:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/ModelPricingOverride'
             isDefault:
               type: boolean
         apiKeyConfigured:

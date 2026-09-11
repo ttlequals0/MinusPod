@@ -4,13 +4,19 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import run_context
 from llm_client import (
     AnthropicClient,
     OpenAICompatibleClient,
     ProviderRateLimitedError,
     StructuralRateLimitError,
 )
-from llm_capabilities import PASS_AD_DETECTION_1, clear_fallback, is_fallback_set
+from llm_capabilities import (
+    PASS_AD_DETECTION_1,
+    classify_reasoning_rejection,
+    clear_fallback,
+    is_fallback_set,
+)
 from tests.unit.provider_error_fakes import FakeProviderError, FakeResponse, call_window
 from utils import llm_call
 
@@ -172,7 +178,7 @@ def test_anthropic_reasoning_exhaustion_retry_omits_thinking(
 
 
 def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
-        monkeypatch, no_retry_wait):
+        monkeypatch, no_retry_wait, caplog):
     episode_id = 'reasoning-fallback'
     clear_fallback(episode_id, PASS_AD_DETECTION_1)
     exhausted = SimpleNamespace(
@@ -199,7 +205,8 @@ def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
     sdk = MagicMock()
     sdk.chat.completions.create.side_effect = [
         exhausted,
-        FakeProviderError('reasoning is required', status_code=400),
+        FakeProviderError(
+            'reasoning is required; private-provider-detail', status_code=400),
         answered,
     ]
     client = OpenAICompatibleClient(api_key='test-key')
@@ -210,20 +217,25 @@ def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
     monkeypatch.setattr('llm_client.get_effective_provider',
                         lambda: 'openai-compatible')
 
-    response, error = llm_call.call_llm_for_window(
-        llm_client=client,
-        model='test-model',
-        system_prompt='sys',
-        prompt='user',
-        llm_timeout=1.0,
-        max_retries=1,
-        max_tokens=8192,
-        slug='t',
-        episode_id=episode_id,
-        window_label='w',
-        reasoning_effort='high',
-        pass_name=PASS_AD_DETECTION_1,
-    )
+    ctx = run_context.begin('t', episode_id, run_id='run-1')
+    try:
+        response, error = llm_call.call_llm_for_window(
+            llm_client=client,
+            model='test-model',
+            system_prompt='sys',
+            prompt='user',
+            llm_timeout=1.0,
+            max_retries=1,
+            max_tokens=8192,
+            slug='t',
+            episode_id=episode_id,
+            window_label='w',
+            reasoning_effort='high',
+            pass_name=PASS_AD_DETECTION_1,
+        )
+        notices = ctx.thinking_notices('run-1')
+    finally:
+        run_context.end(ctx)
 
     assert error is None
     assert response.content == '[]'
@@ -233,11 +245,38 @@ def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
     assert 'reasoning_effort' not in recovered.kwargs
     assert recovered.kwargs['max_tokens'] == 4096
     assert is_fallback_set(episode_id, PASS_AD_DETECTION_1) is True
+    assert notices == [{
+        'pass': PASS_AD_DETECTION_1,
+        'provider': 'openai-compatible',
+        'model': 'test-model',
+        'requested': 'none',
+        'compatibility': 'required',
+        'fallback': {
+            'max_tokens': 4096,
+            'temperature': 0.0,
+            'reasoning_effort': None,
+        },
+    }]
+    assert 'private-provider-detail' not in str(notices)
+    assert 'private-provider-detail' not in caplog.text
     assert [item.args for item in usage_callback.call_args_list] == [
         ('test-model', {'input_tokens': 100, 'output_tokens': 8192}),
         ('test-model', {'input_tokens': 100, 'output_tokens': 2}),
     ]
     assert len(no_retry_wait) == 1
+
+
+@pytest.mark.parametrize('message, expected', [
+    ('reasoning is required', 'required'),
+    ('thinking must be enabled for this model', 'required'),
+    ('this model does not support reasoning_effort', 'unsupported'),
+    ('thinking is unavailable', 'unsupported'),
+    ('invalid budget_tokens value', 'incompatible'),
+    ('max_tokens is unsupported', None),
+])
+def test_reasoning_rejection_classification_is_conservative(message, expected):
+    assert classify_reasoning_rejection(
+        FakeProviderError(message, status_code=400)) == expected
 
 
 def test_secondary_reasoning_exhaustion_disables_final_retry(no_retry_wait):

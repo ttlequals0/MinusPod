@@ -8,7 +8,7 @@ import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
-import type { BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
+import type { BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
@@ -776,6 +776,17 @@ function Settings() {
     },
   });
 
+  const modelPricingMutation = useMutation({
+    mutationFn: ({ modelId, override }: {
+      modelId: string;
+      override: ModelPricingOverride | null;
+    }) => updateSettings({ modelPricingOverrides: { [modelId]: override } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['models'] });
+    },
+  });
+
   const refreshArtworkMutation = useMutation({
     mutationFn: refreshAllArtwork,
   });
@@ -1027,6 +1038,15 @@ function Settings() {
         onChaptersModelChange={setChaptersModel}
         onRefresh={() => refreshModelsMutation.mutate()}
         refreshIsPending={refreshModelsMutation.isPending}
+        modelPricingOverrides={settings?.modelPricingOverrides?.value ?? {}}
+        additionalModelIds={[
+          reviewer.model && reviewer.model !== 'same_as_pass' ? reviewer.model : '',
+        ]}
+        onPricingOverrideUpdate={(modelId, override) =>
+          modelPricingMutation.mutateAsync({ modelId, override })}
+        pricingOverrideSavingModel={
+          modelPricingMutation.isPending ? modelPricingMutation.variables?.modelId ?? null : null
+        }
       />
 
       {settings?.stageTunables && settings?.stageTunableDefaults && (

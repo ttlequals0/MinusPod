@@ -24,6 +24,18 @@ STATS_DB = {
     'markers': {'cut': 6, 'held': 4, 'not_cut': 5},
     'verification_ads_cut': 1,
     'seconds_removed': 609.0,
+    'thinking_notices': [{
+        'pass': 'ad_detection_pass_1',
+        'provider': 'openai-compatible',
+        'model': 'test-model',
+        'requested': 'none',
+        'compatibility': 'required',
+        'fallback': {
+            'max_tokens': 4096,
+            'temperature': 0.0,
+            'reasoning_effort': None,
+        },
+    }],
 }
 
 STATS_API = {
@@ -41,6 +53,18 @@ STATS_API = {
     'markers': {'cut': 6, 'held': 4, 'notCut': 5},
     'verificationAdsCut': 1,
     'secondsRemoved': 609.0,
+    'thinkingNotices': [{
+        'pass': 'ad_detection_pass_1',
+        'provider': 'openai-compatible',
+        'model': 'test-model',
+        'requested': 'none',
+        'compatibility': 'required',
+        'fallback': {
+            'maxTokens': 4096,
+            'temperature': 0.0,
+            'reasoningEffort': None,
+        },
+    }],
 }
 
 

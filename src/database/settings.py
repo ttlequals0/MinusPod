@@ -1,4 +1,6 @@
 """Settings mixin for MinusPod database."""
+import json
+import math
 import os
 import logging
 from decimal import Decimal, InvalidOperation
@@ -943,6 +945,79 @@ class SettingsMixin:
                 'is_default': bool(row['is_default'])
             }
         return settings
+
+    def get_model_pricing_overrides(self) -> dict[str, dict[str, float]]:
+        """Return valid operator pricing overrides keyed by model ID."""
+        raw = self.get_setting('model_pricing_overrides')
+        if not raw:
+            return {}
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            logger.warning("Ignoring invalid model_pricing_overrides JSON")
+            return {}
+        if not isinstance(payload, dict):
+            logger.warning("Ignoring non-object model_pricing_overrides")
+            return {}
+
+        overrides = {}
+        for model_id, rates in payload.items():
+            if not isinstance(model_id, str) or not model_id.strip() \
+                    or not isinstance(rates, dict):
+                continue
+            input_rate = rates.get('inputCostPerMtok')
+            output_rate = rates.get('outputCostPerMtok')
+            if isinstance(input_rate, bool) or isinstance(output_rate, bool):
+                continue
+            try:
+                input_rate = float(input_rate)
+                output_rate = float(output_rate)
+            except (TypeError, ValueError):
+                continue
+            if (not math.isfinite(input_rate) or not math.isfinite(output_rate)
+                    or input_rate < 0 or output_rate < 0):
+                continue
+            overrides[model_id] = {
+                'inputCostPerMtok': input_rate,
+                'outputCostPerMtok': output_rate,
+            }
+        return overrides
+
+    def get_model_pricing_override(
+            self, model_id: str,
+            overrides: dict[str, dict[str, float]] | None = None,
+    ) -> dict[str, float] | None:
+        """Resolve an exact or normalized operator override for a model."""
+        if overrides is None:
+            overrides = self.get_model_pricing_overrides()
+        if model_id in overrides:
+            return overrides[model_id]
+        match_key = normalize_model_key(model_id)
+        if not match_key:
+            return None
+        matches = [
+            rates for configured_id, rates in overrides.items()
+            if normalize_model_key(configured_id) == match_key
+        ]
+        return matches[0] if len(matches) == 1 else None
+
+    def merge_model_pricing_overrides(self, patch: dict[str, dict | None]) -> dict:
+        """Atomically apply a partial model-pricing override map."""
+        def merge(raw):
+            try:
+                current = json.loads(raw) if raw else {}
+            except (TypeError, ValueError):
+                current = {}
+            if not isinstance(current, dict):
+                current = {}
+            for model_id, rates in patch.items():
+                if rates is None:
+                    current.pop(model_id, None)
+                else:
+                    current[model_id] = rates
+            return json.dumps(current, separators=(',', ':'), sort_keys=True)
+
+        return json.loads(self.merge_setting('model_pricing_overrides', merge))
 
     @staticmethod
     def _upsert_setting(conn, key: str, value: str, is_default: bool):

@@ -380,7 +380,7 @@ def _run_stats_to_api(stats):
         return None
     stage_hits = stats.get('stage_hits')
     markers = stats.get('markers')
-    return {
+    result = {
         'mode': stats.get('mode'),
         'detectionSkipped': stats.get('detection_skipped'),
         'verificationSkipped': stats.get('verification_skipped'),
@@ -405,6 +405,22 @@ def _run_stats_to_api(stats):
         'verificationAdsCut': stats.get('verification_ads_cut'),
         'secondsRemoved': stats.get('seconds_removed'),
     }
+    notices = stats.get('thinking_notices')
+    if notices:
+        result['thinkingNotices'] = [{
+            'pass': notice.get('pass'),
+            'provider': notice.get('provider'),
+            'model': notice.get('model'),
+            'requested': notice.get('requested'),
+            'compatibility': notice.get('compatibility'),
+            'fallback': {
+                'maxTokens': (notice.get('fallback') or {}).get('max_tokens'),
+                'temperature': (notice.get('fallback') or {}).get('temperature'),
+                'reasoningEffort': (
+                    notice.get('fallback') or {}).get('reasoning_effort'),
+            },
+        } for notice in notices]
+    return result
 
 
 def _processing_runs(db, episode):

@@ -1180,6 +1180,123 @@ describe('Incomplete window coverage', () => {
   });
 });
 
+describe('Thinking setting fallback', () => {
+  it('shows affected stages from the latest completed run without provider details', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      processingRuns: [
+        {
+          runNumber: 1,
+          processedAt: '2026-01-01T00:00:00Z',
+          status: 'completed',
+          adsDetected: 0,
+          processingDurationSeconds: null,
+          errorMessage: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          llmCost: 0,
+          stats: {
+            thinkingNotices: [
+              {
+                pass: 'ad_detection_pass_1',
+                provider: 'openai-compatible',
+                model: 'private-model-name',
+                requested: 'high',
+                compatibility: 'unsupported',
+                fallback: { maxTokens: 4096, temperature: 0, reasoningEffort: null },
+              },
+              {
+                pass: 'ad_detection_pass_2',
+                provider: 'openai-compatible',
+                model: 'private-model-name',
+                requested: 'high',
+                compatibility: 'incompatible',
+                fallback: { maxTokens: 4096, temperature: 0, reasoningEffort: null },
+              },
+            ],
+          },
+        },
+      ],
+    }));
+
+    const notice = await screen.findByRole('status');
+    expect(notice.textContent).toContain(
+      'The requested thinking setting was not accepted for ad detection and verification. This run used provider defaults.',
+    );
+    expect(notice.textContent).not.toContain('openai-compatible');
+    expect(notice.textContent).not.toContain('private-model-name');
+  });
+
+  it('uses the latest completed run and omits the notice when no completed run has one', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      processingRuns: [
+        {
+          runNumber: 1,
+          processedAt: '2026-01-01T00:00:00Z',
+          status: 'completed',
+          adsDetected: 0,
+          processingDurationSeconds: null,
+          errorMessage: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          llmCost: 0,
+          stats: {
+            thinkingNotices: [
+              {
+                pass: 'ad_detection_pass_1',
+                provider: 'unknown',
+                model: 'redacted',
+                requested: 'medium',
+                compatibility: 'required',
+                fallback: { maxTokens: 4096, temperature: 0, reasoningEffort: null },
+              },
+            ],
+          },
+        },
+        {
+          runNumber: 2,
+          processedAt: '2026-01-02T00:00:00Z',
+          status: 'completed',
+          adsDetected: 0,
+          processingDurationSeconds: null,
+          errorMessage: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          llmCost: 0,
+          stats: null,
+        },
+        {
+          runNumber: 3,
+          processedAt: '2026-01-03T00:00:00Z',
+          status: 'failed',
+          adsDetected: 0,
+          processingDurationSeconds: null,
+          errorMessage: 'failure',
+          inputTokens: 0,
+          outputTokens: 0,
+          llmCost: 0,
+          stats: {
+            thinkingNotices: [
+              {
+                pass: 'chapter_generation',
+                provider: 'unknown',
+                model: 'redacted',
+                requested: 1024,
+                compatibility: 'required',
+                fallback: { maxTokens: 300, temperature: 0.1, reasoningEffort: null },
+              },
+            ],
+          },
+        },
+      ],
+    }));
+
+    await screen.findByText('Test Episode');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
 describe('Regenerate Chapters: progress and result feedback', () => {
   beforeEach(() => {
     mockRegenerateChapters.mockReset();

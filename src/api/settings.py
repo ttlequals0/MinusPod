@@ -342,6 +342,7 @@ def get_settings():
     openai_base_url = get_effective_base_url()
     pricing_source_mode = _setting_value(
         settings, 'pricing_source_mode', registry_default('pricing_source_mode'))
+    model_pricing_overrides = db.get_model_pricing_overrides()
     api_key = get_api_key()
     api_key_configured = bool(api_key and api_key != 'not-needed')
     openrouter_api_key = get_effective_openrouter_api_key()
@@ -661,6 +662,8 @@ def get_settings():
         'llmJsonSchemaEnabled': _sv('llm_json_schema_enabled', llm_json_schema_enabled),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
         'pricingSourceMode': _sv('pricing_source_mode', pricing_source_mode),
+        'modelPricingOverrides': _sv(
+            'model_pricing_overrides', model_pricing_overrides),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         # value is resolved, not raw: unset falls back to PodcastIndex when
@@ -782,6 +785,7 @@ def update_ad_detection_settings():
         _apply_prompt_fields,
         _apply_review_fields,
         _apply_model_fields,
+        _apply_model_pricing_fields,
         _apply_processing_flags,
         _apply_feed_refresh_fields,
         _apply_queue_boost_fields,
@@ -904,6 +908,55 @@ def _apply_model_fields(db, data):
         db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
         logger.info(f"Updated chapters model to: {data['chaptersModel']}")
     return
+
+
+def _apply_model_pricing_fields(db, data):
+    """Validate and merge per-model USD pricing overrides."""
+    if 'modelPricingOverrides' not in data:
+        return None
+    submitted = data['modelPricingOverrides']
+    if not isinstance(submitted, Mapping):
+        return error_response('modelPricingOverrides must be an object', 400)
+
+    patch = {}
+    for raw_model_id, rates in submitted.items():
+        if not isinstance(raw_model_id, str) or not raw_model_id.strip():
+            return error_response('model pricing override IDs must be non-empty strings', 400)
+        model_id = raw_model_id.strip()
+        if model_id in patch:
+            return error_response(
+                f'modelPricingOverrides contains duplicate model ID {model_id}', 400)
+        if rates is None:
+            patch[model_id] = None
+            continue
+        if not isinstance(rates, Mapping):
+            return error_response(
+                f'modelPricingOverrides.{model_id} must be an object or null', 400)
+        required = {'inputCostPerMtok', 'outputCostPerMtok'}
+        if set(rates) != required:
+            return error_response(
+                f'modelPricingOverrides.{model_id} must contain inputCostPerMtok '
+                'and outputCostPerMtok', 400)
+
+        parsed = {}
+        for field in required:
+            value = rates[field]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return error_response(
+                    f'modelPricingOverrides.{model_id}.{field} must be a '
+                    'non-negative number', 400)
+            value = float(value)
+            if not math.isfinite(value) or value < 0:
+                return error_response(
+                    f'modelPricingOverrides.{model_id}.{field} must be a '
+                    'non-negative number', 400)
+            parsed[field] = value
+        patch[model_id] = parsed
+
+    if patch:
+        db.merge_model_pricing_overrides(patch)
+        logger.info("Updated model pricing overrides for %d model(s)", len(patch))
+    return None
 
 
 def _apply_size_caps(db, data):

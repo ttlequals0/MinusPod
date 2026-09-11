@@ -1,4 +1,6 @@
 """Tests for multi-provider LLM pricing system."""
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import json
 from unittest.mock import patch, MagicMock
 
@@ -77,6 +79,123 @@ class TestNormalizeModelKey:
     def test_colon_suffix_with_digits_not_stripped(self):
         """Suffix containing digits does not match alpha-only regex, so it is kept."""
         assert normalize_model_key('model:v2-large') == 'modelv2large'
+
+
+class TestModelPricingOverrides:
+    def test_positive_override_precedes_catalog(self, temp_db):
+        temp_db.upsert_fetched_pricing([{
+            'match_key': normalize_model_key('local-model'),
+            'raw_model_id': 'local-model',
+            'display_name': 'Local Model',
+            'input_cost_per_mtok': 1.0,
+            'output_cost_per_mtok': 2.0,
+        }], source='litellm')
+        temp_db.merge_model_pricing_overrides({
+            'local-model': {
+                'inputCostPerMtok': 4.0,
+                'outputCostPerMtok': 8.0,
+            },
+        })
+
+        cost = temp_db.record_token_usage('local-model', 1_000_000, 500_000)
+
+        assert cost == 8.0
+
+    def test_explicit_zero_is_free_without_missing_warning(self, temp_db, caplog):
+        temp_db.merge_model_pricing_overrides({
+            'free-model': {
+                'inputCostPerMtok': 0.0,
+                'outputCostPerMtok': 0.0,
+            },
+        })
+
+        with caplog.at_level('WARNING'):
+            cost = temp_db.record_token_usage('free-model', 1000, 500)
+
+        assert cost == 0.0
+        assert 'No pricing found' not in caplog.text
+
+    def test_normalized_model_id_uses_override(self, temp_db):
+        temp_db.merge_model_pricing_overrides({
+            'vendor/local-model-20260911': {
+                'inputCostPerMtok': 2.0,
+                'outputCostPerMtok': 6.0,
+            },
+        })
+
+        cost = temp_db.record_token_usage('local-model', 500_000, 500_000)
+
+        assert cost == 4.0
+
+    def test_ambiguous_normalized_override_requires_exact_id(self, temp_db):
+        overrides = {
+            'vendor-a/local-model': {
+                'inputCostPerMtok': 1.0,
+                'outputCostPerMtok': 2.0,
+            },
+            'vendor-b/local-model': {
+                'inputCostPerMtok': 3.0,
+                'outputCostPerMtok': 4.0,
+            },
+        }
+
+        assert temp_db.get_model_pricing_override(
+            'vendor-a/local-model', overrides) == overrides['vendor-a/local-model']
+        assert temp_db.get_model_pricing_override('local-model', overrides) is None
+
+    def test_concurrent_partial_override_merges_preserve_both_models(self, temp_db):
+        barrier = threading.Barrier(2)
+
+        def merge(model_id, rate):
+            barrier.wait()
+            temp_db.merge_model_pricing_overrides({
+                model_id: {
+                    'inputCostPerMtok': rate,
+                    'outputCostPerMtok': rate,
+                },
+            })
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(merge, 'model-a', 1.0),
+                executor.submit(merge, 'model-b', 2.0),
+            ]
+            for future in futures:
+                future.result()
+
+        assert temp_db.get_model_pricing_overrides() == {
+            'model-a': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 1.0},
+            'model-b': {'inputCostPerMtok': 2.0, 'outputCostPerMtok': 2.0},
+        }
+
+    def test_summary_keeps_recorded_cost_after_override_changes(self, temp_db):
+        temp_db.merge_model_pricing_overrides({
+            'local-model': {
+                'inputCostPerMtok': 1.0,
+                'outputCostPerMtok': 2.0,
+            },
+        })
+        temp_db.record_token_usage('local-model', 1_000_000, 1_000_000)
+        temp_db.merge_model_pricing_overrides({
+            'local-model': {
+                'inputCostPerMtok': 10.0,
+                'outputCostPerMtok': 20.0,
+            },
+        })
+
+        summary = temp_db.get_token_usage_summary()
+
+        assert summary['totalCost'] == 3.0
+        assert summary['models'][0]['totalCost'] == 3.0
+        assert summary['models'][0]['inputCostPerMtok'] == 10.0
+        assert summary['models'][0]['outputCostPerMtok'] == 20.0
+
+    def test_missing_override_keeps_catalog_fallback_warning(self, temp_db, caplog):
+        with caplog.at_level('WARNING'):
+            cost = temp_db.record_token_usage('uncatalogued-model', 1000, 500)
+
+        assert cost == 0.0
+        assert "No pricing found for model 'uncatalogued-model'" in caplog.text
 
 
 

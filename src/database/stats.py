@@ -160,12 +160,21 @@ class StatsMixin:
                               match_key: str = '') -> float:
         """Calculate cost using normalized match_key lookup.
 
-        Resolution: exact match on match_key -> prefix match on match_key -> $0.
+        Resolution: operator override -> exact catalog match -> prefix match -> $0.
         """
         if not match_key:
             match_key = normalize_model_key(model_id)
 
         logger.debug(f"Cost lookup: model_id='{model_id}' -> match_key='{match_key}'")
+
+        override = self.get_model_pricing_override(model_id)
+        if override is not None:
+            input_per_mtok = override['inputCostPerMtok']
+            output_per_mtok = override['outputCostPerMtok']
+            return (
+                (input_tokens / 1_000_000) * input_per_mtok
+                + (output_tokens / 1_000_000) * output_per_mtok
+            )
 
         # Exact match on match_key
         cursor = conn.execute(
@@ -290,7 +299,10 @@ class StatsMixin:
         )
 
         models = []
+        overrides = self.get_model_pricing_overrides()
         for row in cursor:
+            override = self.get_model_pricing_override(
+                row['model_id'], overrides=overrides)
             models.append({
                 'modelId': row['model_id'],
                 'displayName': row['display_name'] or row['model_id'],
@@ -298,8 +310,12 @@ class StatsMixin:
                 'totalOutputTokens': row['total_output_tokens'],
                 'totalCost': round(row['total_cost'], 6),
                 'callCount': row['call_count'],
-                'inputCostPerMtok': row['input_cost_per_mtok'],
-                'outputCostPerMtok': row['output_cost_per_mtok'],
+                'inputCostPerMtok': (
+                    override['inputCostPerMtok'] if override is not None
+                    else row['input_cost_per_mtok']),
+                'outputCostPerMtok': (
+                    override['outputCostPerMtok'] if override is not None
+                    else row['output_cost_per_mtok']),
             })
 
         return {

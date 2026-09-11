@@ -1,5 +1,6 @@
 """Tests for messages_create extensions: reasoning_effort + per-pass fallback."""
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from threading import Barrier, Lock
 from types import SimpleNamespace
 import json
@@ -8,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import llm_capabilities
+import run_context
 from llm_capabilities import (
     PASS_AD_DETECTION_1,
     PASS_REVIEWER_1,
@@ -359,23 +361,26 @@ class TestOpenAIFallback:
         client._client = SimpleNamespace(
             chat=SimpleNamespace(completions=api))
 
-        with patch("llm_client.get_effective_provider", return_value=provider):
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                futures = [
-                    executor.submit(
-                        client.messages_create,
-                        model="model-x",
-                        max_tokens=99999,
-                        system="sys",
-                        messages=[{"role": "user", "content": "hi"}],
-                        temperature=0.8,
-                        reasoning_effort="none",
-                        episode_id="ep1",
-                        pass_name=PASS_REVIEWER_1,
-                    )
-                    for _ in range(2)
-                ]
-                results = [future.result(timeout=5) for future in futures]
+        ctx = run_context.begin('feed', 'ep1', run_id='run-a')
+        try:
+            call = run_context.run_in_worker_thread(partial(
+                client.messages_create,
+                model="model-x",
+                max_tokens=99999,
+                system="sys",
+                messages=[{"role": "user", "content": "hi"}],
+                temperature=0.8,
+                reasoning_effort="none",
+                episode_id="ep1",
+                pass_name=PASS_REVIEWER_1,
+            ))
+            with patch("llm_client.get_effective_provider", return_value=provider):
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    futures = [executor.submit(call) for _ in range(2)]
+                    results = [future.result(timeout=5) for future in futures]
+            notices = ctx.thinking_notices('run-a')
+        finally:
+            run_context.end(ctx)
 
         assert all(result.content == "ok" for result in results)
         assert is_fallback_set("ep1", PASS_REVIEWER_1) is True
@@ -389,6 +394,9 @@ class TestOpenAIFallback:
         assert len(retries) == 2
         assert all(kwargs["max_tokens"] == 4096 for kwargs in retries)
         assert all(kwargs["temperature"] == 0.0 for kwargs in retries)
+        assert len(notices) == 1
+        assert notices[0]['provider'] == provider
+        assert notices[0]['compatibility'] == 'required'
 
 
 class TestAnthropicTemperatureOmission:

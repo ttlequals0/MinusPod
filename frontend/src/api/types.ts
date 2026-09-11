@@ -323,6 +323,29 @@ export interface ProcessingRunStats {
   markers?: { cut: number; held: number; notCut: number } | null;
   verificationAdsCut?: number | null;
   secondsRemoved?: number | null;
+  // Present only when this run retried a rejected thinking setting with
+  // pass defaults. The backend deliberately excludes the provider error.
+  thinkingNotices?: ThinkingCompatibilityNotice[];
+}
+
+export type ThinkingNoticePass =
+  | 'ad_detection_pass_1'
+  | 'reviewer_pass_1'
+  | 'ad_detection_pass_2'
+  | 'reviewer_pass_2'
+  | 'chapter_generation';
+
+export interface ThinkingCompatibilityNotice {
+  pass: ThinkingNoticePass;
+  provider: 'anthropic' | 'openrouter' | 'openai-compatible' | 'ollama' | 'unknown';
+  model: string;
+  requested: 'none' | 'low' | 'medium' | 'high' | number;
+  compatibility: 'required' | 'unsupported' | 'incompatible';
+  fallback: {
+    maxTokens: number;
+    temperature: number;
+    reasoningEffort: string | number | null;
+  };
 }
 
 export interface EpisodeProcessingRun {
@@ -459,6 +482,13 @@ export interface SettingValueNumber {
   value: number;
   isDefault: boolean;
 }
+
+export interface ModelPricingOverride {
+  inputCostPerMtok: number;
+  outputCostPerMtok: number;
+}
+
+export type ModelPricingOverrides = Record<string, ModelPricingOverride>;
 
 export interface WhisperHealthInstance {
   instance: string;
@@ -647,6 +677,7 @@ export interface Settings {
   llmJsonSchemaEnabled: SettingValueBoolean;
   openaiBaseUrl: SettingValue;
   pricingSourceMode: SettingValue;
+  modelPricingOverrides: { value: ModelPricingOverrides; isDefault: boolean };
   apiKeyConfigured: boolean;
   podcastIndexApiKeyConfigured: boolean;
   podcastSearchProvider: SettingValue;
@@ -876,6 +907,7 @@ export interface UpdateSettingsPayload {
   llmProvider?: LlmProvider;
   openaiBaseUrl?: string;
   pricingSourceMode?: string;
+  modelPricingOverrides?: Record<string, ModelPricingOverride | null>;
   whisperBackend?: WhisperBackend;
   whisperApiBaseUrl?: string;
   whisperApiKey?: string;

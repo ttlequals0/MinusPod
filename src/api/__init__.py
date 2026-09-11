@@ -452,8 +452,16 @@ def _enrich_models_with_pricing(models: list) -> None:
         db = get_database()
         pricing_rows = db.get_model_pricing()
         pricing_lookup = {p['matchKey']: p for p in pricing_rows}
+        overrides = db.get_model_pricing_overrides()
 
         for model in models:
+            override = db.get_model_pricing_override(
+                model.get('id', ''), overrides=overrides)
+            if override is not None:
+                model['inputCostPerMtok'] = override['inputCostPerMtok']
+                model['outputCostPerMtok'] = override['outputCostPerMtok']
+                model['pricingSource'] = 'operator'
+                continue
             key = normalize_model_key(model.get('id', ''))
             pricing = pricing_lookup.get(key)
             if pricing:

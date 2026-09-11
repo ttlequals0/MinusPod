@@ -9,6 +9,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.96.20] - 2026-09-11
+
+### Added
+
+- Model settings accept per-model USD input and output prices for local or custom providers. A zero price records free usage without a missing-price warning.
+
+### Fixed
+
+- Episode processing now records when a provider rejects a reasoning or thinking setting and the request retries with pass defaults. The episode page identifies affected passes without showing provider error details.
+
 ## [2.96.19] - 2026-09-11
 
 ### Fixed

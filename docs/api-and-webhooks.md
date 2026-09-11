@@ -83,7 +83,7 @@ Key endpoints:
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds
 - `GET/PUT /api/v1/settings/update-check` - Get or update the update-check settings (`enabled` for the daily auto-check, `channel`: `stable` or `edge`)
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)
-- `PUT /api/v1/settings/ad-detection` - Update ad detection config (model, provider, prompts)
+- `PUT /api/v1/settings/ad-detection` - Update ad detection config, including a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override.
 - `GET /api/v1/settings/models` - List available AI models from current provider
 - `POST /api/v1/settings/models/refresh` - Force refresh model list from provider
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD

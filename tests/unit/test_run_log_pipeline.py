@@ -155,6 +155,35 @@ class TestFallbackFailurePath:
         assert any('exploded' in entry['msg'] for entry in _log_lines(path))
 
 
+class TestThinkingNoticeHistory:
+    def test_notice_is_copied_into_this_runs_stats(self, db):
+        ctx = run_context.begin(SLUG, EPISODE_ID, run_id='run-a')
+        notice = {
+            'pass': 'ad_detection_pass_1',
+            'provider': 'openai-compatible',
+            'model': 'test-model',
+            'requested': 'none',
+            'compatibility': 'required',
+            'fallback': {
+                'max_tokens': 4096,
+                'temperature': 0.0,
+                'reasoning_effort': None,
+            },
+        }
+        try:
+            ctx.add_thinking_notice('run-a', notice)
+            processing._record_history_row(
+                db, SLUG, EPISODE_ID, 'One', 'Run Log Feed', 'completed',
+                1.0, 0,
+                {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0},
+                run_stats={'mode': 'auto'})
+        finally:
+            run_context.end(ctx)
+
+        stats = json.loads(_history_row(db)['processing_stats_json'])
+        assert stats == {'mode': 'auto', 'thinking_notices': [notice]}
+
+
 class TestSlotGuard:
     def test_a_slot_holding_another_run_is_not_finalized(self, db, tmp_path):
         ctx = run_context.begin(SLUG, EPISODE_ID)

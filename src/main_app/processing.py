@@ -315,8 +315,7 @@ def is_transient_error(error: Exception) -> bool:
 
 def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None, run_id=None):
     """Background thread wrapper for process_episode with queue management."""
-    ctx = run_context.begin(slug, episode_id)
-    ctx.run_id = run_id
+    ctx = run_context.begin(slug, episode_id, run_id=run_id)
     queue = ProcessingQueue()
     start_time = time.time()
     # The run log is bracketed here, not inside process_episode: the fallback
@@ -3885,6 +3884,13 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
     podcast_data = db.get_podcast_by_slug(slug)
     if not podcast_data:
         return False
+    stats = dict(run_stats or {})
+    ctx = run_context.current()
+    if (ctx is not None and ctx.slug == slug
+            and ctx.episode_id == str(episode_id) and ctx.run_id):
+        notices = ctx.thinking_notices(ctx.run_id)
+        if notices:
+            stats['thinking_notices'] = notices
     history_id = db.record_processing_history(
         podcast_id=podcast_data['id'], podcast_slug=slug,
         podcast_title=podcast_data.get('title') or podcast_name,
@@ -3895,7 +3901,7 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
         output_tokens=token_totals['output_tokens'],
         llm_cost=token_totals['cost'],
         audio_cues_detected=audio_cues_detected,
-        processing_stats=run_stats,
+        processing_stats=stats or None,
     )
     _finalize_run_log(db, history_id, slug, episode_id)
     return True

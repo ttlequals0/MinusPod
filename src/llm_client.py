@@ -23,6 +23,7 @@ Configuration via environment variables:
 import json
 import logging
 import os
+import re
 import socket
 import threading
 import uuid
@@ -64,6 +65,7 @@ from config import (
     ModelNotConfiguredError,
 )
 from llm_capabilities import (
+    classify_reasoning_rejection,
     get_pass_defaults,
     is_fallback_eligible_error,
     is_fallback_set,
@@ -429,6 +431,28 @@ def _should_fallback_retry(
     )
 
 
+def _provider_error_kind(error: Exception) -> str:
+    """Return an error type and status without retaining its response body."""
+    status = getattr(error, 'status_code', None)
+    if status is None:
+        status = getattr(getattr(error, 'response', None), 'status_code', None)
+    kind = type(error).__name__
+    try:
+        status = int(status)
+    except (TypeError, ValueError):
+        return kind
+    return f'{kind} HTTP {status}'
+
+
+def _safe_reasoning_value(value: Union[int, str] | None):
+    """Keep only reasoning values accepted by the provider translators."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.lower() in ('none', 'low', 'medium', 'high'):
+        return value.lower()
+    return None if value is None else 'redacted'
+
+
 def _log_fallback(
     provider_label: str,
     episode_id: str | None,
@@ -441,9 +465,59 @@ def _log_fallback(
 ) -> None:
     logger.warning(
         f"[{episode_id}:{pass_name}] {provider_label} rejected user tunables "
-        f"(model={model}, max_tokens={max_tokens}, temperature={temperature}, "
-        f"reasoning_effort={reasoning_effort!r}): {error}. Retrying with defaults."
+        f"(model={_safe_model_identifier(model)}, max_tokens={max_tokens}, "
+        f"temperature={temperature}, "
+        f"reasoning_effort={_safe_reasoning_value(reasoning_effort)!r}; "
+        f"{_provider_error_kind(error)}). Retrying with defaults."
     )
+
+
+def _safe_model_identifier(model: str) -> str:
+    """Return a bounded model ID without URLs or secret-like values."""
+    value = str(model or '')
+    lowered = value.lower()
+    if (not value or len(value) > 160 or '://' in value
+            or any(char in value for char in ('?', '#', '=', '@'))
+            or re.search(r'(^|[/._:-])(?:sk|key|token|secret|password)[-_]', lowered)
+            or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/+\-]*', value)):
+        return 'redacted'
+    return value
+
+
+def _record_reasoning_fallback_notice(
+    provider: str,
+    model: str,
+    episode_id: str | None,
+    pass_name: str,
+    requested: Union[int, str] | None,
+    error: Exception,
+) -> None:
+    compatibility = classify_reasoning_rejection(error)
+    requested_value = _safe_reasoning_value(requested)
+    if (compatibility is None or requested_value == 'redacted'
+            or not translate_reasoning_effort(provider, requested)):
+        return
+    ctx = run_context.current()
+    if (ctx is None or not ctx.run_id
+            or ctx.episode_id != str(episode_id)):
+        return
+    provider_id = provider if provider in {
+        PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
+        PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+    } else 'unknown'
+    defaults = get_pass_defaults(pass_name)
+    ctx.add_thinking_notice(ctx.run_id, {
+        'pass': pass_name,
+        'provider': provider_id,
+        'model': _safe_model_identifier(model),
+        'requested': requested_value,
+        'compatibility': compatibility,
+        'fallback': {
+            'max_tokens': defaults.max_tokens,
+            'temperature': defaults.temperature,
+            'reasoning_effort': defaults.reasoning_effort,
+        },
+    })
 
 
 def _log_temperature_omission(
@@ -455,7 +529,9 @@ def _log_temperature_omission(
 ) -> None:
     logger.warning(
         f"[{episode_id}:{pass_name}] {provider_label} rejected temperature "
-        f"for model={model}: {error}. Retrying with temperature omitted "
+        f"for model={_safe_model_identifier(model)} "
+        f"({_provider_error_kind(error)}). "
+        f"Retrying with temperature omitted "
         f"(remembered for the rest of this process)."
     )
 
@@ -522,6 +598,7 @@ class LLMClient(ABC):
     def _send_with_fallback(
         self,
         provider_label: str,
+        provider: str,
         model: str,
         eff_max: int,
         eff_temp: float,
@@ -571,6 +648,9 @@ class LLMClient(ABC):
                           user_max, user_temp, user_reasoning, e)
             set_fallback(episode_id, pass_name)
             defaults = get_pass_defaults(pass_name)
+            _record_reasoning_fallback_notice(
+                provider, model, episode_id, pass_name,
+                user_reasoning, e)
             try:
                 response = send_fn(defaults.max_tokens, defaults.temperature, defaults.reasoning_effort)
             except Exception as e2:
@@ -732,7 +812,7 @@ class AnthropicClient(LLMClient):
             return self._client.messages.create(**kw)
 
         response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
-            "Anthropic", model,
+            "Anthropic", PROVIDER_ANTHROPIC, model,
             eff_max, eff_temp, eff_reasoning,
             max_tokens, temperature, reasoning_effort,
             episode_id, pass_name,
@@ -1000,7 +1080,7 @@ class OpenAICompatibleClient(LLMClient):
                 raise
 
         response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
-            "OpenAI", model,
+            "OpenAI", active_provider, model,
             eff_max, eff_temp, eff_reasoning,
             max_tokens, temperature, reasoning_effort,
             episode_id, pass_name,
