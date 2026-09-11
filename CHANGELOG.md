@@ -9,11 +9,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.96.21] - 2026-09-11
+## [2.96.22] - 2026-09-11
 
 ### Changed
 
-- Updated operator and API documentation for authentication, backups, processing recovery, feed credentials, provider budgets, uploads, deployment, and releases.
+- Operator docs and OpenAPI now match authentication, backup, processing recovery, feed credential, provider budget, upload, deployment, and release behavior.
+
+## [2.96.21] - 2026-09-11
 
 ### Fixed
 
