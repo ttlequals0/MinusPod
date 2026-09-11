@@ -230,6 +230,84 @@ class QueueMixin:
             logger.error(f"Failed to upsert episode for processing: {e}")
             return None
 
+    def requeue_stranded_pending_episodes(self, slug: str, episodes: list[dict],
+                                          reprocess_requested_at: str) -> dict:
+        """Queue pending episodes that have no active queue row or run."""
+        result = {'queued': [], 'skipped': []}
+        if not episodes:
+            return result
+
+        with self.transaction(immediate=True) as conn:
+            podcast = conn.execute(
+                'SELECT id FROM podcasts WHERE slug = ?', (slug,)
+            ).fetchone()
+            if not podcast:
+                return result
+
+            episode_ids = [candidate['episode_id'] for candidate in episodes]
+            placeholders = ','.join('?' for _ in episode_ids)
+            rows = conn.execute(  # noqa: S608
+                f"""SELECT e.episode_id, e.original_url, e.title, e.published_at, e.description,
+                           EXISTS (SELECT 1 FROM processing_runs r
+                                   WHERE r.podcast_id = e.podcast_id
+                                     AND r.episode_id = e.episode_id
+                                     AND r.state IN ('running', 'cancel_requested')) AS has_active_run,
+                           q.status AS queue_status
+                    FROM episodes e
+                    LEFT JOIN auto_process_queue q
+                      ON q.podcast_id = e.podcast_id AND q.episode_id = e.episode_id
+                     AND q.status IN ('pending', 'processing')
+                    WHERE e.podcast_id = ? AND e.status = 'pending'
+                      AND e.episode_id IN ({placeholders})""",  # noqa: S608
+                [podcast['id'], *episode_ids],
+            ).fetchall()
+            episodes_by_id = {row['episode_id']: row for row in rows}
+
+            for candidate in episodes:
+                episode_id = candidate['episode_id']
+                episode = episodes_by_id.get(episode_id)
+                if not episode:
+                    result['skipped'].append({
+                        'episodeId': episode_id, 'reason': 'Episode is no longer pending',
+                    })
+                    continue
+                if episode['has_active_run']:
+                    result['skipped'].append({
+                        'episodeId': episode_id, 'reason': 'Already processing',
+                    })
+                    continue
+                if episode['queue_status']:
+                    reason = ('Already processing' if episode['queue_status'] == 'processing'
+                              else 'Already queued')
+                    result['skipped'].append({'episodeId': episode_id, 'reason': reason})
+                    continue
+
+                conn.execute(
+                    """UPDATE episodes SET retry_count = 0, error_message = NULL,
+                       reprocess_mode = NULL, reprocess_requested_at = ?,
+                       reprocess_source = NULL, deferred_at = NULL, deferred_service = NULL,
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                       WHERE podcast_id = ? AND episode_id = ?""",
+                    (reprocess_requested_at, podcast['id'], episode_id),
+                )
+                conn.execute(
+                    """INSERT INTO auto_process_queue
+                       (podcast_id, episode_id, original_url, title, published_at, description,
+                        priority, status, attempts, error_message)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL)
+                       ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
+                         status = 'pending', attempts = 0, priority = excluded.priority,
+                         error_message = NULL, original_url = excluded.original_url,
+                         title = COALESCE(excluded.title, auto_process_queue.title),
+                         published_at = COALESCE(excluded.published_at, auto_process_queue.published_at),
+                         description = COALESCE(excluded.description, auto_process_queue.description),
+                         updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
+                    (podcast['id'], episode_id, episode['original_url'], episode['title'],
+                     episode['published_at'], episode['description'], candidate['priority']),
+                )
+                result['queued'].append(episode_id)
+        return result
+
 
     def get_next_queued_episode(self) -> dict | None:
         """Get the next pending episode from the queue (FIFO order, read-only)."""

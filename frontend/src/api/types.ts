@@ -1088,6 +1088,7 @@ export interface BulkActionResult {
   skipped: number;
   freedMb: number;
   errors: string[];
+  skippedEpisodes?: Array<{ episodeId: string; reason: string }>;
 }
 
 export interface RetentionSettings {

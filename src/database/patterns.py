@@ -578,6 +578,56 @@ class PatternMixin:
             )
             return 'deleted'
 
+    def bulk_assign_unresolved_corrections(self, correction_ids: list[int], slug: str) -> str:
+        """Assign unresolved corrections only when one feed proves every episode."""
+        placeholders = ','.join('?' for _ in correction_ids)
+        with self.transaction(immediate=True) as conn:
+            feed = conn.execute("SELECT id FROM podcasts WHERE slug = ?", (slug,)).fetchone()
+            if not feed:
+                return 'invalid_feed'
+            rows = conn.execute(
+                f"SELECT id, episode_id, podcast_id FROM pattern_corrections WHERE id IN ({placeholders})",  # noqa: S608
+                correction_ids,
+            ).fetchall()
+            if len(rows) != len(correction_ids) or any(row['podcast_id'] is not None for row in rows):
+                return 'stale'
+            invalid = conn.execute(
+                f"""SELECT 1 FROM pattern_corrections c WHERE c.id IN ({placeholders}) AND NOT (
+                    EXISTS (SELECT 1 FROM episodes e WHERE e.podcast_id = ? AND e.episode_id = c.episode_id)
+                    OR EXISTS (SELECT 1 FROM processing_history h WHERE h.podcast_id = ? AND h.episode_id = c.episode_id)
+                ) LIMIT 1""",  # noqa: S608
+                [*correction_ids, feed['id'], feed['id']],
+            ).fetchone()
+            if invalid:
+                return 'invalid_feed'
+            updated = conn.execute(
+                f"UPDATE pattern_corrections SET podcast_id = ? WHERE podcast_id IS NULL AND id IN ({placeholders})",  # noqa: S608
+                [feed['id'], *correction_ids],
+            )
+            if updated.rowcount != len(correction_ids):
+                conn.rollback()
+                return 'stale'
+            return 'updated'
+
+    def bulk_delete_unresolved_corrections(self, correction_ids: list[int]) -> str:
+        """Delete unresolved corrections in one all-or-nothing transaction."""
+        placeholders = ','.join('?' for _ in correction_ids)
+        with self.transaction(immediate=True) as conn:
+            rows = conn.execute(
+                f"SELECT id, podcast_id FROM pattern_corrections WHERE id IN ({placeholders})",  # noqa: S608
+                correction_ids,
+            ).fetchall()
+            if len(rows) != len(correction_ids) or any(row['podcast_id'] is not None for row in rows):
+                return 'stale'
+            deleted = conn.execute(
+                f"DELETE FROM pattern_corrections WHERE podcast_id IS NULL AND id IN ({placeholders})",  # noqa: S608
+                correction_ids,
+            )
+            if deleted.rowcount != len(correction_ids):
+                conn.rollback()
+                return 'stale'
+            return 'deleted'
+
     def get_episode_corrections(self, podcast_id: int, episode_id: str) -> list[dict]:
         """Get all corrections for a specific episode, newest first."""
         conn = self.get_connection()

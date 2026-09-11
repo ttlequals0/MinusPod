@@ -279,6 +279,7 @@ function FeedDetail() {
   // surfaces actionable buttons (backend skips ineligible rows).
   const selectedEpisodes = episodes.filter(ep => selectedIds.has(ep.id));
   const discoveredCount = selectedEpisodes.filter(ep => ep.status === 'discovered').length;
+  const pendingCount = selectedEpisodes.filter(ep => ep.status === 'pending').length;
   const processedCount = selectedEpisodes.filter(ep =>
     ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;
@@ -595,13 +596,13 @@ function FeedDetail() {
         <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
           <div className="flex flex-wrap items-center gap-2 ml-auto">
-            {discoveredCount > 0 && (
+            {discoveredCount + pendingCount > 0 && (
               <button
                 onClick={() => bulkMutation.mutate({ action: 'process' })}
                 disabled={bulkMutation.isPending}
                 className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
               >
-                {bulkMutation.isPending ? 'Processing...' : `Process (${discoveredCount})`}
+                {bulkMutation.isPending ? 'Processing...' : `Process now (${discoveredCount + pendingCount})`}
               </button>
             )}
             {processedCount > 0 && (
@@ -637,8 +638,8 @@ function FeedDetail() {
                 </button>
               </>
             )}
-            {discoveredCount === 0 && processedCount === 0 && (
-              <span className="text-xs text-muted-foreground">No actionable items in selection (pending/processing rows skip)</span>
+            {discoveredCount === 0 && pendingCount === 0 && processedCount === 0 && (
+              <span className="text-xs text-muted-foreground">Selected episodes are already processing.</span>
             )}
             <button
               onClick={() => setSelectedIds(new Set())}
@@ -812,6 +813,11 @@ function FeedDetail() {
               <div className="mb-4 p-3 rounded-lg bg-destructive/10">
                 <p className="text-sm text-destructive">{bulkResult.errors.length} error(s)</p>
               </div>
+            )}
+            {bulkResult.skippedEpisodes?.some(item => item.reason === 'Already queued' || item.reason === 'Already processing') && (
+              <p className="text-sm text-muted-foreground mb-4">
+                Episodes already queued or processing were skipped.
+              </p>
             )}
             <button
               onClick={() => setBulkResult(null)}

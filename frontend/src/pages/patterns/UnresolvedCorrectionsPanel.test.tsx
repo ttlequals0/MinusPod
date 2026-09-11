@@ -7,11 +7,13 @@ import UnresolvedCorrectionsPanel from './UnresolvedCorrectionsPanel';
 const mockGet = vi.fn();
 const mockAssign = vi.fn();
 const mockDelete = vi.fn();
+const mockBulk = vi.fn();
 
 vi.mock('../../api/patterns', () => ({
   getUnresolvedCorrections: () => mockGet(),
   assignUnresolvedCorrection: (...args: unknown[]) => mockAssign(...args),
   deleteUnresolvedCorrection: (...args: unknown[]) => mockDelete(...args),
+  bulkUpdateUnresolvedCorrections: (...args: unknown[]) => mockBulk(...args),
 }));
 
 function renderPanel() {
@@ -45,9 +47,72 @@ beforeEach(() => {
   });
   mockAssign.mockResolvedValue(undefined);
   mockDelete.mockResolvedValue(undefined);
+  mockBulk.mockResolvedValue(undefined);
 });
 
 describe('UnresolvedCorrectionsPanel', () => {
+  it('selects unavailable corrections and deletes the selected IDs after confirmation', async () => {
+    mockGet.mockResolvedValueOnce({ count: 1, corrections: [{ id: 21, episode_id: 'gone', podcast_title: null, episode_title: null, correction_type: 'confirm', created_at: '', original_bounds: null, corrected_bounds: null, candidates: [] }] });
+    renderPanel();
+    await userEvent.click(await screen.findByRole('button', { name: /Unassigned corrections/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Select unavailable' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete selected' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(mockBulk).toHaveBeenCalledWith('delete', [21], undefined));
+  });
+
+  it('assigns selected corrections only through a common chosen feed', async () => {
+    renderPanel();
+    await userEvent.click(await screen.findByRole('button', { name: /Unassigned corrections/ }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select correction 17' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Feed for selected corrections' }), 'feed-a');
+    await userEvent.click(screen.getByRole('button', { name: 'Assign selected' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Assign' }));
+    await waitFor(() => expect(mockBulk).toHaveBeenCalledWith('assign', [17], 'feed-a'));
+  });
+
+  it('disables bulk assignment when selected corrections have no common feed', async () => {
+    mockGet.mockResolvedValueOnce({ count: 2, corrections: [
+      { id: 31, episode_id: 'one', podcast_title: null, episode_title: null, correction_type: 'confirm', created_at: '', original_bounds: null, corrected_bounds: null, candidates: [{ slug: 'feed-a', podcast_title: 'Feed A', episode_title: null, episode_available: true, source: 'current', history_run_count: null, history_latest_processed_at: null }] },
+      { id: 32, episode_id: 'two', podcast_title: null, episode_title: null, correction_type: 'confirm', created_at: '', original_bounds: null, corrected_bounds: null, candidates: [{ slug: 'feed-b', podcast_title: 'Feed B', episode_title: null, episode_available: true, source: 'current', history_run_count: null, history_latest_processed_at: null }] },
+    ] });
+    renderPanel();
+    await userEvent.click(await screen.findByRole('button', { name: /Unassigned corrections/ }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select correction 31' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select correction 32' }));
+    expect((screen.getByRole('button', { name: 'Assign selected' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(mockBulk).not.toHaveBeenCalled();
+  });
+
+  it('disables assignment when a retained selected feed stops being common', async () => {
+    mockGet.mockResolvedValueOnce({ count: 2, corrections: [
+      { id: 41, episode_id: 'one', podcast_title: null, episode_title: null, correction_type: 'confirm', created_at: '', original_bounds: null, corrected_bounds: null, candidates: [{ slug: 'feed-a', podcast_title: 'Feed A', episode_title: null, episode_available: true, source: 'current', history_run_count: null, history_latest_processed_at: null }] },
+      { id: 42, episode_id: 'two', podcast_title: null, episode_title: null, correction_type: 'confirm', created_at: '', original_bounds: null, corrected_bounds: null, candidates: [{ slug: 'feed-b', podcast_title: 'Feed B', episode_title: null, episode_available: true, source: 'current', history_run_count: null, history_latest_processed_at: null }] },
+    ] });
+    renderPanel();
+    await userEvent.click(await screen.findByRole('button', { name: /Unassigned corrections/ }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select correction 41' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Feed for selected corrections' }), 'feed-a');
+    expect((screen.getByRole('button', { name: 'Assign selected' }) as HTMLButtonElement).disabled).toBe(false);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select correction 42' }));
+    expect((screen.getByRole('button', { name: 'Assign selected' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(mockBulk).not.toHaveBeenCalled();
+  });
+
+  it('keeps selection and shows a bulk error in its confirmation dialog', async () => {
+    mockBulk.mockRejectedValueOnce(new Error('Selected corrections changed. Refresh and try again.'));
+    renderPanel();
+    await userEvent.click(await screen.findByRole('button', { name: /Unassigned corrections/ }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select correction 17' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete selected' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(await within(dialog).findByText('Selected corrections changed. Refresh and try again.')).toBeTruthy();
+    expect(screen.getByText('1 selected')).toBeTruthy();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete selected' }));
+    expect(screen.queryByText('Selected corrections changed. Refresh and try again.')).toBeNull();
+  });
   it('shows the count and candidate feeds', async () => {
     renderPanel();
 
@@ -72,7 +137,7 @@ describe('UnresolvedCorrectionsPanel', () => {
 
     await userEvent.click(screen.getByRole('radio', { name: /Feed B/ }));
     expect((assign as HTMLButtonElement).disabled).toBe(true);
-    await userEvent.click(screen.getByRole('checkbox'));
+    await userEvent.click(screen.getAllByRole('checkbox')[1]);
     expect((assign as HTMLButtonElement).disabled).toBe(false);
     await userEvent.click(assign);
 
@@ -112,7 +177,7 @@ describe('UnresolvedCorrectionsPanel', () => {
     expect(screen.getByText('1 processing history entry')).toBeDefined();
     expect(screen.queryByRole('link', { name: 'Review episode' })).toBeNull();
     expect(screen.getByText('I reviewed the historical record and confirm this feed.')).toBeDefined();
-    await userEvent.click(screen.getByRole('checkbox'));
+    await userEvent.click(screen.getAllByRole('checkbox')[1]);
     await userEvent.click(screen.getByRole('button', { name: 'Assign correction' }));
     await waitFor(() => expect(mockAssign).toHaveBeenCalledWith(17, 'history-feed'));
   });

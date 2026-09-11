@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.96.17
+  version: 2.96.18
   contact:
     name: MinusPod
   license:
@@ -2781,6 +2781,70 @@ paths:
       responses:
         '200':
           description: Unassigned corrections and safe feed candidates
+
+  /patterns/corrections/unresolved/bulk:
+    post:
+      tags: [Patterns]
+      summary: Assign or delete selected unassigned corrections
+      operationId: bulkUpdateUnresolvedCorrections
+      description: >-
+        Updates up to 500 unique correction IDs in one transaction. Assignment
+        requires one feed with current episode or processing-history evidence
+        for every selected correction. Any stale or invalid row rejects the
+        whole request without changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, correctionIds, confirm]
+              properties:
+                action:
+                  type: string
+                  enum: [assign, delete]
+                correctionIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  uniqueItems: true
+                  items:
+                    type: integer
+                    minimum: 1
+                slug:
+                  type: string
+                  description: Required when action is assign.
+                confirm:
+                  type: boolean
+                  enum: [true]
+      responses:
+        '200':
+          description: All selected corrections updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [action, correctionIds]
+                properties:
+                  action:
+                    type: string
+                    enum: [assign, delete]
+                  correctionIds:
+                    type: array
+                    items:
+                      type: integer
+        '400':
+          description: Invalid action, confirmation, feed, or correction IDs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: A selected correction changed or lacks feed evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /patterns/corrections/{correction_id}/assign:
     post:
@@ -6760,6 +6824,19 @@ paths:
                     type: array
                     items:
                       type: string
+                  skippedEpisodes:
+                    type: array
+                    description: Episodes skipped because their state changed or processing already owns them.
+                    items:
+                      type: object
+                      required:
+                        - episodeId
+                        - reason
+                      properties:
+                        episodeId:
+                          type: string
+                        reason:
+                          type: string
         '404':
           $ref: '#/components/responses/NotFound'
 

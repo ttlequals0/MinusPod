@@ -191,6 +191,35 @@ def delete_unresolved_correction(correction_id):
     return json_response({'deleted': True, 'correctionId': correction_id})
 
 
+@api.route('/patterns/corrections/unresolved/bulk', methods=['POST'])
+@log_request
+def bulk_unresolved_corrections():
+    data = request.get_json(silent=True) or {}
+    correction_ids = data.get('correctionIds')
+    action = data.get('action')
+    if (not isinstance(correction_ids, list) or not 1 <= len(correction_ids) <= 500
+            or len(set(correction_ids)) != len(correction_ids)
+            or any(isinstance(item, bool) or not isinstance(item, int) or item < 1 for item in correction_ids)):
+        return error_response('correctionIds must contain 1 to 500 unique positive integers', 400)
+    if data.get('confirm') is not True:
+        return error_response('confirm=true is required', 400)
+    db = get_database()
+    if action == 'delete':
+        result = db.bulk_delete_unresolved_corrections(correction_ids)
+    elif action == 'assign':
+        slug = data.get('slug')
+        if not isinstance(slug, str) or not slug:
+            return error_response('slug is required for assignment', 400)
+        result = db.bulk_assign_unresolved_corrections(correction_ids, slug)
+    else:
+        return error_response('action must be assign or delete', 400)
+    if result == 'invalid_feed':
+        return error_response('Feed does not prove every selected correction', 409)
+    if result == 'stale':
+        return error_response('Selected corrections changed. Refresh and try again.', 409)
+    return json_response({'action': action, 'correctionIds': correction_ids})
+
+
 @api.route('/patterns/health', methods=['GET'])
 @log_request
 def get_pattern_health():

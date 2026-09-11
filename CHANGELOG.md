@@ -9,6 +9,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.96.18] - 2026-09-11
+
+### Fixed
+
+- Pending episodes with no active queue entry can be queued again from the feed page without overlapping an active run.
+- A browser with an outdated route bundle reloads once when its lazy-loaded chunk is no longer available.
+- Secondary LLM retries now handle authentication failures, quota and spend limits, alerts, and configured queue holds consistently.
+- The Settings page labels the section "Database Stats" to match its other section headings.
+
+### Added
+
+- Unassigned corrections can be selected in batches, then assigned only to one feed proven for every selected episode or permanently deleted in one confirmed transaction.
+
 ## [2.96.17] - 2026-09-10
 
 ### Added

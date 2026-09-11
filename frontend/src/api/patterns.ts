@@ -253,6 +253,14 @@ export async function deleteUnresolvedCorrection(id: number): Promise<void> {
   await apiRequest(`/patterns/corrections/${id}`, { method: 'DELETE' });
 }
 
+export async function bulkUpdateUnresolvedCorrections(
+  action: 'assign' | 'delete', correctionIds: number[], slug?: string,
+): Promise<void> {
+  await apiRequest('/patterns/corrections/unresolved/bulk', {
+    method: 'POST', body: { action, correctionIds, slug, confirm: true },
+  });
+}
+
 export async function getSplitCandidates(
   slug: string,
   episodeId: string,

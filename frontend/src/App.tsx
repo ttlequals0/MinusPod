@@ -5,6 +5,7 @@ import PullToRefresh from 'pulltorefreshjs';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
+import ChunkLoadRecovery, { ClearChunkLoadRecoveryMarkers } from './components/ChunkLoadRecovery';
 import GlobalStatusBar from './components/GlobalStatusBar';
 import { SkeletonPageHeader, SkeletonRows } from './components/Skeleton';
 
@@ -35,9 +36,12 @@ function RootLayout() {
   return (
     <>
       <GlobalStatusBar />
-      <Suspense fallback={<RouteFallback />}>
-        <Outlet />
-      </Suspense>
+      <ChunkLoadRecovery>
+        <Suspense fallback={<RouteFallback />}>
+          <Outlet />
+          <ClearChunkLoadRecoveryMarkers />
+        </Suspense>
+      </ChunkLoadRecovery>
     </>
   );
 }

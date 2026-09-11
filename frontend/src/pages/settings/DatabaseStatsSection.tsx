@@ -16,7 +16,7 @@ function DatabaseStatsSection({ database }: DatabaseStatsSectionProps) {
   if (!database) return null;
 
   return (
-    <CollapsibleSection title="DB stats" storageKey="settings-section-db-stats">
+    <CollapsibleSection title="Database Stats" storageKey="settings-section-db-stats">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

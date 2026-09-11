@@ -292,6 +292,61 @@ def test_delete_unresolved_correction_rejects_assigned_and_preserves_other_rows(
     ).fetchone()
 
 
+def test_bulk_unresolved_corrections_require_common_evidence_and_are_atomic(app_client):
+    slug, first_episode = _make_episode('bulk-correction-feed', 'bulk-correction-one')
+    second_episode = 'bulk-correction-two'
+    db.upsert_episode(
+        slug=slug, episode_id=second_episode, original_url='https://example.com/two.mp3',
+        title='Second episode', original_duration=600.0,
+    )
+    first = db.create_pattern_correction(correction_type='confirm', episode_id=first_episode)
+    second = db.create_pattern_correction(correction_type='confirm', episode_id=second_episode)
+    assigned = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'assign', 'correctionIds': [first, second], 'slug': slug, 'confirm': True,
+    })
+    assert assigned.status_code == 200
+    assert app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'assign', 'correctionIds': [first, second], 'slug': slug, 'confirm': True,
+    }).status_code == 409
+    orphan = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-orphan')
+    delete = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'delete', 'correctionIds': [orphan, first], 'confirm': True,
+    })
+    assert delete.status_code == 409
+    assert db.get_connection().execute('SELECT 1 FROM pattern_corrections WHERE id = ?', (orphan,)).fetchone()
+
+
+def test_bulk_unresolved_assignment_rejects_missing_evidence_without_writes(app_client):
+    slug, episode_id = _make_episode('bulk-evidence-feed', 'bulk-evidence-present')
+    valid = db.create_pattern_correction(correction_type='confirm', episode_id=episode_id)
+    missing = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-evidence-missing')
+    response = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'assign', 'correctionIds': [valid, missing], 'slug': slug, 'confirm': True,
+    })
+    assert response.status_code == 409
+    rows = db.get_connection().execute(
+        'SELECT podcast_id FROM pattern_corrections WHERE id IN (?, ?)', (valid, missing),
+    ).fetchall()
+    assert [row['podcast_id'] for row in rows] == [None, None]
+
+
+def test_bulk_unresolved_delete_removes_selected_only_and_validates_ids(app_client):
+    first = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-delete-one')
+    second = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-delete-two')
+    untouched = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-delete-keep')
+    deleted = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'delete', 'correctionIds': [first, second], 'confirm': True,
+    })
+    assert deleted.status_code == 200
+    assert not db.get_connection().execute('SELECT 1 FROM pattern_corrections WHERE id IN (?, ?)', (first, second)).fetchone()
+    assert db.get_connection().execute('SELECT 1 FROM pattern_corrections WHERE id = ?', (untouched,)).fetchone()
+    for correction_ids, confirm in (([untouched, untouched], True), ([True], True), ([untouched], False)):
+        response = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+            'action': 'delete', 'correctionIds': correction_ids, 'confirm': confirm,
+        })
+        assert response.status_code == 400
+
+
 def test_reject_differential_hold_writes_null_text_and_source_hold_reason():
     """Rejecting a held marker whose hold_reason is differential_uncorroborated
     must not mint cross-episode FP text: text_snippet is NULL, source_hold_reason

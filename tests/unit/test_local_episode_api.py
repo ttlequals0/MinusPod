@@ -169,6 +169,67 @@ def _seed_episode(db, slug, episode_id='s01e01', **kwargs):
     return db.get_episode(slug, episode_id)
 
 
+def test_bulk_process_restores_only_stranded_pending_episodes(app_client, subscribed_feed):
+    slug = subscribed_feed['slug']
+    db = subscribed_feed['db']
+    orphan_id = 'aa11bb22cc33'
+    queued_id = 'bb22cc33dd44'
+    active_id = 'cc33dd44ee55'
+    discovered_id = 'dd44ee55ff66'
+    for episode_id in (orphan_id, queued_id, active_id):
+        _seed_episode(db, slug, episode_id, status='pending')
+    _seed_episode(db, slug, discovered_id)
+
+    db.upsert_episode_for_processing(
+        slug, queued_id, 'https://example.com/queued.mp3', 'Queued episode')
+    podcast = db.get_podcast_by_slug(slug)
+    db.get_connection().execute(
+        """INSERT INTO processing_runs
+           (run_id, podcast_id, episode_id, owner_pid, state)
+           VALUES ('pending-requeue-active-run', ?, ?, 1, 'running')""",
+        (podcast['id'], active_id),
+    )
+    db.get_connection().commit()
+
+    _authed(app_client)
+    response = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes/bulk',
+        json={'episodeIds': [orphan_id, queued_id, active_id, discovered_id], 'action': 'process'},
+        headers=_csrf_headers(app_client),
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['queued'] == 2
+    assert body['skipped'] == 2
+    assert {item['reason'] for item in body['skippedEpisodes']} == {
+        'Already queued', 'Already processing',
+    }
+    queued_rows = db.get_connection().execute(
+        """SELECT episode_id FROM auto_process_queue
+           WHERE podcast_id = ? AND status = 'pending' ORDER BY episode_id""",
+        (podcast['id'],),
+    ).fetchall()
+    assert [row['episode_id'] for row in queued_rows] == [orphan_id, queued_id, discovered_id]
+    assert db.get_episode(slug, discovered_id)['status'] == 'pending'
+
+    repeat = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes/bulk',
+        json={'episodeIds': [orphan_id], 'action': 'process'},
+        headers=_csrf_headers(app_client),
+    )
+    assert repeat.status_code == 200
+    assert repeat.get_json()['queued'] == 0
+    assert repeat.get_json()['skippedEpisodes'] == [{
+        'episodeId': orphan_id, 'reason': 'Already queued',
+    }]
+    assert db.get_connection().execute(
+        """SELECT COUNT(*) FROM auto_process_queue
+           WHERE podcast_id = ? AND episode_id = ?""",
+        (podcast['id'], orphan_id),
+    ).fetchone()[0] == 1
+
+
 # -- POST /feeds/<slug>/episodes (single upload) --
 
 @requires_ffmpeg

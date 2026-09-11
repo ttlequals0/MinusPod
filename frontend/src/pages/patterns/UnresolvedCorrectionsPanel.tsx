@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   assignUnresolvedCorrection,
   deleteUnresolvedCorrection,
+  bulkUpdateUnresolvedCorrections,
   getUnresolvedCorrections,
   type UnresolvedCorrection,
 } from '../../api/patterns';
-import { btnOutline, btnPrimary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import Checkbox from '../../components/Checkbox';
+import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { focusRing, selectBase } from '../../components/fieldStyles';
 import { ConfirmModal } from '../../components/Modal';
 
 function formatBounds(bounds: { start: number; end: number } | null): string | null {
@@ -15,7 +17,13 @@ function formatBounds(bounds: { start: number; end: number } | null): string | n
   return `${bounds.start.toFixed(1)} s to ${bounds.end.toFixed(1)} s`;
 }
 
-function CorrectionRow({ correction }: { correction: UnresolvedCorrection }) {
+interface CorrectionRowProps {
+  correction: UnresolvedCorrection;
+  selected: boolean;
+  onSelected: (checked: boolean) => void;
+}
+
+function CorrectionRow({ correction, selected, onSelected }: CorrectionRowProps) {
   const queryClient = useQueryClient();
   const [slug, setSlug] = useState('');
   const [confirmed, setConfirmed] = useState(false);
@@ -33,21 +41,29 @@ function CorrectionRow({ correction }: { correction: UnresolvedCorrection }) {
   return (
     <li className="rounded border border-border bg-background p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-medium text-foreground">Correction #{correction.id}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {correction.episode_title || correction.episode_id}
-          </p>
-          {correction.podcast_title && (
-            <p className="text-xs text-muted-foreground">
-              Saved under {correction.podcast_title}
+        <div className="flex gap-3">
+          <Checkbox
+            ariaLabel={`Select correction ${correction.id}`}
+            checked={selected}
+            onChange={onSelected}
+            className="min-h-11 min-w-11 shrink-0 justify-center sm:min-h-0 sm:min-w-0"
+          />
+          <div>
+            <p className="font-medium text-foreground">Correction #{correction.id}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {correction.episode_title || correction.episode_id}
             </p>
-          )}
-          {formatBounds(correction.original_bounds) && (
-            <p className="text-xs text-muted-foreground">
-              Original segment: {formatBounds(correction.original_bounds)}
-            </p>
-          )}
+            {correction.podcast_title && (
+              <p className="text-xs text-muted-foreground">
+                Saved under {correction.podcast_title}
+              </p>
+            )}
+            {formatBounds(correction.original_bounds) && (
+              <p className="text-xs text-muted-foreground">
+                Original segment: {formatBounds(correction.original_bounds)}
+              </p>
+            )}
+          </div>
         </div>
         <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
           {correction.correction_type.replace(/_/g, ' ')}
@@ -157,10 +173,42 @@ function CorrectionRow({ correction }: { correction: UnresolvedCorrection }) {
 
 export default function UnresolvedCorrectionsPanel() {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkSlug, setBulkSlug] = useState('');
+  const [bulkAction, setBulkAction] = useState<'assign' | 'delete' | null>(null);
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ['unresolved-corrections'],
     queryFn: getUnresolvedCorrections,
   });
+  const { activeIds, commonCandidates } = useMemo(() => {
+    const selected = data?.corrections.filter(
+      (correction) => selectedIds.includes(correction.id),
+    ) ?? [];
+    const candidates = selected.length > 0
+      ? selected[0].candidates.filter((candidate) => selected.every(
+        (correction) => correction.candidates.some((other) => other.slug === candidate.slug),
+      ))
+      : [];
+    return { activeIds: selected.map((correction) => correction.id), commonCandidates: candidates };
+  }, [data?.corrections, selectedIds]);
+  const validBulkSlug = commonCandidates.some((candidate) => candidate.slug === bulkSlug);
+  const bulkMutation = useMutation({
+    mutationFn: ({ action, correctionIds, slug }: {
+      action: 'assign' | 'delete'; correctionIds: number[]; slug?: string;
+    }) => bulkUpdateUnresolvedCorrections(action, correctionIds, slug),
+    onSuccess: () => { setSelectedIds([]); setBulkSlug(''); setBulkAction(null); queryClient.invalidateQueries({ queryKey: ['unresolved-corrections'] }); },
+  });
+  const openBulkAction = (action: 'assign' | 'delete') => {
+    bulkMutation.reset();
+    setBulkAction(action);
+  };
+  const closeBulkAction = () => {
+    bulkMutation.reset();
+    setBulkAction(null);
+  };
+  const selectedFeed = commonCandidates.find((candidate) => candidate.slug === bulkSlug);
+  const selectedLabel = `${activeIds.length} correction${activeIds.length === 1 ? '' : 's'}`;
 
   if (isLoading || (!error && !data?.count)) return null;
 
@@ -190,13 +238,33 @@ export default function UnresolvedCorrectionsPanel() {
           </p>
           {error ? (
             <p className="mt-3 text-sm text-destructive">Could not load unassigned corrections.</p>
-          ) : (
+          ) : (<>
             <ul className="mt-4 space-y-3">
+              <li className="rounded border border-border bg-card p-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span>{activeIds.length} selected</span>
+                  <button type="button" onClick={() => setSelectedIds(data?.corrections.map((correction) => correction.id) ?? [])} className={`${btnOutline} min-h-11 rounded px-3 py-2 ${focusRing} touch-manipulation transition-colors sm:min-h-0`}>Select all</button>
+                  <button type="button" onClick={() => setSelectedIds(data?.corrections.filter((correction) => correction.candidates.length === 0).map((correction) => correction.id) ?? [])} className={`${btnOutline} min-h-11 rounded px-3 py-2 ${focusRing} touch-manipulation transition-colors sm:min-h-0`}>Select unavailable</button>
+                  <button type="button" onClick={() => setSelectedIds([])} className={`${btnOutline} min-h-11 rounded px-3 py-2 ${focusRing} touch-manipulation transition-colors sm:min-h-0`}>Clear</button>
+                </div>
+                {activeIds.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <select aria-label="Feed for selected corrections" value={bulkSlug} onChange={(event) => setBulkSlug(event.target.value)} className={`min-h-11 sm:min-h-0 ${selectBase}`}>
+                    <option value="">Choose one proven feed</option>
+                    {commonCandidates.map((candidate) => <option key={candidate.slug} value={candidate.slug}>{candidate.podcast_title || candidate.slug}</option>)}
+                  </select>
+                  <button type="button" disabled={!validBulkSlug} onClick={() => openBulkAction('assign')} className={`${btnPrimary} min-h-11 rounded px-3 py-2 text-sm ${focusRing} touch-manipulation transition-colors disabled:opacity-50 sm:min-h-0`}>Assign selected</button>
+                  <button type="button" onClick={() => openBulkAction('delete')} className={`${btnDestructive} min-h-11 rounded px-3 py-2 text-sm ${focusRing} touch-manipulation transition-colors sm:min-h-0`}>Delete selected</button>
+                </div>}
+              </li>
               {data?.corrections.map((correction) => (
-                <CorrectionRow key={correction.id} correction={correction} />
+                <CorrectionRow key={correction.id} correction={correction} selected={selectedIds.includes(correction.id)} onSelected={(checked) => setSelectedIds((ids) => checked ? [...ids, correction.id] : ids.filter((id) => id !== correction.id))} />
               ))}
             </ul>
-          )}
+            {bulkAction && <ConfirmModal title={bulkAction === 'assign' ? `Assign ${selectedLabel} to ${selectedFeed?.podcast_title || bulkSlug}?` : `Delete ${selectedLabel}?`} confirmLabel={bulkAction === 'assign' ? 'Assign' : 'Delete'} busyLabel={bulkAction === 'assign' ? 'Assigning...' : 'Deleting...'} pending={bulkMutation.isPending} onCancel={closeBulkAction} onConfirm={() => bulkMutation.mutate({ action: bulkAction, correctionIds: activeIds, slug: bulkAction === 'assign' ? bulkSlug : undefined })}>
+              <p>{bulkAction === 'assign' ? 'The selected corrections will be assigned to this feed.' : 'This permanently removes the selected unassigned corrections. Patterns, media, and feeds are unchanged.'}</p>
+              {bulkMutation.error && <p role="alert" className="mt-3 text-sm text-destructive">{(bulkMutation.error as Error).message}</p>}
+            </ConfirmModal>}
+          </>)}
         </div>
       )}
     </section>

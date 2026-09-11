@@ -1413,27 +1413,47 @@ def bulk_episode_action(slug):
     skipped = 0
     freed_mb = 0.0
     errors = []
+    skipped_episodes = []
     eligible_ids = []
+    enqueue_ids = []
 
     # Batch-fetch all episodes upfront to avoid N+1 queries
     all_episodes = db.get_episodes_by_ids(slug, episode_ids)
     episodes_by_id = {ep['episode_id']: ep for ep in all_episodes}
 
     if action == 'process':
-        # Collect eligible discovered episode IDs and batch-update
+        # Discovered rows follow the existing bulk path. Pending rows can only
+        # be restored when no queue entry or active run already owns them.
         eligible_ids = []
+        stranded_pending = []
         for episode_id in episode_ids:
             episode = episodes_by_id.get(episode_id)
-            if not episode or episode.get('status') != 'discovered':
+            if not episode:
                 skipped += 1
                 continue
-            eligible_ids.append(episode_id)
+            if episode.get('status') == EpisodeStatus.DISCOVERED.value:
+                eligible_ids.append(episode_id)
+            elif episode.get('status') == EpisodeStatus.PENDING.value:
+                stranded_pending.append({
+                    'episode_id': episode_id,
+                    'priority': compute_queue_priority(
+                        podcast.get('queue_priority'), episode.get('published_at'), bulk=True),
+                })
+            else:
+                skipped += 1
         if eligible_ids:
             # reprocess_requested_at marks the row as user-initiated so the
             # background drainer's auto-process-disabled gate bypasses it.
             queued = db.batch_set_episodes_pending(slug, eligible_ids,
                                                     reprocess_requested_at=utc_now_iso())
             skipped += len(eligible_ids) - queued
+            if queued:
+                enqueue_ids = eligible_ids
+        pending_result = db.requeue_stranded_pending_episodes(
+            slug, stranded_pending, utc_now_iso())
+        queued += len(pending_result['queued'])
+        skipped += len(pending_result['skipped'])
+        skipped_episodes.extend(pending_result['skipped'])
 
     elif action in ('reprocess', 'reprocess_full', 'reprocess_llm'):
         # File cleanup must be per-episode, but DB updates are batched
@@ -1460,6 +1480,8 @@ def bulk_episode_action(slug):
             queued = db.batch_set_episodes_pending(slug, eligible_ids,
                                                     reprocess_mode=mode,
                                                     reprocess_requested_at=now_str)
+            if queued:
+                enqueue_ids = eligible_ids
 
     elif action == 'delete':
         # Collect eligible IDs, let delete_episodes handle batching
@@ -1500,8 +1522,8 @@ def bulk_episode_action(slug):
     # picks them up sequentially. Previously this called start_background_processing()
     # with no arguments (a TypeError silently swallowed by `except Exception: pass`),
     # which meant episodes were marked pending in the DB but never actually processed.
-    if action in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm') and queued > 0:
-        for episode_id in eligible_ids:
+    if action in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm') and enqueue_ids:
+        for episode_id in enqueue_ids:
             try:
                 ep = episodes_by_id.get(episode_id)
                 if ep:
@@ -1529,6 +1551,7 @@ def bulk_episode_action(slug):
         'skipped': skipped,
         'freedMb': round(freed_mb, 2),
         'errors': errors,
+        'skippedEpisodes': skipped_episodes,
     })
 
 
