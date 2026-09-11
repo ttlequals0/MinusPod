@@ -33,6 +33,9 @@ def feed():
     set_processing_paused(False, db)
     yield
     ProcessingQueue().clear_all()
+    for job in main_app.status_service.get_status().jobs:
+        if job.slug == SLUG:
+            main_app.status_service.complete_job(job.slug, job.episode_id)
     db.delete_podcast(SLUG)
     db.get_connection().execute("DELETE FROM auto_process_queue")
     db.get_connection().commit()

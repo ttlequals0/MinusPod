@@ -508,8 +508,7 @@ def test_regenerate_aborts_when_the_episode_moves_underneath_it(app_client, seed
     def fake_get_episode(self, slug, episode_id):
         row = real_get_episode(self, slug, episode_id)
         calls.append(row)
-        # 1: the job's entry read, 2: the check right before the save.
-        return {**row, 'status': 'processing'} if len(calls) == 2 else row
+        return {**row, 'status': 'processing'} if len(calls) >= 2 else row
 
     with patch.object(type(seeded), 'get_episode', fake_get_episode):
         resp = _post_regenerate(app_client, {

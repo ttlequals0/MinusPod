@@ -22,6 +22,13 @@ def client():
         yield c
 
 
+@pytest.fixture(autouse=True)
+def _disable_settings_background_jobs(monkeypatch):
+    monkeypatch.setattr(
+        'api.settings.maybe_trigger_reviewer_calibration', lambda *args: None)
+    monkeypatch.setattr('api.settings.force_refresh_pricing', lambda: None)
+
+
 class TestOpenRouterKeyValidation:
     """Tests for OpenRouter API key format validation in settings endpoint."""
 

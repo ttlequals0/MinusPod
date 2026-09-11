@@ -172,3 +172,7 @@ def test_guid_rename_rechecks_processing_barrier_under_writer_lock(monkeypatch, 
 
     assert db.get_episode(slug, old_id) is not None
     assert db.get_episode(slug, new_id) is None
+    if barrier == 'active_run':
+        conn = db.get_connection()
+        conn.execute("DELETE FROM processing_runs WHERE run_id = 'run-guid-barrier'")
+        conn.commit()
