@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from llm_client import (
+    AnthropicClient,
     OpenAICompatibleClient,
     ProviderRateLimitedError,
     StructuralRateLimitError,
@@ -17,8 +18,10 @@ class _SequenceClient:
     def __init__(self, *results):
         self.results = results
         self.calls = 0
+        self.call_kwargs = []
 
     def messages_create(self, **kwargs):
+        self.call_kwargs.append(kwargs)
         result = self.results[min(self.calls, len(self.results) - 1)]
         self.calls += 1
         if isinstance(result, Exception):
@@ -38,13 +41,225 @@ def _secondary_result(client):
 
 
 def test_persistent_empty_completion_keeps_six_attempts(no_retry_wait):
-    client = _SequenceClient(SimpleNamespace(content=''))
+    client = _SequenceClient(SimpleNamespace(
+        content='', reasoning_present=True, finish_reason='stop'))
 
     response, error = call_window(client, max_retries=3)
 
     assert response is None
     assert isinstance(error, llm_call.EmptyCompletionError)
     assert client.calls == 6
+    assert all(call['reasoning_effort'] is None for call in client.call_kwargs)
+
+
+@pytest.mark.parametrize('provider', ['openai-compatible', 'openrouter', 'ollama'])
+def test_reasoning_exhaustion_retry_disables_reasoning_and_records_usage(
+        provider, monkeypatch, no_retry_wait):
+    exhausted = SimpleNamespace(
+        choices=[SimpleNamespace(
+            message=SimpleNamespace(
+                content='', reasoning=None, reasoning_content=None,
+                reasoning_details=None),
+            finish_reason='length',
+        )],
+        usage=SimpleNamespace(
+            prompt_tokens=100,
+            completion_tokens=8192,
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=8192),
+        ),
+    )
+    answered = SimpleNamespace(
+        choices=[SimpleNamespace(
+            message=SimpleNamespace(
+                content='[]', reasoning=None, reasoning_content=None),
+            finish_reason='stop',
+        )],
+        usage=SimpleNamespace(prompt_tokens=100, completion_tokens=2),
+    )
+    sdk = MagicMock()
+    sdk.chat.completions.create.side_effect = [exhausted, answered]
+    client = OpenAICompatibleClient(api_key='test-key')
+    client._client = sdk
+    client._token_param_cache['test-model'] = 'max_completion_tokens'
+    usage_callback = MagicMock()
+    client.set_usage_callback(usage_callback)
+    monkeypatch.setattr('llm_client.get_effective_provider', lambda: provider)
+
+    response, error = llm_call.call_llm_for_window(
+        llm_client=client,
+        model='test-model',
+        system_prompt='sys',
+        prompt='user',
+        llm_timeout=1.0,
+        max_retries=1,
+        max_tokens=8192,
+        slug='t',
+        episode_id='e',
+        window_label='w',
+        reasoning_effort='high',
+    )
+
+    assert error is None
+    assert response.content == '[]'
+    first, second = sdk.chat.completions.create.call_args_list
+    reasoning_key = 'extra_body' if provider == 'openrouter' else 'reasoning_effort'
+    if provider == 'openrouter':
+        assert first.kwargs[reasoning_key] == {'reasoning': {'effort': 'high'}}
+        assert second.kwargs[reasoning_key] == {'reasoning': {'effort': 'none'}}
+    else:
+        assert first.kwargs[reasoning_key] == 'high'
+        assert second.kwargs[reasoning_key] == 'none'
+    assert {
+        key: value for key, value in first.kwargs.items()
+        if key != reasoning_key
+    } == {
+        key: value for key, value in second.kwargs.items()
+        if key != reasoning_key
+    }
+    assert [item.args for item in usage_callback.call_args_list] == [
+        ('test-model', {'input_tokens': 100, 'output_tokens': 8192}),
+        ('test-model', {'input_tokens': 100, 'output_tokens': 2}),
+    ]
+    assert len(no_retry_wait) == 1
+
+
+def test_anthropic_reasoning_exhaustion_retry_omits_thinking(
+        monkeypatch, no_retry_wait):
+    exhausted = SimpleNamespace(
+        content=[SimpleNamespace(type='thinking', thinking='hidden reasoning')],
+        stop_reason='max_tokens',
+        usage=SimpleNamespace(input_tokens=100, output_tokens=4096),
+    )
+    answered = SimpleNamespace(
+        content=[SimpleNamespace(type='text', text='[]')],
+        stop_reason='end_turn',
+        usage=SimpleNamespace(input_tokens=100, output_tokens=2),
+    )
+    sdk = MagicMock()
+    sdk.messages.create.side_effect = [exhausted, answered]
+    client = AnthropicClient(api_key='test-key')
+    client._client = sdk
+    usage_callback = MagicMock()
+    client.set_usage_callback(usage_callback)
+
+    response, error = llm_call.call_llm_for_window(
+        llm_client=client,
+        model='claude-test',
+        system_prompt='sys',
+        prompt='user',
+        llm_timeout=1.0,
+        max_retries=1,
+        max_tokens=4096,
+        slug='t',
+        episode_id='e',
+        window_label='w',
+        reasoning_effort=2048,
+    )
+
+    assert error is None
+    assert response.content == '[]'
+    first, second = sdk.messages.create.call_args_list
+    assert first.kwargs['thinking'] == {
+        'type': 'enabled', 'budget_tokens': 2048,
+    }
+    assert 'thinking' not in second.kwargs
+    assert [item.args for item in usage_callback.call_args_list] == [
+        ('claude-test', {'input_tokens': 100, 'output_tokens': 4096}),
+        ('claude-test', {'input_tokens': 100, 'output_tokens': 2}),
+    ]
+    assert len(no_retry_wait) == 1
+
+
+def test_secondary_reasoning_exhaustion_disables_final_retry(no_retry_wait):
+    transient = FakeProviderError('503 unavailable', status_code=503)
+    exhausted = SimpleNamespace(
+        content='', reasoning_present=True, finish_reason='length')
+    answered = SimpleNamespace(content='[]')
+    client = _SequenceClient(transient, exhausted, answered)
+
+    response, error = llm_call.call_llm_for_window(
+        llm_client=client,
+        model='test-model',
+        system_prompt='sys',
+        prompt='user',
+        llm_timeout=1.0,
+        max_retries=0,
+        max_tokens=4096,
+        slug='t',
+        episode_id='e',
+        window_label='w',
+        reasoning_effort='high',
+    )
+
+    assert error is None
+    assert response is answered
+    assert [call['reasoning_effort'] for call in client.call_kwargs] == [
+        'high', 'high', 'none',
+    ]
+    assert no_retry_wait == [2, 5]
+
+
+def test_empty_choices_with_full_reasoning_usage_uses_reasoning_fallback(
+        monkeypatch):
+    provider_response = SimpleNamespace(
+        choices=[],
+        usage=SimpleNamespace(
+            prompt_tokens=10,
+            completion_tokens=100,
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=100),
+        ),
+    )
+    sdk = MagicMock()
+    sdk.chat.completions.create.return_value = provider_response
+    client = OpenAICompatibleClient(api_key='test-key')
+    client._client = sdk
+    client._token_param_cache['test-model'] = 'max_completion_tokens'
+    monkeypatch.setattr('llm_client.get_effective_provider',
+                        lambda: 'openai-compatible')
+    kwargs = {
+        'model': 'test-model',
+        'max_tokens': 100,
+        'system': 'system',
+        'messages': [{'role': 'user', 'content': 'prompt'}],
+        'timeout': 1.0,
+        'response_format': None,
+        'reasoning_effort': 'high',
+        'episode_id': None,
+        'pass_name': None,
+    }
+
+    with pytest.raises(llm_call.ReasoningExhaustedError):
+        llm_call._call_once(client, kwargs, 'test-model')
+
+
+def test_reasoning_fallback_failure_stays_a_failed_window(no_retry_wait):
+    exhausted = SimpleNamespace(
+        content='', reasoning_present=True, finish_reason='max_tokens')
+    client = _SequenceClient(exhausted)
+
+    response, error = call_window(client, max_retries=3)
+
+    assert response is None
+    assert isinstance(error, llm_call.ReasoningExhaustedError)
+    assert client.calls == 6
+    assert client.call_kwargs[0]['reasoning_effort'] is None
+    assert all(
+        call['reasoning_effort'] == 'none' for call in client.call_kwargs[1:]
+    )
+
+
+def test_nonempty_completion_does_not_change_request_or_retry(no_retry_wait):
+    result = SimpleNamespace(
+        content='[]', reasoning_present=True, finish_reason='length')
+    client = _SequenceClient(result)
+
+    response, error = call_window(client, max_retries=3)
+
+    assert response is result
+    assert error is None
+    assert client.calls == 1
+    assert client.call_kwargs[0]['reasoning_effort'] is None
+    assert no_retry_wait == []
 
 
 def test_secondary_retry_applies_provider_hold(monkeypatch, no_retry_wait):
@@ -170,7 +385,10 @@ def test_empty_completion_records_usage_before_rejection(monkeypatch):
                 content='', reasoning=None, reasoning_content=None),
             finish_reason='stop',
         )],
-        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=4),
+        usage=SimpleNamespace(
+            prompt_tokens=10, completion_tokens=4,
+            completion_tokens_details=None,
+        ),
     )
     sdk = MagicMock()
     sdk.chat.completions.create.return_value = provider_response

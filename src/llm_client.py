@@ -198,6 +198,9 @@ class LLMResponse:
     content: str
     model: str
     usage: dict[str, int] | None = None
+    finish_reason: str | None = None
+    reasoning_present: bool = False
+    reasoning_exhausted: bool = False
 
 
 @dataclass
@@ -731,12 +734,17 @@ class AnthropicClient(LLMClient):
 
         self._record_circuit_breaker(success=True)
 
+        blocks = response.content or []
+        reasoning_present = any(
+            getattr(block, 'type', None) in ('thinking', 'redacted_thinking')
+            for block in blocks
+        )
         if tool_spec is not None:
             # Forced tool_choice guarantees exactly one tool_use block; its
             # `input` is the schema-validated answer. Re-serialize to JSON
             # text since downstream parsing expects a JSON string.
             content = ""
-            for block in (response.content or []):
+            for block in blocks:
                 if getattr(block, 'type', None) == 'tool_use':
                     content = json.dumps(block.input)
                     break
@@ -745,15 +753,14 @@ class AnthropicClient(LLMClient):
             # redacted_thinking block first; the answer is in a later text
             # block. Find it instead of assuming content[0] is text.
             content = ""
-            for block in (response.content or []):
+            for block in blocks:
                 text = getattr(block, 'text', None)
                 if getattr(block, 'type', None) == 'text' and text is not None:
                     content = text
                     break
 
-        self._warn_if_truncated(
-            getattr(response, 'stop_reason', None), eff_max, model
-        )
+        finish_reason = getattr(response, 'stop_reason', None)
+        self._warn_if_truncated(finish_reason, eff_max, model)
 
         llm_response = LLMResponse(
             content=content,
@@ -762,6 +769,13 @@ class AnthropicClient(LLMClient):
                 'input_tokens': response.usage.input_tokens,
                 'output_tokens': response.usage.output_tokens
             } if response.usage else None,
+            finish_reason=finish_reason,
+            reasoning_present=reasoning_present,
+            reasoning_exhausted=(
+                not content.strip()
+                and reasoning_present
+                and finish_reason in ('max_tokens', 'length')
+            ),
         )
 
         # Log response
@@ -988,16 +1002,43 @@ class OpenAICompatibleClient(LLMClient):
         self._record_circuit_breaker(success=True)
 
         # Log reasoning/chain-of-thought if present (e.g. qwen3 think mode)
-        if response.choices:
-            msg = response.choices[0].message
+        choice = response.choices[0] if response.choices else None
+        msg = getattr(choice, 'message', None)
+        reasoning = None
+        reasoning_details = None
+        if msg is not None:
             reasoning = getattr(msg, 'reasoning', None) or getattr(msg, 'reasoning_content', None)
+            reasoning_details = getattr(msg, 'reasoning_details', None)
             if reasoning:
                 logger.debug(f"LLM reasoning field present ({len(str(reasoning))} chars)")
 
-        content = (response.choices[0].message.content or "") if response.choices else ""
+        content = (getattr(msg, 'content', None) or "") if msg is not None else ""
 
-        finish_reason = getattr(response.choices[0], 'finish_reason', None) if response.choices else None
+        finish_reason = getattr(choice, 'finish_reason', None)
         self._warn_if_truncated(finish_reason, eff_max, model)
+
+        usage = getattr(response, 'usage', None)
+        usage_details = getattr(usage, 'completion_tokens_details', None)
+        reasoning_tokens = getattr(usage_details, 'reasoning_tokens', None)
+        if isinstance(usage_details, dict):
+            reasoning_tokens = usage_details.get('reasoning_tokens')
+        has_reasoning_tokens = (
+            not isinstance(reasoning_tokens, bool)
+            and isinstance(reasoning_tokens, (int, float))
+            and reasoning_tokens > 0
+        )
+        has_reasoning_details = (
+            isinstance(reasoning_details, (str, list, tuple, dict))
+            and bool(reasoning_details)
+        )
+        reasoning_present = bool(reasoning) or has_reasoning_details or has_reasoning_tokens
+        output_tokens = getattr(usage, 'completion_tokens', None)
+        exhausted_without_reason = (
+            finish_reason is None
+            and not isinstance(output_tokens, bool)
+            and isinstance(output_tokens, (int, float))
+            and output_tokens >= eff_max
+        )
 
         llm_response = LLMResponse(
             content=content,
@@ -1006,6 +1047,13 @@ class OpenAICompatibleClient(LLMClient):
                 'input_tokens': response.usage.prompt_tokens,
                 'output_tokens': response.usage.completion_tokens
             } if response.usage else None,
+            finish_reason=finish_reason,
+            reasoning_present=reasoning_present,
+            reasoning_exhausted=(
+                not content.strip()
+                and reasoning_present
+                and (finish_reason in ('max_tokens', 'length') or exhausted_without_reason)
+            ),
         )
 
         # Log response

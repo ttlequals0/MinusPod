@@ -16,6 +16,7 @@ release notes.
 - Pending episodes with no active queue entry can be queued again from the feed page without overlapping an active run.
 - A browser with an outdated route bundle reloads once when its lazy-loaded chunk is no longer available.
 - Secondary LLM retries now handle authentication failures, quota and spend limits, alerts, and configured queue holds consistently.
+- If reasoning consumes the response budget without producing an answer, the next retry requests no reasoning.
 - The Settings page labels the section "Database Stats" to match its other section headings.
 
 ### Added

@@ -65,6 +65,10 @@ class EmptyCompletionError(Exception):
     """
 
 
+class ReasoningExhaustedError(EmptyCompletionError):
+    """The response budget was exhausted by reasoning before an answer."""
+
+
 def _completion_is_empty(response) -> bool:
     """True when the model returned no usable content (empty or whitespace)."""
     content = getattr(response, 'content', None)
@@ -75,8 +79,26 @@ def _call_once(llm_client, llm_kwargs, model):
     """One LLM call; raise EmptyCompletionError if it comes back content-less."""
     response = llm_client.messages_create(**llm_kwargs)
     if _completion_is_empty(response):
+        if (getattr(response, 'reasoning_exhausted', False)
+                or (getattr(response, 'reasoning_present', False)
+                    and getattr(response, 'finish_reason', None) in ('max_tokens', 'length'))):
+            raise ReasoningExhaustedError(
+                f"empty completion from {model} after reasoning exhausted the output budget"
+            )
         raise EmptyCompletionError(f"empty completion from {model} (no content returned)")
     return response
+
+
+def _apply_reasoning_fallback(error, llm_kwargs, *, slug, episode_id, call_label):
+    """Disable reasoning after a truncated reasoning-only response."""
+    if (not isinstance(error, ReasoningExhaustedError)
+            or llm_kwargs.get('reasoning_effort') == 'none'):
+        return
+    llm_kwargs['reasoning_effort'] = 'none'
+    logger.warning(
+        f"[{slug}:{episode_id}] {call_label} reasoning exhausted the output budget; "
+        "retrying with reasoning disabled"
+    )
 
 
 def _is_retryable(error) -> bool:
@@ -220,6 +242,9 @@ def call_llm(
             return response, None
         except Exception as e:
             last_error = e
+            _apply_reasoning_fallback(
+                e, llm_kwargs, slug=slug, episode_id=episode_id,
+                call_label=call_label)
             terminal = _terminal_error(
                 e, model=model, slug=slug, episode_id=episode_id,
                 call_label=call_label)
@@ -265,6 +290,10 @@ def call_llm(
                 return response, None
             except Exception as e:
                 last_error = e
+                if retry_num < 2:
+                    _apply_reasoning_fallback(
+                        e, llm_kwargs, slug=slug, episode_id=episode_id,
+                        call_label=call_label)
                 terminal = _terminal_error(
                     e, model=model, slug=slug, episode_id=episode_id,
                     call_label=call_label)
