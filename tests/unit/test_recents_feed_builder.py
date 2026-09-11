@@ -93,7 +93,7 @@ def test_rebuild_persists_the_cached_rss_and_refresh_routes_to_it(recents):
     assert rebuild_recents_feed(recents) is True
     assert 'Beta one' in mf.storage.get_rss(RECENTS_SLUG)
     mf.storage.save_rss(RECENTS_SLUG, 'stale')
-    assert mf.refresh_rss_feed(RECENTS_SLUG, 'recents://', force=True) is True
+    assert mf.refresh_rss_feed(RECENTS_SLUG, 'recents://', force=True).success is True
     assert 'Beta one' in mf.storage.get_rss(RECENTS_SLUG)
     mf.storage.save_rss(RECENTS_SLUG, 'stale')
     assert mf.rebuild_served_rss(RECENTS_SLUG) is True

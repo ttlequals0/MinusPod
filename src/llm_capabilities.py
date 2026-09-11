@@ -55,6 +55,24 @@ _DEFAULTS: dict[str, PassDefaults] = {
 _fallback_state: dict[PassKey, bool] = {}
 _fallback_lock = threading.Lock()
 
+_REASONING_FIELD = re.compile(
+    r'\b(?:reasoning(?:[_ -]?effort)?|thinking|budget[_ -]?tokens)\b')
+_REASONING_REQUIRED = (
+    re.compile(r'\b(?:reasoning(?:[_ -]?effort)?|thinking)\s+(?:is\s+)?required\b'),
+    re.compile(r'\b(?:reasoning|thinking)\s+must\s+be\s+enabled\b'),
+    re.compile(r'\b(?:must|need(?:s)?\s+to)\s+(?:enable|use)\s+'
+               r'(?:reasoning|thinking)\b'),
+    re.compile(r'\b(?:reasoning|thinking)\s+(?:cannot|can\'t|must\s+not)\s+'
+               r'be\s+(?:disabled|off)\b'),
+)
+_REASONING_UNSUPPORTED = (
+    re.compile(r'\b(?:reasoning(?:[_ -]?effort)?|thinking)\s+(?:is\s+)?'
+               r'(?:unsupported|not\s+supported|unavailable|not\s+available)\b'),
+    re.compile(r'\bdoes\s+not\s+support\s+(?:reasoning(?:[_ -]?effort)?|thinking)\b'),
+    re.compile(r'\b(?:unknown|unrecognized)\s+(?:parameter|field)\s*[: ]\s*'
+               r'(?:reasoning[_ -]?effort|thinking)\b'),
+)
+
 
 def set_fallback(episode_id: str, pass_name: str) -> None:
     with _fallback_lock:
@@ -76,6 +94,18 @@ def get_pass_defaults(pass_name: str) -> PassDefaults:
         return _DEFAULTS[pass_name]
     except KeyError:
         raise ValueError(f"Unknown pass_name: {pass_name!r}") from None
+
+
+def classify_reasoning_rejection(error: Exception) -> str | None:
+    """Classify a reasoning-related rejection without retaining error text."""
+    text = str(error).lower()
+    if not _REASONING_FIELD.search(text):
+        return None
+    if any(pattern.search(text) for pattern in _REASONING_REQUIRED):
+        return 'required'
+    if any(pattern.search(text) for pattern in _REASONING_UNSUPPORTED):
+        return 'unsupported'
+    return 'incompatible'
 
 
 def translate_reasoning_effort(

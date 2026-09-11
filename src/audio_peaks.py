@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 
 logger = logging.getLogger('podcast.peaks')
 
@@ -81,7 +82,7 @@ def compute_peaks(audio_path: Path | str,
             resolution_ms = min(1000, max(resolution_ms, scaled))
 
     cmd = [
-        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error',
         '-ss', f'{start:.3f}',
         '-i', str(audio_path),
     ]

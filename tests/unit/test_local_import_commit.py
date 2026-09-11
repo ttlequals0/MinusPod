@@ -538,14 +538,9 @@ def test_overwrite_false_refuses_when_episode_created_after_plan(
     db.upsert_episode(slug, 's01e01', status='discovered',
                       original_url='local://s01e01', title='Concurrent Upload')
 
-    started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
-    assert started is True
-
-    report = local_import.get_import_status(slug, storage)['report']
-    assert report['committed'] == []
-    assert len(report['failed']) == 1
-    assert report['failed'][0]['episodeId'] == 's01e01'
-    assert report['failed'][0]['error'] == 'episode s01e01 already exists'
+    started, reason, _mock = _commit_synchronously(slug, plan, db, storage)
+    assert started is False
+    assert reason == 'episode changed or is already uploading; re-run scan'
 
     # Never clobbered: the concurrently-created row survives untouched, and
     # the plan's audio file was never moved.
@@ -576,12 +571,9 @@ def test_overwrite_skips_when_episode_is_processing(
     plan2 = build_import_plan(slug, [audio2], existing_ids={'s01e01'},
                               overwrite=True, now_iso=NOW_ISO_2)
 
-    started2, _r2, _m2 = _commit_synchronously(slug, plan2, db, storage)
-    assert started2 is True
-
-    report2 = local_import.get_import_status(slug, storage)['report']
-    assert report2['committed'] == []
-    assert report2['failed'][0]['error'] == 'episode is processing'
+    started2, reason2, _m2 = _commit_synchronously(slug, plan2, db, storage)
+    assert started2 is False
+    assert reason2 == 'episode changed or is already uploading; re-run scan'
     assert db.get_episode(slug, 's01e01')['status'] == 'processing'
     # Untouched: the file mid-processing must never be replaced.
     assert audio2.exists()

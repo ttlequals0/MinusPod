@@ -17,6 +17,7 @@ from audio_processor import (
     get_uploaded_replace_audio_path,
 )
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def _run(cmd, input_bytes=None, op_desc='ffmpeg') -> bytes:
 def probe_audio(path: str) -> dict[str, Any]:
     """Duration, channel count and sample rate of an audio file."""
     out = _run([
-        'ffprobe', '-v', 'error', '-select_streams', 'a:0',
+        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error', '-select_streams', 'a:0',
         '-show_entries', 'stream=channels,sample_rate:format=duration,format_name',
         '-of', 'json', str(path),
     ], op_desc='ffprobe')
@@ -175,7 +176,7 @@ def save_upload(raw: bytes) -> dict[str, Any]:
         fd, tmp_out = tempfile.mkstemp(suffix='.mp3', dir=str(target.parent))
         os.close(fd)
         _run([
-            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
+            'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error', '-y',
             '-i', src_path, '-vn', '-c:a', 'libmp3lame', '-q:a', '2',
             tmp_out,
         ], op_desc='MP3 encode')

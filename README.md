@@ -4,6 +4,18 @@
 
 MinusPod is a self-hosted server that removes ads before you ever hit play. It transcribes episodes with Whisper, uses an LLM to detect and cut ad segments, and builds cross-episode ad patterns from your corrections so repeat sponsors get caught without re-asking the LLM. Bring your own LLM: Claude, Ollama, OpenRouter, or any OpenAI-compatible provider.
 
+## Contents
+
+- [Features](#features)
+- [How it works](#how-it-works)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [Disclaimer](#disclaimer)
+- [License](#license)
+- [LLM disclosure](#llm-disclosure)
+
 ## Features
 
 **Ad detection**
@@ -34,6 +46,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - Optional Podping listener refreshes a feed within seconds of the host announcing a new episode, on top of scheduled polling
 - OPML import/export, and an optional cover-art badge that marks the re-feed
 - Local feeds: build a feed from your own audio files instead of an upstream RSS feed, with single or bulk episode upload, a dry-run import preview, and the same ad-removal pipeline as a subscribed feed
+- Optional Recents feed combines processed episodes published on or after its creation date across subscribed and local feeds, including feeds added later
 
 **Interface and ops**
 - Web UI with a waveform ad editor, plus feed, episode, pattern, sponsor, history, and stats views
@@ -54,7 +67,7 @@ Memory and VRAM tables are in [docs/installation.md](docs/installation.md).
 
 ## Quick start
 
-Minimum setup before first boot: `BASE_URL`, `MINUSPOD_MASTER_PASSPHRASE`, a provider credential (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_BASE_URL` for a local endpoint), and `OPENAI_MODEL` to pick a model up front. Skip `OPENAI_MODEL` if you would rather choose a model in Settings > AI models on first run; either way, MinusPod will not process an episode until a model is configured. Everything else is configured from the web UI or the API: env vars only seed a setting the first time it is unset, and the stored value wins after that.
+Before processing an episode, set `BASE_URL`, configure provider access (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_BASE_URL` for a local endpoint), and choose a model. `OPENAI_MODEL` seeds the model settings, or you can choose each model under Settings > AI & Processing > AI Models. Compose starts without `MINUSPOD_MASTER_PASSPHRASE`. Set it to encrypt provider keys saved through the UI and API-downloaded database backups. Env vars seed unset settings; stored values win afterward.
 
 ```bash
 # 1. Create environment file
@@ -74,9 +87,11 @@ docker-compose up -d
 
 Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
-`MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring a backup requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
+Compose requires an application password before it serves the normal API. Set the first password from the same host. For remote setup, put a temporary `MINUSPOD_SETUP_TOKEN` in `.env`, send it in the `X-MinusPod-Setup-Token` header when setting the first password, then remove it. Compose also prevents unauthenticated feed requests from starting paid processing. Enable Authenticated Feeds, or set `MINUSPOD_ALLOW_PUBLIC_PROCESSING=true` if public just-in-time processing is intentional.
 
-**No NVIDIA GPU?** Pull the CPU variant (`docker compose -f docker-compose.cpu.yml up -d`; multi-arch, runs natively on amd64 and arm64) and offload Whisper to a remote API. Full CPU setup and the 2.0.0+ upgrade notes are in [docs/installation.md](docs/installation.md).
+`MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring an encrypted API download requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
+
+**No NVIDIA GPU?** Pull the CPU variant (`docker compose -f docker-compose.cpu.yml up -d`; multi-arch, runs natively on amd64 and arm64) and offload Whisper to a remote API. Full CPU setup is in [docs/installation.md](docs/installation.md).
 
 **Stable or edge?** `:latest` (GPU) and `:cpu` follow every release; several can land in one day. For a slower, vetted track, set `MINUSPOD_VERSION=stable` (GPU compose) or `MINUSPOD_VERSION=stable-cpu` (CPU compose) in your `.env` to pin `ttlequals0/minuspod:stable` / `:stable-cpu` instead. Stable tags only move to releases that have soaked in production; see the [releases page](https://github.com/ttlequals0/MinusPod/releases) for curated notes on each.
 
@@ -86,7 +101,7 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 |---|---|
 | [How It Works & Detection Pipeline](docs/how-it-works.md) | Verification pass, sliding windows, queue, validation, pattern learning, audio analysis |
 | [Episode Processing Workflows](docs/workflows.md) | Visual map of the pipeline, the five processing modes, re-runs, and failure paths |
-| [Installation & Upgrading](docs/installation.md) | Requirements, quick start, CPU image, upgrading to 2.0.0+ |
+| [Installation](docs/installation.md) | Requirements, quick start, CPU image |
 | [Web Interface](docs/web-interface.md) | Management UI, ad editor workflow, screenshots |
 | [Configuration & Experiments](docs/configuration.md) | Settings, per-stage LLM tuning, VAD gap detector, ad reviewer, reprocessing, community patterns, scheduled backups |
 | [Audio Cue Detection](docs/audio-cues.md) | Per-feed cue templates, the find-audio-cues suggestion scan, settings, and tuning |

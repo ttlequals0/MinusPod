@@ -14,10 +14,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SecuritySection from './SecuritySection';
 import type { Settings } from '../../api/types';
 
-vi.mock('../../api/providers', () => ({
-  rotateMasterPassphrase: vi.fn(),
-}));
-
 vi.mock('../../api/auth', () => ({
   setPassword: vi.fn(),
   removePassword: vi.fn(),
@@ -64,6 +60,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetSettings.mockResolvedValue(makeSettings());
   mockUpdateSettings.mockResolvedValue({ message: 'ok' });
+});
+
+describe('SecuritySection hardened controls', () => {
+  it('shows offline rotation instructions instead of accepting a passphrase', async () => {
+    renderSection({ isPasswordSet: true, cryptoReady: true });
+    expect(await screen.findByText(/Stop every MinusPod worker/)).toBeDefined();
+    expect(screen.queryByRole('button', { name: /Rotate Master Passphrase/ })).toBeNull();
+  });
+
 });
 
 describe('SecuritySection warning: no password, no passphrase', () => {

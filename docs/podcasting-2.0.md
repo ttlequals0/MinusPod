@@ -4,6 +4,17 @@
 
 ---
 
+## Contents
+
+- [The rule](#the-rule)
+- [What MinusPod supports](#what-minuspod-supports)
+- [What MinusPod does not support, and why](#what-minuspod-does-not-support-and-why)
+- [Podping](#podping)
+- [Feed identity](#feed-identity)
+- [Upstream namespace URIs](#upstream-namespace-uris)
+- [Compatibility with older players](#compatibility-with-older-players)
+- [References](#references)
+
 MinusPod sits between the original podcast feed and your player. It
 downloads each episode, removes ad segments, re-encodes the audio, and
 serves a modified RSS feed pointing at the processed files.

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import type { ClaudeModel } from '../../api/types';
+import type { ClaudeModel, ModelPricingOverride, ModelPricingOverrides } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { formatModelLabel } from './settingsUtils';
@@ -19,6 +19,13 @@ interface AIModelsSectionProps {
   onChaptersModelChange: (model: string) => void;
   onRefresh: () => void;
   refreshIsPending: boolean;
+  modelPricingOverrides?: ModelPricingOverrides;
+  additionalModelIds?: string[];
+  onPricingOverrideUpdate?: (
+    modelId: string,
+    override: ModelPricingOverride | null,
+  ) => Promise<unknown>;
+  pricingOverrideSavingModel?: string | null;
 }
 
 function AIModelsSection({
@@ -32,6 +39,10 @@ function AIModelsSection({
   onChaptersModelChange,
   onRefresh,
   refreshIsPending,
+  modelPricingOverrides = {},
+  additionalModelIds = [],
+  onPricingOverrideUpdate,
+  pricingOverrideSavingModel = null,
 }: AIModelsSectionProps) {
   // A saved model id missing from the live catalog (wrong provider for
   // the stored tag, renamed model, transient probe failure) would render
@@ -49,6 +60,13 @@ function AIModelsSection({
   // switch to free text. An orphaned value still renders as a list option
   // above, so the switch stays the user's call rather than an inference.
   const [typedFields, setTypedFields] = useState<Record<string, boolean>>({});
+  const configuredModelIds = Array.from(new Set([
+    selectedModel,
+    verificationModel,
+    chaptersModel,
+    ...additionalModelIds,
+    ...Object.keys(modelPricingOverrides),
+  ].filter(Boolean)));
 
   const renderModelSelect = ({
     id,
@@ -88,7 +106,7 @@ function AIModelsSection({
             placeholder="Provider's exact model ID"
             spellCheck={false}
             autoComplete="off"
-            className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+            className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
           />
         ) : (
         <select
@@ -174,8 +192,152 @@ function AIModelsSection({
           onChange: onChaptersModelChange,
           description: 'Chapter title generation and topic detection (smaller/cheaper models work well)',
         })}
+
+        {onPricingOverrideUpdate && configuredModelIds.length > 0 && (
+          <div className="pt-4 border-t border-border space-y-4">
+            <div>
+              <h4 className="text-sm font-medium text-foreground">Custom pricing</h4>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Set USD prices per 1 million tokens when the catalog price is missing or wrong. Leave both fields blank to use the catalog. Enter 0 for a free model.
+              </p>
+            </div>
+            {configuredModelIds.map((modelId, index) => {
+              const override = modelPricingOverrides[modelId];
+              return <ModelPricingFields
+                key={`${modelId}:${override?.inputCostPerMtok ?? ''}:${override?.outputCostPerMtok ?? ''}`}
+                fieldId={`modelPricing-${index}`}
+                modelId={modelId}
+                override={override}
+                catalogModel={models?.find((model) => model.id === modelId)}
+                saving={pricingOverrideSavingModel === modelId}
+                onUpdate={onPricingOverrideUpdate}
+              />;
+            })}
+          </div>
+        )}
       </div>
     </CollapsibleSection>
+  );
+}
+
+function formatUsdRate(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 6,
+  }).format(value);
+}
+
+function ModelPricingFields({
+  fieldId,
+  modelId,
+  override,
+  catalogModel,
+  saving,
+  onUpdate,
+}: {
+  fieldId: string;
+  modelId: string;
+  override?: ModelPricingOverride;
+  catalogModel?: ClaudeModel;
+  saving: boolean;
+  onUpdate: (modelId: string, override: ModelPricingOverride | null) => Promise<unknown>;
+}) {
+  const savedInput = override === undefined ? '' : String(override.inputCostPerMtok);
+  const savedOutput = override === undefined ? '' : String(override.outputCostPerMtok);
+  const [inputRate, setInputRate] = useState(savedInput);
+  const [outputRate, setOutputRate] = useState(savedOutput);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const isDirty = inputRate !== savedInput || outputRate !== savedOutput;
+  const commit = async () => {
+    setMessage(null);
+    const bothBlank = inputRate.trim() === '' && outputRate.trim() === '';
+    if ((inputRate.trim() === '') !== (outputRate.trim() === '')) {
+      setMessage('Enter both prices, or leave both blank.');
+      return;
+    }
+    const input = Number(inputRate);
+    const output = Number(outputRate);
+    if (!bothBlank && (!Number.isFinite(input) || !Number.isFinite(output)
+      || input < 0 || output < 0)) {
+      setMessage('Prices must be non-negative numbers.');
+      return;
+    }
+    try {
+      await onUpdate(modelId, bothBlank ? null : {
+        inputCostPerMtok: input,
+        outputCostPerMtok: output,
+      });
+      setMessage(bothBlank ? 'Using catalog pricing.' : 'Custom pricing saved.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save custom pricing.');
+    }
+  };
+
+  const catalogAvailable = catalogModel?.inputCostPerMtok != null
+    && catalogModel.outputCostPerMtok != null
+    && catalogModel.pricingSource !== 'operator';
+
+  return (
+    <fieldset className="space-y-3">
+      <legend className="font-mono text-sm text-foreground break-all">{modelId}</legend>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor={`${fieldId}-input`} className="block text-sm font-medium text-foreground mb-1">
+            Input, USD per 1 million tokens
+          </label>
+          <input
+            id={`${fieldId}-input`}
+            type="number"
+            min="0"
+            step="any"
+            inputMode="decimal"
+            value={inputRate}
+            onChange={(event) => { setInputRate(event.target.value); setMessage(null); }}
+            className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+          />
+        </div>
+        <div>
+          <label htmlFor={`${fieldId}-output`} className="block text-sm font-medium text-foreground mb-1">
+            Output, USD per 1 million tokens
+          </label>
+          <input
+            id={`${fieldId}-output`}
+            type="number"
+            min="0"
+            step="any"
+            inputMode="decimal"
+            value={outputRate}
+            onChange={(event) => { setOutputRate(event.target.value); setMessage(null); }}
+            className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={commit}
+          disabled={!isDirty || saving}
+          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+        >
+          {saving ? 'Saving...' : 'Save pricing'}
+        </button>
+        {catalogAvailable && (
+          <span className="text-xs text-muted-foreground">
+            Catalog: {formatUsdRate(catalogModel.inputCostPerMtok!)} input, {formatUsdRate(catalogModel.outputCostPerMtok!)} output
+          </span>
+        )}
+      </div>
+      {!override && !catalogAvailable && (
+        <p className="text-xs text-warning">
+          No price is available. Calls record zero cost and log a warning until you set both prices.
+        </p>
+      )}
+      {message && (
+        <p role="status" className="text-xs text-muted-foreground">{message}</p>
+      )}
+    </fieldset>
   );
 }
 

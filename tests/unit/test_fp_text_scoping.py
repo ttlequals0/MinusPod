@@ -67,6 +67,7 @@ def test_source_hold_reason_roundtrips():
 
 def test_fp_suppressed_excluded_from_false_positive_texts():
     slug, episode_id = _make_episode('fp-scope-test-2', 'ep-fp-scope-002')
+    podcast_id = db.get_podcast_by_slug(slug)['id']
 
     suppressed_id = db.create_pattern_correction(
         correction_type='false_positive',
@@ -74,6 +75,7 @@ def test_fp_suppressed_excluded_from_false_positive_texts():
         podcast_title='FP Scope Test',
         original_bounds={'start': 10.0, 'end': 20.0},
         text_snippet='suppressed text ' * 5,
+        podcast_id=podcast_id,
     )
     db.create_pattern_correction(
         correction_type='false_positive',
@@ -81,6 +83,7 @@ def test_fp_suppressed_excluded_from_false_positive_texts():
         podcast_title='FP Scope Test',
         original_bounds={'start': 200.0, 'end': 220.0},
         text_snippet='unsuppressed text ' * 5,
+        podcast_id=podcast_id,
     )
     db.get_connection().execute(
         "UPDATE pattern_corrections SET fp_suppressed = 1 WHERE id = ?",
@@ -96,6 +99,7 @@ def test_fp_suppressed_excluded_from_false_positive_texts():
 
 def test_backfill_suppresses_only_matching_differential_marker():
     slug, episode_id = _make_episode('fp-scope-test-3', 'ep-fp-scope-003')
+    podcast_id = db.get_podcast_by_slug(slug)['id']
 
     markers = [
         {
@@ -112,6 +116,7 @@ def test_backfill_suppresses_only_matching_differential_marker():
         podcast_title='FP Scope Test',
         original_bounds={'start': 100.2, 'end': 149.8},
         text_snippet='x' * 60,
+        podcast_id=podcast_id,
     )
     non_matching_id = db.create_pattern_correction(
         correction_type='false_positive',
@@ -119,6 +124,7 @@ def test_backfill_suppresses_only_matching_differential_marker():
         podcast_title='FP Scope Test',
         original_bounds={'start': 300.0, 'end': 350.0},
         text_snippet='y' * 60,
+        podcast_id=podcast_id,
     )
 
     before_count = db.get_connection().execute(
@@ -185,6 +191,162 @@ def test_backfill_skips_ambiguous_cross_podcast_episode_id():
     assert row['fp_suppressed'] in (0, None)
 
 
+def test_unresolved_correction_lists_candidates_and_requires_matching_feed():
+    episode_id = 'ep-unresolved-shared-001'
+    slug_a, _ = _make_episode('unresolved-feed-a', episode_id)
+    slug_b, _ = _make_episode('unresolved-feed-b', episode_id)
+    correction_id = db.create_pattern_correction(
+        correction_type='confirm', episode_id=episode_id,
+        podcast_title='Legacy title',
+        original_bounds={'start': 1.0, 'end': 2.0},
+    )
+
+    unresolved = db.get_unresolved_corrections()
+    correction = next(
+        item for item in unresolved['corrections'] if item['id'] == correction_id)
+    assert {candidate['slug'] for candidate in correction['candidates']} == {
+        slug_a, slug_b,
+    }
+    assert db.assign_unresolved_correction(correction_id, 'missing-feed') == 'invalid_feed'
+    assert db.assign_unresolved_correction(correction_id, slug_b) == 'updated'
+    assert db.assign_unresolved_correction(correction_id, slug_a) == 'assigned'
+    row = db.get_connection().execute(
+        "SELECT podcast_id FROM pattern_corrections WHERE id = ?", (correction_id,)
+    ).fetchone()
+    assert row['podcast_id'] == db.get_podcast_by_slug(slug_b)['id']
+
+
+def test_unresolved_correction_allows_explicit_historical_feed_choice():
+    slug, episode_id = _make_episode('unresolved-history-feed', 'ep-unresolved-history-001')
+    podcast = db.get_podcast_by_slug(slug)
+    correction_id = db.create_pattern_correction(
+        correction_type='confirm', episode_id=episode_id,
+        podcast_title='Legacy title', original_bounds={'start': 1.0, 'end': 2.0},
+    )
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title=podcast['title'],
+        episode_id=episode_id, episode_title='Deleted episode', status='completed',
+    )
+    db.get_connection().execute(
+        "DELETE FROM episodes WHERE podcast_id = ? AND episode_id = ?",
+        (podcast['id'], episode_id),
+    )
+    db.get_connection().commit()
+
+    unresolved = db.get_unresolved_corrections()
+    correction = next(item for item in unresolved['corrections'] if item['id'] == correction_id)
+    candidate = correction['candidates'][0]
+    assert candidate['slug'] == slug
+    assert candidate['podcast_title'] == 'FP Scope Test'
+    assert candidate['episode_title'] == 'Deleted episode'
+    assert candidate['episode_available'] is False
+    assert candidate['source'] == 'history'
+    assert candidate['history_run_count'] == 1
+    assert candidate['history_latest_processed_at'] is not None
+    assert db.assign_unresolved_correction(correction_id, slug) == 'updated'
+
+
+def test_unresolved_correction_api_requires_explicit_confirmation(app_client):
+    episode_id = 'ep-unresolved-api-001'
+    slug, _ = _make_episode('unresolved-api-feed', episode_id)
+    correction_id = db.create_pattern_correction(
+        correction_type='confirm', episode_id=episode_id,
+        original_bounds={'start': 3.0, 'end': 4.0},
+    )
+
+    listed = app_client.get('/api/v1/patterns/corrections/unresolved')
+    assert listed.status_code == 200
+    assert any(item['id'] == correction_id
+               for item in listed.get_json()['corrections'])
+
+    rejected = app_client.post(
+        f'/api/v1/patterns/corrections/{correction_id}/assign',
+        json={'slug': slug},
+    )
+    assert rejected.status_code == 400
+    assigned = app_client.post(
+        f'/api/v1/patterns/corrections/{correction_id}/assign',
+        json={'slug': slug, 'confirm': True},
+    )
+    assert assigned.status_code == 200
+
+
+def test_delete_unresolved_correction_rejects_assigned_and_preserves_other_rows(app_client):
+    slug, episode_id = _make_episode('unresolved-delete-feed', 'ep-unresolved-delete-001')
+    unassigned_id = db.create_pattern_correction(
+        correction_type='confirm', episode_id='ep-unresolved-delete-orphan',
+        original_bounds={'start': 3.0, 'end': 4.0},
+    )
+    assigned_id = db.create_pattern_correction(
+        correction_type='confirm', episode_id=episode_id,
+        original_bounds={'start': 5.0, 'end': 6.0},
+    )
+    assert db.assign_unresolved_correction(assigned_id, slug) == 'updated'
+
+    deleted = app_client.delete(f'/api/v1/patterns/corrections/{unassigned_id}')
+    assert deleted.get_json() == {'deleted': True, 'correctionId': unassigned_id}
+    assert app_client.delete(f'/api/v1/patterns/corrections/{unassigned_id}').status_code == 404
+    assert app_client.delete(f'/api/v1/patterns/corrections/{assigned_id}').status_code == 409
+    assert db.get_connection().execute(
+        "SELECT 1 FROM pattern_corrections WHERE id = ?", (assigned_id,)
+    ).fetchone()
+
+
+def test_bulk_unresolved_corrections_require_common_evidence_and_are_atomic(app_client):
+    slug, first_episode = _make_episode('bulk-correction-feed', 'bulk-correction-one')
+    second_episode = 'bulk-correction-two'
+    db.upsert_episode(
+        slug=slug, episode_id=second_episode, original_url='https://example.com/two.mp3',
+        title='Second episode', original_duration=600.0,
+    )
+    first = db.create_pattern_correction(correction_type='confirm', episode_id=first_episode)
+    second = db.create_pattern_correction(correction_type='confirm', episode_id=second_episode)
+    assigned = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'assign', 'correctionIds': [first, second], 'slug': slug, 'confirm': True,
+    })
+    assert assigned.status_code == 200
+    assert app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'assign', 'correctionIds': [first, second], 'slug': slug, 'confirm': True,
+    }).status_code == 409
+    orphan = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-orphan')
+    delete = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'delete', 'correctionIds': [orphan, first], 'confirm': True,
+    })
+    assert delete.status_code == 409
+    assert db.get_connection().execute('SELECT 1 FROM pattern_corrections WHERE id = ?', (orphan,)).fetchone()
+
+
+def test_bulk_unresolved_assignment_rejects_missing_evidence_without_writes(app_client):
+    slug, episode_id = _make_episode('bulk-evidence-feed', 'bulk-evidence-present')
+    valid = db.create_pattern_correction(correction_type='confirm', episode_id=episode_id)
+    missing = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-evidence-missing')
+    response = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'assign', 'correctionIds': [valid, missing], 'slug': slug, 'confirm': True,
+    })
+    assert response.status_code == 409
+    rows = db.get_connection().execute(
+        'SELECT podcast_id FROM pattern_corrections WHERE id IN (?, ?)', (valid, missing),
+    ).fetchall()
+    assert [row['podcast_id'] for row in rows] == [None, None]
+
+
+def test_bulk_unresolved_delete_removes_selected_only_and_validates_ids(app_client):
+    first = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-delete-one')
+    second = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-delete-two')
+    untouched = db.create_pattern_correction(correction_type='confirm', episode_id='bulk-delete-keep')
+    deleted = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+        'action': 'delete', 'correctionIds': [first, second], 'confirm': True,
+    })
+    assert deleted.status_code == 200
+    assert not db.get_connection().execute('SELECT 1 FROM pattern_corrections WHERE id IN (?, ?)', (first, second)).fetchone()
+    assert db.get_connection().execute('SELECT 1 FROM pattern_corrections WHERE id = ?', (untouched,)).fetchone()
+    for correction_ids, confirm in (([untouched, untouched], True), ([True], True), ([untouched], False)):
+        response = app_client.post('/api/v1/patterns/corrections/unresolved/bulk', json={
+            'action': 'delete', 'correctionIds': correction_ids, 'confirm': confirm,
+        })
+        assert response.status_code == 400
+
+
 def test_reject_differential_hold_writes_null_text_and_source_hold_reason():
     """Rejecting a held marker whose hold_reason is differential_uncorroborated
     must not mint cross-episode FP text: text_snippet is NULL, source_hold_reason
@@ -211,7 +373,8 @@ def test_reject_differential_hold_writes_null_text_and_source_hold_reason():
 
     assert db.get_podcast_false_positive_texts(slug) == []
 
-    region = db.get_false_positive_corrections(episode_id)
+    podcast_id = db.get_podcast_by_slug(slug)['id']
+    region = db.get_false_positive_corrections(podcast_id, episode_id)
     assert any(r['start'] == 0.0 and r['end'] == 60.0 for r in region)
 
 
@@ -268,7 +431,8 @@ def test_reject_claude_stage_hold_still_writes_text_snippet():
     texts = db.get_podcast_false_positive_texts(slug)
     assert any(t['text'] == row['text_snippet'] for t in texts)
 
-    region = db.get_false_positive_corrections(episode_id)
+    podcast_id = db.get_podcast_by_slug(slug)['id']
+    region = db.get_false_positive_corrections(podcast_id, episode_id)
     assert any(r['start'] == 0.0 and r['end'] == 60.0 for r in region)
 
 
@@ -277,6 +441,7 @@ def test_get_false_positive_texts_excludes_differential_provenance_even_if_snipp
     differential_uncorroborated must never surface via cross-episode FP
     matching, even if some writer misbehavior populated text_snippet."""
     slug, episode_id = _make_episode('fp-scope-diff-reader', 'ep-fp-scope-diff-reader')
+    podcast_id = db.get_podcast_by_slug(slug)['id']
 
     db.create_pattern_correction(
         correction_type='false_positive',
@@ -285,6 +450,7 @@ def test_get_false_positive_texts_excludes_differential_provenance_even_if_snipp
         original_bounds={'start': 10.0, 'end': 20.0},
         text_snippet='differential leaked text ' * 3,
         source_hold_reason='differential_uncorroborated',
+        podcast_id=podcast_id,
     )
     db.create_pattern_correction(
         correction_type='false_positive',
@@ -292,6 +458,7 @@ def test_get_false_positive_texts_excludes_differential_provenance_even_if_snipp
         podcast_title='FP Scope Test',
         original_bounds={'start': 200.0, 'end': 220.0},
         text_snippet='normal fp text ' * 5,
+        podcast_id=podcast_id,
     )
 
     texts = db.get_podcast_false_positive_texts(slug)
@@ -313,6 +480,7 @@ def test_backfill_endpoint_skips_differential_provenance_rows():
     gdb = get_database()
 
     slug, episode_id = _make_episode('fp-scope-backfill', 'ep-fp-scope-backfill', database=gdb)
+    podcast_id = gdb.get_podcast_by_slug(slug)['id']
     gdb.save_episode_details(slug, episode_id, transcript_text=TRANSCRIPT_TEXT)
 
     differential_id = gdb.create_pattern_correction(
@@ -322,6 +490,7 @@ def test_backfill_endpoint_skips_differential_provenance_rows():
         original_bounds={'start': 0.0, 'end': 60.0},
         text_snippet=None,
         source_hold_reason='differential_uncorroborated',
+        podcast_id=podcast_id,
     )
     normal_id = gdb.create_pattern_correction(
         correction_type='false_positive',
@@ -329,6 +498,7 @@ def test_backfill_endpoint_skips_differential_provenance_rows():
         podcast_title='FP Scope Test',
         original_bounds={'start': 0.0, 'end': 60.0},
         text_snippet=None,
+        podcast_id=podcast_id,
     )
 
     with app.test_request_context('/api/v1/patterns/backfill-false-positives', method='POST'):

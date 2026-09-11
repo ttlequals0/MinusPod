@@ -20,7 +20,7 @@ import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration'
 import { formatConfidence } from '../utils/confidence';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
-import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi } from '../api/types';
+import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi, ThinkingNoticePass } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -58,6 +58,20 @@ const REDETECT_DISABLED_MODE_LABELS: Partial<Record<NonNullable<Feed['processing
   skip_detection: 'skip ad detection',
   cue_only: 'cue-only',
 };
+
+const THINKING_NOTICE_PASS_LABELS: Record<ThinkingNoticePass, string> = {
+  ad_detection_pass_1: 'ad detection',
+  reviewer_pass_1: 'ad review',
+  ad_detection_pass_2: 'verification',
+  reviewer_pass_2: 'verification review',
+  chapter_generation: 'chapter generation',
+};
+
+function formatList(items: string[]): string {
+  if (items.length < 2) return items[0] ?? '';
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
 
 function btnClass(status: string, idleClass: string): string {
   if (status === 'success') return 'bg-success/20 text-success';
@@ -568,6 +582,14 @@ function EpisodeDetail() {
   const latestRun = episode.processingRuns?.length
     ? episode.processingRuns[episode.processingRuns.length - 1]
     : null;
+  const latestCompletedRun = [...(episode.processingRuns ?? [])]
+    .reverse()
+    .find((run) => run.status === 'completed');
+  const thinkingNoticePasses = [...new Set(
+    latestCompletedRun?.stats?.thinkingNotices
+      ?.map((notice) => THINKING_NOTICE_PASS_LABELS[notice.pass])
+      .filter((label): label is string => typeof label === 'string') ?? [],
+  )];
   const verificationAdsCut = latestRun?.stats?.verificationAdsCut;
   const verificationVerdict =
     episode.status === 'completed' && verificationAdsCut != null
@@ -803,6 +825,18 @@ function EpisodeDetail() {
           <div className="mt-4 pt-4 border-t border-border">
             <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
               {coverageGaps.join(' and ')}; that part of the episode was not examined for ads.
+            </div>
+          </div>
+        )}
+
+        {thinkingNoticePasses.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning"
+            >
+              The requested thinking setting was not accepted for {formatList(thinkingNoticePasses)}. This run used provider defaults.
             </div>
           </div>
         )}

@@ -70,10 +70,11 @@ class TestRssGateSkipsBlacklistedTitles:
             'artwork_cached': True,
             'title_skip_patterns': json.dumps(['Blacklisted*']),
         }
-        mock_db.bulk_upsert_discovered_episodes.return_value = 2
+        mock_db.get_podcast_row.return_value = mock_db.get_podcast_by_slug.return_value
+        mock_db.bulk_upsert_discovered_episodes.return_value = (2, {}, {})
         mock_db.is_auto_process_enabled_for_podcast.return_value = True
         mock_db.get_episode_statuses_for_podcast.return_value = ({}, {})
-        mock_db.queue_episode_for_processing.return_value = 99
+        mock_db.queue_episodes_for_processing.return_value = {'ep-normal'}
         mock_pattern.update_podcast_metadata.return_value = {}
 
         mock_rss.fetch_feed_conditional.return_value = (b'<rss/>', None, None)
@@ -98,8 +99,8 @@ class TestRssGateSkipsBlacklistedTitles:
 
         feeds_mod.refresh_rss_feed('show', 'https://example.com/f.xml', force=True)
 
-        queued_ids = [c.args[1] for c in mock_db.queue_episode_for_processing.call_args_list]
-        assert queued_ids == ['ep-normal']
+        queued = mock_db.queue_episodes_for_processing.call_args.args[1]
+        assert [episode['episode_id'] for episode in queued] == ['ep-normal']
 
 
 class TestOnDemandServeGate:

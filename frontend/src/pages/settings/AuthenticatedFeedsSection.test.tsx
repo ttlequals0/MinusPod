@@ -17,9 +17,18 @@ vi.mock('../../api/settings', () => ({
 }));
 
 const mockRegenerateAllFeeds = vi.fn();
+const mockGetSubscriberKeys = vi.fn();
+const mockCreateSubscriberKey = vi.fn();
+const mockRevokeSubscriberKey = vi.fn();
+const mockDeleteSubscriberKeyRecord = vi.fn();
 
 vi.mock('../../api/feeds', () => ({
   regenerateAllFeeds: (...args: unknown[]) => mockRegenerateAllFeeds(...args),
+  feedsQueryOptions: { queryKey: ['feeds'], queryFn: () => Promise.resolve({ feeds: [{ slug: 'example-feed', title: 'Example Feed' }] }) },
+  getSubscriberKeys: (...args: unknown[]) => mockGetSubscriberKeys(...args),
+  createSubscriberKey: (...args: unknown[]) => mockCreateSubscriberKey(...args),
+  revokeSubscriberKey: (...args: unknown[]) => mockRevokeSubscriberKey(...args),
+  deleteSubscriberKeyRecord: (...args: unknown[]) => mockDeleteSubscriberKeyRecord(...args),
 }));
 
 function makeSettings(overrides: Partial<Settings> = {}): Settings {
@@ -50,6 +59,32 @@ beforeEach(() => {
   mockUpdateSettings.mockResolvedValue({ message: 'ok' });
   mockRegenerateFeedKey.mockResolvedValue({ feedAuthKey: 'new-key' });
   mockRegenerateAllFeeds.mockResolvedValue({ message: 'ok', feedCount: 3 });
+  mockGetSubscriberKeys.mockResolvedValue([]);
+});
+
+describe('AuthenticatedFeedsSection subscriber keys', () => {
+  it('copies a newly created subscriber URL using the shared copy control', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    mockCreateSubscriberKey.mockResolvedValue({
+      id: 'key-1', label: 'Living room', created_at: '2026-09-10T00:00:00Z',
+      last_used_at: null, revoked_at: null, token: 'token', feedUrl: 'https://example.com/feed.xml?key=token',
+    });
+    renderSection();
+    await userEvent.type(await screen.findByLabelText('Subscriber label'), 'Living room');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    expect(await screen.findByRole('button', { name: 'Copy subscriber feed URL' })).toBeDefined();
+  });
+
+  it('only offers deletion for a revoked key and confirms before deleting it', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    mockGetSubscriberKeys.mockResolvedValue([{ id: 'key-1', label: 'Old device', created_at: '2026-09-10T00:00:00Z', last_used_at: null, revoked_at: '2026-09-10T01:00:00Z' }]);
+    mockDeleteSubscriberKeyRecord.mockResolvedValue({ deleted: true });
+    renderSection();
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(mockDeleteSubscriberKeyRecord).toHaveBeenCalledWith('example-feed', 'key-1');
+  });
 });
 
 describe('AuthenticatedFeedsSection key toggle', () => {

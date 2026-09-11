@@ -502,6 +502,36 @@ def test_bulk_delete_subscribed_feed_unchanged(app_client, subscribed_feed):
     mock_rebuild.assert_not_called()
 
 
+def test_bulk_delete_busy_episode_clears_transient_deletion_marker(
+        app_client, subscribed_feed):
+    from processing_queue import ProcessingQueue
+
+    slug = subscribed_feed['slug']
+    db = subscribed_feed['db']
+    episode_id = 'busy00000001'
+    db.upsert_episode(
+        slug, episode_id, original_url='https://example.com/busy.mp3',
+        status='processed', title='Busy episode', processed_file='busy.mp3')
+    queue = ProcessingQueue()
+    run_id = queue.acquire(slug, episode_id, limit=100)
+    assert run_id
+
+    _authed(app_client)
+    response = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes/bulk',
+        json={'episodeIds': [episode_id], 'action': 'delete'},
+        headers=_csrf_headers(app_client),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()['skipped'] == 1
+    assert db.get_episode(slug, episode_id)['deletion_requested_at'] is None
+    assert queue.release(run_id)
+    successor = queue.acquire(slug, episode_id, limit=100)
+    assert successor
+    assert queue.release(successor)
+
+
 def test_feed_type_present_in_list_serialization(app_client, subscribed_feed, local_feed):
     _authed(app_client)
 

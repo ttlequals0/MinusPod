@@ -12,21 +12,19 @@ import GlobalStatusBar from './GlobalStatusBar';
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
-  onmessage: ((e: { data: string }) => void) | null = null;
-  onerror: (() => void) | null = null;
-  onopen: (() => void) | null = null;
+  resolve: (response: Response) => void;
 
-  constructor() {
+  constructor(resolve: (response: Response) => void) {
+    this.resolve = resolve;
     FakeEventSource.instances.push(this);
   }
 
-  addEventListener() {}
-  close() {}
-
-  emit(payload: unknown) {
-    act(() => {
-      this.onopen?.();
-      this.onmessage?.({ data: JSON.stringify(payload) });
+  async emit(payload: unknown) {
+    await act(async () => {
+      this.resolve(new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
     });
   }
 }
@@ -62,50 +60,56 @@ function holdRow(match: string) {
   return row as HTMLElement;
 }
 
-function renderBar(status: unknown) {
+async function renderBar(status: unknown) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
     <QueryClientProvider client={client}>
       <GlobalStatusBar />
     </QueryClientProvider>,
   );
-  FakeEventSource.instances[0].emit(status);
+  await FakeEventSource.instances[0].emit(status);
   return utils;
+}
+
+function installStatusFetch() {
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => {
+    new FakeEventSource(resolve);
+  })));
 }
 
 describe('GlobalStatusBar queue holds', () => {
   beforeEach(() => {
     FakeEventSource.instances = [];
-    vi.stubGlobal('EventSource', FakeEventSource);
+    installStatusFetch();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('stays hidden when the queue is idle and nothing is held', () => {
-    const { container } = renderBar(makeStatus({ hold: emptyHold() }));
+  it('stays hidden when the queue is idle and nothing is held', async () => {
+    const { container } = await renderBar(makeStatus({ hold: emptyHold() }));
     expect(container.firstChild).toBeNull();
   });
 
-  it('appears on an otherwise idle queue when a rate-limit pause is active', () => {
+  it('appears on an otherwise idle queue when a rate-limit pause is active', async () => {
     const holdUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    renderBar(makeStatus({
+    await renderBar(makeStatus({
       hold: emptyHold({ queuePaused: true, holdUntil }),
     }));
     // The chip says when the pause lifts, not that it started.
     expect(screen.getByText(/^Paused until \d{1,2}:\d{2}/)).toBeDefined();
   });
 
-  it('hides once the pause has lifted', () => {
-    const { container } = renderBar(makeStatus({ hold: emptyHold() }));
+  it('hides once the pause has lifted', async () => {
+    const { container } = await renderBar(makeStatus({ hold: emptyHold() }));
     expect(container.firstChild).toBeNull();
   });
 
-  it('says when an active hold started alongside its reset time', () => {
+  it('says when an active hold started alongside its reset time', async () => {
     const holdSince = new Date(Date.now() - 20 * 60 * 1000).toISOString();
     const holdUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    renderBar(makeStatus({
+    await renderBar(makeStatus({
       hold: emptyHold({ queuePaused: true, holdSince, holdUntil }),
     }));
     act(() => {
@@ -117,8 +121,8 @@ describe('GlobalStatusBar queue holds', () => {
     expect(detail.textContent).toMatch(/Paused since \d{1,2}:\d{2}/);
   });
 
-  it('names the unreachable service rather than only counting held episodes', () => {
-    renderBar(makeStatus({
+  it('names the unreachable service rather than only counting held episodes', async () => {
+    await renderBar(makeStatus({
       hold: emptyHold({
         offlineHeld: 2,
         offlineServices: [{
@@ -130,9 +134,9 @@ describe('GlobalStatusBar queue holds', () => {
     expect(screen.getByText('Whisper endpoint unreachable')).toBeDefined();
   });
 
-  it('shows the reset time once expanded', () => {
+  it('shows the reset time once expanded', async () => {
     const holdUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    renderBar(makeStatus({
+    await renderBar(makeStatus({
       hold: emptyHold({ queuePaused: true, holdUntil }),
     }));
     act(() => {
@@ -143,8 +147,8 @@ describe('GlobalStatusBar queue holds', () => {
     expect(detail.textContent).toContain('Queued episodes wait in place');
   });
 
-  it('says an offline wait does not stop the rest of the queue', () => {
-    renderBar(makeStatus({
+  it('says an offline wait does not stop the rest of the queue', async () => {
+    await renderBar(makeStatus({
       hold: emptyHold({
         offlineHeld: 3,
         offlineServices: [{
@@ -161,8 +165,8 @@ describe('GlobalStatusBar queue holds', () => {
     expect(detail.textContent).toContain('Others keep processing.');
   });
 
-  it('reports a service as unchecked before the first probe', () => {
-    renderBar(makeStatus({
+  it('reports a service as unchecked before the first probe', async () => {
+    await renderBar(makeStatus({
       hold: emptyHold({
         offlineHeld: 1,
         offlineServices: [{
@@ -176,10 +180,10 @@ describe('GlobalStatusBar queue holds', () => {
     expect(holdRow('not checked yet')).toBeDefined();
   });
 
-  it('does not call a reachable service unchecked', () => {
+  it('does not call a reachable service unchecked', async () => {
     // A service can hold episodes again between a recovery probe and the next
     // tick: reachable true with a real checkedAt must not read "not checked".
-    renderBar(makeStatus({
+    await renderBar(makeStatus({
       hold: emptyHold({
         offlineHeld: 1,
         offlineServices: [{
@@ -196,8 +200,8 @@ describe('GlobalStatusBar queue holds', () => {
     expect(detail.textContent).not.toContain('not checked yet');
   });
 
-  it('tolerates a status frame with no hold block', () => {
-    const { container } = renderBar(makeStatus());
+  it('tolerates a status frame with no hold block', async () => {
+    const { container } = await renderBar(makeStatus());
     expect(container.firstChild).toBeNull();
   });
 });
@@ -208,20 +212,20 @@ function job(slug: string, id: string, title: string, stage = 'transcribing', pr
 }
 
 describe('GlobalStatusBar multiple jobs', () => {
-  beforeEach(() => { FakeEventSource.instances = []; vi.stubGlobal('EventSource', FakeEventSource); });
+  beforeEach(() => { FakeEventSource.instances = []; installStatusFetch(); });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it('shows the oldest job collapsed with a chip for the rest', () => {
+  it('shows the oldest job collapsed with a chip for the rest', async () => {
     const a = job('feed-a', '1', 'First'); const b = job('feed-b', '2', 'Second');
-    renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    await renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
     expect(screen.getByText('First')).toBeDefined();
     expect(screen.getByText('+1 running')).toBeDefined();
   });
 
-  it('lists every job with its own stage once expanded', () => {
+  it('lists every job with its own stage once expanded', async () => {
     const a = job('feed-a', '1', 'First', 'transcribing');
     const b = job('feed-b', '2', 'Second', 'detecting', 55);
-    renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    await renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
     act(() => { screen.getByRole('button', { name: 'Expand status bar' }).click(); });
     const rows = screen.getAllByTestId('status-job');
     expect(rows).toHaveLength(2);
@@ -229,10 +233,10 @@ describe('GlobalStatusBar multiple jobs', () => {
     expect(rows[1].textContent).toContain('Detecting ads');
   });
 
-  it('expanded panel is capped to the viewport, not a fixed 192px', () => {
+  it('expanded panel is capped to the viewport, not a fixed 192px', async () => {
     const a = job('feed-a', '1', 'First');
     const b = job('feed-b', '2', 'Second');
-    renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    await renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
     act(() => { screen.getByRole('button', { name: 'Expand status bar' }).click(); });
     const panel = screen.getAllByTestId('status-job')[0].parentElement as HTMLElement;
     expect(panel.className).toContain('max-h-[min(70vh,26rem)]');
@@ -242,10 +246,17 @@ describe('GlobalStatusBar multiple jobs', () => {
 });
 
 describe('GlobalStatusBar completion invalidation', () => {
-  beforeEach(() => { FakeEventSource.instances = []; vi.stubGlobal('EventSource', FakeEventSource); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    FakeEventSource.instances = [];
+    installStatusFetch();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
-  it('invalidates when one of several jobs finishes', () => {
+  it('invalidates when one of several jobs finishes', async () => {
     const a = job('feed-a', '1', 'First');
     const b = job('feed-b', '2', 'Second');
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -256,17 +267,19 @@ describe('GlobalStatusBar completion invalidation', () => {
       </QueryClientProvider>,
     );
     const source = FakeEventSource.instances[0];
-    source.emit(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
+    await source.emit(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
     invalidate.mockClear();
     // The newer job ends; currentJob still names the older one, so only the
     // key set says anything finished.
-    source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    await FakeEventSource.instances[1].emit(
+      makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
     expect(invalidate.mock.calls.map((c) => c[0]?.queryKey)).toEqual([
       ['episode'], ['episodes'], ['feed'], ['feeds'],
     ]);
   });
 
-  it('does not invalidate while the same jobs keep running', () => {
+  it('does not invalidate while the same jobs keep running', async () => {
     const a = job('feed-a', '1', 'First');
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidate = vi.spyOn(client, 'invalidateQueries');
@@ -276,9 +289,11 @@ describe('GlobalStatusBar completion invalidation', () => {
       </QueryClientProvider>,
     );
     const source = FakeEventSource.instances[0];
-    source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
+    await source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
     invalidate.mockClear();
-    source.emit(makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    await FakeEventSource.instances[1].emit(
+      makeStatus({ currentJob: a, jobs: [a], hold: emptyHold() }));
     expect(invalidate).not.toHaveBeenCalled();
   });
 });

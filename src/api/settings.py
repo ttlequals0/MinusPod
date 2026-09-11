@@ -6,6 +6,7 @@ import os
 import threading
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal, DecimalException, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 from typing import Any
 from collections.abc import Mapping
 
@@ -98,6 +99,8 @@ from db_backup_service import (
     validate_backup_dest,
 )
 from utils.cron import is_valid_expression
+from utils.time import utc_now_iso
+from fx_rates import FxRateError, get_currencies, get_usd_rate
 
 # Every LLM provider the settings API accepts.
 VALID_LLM_PROVIDERS = (
@@ -339,6 +342,7 @@ def get_settings():
     openai_base_url = get_effective_base_url()
     pricing_source_mode = _setting_value(
         settings, 'pricing_source_mode', registry_default('pricing_source_mode'))
+    model_pricing_overrides = db.get_model_pricing_overrides()
     api_key = get_api_key()
     api_key_configured = bool(api_key and api_key != 'not-needed')
     openrouter_api_key = get_effective_openrouter_api_key()
@@ -658,6 +662,8 @@ def get_settings():
         'llmJsonSchemaEnabled': _sv('llm_json_schema_enabled', llm_json_schema_enabled),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
         'pricingSourceMode': _sv('pricing_source_mode', pricing_source_mode),
+        'modelPricingOverrides': _sv(
+            'model_pricing_overrides', model_pricing_overrides),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         # value is resolved, not raw: unset falls back to PodcastIndex when
@@ -779,6 +785,7 @@ def update_ad_detection_settings():
         _apply_prompt_fields,
         _apply_review_fields,
         _apply_model_fields,
+        _apply_model_pricing_fields,
         _apply_processing_flags,
         _apply_feed_refresh_fields,
         _apply_queue_boost_fields,
@@ -901,6 +908,55 @@ def _apply_model_fields(db, data):
         db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
         logger.info(f"Updated chapters model to: {data['chaptersModel']}")
     return
+
+
+def _apply_model_pricing_fields(db, data):
+    """Validate and merge per-model USD pricing overrides."""
+    if 'modelPricingOverrides' not in data:
+        return None
+    submitted = data['modelPricingOverrides']
+    if not isinstance(submitted, Mapping):
+        return error_response('modelPricingOverrides must be an object', 400)
+
+    patch = {}
+    for raw_model_id, rates in submitted.items():
+        if not isinstance(raw_model_id, str) or not raw_model_id.strip():
+            return error_response('model pricing override IDs must be non-empty strings', 400)
+        model_id = raw_model_id.strip()
+        if model_id in patch:
+            return error_response(
+                f'modelPricingOverrides contains duplicate model ID {model_id}', 400)
+        if rates is None:
+            patch[model_id] = None
+            continue
+        if not isinstance(rates, Mapping):
+            return error_response(
+                f'modelPricingOverrides.{model_id} must be an object or null', 400)
+        required = {'inputCostPerMtok', 'outputCostPerMtok'}
+        if set(rates) != required:
+            return error_response(
+                f'modelPricingOverrides.{model_id} must contain inputCostPerMtok '
+                'and outputCostPerMtok', 400)
+
+        parsed = {}
+        for field in required:
+            value = rates[field]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return error_response(
+                    f'modelPricingOverrides.{model_id}.{field} must be a '
+                    'non-negative number', 400)
+            value = float(value)
+            if not math.isfinite(value) or value < 0:
+                return error_response(
+                    f'modelPricingOverrides.{model_id}.{field} must be a '
+                    'non-negative number', 400)
+            parsed[field] = value
+        patch[model_id] = parsed
+
+    if patch:
+        db.merge_model_pricing_overrides(patch)
+        logger.info("Updated model pricing overrides for %d model(s)", len(patch))
+    return None
 
 
 def _apply_size_caps(db, data):
@@ -2117,6 +2173,207 @@ def regenerate_feed_auth_key():
     db.clear_all_podcast_etags()
     logger.info("Feed auth key regenerated")
     return json_response({'feedAuthKey': new_key})
+
+
+@api.route('/settings/provider-budget', methods=['GET'])
+@log_request
+def get_provider_budget():
+    return json_response(_provider_budget_payload())
+
+
+def _provider_budget_payload():
+    db = get_database()
+    provider = db.get_setting('llm_provider') or 'anthropic'
+    currency = (db.get_setting('provider_budget_display_currency') or 'USD').upper()
+    rate = db.get_setting('provider_budget_fx_rate') or '1'
+    try:
+        local_per_usd = Decimal(rate)
+        if not local_per_usd.is_finite() or local_per_usd <= 0:
+            raise InvalidOperation
+    except InvalidOperation:
+        local_per_usd = Decimal('1')
+        rate = '1'
+    return {
+        'enabled': db.get_setting_bool('provider_budget_enabled', False),
+        'dailyLimitMicrousd': db.get_setting_int(
+            'provider_budget_daily_limit_microusd', 0
+        ),
+        'maxReservations': db.get_setting_int(
+            'provider_budget_max_reservations', 1
+        ),
+        'unknownCost': db.get_setting('provider_budget_unknown_cost') or 'deny',
+        'unknownReserveMicrousd': db.get_setting_int(
+            'provider_budget_unknown_reserve_microusd', 0
+        ),
+        'displayCurrency': currency,
+        'dailyLimit': _microusd_to_local(
+            db.get_setting_int('provider_budget_daily_limit_microusd', 0), local_per_usd),
+        'unknownReserve': _microusd_to_local(
+            db.get_setting_int('provider_budget_unknown_reserve_microusd', 0), local_per_usd),
+        'fxRate': {
+            'localPerUsd': rate,
+            'source': 'Identity' if currency == 'USD' else 'Frankfurter',
+            'sourceDate': db.get_setting('provider_budget_fx_source_date') or None,
+            'fetchedAt': db.get_setting('provider_budget_fx_fetched_at') or None,
+        },
+        'status': db.provider_budget_status(provider),
+    }
+
+
+@api.route('/settings/provider-budget/currencies', methods=['GET'])
+@log_request
+def get_provider_budget_currencies():
+    try:
+        return json_response({'currencies': get_currencies()})
+    except FxRateError as exc:
+        return error_response(str(exc), 503)
+
+
+@api.route('/settings/provider-budget/rate/<currency>', methods=['GET'])
+@log_request
+def get_provider_budget_rate(currency):
+    try:
+        rate = get_usd_rate(currency)
+    except FxRateError as exc:
+        return error_response(str(exc), 503)
+    try:
+        from_currency = request.args.get('from')
+        if from_currency:
+            from_rate = _preview_rate(request.args.get('fromRate', ''))
+            daily_limit = _convert_local_amount(
+                request.args.get('dailyLimit', ''), from_rate, rate.local_per_usd)
+            unknown_reserve = _convert_local_amount(
+                request.args.get('unknownReserve', ''), from_rate, rate.local_per_usd)
+        else:
+            db = get_database()
+            daily_limit = _microusd_to_local(
+                db.get_setting_int('provider_budget_daily_limit_microusd', 0), rate.local_per_usd)
+            unknown_reserve = _microusd_to_local(
+                db.get_setting_int('provider_budget_unknown_reserve_microusd', 0), rate.local_per_usd)
+        return json_response({
+            'currency': rate.currency,
+            'localPerUsd': str(rate.local_per_usd),
+            'source': rate.source,
+            'sourceDate': rate.source_date,
+            'dailyLimit': daily_limit,
+            'unknownReserve': unknown_reserve,
+        })
+    except FxRateError as exc:
+        return error_response(str(exc), 400)
+
+
+def _local_amount_to_microusd(value, rate: Decimal, rounding) -> int:
+    if not isinstance(value, str) or len(value) > 64:
+        raise ValueError('Currency amounts must be decimal strings')
+    try:
+        amount = Decimal(value)
+    except InvalidOperation as exc:
+        raise ValueError('Currency amount must be a valid decimal') from exc
+    if (not amount.is_finite() or amount < 0
+            or (not amount.is_zero() and not -18 <= amount.adjusted() <= 18)):
+        raise ValueError('Currency amount must be a non-negative finite decimal')
+    try:
+        converted = (amount * Decimal(1_000_000) / rate).to_integral_value(rounding=rounding)
+    except (DecimalException, OverflowError) as exc:
+        raise ValueError('Currency amount is too large') from exc
+    result = int(converted)
+    if amount > 0 and result == 0:
+        raise ValueError('Currency amount is too small to enforce')
+    if result > 1_000_000_000_000:
+        raise ValueError('Currency amount is too large')
+    return result
+
+
+def _microusd_to_local(microusd: int, rate: Decimal) -> str:
+    return format(Decimal(microusd) * rate / Decimal(1_000_000), 'f')
+
+
+def _convert_local_amount(value: str, from_rate: Decimal, to_rate: Decimal) -> str:
+    if not isinstance(value, str) or len(value) > 64:
+        raise FxRateError('Currency amount is invalid')
+    try:
+        amount = Decimal(value)
+        if (not amount.is_finite() or amount < 0
+                or (not amount.is_zero() and not -18 <= amount.adjusted() <= 18)):
+            raise ValueError
+        return format(amount * to_rate / from_rate, 'f')
+    except (DecimalException, ValueError, OverflowError) as exc:
+        raise FxRateError('Currency amount is invalid') from exc
+
+
+def _preview_rate(value: str) -> Decimal:
+    if not isinstance(value, str) or len(value) > 64:
+        raise FxRateError('Currency rate is invalid')
+    try:
+        rate = Decimal(value)
+        if not rate.is_finite() or rate <= 0 or not -18 <= rate.adjusted() <= 18:
+            raise ValueError
+        return rate
+    except (DecimalException, ValueError, OverflowError) as exc:
+        raise FxRateError('Currency rate is invalid') from exc
+
+
+@api.route('/settings/provider-budget', methods=['PUT'])
+@limiter.limit('10 per hour')
+@log_request
+def update_provider_budget():
+    data = request.get_json(silent=True) or {}
+    enabled = data.get('enabled')
+    limit = data.get('dailyLimitMicrousd')
+    maximum = data.get('maxReservations')
+    action = data.get('unknownCost')
+    reserve = data.get('unknownReserveMicrousd')
+    currency = data.get('displayCurrency')
+    if not isinstance(enabled, bool):
+        return error_response('enabled must be a boolean', 400)
+    if currency is None and (not isinstance(limit, int) or limit < 0):
+        return error_response('dailyLimitMicrousd must be a non-negative integer', 400)
+    if not isinstance(maximum, int) or not 1 <= maximum <= 64:
+        return error_response('maxReservations must be between 1 and 64', 400)
+    if action not in ('deny', 'allow', 'reserve'):
+        return error_response('unknownCost must be deny, allow, or reserve', 400)
+    if currency is None and (not isinstance(reserve, int) or reserve < 0):
+        return error_response('unknownReserveMicrousd must be a non-negative integer', 400)
+    if currency is None and enabled and action == 'reserve' and reserve == 0:
+        return error_response('unknownReserveMicrousd must be positive for reserve', 400)
+    if currency is not None:
+        if not isinstance(currency, str) or len(currency) != 3 or not currency.isascii() or not currency.isalpha():
+            return error_response('displayCurrency must be an ISO currency code', 400)
+        daily_local = data.get('dailyLimit')
+        reserve_local = data.get('unknownReserve')
+        if not isinstance(daily_local, str) or not isinstance(reserve_local, str):
+            return error_response('dailyLimit and unknownReserve must be decimal strings', 400)
+        try:
+            fx_rate = get_usd_rate(currency)
+            limit = _local_amount_to_microusd(
+                daily_local, fx_rate.local_per_usd, ROUND_FLOOR)
+            reserve = _local_amount_to_microusd(
+                reserve_local, fx_rate.local_per_usd, ROUND_CEILING)
+        except FxRateError as exc:
+            return error_response(str(exc), 503)
+        except ValueError as exc:
+            return error_response(str(exc), 400)
+        if enabled and action == 'reserve' and reserve == 0:
+            return error_response('unknownReserve must be positive for reserve', 400)
+    db = get_database()
+    values = {
+        'provider_budget_enabled': str(enabled).lower(),
+        'provider_budget_daily_limit_microusd': str(limit),
+        'provider_budget_max_reservations': str(maximum),
+        'provider_budget_unknown_cost': action,
+        'provider_budget_unknown_reserve_microusd': str(reserve),
+    }
+    if currency is not None:
+        values.update({
+            'provider_budget_display_currency': fx_rate.currency,
+            'provider_budget_fx_rate': str(fx_rate.local_per_usd),
+            'provider_budget_fx_source_date': fx_rate.source_date,
+            'provider_budget_fx_fetched_at': utc_now_iso(),
+        })
+    with db.transaction(immediate=True) as conn:
+        for key, value in values.items():
+            db._upsert_setting(conn, key, value, is_default=False)
+    return json_response(_provider_budget_payload())
 
 
 @api.route('/settings/ad-detection/reset', methods=['POST'])

@@ -1052,11 +1052,6 @@ def resolve_silence_snap_enabled(db, podcast_id):
     return _resolve_snap_flag(db, podcast_id, 'silence_snap_enabled')
 
 
-def resolve_transition_snap_enabled(db, podcast_id):
-    """Per-feed content-transition-snap opt-in (Phase B). Default False."""
-    return _resolve_snap_flag(db, podcast_id, 'transition_snap_enabled')
-
-
 def resolve_differential_fetch_setting(db, podcast_id):
     """Raw tri-state differential opt-in: True/False when the per-feed flag
     is set, None when unset. The None case lets the pipeline auto-enable
@@ -1617,11 +1612,6 @@ def get_pricing_sources(provider: str, base_url: str = '') -> list:
 
     # Unknown domain (including LAN/localhost) -- unfiltered LiteLLM.
     return [dict(_LITELLM_SOURCE)]
-
-
-def get_pricing_source(provider: str, base_url: str = '') -> dict:
-    """First source in the pricing chain. Thin wrapper for single-source callers."""
-    return get_pricing_sources(provider, base_url)[0]
 
 
 # ============================================================

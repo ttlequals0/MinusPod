@@ -22,6 +22,13 @@ def client():
         yield c
 
 
+@pytest.fixture(autouse=True)
+def _disable_settings_background_jobs(monkeypatch):
+    monkeypatch.setattr(
+        'api.settings.maybe_trigger_reviewer_calibration', lambda *args: None)
+    monkeypatch.setattr('api.settings.force_refresh_pricing', lambda: None)
+
+
 class TestOpenRouterKeyValidation:
     """Tests for OpenRouter API key format validation in settings endpoint."""
 
@@ -58,6 +65,98 @@ class TestOpenRouterKeyValidation:
             content_type='application/json',
         )
         assert response.status_code == 200
+
+
+class TestModelPricingOverrideValidation:
+    @pytest.fixture(autouse=True)
+    def _clear_overrides(self):
+        db = database.Database()
+        db.clear_setting('model_pricing_overrides')
+        yield
+        db.clear_setting('model_pricing_overrides')
+
+    def _put(self, client, value):
+        return client.put(
+            '/api/v1/settings/ad-detection',
+            json={'modelPricingOverrides': value},
+        )
+
+    def test_absent_setting_returns_empty_map(self, client):
+        settings = client.get('/api/v1/settings').get_json()
+
+        assert settings['modelPricingOverrides'] == {
+            'value': {},
+            'isDefault': True,
+        }
+
+    def test_zero_and_positive_rates_round_trip(self, client):
+        response = self._put(client, {
+            'free-local': {'inputCostPerMtok': 0, 'outputCostPerMtok': 0},
+            'paid-local': {'inputCostPerMtok': 1.25, 'outputCostPerMtok': 4.5},
+        })
+
+        assert response.status_code == 200
+        settings = client.get('/api/v1/settings').get_json()
+        assert settings['modelPricingOverrides']['value'] == {
+            'free-local': {'inputCostPerMtok': 0.0, 'outputCostPerMtok': 0.0},
+            'paid-local': {'inputCostPerMtok': 1.25, 'outputCostPerMtok': 4.5},
+        }
+
+    def test_patch_preserves_other_models_and_omitted_field(self, client):
+        assert self._put(client, {
+            'model-a': {'inputCostPerMtok': 1, 'outputCostPerMtok': 2},
+        }).status_code == 200
+        assert self._put(client, {
+            'model-b': {'inputCostPerMtok': 3, 'outputCostPerMtok': 4},
+        }).status_code == 200
+        assert client.put(
+            '/api/v1/settings/ad-detection', json={'autoProcessEnabled': False},
+        ).status_code == 200
+
+        overrides = database.Database().get_model_pricing_overrides()
+        assert set(overrides) == {'model-a', 'model-b'}
+
+    def test_null_removes_only_named_model(self, client):
+        assert self._put(client, {
+            'model-a': {'inputCostPerMtok': 1, 'outputCostPerMtok': 2},
+            'model-b': {'inputCostPerMtok': 3, 'outputCostPerMtok': 4},
+        }).status_code == 200
+
+        assert self._put(client, {'model-a': None}).status_code == 200
+
+        assert database.Database().get_model_pricing_overrides() == {
+            'model-b': {'inputCostPerMtok': 3.0, 'outputCostPerMtok': 4.0},
+        }
+
+    @pytest.mark.parametrize('value', [
+        [],
+        {'model': {'inputCostPerMtok': -1, 'outputCostPerMtok': 2}},
+        {'model': {'inputCostPerMtok': 1}},
+        {'model': {
+            'inputCostPerMtok': 1,
+            'outputCostPerMtok': 2,
+            'currency': 'USD',
+        }},
+        {'model': {'inputCostPerMtok': True, 'outputCostPerMtok': 2}},
+        {'model': {'inputCostPerMtok': float('nan'), 'outputCostPerMtok': 2}},
+        {'model': {'inputCostPerMtok': 1, 'outputCostPerMtok': float('inf')}},
+        {'model': {'inputCostPerMtok': 'free', 'outputCostPerMtok': 2}},
+        {'': {'inputCostPerMtok': 1, 'outputCostPerMtok': 2}},
+        {'   ': {'inputCostPerMtok': 1, 'outputCostPerMtok': 2}},
+    ])
+    def test_invalid_override_rejected(self, client, value):
+        response = self._put(client, value)
+
+        assert response.status_code == 400
+
+    def test_duplicate_ids_after_trimming_are_rejected(self, client):
+        response = self._put(client, {
+            'model': {'inputCostPerMtok': 1, 'outputCostPerMtok': 2},
+            ' model ': {'inputCostPerMtok': 3, 'outputCostPerMtok': 4},
+        })
+
+        assert response.status_code == 400
+        assert database.Database().get_model_pricing_overrides() == {}
 
 
 class TestResetSettingSecretKeys:
@@ -585,6 +684,13 @@ class TestAudioBitrateValidation:
 
 class TestArtworkBadgePositionValidation:
     """artworkBadgePosition round-trip + validation (issue #600)."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_artwork_badge_position(self):
+        db = database.Database()
+        db.set_setting('artwork_badge_position', 'bottom-right', is_default=True)
+        yield
+        db.set_setting('artwork_badge_position', 'bottom-right', is_default=True)
 
     def _get_settings(self, client):
         resp = client.get('/api/v1/settings')

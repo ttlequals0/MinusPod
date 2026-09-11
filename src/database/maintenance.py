@@ -4,6 +4,7 @@ import logging
 import re
 import time
 from datetime import timedelta
+from pathlib import Path
 
 from utils.text import extract_text_in_range
 from utils.time import ISO_FORMAT, utc_now
@@ -22,6 +23,46 @@ def _chunked(items, size: int = _SQL_VAR_CHUNK):
 
 class MaintenanceMixin:
     """Database maintenance, cleanup, and deduplication methods."""
+
+    def sqlite_diagnostics(self) -> dict:
+        """Return operational SQLite state without exposing the database path."""
+        from database import sqlite_metrics_snapshot
+
+        conn = self.get_connection()
+        pragma = {}
+        for name in ('journal_mode', 'synchronous', 'busy_timeout', 'page_size',
+                     'page_count', 'freelist_count', 'wal_autocheckpoint'):
+            pragma[name] = conn.execute(f'PRAGMA {name}').fetchone()[0]
+        base = str(self.db_path)
+        sizes = {}
+        for label, suffix in (('databaseBytes', ''), ('walBytes', '-wal'), ('shmBytes', '-shm')):
+            try:
+                sizes[label] = Path(base + suffix).stat().st_size
+            except FileNotFoundError:
+                sizes[label] = 0
+        return {
+            'journalMode': pragma['journal_mode'],
+            'synchronous': pragma['synchronous'],
+            'busyTimeoutMs': pragma['busy_timeout'],
+            'pageSizeBytes': pragma['page_size'],
+            'pageCount': pragma['page_count'],
+            'freelistPages': pragma['freelist_count'],
+            'walAutocheckpointPages': pragma['wal_autocheckpoint'],
+            **sizes,
+            'instrumentation': sqlite_metrics_snapshot(),
+        }
+
+    def checkpoint_wal(self) -> dict:
+        """Run a passive WAL checkpoint and return SQLite's result."""
+        started = time.monotonic()
+        busy, log_pages, checkpointed_pages = self.get_connection().execute(
+            'PRAGMA wal_checkpoint(PASSIVE)').fetchone()
+        return {
+            'busy': bool(busy),
+            'logPages': log_pages,
+            'checkpointedPages': checkpointed_pages,
+            'durationMs': round((time.monotonic() - started) * 1000, 2),
+        }
 
     def vacuum(self) -> int:
         """Run SQLITE VACUUM to reclaim disk space and compact WAL.
@@ -402,7 +443,8 @@ class MaintenanceMixin:
 
         # Find all 'confirm' corrections without a pattern_id
         cursor = conn.execute('''
-            SELECT pc.id, pc.episode_id, pc.original_bounds, pc.podcast_title
+            SELECT pc.id, pc.episode_id, pc.original_bounds, pc.podcast_title,
+                   pc.podcast_id
             FROM pattern_corrections pc
             WHERE pc.correction_type = 'confirm'
               AND pc.pattern_id IS NULL
@@ -431,8 +473,8 @@ class MaintenanceMixin:
                     FROM episodes e
                     JOIN podcasts p ON e.podcast_id = p.id
                     LEFT JOIN episode_details ed ON e.id = ed.episode_id
-                    WHERE e.episode_id = ?
-                ''', (episode_id,))
+                    WHERE e.podcast_id = ? AND e.episode_id = ?
+                ''', (correction['podcast_id'], episode_id))
                 episode = cursor2.fetchone()
 
                 if not episode:

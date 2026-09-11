@@ -4,11 +4,18 @@
 
 ---
 
+## Contents
+
+- [API](#api)
+- [Notifications](#notifications)
+- [Webhooks](#webhooks)
+- [Email notifications](#email-notifications)
+
 ## API
 
 REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full specification: [`openapi.yaml`](../openapi.yaml).
 
-Write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it for you; an external client has to read that cookie and echo it back on each write.
+Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it. An external client must echo the cookie on each write. `PUT /auth/password` is exempt: initial remote setup uses `X-MinusPod-Setup-Token`, while a later change requires `currentPassword`. Logout can clear stale unauthenticated state, but an authenticated logout still requires CSRF.
 
 Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
@@ -19,6 +26,9 @@ Key endpoints:
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
 - `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs)
 - `POST /api/v1/feeds/refresh-artwork` - Re-render every feed's cover art (used after toggling the cover-art badge or swapping the badge asset)
+- `POST /api/v1/feeds/{slug}/refresh` - Refresh one subscribed feed. Success includes a structured `outcome` with status, new and queued episode counts, plus refresh timestamps; source fetch or parse failures return 502.
+- `POST /api/v1/feeds/refresh` - Refresh every subscribed feed. Returns per-feed outcomes and totals; HTTP 207 means the pass completed with at least one feed failure.
+- `GET/HEAD /api/v1/feeds/{slug}/artwork` - Serve cached feed artwork without admin authentication. Traversal-like or over-200-character legacy slugs are rejected before this public exemption.
 - `GET /api/v1/podcast-search?q=query` - Search podcasts via PodcastIndex.org
 - `GET /api/v1/feeds/{slug}/episodes` - List episodes (supports `sort_by`, `sort_dir`, `status` filter, pagination)
 - `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, reprocess_llm, delete)
@@ -31,6 +41,10 @@ Key endpoints:
 - `GET /api/v1/feeds/{slug}/ad-distribution` - Histogram of where ads have historically been cut across the feed's episodes, with learned prior zones. Informational; powers the feed detail Ad Distribution panel and is independent of the learned-positions experiment toggle.
 - `POST /api/v1/feeds/{slug}/episodes/{id}/retry-ad-detection` - Retry ad detection only
 - `POST /api/v1/feeds/{slug}/episodes/{id}/corrections` - Submit ad corrections
+- `GET /api/v1/patterns/corrections/unresolved` - List legacy corrections with no feed assignment and the evidence for safe candidates
+- `POST /api/v1/patterns/corrections/{id}/assign` - Assign one unresolved correction after `confirm: true`
+- `DELETE /api/v1/patterns/corrections/{id}` - Delete one unresolved correction without changing patterns, history, media, or feeds
+- `POST /api/v1/patterns/corrections/unresolved/bulk` - Assign or delete 1 to 500 unique correction IDs in one transaction. Both actions need `confirm: true`; assignment also needs one feed proven for every row. One stale or invalid row rejects the batch.
 - `GET/POST /api/v1/feeds/{slug}/cue-templates` - List a feed's audio-cue templates, or mark a new one from a window of an episode's original audio (`episodeId`, `startS`, `endS`, `cueType`; 0.2 to 10 seconds, up to 60 for show intro/outro)
 - `PATCH/DELETE /api/v1/cue-templates/{id}` - Enable/disable, change scope (`podcast` or `network`), set a per-template match threshold (`scoreThreshold`, 0.30-0.99, null clears), move the capture window (`sourceOffsetS`/`durationS`; re-extracts the audio blobs from the retained original, 409 when it has aged out), or delete a template
 - `GET /api/v1/cue-templates/{id}/export` - Download a template as a portable zip (lossless WAV plus JSON manifest)
@@ -54,24 +68,32 @@ Key endpoints:
 - `GET /api/v1/stats/dashboard` - Aggregate stats (avg/min/max time saved, ads, cost, tokens) with optional podcast filter
 - `GET /api/v1/stats/by-day` - Episodes processed by day of week
 - `GET /api/v1/stats/by-podcast` - Per-podcast stats (ads, time saved, tokens, cost)
-- `GET /api/v1/status` - Current processing status, including a `hold` block describing why the queue is not moving
-- `GET /api/v1/status/stream` - SSE endpoint for real-time status updates
+- `GET /api/v1/status` - Current processing status with an ETag; the browser polls every 2 seconds and backs off to 30 seconds after failures
+- `GET /api/v1/status/stream` - Authenticated SSE compatibility endpoint, limited to 30 seconds and bounded worker slots
 - `GET /api/v1/system/updates` - Latest stable and edge release info from GitHub Releases, cached 6 hours in-process (`?refresh=true` forces a live fetch, throttled to once per 30 seconds); returns 502 if GitHub is unreachable
 - `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
 - `GET /api/v1/system/model-pricing` - All known LLM model pricing rates
 - `POST /api/v1/system/model-pricing/refresh` - Force refresh pricing from provider source
 - `GET /api/v1/system/queue` - Auto-process queue status
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
+- `GET /api/v1/system/status` - System state including worker-scoped SQLite WAL, checkpoint, transaction, and busy diagnostics
+- `POST /api/v1/system/database/checkpoint` - Run a passive WAL checkpoint; returns 409 when active readers prevent completion
 - `GET /api/v1/system/backup` - Download SQLite database backup
 - `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running)
 - `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`)
+- `GET/PUT /api/v1/settings/provider-budget` - Read or update durable provider admission settings and current reserved/spent amounts
+- `GET /api/v1/settings/provider-budget/currencies` - List supported ISO display currencies
+- `GET /api/v1/settings/provider-budget/rate/{currency}` - Fetch a current USD reference rate and optional converted preview amounts
+- `GET/POST /api/v1/feeds/{slug}/subscriber-keys` - List scoped subscriber credentials or create one; the secret and feed URL appear only in the create response
+- `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}` - Revoke one scoped subscriber credential without changing global or sibling credentials
+- `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}/record` - Delete the audit record for a revoked key. Active keys return 409; deleting the record never revalidates the token.
 - `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status)
 - `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds
 - `GET/PUT /api/v1/settings/update-check` - Get or update the update-check settings (`enabled` for the daily auto-check, `channel`: `stable` or `edge`)
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)
-- `PUT /api/v1/settings/ad-detection` - Update ad detection config (model, provider, prompts)
+- `PUT /api/v1/settings/ad-detection` - Update ad detection config, including a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override.
 - `GET /api/v1/settings/models` - List available AI models from current provider
 - `POST /api/v1/settings/models/refresh` - Force refresh model list from provider
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
@@ -82,7 +104,7 @@ Key endpoints:
 
 ### Queue hold state
 
-`GET /api/v1/status` and every frame of `GET /api/v1/status/stream` carry a `hold` block saying why the queue is not moving. It reports what the maintenance tick last observed and never probes a service itself, so polling it costs nothing upstream.
+`GET /api/v1/status` and every frame of `GET /api/v1/status/stream` carry a `hold` block saying why the queue is not moving. It reports what the maintenance tick last observed and never probes a service itself, so polling it makes no provider or Whisper request.
 
 ```json
 {
@@ -132,6 +154,8 @@ A handful of routes live on the feed domain itself, outside `/api/v1`, and are n
 - `GET /episodes/{slug}/{episodeId}/artwork` - Serve a cached per-episode cover. Local-feed episodes get one whenever an upload, import, or embedded-artwork extraction cached one; 404 if nothing is cached (never fetches on demand). This is the URL a local feed's per-item `<itunes:image>` points at.
 
 All of these are gated by the feed auth key the same way as the RSS feed itself when Authenticated feeds is on; see [Security > Authenticated feeds](security-and-storage.md#authenticated-feeds-optional).
+
+GET and HEAD enforce the same feed key on every public route. A HEAD request for unprocessed subscribed audio proxies the upstream headers and never starts processing. Local audio answers from the retained original. This lets podcast apps inspect media without filling the queue.
 
 ## Notifications
 

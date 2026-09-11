@@ -4,6 +4,20 @@
 
 ---
 
+## Contents
+
+- [Creating a local feed](#creating-a-local-feed)
+- [Editing feed metadata](#editing-feed-metadata)
+- [Adding episodes](#adding-episodes)
+- [Processing behavior](#processing-behavior)
+- [Served feed size](#served-feed-size)
+- [Episode artwork in the served feed](#episode-artwork-in-the-served-feed)
+- [Podcasting 2.0 fields](#podcasting-20-fields)
+- [What doesn't apply to local feeds](#what-doesnt-apply-to-local-feeds)
+- [Retention, backups, and originals](#retention-backups-and-originals)
+- [OPML export](#opml-export)
+- [Reference](#reference)
+
 A local feed is a podcast feed MinusPod builds and serves from your own audio files instead of an upstream RSS feed. Use it to turn an archive of MP3s into a real, subscribable Podcasting 2.0 feed: upload or import episodes, MinusPod runs them through the same ad-removal pipeline as any subscribed feed (if there's anything to remove), and generates transcripts and chapters for them.
 
 There is no upstream for a local feed. MinusPod is the publisher, not a proxy. That changes a few things covered below: how episodes get added, what happens to your original files, and what parts of a normal feed's settings don't apply.
@@ -51,6 +65,8 @@ POST /api/v1/feeds/{slug}/episodes
 Multipart form: `audio` (required, `.mp3` only, up to 1 GB), plus optional `title`, `season`, `episode`, `publishedAt`, `description`, and `artwork`. Season defaults to 1; episode defaults to one past the highest existing episode number in that season. The pair mints an episode id of the form `s01e05`, and MinusPod refuses to overwrite an id that already exists (409); use the bulk import path with `overwrite: true` for that.
 
 Once uploaded, edit an episode with `PATCH /api/v1/feeds/{slug}/episodes/{episodeId}` (title, description, season, episode, publishedAt, `p20`), several at once with `PATCH /api/v1/feeds/{slug}/episodes` (a JSON array of `{episodeId, ...}` edits, up to 500 per request, validated as a batch: one bad entry fails the whole request before anything is written), or delete one with `DELETE /api/v1/feeds/{slug}/episodes/{episodeId}`. Deleting removes the row and its files outright; there's no upstream feed to rediscover it from later, unlike deleting an episode on a subscribed feed. An episode currently processing can't be deleted (409) until it finishes or you cancel it.
+
+Uploads reserve the episode ID and destination before writing. A concurrent upload, import, processing run, or deletion cannot overwrite that target. If a worker dies while publishing, the next reservation pass removes its temporary file or restores the previous audio before releasing the target.
 
 ### Bulk import
 
@@ -169,6 +185,8 @@ POST /api/v1/feeds/{slug}/import/commit     {"planHash": "...", "source": "both"
 ```
 
 Echo back the `planHash` from the scan. MinusPod re-scans the same source(s) server-side and compares hashes; if anything on disk changed since the scan, commit 409s and asks you to re-scan rather than importing a plan that no longer matches reality. A second commit while one is already running for the same feed also 409s: only one import runs per feed at a time.
+
+The commit reserves every target as one batch before moving audio. An overwrite moves the previous file aside until the database and new file publish together; a failed or abandoned publication restores it. This stops two workers from passing the same check and overwriting an episode.
 
 Commit runs in the background; poll it with:
 

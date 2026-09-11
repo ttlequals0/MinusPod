@@ -1,5 +1,8 @@
 """Shared ffmpeg subprocess helpers used by audio analysis components."""
 
+SAFE_MEDIA_INPUT_ARGS = ('-nostdin', '-protocol_whitelist', 'file,pipe')
+SAFE_MEDIA_PROBE_ARGS = ('-protocol_whitelist', 'file,pipe')
+
 
 def ffmpeg_timeout(duration_seconds: float) -> int:
     """Capped, duration-proportional timeout for ffmpeg passes.

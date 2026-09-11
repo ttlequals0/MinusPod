@@ -45,6 +45,7 @@ nh3>=0.3.7
 cryptography>=50.0.1
 pyjwt>=2.13.0
 defusedxml>=0.7.1
+redis>=6.4.0
 
 # Transitive dependency pins (CVE fixes)
 jaraco.context>=6.1.0

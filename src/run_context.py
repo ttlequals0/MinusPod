@@ -4,6 +4,7 @@ Runs are threads. Pool workers (chunk uploads, detection windows, reviewer
 ads) are bound to the run of the thread that submitted them, so per-run
 state (token totals, run log) is looked up by thread, not by process.
 """
+import copy
 import threading
 
 _lock = threading.Lock()
@@ -49,16 +50,45 @@ class TokenAccumulator:
 
 
 class RunContext:
-    def __init__(self, slug: str, episode_id: str):
+    def __init__(self, slug: str, episode_id: str, run_id: str | None = None):
         self.slug = slug
         self.episode_id = episode_id
         self.key = f"{slug}:{episode_id}"
+        self.run_id = run_id
         self.recorder = None
         self.tokens = TokenAccumulator()
+        self._thinking_notices = {}
+        self._thinking_notice_lock = threading.Lock()
+
+    def add_thinking_notice(self, run_id: str, notice: dict) -> bool:
+        """Add one notice to this run, deduplicated across worker threads."""
+        if not run_id or run_id != self.run_id:
+            return False
+        key = (
+            notice['pass'], notice['provider'], notice['model'],
+            str(notice['requested']),
+        )
+        with self._thinking_notice_lock:
+            current = self._thinking_notices.get(key)
+            if current is None:
+                self._thinking_notices[key] = copy.deepcopy(notice)
+            elif current['compatibility'] == 'incompatible':
+                current['compatibility'] = notice['compatibility']
+            elif (notice['compatibility'] != 'incompatible'
+                  and current['compatibility'] != notice['compatibility']):
+                current['compatibility'] = 'incompatible'
+        return True
+
+    def thinking_notices(self, run_id: str) -> list[dict]:
+        """Return this run's notices only when the run ID still matches."""
+        if not run_id or run_id != self.run_id:
+            return []
+        with self._thinking_notice_lock:
+            return copy.deepcopy(list(self._thinking_notices.values()))
 
 
-def begin(slug: str, episode_id: str) -> RunContext:
-    ctx = RunContext(slug, episode_id)
+def begin(slug: str, episode_id: str, run_id: str | None = None) -> RunContext:
+    ctx = RunContext(slug, episode_id, run_id=run_id)
     with _lock:
         _by_thread[threading.get_ident()] = ctx
     return ctx

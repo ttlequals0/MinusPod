@@ -1,59 +1,59 @@
-"""
-Processing Queue - Cross-process N-slot registry limiting concurrent episode processing.
-
-Slot liveness is tracked by pid plus that pid's process start time, not by a
-held lock; the flock only serializes each read-modify-write of the state file.
-"""
-import contextlib
-import fcntl
-import json
+"""Durable cross-process ownership for episode processing."""
 import logging
 import os
 import threading
 import time
+import uuid
+from datetime import datetime, timezone
 
-# Timeouts are resolved at read time from settings via processing_timeouts.
-from processing_timeouts import get_soft_timeout, get_hard_timeout
-from utils.atomic_json import write_json_atomic
+from processing_timeouts import get_soft_timeout
+from status_service import StatusService
 from utils.paths import resolve_data_dir
+from database import Database
 
 logger = logging.getLogger('podcast.processing_queue')
+PROCESSING_PAUSED_KEY = 'processing_admission_paused'
 
 
-def _pid_start_time(pid: int) -> float | None:
-    """Process start time from /proc/<pid>/stat (field 22), or None if unreadable.
+def is_processing_paused(database=None) -> bool:
+    try:
+        db = database or Database()
+        return db.get_system_setting(PROCESSING_PAUSED_KEY) == 'true'
+    except Exception as exc:
+        logger.warning("Could not read processing admission state: %s", exc)
+        return True
 
-    The comm field can contain spaces and parentheses, so the split starts
-    after the last ')': field N is then fields[N - 3].
-    """
+
+def set_processing_paused(paused: bool, database=None) -> None:
+    db = database or Database()
+    db.set_system_setting(PROCESSING_PAUSED_KEY, 'true' if paused else 'false')
+
+
+def _pid_stat(pid: int) -> tuple[float, str] | None:
+    """Return Linux process start ticks and state when both are readable."""
     try:
         with open(f"/proc/{pid}/stat") as fd:
-            return float(fd.read().rpartition(')')[2].split()[19])
+            fields = fd.read().rpartition(')')[2].split()
+        return float(fields[19]), fields[0]
     except (OSError, IndexError, ValueError):
         return None
 
 
-def _sync_status_clear(slug: str, episode_id: str) -> None:
-    """Tell StatusService to drop its current_job if it matches.
+def _pid_start_time(pid: int) -> float | None:
+    stat = _pid_stat(pid)
+    return stat[0] if stat else None
 
-    Lazy import avoids a circular dependency and keeps ProcessingQueue
-    usable in contexts (tests, tooling) where StatusService is absent.
-    """
+
+def _sync_status_clear(slug: str, episode_id: str, run_id: str) -> None:
     try:
-        from status_service import StatusService
-        StatusService().clear_if_matches(slug, episode_id)
-    except Exception as e:
-        logger.debug(f"Could not sync status_service clear: {e}")
+        StatusService().clear_if_matches(slug, episode_id, run_id=run_id)
+    except Exception as exc:
+        logger.debug("Could not clear recovered processing status: %s", exc)
 
 
 class ProcessingQueue:
-    """Cross-process N-slot registry coordinating concurrent episode processing.
+    """SQLite-backed N-slot registry shared by every worker process."""
 
-    Uses file-based locking (fcntl.flock) to serialize state reads/writes
-    across Gunicorn workers; each worker process gets its own instance.
-    """
-
-    # Keys are "slug:episode_id"; neither side contains ':'
     _instance = None
     _instance_lock = threading.Lock()
 
@@ -68,91 +68,26 @@ class ProcessingQueue:
     def __init__(self):
         if self._initialized:
             return
-
         data_dir = resolve_data_dir()
         data_dir.mkdir(parents=True, exist_ok=True)
-
-        self._lock_file_path = data_dir / '.processing_queue.lock'
-        self._state_file_path = data_dir / '.processing_queue_state.json'
-        self._fd_lock = threading.Lock()  # Protect flock file handle across threads
+        self._legacy_state_path = data_dir / '.processing_queue_state.json'
         self._initialized = True
 
-    def _read_slots(self) -> dict:
-        try:
-            if self._state_file_path.exists():
-                content = self._state_file_path.read_text()
-                if content.strip():
-                    return json.loads(content).get('slots', {}) or {}
-        except (json.JSONDecodeError, OSError) as e:
-            logger.debug(f"Could not read state file: {e}")
-        return {}
+    @staticmethod
+    def _database():
+        return Database()
 
-    def _write_slots(self, slots: dict) -> None:
-        if not write_json_atomic(self._state_file_path, {'slots': slots}):
-            logger.warning("Could not write state file")
-
-    def _seed_slot(self, slug, episode_id, started_at, pid, pid_start=None):
-        """Test helper: write a slot as another process would have."""
-        with self._flock():
-            slots = self._read_slots()
-            slots[f"{slug}:{episode_id}"] = {
-                'started_at': started_at, 'pid': pid, 'pid_start': pid_start}
-            self._write_slots(slots)
-
-    def clear_all(self) -> int:
-        """Drop every slot. Test cleanup helper; startup uses the targeted
-        drop_slots_without_start_time instead, since sibling workers may hold
-        live slots when gunicorn respawns a dead leader."""
-        with self._flock():
-            slots = self._read_slots()
-            if slots:
-                self._write_slots({})
-                logger.info(f"Cleared {len(slots)} processing slot(s)")
-        return len(slots)
-
-    def drop_slots_without_start_time(self) -> int:
-        """Startup prune: drop slots with no recorded pid start time.
-
-        Those come from a pre-2.96.2 state file or a host without /proc, where
-        a pid the previous container run left behind can read as live. Slots
-        that do carry one are left to _slot_alive, which can tell them apart.
-        """
-        with self._flock():
-            slots = self._read_slots()
-            kept = {k: v for k, v in slots.items() if v.get('pid_start') is not None}
-            dropped = len(slots) - len(kept)
-            if dropped:
-                self._write_slots(kept)
-                logger.info(f"Dropped {dropped} processing slot(s) with no recorded start time")
-        return dropped
-
-    @contextlib.contextmanager
-    def _flock(self):
-        """Serialize read-modify-write of the state file across processes."""
-        with self._fd_lock:
-            with open(self._lock_file_path, 'a') as fd:
-                fcntl.flock(fd, fcntl.LOCK_EX)
-                try:
-                    yield
-                finally:
-                    fcntl.flock(fd, fcntl.LOCK_UN)
-
-    @contextlib.contextmanager
-    def _flock_shared(self):
-        """Shared-lock read of the state file; concurrent with other readers,
-        blocks only while a writer holds the exclusive lock."""
-        with open(self._lock_file_path, 'a') as fd:
-            fcntl.flock(fd, fcntl.LOCK_SH)
-            try:
-                yield
-            finally:
-                fcntl.flock(fd, fcntl.LOCK_UN)
+    @staticmethod
+    def _owner_identity() -> tuple[int, float | None]:
+        pid = os.getpid()
+        return pid, _pid_start_time(pid)
 
     @staticmethod
     def _pid_alive(pid: int) -> bool:
-        # A slot with no usable pid is dead; os.kill(0, 0) would signal our
-        # own process group instead of testing anything.
         if pid <= 0:
+            return False
+        stat = _pid_stat(pid)
+        if stat is not None and stat[1] == 'Z':
             return False
         try:
             os.kill(pid, 0)
@@ -163,118 +98,299 @@ class ProcessingQueue:
         return True
 
     @classmethod
-    def _slot_alive(cls, slot: dict) -> bool:
-        """Liveness for one slot: the pid must exist and still be the process
-        that took it. A container restart hands out the same low pids again,
-        so pid alone would read a slot left by the previous run as live."""
-        pid = int(slot.get('pid') or 0)
+    def _owner_proven_dead(cls, pid: int, recorded_start: float | None) -> bool:
         if not cls._pid_alive(pid):
-            return False
-        recorded = slot.get('pid_start')
-        if recorded is None:
             return True
-        current = _pid_start_time(pid)
-        return current is None or current == recorded
+        current_start = _pid_start_time(pid)
+        return (recorded_start is not None and current_start is not None
+                and current_start != recorded_start)
 
-    def _prune(self, slots: dict) -> tuple[dict, bool]:
-        """Drop slots whose process is gone or whose run passed the hard timeout.
-
-        Returns (kept, changed) so callers can skip writing back an unchanged state.
-        """
-        now = time.time()
-        hard = get_hard_timeout()
-        kept = {}
-        for key, slot in slots.items():
-            slug, _, episode_id = key.partition(':')
-            elapsed = now - (slot.get('started_at') or now)
-            if not self._slot_alive(slot):
-                logger.warning(f"Clearing orphaned queue slot: {key} ({elapsed/60:.0f} min, process gone)")
-                _sync_status_clear(slug, episode_id)
+    def _reconcile_dead_owners(self, conn) -> list[tuple[str, str, str]]:
+        """Recover processing state only when its process identity is proven dead."""
+        rows = conn.execute(
+            "SELECT r.run_id, r.podcast_id, r.episode_id, r.owner_pid, r.owner_pid_start, "
+            "r.heartbeat_at, p.slug FROM processing_runs r "
+            "JOIN podcasts p ON p.id = r.podcast_id "
+            "WHERE r.state IN ('running', 'cancel_requested')"
+        ).fetchall()
+        recovered = []
+        now = datetime.now(timezone.utc)
+        for row in rows:
+            if self._owner_proven_dead(row['owner_pid'], row['owner_pid_start']):
+                cursor = conn.execute(
+                    "UPDATE processing_runs SET state = 'interrupted', "
+                    "finished_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                    "WHERE run_id = ? AND owner_pid = ? AND owner_pid_start IS ? "
+                    "AND state IN ('running', 'cancel_requested')",
+                    (row['run_id'], row['owner_pid'], row['owner_pid_start']),
+                )
+                if cursor.rowcount:
+                    successor = conn.execute(
+                        "SELECT 1 FROM processing_runs WHERE podcast_id = ? "
+                        "AND episode_id = ? "
+                        "AND state IN ('running', 'cancel_requested')",
+                        (row['podcast_id'], row['episode_id']),
+                    ).fetchone()
+                    if not successor:
+                        conn.execute(
+                            "UPDATE episodes SET status = 'pending', "
+                            "error_message = 'Reset after worker crash (no retry penalty)' "
+                            "WHERE podcast_id = ? AND episode_id = ? "
+                            "AND status = 'processing'",
+                            (row['podcast_id'], row['episode_id']),
+                        )
+                        conn.execute(
+                            "UPDATE auto_process_queue SET status = 'pending', "
+                            "error_message = "
+                            "'Reset after worker crash (no attempt penalty)', "
+                            "updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                            "WHERE podcast_id = ? AND episode_id = ? "
+                            "AND status = 'processing'",
+                            (row['podcast_id'], row['episode_id']),
+                        )
+                    recovered.append((row['slug'], row['episode_id'], row['run_id']))
                 continue
-            # Only this process can force-clear its own overrun run: another
-            # worker's live pid still owns its slot, and dropping it here would
-            # let a second run of the same episode start alongside it.
-            if elapsed > hard and int(slot.get('pid') or 0) == os.getpid():
-                logger.error(
-                    f"Force-clearing stuck job: {key} ({elapsed/60:.0f} min exceeds hard "
-                    f"timeout {hard/60:.0f} min). Raise 'processing_hard_timeout_seconds' if premature.")
-                _sync_status_clear(slug, episode_id)
-                continue
-            if elapsed > get_soft_timeout():
-                logger.warning(f"Long-running job: {key} ({elapsed/60:.0f} min), still in progress")
-            kept[key] = slot
-        return kept, len(kept) != len(slots)
+            try:
+                heartbeat = datetime.fromisoformat(row['heartbeat_at'].replace('Z', '+00:00'))
+                if (now - heartbeat).total_seconds() > get_soft_timeout():
+                    logger.warning("Long-running job still has a live owner: %s:%s",
+                                   row['slug'], row['episode_id'])
+            except (AttributeError, TypeError, ValueError):
+                pass
+        return recovered
 
-    def acquire(self, slug: str, episode_id: str, limit: int = 1, timeout: float = 0) -> bool:
-        """Take a slot. False when this episode already holds one or the
-        registry is at `limit`. `timeout` waits that long for a free slot."""
-        key = f"{slug}:{episode_id}"
-        deadline = time.time() + max(0.0, timeout)
+    def acquire(self, slug: str, episode_id: str, limit: int = 1,
+                timeout: float = 0) -> str | None:
+        """Acquire a durable lease and return its immutable run ID."""
+        deadline = time.monotonic() + max(0.0, timeout)
+        owner_pid, owner_start = self._owner_identity()
         while True:
-            with self._flock():
-                slots, pruned = self._prune(self._read_slots())
-                if key in slots:
-                    logger.warning(f"ProcessingQueue rejecting acquire for {key}: already running")
-                    if pruned:
-                        self._write_slots(slots)
-                    return False
-                if len(slots) < max(1, limit):
-                    slots[key] = {'started_at': time.time(), 'pid': os.getpid(),
-                                  'pid_start': _pid_start_time(os.getpid())}
-                    self._write_slots(slots)
-                    logger.info(f"ProcessingQueue slot acquired for {key} ({len(slots)}/{limit})")
-                    return True
-                if pruned:
-                    self._write_slots(slots)
-            if time.time() >= deadline:
-                return False
+            conn = None
+            recovered = []
+            try:
+                conn = self._database().get_connection()
+                conn.execute('BEGIN IMMEDIATE')
+                paused = conn.execute(
+                    "SELECT value FROM system_settings WHERE key = ?",
+                    (PROCESSING_PAUSED_KEY,),
+                ).fetchone()
+                if paused and paused['value'] == 'true':
+                    conn.rollback()
+                    return None
+                podcast = conn.execute(
+                    "SELECT id FROM podcasts WHERE slug = ? "
+                    "AND deletion_requested_at IS NULL", (slug,)
+                ).fetchone()
+                if not podcast:
+                    conn.rollback()
+                    return None
+                recovered = self._reconcile_dead_owners(conn)
+                blocked = conn.execute(
+                    "SELECT 1 FROM episodes WHERE podcast_id = ? AND episode_id = ? "
+                    "AND deletion_requested_at IS NOT NULL UNION ALL "
+                    "SELECT 1 FROM upload_reservations WHERE podcast_id = ? "
+                    "AND scope = 'episode' AND target_key = ? "
+                    "AND state IN ('reserved', 'prepared', 'publishing') LIMIT 1",
+                    (podcast['id'], episode_id, podcast['id'], episode_id),
+                ).fetchone()
+                duplicate = conn.execute(
+                    "SELECT 1 FROM processing_runs WHERE podcast_id = ? "
+                    "AND episode_id = ? AND state IN ('running', 'cancel_requested')",
+                    (podcast['id'], episode_id),
+                ).fetchone()
+                active = conn.execute(
+                    "SELECT COUNT(*) FROM processing_runs "
+                    "WHERE state IN ('running', 'cancel_requested')"
+                ).fetchone()[0]
+                if blocked or duplicate or active >= max(1, limit):
+                    conn.commit()
+                else:
+                    run_id = uuid.uuid4().hex
+                    conn.execute(
+                        "INSERT INTO processing_runs "
+                        "(run_id, podcast_id, episode_id, owner_pid, owner_pid_start, state) "
+                        "VALUES (?, ?, ?, ?, ?, 'running')",
+                        (run_id, podcast['id'], episode_id, owner_pid, owner_start),
+                    )
+                    conn.commit()
+                    for recovered_slug, recovered_episode, recovered_run in recovered:
+                        _sync_status_clear(recovered_slug, recovered_episode, recovered_run)
+                    logger.info("Processing lease acquired for %s:%s (%d/%d)",
+                                slug, episode_id, active + 1, limit)
+                    return run_id
+            except Exception as exc:
+                try:
+                    if conn is not None:
+                        conn.rollback()
+                except Exception:
+                    pass
+                logger.warning("Durable processing acquire failed for %s:%s: %s",
+                               slug, episode_id, exc)
+                return None
+            for recovered_slug, recovered_episode, recovered_run in recovered:
+                _sync_status_clear(recovered_slug, recovered_episode, recovered_run)
+            if time.monotonic() >= deadline:
+                return None
             time.sleep(0.1)
 
-    def release(self, slug: str, episode_id: str) -> None:
-        key = f"{slug}:{episode_id}"
-        with self._flock():
-            slots = self._read_slots()
-            if slots.pop(key, None) is not None:
-                logger.info(f"ProcessingQueue slot released for {key}")
-            self._write_slots(slots)
-
-    def release_if_processing(self, slug: str, episode_id: str) -> bool:
-        """Release the slot only if this episode currently holds one.
-
-        Best-effort cleanup helper for cancel / feed-delete paths: swallows
-        errors so a failed release never breaks the caller. Returns True if a
-        release was attempted.
-        """
+    def poll(self, run_id: str) -> str | None:
+        """Refresh an owned lease and return its state, or None on any failure."""
+        owner_pid, owner_start = self._owner_identity()
+        conn = None
         try:
-            if self.is_processing(slug, episode_id):
-                self.release(slug, episode_id)
+            conn = self._database().get_connection()
+            row = conn.execute(
+                "SELECT state, heartbeat_at FROM processing_runs WHERE run_id = ? "
+                "AND owner_pid = ? AND owner_pid_start IS ? "
+                "AND state IN ('running', 'cancel_requested')",
+                (run_id, owner_pid, owner_start),
+            ).fetchone()
+            if not row:
+                return None
+            try:
+                heartbeat = datetime.fromisoformat(row['heartbeat_at'].replace('Z', '+00:00'))
+                due = (datetime.now(timezone.utc) - heartbeat).total_seconds() >= 30
+            except (AttributeError, TypeError, ValueError):
+                due = True
+            if due:
+                conn.execute(
+                    "UPDATE processing_runs SET heartbeat_at = "
+                    "strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE run_id = ? "
+                    "AND owner_pid = ? AND owner_pid_start IS ? "
+                    "AND state IN ('running', 'cancel_requested')",
+                    (run_id, owner_pid, owner_start),
+                )
+                conn.commit()
+            return row['state']
+        except Exception as exc:
+            try:
+                if conn is not None:
+                    conn.rollback()
+            except Exception:
+                pass
+            logger.warning("Durable processing poll failed for run %s: %s", run_id, exc)
+            return None
+
+    def owns(self, run_id: str, allow_cancel_requested: bool = False) -> bool:
+        state = self.poll(run_id)
+        return state == 'running' or (allow_cancel_requested and state == 'cancel_requested')
+
+    def release(self, run_id: str, terminal_state: str = 'finished') -> bool:
+        """Release only the lease owned by this process and immutable run ID."""
+        if terminal_state not in ('finished', 'interrupted'):
+            raise ValueError(f"Invalid processing terminal state: {terminal_state}")
+        owner_pid, owner_start = self._owner_identity()
+        try:
+            conn = self._database().get_connection()
+            cursor = conn.execute(
+                "UPDATE processing_runs SET state = ?, "
+                "finished_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                "WHERE run_id = ? AND owner_pid = ? AND owner_pid_start IS ? "
+                "AND state IN ('running', 'cancel_requested')",
+                (terminal_state, run_id, owner_pid, owner_start),
+            )
+            conn.commit()
+            if cursor.rowcount:
+                logger.info("Processing lease released for run %s", run_id)
                 return True
-        except Exception as e:
-            logger.warning(f"Could not release processing queue: {e}")
+        except Exception as exc:
+            logger.warning("Could not release processing run %s: %s", run_id, exc)
         return False
 
     def get_current(self) -> list[tuple[str, str]]:
-        """Running episodes, oldest first."""
-        with self._flock():
-            slots, pruned = self._prune(self._read_slots())
-            if pruned:
-                self._write_slots(slots)
-        ordered = sorted(slots.items(), key=lambda kv: kv[1].get('started_at') or 0)
-        return [tuple(key.partition(':')[::2]) for key, _ in ordered]
+        """Return active episodes oldest first without taking a write lock."""
+        try:
+            rows = self._database().get_connection().execute(
+                "SELECT p.slug, r.episode_id FROM processing_runs r "
+                "JOIN podcasts p ON p.id = r.podcast_id "
+                "WHERE r.state IN ('running', 'cancel_requested') "
+                "ORDER BY r.started_at, r.rowid"
+            ).fetchall()
+            return [(row['slug'], row['episode_id']) for row in rows]
+        except Exception as exc:
+            logger.warning("Could not read durable processing runs: %s", exc)
+            return []
+
+    def active_run_id(self, slug: str, episode_id: str) -> str | None:
+        """Return the active run ID, failing closed with an opaque sentinel."""
+        try:
+            row = self._database().get_connection().execute(
+                "SELECT r.run_id FROM processing_runs r "
+                "JOIN podcasts p ON p.id = r.podcast_id "
+                "WHERE p.slug = ? AND r.episode_id = ? "
+                "AND r.state IN ('running', 'cancel_requested')",
+                (slug, episode_id),
+            ).fetchone()
+            return row['run_id'] if row else None
+        except Exception as exc:
+            logger.warning("Could not read durable processing state for %s:%s: %s",
+                           slug, episode_id, exc)
+            return '__database_unavailable__'
 
     def slot_count(self) -> int:
-        return len(self.get_current())
+        try:
+            return self._database().get_connection().execute(
+                "SELECT COUNT(*) FROM processing_runs "
+                "WHERE state IN ('running', 'cancel_requested')"
+            ).fetchone()[0]
+        except Exception as exc:
+            logger.warning("Could not count durable processing runs: %s", exc)
+            return 2 ** 31 - 1
+
+    def owned_active_run_ids(self) -> list[str] | None:
+        """Return this process's active runs, or None when ownership is unknown."""
+        owner_pid, owner_start = self._owner_identity()
+        try:
+            rows = self._database().get_connection().execute(
+                "SELECT run_id FROM processing_runs WHERE owner_pid = ? "
+                "AND owner_pid_start IS ? "
+                "AND state IN ('running', 'cancel_requested')",
+                (owner_pid, owner_start),
+            ).fetchall()
+            return [row['run_id'] for row in rows]
+        except Exception as exc:
+            logger.warning("Could not read owned processing runs: %s", exc)
+            return None
 
     def is_processing(self, slug: str, episode_id: str) -> bool:
-        """Check if specific episode is currently being processed.
+        return self.active_run_id(slug, episode_id) is not None
 
-        Cheap path: a shared-lock read of just this slot, no prune, no write,
-        so a hot liveness check does not contend with acquire/release for the
-        exclusive lock.
-        """
-        key = f"{slug}:{episode_id}"
-        with self._flock_shared():
-            slot = self._read_slots().get(key)
-        if slot is None:
-            return False
-        return self._slot_alive(slot)
+    def clear_all(self) -> int:
+        """Test cleanup helper that interrupts only this process's leases."""
+        owner_pid, owner_start = self._owner_identity()
+        conn = self._database().get_connection()
+        cursor = conn.execute(
+            "UPDATE processing_runs SET state = 'interrupted', "
+            "finished_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+            "WHERE owner_pid = ? AND owner_pid_start IS ? "
+            "AND state IN ('running', 'cancel_requested')",
+            (owner_pid, owner_start),
+        )
+        conn.commit()
+        return cursor.rowcount
+
+    def drop_slots_without_start_time(self) -> int:
+        """Remove the obsolete JSON registry; SQLite is the sole authority."""
+        try:
+            self._legacy_state_path.unlink()
+            logger.info("Removed obsolete processing queue state file")
+            return 1
+        except FileNotFoundError:
+            return 0
+        except OSError as exc:
+            logger.warning("Could not remove obsolete processing queue state: %s", exc)
+            return 0
+
+    def reconcile_dead_owners(self) -> int:
+        """Reclaim proven-dead owners during startup or before admission."""
+        conn = self._database().get_connection()
+        try:
+            conn.execute('BEGIN IMMEDIATE')
+            recovered = self._reconcile_dead_owners(conn)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        for slug, episode_id, run_id in recovered:
+            _sync_status_clear(slug, episode_id, run_id)
+        return len(recovered)

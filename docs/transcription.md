@@ -4,6 +4,19 @@
 
 ---
 
+## Contents
+
+- [GPU Compute Type](#gpu-compute-type)
+- [whisper.cpp with Docker (NVIDIA GPU)](#whispercpp-with-docker-nvidia-gpu)
+- [whisper.cpp on Apple Silicon (native)](#whispercpp-on-apple-silicon-native)
+- [Intel GPU (OpenVINO Model Server)](#intel-gpu-openvino-model-server)
+- [Testing a remote endpoint](#testing-a-remote-endpoint)
+- [Groq](#groq)
+- [OpenAI Whisper API](#openai-whisper-api)
+- [Chunked transcription](#chunked-transcription)
+- [Transcription language](#transcription-language)
+- [Processing timeouts](#processing-timeouts)
+
 By default, MinusPod uses faster-whisper with a local NVIDIA GPU for transcription. If you don't have an NVIDIA GPU (e.g. Apple Silicon Mac), you can use any OpenAI-compatible whisper API as the transcription backend.
 
 ## GPU Compute Type
@@ -152,10 +165,10 @@ Whisper is pinned to English by default. That keeps it from misdetecting on musi
 
 Two knobs for long-running jobs, both in the same panel:
 
-- Soft timeout (default 60 min): how long a job can sit in the queue before it's treated as stuck and cleared. Jobs killed by a worker restart are cleared in seconds regardless, via the queue's flock probe.
-- Hard timeout (default 120 min): how long before the processing lock is force-released even when a worker still holds it. Backstop for a hung ffmpeg or runaway Whisper call. Must be greater than the soft timeout.
+- Soft timeout (default 60 minutes): when stale display entries can clear after SQLite confirms no live run owns them. A live owner is warned about, not evicted.
+- Hard timeout (default 120 minutes): how long the automatic queue waiter follows a started run before returning its queue row to pending for a later check. It does not let another worker publish over a live owner. Must be greater than the soft timeout.
 
-Three-hour CPU runs with the largest Whisper model hit these. When they fire, the log line names the setting to raise. Values live in the DB and take effect immediately; `PROCESSING_SOFT_TIMEOUT` and `PROCESSING_HARD_TIMEOUT` only seed fresh installs.
+Long CPU runs can reach these limits. The log names the setting to raise. Values live in the database and take effect immediately; `PROCESSING_SOFT_TIMEOUT` and `PROCESSING_HARD_TIMEOUT` only seed fresh installs.
 
 ---
 

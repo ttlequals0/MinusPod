@@ -22,6 +22,7 @@ import fcntl
 import hashlib
 import json
 import logging
+import os
 import re
 import shutil
 import threading
@@ -617,6 +618,28 @@ def _job_lock_path(storage, slug: str, *, create: bool = False) -> Path:
     return _safe_join_under(base, f'{slug}.lock')
 
 
+def _staging_generation_path(storage, slug: str, *, create: bool = False) -> Path:
+    base = _jobs_dir(storage) if create else _jobs_dir_path(storage)
+    return _safe_join_under(base, f'{slug}.generation.json')
+
+
+def read_staging_generation(storage, slug: str) -> int:
+    try:
+        raw = json.loads(_staging_generation_path(storage, slug).read_text())
+        return max(0, int(raw.get('generation', 0)))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0
+
+
+def bump_staging_generation(storage, slug: str) -> int:
+    generation = read_staging_generation(storage, slug) + 1
+    if not write_json_atomic(
+            _staging_generation_path(storage, slug, create=True),
+            {'generation': generation}):
+        raise OSError('could not persist staging generation')
+    return generation
+
+
 def _read_job_state(storage, slug: str) -> dict | None:
     path = _job_state_path(storage, slug)
     try:
@@ -737,6 +760,11 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
         return False, 'import already running'
 
     try:
+        expected_generation = plan.get('stagingGeneration')
+        if (expected_generation is not None
+                and read_staging_generation(storage, slug) != expected_generation):
+            _release_import_lock(lock_fh)
+            return False, 'staged files changed; re-run scan'
         total_bytes = plan.get('totals', {}).get('bytes', 0)
         free_bytes = shutil.disk_usage(storage.data_dir).free
         if free_bytes <= total_bytes * _FREE_SPACE_MARGIN:
@@ -745,6 +773,19 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
 
         _, existing_count = db.get_episodes(slug, status='all', limit=1)
         had_episodes = existing_count > 0
+
+        importable_ids = [
+            entry['episodeId'] for entry in plan.get('entries', [])
+            if not entry.get('errors')
+        ]
+        reservation_result = db.reserve_episode_uploads(
+            slug, importable_ids, operation='import',
+            overwrite=bool(plan.get('overwrite')),
+        )
+        if reservation_result['conflicts']:
+            _release_import_lock(lock_fh)
+            return False, 'episode changed or is already uploading; re-run scan'
+        reservations = reservation_result['reserved']
 
         _write_job_state(storage, slug, {
             'state': 'running',
@@ -759,7 +800,7 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
 
     thread = threading.Thread(
         target=_run_commit,
-        args=(slug, plan, db, storage, had_episodes, lock_fh),
+        args=(slug, plan, db, storage, had_episodes, lock_fh, reservations),
         daemon=True,
     )
     try:
@@ -769,6 +810,8 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
         # leave a phantom 'running' job that can never finish and blocks
         # every future start_commit for this feed.
         _clear_job_state(storage, slug)
+        for reservation_id in reservations.values():
+            db.fail_upload_reservation(reservation_id)
         _release_import_lock(lock_fh)
         raise
     return True, 'started'
@@ -825,7 +868,8 @@ def _bump_processed(slug: str, storage) -> None:
         _write_job_state(storage, slug, job)
 
 
-def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh) -> None:
+def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh,
+                reservations: dict[str, str]) -> None:
     """Background-thread entry point: run the batch, then flip the job to
     'done' (with its report) or -- only on an exception escaping the whole
     batch, not a per-file failure -- 'error'. Always releases the per-feed
@@ -841,7 +885,8 @@ def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh)
     report: dict = {'committed': [], 'skipped': [], 'failed': [], 'queued': []}
     error: BaseException | None = None
     try:
-        _commit_entries(slug, plan, db, storage, had_episodes, report)
+        _commit_entries(slug, plan, db, storage, had_episodes, report,
+                        reservations=reservations)
     except BaseException as exc:
         logger.exception(f"[{slug}] import commit crashed")
         error = exc
@@ -856,10 +901,13 @@ def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh)
                 job['report'] = report
             _write_job_state(storage, slug, job)
         finally:
+            for reservation_id in reservations.values():
+                db.fail_upload_reservation(reservation_id)
             _release_import_lock(lock_fh)
 
 
-def _clear_queue_row(db, slug: str, episode_id: str) -> None:
+def _clear_queue_row(db, slug: str, episode_id: str,
+                     *, commit: bool = True) -> None:
     """Drop any auto_process_queue row for this episode before an overwrite
     reset (same SQL pattern as database.episodes.delete_episode_rows), so a
     stale queued/processing row from the previous import cannot resurrect
@@ -872,11 +920,13 @@ def _clear_queue_row(db, slug: str, episode_id: str) -> None:
         "DELETE FROM auto_process_queue WHERE podcast_id = ? AND episode_id = ?",
         (podcast['id'], episode_id),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def _commit_entry(slug: str, entry: dict, db, storage,
-                  overwrite: bool, upserted: list) -> tuple[str, object]:
+                  overwrite: bool, upserted: list,
+                  reservation_id: str | None = None) -> tuple[str, object]:
     """Commit one plan entry. Returns ('ok', result_dict) or
     ('error', message) -- never raises for an ordinary per-file problem, so
     the caller's loop can always move on to the next entry.
@@ -891,7 +941,6 @@ def _commit_entry(slug: str, entry: dict, db, storage,
     to be committed.
     """
     episode_id = entry['episodeId']
-
     audio_path_str = entry.get('audioPath')
     if not audio_path_str:
         return 'error', 'source audio file no longer present'
@@ -932,35 +981,29 @@ def _commit_entry(slug: str, entry: dict, db, storage,
         if existing.get('status') == 'processing':
             return 'error', 'episode is processing'
 
-        if existing_id != episode_id:
-            # Wide-spelled pre-fix row: overwrite means REPLACING it, not
-            # leaving it (and its files) behind under its old id while a
-            # second row gets inserted under the canonical one.
-            # delete_episode_rows removes its files, cached artwork, queue
-            # row, and the row itself (episode_details cascades via FK ON
-            # DELETE CASCADE) -- the canonical id becomes the one true id
-            # for this episode from here on; upsert_episode below inserts
-            # fresh under it since no row exists there yet.
+        if existing_id != episode_id and reservation_id is None:
             db.delete_episode_rows(slug, [existing_id], storage)
-        else:
-            # Full reset (spec): wipe files, cached artwork, DB processing
-            # state, episode_details, and any stale queue row before the
-            # new audio lands, then reuse upsert_episode below -- the
-            # episodes row itself is never dropped and re-inserted.
-            # batch_reset_episodes_to_discovered nulls processed_file/
-            # processed_at/original_duration/new_duration/ads_removed*/
-            # error_message/ad_detection_status but NOT processed_version,
-            # so the upsert below explicitly zeroes that too.
-            storage.cleanup_episode_files(slug, episode_id)
-            storage.remove_episode_artwork(slug, episode_id)
-            db.clear_episode_details(slug, episode_id)
-            db.clear_episode_ad_data(slug, episode_id)
-            db.batch_reset_episodes_to_discovered(slug, [episode_id])
-            _clear_queue_row(db, slug, episode_id)
-
     final_path = storage.get_original_path(slug, episode_id)
-    shutil.move(str(audio_path), str(final_path))
-
+    replaced_path = (storage.get_original_path(slug, existing_id)
+                     if existing is not None else final_path)
+    backup_path = (final_path.parent / f'.upload-{reservation_id}.backup'
+                   if reservation_id is not None else None)
+    if reservation_id is not None:
+        try:
+            source_relative = str(audio_path.resolve().relative_to(
+                storage.data_dir.resolve()))
+            backup_relative = str(backup_path.resolve().relative_to(
+                storage.data_dir.resolve()))
+            backup_target_relative = str(replaced_path.resolve().relative_to(
+                storage.data_dir.resolve()))
+        except ValueError:
+            return 'error', 'source audio path is outside the data directory'
+        if not db.prepare_upload_reservation(reservation_id, source_relative):
+            return 'error', 'upload reservation was lost'
+        if not db.begin_upload_publication(
+                reservation_id, source_relative, backup_relative,
+                backup_target_relative):
+            return 'error', 'upload reservation was lost'
     description = None
     description_path_str = entry.get('descriptionPath')
     if description_path_str:
@@ -979,28 +1022,70 @@ def _commit_entry(slug: str, entry: dict, db, storage,
     # column list) and the one processing column
     # batch_reset_episodes_to_discovered above does NOT reset on an
     # overwrite.
-    db.upsert_episode(
-        slug, episode_id,
-        defer_index=True,
-        original_url=f'local://{episode_id}',
-        status='discovered',
-        title=entry['title'],
-        description=description,
-        published_at=entry['publishedAt'],
-        episode_number=entry['episode'],
-        season_number=entry['season'],
-        original_duration=duration,
-        processed_version=0,
-        p20_item_json=None,
-        # The retained original IS the audio just moved into place above --
-        # without this, hasOriginalAudio stays false and the /original.mp3
-        # route 404s until a processing run happens to write this column.
-        # Same relative-path form main_app/processing.py's
-        # _persist_episode_state uses ('episodes/{id}-original.mp3'), for
-        # anything that ever treats the column as a path rather than a
-        # bare truthiness flag.
-        original_file=f'episodes/{episode_id}-original.mp3',
-    )
+    def write_episode(*, commit: bool) -> None:
+        if existing is not None and existing_id == episode_id:
+            storage.delete_processed_file(slug, episode_id, keep_original=True)
+            storage.remove_episode_artwork(slug, episode_id)
+            db.clear_episode_details(slug, episode_id, commit=commit)
+            db.batch_reset_episodes_to_discovered(
+                slug, [episode_id], commit=commit)
+            _clear_queue_row(db, slug, episode_id, commit=commit)
+        elif existing is not None:
+            podcast = db.get_podcast_by_slug(slug)
+            conn = db.get_connection()
+            conn.execute(
+                "DELETE FROM auto_process_queue WHERE podcast_id = ? AND episode_id = ?",
+                (podcast['id'], existing_id),
+            )
+            conn.execute("DELETE FROM episodes WHERE id = ?", (existing['id'],))
+        db.upsert_episode(
+            slug, episode_id,
+            defer_index=True,
+            commit=commit,
+            original_url=f'local://{episode_id}',
+            status='discovered',
+            title=entry['title'],
+            description=description,
+            published_at=entry['publishedAt'],
+            episode_number=entry['episode'],
+            season_number=entry['season'],
+            original_duration=duration,
+            processed_version=0,
+            p20_item_json=None,
+            original_file=f'episodes/{episode_id}-original.mp3',
+        )
+
+    if reservation_id is None:
+        shutil.move(str(audio_path), str(final_path))
+        write_episode(commit=True)
+    else:
+        moved = False
+        try:
+            with db.transaction(immediate=True):
+                if not db.owns_upload_reservation(reservation_id, 'publishing'):
+                    raise RuntimeError('upload reservation was lost during publication')
+                if replaced_path.exists():
+                    os.replace(replaced_path, backup_path)
+                os.replace(audio_path, final_path)
+                moved = True
+                write_episode(commit=False)
+                if not db.finish_upload_reservation(
+                        reservation_id, 'published', commit=False):
+                    raise RuntimeError('upload reservation was lost during publication')
+        except BaseException:
+            if moved and final_path.exists():
+                os.replace(final_path, audio_path)
+            if backup_path.exists():
+                os.replace(backup_path, replaced_path)
+            raise
+    if backup_path is not None and backup_path.exists():
+        try:
+            backup_path.unlink()
+        except OSError:
+            logger.warning("Could not remove import backup %s", backup_path)
+    if existing is not None and existing_id != episode_id:
+        storage.cleanup_episode_files(slug, existing_id)
+        storage.remove_episode_artwork(slug, existing_id)
     # Recorded before the chapter/artwork steps below, any of which can raise and
     # leave a committed row the batched index pass would otherwise skip.
     upserted.append(episode_id)
@@ -1103,7 +1188,8 @@ def _preserve_entry_files(entry: dict, staging_dir: Path, preserved: set[str]) -
 
 
 def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
-                    report: dict) -> None:
+                    report: dict,
+                    reservations: dict[str, str] | None = None) -> None:
     """Commit every entry in ``plan['entries']`` into ``report`` in place
     (idempotent -- a per-file failure is recorded and the batch continues),
     then queue newly imported episodes for auto-process when applicable,
@@ -1115,6 +1201,7 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
     """
     entries = plan.get('entries', [])
     overwrite = bool(plan.get('overwrite'))
+    reservations = reservations or {}
     # 'directory'-sourced commit never scanned staging, so it must never
     # touch it either -- gates the sweep in the finally block below.
     source = plan.get('source', 'both')
@@ -1152,7 +1239,8 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
 
             try:
                 status, result = _commit_entry(slug, entry, db, storage, overwrite,
-                                               upserted_ids)
+                                               upserted_ids,
+                                               reservations.get(episode_id))
             except Exception as exc:
                 # Per-file failure must never abort the batch -- an unexpected
                 # exception (disk-full mid-move, a DB error) is caught here the
@@ -1168,6 +1256,9 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                     'warnings': result.get('warnings', []),
                 })
             else:
+                reservation_id = reservations.get(episode_id)
+                if reservation_id is not None:
+                    db.fail_upload_reservation(reservation_id)
                 report['failed'].append({
                     'episodeId': episode_id, 'audioFile': audio_file, 'error': result,
                 })
@@ -1262,3 +1353,4 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                     staging_dir.rmdir()
                 except OSError:
                     pass
+            bump_staging_generation(storage, slug)

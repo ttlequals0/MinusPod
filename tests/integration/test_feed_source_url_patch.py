@@ -11,6 +11,8 @@ import tempfile
 
 import pytest
 
+from tests.app_bootstrap import authenticate_test_client
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='feed-srcurl-test-'))
 
@@ -85,11 +87,7 @@ def _mock_fetch(monkeypatch, content):
 
 
 def _csrf(app_client):
-    with app_client.session_transaction() as sess:
-        sess['authenticated'] = True
-    app_client.get('/api/v1/auth/status')
-    cookie = app_client.get_cookie('minuspod_csrf')
-    return {'X-CSRF-Token': cookie.value} if cookie else {}
+    return authenticate_test_client(app_client)
 
 
 def test_patch_source_url_valid_persists_and_returns(app_client, seeded_feed, _auth,

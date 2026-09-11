@@ -23,6 +23,7 @@ Configuration via environment variables:
 import json
 import logging
 import os
+import re
 import socket
 import threading
 import uuid
@@ -64,6 +65,7 @@ from config import (
     ModelNotConfiguredError,
 )
 from llm_capabilities import (
+    classify_reasoning_rejection,
     get_pass_defaults,
     is_fallback_eligible_error,
     is_fallback_set,
@@ -198,6 +200,9 @@ class LLMResponse:
     content: str
     model: str
     usage: dict[str, int] | None = None
+    finish_reason: str | None = None
+    reasoning_present: bool = False
+    reasoning_exhausted: bool = False
 
 
 @dataclass
@@ -401,24 +406,51 @@ def _apply_pass_fallback(
     temperature: float,
     reasoning_effort: Union[int, str] | None,
 ):
-    """If the pass already tripped its fallback flag, swap in defaults."""
+    """Return effective tunables and whether this call started in fallback."""
     if pass_name and is_fallback_set(episode_id, pass_name):
         defaults = get_pass_defaults(pass_name)
-        return defaults.max_tokens, defaults.temperature, defaults.reasoning_effort
-    return max_tokens, temperature, reasoning_effort
+        return (
+            defaults.max_tokens,
+            defaults.temperature,
+            defaults.reasoning_effort,
+            True,
+        )
+    return max_tokens, temperature, reasoning_effort, False
 
 
 def _should_fallback_retry(
     error: Exception,
-    episode_id: str | None,
     pass_name: str | None,
+    started_in_fallback: bool,
 ) -> bool:
-    """True for a first 4xx (non-429) in a tracked pass -- caller retries once with defaults."""
-    if not pass_name:
-        return False
-    if is_fallback_set(episode_id, pass_name):
-        return False
-    return is_fallback_eligible_error(error)
+    """True when this call sent user tunables rejected by the provider."""
+    return (
+        bool(pass_name)
+        and not started_in_fallback
+        and is_fallback_eligible_error(error)
+    )
+
+
+def _provider_error_kind(error: Exception) -> str:
+    """Return an error type and status without retaining its response body."""
+    status = getattr(error, 'status_code', None)
+    if status is None:
+        status = getattr(getattr(error, 'response', None), 'status_code', None)
+    kind = type(error).__name__
+    try:
+        status = int(status)
+    except (TypeError, ValueError):
+        return kind
+    return f'{kind} HTTP {status}'
+
+
+def _safe_reasoning_value(value: Union[int, str] | None):
+    """Keep only reasoning values accepted by the provider translators."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.lower() in ('none', 'low', 'medium', 'high'):
+        return value.lower()
+    return None if value is None else 'redacted'
 
 
 def _log_fallback(
@@ -433,9 +465,59 @@ def _log_fallback(
 ) -> None:
     logger.warning(
         f"[{episode_id}:{pass_name}] {provider_label} rejected user tunables "
-        f"(model={model}, max_tokens={max_tokens}, temperature={temperature}, "
-        f"reasoning_effort={reasoning_effort!r}): {error}. Retrying with defaults."
+        f"(model={_safe_model_identifier(model)}, max_tokens={max_tokens}, "
+        f"temperature={temperature}, "
+        f"reasoning_effort={_safe_reasoning_value(reasoning_effort)!r}; "
+        f"{_provider_error_kind(error)}). Retrying with defaults."
     )
+
+
+def _safe_model_identifier(model: str) -> str:
+    """Return a bounded model ID without URLs or secret-like values."""
+    value = str(model or '')
+    lowered = value.lower()
+    if (not value or len(value) > 160 or '://' in value
+            or any(char in value for char in ('?', '#', '=', '@'))
+            or re.search(r'(^|[/._:-])(?:sk|key|token|secret|password)[-_]', lowered)
+            or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/+\-]*', value)):
+        return 'redacted'
+    return value
+
+
+def _record_reasoning_fallback_notice(
+    provider: str,
+    model: str,
+    episode_id: str | None,
+    pass_name: str,
+    requested: Union[int, str] | None,
+    error: Exception,
+) -> None:
+    compatibility = classify_reasoning_rejection(error)
+    requested_value = _safe_reasoning_value(requested)
+    if (compatibility is None or requested_value == 'redacted'
+            or not translate_reasoning_effort(provider, requested)):
+        return
+    ctx = run_context.current()
+    if (ctx is None or not ctx.run_id
+            or ctx.episode_id != str(episode_id)):
+        return
+    provider_id = provider if provider in {
+        PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
+        PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+    } else 'unknown'
+    defaults = get_pass_defaults(pass_name)
+    ctx.add_thinking_notice(ctx.run_id, {
+        'pass': pass_name,
+        'provider': provider_id,
+        'model': _safe_model_identifier(model),
+        'requested': requested_value,
+        'compatibility': compatibility,
+        'fallback': {
+            'max_tokens': defaults.max_tokens,
+            'temperature': defaults.temperature,
+            'reasoning_effort': defaults.reasoning_effort,
+        },
+    })
 
 
 def _log_temperature_omission(
@@ -447,7 +529,9 @@ def _log_temperature_omission(
 ) -> None:
     logger.warning(
         f"[{episode_id}:{pass_name}] {provider_label} rejected temperature "
-        f"for model={model}: {error}. Retrying with temperature omitted "
+        f"for model={_safe_model_identifier(model)} "
+        f"({_provider_error_kind(error)}). "
+        f"Retrying with temperature omitted "
         f"(remembered for the rest of this process)."
     )
 
@@ -514,6 +598,7 @@ class LLMClient(ABC):
     def _send_with_fallback(
         self,
         provider_label: str,
+        provider: str,
         model: str,
         eff_max: int,
         eff_temp: float,
@@ -523,6 +608,7 @@ class LLMClient(ABC):
         user_reasoning: Union[int, str] | None,
         episode_id: str | None,
         pass_name: str | None,
+        started_in_fallback: bool,
         send_fn,
     ):
         """Run send_fn(eff_max, eff_temp, eff_reasoning) with one retry on
@@ -552,7 +638,8 @@ class LLMClient(ABC):
                     raise
                 return response, eff_max, eff_temp, eff_reasoning
 
-            will_fallback = _should_fallback_retry(e, episode_id, pass_name)
+            will_fallback = _should_fallback_retry(
+                e, pass_name, started_in_fallback)
             if not is_rate_limit_error(e) and not will_fallback:
                 self._record_circuit_breaker(success=False, error=e)
             if not will_fallback:
@@ -561,6 +648,9 @@ class LLMClient(ABC):
                           user_max, user_temp, user_reasoning, e)
             set_fallback(episode_id, pass_name)
             defaults = get_pass_defaults(pass_name)
+            _record_reasoning_fallback_notice(
+                provider, model, episode_id, pass_name,
+                user_reasoning, e)
             try:
                 response = send_fn(defaults.max_tokens, defaults.temperature, defaults.reasoning_effort)
             except Exception as e2:
@@ -685,7 +775,7 @@ class AnthropicClient(LLMClient):
 
         # If a previous call in this pass already tripped the fallback flag,
         # use the built-in defaults from llm_capabilities instead of user values.
-        eff_max, eff_temp, eff_reasoning = _apply_pass_fallback(
+        eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
@@ -722,21 +812,27 @@ class AnthropicClient(LLMClient):
             return self._client.messages.create(**kw)
 
         response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
-            "Anthropic", model,
+            "Anthropic", PROVIDER_ANTHROPIC, model,
             eff_max, eff_temp, eff_reasoning,
             max_tokens, temperature, reasoning_effort,
             episode_id, pass_name,
+            started_in_fallback,
             _send,
         )
 
         self._record_circuit_breaker(success=True)
 
+        blocks = response.content or []
+        reasoning_present = any(
+            getattr(block, 'type', None) in ('thinking', 'redacted_thinking')
+            for block in blocks
+        )
         if tool_spec is not None:
             # Forced tool_choice guarantees exactly one tool_use block; its
             # `input` is the schema-validated answer. Re-serialize to JSON
             # text since downstream parsing expects a JSON string.
             content = ""
-            for block in (response.content or []):
+            for block in blocks:
                 if getattr(block, 'type', None) == 'tool_use':
                     content = json.dumps(block.input)
                     break
@@ -745,15 +841,14 @@ class AnthropicClient(LLMClient):
             # redacted_thinking block first; the answer is in a later text
             # block. Find it instead of assuming content[0] is text.
             content = ""
-            for block in (response.content or []):
+            for block in blocks:
                 text = getattr(block, 'text', None)
                 if getattr(block, 'type', None) == 'text' and text is not None:
                     content = text
                     break
 
-        self._warn_if_truncated(
-            getattr(response, 'stop_reason', None), eff_max, model
-        )
+        finish_reason = getattr(response, 'stop_reason', None)
+        self._warn_if_truncated(finish_reason, eff_max, model)
 
         llm_response = LLMResponse(
             content=content,
@@ -762,6 +857,13 @@ class AnthropicClient(LLMClient):
                 'input_tokens': response.usage.input_tokens,
                 'output_tokens': response.usage.output_tokens
             } if response.usage else None,
+            finish_reason=finish_reason,
+            reasoning_present=reasoning_present,
+            reasoning_exhausted=(
+                not content.strip()
+                and reasoning_present
+                and finish_reason in ('max_tokens', 'length')
+            ),
         )
 
         # Log response
@@ -883,7 +985,7 @@ class OpenAICompatibleClient(LLMClient):
 
         all_messages = [{"role": "system", "content": system}] + messages
 
-        eff_max, eff_temp, eff_reasoning = _apply_pass_fallback(
+        eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
@@ -978,26 +1080,54 @@ class OpenAICompatibleClient(LLMClient):
                 raise
 
         response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
-            "OpenAI", model,
+            "OpenAI", active_provider, model,
             eff_max, eff_temp, eff_reasoning,
             max_tokens, temperature, reasoning_effort,
             episode_id, pass_name,
+            started_in_fallback,
             _send,
         )
 
         self._record_circuit_breaker(success=True)
 
         # Log reasoning/chain-of-thought if present (e.g. qwen3 think mode)
-        if response.choices:
-            msg = response.choices[0].message
+        choice = response.choices[0] if response.choices else None
+        msg = getattr(choice, 'message', None)
+        reasoning = None
+        reasoning_details = None
+        if msg is not None:
             reasoning = getattr(msg, 'reasoning', None) or getattr(msg, 'reasoning_content', None)
+            reasoning_details = getattr(msg, 'reasoning_details', None)
             if reasoning:
                 logger.debug(f"LLM reasoning field present ({len(str(reasoning))} chars)")
 
-        content = (response.choices[0].message.content or "") if response.choices else ""
+        content = (getattr(msg, 'content', None) or "") if msg is not None else ""
 
-        finish_reason = getattr(response.choices[0], 'finish_reason', None) if response.choices else None
+        finish_reason = getattr(choice, 'finish_reason', None)
         self._warn_if_truncated(finish_reason, eff_max, model)
+
+        usage = getattr(response, 'usage', None)
+        usage_details = getattr(usage, 'completion_tokens_details', None)
+        reasoning_tokens = getattr(usage_details, 'reasoning_tokens', None)
+        if isinstance(usage_details, dict):
+            reasoning_tokens = usage_details.get('reasoning_tokens')
+        has_reasoning_tokens = (
+            not isinstance(reasoning_tokens, bool)
+            and isinstance(reasoning_tokens, (int, float))
+            and reasoning_tokens > 0
+        )
+        has_reasoning_details = (
+            isinstance(reasoning_details, (str, list, tuple, dict))
+            and bool(reasoning_details)
+        )
+        reasoning_present = bool(reasoning) or has_reasoning_details or has_reasoning_tokens
+        output_tokens = getattr(usage, 'completion_tokens', None)
+        exhausted_without_reason = (
+            finish_reason is None
+            and not isinstance(output_tokens, bool)
+            and isinstance(output_tokens, (int, float))
+            and output_tokens >= eff_max
+        )
 
         llm_response = LLMResponse(
             content=content,
@@ -1006,6 +1136,13 @@ class OpenAICompatibleClient(LLMClient):
                 'input_tokens': response.usage.prompt_tokens,
                 'output_tokens': response.usage.completion_tokens
             } if response.usage else None,
+            finish_reason=finish_reason,
+            reasoning_present=reasoning_present,
+            reasoning_exhausted=(
+                not content.strip()
+                and reasoning_present
+                and (finish_reason in ('max_tokens', 'length') or exhausted_without_reason)
+            ),
         )
 
         # Log response

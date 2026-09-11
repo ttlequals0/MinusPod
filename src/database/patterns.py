@@ -388,7 +388,8 @@ class PatternMixin:
                                    episode_title: str = None, original_bounds: dict = None,
                                    corrected_bounds: dict = None, text_snippet: str = None,
                                    sponsor_id: int = None,
-                                   source_hold_reason: str = None) -> int:
+                                   source_hold_reason: str = None,
+                                   podcast_id: int = None) -> int:
         """Create a pattern correction record. Returns correction ID.
 
         source_hold_reason records which hold gate produced a
@@ -399,18 +400,18 @@ class PatternMixin:
         cursor = conn.execute(
             """INSERT INTO pattern_corrections
                (pattern_id, episode_id, podcast_title, episode_title, correction_type,
-                original_bounds, corrected_bounds, text_snippet, sponsor_id,
+                original_bounds, corrected_bounds, text_snippet, sponsor_id, podcast_id,
                 source_hold_reason)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (pattern_id, episode_id, podcast_title, episode_title, correction_type,
              json.dumps(original_bounds) if original_bounds else None,
              json.dumps(corrected_bounds) if corrected_bounds else None,
-             text_snippet, sponsor_id, source_hold_reason)
+             text_snippet, sponsor_id, podcast_id, source_hold_reason)
         )
         conn.commit()
         return cursor.lastrowid
 
-    def delete_conflicting_corrections(self, episode_id: str, correction_type: str,
+    def delete_conflicting_corrections(self, podcast_id: int, episode_id: str, correction_type: str,
                                         bounds_start: float, bounds_end: float) -> int:
         """Delete corrections that conflict with a new correction being submitted.
 
@@ -431,8 +432,8 @@ class PatternMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT id, original_bounds FROM pattern_corrections
-               WHERE episode_id = ? AND correction_type = ?""",
-            (episode_id, conflicting_type)
+               WHERE podcast_id = ? AND episode_id = ? AND correction_type = ?""",
+            (podcast_id, episode_id, conflicting_type)
         )
 
         deleted = 0
@@ -482,15 +483,160 @@ class PatternMixin:
 
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_episode_corrections(self, episode_id: str) -> list[dict]:
+    def get_unresolved_corrections(self, limit: int = 200) -> dict:
+        """List legacy corrections whose podcast cannot be inferred safely."""
+        conn = self.get_connection()
+        count = conn.execute(
+            "SELECT COUNT(*) FROM pattern_corrections WHERE podcast_id IS NULL "
+            "AND episode_id IS NOT NULL"
+        ).fetchone()[0]
+        rows = conn.execute(
+            "SELECT id, episode_id, podcast_title, episode_title, correction_type, "
+            "original_bounds, corrected_bounds, created_at FROM pattern_corrections "
+            "WHERE podcast_id IS NULL AND episode_id IS NOT NULL "
+            "ORDER BY id LIMIT ?", (limit,),
+        ).fetchall()
+        corrections = []
+        for row in rows:
+            item = dict(row)
+            for field in ('original_bounds', 'corrected_bounds'):
+                if item[field]:
+                    try:
+                        item[field] = json.loads(item[field])
+                    except (TypeError, ValueError):
+                        pass
+            candidates = conn.execute(
+                """SELECT p.slug, p.title AS podcast_title, e.title AS episode_title,
+                          1 AS episode_available, 'current' AS source,
+                          NULL AS history_run_count, NULL AS history_latest_processed_at
+                   FROM episodes e JOIN podcasts p ON p.id = e.podcast_id
+                   WHERE e.episode_id = ?
+                   UNION ALL
+                   SELECT p.slug, p.title AS podcast_title, h.episode_title,
+                          0 AS episode_available, 'history' AS source,
+                          COUNT(*) AS history_run_count,
+                          MAX(h.processed_at) AS history_latest_processed_at
+                   FROM processing_history h JOIN podcasts p ON p.id = h.podcast_id
+                   WHERE h.episode_id = ? AND NOT EXISTS (
+                       SELECT 1 FROM episodes e
+                       WHERE e.podcast_id = h.podcast_id AND e.episode_id = h.episode_id
+                   )
+                   GROUP BY p.id
+                   ORDER BY podcast_title, slug""",
+                (row['episode_id'], row['episode_id']),
+            ).fetchall()
+            item['candidates'] = [
+                {**dict(candidate), 'episode_available': bool(candidate['episode_available'])}
+                for candidate in candidates
+            ]
+            corrections.append(item)
+        return {'count': count, 'corrections': corrections}
+
+    def assign_unresolved_correction(self, correction_id: int, slug: str) -> str:
+        """Assign one unresolved correction to a current or historical feed."""
+        with self.transaction(immediate=True) as conn:
+            correction = conn.execute(
+                "SELECT episode_id, podcast_id FROM pattern_corrections WHERE id = ?",
+                (correction_id,),
+            ).fetchone()
+            if not correction:
+                return 'missing'
+            if correction['podcast_id'] is not None:
+                return 'assigned'
+            candidate = conn.execute(
+                """SELECT p.id FROM podcasts p WHERE p.slug = ? AND (
+                       EXISTS (SELECT 1 FROM episodes e
+                               WHERE e.podcast_id = p.id AND e.episode_id = ?)
+                       OR EXISTS (SELECT 1 FROM processing_history h
+                                  WHERE h.podcast_id = p.id AND h.episode_id = ?)
+                   )""",
+                (slug, correction['episode_id'], correction['episode_id']),
+            ).fetchone()
+            if not candidate:
+                return 'invalid_feed'
+            cursor = conn.execute(
+                "UPDATE pattern_corrections SET podcast_id = ? "
+                "WHERE id = ? AND podcast_id IS NULL",
+                (candidate['id'], correction_id),
+            )
+            return 'updated' if cursor.rowcount == 1 else 'assigned'
+
+    def delete_unresolved_correction(self, correction_id: int) -> str:
+        """Delete one correction only when it is still unassigned."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT podcast_id FROM pattern_corrections WHERE id = ?",
+                (correction_id,),
+            ).fetchone()
+            if not row:
+                return 'missing'
+            if row['podcast_id'] is not None:
+                return 'assigned'
+            conn.execute(
+                "DELETE FROM pattern_corrections WHERE id = ? AND podcast_id IS NULL",
+                (correction_id,),
+            )
+            return 'deleted'
+
+    def bulk_assign_unresolved_corrections(self, correction_ids: list[int], slug: str) -> str:
+        """Assign unresolved corrections only when one feed proves every episode."""
+        placeholders = ','.join('?' for _ in correction_ids)
+        with self.transaction(immediate=True) as conn:
+            feed = conn.execute("SELECT id FROM podcasts WHERE slug = ?", (slug,)).fetchone()
+            if not feed:
+                return 'invalid_feed'
+            rows = conn.execute(
+                f"SELECT id, episode_id, podcast_id FROM pattern_corrections WHERE id IN ({placeholders})",  # noqa: S608
+                correction_ids,
+            ).fetchall()
+            if len(rows) != len(correction_ids) or any(row['podcast_id'] is not None for row in rows):
+                return 'stale'
+            invalid = conn.execute(
+                f"""SELECT 1 FROM pattern_corrections c WHERE c.id IN ({placeholders}) AND NOT (
+                    EXISTS (SELECT 1 FROM episodes e WHERE e.podcast_id = ? AND e.episode_id = c.episode_id)
+                    OR EXISTS (SELECT 1 FROM processing_history h WHERE h.podcast_id = ? AND h.episode_id = c.episode_id)
+                ) LIMIT 1""",  # noqa: S608
+                [*correction_ids, feed['id'], feed['id']],
+            ).fetchone()
+            if invalid:
+                return 'invalid_feed'
+            updated = conn.execute(
+                f"UPDATE pattern_corrections SET podcast_id = ? WHERE podcast_id IS NULL AND id IN ({placeholders})",  # noqa: S608
+                [feed['id'], *correction_ids],
+            )
+            if updated.rowcount != len(correction_ids):
+                conn.rollback()
+                return 'stale'
+            return 'updated'
+
+    def bulk_delete_unresolved_corrections(self, correction_ids: list[int]) -> str:
+        """Delete unresolved corrections in one all-or-nothing transaction."""
+        placeholders = ','.join('?' for _ in correction_ids)
+        with self.transaction(immediate=True) as conn:
+            rows = conn.execute(
+                f"SELECT id, podcast_id FROM pattern_corrections WHERE id IN ({placeholders})",  # noqa: S608
+                correction_ids,
+            ).fetchall()
+            if len(rows) != len(correction_ids) or any(row['podcast_id'] is not None for row in rows):
+                return 'stale'
+            deleted = conn.execute(
+                f"DELETE FROM pattern_corrections WHERE podcast_id IS NULL AND id IN ({placeholders})",  # noqa: S608
+                correction_ids,
+            )
+            if deleted.rowcount != len(correction_ids):
+                conn.rollback()
+                return 'stale'
+            return 'deleted'
+
+    def get_episode_corrections(self, podcast_id: int, episode_id: str) -> list[dict]:
         """Get all corrections for a specific episode, newest first."""
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT id, correction_type, original_bounds, corrected_bounds, created_at
                FROM pattern_corrections
-               WHERE episode_id = ?
+               WHERE episode_id = ? AND podcast_id = ?
                ORDER BY id DESC""",
-            (episode_id,)
+            (episode_id, podcast_id)
         )
         results = []
         for row in cursor.fetchall():
@@ -508,7 +654,7 @@ class PatternMixin:
         the cross-episode ad review endpoint."""
         conn = self.get_connection()
         cursor = conn.execute('''
-            SELECT episode_id, correction_type, original_bounds
+            SELECT episode_id, podcast_id, correction_type, original_bounds
             FROM pattern_corrections
             WHERE correction_type IN ('confirm', 'false_positive',
                                       'boundary_adjustment')
@@ -527,13 +673,15 @@ class PatternMixin:
                 continue
             out.append({
                 'episode_id': row['episode_id'],
+                'podcast_id': row['podcast_id'],
                 'correction_type': row['correction_type'],
                 'start': start,
                 'end': end,
             })
         return out
 
-    def get_false_positive_corrections(self, episode_id: str) -> list[dict]:
+    def get_false_positive_corrections(self, podcast_id: int,
+                                       episode_id: str) -> list[dict]:
         """Get false_positive corrections for an episode with parsed bounds.
 
         Returns list of dicts with 'start' and 'end' keys for easy overlap checking.
@@ -541,8 +689,9 @@ class PatternMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT original_bounds FROM pattern_corrections
-               WHERE episode_id = ? AND correction_type = 'false_positive'""",
-            (episode_id,)
+               WHERE podcast_id = ? AND episode_id = ?
+                 AND correction_type = 'false_positive'""",
+            (podcast_id, episode_id)
         )
         results = []
         for row in cursor.fetchall():
@@ -551,7 +700,8 @@ class PatternMixin:
                 results.append(bounds)
         return results
 
-    def get_confirmed_corrections(self, episode_id: str) -> list[dict]:
+    def get_confirmed_corrections(self, podcast_id: int,
+                                  episode_id: str) -> list[dict]:
         """Get confirmed corrections for an episode with parsed bounds.
 
         Results are newest first so the latest user decision wins when
@@ -563,10 +713,10 @@ class PatternMixin:
         cursor = conn.execute(
             """SELECT correction_type, original_bounds, corrected_bounds
                FROM pattern_corrections
-               WHERE episode_id = ?
+               WHERE podcast_id = ? AND episode_id = ?
                  AND correction_type IN ('confirm', 'boundary_adjustment')
                ORDER BY id DESC""",
-            (episode_id,)
+            (podcast_id, episode_id)
         )
         results = []
         for row in cursor.fetchall():
@@ -603,7 +753,8 @@ class PatternMixin:
             SELECT pc.episode_id, pc.correction_type,
                    pc.original_bounds, pc.corrected_bounds
             FROM pattern_corrections pc
-            JOIN episodes e ON pc.episode_id = e.episode_id
+            JOIN episodes e ON pc.podcast_id = e.podcast_id
+                           AND pc.episode_id = e.episode_id
             JOIN podcasts p ON e.podcast_id = p.id
             WHERE p.slug = ?
             AND pc.correction_type IN
@@ -647,7 +798,8 @@ class PatternMixin:
         cursor = conn.execute('''
             SELECT pc.text_snippet, pc.episode_id, pc.original_bounds, pc.created_at
             FROM pattern_corrections pc
-            JOIN episodes e ON pc.episode_id = e.episode_id
+            JOIN episodes e ON pc.podcast_id = e.podcast_id
+                           AND pc.episode_id = e.episode_id
             JOIN podcasts p ON e.podcast_id = p.id
             WHERE p.slug = ?
             AND pc.correction_type = 'false_positive'
@@ -698,7 +850,7 @@ def suppress_differential_fp_texts(db) -> int:
     """
     conn = db.get_connection()
     rows = conn.execute(
-        """SELECT id, episode_id, original_bounds FROM pattern_corrections
+        """SELECT id, podcast_id, episode_id, original_bounds FROM pattern_corrections
            WHERE correction_type = 'false_positive'
              AND text_snippet IS NOT NULL
              AND COALESCE(fp_suppressed, 0) = 0"""
@@ -711,18 +863,9 @@ def suppress_differential_fp_texts(db) -> int:
             continue
 
         episode_matches = conn.execute(
-            "SELECT id FROM episodes WHERE episode_id = ?",
-            (row['episode_id'],)
+            "SELECT id FROM episodes WHERE podcast_id = ? AND episode_id = ?",
+            (row['podcast_id'], row['episode_id'])
         ).fetchall()
-        if len(episode_matches) > 1:
-            # episode_id is only unique per podcast; more than one match
-            # means we can't tell which episode this correction belongs to.
-            # Skip suppression rather than risk matching the wrong podcast.
-            logger.debug(
-                "Skipping FP suppression for ambiguous episode_id=%r (%d matches)",
-                row['episode_id'], len(episode_matches)
-            )
-            continue
         if not episode_matches:
             continue
 

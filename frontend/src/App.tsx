@@ -1,28 +1,47 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { createBrowserRouter, Outlet, Navigate } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import PullToRefresh from 'pulltorefreshjs';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
+import ChunkLoadRecovery, { ClearChunkLoadRecoveryMarkers } from './components/ChunkLoadRecovery';
 import GlobalStatusBar from './components/GlobalStatusBar';
-import Dashboard from './pages/Dashboard';
-import FeedDetail from './pages/FeedDetail';
-import { KeyedEpisodeDetail } from './pages/EpisodeDetail';
-import AddFeed from './pages/AddFeed';
-import Settings from './pages/Settings';
-import PatternsPage from './pages/PatternsPage';
-import SponsorsPage from './pages/SponsorsPage';
-import HistoryPage from './pages/HistoryPage';
-import StatsPage from './pages/StatsPage';
-import Login from './pages/Login';
-import Search from './pages/Search';
+import { SkeletonPageHeader, SkeletonRows } from './components/Skeleton';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const FeedDetail = lazy(() => import('./pages/FeedDetail'));
+const KeyedEpisodeDetail = lazy(() => import('./pages/EpisodeDetail').then(
+  (module) => ({ default: module.KeyedEpisodeDetail }),
+));
+const AddFeed = lazy(() => import('./pages/AddFeed'));
+const Settings = lazy(() => import('./pages/Settings'));
+const PatternsPage = lazy(() => import('./pages/PatternsPage'));
+const SponsorsPage = lazy(() => import('./pages/SponsorsPage'));
+const HistoryPage = lazy(() => import('./pages/HistoryPage'));
+const StatsPage = lazy(() => import('./pages/StatsPage'));
+const Login = lazy(() => import('./pages/Login'));
+const Search = lazy(() => import('./pages/Search'));
+
+function RouteFallback() {
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <SkeletonPageHeader />
+      <SkeletonRows count={4} />
+    </div>
+  );
+}
 
 function RootLayout() {
   return (
     <>
       <GlobalStatusBar />
-      <Outlet />
+      <ChunkLoadRecovery>
+        <Suspense fallback={<RouteFallback />}>
+          <Outlet />
+          <ClearChunkLoadRecoveryMarkers />
+        </Suspense>
+      </ChunkLoadRecovery>
     </>
   );
 }

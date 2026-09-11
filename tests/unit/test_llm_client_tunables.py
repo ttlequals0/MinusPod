@@ -1,10 +1,15 @@
 """Tests for messages_create extensions: reasoning_effort + per-pass fallback."""
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+from threading import Barrier, Lock
+from types import SimpleNamespace
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import llm_capabilities
+import run_context
 from llm_capabilities import (
     PASS_AD_DETECTION_1,
     PASS_REVIEWER_1,
@@ -44,6 +49,22 @@ class _FakeAPIError(Exception):
     def __init__(self, status_code, message="rejected"):
         super().__init__(message)
         self.status_code = status_code
+
+
+class _ConcurrentReasoningAPI:
+    def __init__(self):
+        self.calls = []
+        self._barrier = Barrier(2)
+        self._lock = Lock()
+
+    def create(self, **kwargs):
+        with self._lock:
+            self.calls.append(kwargs)
+        if (kwargs.get("reasoning_effort") == "none"
+                or kwargs.get("extra_body") == {"reasoning": {"effort": "none"}}):
+            self._barrier.wait(timeout=5)
+            raise _FakeAPIError(400, "reasoning is required")
+        return _make_openai_response()
 
 
 class TestAnthropicReasoningTranslation:
@@ -193,6 +214,23 @@ class TestAnthropicFallback:
         assert kwargs["max_tokens"] == 4096
         assert kwargs["extra_body"] == {"temperature": 0.0}
 
+    def test_rejection_after_starting_in_fallback_is_terminal(self):
+        client = self._build_client()
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = _FakeAPIError(400, "bad")
+        client._client = mock_sdk
+        llm_capabilities.set_fallback("ep1", PASS_AD_DETECTION_1)
+
+        with pytest.raises(_FakeAPIError):
+            client.messages_create(
+                model="claude-x", max_tokens=99999, system="sys",
+                messages=[{"role": "user", "content": "hi"}],
+                temperature=0.9, episode_id="ep1",
+                pass_name=PASS_AD_DETECTION_1,
+            )
+
+        assert mock_sdk.messages.create.call_count == 1
+
     def test_4xx_does_not_trip_circuit_breaker(self):
         # Per-pass fallback is a user-config retry, not a provider outage.
         client = self._build_client()
@@ -313,6 +351,52 @@ class TestOpenAIFallback:
         kwargs = mock_sdk.chat.completions.create.call_args.kwargs
         assert kwargs["reasoning_effort"] == "none"
         assert "extra_body" not in kwargs
+
+    @pytest.mark.parametrize(
+        "provider", ["openai-compatible", "openrouter", "ollama"])
+    def test_concurrent_reasoning_rejections_retry_each_inflight_call(
+            self, provider):
+        client = self._build_client()
+        api = _ConcurrentReasoningAPI()
+        client._client = SimpleNamespace(
+            chat=SimpleNamespace(completions=api))
+
+        ctx = run_context.begin('feed', 'ep1', run_id='run-a')
+        try:
+            call = run_context.run_in_worker_thread(partial(
+                client.messages_create,
+                model="model-x",
+                max_tokens=99999,
+                system="sys",
+                messages=[{"role": "user", "content": "hi"}],
+                temperature=0.8,
+                reasoning_effort="none",
+                episode_id="ep1",
+                pass_name=PASS_REVIEWER_1,
+            ))
+            with patch("llm_client.get_effective_provider", return_value=provider):
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    futures = [executor.submit(call) for _ in range(2)]
+                    results = [future.result(timeout=5) for future in futures]
+            notices = ctx.thinking_notices('run-a')
+        finally:
+            run_context.end(ctx)
+
+        assert all(result.content == "ok" for result in results)
+        assert is_fallback_set("ep1", PASS_REVIEWER_1) is True
+        rejected = [
+            kwargs for kwargs in api.calls
+            if (kwargs.get("reasoning_effort") == "none"
+                or kwargs.get("extra_body") == {"reasoning": {"effort": "none"}})
+        ]
+        retries = [kwargs for kwargs in api.calls if kwargs not in rejected]
+        assert len(rejected) == 2
+        assert len(retries) == 2
+        assert all(kwargs["max_tokens"] == 4096 for kwargs in retries)
+        assert all(kwargs["temperature"] == 0.0 for kwargs in retries)
+        assert len(notices) == 1
+        assert notices[0]['provider'] == provider
+        assert notices[0]['compatibility'] == 'required'
 
 
 class TestAnthropicTemperatureOmission:

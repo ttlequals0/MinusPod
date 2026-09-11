@@ -1,23 +1,11 @@
 """Statistics and token usage mixin for MinusPod database."""
 import json
 import logging
-import threading
 
 from config import normalize_model_key
 from utils.app_version import APP_VERSION as __version__
-from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
-
-# TTL for the filesystem-walk portion of get_stats(). Storage size does not
-# change second-to-second, and the walk stat()s every episode mp3 per call.
-STORAGE_WALK_TTL_SECONDS = 45
-
-# utils.ttl_cache.TTLCache is documented lock-free; Flask serves /system/status
-# from multiple request threads, so the lazy cache init and the
-# check-walk-store sequence are guarded here. Concurrent callers serialize on
-# the walk instead of duplicating it.
-_STORAGE_WALK_LOCK = threading.Lock()
 
 # SQL fragment for one episode's saved seconds, NULL unless it actually got
 # shorter. Shared between get_dashboard_stats and get_stats_by_podcast (#727)
@@ -59,29 +47,10 @@ class StatsMixin:
         # Total episodes
         total_episodes = sum(status_counts.values())
 
-        # Storage estimate (processed files). The walk is cached briefly;
-        # getattr because the mixin has no __init__. Init and check-walk-store
-        # run under the module lock (see _STORAGE_WALK_LOCK).
-        with _STORAGE_WALK_LOCK:
-            cache = getattr(self, '_episode_size_cache', None)
-            if cache is None:
-                cache = self._episode_size_cache = TTLCache(STORAGE_WALK_TTL_SECONDS)
-            total_size = cache.get('stats')
-            if total_size is None:
-                total_size = 0
-                for podcast_dir in self.data_dir.iterdir():
-                    if podcast_dir.is_dir():
-                        episodes_dir = podcast_dir / "episodes"
-                        if episodes_dir.exists():
-                            for f in episodes_dir.glob("*.mp3"):
-                                total_size += f.stat().st_size
-                cache.set('stats', total_size)
-
         return {
             'podcast_count': podcast_count,
             'episode_count': total_episodes,
             'episodes_by_status': status_counts,
-            'storage_mb': total_size / (1024 * 1024)
         }
 
     def get_feeds_config(self) -> list[dict]:
@@ -191,12 +160,21 @@ class StatsMixin:
                               match_key: str = '') -> float:
         """Calculate cost using normalized match_key lookup.
 
-        Resolution: exact match on match_key -> prefix match on match_key -> $0.
+        Resolution: operator override -> exact catalog match -> prefix match -> $0.
         """
         if not match_key:
             match_key = normalize_model_key(model_id)
 
         logger.debug(f"Cost lookup: model_id='{model_id}' -> match_key='{match_key}'")
+
+        override = self.get_model_pricing_override(model_id)
+        if override is not None:
+            input_per_mtok = override['inputCostPerMtok']
+            output_per_mtok = override['outputCostPerMtok']
+            return (
+                (input_tokens / 1_000_000) * input_per_mtok
+                + (output_tokens / 1_000_000) * output_per_mtok
+            )
 
         # Exact match on match_key
         cursor = conn.execute(
@@ -321,7 +299,10 @@ class StatsMixin:
         )
 
         models = []
+        overrides = self.get_model_pricing_overrides()
         for row in cursor:
+            override = self.get_model_pricing_override(
+                row['model_id'], overrides=overrides)
             models.append({
                 'modelId': row['model_id'],
                 'displayName': row['display_name'] or row['model_id'],
@@ -329,8 +310,12 @@ class StatsMixin:
                 'totalOutputTokens': row['total_output_tokens'],
                 'totalCost': round(row['total_cost'], 6),
                 'callCount': row['call_count'],
-                'inputCostPerMtok': row['input_cost_per_mtok'],
-                'outputCostPerMtok': row['output_cost_per_mtok'],
+                'inputCostPerMtok': (
+                    override['inputCostPerMtok'] if override is not None
+                    else row['input_cost_per_mtok']),
+                'outputCostPerMtok': (
+                    override['outputCostPerMtok'] if override is not None
+                    else row['output_cost_per_mtok']),
             })
 
         return {
@@ -423,7 +408,7 @@ class StatsMixin:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def increment_episode_token_usage(self, episode_id: str,
+    def increment_episode_token_usage(self, podcast_id: int, episode_id: str,
                                        input_tokens: int,
                                        output_tokens: int,
                                        llm_cost: float) -> bool:
@@ -441,10 +426,10 @@ class StatsMixin:
                    llm_cost = llm_cost + ?
                WHERE id = (
                    SELECT id FROM processing_history
-                   WHERE episode_id = ? AND status = 'completed'
+                   WHERE podcast_id = ? AND episode_id = ? AND status = 'completed'
                    ORDER BY processed_at DESC LIMIT 1
                )""",
-            (input_tokens, output_tokens, llm_cost, episode_id)
+            (input_tokens, output_tokens, llm_cost, podcast_id, episode_id)
         )
         conn.commit()
         updated = cursor.rowcount > 0

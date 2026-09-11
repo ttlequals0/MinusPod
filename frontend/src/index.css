@@ -137,7 +137,7 @@ summary.list-none::-webkit-details-marker { display: none; }
    search. Pinning <mark> also makes it identical across browsers (the default
    varies). Dark text stays legible on the fill in both light and dark themes. */
 mark,
-::highlight(settings-search) {
+*::highlight(settings-search) {
   background-color: hsl(var(--highlight));
   color: hsl(var(--highlight-foreground));
 }

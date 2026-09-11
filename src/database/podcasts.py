@@ -137,6 +137,26 @@ class PodcastMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_podcast_row(self, slug: str) -> dict | None:
+        """Get one podcast without scanning its episodes."""
+        row = self.get_connection().execute(
+            "SELECT * FROM podcasts WHERE slug = ?", (slug,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_podcast_slugs(self) -> list[str]:
+        """Get podcast slugs without episode aggregates."""
+        return [row['slug'] for row in self.get_connection().execute(
+            "SELECT slug FROM podcasts"
+        ).fetchall()]
+
+    def get_podcast_last_checked_at(self, slug: str) -> str | None:
+        """Return only the RSS freshness timestamp for a feed."""
+        row = self.get_connection().execute(
+            "SELECT last_checked_at FROM podcasts WHERE slug = ?", (slug,)
+        ).fetchone()
+        return row['last_checked_at'] if row else None
+
     def get_podcast_slug(self, podcast_id: int) -> str | None:
         """Slug for a podcast id -- cheap single-column lookup."""
         conn = self.get_connection()
@@ -447,7 +467,7 @@ class PodcastMixin:
         conn.commit()
         return True
 
-    def delete_podcast(self, slug: str) -> bool:
+    def delete_podcast(self, slug: str, *, commit: bool = True) -> bool:
         """Delete podcast and all associated data.
 
         Child tables keyed on ``podcasts(id)`` cascade. Four do not:
@@ -488,7 +508,8 @@ class PodcastMixin:
         cursor = conn.execute(
             "DELETE FROM podcasts WHERE slug = ?", (slug,)
         )
-        conn.commit()
+        if commit:
+            conn.commit()
         return cursor.rowcount > 0
 
     def update_podcast_etag(self, slug: str, etag: str, last_modified: str) -> bool:

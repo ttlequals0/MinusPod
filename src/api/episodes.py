@@ -24,6 +24,7 @@ from ad_chapters import (
 from ad_yield import latest_completed_run, low_ad_yield
 from audio_peaks import compute_peaks, PeaksError
 from audio_processor import AudioProcessor, get_replacement_duration
+from cancel import request_cancellation, wait_for_cancellation
 from chapters_generator import ChaptersGenerator
 from database.podcasts import is_local_feed, is_recents_feed, recents_cutoff
 from database.queue import (
@@ -35,7 +36,6 @@ from llm_client import (
     ProviderRateLimitedError, start_episode_token_tracking, get_episode_token_totals,
 )
 import run_context
-from processing_queue import ProcessingQueue
 from rate_limit_hold import get_active_hold, hold_message, hold_queue_for_provider_limit
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT, batch_clear_episodes_for_mode,
@@ -160,8 +160,10 @@ def _apply_needs_chapters_only(db, slug, episode_id, episode, markers) -> bool:
         markers, db.get_applied_cuts(slug, episode_id),
         episode.get('original_duration'),
         actions=db.resolve_segment_actions(slug),
-        false_positives=db.get_false_positive_corrections(episode_id),
-        confirmed=db.get_confirmed_corrections(episode_id))
+        false_positives=db.get_false_positive_corrections(
+            episode['podcast_id'], episode_id),
+        confirmed=db.get_confirmed_corrections(
+            episode['podcast_id'], episode_id))
 
 
 # Reprocess-mode rules shared by the three reprocess endpoints
@@ -378,7 +380,7 @@ def _run_stats_to_api(stats):
         return None
     stage_hits = stats.get('stage_hits')
     markers = stats.get('markers')
-    return {
+    result = {
         'mode': stats.get('mode'),
         'detectionSkipped': stats.get('detection_skipped'),
         'verificationSkipped': stats.get('verification_skipped'),
@@ -403,6 +405,22 @@ def _run_stats_to_api(stats):
         'verificationAdsCut': stats.get('verification_ads_cut'),
         'secondsRemoved': stats.get('seconds_removed'),
     }
+    notices = stats.get('thinking_notices')
+    if notices:
+        result['thinkingNotices'] = [{
+            'pass': notice.get('pass'),
+            'provider': notice.get('provider'),
+            'model': notice.get('model'),
+            'requested': notice.get('requested'),
+            'compatibility': notice.get('compatibility'),
+            'fallback': {
+                'maxTokens': (notice.get('fallback') or {}).get('max_tokens'),
+                'temperature': (notice.get('fallback') or {}).get('temperature'),
+                'reasoningEffort': (
+                    notice.get('fallback') or {}).get('reasoning_effort'),
+            },
+        } for notice in notices]
+    return result
 
 
 def _processing_runs(db, episode):
@@ -547,7 +565,7 @@ def get_episode(slug, episode_id):
     chapters_available = bool(episode.get('chapters_json'))
 
     # Get corrections for this episode
-    corrections = db.get_episode_corrections(episode_id)
+    corrections = db.get_episode_corrections(episode['podcast_id'], episode_id)
 
     # Per-cue detection telemetry (advisory: template matches with score, how
     # detection used each cue, and the user's verdict). Empty for episodes
@@ -1250,7 +1268,7 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
         run_context.end(ctx)
         if token_totals['input_tokens'] > 0:
             db.increment_episode_token_usage(
-                episode_id,
+                podcast['id'], episode_id,
                 token_totals['input_tokens'],
                 token_totals['output_tokens'],
                 token_totals['cost'],
@@ -1411,27 +1429,47 @@ def bulk_episode_action(slug):
     skipped = 0
     freed_mb = 0.0
     errors = []
+    skipped_episodes = []
     eligible_ids = []
+    enqueue_ids = []
 
     # Batch-fetch all episodes upfront to avoid N+1 queries
     all_episodes = db.get_episodes_by_ids(slug, episode_ids)
     episodes_by_id = {ep['episode_id']: ep for ep in all_episodes}
 
     if action == 'process':
-        # Collect eligible discovered episode IDs and batch-update
+        # Discovered rows follow the existing bulk path. Pending rows can only
+        # be restored when no queue entry or active run already owns them.
         eligible_ids = []
+        stranded_pending = []
         for episode_id in episode_ids:
             episode = episodes_by_id.get(episode_id)
-            if not episode or episode.get('status') != 'discovered':
+            if not episode:
                 skipped += 1
                 continue
-            eligible_ids.append(episode_id)
+            if episode.get('status') == EpisodeStatus.DISCOVERED.value:
+                eligible_ids.append(episode_id)
+            elif episode.get('status') == EpisodeStatus.PENDING.value:
+                stranded_pending.append({
+                    'episode_id': episode_id,
+                    'priority': compute_queue_priority(
+                        podcast.get('queue_priority'), episode.get('published_at'), bulk=True),
+                })
+            else:
+                skipped += 1
         if eligible_ids:
             # reprocess_requested_at marks the row as user-initiated so the
             # background drainer's auto-process-disabled gate bypasses it.
             queued = db.batch_set_episodes_pending(slug, eligible_ids,
                                                     reprocess_requested_at=utc_now_iso())
             skipped += len(eligible_ids) - queued
+            if queued:
+                enqueue_ids = eligible_ids
+        pending_result = db.requeue_stranded_pending_episodes(
+            slug, stranded_pending, utc_now_iso())
+        queued += len(pending_result['queued'])
+        skipped += len(pending_result['skipped'])
+        skipped_episodes.extend(pending_result['skipped'])
 
     elif action in ('reprocess', 'reprocess_full', 'reprocess_llm'):
         # File cleanup must be per-episode, but DB updates are batched
@@ -1458,6 +1496,8 @@ def bulk_episode_action(slug):
             queued = db.batch_set_episodes_pending(slug, eligible_ids,
                                                     reprocess_mode=mode,
                                                     reprocess_requested_at=now_str)
+            if queued:
+                enqueue_ids = eligible_ids
 
     elif action == 'delete':
         # Collect eligible IDs, let delete_episodes handle batching
@@ -1470,22 +1510,26 @@ def bulk_episode_action(slug):
             eligible_ids.append(episode_id)
         if eligible_ids:
             try:
-                # Local feeds hold the only copy of their audio (no upstream
-                # to re-download), so the delete action keeps the retained
-                # original -- it enables JIT replay later -- and only wipes
-                # the processed output. The bulk modal's "records/history are
-                # preserved" promise depends on this.
-                local_feed = is_local_feed(podcast)
-                reset, freed = db.delete_episodes(
-                    slug, eligible_ids, storage, keep_original=local_feed)
-                queued += reset
-                freed_mb += freed
-                if local_feed and reset:
-                    from local_feed_builder import rebuild_local_feed
-                    rebuild_local_feed(slug)
-                if reset:
-                    from recents_feed import rebuild_recents_feed
-                    rebuild_recents_feed()
+                active = db.mark_episodes_for_deletion(slug, eligible_ids)
+                try:
+                    busy = set(active['processing']) | set(active['uploading'])
+                    ready_ids = [episode_id for episode_id in eligible_ids
+                                 if episode_id not in busy]
+                    skipped += len(busy)
+                    # Local feeds retain their only original and delete processed output only.
+                    local_feed = is_local_feed(podcast)
+                    reset, freed = db.delete_episodes(
+                        slug, ready_ids, storage, keep_original=local_feed)
+                    queued += reset
+                    freed_mb += freed
+                    if local_feed and reset:
+                        from local_feed_builder import rebuild_local_feed
+                        rebuild_local_feed(slug)
+                    if reset:
+                        from recents_feed import rebuild_recents_feed
+                        rebuild_recents_feed()
+                finally:
+                    db.clear_episode_deletion_requests(slug, eligible_ids)
             except Exception as e:
                 logger.error(f"Bulk delete error for {slug}: {e}")
                 errors.append('bulk delete failed')
@@ -1494,8 +1538,8 @@ def bulk_episode_action(slug):
     # picks them up sequentially. Previously this called start_background_processing()
     # with no arguments (a TypeError silently swallowed by `except Exception: pass`),
     # which meant episodes were marked pending in the DB but never actually processed.
-    if action in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm') and queued > 0:
-        for episode_id in eligible_ids:
+    if action in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm') and enqueue_ids:
+        for episode_id in enqueue_ids:
             try:
                 ep = episodes_by_id.get(episode_id)
                 if ep:
@@ -1523,6 +1567,7 @@ def bulk_episode_action(slug):
         'skipped': skipped,
         'freedMb': round(freed_mb, 2),
         'errors': errors,
+        'skippedEpisodes': skipped_episodes,
     })
 
 
@@ -1615,7 +1660,7 @@ def retry_ad_detection(slug, episode_id):
         run_context.end(ctx)
         if token_totals['input_tokens'] > 0:
             db.increment_episode_token_usage(
-                episode_id,
+                podcast['id'], episode_id,
                 token_totals['input_tokens'],
                 token_totals['output_tokens'],
                 token_totals['cost'],
@@ -1751,28 +1796,12 @@ def get_processing_episodes():
 @log_request
 def cancel_episode_processing(slug, episode_id):
     """Cancel an episode that is processing OR queued."""
-    from cancel import cancel_processing
-
     db = get_database()
     status_service = get_status_service()
 
     episode = db.get_episode(slug, episode_id)
     if not episode:
-        # Episode row gone (e.g. feed deleted mid-processing, issue #525). Still
-        # tear down any orphaned job instead of 404-ing so the cancel button works.
-        thread_signalled = cancel_processing(slug, episode_id)
-        ProcessingQueue().release_if_processing(slug, episode_id)
-        status_service.remove_queued_episode(slug, episode_id)
-        status_service.clear_if_matches(slug, episode_id)
-        logger.info(
-            f"Canceled orphaned job (episode row missing): {slug}:{episode_id} "
-            f"(thread_signalled={thread_signalled})"
-        )
-        return json_response({
-            'message': 'Processing canceled',
-            'episodeId': episode_id,
-            'slug': slug
-        })
+        return error_response('Episode not found', 404)
 
     if episode['status'] != EpisodeStatus.PROCESSING:
         # Queued (waiting on the lock): close the DB queue row first so the
@@ -1795,29 +1824,24 @@ def cancel_episode_processing(slug, episode_id):
             'slug': slug
         })
 
-    # Signal the processing thread to stop
-    thread_signalled = cancel_processing(slug, episode_id)
-
-    if not thread_signalled:
-        # No active thread found -- reset DB and release queue directly (stuck episode fallback)
-        conn = db.get_connection()
-        conn.execute(
-            """UPDATE episodes SET status = 'pending', error_message = 'Canceled by user'
-               WHERE podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
-               AND episode_id = ?""",
-            (slug, episode_id)
-        )
-        conn.commit()
-
-        ProcessingQueue().release_if_processing(slug, episode_id)
-    # else: thread will handle DB reset, file cleanup, and queue release
+    run_id = request_cancellation(slug, episode_id)
+    if not run_id:
+        return error_response('Could not record cancellation; run remains active', 503)
 
     # Belt-and-suspenders: clear any stale display-queue / auto_process_queue
     # entry for this episode so a follow-up enqueue starts from a clean slate.
     status_service.remove_queued_episode(slug, episode_id)
     db.close_queue_rows_for_episode(slug, episode_id)
 
-    logger.info(f"Canceled processing: {slug}:{episode_id} (thread_signalled={thread_signalled})")
+    if not wait_for_cancellation(run_id, timeout=2.0):
+        logger.info("Cancellation pending: %s:%s (%s)", slug, episode_id, run_id)
+        return json_response({
+            'message': 'Cancellation requested; processing is stopping',
+            'episodeId': episode_id,
+            'slug': slug,
+        }, 202)
+
+    logger.info(f"Canceled processing: {slug}:{episode_id}")
     return json_response({
         'message': 'Episode canceled and reset to pending',
         'episodeId': episode_id,

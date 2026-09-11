@@ -256,7 +256,10 @@ def _post_regenerate(app_client, generated, ad_config=None):
          patch('api.episodes.resolve_ad_chapter_config',
                lambda db, row, slug=None: ad_config or AD_CFG), \
          patch('main_app.processing._refresh_rss_for_slug'):
-        generator.return_value.generate_chapters.return_value = generated
+        if callable(generated):
+            generator.return_value.generate_chapters.side_effect = generated
+        else:
+            generator.return_value.generate_chapters.return_value = generated
         return app_client.post(
             f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
             headers=headers)
@@ -502,19 +505,17 @@ def test_a_taken_over_run_leaves_the_new_owner_alone(seeded):
 def test_regenerate_aborts_when_the_episode_moves_underneath_it(app_client, seeded):
     """Chapters cut from a transcript a reprocess has replaced are not saved."""
     before = seeded.get_episode(SLUG, EPISODE_ID)['chapters_json']
-    real_get_episode = type(seeded).get_episode
-    calls = []
+    def move_episode(*args, **kwargs):
+        conn = seeded.get_connection()
+        conn.execute(
+            "UPDATE episodes SET status = 'processing' WHERE episode_id = ?",
+            (EPISODE_ID,))
+        conn.commit()
+        return {
+            'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
 
-    def fake_get_episode(self, slug, episode_id):
-        row = real_get_episode(self, slug, episode_id)
-        calls.append(row)
-        # 1: the job's entry read, 2: the check right before the save.
-        return {**row, 'status': 'processing'} if len(calls) == 2 else row
-
-    with patch.object(type(seeded), 'get_episode', fake_get_episode):
-        resp = _post_regenerate(app_client, {
-            'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]},
-            ad_config=AdChapterConfig.disabled())
+    resp = _post_regenerate(
+        app_client, move_episode, ad_config=AdChapterConfig.disabled())
 
     assert resp.status_code == 202, resp.data
     row = seeded.get_episode(SLUG, EPISODE_ID)

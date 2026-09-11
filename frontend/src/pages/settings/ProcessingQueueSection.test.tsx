@@ -3,11 +3,20 @@
  * waiting list (offset-aware positions, page controls, per-row priority
  * stepper), and per-row cancel.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ProcessingQueueSection from './ProcessingQueueSection';
 import type { ProcessingEpisode } from '../../api/settings';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const mockGetAdmission = vi.fn();
+const mockSetAdmission = vi.fn();
+
+vi.mock('../../api/settings', () => ({
+  getProcessingAdmission: (...args: unknown[]) => mockGetAdmission(...args),
+  setProcessingAdmission: (...args: unknown[]) => mockSetAdmission(...args),
+}));
 
 function active(overrides: Partial<ProcessingEpisode> = {}): ProcessingEpisode {
   return {
@@ -52,7 +61,8 @@ function renderSection(
   options: RenderOptions = {},
 ) {
   render(
-    <ProcessingQueueSection
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+      <ProcessingQueueSection
       processingEpisodes={episodes}
       onCancel={onCancel}
       cancelIsPending={options.cancelIsPending ?? false}
@@ -61,12 +71,24 @@ function renderSection(
       onQueuePage={options.onQueuePage ?? vi.fn()}
       onPriorityChange={options.onPriorityChange ?? vi.fn()}
       priorityIsPending={options.priorityIsPending ?? false}
-    />
+      />
+    </QueryClientProvider>
   );
   return onCancel;
 }
 
 describe('ProcessingQueueSection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAdmission.mockResolvedValue({ paused: false, activeRuns: 1, queuedEpisodes: 2 });
+    mockSetAdmission.mockResolvedValue({ paused: true, activeRuns: 1, queuedEpisodes: 2 });
+  });
+
+  it('puts processing admission before the queue controls', async () => {
+    renderSection([]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Pause new work' }));
+    await waitFor(() => expect(mockSetAdmission).toHaveBeenCalledWith(true));
+  });
   it('shows the empty state when nothing is processing or queued', () => {
     renderSection([]);
     expect(screen.getByText('No episodes processing or queued')).toBeTruthy();

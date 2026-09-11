@@ -1,6 +1,9 @@
 """Settings mixin for MinusPod database."""
+import json
+import math
 import os
 import logging
+from decimal import Decimal, InvalidOperation
 from dataclasses import dataclass
 from typing import Any
 from collections.abc import Callable
@@ -72,6 +75,18 @@ def _float_in_range(bounds: tuple[float, float]) -> Callable[[str], bool]:
         except (TypeError, ValueError):
             return False
     return check
+
+
+def _positive_decimal(value: str) -> bool:
+    try:
+        parsed = Decimal(value)
+        return parsed.is_finite() and parsed > 0
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+
+
+def _one_of(*values: str) -> Callable[[str], bool]:
+    return lambda value: value in values
 
 # Default pricing for known Anthropic models (USD per 1M tokens)
 # claude-sonnet-5/fable-5/opus-4-8 values from LiteLLM 2026-07-02.
@@ -297,6 +312,32 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'rate_limit_probe_minutes': SettingSpec(
         default='5', env='RATE_LIMIT_PROBE_MINUTES', seeded=True, resettable=False,
         validator=_int_in_range((0, 60))),
+    'provider_budget_enabled': SettingSpec(
+        default='false', seeded=True, resettable=False,
+        validator=_one_of('true', 'false')),
+    'provider_budget_daily_limit_microusd': SettingSpec(
+        default='0', seeded=True, resettable=False,
+        validator=_int_in_range((0, 1_000_000_000_000))),
+    'provider_budget_max_reservations': SettingSpec(
+        default='1', seeded=True, resettable=False,
+        validator=_int_in_range((1, 64))),
+    'provider_budget_unknown_cost': SettingSpec(
+        default='deny', seeded=True, resettable=False,
+        validator=_one_of('deny', 'allow', 'reserve')),
+    'provider_budget_unknown_reserve_microusd': SettingSpec(
+        default='0', seeded=True, resettable=False,
+        validator=_int_in_range((0, 1_000_000_000_000))),
+    'provider_budget_display_currency': SettingSpec(
+        default='USD', seeded=True, resettable=False,
+        validator=lambda value: (
+            isinstance(value, str) and len(value) == 3 and value.isascii()
+            and value.isupper() and value.isalpha())),
+    'provider_budget_fx_rate': SettingSpec(
+        default='1', seeded=True, resettable=False, validator=_positive_decimal),
+    'provider_budget_fx_source_date': SettingSpec(
+        default='', seeded=True, resettable=False),
+    'provider_budget_fx_fetched_at': SettingSpec(
+        default='', seeded=True, resettable=False),
     'processing_soft_timeout_seconds': SettingSpec(
         default='3600', env='PROCESSING_SOFT_TIMEOUT', seeded=True,
         resettable=False),
@@ -905,6 +946,79 @@ class SettingsMixin:
             }
         return settings
 
+    def get_model_pricing_overrides(self) -> dict[str, dict[str, float]]:
+        """Return valid operator pricing overrides keyed by model ID."""
+        raw = self.get_setting('model_pricing_overrides')
+        if not raw:
+            return {}
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            logger.warning("Ignoring invalid model_pricing_overrides JSON")
+            return {}
+        if not isinstance(payload, dict):
+            logger.warning("Ignoring non-object model_pricing_overrides")
+            return {}
+
+        overrides = {}
+        for model_id, rates in payload.items():
+            if not isinstance(model_id, str) or not model_id.strip() \
+                    or not isinstance(rates, dict):
+                continue
+            input_rate = rates.get('inputCostPerMtok')
+            output_rate = rates.get('outputCostPerMtok')
+            if isinstance(input_rate, bool) or isinstance(output_rate, bool):
+                continue
+            try:
+                input_rate = float(input_rate)
+                output_rate = float(output_rate)
+            except (TypeError, ValueError):
+                continue
+            if (not math.isfinite(input_rate) or not math.isfinite(output_rate)
+                    or input_rate < 0 or output_rate < 0):
+                continue
+            overrides[model_id] = {
+                'inputCostPerMtok': input_rate,
+                'outputCostPerMtok': output_rate,
+            }
+        return overrides
+
+    def get_model_pricing_override(
+            self, model_id: str,
+            overrides: dict[str, dict[str, float]] | None = None,
+    ) -> dict[str, float] | None:
+        """Resolve an exact or normalized operator override for a model."""
+        if overrides is None:
+            overrides = self.get_model_pricing_overrides()
+        if model_id in overrides:
+            return overrides[model_id]
+        match_key = normalize_model_key(model_id)
+        if not match_key:
+            return None
+        matches = [
+            rates for configured_id, rates in overrides.items()
+            if normalize_model_key(configured_id) == match_key
+        ]
+        return matches[0] if len(matches) == 1 else None
+
+    def merge_model_pricing_overrides(self, patch: dict[str, dict | None]) -> dict:
+        """Atomically apply a partial model-pricing override map."""
+        def merge(raw):
+            try:
+                current = json.loads(raw) if raw else {}
+            except (TypeError, ValueError):
+                current = {}
+            if not isinstance(current, dict):
+                current = {}
+            for model_id, rates in patch.items():
+                if rates is None:
+                    current.pop(model_id, None)
+                else:
+                    current[model_id] = rates
+            return json.dumps(current, separators=(',', ':'), sort_keys=True)
+
+        return json.loads(self.merge_setting('model_pricing_overrides', merge))
+
     @staticmethod
     def _upsert_setting(conn, key: str, value: str, is_default: bool):
         conn.execute(
@@ -922,6 +1036,84 @@ class SettingsMixin:
         conn = self.get_connection()
         self._upsert_setting(conn, key, value, is_default)
         conn.commit()
+
+    def get_or_create_setting(self, key: str, value: str,
+                              is_default: bool = False) -> str:
+        """Return the stored value, inserting ``value`` atomically if absent."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ).fetchone()
+            if row is not None:
+                return row['value']
+            self._upsert_setting(conn, key, value, is_default)
+            return value
+
+    def replace_setting_if_equal(self, key: str, expected: str,
+                                 value: str) -> str:
+        """Replace an expected value atomically and return the stored value."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ).fetchone()
+            if row is not None and row['value'] == expected:
+                self._upsert_setting(conn, key, value, is_default=False)
+                return value
+            return row['value'] if row is not None else ''
+
+    def increment_setting_int(self, key: str, default: int = 0) -> int:
+        """Atomically increment an integer setting and return its new value."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ).fetchone()
+            try:
+                current = int(row['value']) if row is not None else default
+            except (TypeError, ValueError):
+                current = default
+            value = current + 1
+            self._upsert_setting(conn, key, str(value), is_default=False)
+            return value
+
+    def auth_generation_if_password_equal(self, password_hash: str) -> int | None:
+        """Return the generation only while the verified hash is current."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'app_password'"
+            ).fetchone()
+            if row is None or row['value'] != password_hash:
+                return None
+            generation = conn.execute(
+                "SELECT value FROM settings WHERE key = 'auth_session_generation'"
+            ).fetchone()
+            try:
+                return int(generation['value']) if generation is not None else 0
+            except (TypeError, ValueError):
+                return 0
+
+    def replace_password_and_revoke(self, expected_hash: str | None,
+                                    new_hash: str) -> int | None:
+        """Replace a matching password and revoke existing sessions atomically."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'app_password'"
+            ).fetchone()
+            stored = row['value'] if row is not None else None
+            if (stored or '') != (expected_hash or ''):
+                return None
+            generation = conn.execute(
+                "SELECT value FROM settings WHERE key = 'auth_session_generation'"
+            ).fetchone()
+            try:
+                current = int(generation['value']) if generation is not None else 0
+            except (TypeError, ValueError):
+                current = 0
+            value = current + 1
+            self._upsert_setting(conn, 'app_password', new_hash, is_default=False)
+            self._upsert_setting(
+                conn, 'auth_session_generation', str(value), is_default=False
+            )
+            return value
 
     def merge_setting(self, key: str, merge_fn) -> str:
         """Rewrite a setting as merge_fn(stored_value_or_None) -> new value.

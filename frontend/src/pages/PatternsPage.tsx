@@ -25,6 +25,7 @@ import {
 } from '../utils/segmentCategory';
 import AdReviewTab from './patterns/AdReviewTab';
 import DetectedAdsTab from './patterns/DetectedAdsTab';
+import UnresolvedCorrectionsPanel from './patterns/UnresolvedCorrectionsPanel';
 import { btnOutline } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
 import { selectBase } from '../components/fieldStyles';
@@ -284,6 +285,8 @@ function PatternsPage() {
       {activeTab === 'ad-review' && <AdReviewTab />}
 
       {activeTab === 'patterns' && (<>
+
+      <UnresolvedCorrectionsPanel />
 
       {isLoading && <SkeletonRows count={6} />}
       {error && (

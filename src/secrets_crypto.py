@@ -13,12 +13,15 @@ import datetime
 import logging
 import os
 import secrets
+import struct
 import threading
 import uuid
 from pathlib import Path
 
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from utils.db_backup import snapshot_database
@@ -72,6 +75,7 @@ def _has_ciphertext_secrets(db) -> bool:
 
 def _load_or_create_salt(db) -> bytes:
     existing = db.get_setting(_SALT_KEY)
+    replace_corrupt = False
     if existing:
         try:
             salt = base64.b64decode(existing)
@@ -91,13 +95,23 @@ def _load_or_create_salt(db) -> bytes:
                 "permanently undecryptable). Restore the salt/DB from a backup."
             )
         logger.warning("provider_crypto_salt corrupt and no ciphertext present; regenerating")
+        replace_corrupt = True
     elif _has_ciphertext_secrets(db):
         raise CryptoUnavailableError(
             "encrypted secrets exist but provider_crypto_salt is missing; "
             "refusing to mint a new salt. Restore from a backup."
         )
-    salt = secrets.token_bytes(_SALT_LEN)
-    db.set_setting(_SALT_KEY, base64.b64encode(salt).decode("ascii"))
+    candidate = base64.b64encode(secrets.token_bytes(_SALT_LEN)).decode("ascii")
+    if replace_corrupt:
+        stored = db.replace_setting_if_equal(_SALT_KEY, existing, candidate)
+    else:
+        stored = db.get_or_create_setting(_SALT_KEY, candidate, is_default=False)
+    try:
+        salt = base64.b64decode(stored)
+    except (ValueError, TypeError) as exc:
+        raise CryptoUnavailableError("provider_crypto_salt is invalid") from exc
+    if len(salt) != _SALT_LEN:
+        raise CryptoUnavailableError("provider_crypto_salt is invalid")
     return salt
 
 
@@ -235,6 +249,10 @@ def encrypt(db, plaintext: str) -> str:
 # File-format envelope for encrypted backups. The magic tag lets
 # downstream tooling refuse to decrypt data that wasn't produced here.
 _BACKUP_MAGIC = b"MPBK01\x00"
+_BACKUP_MAGIC_V2 = b"MPBK02\x00"
+_BACKUP_HEADER = struct.Struct(">7sI16s12sQ")
+_BACKUP_BUFFER_SIZE = 1024 * 1024
+_BACKUP_V2_PBKDF2_ITERATIONS = 600_000
 
 
 def encrypt_bytes(db, plaintext: bytes) -> bytes:
@@ -264,6 +282,92 @@ def decrypt_bytes(db, envelope: bytes) -> bytes:
     ct = body[_NONCE_LEN:]
     dek = _derive_dek(db)
     return AESGCM(dek).decrypt(nonce, ct, None)
+
+
+def encrypt_backup_file(source, destination, passphrase: str) -> None:
+    """Encrypt a file as a self-contained, authenticated MPBK02 envelope."""
+    if not passphrase:
+        raise ValueError('backup passphrase is required')
+    destination = Path(destination)
+    tmp = destination.with_name(f'.{destination.name}.{uuid.uuid4().hex}.tmp')
+    salt = secrets.token_bytes(_SALT_LEN)
+    nonce = secrets.token_bytes(_NONCE_LEN)
+    size = Path(source).stat().st_size
+    header = _BACKUP_HEADER.pack(
+        _BACKUP_MAGIC_V2, _BACKUP_V2_PBKDF2_ITERATIONS, salt, nonce, size
+    )
+    key = PBKDF2HMAC(
+        algorithm=hashes.SHA256(), length=_KEY_LEN, salt=salt,
+        iterations=_BACKUP_V2_PBKDF2_ITERATIONS,
+    ).derive(passphrase.encode('utf-8'))
+    encryptor = Cipher(algorithms.AES(key), modes.GCM(nonce)).encryptor()
+    encryptor.authenticate_additional_data(header)
+    try:
+        fd = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        with open(source, 'rb') as src, os.fdopen(fd, 'wb') as dst:
+            dst.write(header)
+            while chunk := src.read(_BACKUP_BUFFER_SIZE):
+                dst.write(encryptor.update(chunk))
+            dst.write(encryptor.finalize())
+            dst.write(encryptor.tag)
+            dst.flush()
+            os.fsync(dst.fileno())
+        os.replace(tmp, destination)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def decrypt_backup_file(source, destination, passphrase: str) -> None:
+    """Verify an MPBK02 envelope before atomically publishing plaintext."""
+    if not passphrase:
+        raise ValueError('backup passphrase is required')
+    source = Path(source)
+    destination = Path(destination)
+    if source.resolve() == destination.resolve():
+        raise ValueError('backup source and destination must differ')
+    if destination.exists():
+        raise FileExistsError(f'backup destination already exists: {destination}')
+    tmp = destination.with_name(f'.{destination.name}.{uuid.uuid4().hex}.tmp')
+    try:
+        with source.open('rb') as src:
+            header = src.read(_BACKUP_HEADER.size)
+            if len(header) != _BACKUP_HEADER.size:
+                raise ValueError('backup header is truncated')
+            magic, iterations, salt, nonce, plaintext_size = _BACKUP_HEADER.unpack(header)
+            if magic != _BACKUP_MAGIC_V2:
+                raise ValueError('not an MPBK02 backup')
+            if iterations != _BACKUP_V2_PBKDF2_ITERATIONS:
+                raise ValueError('unsupported backup KDF parameters')
+            ciphertext_size = source.stat().st_size - len(header) - 16
+            if ciphertext_size != plaintext_size:
+                raise ValueError('backup length does not match its header')
+            src.seek(-16, os.SEEK_END)
+            tag = src.read(16)
+            src.seek(len(header))
+            key = PBKDF2HMAC(
+                algorithm=hashes.SHA256(), length=_KEY_LEN, salt=salt,
+                iterations=iterations,
+            ).derive(passphrase.encode('utf-8'))
+            decryptor = Cipher(algorithms.AES(key), modes.GCM(nonce, tag)).decryptor()
+            decryptor.authenticate_additional_data(header)
+            fd = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            with os.fdopen(fd, 'wb') as dst:
+                remaining = ciphertext_size
+                while remaining:
+                    chunk = src.read(min(_BACKUP_BUFFER_SIZE, remaining))
+                    if not chunk:
+                        raise ValueError('backup ciphertext is truncated')
+                    remaining -= len(chunk)
+                    dst.write(decryptor.update(chunk))
+                dst.write(decryptor.finalize())
+                dst.flush()
+                os.fsync(dst.fileno())
+        os.link(tmp, destination)
+        tmp.unlink()
+    except InvalidTag as exc:
+        raise ValueError('backup authentication failed') from exc
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def decrypt(db, envelope: str) -> str:

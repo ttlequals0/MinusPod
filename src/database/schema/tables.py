@@ -114,6 +114,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     author TEXT,
     explicit INTEGER,
     categories TEXT,
+    deletion_requested_at TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 )"""
@@ -171,6 +172,7 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     season_number INTEGER,
     p20_item_json TEXT,
     tags TEXT NOT NULL DEFAULT '[]',
+    deletion_requested_at TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
@@ -252,6 +254,7 @@ TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_correct
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pattern_id INTEGER,
     episode_id TEXT,
+    podcast_id INTEGER REFERENCES podcasts(id) ON DELETE SET NULL,
     podcast_title TEXT,
     episode_title TEXT,
     correction_type TEXT NOT NULL CHECK(correction_type IN (
@@ -265,6 +268,61 @@ TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_correct
     sponsor_id INTEGER REFERENCES known_sponsors(id),
     source_hold_reason TEXT,
     fp_suppressed INTEGER DEFAULT 0
+)"""
+
+TABLE_DDL['processing_runs'] = """CREATE TABLE IF NOT EXISTS processing_runs (
+    run_id TEXT PRIMARY KEY,
+    podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL,
+    owner_pid INTEGER NOT NULL,
+    owner_pid_start REAL,
+    state TEXT NOT NULL CHECK(state IN ('running', 'cancel_requested', 'finished', 'interrupted')),
+    cancel_requested_at TEXT,
+    started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    heartbeat_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    finished_at TEXT
+)"""
+
+TABLE_DDL['upload_reservations'] = """CREATE TABLE IF NOT EXISTS upload_reservations (
+    id TEXT PRIMARY KEY CHECK(length(id) = 32),
+    podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
+    scope TEXT NOT NULL CHECK(scope IN ('episode', 'staging')),
+    target_key TEXT NOT NULL,
+    operation TEXT NOT NULL CHECK(operation IN ('individual', 'import', 'staging')),
+    season_number INTEGER,
+    episode_number INTEGER,
+    owner_pid INTEGER NOT NULL,
+    owner_pid_start REAL,
+    state TEXT NOT NULL CHECK(state IN ('reserved', 'prepared', 'publishing', 'published', 'failed', 'released')),
+    temp_name TEXT,
+    backup_name TEXT,
+    backup_target_name TEXT,
+    recovery_state TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    finished_at TEXT
+)"""
+
+TABLE_DDL['feed_subscriber_keys'] = """CREATE TABLE IF NOT EXISTS feed_subscriber_keys (
+    id TEXT PRIMARY KEY CHECK(length(id) = 16),
+    podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
+    secret_hash TEXT NOT NULL CHECK(length(secret_hash) = 64),
+    label TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    last_used_at TEXT,
+    revoked_at TEXT
+)"""
+
+TABLE_DDL['provider_spend_reservations'] = """CREATE TABLE IF NOT EXISTS provider_spend_reservations (
+    id TEXT PRIMARY KEY CHECK(length(id) = 32),
+    provider TEXT NOT NULL,
+    run_id TEXT,
+    reserved_microusd INTEGER NOT NULL CHECK(reserved_microusd >= 0),
+    actual_microusd INTEGER CHECK(actual_microusd IS NULL OR actual_microusd >= 0),
+    status TEXT NOT NULL CHECK(status IN ('reserved', 'uncertain', 'reconciled', 'released')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
 )"""
 
 TABLE_DDL['audio_fingerprints'] = """CREATE TABLE IF NOT EXISTS audio_fingerprints (
@@ -555,6 +613,31 @@ PRAGMA journal_mode = WAL;
 -- pattern_corrections table (user corrections; conflicting entries cleaned up on reversal)
 """ + TABLE_DDL['pattern_corrections'] + """;
 
+""" + TABLE_DDL['processing_runs'] + """;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_processing_runs_active_episode
+    ON processing_runs(podcast_id, episode_id)
+    WHERE state IN ('running', 'cancel_requested');
+CREATE INDEX IF NOT EXISTS idx_processing_runs_owner
+    ON processing_runs(owner_pid, owner_pid_start)
+    WHERE state IN ('running', 'cancel_requested');
+
+""" + TABLE_DDL['upload_reservations'] + """;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_upload_reservations_active_target
+    ON upload_reservations(podcast_id, scope, target_key)
+    WHERE state IN ('reserved', 'prepared', 'publishing');
+CREATE INDEX IF NOT EXISTS idx_upload_reservations_owner
+    ON upload_reservations(owner_pid, owner_pid_start, state);
+
+""" + TABLE_DDL['feed_subscriber_keys'] + """;
+CREATE INDEX IF NOT EXISTS idx_feed_subscriber_keys_podcast
+    ON feed_subscriber_keys(podcast_id, revoked_at);
+
+""" + TABLE_DDL['provider_spend_reservations'] + """;
+CREATE INDEX IF NOT EXISTS idx_provider_spend_provider_day
+    ON provider_spend_reservations(provider, created_at, status);
+CREATE INDEX IF NOT EXISTS idx_provider_spend_run
+    ON provider_spend_reservations(run_id, status);
+
 -- audio_fingerprints table (Chromaprint hashes for DAI-inserted ads)
 """ + TABLE_DDL['audio_fingerprints'] + """;
 
@@ -569,6 +652,8 @@ PRAGMA journal_mode = WAL;
 
 CREATE INDEX IF NOT EXISTS idx_history_processed_at ON processing_history(processed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_history_podcast_episode ON processing_history(podcast_id, episode_id);
+CREATE INDEX IF NOT EXISTS idx_history_podcast_episode_status ON processing_history(podcast_id, episode_id, status);
+CREATE INDEX IF NOT EXISTS idx_history_episode_podcast ON processing_history(episode_id, podcast_id);
 CREATE INDEX IF NOT EXISTS idx_history_status ON processing_history(status);
 
 -- auto_process_queue table (queue for automatic episode processing)
@@ -578,7 +663,6 @@ CREATE INDEX IF NOT EXISTS idx_queue_status ON auto_process_queue(status);
 CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at);
 CREATE INDEX IF NOT EXISTS idx_queue_status_created ON auto_process_queue(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_queue_status_priority ON auto_process_queue(status, priority DESC, created_at);
-CREATE INDEX IF NOT EXISTS idx_queue_podcast_episode ON auto_process_queue(podcast_id, episode_id);
 
 CREATE INDEX IF NOT EXISTS idx_podcasts_slug ON podcasts(slug);
 CREATE INDEX IF NOT EXISTS idx_episodes_podcast_id ON episodes(podcast_id);
@@ -586,7 +670,6 @@ CREATE INDEX IF NOT EXISTS idx_episodes_episode_id ON episodes(episode_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_podcast_episode ON episodes(podcast_id, episode_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_status ON episodes(status);
 CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at);
-CREATE INDEX IF NOT EXISTS idx_episode_details_episode_id ON episode_details(episode_id);
 
 -- Cross-episode training indexes (indexes on new columns created in migrations)
 CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id ON ad_patterns(sponsor_id) WHERE is_active = 1;
@@ -595,6 +678,8 @@ CREATE INDEX IF NOT EXISTS idx_patterns_community_id ON ad_patterns(community_id
 CREATE INDEX IF NOT EXISTS idx_patterns_scope ON ad_patterns(scope, network_id, podcast_id) WHERE is_active = 1;
 CREATE INDEX IF NOT EXISTS idx_fingerprints_pattern ON audio_fingerprints(pattern_id);
 CREATE INDEX IF NOT EXISTS idx_corrections_pattern ON pattern_corrections(pattern_id);
+CREATE INDEX IF NOT EXISTS idx_corrections_podcast_episode
+    ON pattern_corrections(podcast_id, episode_id);
 CREATE INDEX IF NOT EXISTS idx_sponsors_name ON known_sponsors(name) WHERE is_active = 1;
 CREATE INDEX IF NOT EXISTS idx_normalizations_pattern ON sponsor_normalizations(pattern) WHERE is_active = 1;
 

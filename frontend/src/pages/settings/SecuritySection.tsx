@@ -1,12 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { rotateMasterPassphrase } from '../../api/providers';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword, AuthStatus } from '../../api/auth';
 import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
-import { ConfirmModal } from '../../components/Modal';
 import { focusRing } from '../../components/fieldStyles';
 
 const MIN_PASSWORD_LENGTH = 12;
@@ -69,46 +67,6 @@ function SecuritySection({
       onError: (e) => setAgentError(getErrorMessage(e, 'Failed to remove agent')),
     });
   };
-
-  const [oldPassphrase, setOldPassphrase] = useState('');
-  const [newPassphrase, setNewPassphrase] = useState('');
-  const [confirmPassphrase, setConfirmPassphrase] = useState('');
-  const [rotateError, setRotateError] = useState<string | null>(null);
-  const [rotateSuccess, setRotateSuccess] = useState<string | null>(null);
-  const [isRotating, setIsRotating] = useState(false);
-  const [confirmRotate, setConfirmRotate] = useState(false);
-
-  async function handleRotatePassphrase(e: FormEvent) {
-    e.preventDefault();
-    setRotateError(null); setRotateSuccess(null);
-    if (!oldPassphrase || !newPassphrase) {
-      setRotateError('Both current and new passphrase are required.');
-      return;
-    }
-    if (newPassphrase.length < 12) {
-      setRotateError('New passphrase must be at least 12 characters.');
-      return;
-    }
-    if (newPassphrase !== confirmPassphrase) {
-      setRotateError('New passphrase confirmation does not match.');
-      return;
-    }
-    setConfirmRotate(true);
-  }
-
-  async function doRotate() {
-    setConfirmRotate(false);
-    setIsRotating(true);
-    try {
-      const r = await rotateMasterPassphrase(oldPassphrase, newPassphrase);
-      setRotateSuccess(`Re-encrypted ${r.rotated} stored key${r.rotated === 1 ? '' : 's'}. Update the env var now.`);
-      setOldPassphrase(''); setNewPassphrase(''); setConfirmPassphrase('');
-    } catch (err) {
-      setRotateError(getErrorMessage(err, 'Rotation failed'));
-    } finally {
-      setIsRotating(false);
-    }
-  }
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -264,8 +222,9 @@ function SecuritySection({
       <div className="mt-6 pt-6 border-t border-border">
         <h3 className="text-base font-semibold text-foreground mb-1">Provider Key Encryption</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Rotate the <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code> used to encrypt provider API keys.
-          Re-encrypts every stored key under a new passphrase + new salt in a single transaction.
+          {cryptoReady
+            ? <>Provider API keys are encrypted with <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code>.</>
+            : <>Set <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code> in the container environment to encrypt provider API keys.</>}
         </p>
 
         {plaintextSecretsCount > 0 && (
@@ -278,73 +237,11 @@ function SecuritySection({
           </div>
         )}
 
-        {!cryptoReady ? (
-          <p className="text-sm text-muted-foreground">
-            Set <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code> in the container environment first.
-            Rotation is only available once the encrypted store is initialized.
-          </p>
-        ) : (
-          <form onSubmit={handleRotatePassphrase} className="space-y-3">
-            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning space-y-1">
-              <p>After clicking Rotate, update <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code> in your container environment to the new value and restart the container.</p>
-              <p>Other Gunicorn workers keep the old key cached until restart, so stored keys may fail to decrypt in the meantime.</p>
-              <p>Lose the new passphrase and the stored keys are unrecoverable. Back it up first.</p>
-            </div>
-
-            <div>
-              <label htmlFor="oldPassphrase" className="block text-sm font-medium text-foreground mb-1">
-                Current passphrase
-              </label>
-              <input
-                id="oldPassphrase"
-                type="password"
-                autoComplete="off"
-                value={oldPassphrase}
-                onChange={(e) => setOldPassphrase(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="newPassphrase" className="block text-sm font-medium text-foreground mb-1">
-                New passphrase
-              </label>
-              <input
-                id="newPassphrase"
-                type="password"
-                autoComplete="off"
-                value={newPassphrase}
-                onChange={(e) => setNewPassphrase(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassphrase" className="block text-sm font-medium text-foreground mb-1">
-                Confirm new passphrase
-              </label>
-              <input
-                id="confirmPassphrase"
-                type="password"
-                autoComplete="off"
-                value={confirmPassphrase}
-                onChange={(e) => setConfirmPassphrase(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
-              />
-            </div>
-
-            {rotateError && <p className="text-sm text-destructive">{rotateError}</p>}
-            {rotateSuccess && <p className="text-sm text-success">{rotateSuccess}</p>}
-
-            <button
-              type="submit"
-              disabled={isRotating}
-              className={`px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 ${focusRing}`}
-            >
-              {isRotating ? 'Rotating...' : 'Rotate Master Passphrase'}
-            </button>
-          </form>
-        )}
+        {cryptoReady && <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning space-y-2">
+          <p>Stop every MinusPod worker before rotating the master passphrase.</p>
+          <p>Run <code className="font-mono break-all">python scripts/rotate_master_passphrase.py</code>, update the container environment, then restart all workers together.</p>
+          <p>Keep an encrypted backup and the current passphrase until the restarted service can read every stored key.</p>
+        </div>}
       </div>
 
       <div className="mt-6 pt-6 border-t border-border">
@@ -427,19 +324,6 @@ function SecuritySection({
           <p className="mt-2 text-sm text-destructive">{agentError}</p>
         )}
       </div>
-      {confirmRotate && (
-        <ConfirmModal
-          title="Rotate the master passphrase?"
-          confirmLabel="Rotate passphrase"
-          busyLabel="Rotating..."
-          pending={isRotating}
-          onCancel={() => setConfirmRotate(false)}
-          onConfirm={doRotate}
-        >
-          <p>After rotating you must update MINUSPOD_MASTER_PASSPHRASE in the container environment and restart the container.</p>
-          <p>If you skip that step, stored keys are unreadable on the next restart. If you lose the new passphrase, the stored keys cannot be recovered.</p>
-        </ConfirmModal>
-      )}
     </CollapsibleSection>
   );
 }

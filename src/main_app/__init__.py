@@ -9,6 +9,7 @@ import signal
 import socket
 import sys
 import threading
+import time
 import uuid
 from utils.session_defaults import _default_session_cookie_secure
 from utils.paths import resolve_data_dir
@@ -171,6 +172,7 @@ logger = logging.getLogger('podcast.app')
 audio_logger = logging.getLogger('podcast.audio')
 
 # Import components
+from maintenance_lock import acquire_runtime_lock
 from storage import Storage
 from rss_parser import RSSParser
 from transcriber import Transcriber
@@ -183,8 +185,10 @@ from sponsor_service import SponsorService
 from status_service import StatusService
 from pattern_service import PatternService
 from secrets_crypto import migrate_plaintext_secrets
+from utils.subprocess_registry import terminate_all
 
 # Initialize components
+_runtime_lock_fd = acquire_runtime_lock(resolve_data_dir())
 storage = Storage()
 rss_parser = RSSParser()
 transcriber = Transcriber()
@@ -199,6 +203,8 @@ pattern_service = PatternService(db)
 # Graceful shutdown support
 shutdown_event = threading.Event()
 processing_queue = ProcessingQueue()
+_previous_signal_handlers = {}
+_shutdown_started = False
 
 # One-shot startup backfills, version-gated via system_settings so
 # they only run on the first boot that ships the corresponding code.
@@ -394,24 +400,39 @@ def get_or_create_secret_key():
 
 
 def graceful_shutdown(signum, frame):
-    """Handle shutdown signals gracefully.
-
-    Sets the shutdown event to signal background threads to stop.
-    Does NOT block the signal handler -- Gunicorn's --graceful-timeout (330s)
-    provides the actual wait period before SIGKILL. Blocking here would prevent
-    gthread worker heartbeats, causing premature SIGKILL after --timeout.
-    """
+    """Stop admission, drain this worker's runs, then continue server shutdown."""
+    global _shutdown_started
     sig_name = signal.Signals(signum).name
+    if _shutdown_started:
+        logger.warning("Received %s again; forcing shutdown", sig_name)
+        drain_seconds = 0
+    else:
+        _shutdown_started = True
+        try:
+            drain_seconds = int(os.environ.get('MINUSPOD_SHUTDOWN_DRAIN_SECONDS', '300'))
+        except ValueError:
+            drain_seconds = 300
+        drain_seconds = min(max(drain_seconds, 0), 3600)
     logger.info(f"Received {sig_name} signal, initiating graceful shutdown...")
 
-    # Signal all background threads to stop
     shutdown_event.set()
 
-    current = processing_queue.get_current()
-    if current:
-        for cur_slug, cur_episode_id in current:
-            logger.info(f"Shutdown signal sent, processing in progress: {cur_slug}:{cur_episode_id}")
-        logger.info("Gunicorn graceful-timeout will allow processing to finish")
+    deadline = time.monotonic() + drain_seconds
+    owned = processing_queue.owned_active_run_ids()
+    if owned:
+        logger.info("Draining %d processing run(s) for up to %d seconds",
+                    len(owned), drain_seconds)
+    while owned and time.monotonic() < deadline:
+        time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+        owned = processing_queue.owned_active_run_ids()
+    if owned is None:
+        while time.monotonic() < deadline:
+            time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+            owned = processing_queue.owned_active_run_ids()
+            if owned == []:
+                break
+    if owned:
+        logger.warning("Shutdown drain expired with %d processing run(s) active", len(owned))
 
     # Release the background-leader flock explicitly. Linux frees the
     # advisory lock when the FD closes anyway, so this is defensive;
@@ -426,14 +447,15 @@ def graceful_shutdown(signum, frame):
         except Exception as exc:
             logger.warning("Failed to release background leader lock: %s", exc)
 
-    # Terminate any tracked subprocess children so a SIGTERM on the
-    # worker does not leave ffmpeg / whisper processes orphaned. The
-    # registry is a no-op if no processes have been registered.
     try:
-        from utils.subprocess_registry import terminate_all
         terminate_all(timeout=5.0)
     except Exception as exc:
         logger.warning("subprocess_registry terminate_all failed: %s", exc)
+
+    previous = _previous_signal_handlers.get(signum)
+    if callable(previous) and previous is not graceful_shutdown:
+        previous(signum, frame)
+    raise SystemExit(0)
 
 
 def _background_leader_lock_path() -> Path:
@@ -757,12 +779,14 @@ def _startup():
         # pid. Ones that carry it are left alone: a respawned leader has
         # sibling workers whose runs are still live.
         processing_queue.drop_slots_without_start_time()
+        processing_queue.reconcile_dead_owners()
         reset_stuck_processing_episodes()
         reconcile_startup_state(db)
 
     # Register signal handlers for graceful shutdown (every worker needs them).
-    signal.signal(signal.SIGTERM, graceful_shutdown)
-    signal.signal(signal.SIGINT, graceful_shutdown)
+    for shutdown_signal in (signal.SIGTERM, signal.SIGINT):
+        _previous_signal_handlers[shutdown_signal] = signal.getsignal(shutdown_signal)
+        signal.signal(shutdown_signal, graceful_shutdown)
     logger.debug("Registered signal handlers for graceful shutdown")
 
     # Every worker: a stall is per-process, and only the leader's threads

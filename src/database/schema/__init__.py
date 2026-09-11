@@ -15,10 +15,26 @@ logger = logging.getLogger(__name__)
 # not land in memory at once inside the startup schema lock.
 _COLLAPSE_BATCH_ROWS = 500
 
+_SEARCH_CHANGE_TRIGGER_NAMES = (
+    'search_change_podcasts_insert', 'search_change_podcasts_delete',
+    'search_change_podcasts_update', 'search_change_episodes_insert',
+    'search_change_episodes_delete', 'search_change_episodes_update',
+    'search_change_details_insert', 'search_change_details_delete',
+    'search_change_details_update', 'search_change_patterns_insert',
+    'search_change_patterns_delete', 'search_change_patterns_update',
+    'search_change_sponsors_insert', 'search_change_sponsors_delete',
+    'search_change_sponsors_update',
+)
+_SEARCH_CHANGE_TRIGGER_MARKER = 'search_change_triggers_v1'
+
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import SCHEMA_SQL, TABLE_DDL
-from database.search import SEARCH_INDEX_DDL
+from database.search import (
+    SEARCH_CHANGE_JOURNAL_DDL,
+    SEARCH_CHANGE_TRIGGERS_SQL,
+    SEARCH_INDEX_DDL,
+)
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 from config import count_pending_review
 from utils.markers import collapse_duplicate_markers
@@ -57,6 +73,25 @@ class SchemaMixin:
             (name,),
         )
         return cursor.fetchone() is not None
+
+    @staticmethod
+    def _drop_search_change_triggers(conn) -> None:
+        for name in _SEARCH_CHANGE_TRIGGER_NAMES:
+            conn.execute(f'DROP TRIGGER IF EXISTS {name}')
+
+    @staticmethod
+    def _execute_search_change_trigger_ddl(conn, replace: bool) -> None:
+        statements = [
+            part.strip() + 'END;'
+            for part in SEARCH_CHANGE_TRIGGERS_SQL.split('END;')
+            if part.strip()
+        ]
+        if len(statements) != len(_SEARCH_CHANGE_TRIGGER_NAMES):
+            raise RuntimeError('Invalid search change trigger definitions')
+        if replace:
+            SchemaMixin._drop_search_change_triggers(conn)
+        for statement in statements:
+            conn.execute(statement)
 
     def _init_schema(self):
         """Initialize database schema with cross-worker serialization + retry.
@@ -128,6 +163,10 @@ class SchemaMixin:
         'ad_reviewer_log',
         'podping_hosts',
         'addressing_log',
+        'processing_runs',
+        'upload_reservations',
+        'feed_subscriber_keys',
+        'provider_spend_reservations',
     )
 
     def _create_new_tables_only(self, conn):
@@ -142,6 +181,8 @@ class SchemaMixin:
         # Create indexes for processing_history
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_processed_at ON processing_history(processed_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_podcast_episode ON processing_history(podcast_id, episode_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_history_podcast_episode_status ON processing_history(podcast_id, episode_id, status)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_history_episode_podcast ON processing_history(episode_id, podcast_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_status ON processing_history(status)")
 
         conn.execute(
@@ -163,6 +204,24 @@ class SchemaMixin:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_addressing_log_podcast "
             "ON addressing_log(podcast_slug)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_feed_subscriber_keys_podcast "
+            "ON feed_subscriber_keys(podcast_id, revoked_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_provider_spend_provider_day "
+            "ON provider_spend_reservations(provider, created_at, status)"
+        )
+        conn.execute("DROP INDEX IF EXISTS idx_upload_reservations_active_target")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_upload_reservations_active_target "
+            "ON upload_reservations(podcast_id, scope, target_key) "
+            "WHERE state IN ('reserved', 'prepared', 'publishing')"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_upload_reservations_owner "
+            "ON upload_reservations(owner_pid, owner_pid_start, state)"
         )
 
         conn.commit()
@@ -410,6 +469,7 @@ class SchemaMixin:
             # Per-feed retention override; NULL = follow the global
             # retention_days setting, 0 = archive (never delete), N = N days.
             ('retention_days_override', 'INTEGER'),
+            ('deletion_requested_at', 'TEXT'),
             # Per-feed pre-cut original audio override; NULL = follow the
             # global keep_original_audio setting, 0 = off, 1 = on.
             ('keep_original_audio_override', 'INTEGER'),
@@ -425,6 +485,11 @@ class SchemaMixin:
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
+
+        if self._table_exists(conn, 'episodes'):
+            episode_cols = self._get_table_columns(conn, 'episodes')
+            self._add_column_if_missing(
+                conn, 'episodes', 'deletion_requested_at', 'TEXT', episode_cols)
 
         # -- audio_cue_templates table columns --
         act_cols = self._get_table_columns(conn, 'audio_cue_templates')
@@ -443,11 +508,65 @@ class SchemaMixin:
         # backfill).
         pcorr_cols = self._get_table_columns(conn, 'pattern_corrections')
         pcorr_migrations = [
+            ('podcast_id', 'INTEGER REFERENCES podcasts(id) ON DELETE SET NULL'),
             ('source_hold_reason', 'TEXT'),
             ('fp_suppressed', 'INTEGER DEFAULT 0'),
         ]
         for col, definition in pcorr_migrations:
             self._add_column_if_missing(conn, 'pattern_corrections', col, definition, pcorr_cols)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_corrections_podcast_episode "
+            "ON pattern_corrections(podcast_id, episode_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_history_episode_podcast "
+            "ON processing_history(episode_id, podcast_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_history_podcast_episode_status "
+            "ON processing_history(podcast_id, episode_id, status)"
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_processing_runs_active_episode "
+            "ON processing_runs(podcast_id, episode_id) "
+            "WHERE state IN ('running', 'cancel_requested')"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_processing_runs_owner "
+            "ON processing_runs(owner_pid, owner_pid_start) "
+            "WHERE state IN ('running', 'cancel_requested')"
+        )
+        upload_cols = self._get_table_columns(conn, 'upload_reservations')
+        self._add_column_if_missing(
+            conn, 'upload_reservations', 'backup_name', 'TEXT', upload_cols)
+        self._add_column_if_missing(
+            conn, 'upload_reservations', 'backup_target_name', 'TEXT', upload_cols)
+        self._add_column_if_missing(
+            conn, 'upload_reservations', 'recovery_state', 'TEXT', upload_cols)
+        provider_cols = self._get_table_columns(conn, 'provider_spend_reservations')
+        self._add_column_if_missing(
+            conn, 'provider_spend_reservations', 'run_id', 'TEXT', provider_cols)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_provider_spend_run "
+            "ON provider_spend_reservations(run_id, status)"
+        )
+        conn.commit()
+        marker = 'scope_pattern_corrections_podcast_once'
+        if (self._table_exists(conn, 'episodes')
+                and not conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)
+        ).fetchone()):
+            conn.execute(
+                "UPDATE pattern_corrections SET podcast_id = ("
+                "SELECT MIN(e.podcast_id) FROM episodes e "
+                "WHERE e.episode_id = pattern_corrections.episode_id "
+                "GROUP BY e.episode_id HAVING COUNT(*) = 1) "
+                "WHERE podcast_id IS NULL AND episode_id IS NOT NULL "
+                "AND (SELECT COUNT(*) FROM episodes e "
+                "WHERE e.episode_id = pattern_corrections.episode_id) = 1"
+            )
+            conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (marker,))
+            conn.commit()
 
         # 2.0.19 -> 2.0.20: convert only_expose_processed_episodes from
         # INTEGER DEFAULT 0 to plain nullable INTEGER, treating the previous
@@ -890,7 +1009,8 @@ class SchemaMixin:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_status ON auto_process_queue(status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_podcast_episode ON auto_process_queue(podcast_id, episode_id)")
+            conn.execute("DROP INDEX IF EXISTS idx_queue_podcast_episode")
+            conn.execute("DROP INDEX IF EXISTS idx_episode_details_episode_id")
             conn.commit()
             if fresh:
                 logger.info("Migration: Created auto_process_queue table")
@@ -981,6 +1101,34 @@ class SchemaMixin:
                 logger.info("Migration: Created FTS5 search_index table")
         except Exception as e:
             logger.debug(f"FTS5 search_index creation (may already exist): {e}")
+
+        search_sources = (
+            'podcasts', 'episodes', 'episode_details', 'ad_patterns', 'known_sponsors')
+        if all(self._table_exists(conn, table) for table in search_sources):
+            installed = {row['name'] for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'trigger' "  # noqa: S608
+                f"AND name IN ({','.join('?' for _ in _SEARCH_CHANGE_TRIGGER_NAMES)})",
+                _SEARCH_CHANGE_TRIGGER_NAMES,
+            ).fetchall()}
+            marker_exists = conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE name = ?",
+                (_SEARCH_CHANGE_TRIGGER_MARKER,),
+            ).fetchone()
+            if not marker_exists or installed != set(_SEARCH_CHANGE_TRIGGER_NAMES):
+                conn.execute('BEGIN IMMEDIATE')
+                conn.execute(SEARCH_CHANGE_JOURNAL_DDL)
+                self._execute_search_change_trigger_ddl(
+                    conn, replace=not marker_exists)
+                conn.execute(
+                    "INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)",
+                    (_SEARCH_CHANGE_TRIGGER_MARKER,),
+                )
+                conn.commit()
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_episodes_podcast_title_published "
+                "ON episodes(podcast_id, title, published_at)"
+            )
+            conn.commit()
 
         # Auto-populate search index if empty
         search_index_freshly_populated = False
@@ -3543,6 +3691,8 @@ class SchemaMixin:
         try:
             conn.execute("PRAGMA foreign_keys = OFF")
 
+            self._drop_search_change_triggers(conn)
+
             # Drop the now-stale text-sponsor index before rebuilding the table
             conn.execute("DROP INDEX IF EXISTS idx_patterns_sponsor")
 
@@ -3600,6 +3750,7 @@ class SchemaMixin:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     pattern_id INTEGER,
                     episode_id TEXT,
+                    podcast_id INTEGER REFERENCES podcasts(id) ON DELETE SET NULL,
                     podcast_title TEXT,
                     episode_title TEXT,
                     correction_type TEXT NOT NULL CHECK(correction_type IN (
@@ -3610,7 +3761,9 @@ class SchemaMixin:
                     corrected_bounds TEXT,
                     text_snippet TEXT,
                     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                    sponsor_id INTEGER REFERENCES known_sponsors(id)
+                    sponsor_id INTEGER REFERENCES known_sponsors(id),
+                    source_hold_reason TEXT,
+                    fp_suppressed INTEGER DEFAULT 0
                 )
             """)
             new_pc_cols = [
@@ -3628,10 +3781,15 @@ class SchemaMixin:
                 "CREATE INDEX IF NOT EXISTS idx_corrections_type "
                 "ON pattern_corrections(correction_type)"
             )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_corrections_podcast_episode "
+                "ON pattern_corrections(podcast_id, episode_id)"
+            )
 
             # 9. Drop the backup table; we're done
             conn.execute("DROP TABLE _migration_backup_ad_patterns_sponsor")
 
+            self._execute_search_change_trigger_ddl(conn, replace=False)
             conn.commit()
             logger.info(
                 f"Sponsor FK migration: completed (migrated {snapshot_n} rows; "

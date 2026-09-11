@@ -1922,11 +1922,13 @@ class AdDetector:
         # pattern matching entirely if deps were only built at stage 3.
         self.initialize_client()
 
+        podcast_db_id = None
         if ctx is not None:
             slug = ctx.slug
             episode_id = ctx.episode_id
             podcast_name = ctx.podcast_name
             episode_title = ctx.episode_title
+            podcast_db_id = ctx.podcast_id
             # Pattern scoping inside this method uses the slug, regardless of
             # the ctx.podcast_id (which is the integer DB PK and means
             # something different to downstream reviewers).
@@ -1934,6 +1936,9 @@ class AdDetector:
             podcast_description = ctx.podcast_description
             episode_description = ctx.episode_description
             podcast_tags = ctx.podcast_tags
+        elif self.db and slug:
+            podcast_row = self.db.get_podcast_by_slug(slug)
+            podcast_db_id = podcast_row['id'] if podcast_row else None
         all_ads = []
         pattern_matched_regions = []  # Regions covered by pattern matching
         detection_stats = {
@@ -1952,7 +1957,9 @@ class AdDetector:
         false_positive_texts = []
         if not skip_patterns and self.db:
             try:
-                false_positive_regions = self.db.get_false_positive_corrections(episode_id)
+                false_positive_regions = (
+                    self.db.get_false_positive_corrections(podcast_db_id, episode_id)
+                    if podcast_db_id is not None else [])
                 if false_positive_regions:
                     logger.debug(f"[{slug}:{episode_id}] Found {len(false_positive_regions)} false positive regions to exclude")
             except Exception as e:

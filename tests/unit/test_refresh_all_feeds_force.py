@@ -134,6 +134,9 @@ class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
         rss_parser.extract_podcast_artwork_url.return_value = None
         rss_parser.extract_podping_declaration.return_value = {
             'uses_podping': None, 'hive_accounts': []}
+        db.bulk_upsert_discovered_episodes.return_value = (0, {}, {})
+        db.is_auto_process_enabled_for_podcast.return_value = False
+        db.is_only_expose_processed_for_podcast.return_value = False
         storage.load_data_json.return_value = {'feed_url': 'https://example.com/a.rss'}
 
         refresh_rss_feed('pod-a', 'https://example.com/a.rss', force=True)
@@ -145,6 +148,51 @@ class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
         self.assertTrue(etag_calls)
         self.assertIsNone(etag_calls[-1]['etag'])
         self.assertIsNone(etag_calls[-1]['last_modified_header'])
+
+    @patch('main_app.feeds.pattern_service')
+    @patch('main_app.feeds.status_service')
+    @patch('main_app.feeds.storage')
+    @patch('main_app.feeds.rss_parser')
+    @patch('main_app.feeds.db')
+    def test_failed_body_does_not_advance_validator_and_can_retry(
+        self, db, rss_parser, status_service, storage, pattern_service
+    ):
+        from main_app.feeds import refresh_rss_feed
+
+        podcast = {
+            'id': 1, 'title': 'Podcast', 'etag': '"old"',
+            'last_modified_header': None, 'artwork_cached': True,
+            'podping_checked_at': '2026-01-01T00:00:00Z',
+            'channel_metadata_at': '2026-01-01T00:00:00Z',
+        }
+        db.get_podcast_row.return_value = podcast
+        db.get_episodes.return_value = ([], 1)
+        db.get_processed_episodes_for_feed.return_value = []
+        db.bulk_upsert_discovered_episodes.side_effect = [
+            RuntimeError('database unavailable'), (0, {}, {}),
+        ]
+        db.is_only_expose_processed_for_podcast.return_value = False
+        rss_parser.fetch_feed_conditional.side_effect = [
+            (b'<rss/>', '"new"', None), (b'<rss/>', '"new"', None),
+        ]
+        parsed = MagicMock(feed={}, entries=[], bozo=False)
+        rss_parser.parse_feed.return_value = parsed
+        rss_parser.extract_episodes.return_value = []
+        db.is_auto_process_enabled_for_podcast.return_value = False
+
+        first = refresh_rss_feed('pod-a', 'https://example.com/a.rss')
+        second = refresh_rss_feed('pod-a', 'https://example.com/a.rss')
+
+        self.assertFalse(first.success)
+        self.assertTrue(second.success)
+        self.assertEqual(rss_parser.fetch_feed_conditional.call_count, 2)
+        for call in rss_parser.fetch_feed_conditional.call_args_list:
+            self.assertEqual(call.kwargs['etag'], '"old"')
+        failed_validator_writes = [
+            call for call in db.update_podcast.call_args_list
+            if call.kwargs.get('etag') == '"new"'
+        ]
+        self.assertEqual(len(failed_validator_writes), 1)
 
 
 if __name__ == '__main__':

@@ -4,6 +4,19 @@
 
 ---
 
+## Contents
+
+- [Configuration](#configuration)
+- [Experiments](#experiments)
+- [Reprocessing](#reprocessing)
+- [Community Patterns (Optional)](#community-patterns-optional)
+- [Offline Queue](#offline-queue)
+- [Rate-Limit Hold](#rate-limit-hold)
+- [Whisper Pool](#whisper-pool)
+- [Outbound Requests](#outbound-requests)
+- [Scheduled Database Backups](#scheduled-database-backups)
+- [Feed Refresh and Podping](#feed-refresh-and-podping)
+
 ## Configuration
 
 All configuration is in the web UI or REST API. No config files needed.
@@ -113,7 +126,7 @@ Defaults match what the code used before this feature, so existing installs beha
 
 #### Fallback when the provider rejects a value
 
-If the provider returns a 4xx because your tunables don't fit the model, the call is logged at WARNING and retried once with the built-in defaults. The fallback flag is keyed by `(episode_id, pass_name)`, so two episodes processing in parallel won't step on each other's flag. It clears at the start of the next pass, so your values get a fresh attempt there.
+If a provider rejects temperature, reasoning, or thinking settings, that in-flight call can retry once with a compatible fallback. A concurrent call that records the same incompatibility does not consume the retry. Reasoning exhaustion retries with reasoning disabled. Processing history stores a sanitized notice for each pass whose reasoning or thinking value was rejected. The notice includes requested and fallback values but no provider error text. The episode page shows notices from the latest completed run. A later pass tries its configured values again.
 
 #### Env-var defaults
 
@@ -156,7 +169,7 @@ You can set the Anthropic, OpenAI-compatible, OpenRouter, Ollama, and remote Whi
 
 Two things have to be in place first:
 
-1. `MINUSPOD_MASTER_PASSPHRASE` set in the container environment. PBKDF2 derives the encryption key from it, so treat it like any other production secret: back it up, keep it stable, don't commit it. To rotate, use Settings > Security > Provider Key Encryption (or `POST /api/v1/settings/providers/rotate-passphrase`). The call re-encrypts every stored key in one transaction, then you must update the env var to the new value before the next restart, or the next boot won't decrypt anything.
+1. `MINUSPOD_MASTER_PASSPHRASE` set in the container environment. PBKDF2 derives the encryption key from it, so treat it like any other production secret: back it up, keep it stable, and do not commit it. To rotate, stop every worker and run `python scripts/rotate_master_passphrase.py`. The online rotation endpoint refuses the request because sibling workers cannot safely receive a new passphrase.
 2. An admin password set in the UI, so Settings is reachable. The password gates the surface only; it isn't part of the crypto. Changing it leaves stored keys untouched.
 
 If the passphrase is missing, the key inputs collapse to a "Setup required" note, the API returns `409 provider_crypto_unavailable`, and env-var credentials keep working. GET responses never include key values, only booleans plus a `db`/`env`/`none` source marker.

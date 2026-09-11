@@ -5,8 +5,11 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import CopyButton from '../../components/CopyButton';
 import { getSettings, updateSettings, regenerateFeedKey } from '../../api/settings';
-import { regenerateAllFeeds } from '../../api/feeds';
-import { btnSecondary } from '../../components/buttonStyles';
+import {
+  createSubscriberKey, feedsQueryOptions, getSubscriberKeys, regenerateAllFeeds,
+  revokeSubscriberKey, deleteSubscriberKeyRecord,
+} from '../../api/feeds';
+import { btnPrimary, btnOutline, btnSecondary } from '../../components/buttonStyles';
 import { getErrorMessage } from '../../api/client';
 import { ConfirmModal } from '../../components/Modal';
 import { focusRing } from '../../components/fieldStyles';
@@ -48,6 +51,39 @@ function AuthenticatedFeedsSection() {
   });
 
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const { data: feedsData } = useQuery(feedsQueryOptions);
+  const feeds = feedsData?.feeds ?? [];
+  const [selectedFeed, setSelectedFeed] = useState('');
+  const [subscriberLabel, setSubscriberLabel] = useState('');
+  const [createdFeedUrl, setCreatedFeedUrl] = useState<string | null>(null);
+  const [subscriberError, setSubscriberError] = useState<string | null>(null);
+  const activeFeed = selectedFeed || feeds[0]?.slug || '';
+  const { data: subscriberKeys = [] } = useQuery({
+    queryKey: ['subscriber-keys', activeFeed],
+    queryFn: () => getSubscriberKeys(activeFeed),
+    enabled: Boolean(activeFeed),
+  });
+  const createKeyMutation = useMutation({
+    mutationFn: () => createSubscriberKey(activeFeed, subscriberLabel.trim()),
+    onSuccess: (created) => {
+      setCreatedFeedUrl(created.feedUrl);
+      setSubscriberLabel('');
+      setSubscriberError(null);
+      queryClient.invalidateQueries({ queryKey: ['subscriber-keys', activeFeed] });
+    },
+    onError: (error) => setSubscriberError(getErrorMessage(error, 'Failed to create subscriber key')),
+  });
+  const revokeKeyMutation = useMutation({
+    mutationFn: (id: string) => revokeSubscriberKey(activeFeed, id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subscriber-keys', activeFeed] }),
+    onError: (error) => setSubscriberError(getErrorMessage(error, 'Failed to revoke subscriber key')),
+  });
+  const deleteKeyMutation = useMutation({
+    mutationFn: (id: string) => deleteSubscriberKeyRecord(activeFeed, id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subscriber-keys', activeFeed] }),
+    onError: (error) => setSubscriberError(getErrorMessage(error, 'Failed to delete subscriber key record')),
+  });
+  const [keyToDelete, setKeyToDelete] = useState<string | null>(null);
 
   function handleRegenerateKey() {
     setConfirmRegenerate(true);
@@ -135,6 +171,30 @@ function AuthenticatedFeedsSection() {
             </p>
           </div>
         )}
+
+        <div className="pt-4 border-t border-border">
+          <h3 className="text-base font-semibold text-foreground mb-1">Subscriber feed URLs</h3>
+          <p className="text-sm text-muted-foreground mb-4">Create a separate feed URL for each subscriber. Revoking one URL does not affect other subscribers.</p>
+          {feeds.length === 0 ? <p className="text-sm text-muted-foreground">Add a feed before creating subscriber keys.</p> : (
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-foreground" htmlFor="subscriberFeed">Feed</label>
+              <select id="subscriberFeed" value={activeFeed} onChange={(event) => { setSelectedFeed(event.target.value); setCreatedFeedUrl(null); }} className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`}>
+                {feeds.map((feed) => <option key={feed.slug} value={feed.slug}>{feed.title}</option>)}
+              </select>
+              <label className="block text-sm font-medium text-foreground" htmlFor="subscriberLabel">Subscriber label</label>
+              <div className="flex gap-2">
+                <input id="subscriberLabel" value={subscriberLabel} maxLength={100} onChange={(event) => setSubscriberLabel(event.target.value)} placeholder="Living room" className={`min-w-0 flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`} />
+                <button type="button" onClick={() => createKeyMutation.mutate()} disabled={createKeyMutation.isPending} className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}>Create</button>
+              </div>
+              {createdFeedUrl && <div className="rounded-md border border-success/40 bg-success/10 p-3 text-sm"><p className="font-medium text-success mb-2">Copy this URL now. It will not be shown again.</p><div className="flex gap-2"><input readOnly value={createdFeedUrl} aria-label="New subscriber feed URL" className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-xs" /><CopyButton text={createdFeedUrl} label="Copy subscriber feed URL" className={`shrink-0 px-3 py-1 ${btnOutline}`} /></div></div>}
+              {subscriberError && <p className="text-sm text-destructive">{subscriberError}</p>}
+              <div className="space-y-2">
+                {subscriberKeys.map((key) => <div key={key.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-foreground">{key.label || 'Unlabeled subscriber'}</p><p className="text-xs text-muted-foreground">Created {new Date(key.created_at).toLocaleDateString()}{key.revoked_at ? ' - revoked' : ''}</p></div>{key.revoked_at ? <button type="button" onClick={() => setKeyToDelete(key.id)} disabled={deleteKeyMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Delete</button> : <button type="button" onClick={() => revokeKeyMutation.mutate(key.id)} disabled={revokeKeyMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Revoke</button>}</div>)}
+                {subscriberKeys.length === 0 && <p className="text-sm text-muted-foreground">No subscriber keys for this feed.</p>}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       {confirmRegenerate && (
         <ConfirmModal
@@ -146,6 +206,18 @@ function AuthenticatedFeedsSection() {
           onConfirm={() => { setConfirmRegenerate(false); regenerateKeyMutation.mutate(); }}
         >
           <p>Every subscribed app immediately loses access until it is re-subscribed with the new key.</p>
+        </ConfirmModal>
+      )}
+      {keyToDelete && (
+        <ConfirmModal
+          title="Delete revoked subscriber key record?"
+          confirmLabel="Delete"
+          busyLabel="Deleting..."
+          pending={deleteKeyMutation.isPending}
+          onCancel={() => setKeyToDelete(null)}
+          onConfirm={() => deleteKeyMutation.mutate(keyToDelete, { onSuccess: () => setKeyToDelete(null) })}
+        >
+          <p>This only removes the revoked key record. The URL remains invalid.</p>
         </ConfirmModal>
       )}
     </CollapsibleSection>

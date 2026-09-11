@@ -15,6 +15,8 @@ import tempfile
 
 import pytest
 
+from tests.app_bootstrap import authenticate_test_client
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='feed-cue-test-'))
 
@@ -41,11 +43,7 @@ def seeded_feed(app_client):
 
 
 def _csrf(app_client):
-    with app_client.session_transaction() as sess:
-        sess['authenticated'] = True
-    app_client.get('/api/v1/auth/status')
-    cookie = app_client.get_cookie('minuspod_csrf')
-    return {'X-CSRF-Token': cookie.value} if cookie else {}
+    return authenticate_test_client(app_client)
 
 
 # -- cueCreateFromPairsOverride --
@@ -316,11 +314,7 @@ def test_patch_template_score_threshold_rejects_below_noise_floor(app_client, _a
     from api import get_database
     from audio_analysis.cue_features import N_COEFFS, serialize_mfcc, pcm_to_int16_bytes
     db = get_database()
-    with app_client.session_transaction() as sess:
-        sess['authenticated'] = True
-    app_client.get('/api/v1/auth/status')
-    cookie = app_client.get_cookie('minuspod_csrf')
-    hdr = {'X-CSRF-Token': cookie.value} if cookie else {}
+    hdr = authenticate_test_client(app_client)
 
     rng = np.random.default_rng(77)
     mfcc = rng.standard_normal((10, N_COEFFS)).astype(np.float32)

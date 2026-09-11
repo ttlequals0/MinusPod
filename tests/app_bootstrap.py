@@ -12,10 +12,9 @@ or Storage():
     _test_data_dir = bootstrap('my_test_')
 
 Notes:
-- Mutating __defaults__ on the shared classes leaks across the pytest
-  session by design: every module using this pattern re-points the defaults
-  at its own temp dir, and none restore. Database.__new__ ignores its
-  data_dir argument, so patching __new__.__defaults__ is always harmless.
+- Once main_app is imported, later module collection reuses its data directory.
+  Resetting the Database singleton while imported modules retain the original
+  database object splits one test across two database files.
 - reset_storage=True additionally clears the Storage singleton so the next
   Storage() call constructs one rooted at the new data dir. Off by default
   because modules that never re-instantiate Storage should keep whatever
@@ -43,15 +42,23 @@ def bootstrap(prefix, secret_key='test-secret', passphrase=None,
     OPENAI_MODEL, optionally MINUSPOD_MASTER_PASSPHRASE) is set before any
     src import so modules that read env at import time see the test values.
     """
-    data_dir = tempfile.mkdtemp(prefix=prefix)
     os.environ.setdefault('SECRET_KEY', secret_key)
-    os.environ['DATA_DIR'] = data_dir
     if passphrase is not None:
         os.environ['MINUSPOD_MASTER_PASSPHRASE'] = passphrase
     if model_env is not None:
         os.environ.setdefault('OPENAI_MODEL', model_env)
     if _SRC_DIR not in sys.path:
         sys.path.insert(0, _SRC_DIR)
+
+    loaded_app = sys.modules.get('main_app')
+    loaded_db = getattr(loaded_app, 'db', None) if loaded_app else None
+    if loaded_db is not None:
+        data_dir = str(loaded_db.data_dir)
+        os.environ['DATA_DIR'] = data_dir
+        return data_dir
+
+    data_dir = tempfile.mkdtemp(prefix=prefix)
+    os.environ['DATA_DIR'] = data_dir
 
     # Imported here rather than at module top: the env vars above must be in
     # place before src modules load, and importing this helper must stay
@@ -76,3 +83,17 @@ def ensure_model_configured(db, model='test-model'):
     if not db.get_setting('claude_model'):
         db.set_setting('claude_model', model, is_default=True)
     return model
+
+
+def authenticate_test_client(client):
+    """Authenticate a Flask test client at the current session generation."""
+    from api import get_database
+    from api.auth_state import SESSION_GENERATION_KEY, current_generation
+
+    db = get_database()
+    with client.session_transaction() as session:
+        session['authenticated'] = True
+        session[SESSION_GENERATION_KEY] = current_generation(db)
+    client.get('/api/v1/auth/status')
+    cookie = client.get_cookie('minuspod_csrf')
+    return {'X-CSRF-Token': cookie.value} if cookie else {}

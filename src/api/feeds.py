@@ -19,7 +19,7 @@ from api import (
     _serialize_nullable_bool, _deserialize_nullable_bool,
     _normalize_nullable_finite_float,
 )
-from cancel import cancel_processing
+from cancel import request_cancellation, wait_for_cancellation
 from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
@@ -1463,6 +1463,57 @@ def export_opml():
     )
 
 
+@api.route('/feeds/<slug>/subscriber-keys', methods=['GET'])
+@log_request
+def list_feed_subscriber_keys(slug):
+    db = get_database()
+    if not db.get_podcast_by_slug(slug):
+        return error_response('Feed not found', 404)
+    return json_response({'keys': db.list_feed_subscriber_keys(slug)})
+
+
+@api.route('/feeds/<slug>/subscriber-keys', methods=['POST'])
+@limiter.limit('10 per hour')
+@log_request
+def create_feed_subscriber_key(slug):
+    data = request.get_json(silent=True) or {}
+    label = data.get('label', '')
+    if not isinstance(label, str) or len(label.strip()) > 100:
+        return error_response('label must be at most 100 characters', 400)
+    db = get_database()
+    try:
+        created = db.create_feed_subscriber_key(slug, label)
+    except ValueError:
+        return error_response('Feed not found', 404)
+    created['feedUrl'] = _public_feed_url(slug, created['token'])
+    return json_response(created, 201)
+
+
+@api.route('/feeds/<slug>/subscriber-keys/<key_id>', methods=['DELETE'])
+@limiter.limit('30 per hour')
+@log_request
+def revoke_feed_subscriber_key(slug, key_id):
+    if not re.fullmatch(r'[0-9a-f]{16}', key_id):
+        return error_response('Subscriber key not found', 404)
+    if not get_database().revoke_feed_subscriber_key(slug, key_id):
+        return error_response('Subscriber key not found', 404)
+    return json_response({'revoked': True})
+
+
+@api.route('/feeds/<slug>/subscriber-keys/<key_id>/record', methods=['DELETE'])
+@limiter.limit('30 per hour')
+@log_request
+def delete_revoked_feed_subscriber_key(slug, key_id):
+    if not re.fullmatch(r'[0-9a-f]{16}', key_id):
+        return error_response('Subscriber key not found', 404)
+    result = get_database().delete_revoked_feed_subscriber_key(slug, key_id)
+    if result == 'missing':
+        return error_response('Subscriber key not found', 404)
+    if result == 'active':
+        return error_response('Revoke the subscriber key before deleting its record', 409)
+    return json_response({'deleted': True})
+
+
 @api.route('/feeds/<slug>', methods=['GET'])
 @log_request
 def get_feed(slug):
@@ -1904,27 +1955,72 @@ def delete_feed(slug):
         return error_response('Feed not found', 404)
 
     try:
-        # Cancel/clean any in-flight or queued processing for this feed before
-        # deleting, so we don't orphan the queue lock, cancel-event registry, or
-        # in-memory status display (issue #525). The auto_process_queue DB rows
-        # cascade-delete with the podcast, but the shared queue lock and the
-        # in-memory display state must be cleared explicitly.
+        # Persist intent before asking owners to stop. Acquisition checks this
+        # marker inside its admission transaction, closing the delete race.
+        conn = db.get_connection()
+        conn.execute('BEGIN IMMEDIATE')
+        conn.execute(
+            "UPDATE podcasts SET deletion_requested_at = "
+            "COALESCE(deletion_requested_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) "
+            "WHERE id = ?", (podcast['id'],)
+        )
+        conn.commit()
+
         status_service = get_status_service()
         queue = ProcessingQueue()
+        active_run_ids = []
         for current_slug, current_episode_id in queue.get_current():
             if current_slug != slug:
                 continue
-            # Signal the running thread to abort; the running slot is released by the
-            # worker itself on exit. Force-release only as a fallback. Mirrors cancel_episode_processing.
-            signalled = cancel_processing(slug, current_episode_id)
-            if not signalled:
-                queue.release_if_processing(slug, current_episode_id)
-            status_service.clear_if_matches(slug, current_episode_id)
+            run_id = request_cancellation(slug, current_episode_id)
+            if not run_id:
+                return error_response(
+                    'Could not record cancellation; feed was not deleted', 503)
+            active_run_ids.append(run_id)
+
+        deadline = time.monotonic() + 2.0
+        for run_id in active_run_ids:
+            if not wait_for_cancellation(
+                    run_id, timeout=max(0.0, deadline - time.monotonic())):
+                return json_response({
+                    'message': 'Feed deletion is waiting for processing to stop',
+                    'slug': slug,
+                }, 202)
+
+        if any(current_slug == slug for current_slug, _ in queue.get_current()):
+            return json_response({
+                'message': 'Feed deletion is waiting for processing to stop',
+                'slug': slug,
+            }, 202)
+        if db.active_upload_reservations(podcast['id']):
+            return json_response({
+                'message': 'Feed deletion is waiting for uploads to finish',
+                'slug': slug,
+            }, 202)
         status_service.remove_feed_from_queue(slug)      # drop queued display entries for this feed
         status_service.remove_feed_refresh(slug)         # drop any in-progress refresh badge
 
-        # Delete from database (cascade deletes episodes)
-        db.delete_podcast(slug)
+        # Serialize the last active-run check with acquisition. A later acquire
+        # sees no podcast and fails closed.
+        conn = db.get_connection()
+        conn.execute('BEGIN IMMEDIATE')
+        active = conn.execute(
+            "SELECT 1 FROM processing_runs WHERE podcast_id = ? "
+            "AND state IN ('running', 'cancel_requested') UNION ALL "
+            "SELECT 1 FROM upload_reservations WHERE podcast_id = ? "
+            "AND state IN ('reserved', 'prepared', 'publishing') LIMIT 1",
+            (podcast['id'], podcast['id']),
+        ).fetchone()
+        if active:
+            conn.rollback()
+            return json_response({
+                'message': 'Feed deletion is waiting for processing to stop',
+                'slug': slug,
+            }, 202)
+        if not db.delete_podcast(slug, commit=False):
+            conn.rollback()
+            return error_response('Feed not found', 404)
+        conn.commit()
 
         # Invalidate feed cache since we deleted a feed
         from main_app.feeds import invalidate_feed_cache
@@ -1965,6 +2061,7 @@ def delete_feed(slug):
         return json_response({'message': 'Feed deleted', 'slug': slug})
 
     except Exception:
+        db.rollback_open_transaction()
         logger.exception(f"Failed to delete feed {slug}")
         return error_response('Failed to delete feed', 500)
 
@@ -2003,7 +2100,10 @@ def refresh_feed(slug):
 
     try:
         from main_app.feeds import refresh_rss_feed
-        refresh_rss_feed(slug, podcast['source_url'], force=force)
+        outcome = refresh_rss_feed(slug, podcast['source_url'], force=force)
+        if not outcome.success:
+            status = 502 if outcome.status in ('fetch_failed', 'parse_failed') else 500
+            return error_response(outcome.error or 'Feed refresh failed', status)
 
         # Get updated info
         podcast = db.get_podcast_by_slug(slug)
@@ -2012,7 +2112,9 @@ def refresh_feed(slug):
         logger.info(f"Refreshed feed: {slug}")
         return json_response({
             'slug': slug,
-            'message': 'Feed refreshed',
+            'message': ('Refresh already completed recently'
+                        if outcome.status == 'coalesced' else 'Feed refreshed'),
+            'outcome': outcome.to_dict(),
             'episodeCount': total,
             'lastRefreshed': podcast.get('last_checked_at'),
             'lastPodpingAt': podcast.get('last_podping_at')
@@ -2041,15 +2143,17 @@ def refresh_all_feeds():
         force = bool(data and data.get('force'))
 
         from main_app.feeds import refresh_all_feeds as do_refresh
-        do_refresh(force=force)
+        result = do_refresh(force=force)
 
         podcasts = db.get_all_podcasts()
 
         logger.info(f"Refreshed all feeds (force={force})")
         return json_response({
-            'message': 'All feeds refreshed',
-            'feedCount': len(podcasts)
-        })
+            'message': ('All feeds refreshed' if result['success']
+                        else 'Feed refresh completed with failures'),
+            'feedCount': len(podcasts),
+            **result,
+        }, 200 if result['success'] else 207)
 
     except Exception:
         logger.exception("Failed to refresh all feeds")

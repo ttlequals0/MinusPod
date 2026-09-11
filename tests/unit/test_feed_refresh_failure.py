@@ -121,7 +121,7 @@ class TestFailureClassification:
                 'id': 1, 'etag': None, 'last_modified_header': None,
                 'artwork_cached': True,
             }
-            db.bulk_upsert_discovered_episodes.return_value = 0
+            db.bulk_upsert_discovered_episodes.return_value = (0, {}, {})
             db.is_auto_process_enabled_for_podcast.return_value = False
             rss_parser.fetch_feed_conditional.return_value = (
                 b'<html>error page</html>', None, None,
@@ -149,7 +149,7 @@ class TestFailureClassification:
         result, rec_fail, rec_ok = self._run_refresh(
             parse_result=self._parsed(feed={}, entries=[], bozo=True))
 
-        assert result is False
+        assert result.success is False
         rec_fail.assert_called_once()
         rec_ok.assert_not_called()
 
@@ -159,7 +159,7 @@ class TestFailureClassification:
         result, rec_fail, rec_ok = self._run_refresh(
             parse_result=self._parsed(feed={}, entries=[], bozo=False))
 
-        assert result is True
+        assert result.success is True
         rec_fail.assert_not_called()
         rec_ok.assert_called_once()
 
@@ -167,7 +167,7 @@ class TestFailureClassification:
         result, rec_fail, rec_ok = self._run_refresh(
             parse_raises=RuntimeError('database is locked'))
 
-        assert result is False
+        assert result.success is False
         rec_fail.assert_not_called()
         rec_ok.assert_not_called()
 

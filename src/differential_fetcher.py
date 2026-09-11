@@ -24,6 +24,7 @@ from user_agent import download_user_agent
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get, stream_to_file_capped
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 
 # Realistic podcast-client UA strings for the refetch pool.
 REFETCH_USER_AGENTS = (
@@ -107,7 +108,7 @@ def _decode_pcm(audio_path: str, work_dir: str, tag: str) -> np.ndarray:
     pcm_path = os.path.join(work_dir, f'diff_{tag}.pcm')
     try:
         tracked_run(
-            ['ffmpeg', '-y', '-i', audio_path, '-ac', '1', '-ar', str(PCM_RATE),
+            ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y', '-i', audio_path, '-ac', '1', '-ar', str(PCM_RATE),
              '-f', 's16le', '-acodec', 'pcm_s16le', pcm_path],
             check=True, capture_output=True, timeout=DECODE_TIMEOUT_S)
         data = np.fromfile(pcm_path, dtype=np.int16).astype(np.float32) / 32768.0

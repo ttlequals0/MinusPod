@@ -242,11 +242,11 @@ class TestNotFound:
         assert resp.status_code in (400, 404)
 
     def test_the_route_is_not_auth_exempt(self):
-        from api import AUTH_EXEMPT_PATHS, PODCAST_APP_EXEMPT_PATTERNS
+        from api import AUTH_EXEMPT_PATHS, _is_public_artwork_request
 
         path = f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/runs/1/log'
         assert path not in AUTH_EXEMPT_PATHS
-        assert not any(p.match(path) for p in PODCAST_APP_EXEMPT_PATTERNS)
+        assert not _is_public_artwork_request(path, 'GET')
 
 
 class TestFeedDeletion:

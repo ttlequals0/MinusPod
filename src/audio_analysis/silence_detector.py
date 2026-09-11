@@ -11,7 +11,7 @@ import re
 import subprocess
 
 from utils.audio import get_audio_duration
-from utils.ffmpeg_run import ffmpeg_timeout, decode_stderr
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout, decode_stderr
 from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger('podcast.audio_analysis.silence')
@@ -45,7 +45,7 @@ class SilenceDetector:
             return []
 
         cmd = [
-            'ffmpeg', '-v', 'info', '-i', audio_path,
+            'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'info', '-i', audio_path,
             '-af', f'silencedetect=noise={self.noise_db}dB:d={self.min_silence_s}',
             '-f', 'null', '-',
         ]

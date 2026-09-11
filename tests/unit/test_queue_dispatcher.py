@@ -1,5 +1,5 @@
 """Dispatcher keeps up to max_episodes runs in flight; API workers enqueue while the pool is active."""
-import os
+import signal
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -10,8 +10,9 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('dispatcher_test_')
 from main_app import background, db
+import main_app
 from main_app.processing import start_background_processing
-from processing_queue import ProcessingQueue
+from processing_queue import ProcessingQueue, set_processing_paused
 import whisper_pool
 from whisper_pool import WhisperPool
 
@@ -27,9 +28,14 @@ def _pool(enabled, max_episodes):
 @pytest.fixture
 def feed():
     db.create_podcast(SLUG, 'https://example.com/feed.xml', title='Dispatch')
+    set_processing_paused(False, db)
     ProcessingQueue().clear_all()
+    set_processing_paused(False, db)
     yield
     ProcessingQueue().clear_all()
+    for job in main_app.status_service.get_status().jobs:
+        if job.slug == SLUG:
+            main_app.status_service.complete_job(job.slug, job.episode_id)
     db.delete_podcast(SLUG)
     db.get_connection().execute("DELETE FROM auto_process_queue")
     db.get_connection().commit()
@@ -52,11 +58,12 @@ def _run_dispatcher(monkeypatch, pool_factory, sleep=0.2, on_claim=None,
     """
     monkeypatch.setattr(background, 'get_pool', pool_factory)
     registry = ProcessingQueue()
+    run_ids = {}
 
     def fake_start(slug, episode_id, *a, **k):
         # The dispatcher bounds itself on the registry, so a fake start has to
         # take a real slot the way start_background_processing does.
-        registry.acquire(slug, episode_id, limit=99)
+        run_ids[(slug, episode_id)] = registry.acquire(slug, episode_id, limit=99)
         return True, 'started'
 
     monkeypatch.setattr('main_app.processing.start_background_processing', fake_start)
@@ -73,7 +80,7 @@ def _run_dispatcher(monkeypatch, pool_factory, sleep=0.2, on_claim=None,
         time.sleep(sleep)
         with lock:
             running['n'] -= 1
-        ProcessingQueue().release(slug, episode_id)
+        ProcessingQueue().release(run_ids.pop((slug, episode_id)))
         db.close_claimed_queue_row(queue_id, 'completed')
 
     monkeypatch.setattr(background, '_wait_for_claimed_episode', fake_wait)
@@ -175,6 +182,18 @@ def test_start_outside_leader_enqueues_only_while_active(feed, monkeypatch):
     assert (started, reason) == (False, 'queue_only')
 
 
+def test_durable_pause_blocks_new_processing(feed, monkeypatch):
+    set_processing_paused(True, db)
+    monkeypatch.setattr('main_app.processing.get_pool', lambda: _pool(False, 1))
+    with patch('main_app.processing.threading.Thread') as thread:
+        started, reason = start_background_processing(
+            SLUG, 'ep-paused', 'https://example.com/e.mp3',
+            'E', 'P', None, None)
+    assert (started, reason) == (False, 'processing_paused')
+    thread.assert_not_called()
+    assert ProcessingQueue().is_processing(SLUG, 'ep-paused') is False
+
+
 def test_start_outside_leader_runs_when_inactive(feed, monkeypatch):
     monkeypatch.setattr('main_app.processing.get_pool', lambda: _pool(False, 2))
     monkeypatch.setattr(whisper_pool, '_is_leader', False)
@@ -183,17 +202,19 @@ def test_start_outside_leader_runs_when_inactive(feed, monkeypatch):
     assert (started, reason) == (True, 'started')
     thread.assert_called_once()
     from processing_queue import ProcessingQueue
-    ProcessingQueue().release(SLUG, 'ep-play')
+    ProcessingQueue().release(ProcessingQueue().active_run_id(SLUG, 'ep-play'))
 
 
 def test_dispatcher_leaves_room_for_a_run_it_did_not_start(feed, monkeypatch):
     """A Play or Reprocess on the leader holds a registry slot the dispatcher
     never saw, so the bound has to come from the registry, not its own set."""
     _queue(3)
-    ProcessingQueue()._seed_slot('other-feed', 'ep-play',
-                                 started_at=time.time(), pid=os.getpid())
+    db.create_podcast('other-feed', 'https://example.com/other.xml', title='Other')
+    other_run = ProcessingQueue().acquire('other-feed', 'ep-play', limit=99)
     peak = _run_dispatcher(monkeypatch, lambda: _pool(True, 2), sleep=0.1)
     assert peak == 1
+    ProcessingQueue().release(other_run)
+    db.delete_podcast('other-feed')
 
 
 def test_orphan_sweep_leaves_a_row_whose_slot_is_live(feed):
@@ -240,3 +261,22 @@ def test_a_thread_that_will_not_start_frees_its_slot(feed, monkeypatch):
             SLUG, 'ep-nothread', 'https://example.com/e.mp3', 'E', 'P', None, None)
     assert (started, reason) == (False, 'queue_busy')
     assert ProcessingQueue().is_processing(SLUG, 'ep-nothread') is False
+
+
+def test_graceful_shutdown_stops_admission_and_drains(monkeypatch):
+    main_app.shutdown_event.clear()
+    main_app._shutdown_started = False
+    main_app._previous_signal_handlers = {}
+    monkeypatch.setenv('MINUSPOD_SHUTDOWN_DRAIN_SECONDS', '1')
+    owned = iter([['run-1'], []])
+    monkeypatch.setattr(
+        main_app.processing_queue, 'owned_active_run_ids', lambda: next(owned, []))
+
+    with patch.object(main_app, 'terminate_all') as terminate_all, \
+            pytest.raises(SystemExit):
+        main_app.graceful_shutdown(signal.SIGTERM, None)
+
+    assert main_app.shutdown_event.is_set()
+    terminate_all.assert_called_once_with(timeout=5.0)
+    main_app.shutdown_event.clear()
+    main_app._shutdown_started = False

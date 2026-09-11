@@ -12,9 +12,10 @@ import json
 
 def _row(slug='feed-a', title='Feed A', episode_id='ep-1',
          episode_title='Ep 1', published='2026-07-01T00:00:00Z',
-         original_file='orig.mp3', markers=None):
+         original_file='orig.mp3', markers=None, podcast_id=1):
     return {
         'feed_slug': slug, 'feed_title': title,
+        'podcast_id': podcast_id,
         'episode_id': episode_id, 'episode_title': episode_title,
         'published_at': published, 'created_at': '2026-06-30T00:00:00Z',
         'original_file': original_file,
@@ -49,7 +50,7 @@ class TestFlatten:
 
     def test_resolution_matches_corrections_within_tolerance(self):
         corrections = [
-            {'episode_id': 'ep-1', 'correction_type': 'confirm',
+            {'podcast_id': 1, 'episode_id': 'ep-1', 'correction_type': 'confirm',
              'start': 100.4, 'end': 130.3},
         ]
         items = flatten_detections([_row(markers=[REJECTED])], corrections)
@@ -57,7 +58,7 @@ class TestFlatten:
 
     def test_resolution_outside_tolerance_is_unresolved(self):
         corrections = [
-            {'episode_id': 'ep-1', 'correction_type': 'confirm',
+            {'podcast_id': 1, 'episode_id': 'ep-1', 'correction_type': 'confirm',
              'start': 101.0, 'end': 130.0},
         ]
         items = flatten_detections([_row(markers=[REJECTED])], corrections)
@@ -65,7 +66,7 @@ class TestFlatten:
 
     def test_resolution_requires_same_episode(self):
         corrections = [
-            {'episode_id': 'other-ep', 'correction_type': 'false_positive',
+            {'podcast_id': 1, 'episode_id': 'other-ep', 'correction_type': 'false_positive',
              'start': 100.0, 'end': 130.0},
         ]
         items = flatten_detections([_row(markers=[REJECTED])], corrections)
@@ -73,7 +74,7 @@ class TestFlatten:
 
     def test_false_positive_maps_to_dismissed(self):
         corrections = [
-            {'episode_id': 'ep-1', 'correction_type': 'false_positive',
+            {'podcast_id': 1, 'episode_id': 'ep-1', 'correction_type': 'false_positive',
              'start': 100.0, 'end': 130.0},
         ]
         items = flatten_detections([_row(markers=[REJECTED])], corrections)
@@ -81,7 +82,7 @@ class TestFlatten:
 
     def test_boundary_adjustment_maps_to_confirmed(self):
         corrections = [
-            {'episode_id': 'ep-1', 'correction_type': 'boundary_adjustment',
+            {'podcast_id': 1, 'episode_id': 'ep-1', 'correction_type': 'boundary_adjustment',
              'start': 100.0, 'end': 130.0},
         ]
         items = flatten_detections([_row(markers=[REJECTED])], corrections)
@@ -89,8 +90,8 @@ class TestFlatten:
 
     def test_correction_missing_bounds_is_ignored(self):
         corrections = [
-            {'episode_id': 'ep-1', 'correction_type': 'confirm'},
-            {'episode_id': 'ep-1', 'correction_type': 'confirm',
+            {'podcast_id': 1, 'episode_id': 'ep-1', 'correction_type': 'confirm'},
+            {'podcast_id': 1, 'episode_id': 'ep-1', 'correction_type': 'confirm',
              'start': None, 'end': None},
         ]
         items = flatten_detections([_row(markers=[REJECTED])], corrections)
@@ -156,7 +157,7 @@ class TestFlatten:
 class TestSummarize:
     def test_counts_by_status_and_resolution(self):
         corrections = [
-            {'episode_id': 'ep-1', 'correction_type': 'false_positive',
+            {'podcast_id': 1, 'episode_id': 'ep-1', 'correction_type': 'false_positive',
              'start': 100.0, 'end': 130.0},
         ]
         items = flatten_detections(
@@ -189,7 +190,7 @@ class TestFilter:
         assert {i['status'] for i in out} == {'rejected', 'pending'}
 
     def test_needs_review_excludes_resolved(self):
-        corrections = [{'episode_id': 'ep-1', 'correction_type': 'confirm',
+        corrections = [{'podcast_id': 1, 'episode_id': 'ep-1', 'correction_type': 'confirm',
                         'start': 100.0, 'end': 130.0}]
         items = flatten_detections(
             [_row(markers=[REJECTED, HELD])], corrections)
