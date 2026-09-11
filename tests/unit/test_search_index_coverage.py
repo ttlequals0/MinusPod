@@ -13,7 +13,22 @@ _test_data_dir = bootstrap('search_index_coverage_')
 
 import database
 
-db = database.Database()
+db = None
+
+
+@pytest.fixture(scope='module', autouse=True)
+def isolated_search_database(tmp_path_factory):
+    global db
+    previous = database.Database._instance
+    database.Database._instance = None
+    try:
+        db = database.Database(data_dir=str(tmp_path_factory.mktemp('search-index-coverage')))
+    finally:
+        database.Database._instance = previous
+    yield
+    connection = getattr(db._local, 'connection', None)
+    if connection is not None:
+        connection.close()
 
 _counter = [0]
 
