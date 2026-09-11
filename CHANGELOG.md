@@ -28,6 +28,7 @@ release notes.
 - Corrections are scoped to their podcast. Legacy corrections with no scope can be assigned from the unresolved corrections panel.
 - Status polling uses versioned, bounded requests that cannot apply an older response over a newer one. The authenticated SSE compatibility endpoint has bounded clients and a 30-second lifetime.
 - The frontend lazy-loads route pages, tests unexpected network access, and runs Vitest in CI. Dependency updates include the current Vitest, ESLint, Swagger UI, Testing Library user-event, and Redis client releases.
+- CPU image builds store independent per-architecture Trivy vulnerability and secret scan reports.
 
 ### Fixed
 
