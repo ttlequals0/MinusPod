@@ -93,8 +93,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # carries a stream of unfixed kernel-header CVEs the runtime never touches.
 RUN apt-get purge -y linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
     && apt-get autoremove -y \
+    && python -m pip uninstall -y pip \
     && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/* \
-    && find /opt/venv -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+    && find /opt/venv -type d -name '__pycache__' -exec rm -rf {} +
 
 # Set cache directories to /app/data/.cache (works with volume mounts and non-root users)
 # HOME must point to writable location (/app/data is the volume mount)

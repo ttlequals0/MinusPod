@@ -31,7 +31,7 @@ release notes.
 
 ### Fixed
 
-- Container images update pip and setuptools to versions that fix the reported package-installation vulnerabilities.
+- Container images update setuptools and remove pip after installing application dependencies, excluding pip's vulnerable bundled packages from runtime.
 - Changing or removing the application password now revokes every older signed session across workers. Login and password replacement use atomic password-hash and session-generation checks, closing concurrent stale-login and first-password races.
 - Provider encryption salt initialization is atomic across workers, and passphrase rotation can no longer leave sibling workers using an old cached key.
 - Encrypted backups carry their own KDF salt, stream through private temporary files, and expose no plaintext unless AES-GCM authentication succeeds. Restore refuses existing targets and stale SQLite sidecars.
