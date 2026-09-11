@@ -34,6 +34,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - Optional Podping listener refreshes a feed within seconds of the host announcing a new episode, on top of scheduled polling
 - OPML import/export, and an optional cover-art badge that marks the re-feed
 - Local feeds: build a feed from your own audio files instead of an upstream RSS feed, with single or bulk episode upload, a dry-run import preview, and the same ad-removal pipeline as a subscribed feed
+- Optional Recents feed combines processed episodes published on or after its creation date across subscribed and local feeds, including feeds added later
 
 **Interface and ops**
 - Web UI with a waveform ad editor, plus feed, episode, pattern, sponsor, history, and stats views
