@@ -17,6 +17,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
+from database import Database
 from utils.atomic_json import write_json_atomic
 from utils.paths import resolve_data_dir
 
@@ -31,6 +32,21 @@ from processing_timeouts import get_soft_timeout as _get_soft_timeout
 logger = logging.getLogger('podcast.status')
 
 
+def _episode_is_processing(slug: str, episode_id: str) -> bool:
+    try:
+        row = Database().get_connection().execute(
+            "SELECT 1 FROM processing_runs r JOIN podcasts p ON p.id = r.podcast_id "
+            "WHERE p.slug = ? AND r.episode_id = ? "
+            "AND r.state IN ('running', 'cancel_requested')",
+            (slug, episode_id),
+        ).fetchone()
+        return row is not None
+    except Exception as exc:
+        logger.warning("Could not verify processing state for %s:%s: %s",
+                       slug, episode_id, exc)
+        return True
+
+
 @dataclass
 class ProcessingJob:
     """Represents a currently processing episode."""
@@ -41,6 +57,7 @@ class ProcessingJob:
     started_at: float
     stage: str = "downloading"  # downloading, transcribing, detecting, processing, complete
     progress: float = 0.0  # 0-100
+    run_id: str | None = None
 
 
 @dataclass
@@ -60,6 +77,7 @@ class SystemStatus:
     queued_episodes: list[dict] = field(default_factory=list)
     feed_refreshes: list[FeedRefresh] = field(default_factory=list)
     last_updated: float = field(default_factory=time.time)
+    revision: int = 0
 
     @property
     def current_job(self) -> ProcessingJob | None:
@@ -178,8 +196,16 @@ class StatusService:
         soft_limit = _get_soft_timeout()
 
         jobs = self._jobs(status)
-        for key in [k for k, job in jobs.items()
-                    if job.get('started_at') and now - job['started_at'] > soft_limit]:
+        stale_keys = []
+        for key, job in jobs.items():
+            if not job.get('started_at') or now - job['started_at'] <= soft_limit:
+                continue
+            # Age is only suspicion. A durable live owner keeps both capacity
+            # and display state; database failures fail closed in is_processing.
+            if _episode_is_processing(job.get('slug'), job.get('episode_id')):
+                continue
+            stale_keys.append(key)
+        for key in stale_keys:
             job = jobs.pop(key)
             elapsed = now - job['started_at']
             if announce:
@@ -221,6 +247,7 @@ class StatusService:
 
     def _write_status_file(self, status: dict):
         """Write status to the shared file. Best effort, never raises."""
+        status['revision'] = int(status.get('revision', 0)) + 1
         write_json_atomic(self.status_file, status)
 
     def get_server_start_time(self) -> float | None:
@@ -249,10 +276,12 @@ class StatusService:
             'jobs': {},
             'queued_episodes': [],
             'feed_refreshes': {},
-            'last_updated': time.time()
+            'last_updated': time.time(),
+            'revision': 0,
         }
 
-    def start_job(self, slug: str, episode_id: str, title: str, podcast_name: str):
+    def start_job(self, slug: str, episode_id: str, title: str, podcast_name: str,
+                  run_id: str = None):
         """Mark an episode as starting processing."""
         with self._status_transaction():
             status = self._load()
@@ -265,6 +294,8 @@ class StatusService:
                 'stage': 'downloading',
                 'progress': 0.0
             }
+            if run_id:
+                self._jobs(status)[self._key(slug, episode_id)]['run_id'] = run_id
             # Remove from queue if it was queued
             status['queued_episodes'] = [
                 e for e in status.get('queued_episodes', [])
@@ -274,12 +305,13 @@ class StatusService:
             self._write_status_file(status)
         self._notify_subscribers()
 
-    def update_job_stage(self, slug: str, episode_id: str, stage: str, progress: float = None):
+    def update_job_stage(self, slug: str, episode_id: str, stage: str,
+                         progress: float = None, run_id: str = None):
         """Update one job's stage and optional progress."""
         with self._status_transaction():
             status = self._load()
             job = self._jobs(status).get(self._key(slug, episode_id))
-            if job:
+            if job and (run_id is None or job.get('run_id') == run_id):
                 job['stage'] = stage
                 if progress is not None:
                     job['progress'] = progress
@@ -287,24 +319,29 @@ class StatusService:
                 self._write_status_file(status)
         self._notify_subscribers()
 
-    def _clear_job(self, slug: str, episode_id: str):
+    def _clear_job(self, slug: str, episode_id: str, run_id: str = None):
         """Remove one job from status tracking."""
         with self._status_transaction():
             status = self._load()
-            self._jobs(status).pop(self._key(slug, episode_id), None)
+            jobs = self._jobs(status)
+            job = jobs.get(self._key(slug, episode_id))
+            if run_id is not None and (not job or job.get('run_id') != run_id):
+                return
+            jobs.pop(self._key(slug, episode_id), None)
             status['last_updated'] = time.time()
             self._write_status_file(status)
         self._notify_subscribers()
 
-    def complete_job(self, slug: str, episode_id: str):
+    def complete_job(self, slug: str, episode_id: str, run_id: str = None):
         """Mark a job as complete."""
-        self._clear_job(slug, episode_id)
+        self._clear_job(slug, episode_id, run_id)
 
-    def fail_job(self, slug: str, episode_id: str):
+    def fail_job(self, slug: str, episode_id: str, run_id: str = None):
         """Mark a job as failed."""
-        self._clear_job(slug, episode_id)
+        self._clear_job(slug, episode_id, run_id)
 
-    def clear_if_matches(self, slug: str, episode_id: str) -> bool:
+    def clear_if_matches(self, slug: str, episode_id: str,
+                         run_id: str = None) -> bool:
         """Remove the job for (slug, episode_id) if present.
 
         Used by ProcessingQueue orphan recovery so the UI does not show a
@@ -312,7 +349,11 @@ class StatusService:
         """
         with self._status_transaction():
             status = self._load()
-            job = self._jobs(status).pop(self._key(slug, episode_id), None)
+            jobs = self._jobs(status)
+            job = jobs.get(self._key(slug, episode_id))
+            if run_id is not None and (not job or job.get('run_id') != run_id):
+                return False
+            job = jobs.pop(self._key(slug, episode_id), None)
             if not job:
                 return False
             status['last_updated'] = time.time()
@@ -440,7 +481,8 @@ class StatusService:
                     podcast_name=job['podcast_name'],
                     started_at=job['started_at'],
                     stage=job.get('stage', 'downloading'),
-                    progress=job.get('progress', 0.0)
+                    progress=job.get('progress', 0.0),
+                    run_id=job.get('run_id'),
                 )
                 for job in sorted(self._jobs(status).values(), key=lambda j: j['started_at'])
             ]
@@ -459,7 +501,8 @@ class StatusService:
                 queue_length=len(status.get('queued_episodes', [])),
                 queued_episodes=status.get('queued_episodes', []).copy(),
                 feed_refreshes=feed_refreshes,
-                last_updated=status.get('last_updated', time.time())
+                last_updated=status.get('last_updated', time.time()),
+                revision=int(status.get('revision', 0)),
             )
 
     def subscribe(self, callback: callable):
@@ -519,6 +562,7 @@ class StatusService:
                 'podcastName': j.podcast_name, 'stage': j.stage,
                 'progress': j.progress, 'startedAt': j.started_at,
                 'elapsed': time.time() - j.started_at,
+                'runId': j.run_id,
             }
         jobs = [job_dict(j) for j in status.jobs]
         return {
@@ -544,7 +588,8 @@ class StatusService:
                 }
                 for r in status.feed_refreshes
             ],
-            'lastUpdated': status.last_updated
+            'lastUpdated': status.last_updated,
+            'revision': status.revision,
         }
 
 

@@ -157,6 +157,29 @@ def get_pattern_stats():
     return json_response(stats)
 
 
+@api.route('/patterns/corrections/unresolved', methods=['GET'])
+@log_request
+def list_unresolved_corrections():
+    return json_response(get_database().get_unresolved_corrections())
+
+
+@api.route('/patterns/corrections/<int:correction_id>/assign', methods=['POST'])
+@log_request
+def assign_unresolved_correction(correction_id):
+    data = request.get_json(silent=True) or {}
+    slug = data.get('slug')
+    if not isinstance(slug, str) or not slug or data.get('confirm') is not True:
+        return error_response('slug and confirm=true are required', 400)
+    result = get_database().assign_unresolved_correction(correction_id, slug)
+    if result == 'missing':
+        return error_response('Correction not found', 404)
+    if result == 'assigned':
+        return error_response('Correction was already assigned', 409)
+    if result == 'invalid_feed':
+        return error_response('Feed does not contain this episode', 400)
+    return json_response({'assigned': True, 'correctionId': correction_id, 'slug': slug})
+
+
 @api.route('/patterns/health', methods=['GET'])
 @log_request
 def get_pattern_health():
@@ -788,6 +811,7 @@ def _submit_correction_create(db, slug, episode_id, data):
         corrected_bounds={'start': start, 'end': end},
         text_snippet=text_template[:500],
         sponsor_id=sponsor_id,
+        podcast_id=db.get_podcast_by_slug(slug)['id'],
     )
 
     logger.info(
@@ -905,6 +929,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
                              if i == 0 else None),
             corrected_bounds={'start': piece['start'], 'end': piece['end']},
             text_snippet=piece['text'][:500],
+            podcast_id=db.get_podcast_by_slug(slug)['id'],
         )
 
     kept = [m for m in markers
@@ -1067,7 +1092,7 @@ def _handle_confirm_correction(
                     original_ad, label='confirmed',
                 )
 
-    deleted = db.delete_conflicting_corrections(episode_id, 'confirm', original_start, original_end)
+    deleted = db.delete_conflicting_corrections(db.get_podcast_by_slug(slug)['id'], episode_id, 'confirm', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting false_positive correction(s) for {slug}/{episode_id}")
 
@@ -1077,7 +1102,8 @@ def _handle_confirm_correction(
         episode_id=episode_id,
         original_bounds={'start': original_start, 'end': original_end},
         corrected_bounds={'start': eff_start, 'end': eff_end} if has_trim else None,
-        text_snippet=data.get('notes')
+        text_snippet=data.get('notes'),
+        podcast_id=db.get_podcast_by_slug(slug)['id'],
     )
 
     # adjusted_* are None exactly when there is no trim; the helper only
@@ -1141,7 +1167,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
             db.update_ad_pattern(pattern_id, false_positive_count=new_count)
             logger.info(f"Incremented false_positive_count to {new_count} for pattern {pattern_id}")
 
-    deleted = db.delete_conflicting_corrections(episode_id, 'false_positive', original_start, original_end)
+    deleted = db.delete_conflicting_corrections(db.get_podcast_by_slug(slug)['id'], episode_id, 'false_positive', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting confirm correction(s) for {slug}/{episode_id}")
 
@@ -1152,6 +1178,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
         original_bounds={'start': original_start, 'end': original_end},
         text_snippet=text_snippet,
         source_hold_reason=source_hold_reason,
+        podcast_id=db.get_podcast_by_slug(slug)['id'],
     )
 
     _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
@@ -1411,7 +1438,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     # user is asserting is ad. The pre-adjustment bounds can cover an
     # unrelated overlapping span whose rejection must survive.
     deleted = db.delete_conflicting_corrections(
-        episode_id, 'boundary_adjustment', adjusted_start, adjusted_end)
+        db.get_podcast_by_slug(slug)['id'], episode_id, 'boundary_adjustment', adjusted_start, adjusted_end)
     if deleted:
         logger.info(
             f"Deleted {deleted} conflicting false_positive correction(s) "
@@ -1423,7 +1450,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         episode_id=episode_id,
         original_bounds={'start': original_start, 'end': original_end},
         corrected_bounds={'start': adjusted_start, 'end': adjusted_end},
-        text_snippet=adjusted_text
+        text_snippet=adjusted_text,
+        podcast_id=db.get_podcast_by_slug(slug)['id'],
     )
 
     return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id})
@@ -1813,7 +1841,8 @@ def backfill_false_positive_texts():
     cursor = conn.execute('''
         SELECT pc.id, pc.episode_id, pc.original_bounds, p.slug
         FROM pattern_corrections pc
-        JOIN episodes e ON pc.episode_id = e.episode_id
+        JOIN episodes e ON pc.podcast_id = e.podcast_id
+                       AND pc.episode_id = e.episode_id
         JOIN podcasts p ON e.podcast_id = p.id
         WHERE pc.correction_type = 'false_positive'
         AND (pc.text_snippet IS NULL OR pc.text_snippet = '')

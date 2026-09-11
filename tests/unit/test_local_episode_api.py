@@ -208,6 +208,44 @@ def test_upload_happy_path_into_empty_feed(app_client, local_feed, real_mp3_byte
 
 
 @requires_ffmpeg
+def test_upload_backup_cleanup_failure_keeps_published_result(
+        app_client, local_feed, real_mp3_bytes, monkeypatch):
+    from api import get_storage
+
+    slug = local_feed['slug']
+    db = local_feed['db']
+    storage = get_storage()
+    final_path = storage.get_original_path(slug, 's01e01')
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+    final_path.write_bytes(b'old audio')
+    real_unlink = Path.unlink
+
+    def fail_backup_unlink(path, *args, **kwargs):
+        if path.name.endswith('.backup'):
+            raise OSError('simulated backup cleanup failure')
+        return real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'unlink', fail_backup_unlink)
+    _authed(app_client)
+    response = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={'audio': (io.BytesIO(real_mp3_bytes), 'episode.mp3')},
+        headers=_csrf_headers(app_client),
+        content_type='multipart/form-data',
+    )
+
+    assert response.status_code == 201
+    assert final_path.read_bytes() == real_mp3_bytes
+    row = db.get_connection().execute(
+        "SELECT state, backup_name FROM upload_reservations "
+        "WHERE target_key = 's01e01' ORDER BY rowid DESC LIMIT 1"
+    ).fetchone()
+    assert row['state'] == 'published'
+    assert row['backup_name'] is not None
+    assert (storage.data_dir / row['backup_name']).read_bytes() == b'old audio'
+
+
+@requires_ffmpeg
 def test_upload_sets_original_file_and_serves_original_audio(app_client, local_feed, real_mp3_bytes):
     """Report bug 1: original_file must be set on upload so hasOriginalAudio
     is true and GET .../original.mp3 200s -- not left null until the first
@@ -425,19 +463,14 @@ def test_upload_tempfile_created_in_same_dir_as_final_path(app_client, local_fee
     expected_final_path = storage.get_original_path(slug, 's01e01')
     expected_dir = expected_final_path.parent
 
-    # patch('...shutil.move') patches the single shared `shutil` module
-    # object, so this also intercepts storage.save_rss's own shutil.move
-    # (invoked via rebuild_local_feed at the end of the request) -- record
-    # every call and pick out the one that produced the audio file rather
-    # than assuming the audio move is the only (or the last) call.
-    real_move = shutil.move
+    real_replace = os.replace
     calls = []
 
-    def _spy_move(src, dst, *a, **kw):
+    def _spy_replace(src, dst, *a, **kw):
         calls.append((str(Path(src).parent), str(dst)))
-        return real_move(src, dst, *a, **kw)
+        return real_replace(src, dst, *a, **kw)
 
-    with patch('api.local_episodes.shutil.move', side_effect=_spy_move):
+    with patch('api.local_episodes.os.replace', side_effect=_spy_replace):
         resp = app_client.post(
             f'/api/v1/feeds/{slug}/episodes',
             data={'audio': (io.BytesIO(real_mp3_bytes), 'ep.mp3')},
@@ -750,20 +783,40 @@ def test_delete_not_found_404(app_client, local_feed):
     assert resp.status_code == 404
 
 
-def test_delete_409_when_episode_is_processing(app_client, local_feed):
+def test_delete_waits_when_episode_is_processing(app_client, local_feed):
     slug = local_feed['slug']
     db = local_feed['db']
     _seed_episode(db, slug, 's01e01')
     _authed(app_client)
     headers = _csrf_headers(app_client)
 
-    with patch('api.local_episodes.ProcessingQueue') as mock_pq_cls:
-        mock_pq_cls.return_value.is_processing.return_value = True
-        resp = app_client.delete(f'/api/v1/feeds/{slug}/episodes/s01e01', headers=headers)
+    from processing_queue import ProcessingQueue
+    queue = ProcessingQueue()
+    run_id = queue.acquire(slug, 's01e01')
+    assert run_id
+    try:
+        with patch('api.local_episodes.wait_for_cancellation', return_value=False):
+            resp = app_client.delete(
+                f'/api/v1/feeds/{slug}/episodes/s01e01', headers=headers)
+    finally:
+        queue.release(run_id, 'interrupted')
 
-    assert resp.status_code == 409
-    # Nothing was touched: the row (and its files, if any) must survive.
+    assert resp.status_code == 202
     assert db.get_episode(slug, 's01e01') is not None
+    assert db.get_episode(slug, 's01e01')['deletion_requested_at'] is not None
+
+
+def test_episode_deletion_marker_blocks_processing_and_upload(app_client, local_feed):
+    slug = local_feed['slug']
+    db = local_feed['db']
+    _seed_episode(db, slug, 's01e01')
+    db.mark_episodes_for_deletion(slug, ['s01e01'])
+
+    from processing_queue import ProcessingQueue
+    assert ProcessingQueue().acquire(slug, 's01e01') is None
+    reserved = db.reserve_episode_uploads(
+        slug, ['s01e01'], operation='individual', overwrite=True)
+    assert reserved['conflicts'] == ['s01e01']
 
 
 @requires_ffmpeg

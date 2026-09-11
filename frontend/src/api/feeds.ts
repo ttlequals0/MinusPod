@@ -153,6 +153,40 @@ export async function getFeed(slug: string): Promise<Feed> {
   return apiRequest<Feed>(`/feeds/${slug}`);
 }
 
+export interface SubscriberKey {
+  id: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+export interface CreatedSubscriberKey extends SubscriberKey {
+  token: string;
+  feedUrl: string;
+}
+
+export async function getSubscriberKeys(slug: string): Promise<SubscriberKey[]> {
+  const response = await apiRequest<{ keys: SubscriberKey[] }>(
+    `/feeds/${encodeURIComponent(slug)}/subscriber-keys`,
+  );
+  return response.keys;
+}
+
+export async function createSubscriberKey(slug: string, label: string) {
+  return apiRequest<CreatedSubscriberKey>(
+    `/feeds/${encodeURIComponent(slug)}/subscriber-keys`,
+    { method: 'POST', body: { label } },
+  );
+}
+
+export async function revokeSubscriberKey(slug: string, id: string) {
+  return apiRequest<{ revoked: boolean }>(
+    `/feeds/${encodeURIComponent(slug)}/subscriber-keys/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  );
+}
+
 export async function getAdDistribution(slug: string): Promise<AdDistribution> {
   return apiRequest<AdDistribution>(`/feeds/${slug}/ad-distribution`);
 }
@@ -231,8 +265,19 @@ export async function uploadFeedArtwork(slug: string, file: File): Promise<Uploa
   });
 }
 
-export async function deleteFeed(slug: string): Promise<void> {
-  await apiRequest(`/feeds/${slug}`, { method: 'DELETE' });
+export interface DeleteFeedResult {
+  message: string;
+  slug: string;
+  pending: boolean;
+}
+
+export async function deleteFeed(slug: string): Promise<DeleteFeedResult> {
+  let status = 0;
+  const result = await apiRequest<{ message: string; slug: string }>(`/feeds/${slug}`, {
+    method: 'DELETE',
+    onResponse: (responseStatus) => { status = responseStatus; },
+  });
+  return { ...result, pending: status === 202 };
 }
 
 export async function refreshFeed(
@@ -556,15 +601,10 @@ export interface ImportUploadResult {
 export async function importUpload(slug: string, files: File[]): Promise<ImportUploadResult> {
   const formData = new FormData();
   for (const file of files) formData.append('files', file);
-  // Retries ARE wanted here (default apiRequest behavior, so no
-  // skipRetry): the UI calls this once per file, so a retry re-saves at
-  // most one file under its original basename -- harmless -- and a bounded
-  // retry is exactly what turns a transient 429 (e.g. a large batch
-  // briefly hitting a rate limit) into a silent success instead of a
-  // rejected row.
   return apiRequest<ImportUploadResult>(`/feeds/${slug}/import/upload`, {
     method: 'POST',
     body: formData,
+    skipRetry: true,
   });
 }
 

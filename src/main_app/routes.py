@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import re
 import secrets
 import threading
 import time
@@ -50,13 +51,48 @@ from main_app.shared_state import episode_lookup_cache, episode_lookup_key
 # the positional 4-tuple from _get_components() that the audit flagged
 # as silently break-on-reorder.
 from main_app import db, storage, rss_parser, status_service
-from main_app.feed_auth import KEY_RE, active_feed_key, require_feed_key
-from utils.http import client_ip
+from main_app.feed_auth import (
+    KEY_RE, SUBSCRIBER_KEY_RE, active_feed_key, feed_auth_enabled,
+    require_feed_key,
+)
+from utils.http import client_ip, redact_feed_credentials
 from utils.opml import build_opml_xml
 
 # Resolved once at registration time
 STATIC_DIR = None
 ROOT_DIR = None
+
+
+def _personalize_rss_for_subscriber(cached_rss: str) -> str:
+    supplied = request.args.get('key') or ''
+    if not SUBSCRIBER_KEY_RE.fullmatch(supplied):
+        return cached_rss
+    slug = request.view_args.get('slug', '') if request.view_args else ''
+    base_url = (
+        extract_cached_base_url(cached_rss)
+        or os.getenv('BASE_URL', '')
+    ).rstrip('/')
+    if not slug or not base_url:
+        abort(503, description='cannot safely personalize scoped RSS')
+    asset_path = rf'(?:episodes/{re.escape(slug)}/[^"\'<> ]*|{re.escape(slug)}/cover-minuspod(?:-[0-9a-f]{{8}})?\.jpg)'
+    key_query = re.compile(
+        rf'({re.escape(base_url)}/{asset_path}[?&](?:amp;)?key=)[0-9a-f]{{64}}'
+    )
+    rss = key_query.sub(rf'\g<1>{supplied}', cached_rss)
+    def replace_cover(match):
+        version = f'-{match.group(1)}' if match.group(1) else ''
+        return f'{base_url}/{slug}/cover-minuspod{version}.jpg?key={supplied}'
+
+    rss = re.sub(
+        rf'{re.escape(base_url)}/{re.escape(slug)}/'
+        r'cover-minuspod-(?:([0-9a-f]{8})-)?[0-9a-f]{64}\.jpg',
+        replace_cover,
+        rss,
+    )
+    global_key = active_feed_key(db)
+    if global_key and global_key in rss:
+        abort(503, description='cannot safely personalize scoped RSS')
+    return rss
 
 # Endpoints served to podcast apps and other unauthenticated clients. None of
 # them can use a CSRF token, and minting one writes the session, which adds a
@@ -118,16 +154,19 @@ def log_request_detailed(f):
             result = f(*args, **kwargs)
             elapsed = (time.time() - start_time) * 1000  # ms
             status = result.status_code if hasattr(result, 'status_code') else 200
-            feed_logger.info(f"{request.method} {request.path} {status} {elapsed:.0f}ms [{ip}] [{user_agent}]")
+            path = redact_feed_credentials(request.path)
+            feed_logger.info(f"{request.method} {path} {status} {elapsed:.0f}ms [{ip}] [{user_agent}]")
             return result
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
             if isinstance(e, NotFound):
                 # Scanners probe unknown paths constantly, so a 404 to a
                 # stranger is not an operator problem.
-                feed_logger.info(f"{request.method} {request.path} 404 {elapsed:.0f}ms [{ip}] - {e}")
+                path = redact_feed_credentials(request.path)
+                feed_logger.info(f"{request.method} {path} 404 {elapsed:.0f}ms [{ip}] - {e}")
             else:
-                feed_logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{ip}] - {e}")
+                path = redact_feed_credentials(request.path)
+                feed_logger.error(f"{request.method} {path} ERROR {elapsed:.0f}ms [{ip}] - {e}")
             raise
     return decorated
 
@@ -388,8 +427,7 @@ def register_routes(app):
 
         # Check if RSS cache exists or is stale
         cached_rss = storage.get_rss(slug)
-        data = storage.load_data_json(slug)
-        last_checked = data.get('last_checked')
+        last_checked = db.get_podcast_last_checked_at(slug)
 
         should_refresh = False
         force_refresh = False  # Force full fetch bypasses 304 - use when cache is missing
@@ -455,7 +493,12 @@ def register_routes(app):
 
         if cached_rss:
             feed_logger.info(f"[{slug}] Serving RSS feed")
-            return Response(cached_rss, mimetype='application/rss+xml')
+            response = Response(
+                _personalize_rss_for_subscriber(cached_rss),
+                mimetype='application/rss+xml',
+            )
+            response.headers['Referrer-Policy'] = 'no-referrer'
+            return response
         else:
             feed_logger.error(f"[{slug}] RSS feed not available")
             abort(503)
@@ -597,6 +640,14 @@ def register_routes(app):
             abort(404)
 
         # Need to process - find original URL from RSS
+        if (not feed_auth_enabled(db)
+                and os.environ.get(
+                    'MINUSPOD_ALLOW_PUBLIC_PROCESSING', 'true'
+                ).lower() != 'true'):
+            return Response(
+                'Public requests cannot start episode processing',
+                status=503,
+            )
         ep_data, podcast_name = _routes._lookup_episode(slug, episode_id, feed_map, episode_row=episode)
         if not ep_data:
             feed_logger.error(f"[{slug}:{episode_id}] Episode not found in RSS or database")
@@ -780,7 +831,8 @@ def register_routes(app):
             # INFO for the same reason as require_feed_key: an unauthenticated
             # OPML fetch is expected traffic, not an operator problem.
             feed_logger.info(
-                f"GET {request.path} 401 no auth key provided or is invalid "
+                f"GET {redact_feed_credentials(request.path)} 401 "
+                f"no auth key provided or is invalid "
                 f"[{client_ip()}]")
             abort(401)
         base_url = os.getenv('BASE_URL', 'http://localhost:8000')

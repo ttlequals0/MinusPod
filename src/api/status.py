@@ -1,10 +1,12 @@
 """Status routes: /status/* endpoints (SSE stream, current status)."""
 import json
+import hashlib
 import logging
-import queue
+import os
 import threading
+import time
 
-from flask import Response, session
+from flask import Response, request, session
 
 from api import (
     api, log_request, json_response,
@@ -13,8 +15,15 @@ from api import (
 from config import DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER
 from offline_queue import get_probe_state
 from rate_limit_hold import get_active_hold
+from processing_queue import (
+    ProcessingQueue, is_processing_paused, set_processing_paused,
+)
 from utils.ttl_cache import TTLCache
 from whisper_pool import get_pool
+from api.auth_state import (
+    SESSION_GENERATION_KEY, authentication_required, current_generation,
+    session_is_authenticated,
+)
 
 logger = logging.getLogger('podcast.api')
 
@@ -33,6 +42,13 @@ _HOLD_CACHE_TTL_SECONDS = 15
 _hold_cache = TTLCache(ttl_seconds=_HOLD_CACHE_TTL_SECONDS)
 _hold_cache_lock = threading.Lock()
 _last_hold: dict = {}
+_SSE_MAX_SECONDS = 30
+_SSE_POLL_SECONDS = 2
+try:
+    _SSE_SLOT_COUNT = max(0, int(os.environ.get('GUNICORN_THREADS', '8')) - 1)
+except ValueError:
+    _SSE_SLOT_COUNT = 0
+_SSE_SLOTS = threading.BoundedSemaphore(_SSE_SLOT_COUNT) if _SSE_SLOT_COUNT else None
 
 
 def _offline_service_view(db, service: str) -> dict | None:
@@ -102,11 +118,17 @@ def status_payload(status=None) -> dict:
     """
     payload = get_status_service().to_dict(status)
     payload['hold'] = hold_block()
+    payload['processingPaused'] = is_processing_paused(get_database())
     # This worker may not be the leader, so nothing else refreshes its pool.
     pool = get_pool()
     pool.refresh()
     payload['whisper'] = pool.snapshot()
     return payload
+
+
+def _payload_version(payload: dict) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
+    return hashlib.sha256(encoded).hexdigest()[:16]
 
 
 # ========== Status Stream Endpoint (SSE) ==========
@@ -116,63 +138,49 @@ def _is_authenticated() -> bool:
     there is no auth to enforce; otherwise the session flag is required.
     """
     db = get_database()
-    password_hash = db.get_setting('app_password')
-    if not password_hash:
-        return True
-    return bool(session.get('authenticated', False))
+    return session_is_authenticated(db)
 
 
 @api.route('/status/stream', methods=['GET'])
 def status_stream():
-    """
-    Server-Sent Events stream for real-time processing status updates.
-
-    Listed in AUTH_EXEMPT_PATHS because EventSource cannot surface an
-    HTTP 401 to the JavaScript handler -- the browser reconnect-loops
-    against the closed response with no signal about why. Auth is
-    snapshotted once at connect time below: an unauthenticated caller
-    receives a single ``event: auth-failed`` SSE message and the
-    stream closes. GlobalStatusBar.tsx listens for that event and
-    redirects to /ui/login. A session that lapses mid-stream is caught
-    on the client's next non-SSE API call, which apiRequest
-    401-redirects.
-    """
-    # Evaluate auth inside the request context before the generator
-    # runs. The generator lives past request-end (SSE is long-polled),
-    # so session/request proxies are not usable from inside the loop.
-    # A lapsed session after connect is caught by the client's next
-    # non-SSE API call, which apiRequest 401-redirects to /ui/login.
+    """Compatibility SSE stream with a 30-second lifetime and bounded slots."""
+    # The generator cannot use Flask's session proxy after request teardown,
+    # so capture the cookie generation and compare it with shared DB state.
     authenticated_at_connect = _is_authenticated()
+    generation_at_connect = session.get(SESSION_GENERATION_KEY)
+
+    if _SSE_SLOTS is None:
+        return Response(status=410)
 
     def generate():
-        if not authenticated_at_connect:
-            yield "event: auth-failed\ndata: {}\n\n"
+        acquired = _SSE_SLOTS.acquire(blocking=False)
+        if not acquired:
+            yield "event: unavailable\ndata: {}\n\n"
             return
-
-        status_service = get_status_service()
-        update_queue = queue.Queue(maxsize=50)
-
-        def on_update(status):
-            # Queue the raw snapshot: this runs on the pipeline's broadcast
-            # thread, which must not block on the hold block's DB reads.
-            try:
-                update_queue.put_nowait(status)
-            except queue.Full:
-                pass  # Drop update if queue is full
-
-        unsubscribe = status_service.subscribe(on_update)
-
         try:
-            yield f"data: {json.dumps(status_payload())}\n\n"
+            if not authenticated_at_connect:
+                yield "event: auth-failed\ndata: {}\n\n"
+                return
 
-            while True:
-                try:
-                    status = update_queue.get(timeout=15)
-                    yield f"data: {json.dumps(status_payload(status))}\n\n"
-                except queue.Empty:
+            deadline = time.monotonic() + _SSE_MAX_SECONDS
+            last_version = None
+            while time.monotonic() < deadline:
+                db = get_database()
+                if (authentication_required(db)
+                        and generation_at_connect != current_generation(db)):
+                    yield "event: auth-failed\ndata: {}\n\n"
+                    return
+                payload = status_payload()
+                version = (payload.get('revision'), _payload_version(payload))
+                if last_version is None or version != last_version:
+                    yield f"data: {json.dumps(payload)}\n\n"
+                    last_version = version
+                else:
                     yield ": keepalive\n\n"
+                time.sleep(_SSE_POLL_SECONDS)
         finally:
-            unsubscribe()
+            if acquired:
+                _SSE_SLOTS.release()
 
     return Response(
         generate(),
@@ -189,4 +197,25 @@ def status_stream():
 @log_request
 def get_status():
     """Get current processing status (one-time fetch, not streaming)."""
-    return json_response(status_payload())
+    payload = status_payload()
+    response = json_response(payload)
+    response.headers['ETag'] = f'"{_payload_version(payload)}"'
+    return response
+
+
+@api.route('/status/processing-admission', methods=['GET', 'PUT'])
+@log_request
+def processing_admission():
+    """Read or change the durable pause for new processing runs."""
+    db = get_database()
+    if request.method == 'PUT':
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get('paused'), bool):
+            return json_response({'error': 'paused must be a boolean'}, 400)
+        set_processing_paused(data['paused'], db)
+    queue = ProcessingQueue()
+    return json_response({
+        'paused': is_processing_paused(db),
+        'activeRuns': queue.slot_count(),
+        'queuedEpisodes': db.count_pending_queued_episodes(),
+    })

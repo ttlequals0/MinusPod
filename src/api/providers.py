@@ -11,7 +11,7 @@ import requests
 from flask import request
 
 import transcriber
-from api import api, error_response, json_response
+from api import api, error_response, json_response, limiter
 from config import (
     HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE,
     PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE,
@@ -19,7 +19,7 @@ from config import (
 from database import Database
 from llm_client import get_effective_base_url, _normalize_base_url_for_provider, _opencode_headers
 from rate_limit_hold import clear_hold_for_provider_change
-from secrets_crypto import CryptoUnavailableError, is_available as crypto_available, rotate as rotate_passphrase
+from secrets_crypto import is_available as crypto_available
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get
@@ -150,39 +150,13 @@ def _resolve_key(db, cfg):
 
 
 @api.route('/settings/providers/rotate-passphrase', methods=['POST'])
+@limiter.limit('3 per hour')
 def rotate_master_passphrase():
-    if not crypto_available():
-        return error_response('provider_crypto_unavailable', 409)
-    body = request.get_json(silent=True) or {}
-    old = body.get('oldPassphrase')
-    new = body.get('newPassphrase')
-    if not isinstance(old, str) or not isinstance(new, str) or not old or not new:
-        return error_response('oldPassphrase and newPassphrase required', 400)
-    db = Database()
-    try:
-        rotated = rotate_passphrase(db, old, new)
-    except CryptoUnavailableError:
-        return error_response('provider_crypto_unavailable', 409)
-    except ValueError as e:
-        # Only pass through the known static error strings documented by
-        # secrets_crypto.rotate; anything else is logged server-side and
-        # surfaced as a generic 400 so exception messages cannot leak.
-        safe_rotation_errors = {
-            "current passphrase mismatch",
-            "new passphrase required",
-            "must differ from current",
-        }
-        msg = str(e)
-        if msg in safe_rotation_errors:
-            return error_response(msg, 400)
-        logger.warning("Unexpected ValueError from rotate_passphrase: %s", e)
-        return error_response('invalid rotation request', 400)
-    except Exception:
-        logger.exception("provider passphrase rotation failed")
-        return error_response('rotation failed', 500)
-    return json_response({'rotated': rotated}, 200)
-
-
+    return error_response(
+        'Passphrase rotation requires stopped workers; use '
+        'scripts/rotate_master_passphrase.py',
+        409,
+    )
 # Fixed public endpoints per provider: probe URL + auth header builder.
 # Shared by /test and /test-connection so the contract lives once. These
 # providers accept no baseUrl input anywhere, so the key can only ever be

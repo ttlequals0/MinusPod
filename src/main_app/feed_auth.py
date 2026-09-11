@@ -1,11 +1,10 @@
-"""Global feed-key auth for the public feed surface (authenticated feeds).
+"""Global and feed-scoped auth for the public feed surface.
 
 When the ``feed_auth_enabled`` setting is on, every public feed/asset route
 (RSS, episode mp3, transcript vtt, chapters.json, badged cover art) requires
-the global feed key. RSS and episode assets carry it as a ``?key=`` query
-param; cover art embeds it in the path token (``cover-minuspod-<version>-
-<key>.jpg``) because podcast apps reject image URLs that do not end in a real
-image extension (proven with Pocket Casts in 2.32.5).
+the global feed key or a revocable subscriber key scoped to that feed. Served
+RSS carries the credential in asset query parameters without changing cached
+RSS. Cover art keeps a keyless image path and uses the query parameter too.
 
 The key is 64 lowercase hex chars (``secrets.token_hex(32)``, the
 flask_secret_key precedent) - hex has no hyphens, so the cover token splits
@@ -26,6 +25,7 @@ from utils.http import client_ip
 logger = logging.getLogger('podcast.feed')
 
 KEY_RE = re.compile(r'[0-9a-f]{64}')
+SUBSCRIBER_KEY_RE = re.compile(r'[0-9a-f]{16}\.[0-9a-f]{64}')
 
 
 def generate_feed_key() -> str:
@@ -101,8 +101,17 @@ def require_feed_key(f):
             # KEY_RE prefilter: compare_digest raises TypeError on non-ASCII
             # input, which would turn a garbage ?key= into a 500 instead of
             # the intended 401. Anything non-64-hex can never match anyway.
-            if not (expected and supplied and KEY_RE.fullmatch(supplied)
-                    and secrets.compare_digest(supplied, expected)):
+            global_match = bool(
+                expected and supplied and KEY_RE.fullmatch(supplied)
+                and secrets.compare_digest(supplied, expected)
+            )
+            subscriber_match = bool(
+                supplied and SUBSCRIBER_KEY_RE.fullmatch(supplied)
+                and db.verify_feed_subscriber_key(
+                    kwargs.get('slug') or (args[0] if args else None), supplied
+                )
+            )
+            if not (global_match or subscriber_match):
                 # INFO, not WARNING: with feed auth on, every directory crawler
                 # and cold podcast client that lacks the key gets one of these,
                 # so it is expected traffic rather than an operator problem.

@@ -2,8 +2,8 @@
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
-from email.utils import parsedate_to_datetime
 
 from config import (
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
@@ -49,6 +49,21 @@ _feed_cache = TTLCache(ttl_seconds=30)
 # reprocess, API force-refresh) bypasses the skip but still stamps so
 # subsequent non-force calls within the window coalesce.
 _refresh_coalesce = TTLCache(ttl_seconds=30)
+
+
+@dataclass(frozen=True)
+class RefreshOutcome:
+    success: bool
+    status: str
+    new_episodes: int = 0
+    queued_episodes: int = 0
+    error: str | None = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def __bool__(self) -> bool:
+        return self.success
 
 
 def _scrub_query_strings(text: str) -> str:
@@ -142,20 +157,22 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                Use this when the RSS cache was deleted and needs regeneration.
                Also bypasses the refresh-attempt throttle.
     """
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if is_local_feed(podcast):
-        return rebuild_local_feed(slug, podcast)
+        success = bool(rebuild_local_feed(slug, podcast))
+        return RefreshOutcome(success, 'refreshed' if success else 'failed')
     if is_recents_feed(podcast):
-        return rebuild_recents_feed(podcast)
+        success = bool(rebuild_recents_feed(podcast))
+        return RefreshOutcome(success, 'refreshed' if success else 'failed')
 
     if not force and _refresh_coalesce.get(slug) is not None:
         refresh_logger.debug(f"[{slug}] Skipping refresh (recent attempt within coalesce window)")
-        return None
+        return RefreshOutcome(True, 'coalesced')
     _refresh_coalesce.set(slug, True)
 
     try:
         # Get podcast name and etag for conditional fetch
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
         podcast_name = podcast.get('title', slug) if podcast else slug
 
         # Track feed refresh in status service
@@ -184,7 +201,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             _, discovered_count = db.get_episodes(slug, status='discovered', limit=1)
             if discovered_count > 0:
                 # Even on 304, ensure artwork is cached (may be missing after DB restore)
-                podcast = db.get_podcast_by_slug(slug)
+                podcast = db.get_podcast_row(slug)
                 # A 304 carries no body, so a steady-state feed would never
                 # have its <podcast:podping> tag ingested (#579). Stamped only
                 # on a successful fetch, so a failing feed retries each cycle.
@@ -221,7 +238,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                         db.update_podcast(slug, last_checked_at=utc_now_iso())
                         _record_refresh_success(slug)
                         status_service.complete_feed_refresh(slug, 0)
-                        return True
+                        return RefreshOutcome(True, 'not_modified')
             else:
                 refresh_logger.info(
                     f"[{slug}] Feed unchanged (304) but no episodes discovered yet, "
@@ -237,7 +254,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 slug, 'Failed to fetch RSS feed (unreachable, invalid '
                       'response, or blocked)', podcast=podcast)
             status_service.complete_feed_refresh(slug, 0)
-            return False
+            _refresh_coalesce.invalidate(slug)
+            return RefreshOutcome(False, 'fetch_failed', error='Failed to fetch RSS feed')
 
         # Parse feed to extract metadata. A body that yields neither channel
         # metadata nor entries AND tripped the parser (bozo) is an origin
@@ -253,7 +271,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 slug, 'Fetched feed could not be parsed as RSS (the URL may '
                       'be returning an error page)', podcast=podcast)
             status_service.complete_feed_refresh(slug, 0)
-            return False
+            _refresh_coalesce.invalidate(slug)
+            return RefreshOutcome(False, 'parse_failed', error='Fetched feed could not be parsed as RSS')
         if parsed_feed and parsed_feed.feed:
             # feedparser flattens <podcast:liveItem> into the channel dict,
             # so read the raw children and fall back per field (#596).
@@ -309,20 +328,12 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 **podping_declaration_columns(
                     podping.get('uses_podping'), podping.get('hive_accounts')),
                 channel_metadata_at=utc_now_iso(),
-                last_checked_at=utc_now_iso()
             )
             if artwork_changed:
                 # Clear the cache flag with the URL: a download that then
                 # fails would otherwise leave the row claiming the new cover
                 # is cached, and no later refresh would retry it.
                 update_kwargs['artwork_cached'] = 0
-            # On force=True, always overwrite the stored ETag/Last-Modified --
-            # even with None -- so a server that drops the header on this
-            # response can't cause the next conditional GET to send a stale
-            # validator and get a false 304.
-            if new_etag or new_last_modified or force:
-                update_kwargs['etag'] = new_etag
-                update_kwargs['last_modified_header'] = new_last_modified
             db.update_podcast(slug, **update_kwargs)
 
             # Map iTunes categories to MinusPod vocabulary tags, then refresh the
@@ -365,21 +376,25 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         # XML we already parsed above.
         all_episodes = rss_parser.extract_episodes(
             feed_content, parsed_feed=parsed_feed, source=slug)
-        inserted = db.bulk_upsert_discovered_episodes(slug, all_episodes)
+        discovery = db.bulk_upsert_discovered_episodes(
+            slug, all_episodes, return_state=True)
+        if isinstance(discovery, tuple):
+            inserted, ep_statuses, title_date_map = discovery
+        else:
+            inserted = discovery
+            ep_statuses, title_date_map = db.get_episode_statuses_for_podcast(slug)
         if inserted > 0:
             refresh_logger.info(f"[{slug}] Discovered {inserted} new episode(s)")
 
         # Queue new episodes for auto-processing if enabled
         # Only queue episodes published within the last 48 hours to avoid processing entire backlog
-        if db.is_auto_process_enabled_for_podcast(slug):
-            queued_count = 0
+        queued_count = 0
+        if db.is_auto_process_enabled_for_podcast(slug, podcast=podcast):
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=48)
             # Read once per refresh, not per episode.
             fresh_boost_enabled = db.get_setting_bool('process_new_episodes_first', True)
 
-            # Bulk-load episode statuses to avoid N+1 queries
-            ep_statuses, title_date_map = db.get_episode_statuses_for_podcast(slug)
-
+            queue_candidates = []
             for ep in all_episodes:
                 # Check if episode already exists in database with a non-discovered status
                 existing_status = ep_statuses.get(ep['id'])
@@ -399,14 +414,9 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
 
                     # Parse publish date to check if recent
                     is_recent = False
-                    published_str = ep.get('published', '')
-                    if published_str:
+                    if iso_published:
                         try:
-                            # RSS dates are typically RFC 2822 format
-                            pub_date = parsedate_to_datetime(published_str)
-                            # Ensure timezone-aware for comparison
-                            if pub_date.tzinfo is None:
-                                pub_date = pub_date.replace(tzinfo=timezone.utc)
+                            pub_date = datetime.fromisoformat(iso_published.replace('Z', '+00:00'))
                             is_recent = pub_date >= cutoff_time
                         except (ValueError, TypeError):
                             # If we can't parse the date, skip this episode for auto-process
@@ -424,32 +434,41 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                         priority = compute_queue_priority(
                             feed_priority, iso_published, manual=False,
                             apply_fresh_boost=fresh_boost_enabled)
-                        queue_id = db.queue_episode_for_processing(
-                            slug, ep['id'], ep['url'], ep.get('title'), iso_published,
-                            ep.get('description'), priority=priority
-                        )
-                        if queue_id:
-                            queued_count += 1
-                            refresh_logger.debug(f"[{slug}] Queued recent episode: {ep.get('title')}")
+                        queue_candidates.append({
+                            'episode_id': ep['id'], 'original_url': ep['url'],
+                            'title': ep.get('title'), 'published_at': iso_published,
+                            'description': ep.get('description'), 'priority': priority,
+                        })
+
+            queued_ids = db.queue_episodes_for_processing(
+                slug, queue_candidates, podcast=podcast)
+            queued_count = len(queued_ids)
 
             if queued_count > 0:
                 refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
 
         # Rebuild and persist the served RSS for the current feed/output settings.
         _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast)
+        completed = {'last_checked_at': utc_now_iso()}
+        if new_etag or new_last_modified or force:
+            completed['etag'] = new_etag
+            completed['last_modified_header'] = new_last_modified
+        db.update_podcast(slug, **completed)
 
         refresh_logger.debug(f"[{slug}] RSS refresh complete")
         _record_refresh_success(slug)
         status_service.complete_feed_refresh(slug, 0)
-        return True
+        return RefreshOutcome(True, 'refreshed', inserted, queued_count)
     except Exception as e:
         # Deliberately NOT recorded as a feed failure: exceptions here are
         # internal faults (DB locked, disk full, downstream bugs), and the
         # Feed Refresh Failed alert blames the publisher's feed. Origin
         # failures are recorded at the fetch/parse boundaries above.
-        refresh_logger.error(f"[{slug}] RSS refresh failed: {e}")
+        refresh_logger.error(
+            f"[{slug}] RSS refresh failed: {_scrub_query_strings(str(e))}")
         status_service.remove_feed_refresh(slug)
-        return False
+        _refresh_coalesce.invalidate(slug)
+        return RefreshOutcome(False, 'internal_error', error='Internal refresh error')
 
 
 def refresh_all_feeds(force: bool = False):
@@ -474,21 +493,33 @@ def refresh_all_feeds(force: bool = False):
                 if is_local_feed(row) or is_recents_feed(row):
                     continue
                 futures[executor.submit(refresh_rss_feed, slug, feed_info['in'], force)] = slug
+            outcomes = {}
             for future in as_completed(futures):
                 slug = futures[future]
                 try:
-                    future.result()
+                    outcome = future.result()
+                    outcomes[slug] = outcome
                 except Exception as e:
-                    refresh_logger.error(f"[{slug}] Feed refresh failed: {e}")
+                    refresh_logger.error(
+                        f"[{slug}] Feed refresh failed: {_scrub_query_strings(str(e))}")
+                    outcomes[slug] = RefreshOutcome(
+                        False, 'internal_error', error='Internal refresh error')
 
-        refresh_logger.info(f"RSS refresh complete for {len(feed_map)} feeds")
-        # Stamp when the all-feeds pass finished; the dashboard shows this
-        # as the global "Updated" time.
-        db.set_setting('feeds_last_refresh_completed_at', utc_now_iso())
-        return True
+        succeeded = sum(1 for outcome in outcomes.values() if outcome.success)
+        failed = len(outcomes) - succeeded
+        refresh_logger.info(
+            f"RSS refresh complete: {succeeded} succeeded, {failed} failed")
+        if failed == 0:
+            db.set_setting('feeds_last_refresh_completed_at', utc_now_iso())
+        return {
+            'success': failed == 0,
+            'succeeded': succeeded,
+            'failed': failed,
+            'outcomes': {slug: outcome.to_dict() for slug, outcome in outcomes.items()},
+        }
     except Exception as e:
-        refresh_logger.error(f"RSS refresh failed: {e}")
-        return False
+        refresh_logger.error(f"RSS refresh failed: {_scrub_query_strings(str(e))}")
+        return {'success': False, 'succeeded': 0, 'failed': 0, 'outcomes': {}}
 
 
 def refresh_single_feed(slug: str) -> bool:
@@ -500,10 +531,11 @@ def refresh_single_feed(slug: str) -> bool:
     if is_local_feed(podcast):
         return False
     try:
-        refresh_rss_feed(slug, podcast['source_url'])
-        return True
+        outcome = refresh_rss_feed(slug, podcast['source_url'])
+        return outcome.success if isinstance(outcome, RefreshOutcome) else bool(outcome)
     except Exception as e:
-        refresh_logger.error(f"[{slug}] Single-feed refresh failed: {e}")
+        refresh_logger.error(
+            f"[{slug}] Single-feed refresh failed: {_scrub_query_strings(str(e))}")
         return False
 
 

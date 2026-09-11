@@ -122,6 +122,87 @@ def test_rss_200_with_key(client, db):
     assert f'?key={KEY}' in resp.get_data(as_text=True)
 
 
+def test_scoped_subscriber_rss_never_discloses_global_key(client, db):
+    _set_auth(db, True)
+    slug = 'subscriber-feed'
+    _seed_feed(db, slug, key=KEY)
+    cached = routes_mod.storage.get_rss(slug).replace(
+        '</channel>',
+        f'<image><url>{BASE}/{slug}/cover-minuspod-deadbeef-{KEY}.jpg</url></image></channel>',
+    )
+    routes_mod.storage.save_rss(slug, cached)
+    scoped = db.create_feed_subscriber_key(slug, 'Phone')['token']
+    assert db.verify_feed_subscriber_key(slug, scoped)
+
+    response = client.get(f'/{slug}?key={scoped}')
+
+    assert response.status_code == 200
+    xml = response.get_data(as_text=True)
+    assert KEY not in xml
+    assert f'?key={scoped}' in xml
+    assert response.headers['Referrer-Policy'] == 'no-referrer'
+    assert client.get(
+        f'/episodes/{slug}/aaaaaaaaaaaa.mp3?key={scoped}'
+    ).status_code != 401
+
+
+def test_scoped_subscriber_rewrites_unversioned_global_cover_key(client, db):
+    _set_auth(db, True)
+    slug = 'subscriber-unversioned'
+    _seed_feed(db, slug, key=KEY)
+    cached = routes_mod.storage.get_rss(slug).replace(
+        '</channel>',
+        f'<link>https://publisher.example/episodes/{slug}/item.mp3?key={OTHER_KEY}</link>'
+        f'<image><url>https://publisher.example/{slug}/cover-minuspod-{OTHER_KEY}.jpg</url></image>'
+        f'<image><url>{BASE}/{slug}/cover-minuspod-{KEY}.jpg</url></image></channel>',
+    )
+    routes_mod.storage.save_rss(slug, cached)
+    scoped = db.create_feed_subscriber_key(slug, 'Phone')['token']
+
+    response = client.get(f'/{slug}?key={scoped}')
+
+    assert response.status_code == 200
+    xml = response.get_data(as_text=True)
+    assert f'https://publisher.example/episodes/{slug}/item.mp3?key={OTHER_KEY}' in xml
+    assert f'https://publisher.example/{slug}/cover-minuspod-{OTHER_KEY}.jpg' in xml
+    assert f'/cover-minuspod.jpg?key={scoped}' in xml
+    assert f'/episodes/{slug}/abcdefabcdef.mp3?key={scoped}' in xml
+
+
+@pytest.mark.parametrize('cover_prefix', [
+    'cover-minuspod',
+    'cover-minuspod-deadbeef',
+])
+def test_scoped_subscriber_rewrites_cover_on_episode_less_feed(
+        client, db, monkeypatch, cover_prefix):
+    _set_auth(db, True)
+    monkeypatch.setenv('BASE_URL', BASE)
+    slug = 'subscriber-empty'
+    if not db.get_podcast_by_slug(slug):
+        db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    routes_mod.storage.save_rss(
+        slug,
+        f'<rss><channel><image><url>{BASE}/{slug}/{cover_prefix}-{KEY}.jpg'
+        f'</url></image></channel></rss>',
+    )
+    feeds_mod.invalidate_feed_cache()
+    scoped = db.create_feed_subscriber_key(slug, 'Phone')['token']
+
+    xml = client.get(f'/{slug}?key={scoped}').get_data(as_text=True)
+
+    assert KEY not in xml
+    assert f'{BASE}/{slug}/{cover_prefix}.jpg?key={scoped}' in xml
+
+
+def test_scoped_subscriber_key_does_not_cross_feeds(client, db):
+    _set_auth(db, True)
+    _seed_feed(db, 'subscriber-a', key=KEY)
+    _seed_feed(db, 'subscriber-b', key=KEY)
+    scoped = db.create_feed_subscriber_key('subscriber-a', 'Phone')['token']
+
+    assert client.get(f'/subscriber-b?key={scoped}').status_code == 401
+
+
 def test_mp3_with_valid_key_reaches_handler(client, db):
     _set_auth(db, True)
     _seed_feed(db, 'auth-feed', key=KEY)
@@ -129,6 +210,18 @@ def test_mp3_with_valid_key_reaches_handler(client, db):
     # the handler's own answer (JIT flow), never the 401.
     resp = client.get(f'/episodes/auth-feed/aaaaaaaaaaaa.mp3?key={KEY}')
     assert resp.status_code != 401
+
+
+def test_public_request_cannot_start_processing_when_disabled(client, db, monkeypatch):
+    _set_auth(db, False)
+    _seed_feed(db, 'public-feed')
+    monkeypatch.setenv('MINUSPOD_ALLOW_PUBLIC_PROCESSING', 'false')
+
+    with patch('main_app.processing.start_background_processing') as start:
+        response = client.get('/episodes/public-feed/abcdefabcdef.mp3')
+
+    assert response.status_code == 503
+    assert not start.called
 
 
 def test_cover_with_path_key_200(client, db):

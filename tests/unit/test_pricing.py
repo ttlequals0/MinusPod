@@ -2,7 +2,7 @@
 import json
 from unittest.mock import patch, MagicMock
 
-from config import normalize_model_key, get_pricing_source
+from config import normalize_model_key
 
 
 class TestNormalizeModelKey:
@@ -79,80 +79,6 @@ class TestNormalizeModelKey:
         assert normalize_model_key('model:v2-large') == 'modelv2large'
 
 
-class TestGetPricingSource:
-    """Test pricing source detection."""
-
-    def test_anthropic_provider(self):
-        result = get_pricing_source('anthropic')
-        assert result['type'] == 'pricepertoken'
-        assert 'anthropic' in result['url']
-
-    def test_openrouter_provider(self):
-        result = get_pricing_source('openrouter')
-        assert result['type'] == 'openrouter_api'
-        assert result['url'] == 'https://openrouter.ai/api/v1/models'
-
-    def test_ollama_provider(self):
-        result = get_pricing_source('ollama')
-        assert result['type'] == 'free'
-
-    def test_openai_compatible_openai_domain(self):
-        result = get_pricing_source('openai-compatible', 'https://api.openai.com/v1')
-        assert result['type'] == 'pricepertoken'
-        assert 'openai' in result['url']
-
-    def test_openai_compatible_groq_domain(self):
-        result = get_pricing_source('openai-compatible', 'https://api.groq.com/openai/v1')
-        assert result['type'] == 'pricepertoken'
-        assert 'groq' in result['url']
-
-    def test_openai_compatible_deepseek_domain(self):
-        result = get_pricing_source('openai-compatible', 'https://api.deepseek.com/v1')
-        assert result['type'] == 'pricepertoken'
-        assert 'deepseek' in result['url']
-
-    def test_openai_compatible_together_domain(self):
-        result = get_pricing_source('openai-compatible', 'https://api.together.xyz/v1')
-        assert result['type'] == 'pricepertoken'
-        assert 'together' in result['url']
-
-    def test_localhost_is_litellm_not_free(self):
-        result = get_pricing_source('openai-compatible', 'http://localhost:11434/v1')
-        assert result['type'] == 'litellm'
-
-    def test_127_0_0_1_is_litellm(self):
-        result = get_pricing_source('openai-compatible', 'http://127.0.0.1:8000/v1')
-        assert result['type'] == 'litellm'
-
-    def test_local_domain_is_litellm(self):
-        result = get_pricing_source('openai-compatible', 'http://my-server.local:8000/v1')
-        assert result['type'] == 'litellm'
-
-    def test_unknown_public_domain_is_litellm_not_free(self):
-        """Unknown public openai-compatible domain falls to LiteLLM, never bare free."""
-        result = get_pricing_source('openai-compatible', 'https://my-custom-llm.example.com/v1')
-        assert result['type'] == 'litellm'
-
-    def test_no_base_url_is_litellm(self):
-        """Empty base_url has no domain -- treated as an unknown public endpoint."""
-        result = get_pricing_source('openai-compatible', '')
-        assert result['type'] == 'litellm'
-
-    def test_none_base_url_is_litellm(self):
-        result = get_pricing_source('openai-compatible', None)
-        assert result['type'] == 'litellm'
-
-    def test_openrouter_domain_via_openai_compatible(self):
-        result = get_pricing_source('openai-compatible', 'https://openrouter.ai/api/v1')
-        assert result['type'] == 'openrouter_api'
-
-    def test_rfc1918_private_ip_is_litellm(self):
-        result = get_pricing_source('openai-compatible', 'http://192.168.1.10:8000/v1')
-        assert result['type'] == 'litellm'
-
-    def test_lan_domain_is_litellm(self):
-        result = get_pricing_source('openai-compatible', 'http://box.lan:8000/v1')
-        assert result['type'] == 'litellm'
 
 
 class TestGetPricingSources:
@@ -658,25 +584,8 @@ class TestRefreshBackfillOnFailure:
 class TestPricingFetcher:
     """Test the unified pricing fetcher."""
 
-    def test_free_source_returns_empty(self):
-        from pricing_fetcher import fetch_pricing
-        result = fetch_pricing({'type': 'free'})
-        assert result == []
 
-    def test_unknown_source_falls_back_to_litellm(self):
-        from pricing_fetcher import fetch_pricing
-        with patch('pricing_fetcher.fetch_litellm_pricing', return_value=[]) as mock_litellm:
-            result = fetch_pricing({'type': 'unknown', 'domain': 'test.com'})
-        assert result == []
-        mock_litellm.assert_called_once()
 
-    def test_network_error_falls_back_to_litellm(self):
-        from pricing_fetcher import fetch_pricing
-        with patch('pricing_fetcher.fetch_openrouter_pricing', side_effect=Exception('timeout')), \
-             patch('pricing_fetcher.fetch_litellm_pricing', return_value=[]) as mock_litellm:
-            result = fetch_pricing({'type': 'openrouter_api', 'url': 'https://openrouter.ai/api/v1/models'})
-        assert result == []
-        mock_litellm.assert_called_once()
 
 
 class TestParsePrice:
@@ -993,59 +902,3 @@ class TestLiteLLMFallback:
         with patch('pricing_fetcher.safe_get', return_value=self._mock_resp()):
             anthropic_only = fetch_litellm_pricing(provider_filter='anthropic')
         assert [r['raw_model_id'] for r in anthropic_only] == ['claude-opus-4-6']
-
-    def test_fetch_pricing_falls_back_on_empty_primary(self):
-        from pricing_fetcher import fetch_pricing
-
-        with patch('pricing_fetcher.fetch_pricepertoken_pricing', return_value=[]), \
-             patch('pricing_fetcher.fetch_litellm_pricing') as mock_litellm:
-            mock_litellm.return_value = [{'match_key': 'x', 'raw_model_id': 'x',
-                                          'display_name': 'x',
-                                          'input_cost_per_mtok': 1.0,
-                                          'output_cost_per_mtok': 2.0}]
-            results = fetch_pricing(
-                {'type': 'pricepertoken', 'url': 'https://pricepertoken.com/foo'},
-                provider_for_fallback='anthropic',
-            )
-        assert len(results) == 1
-        mock_litellm.assert_called_once_with(provider_filter='anthropic')
-
-    def test_fetch_pricing_falls_back_on_primary_exception(self):
-        from pricing_fetcher import fetch_pricing
-
-        with patch('pricing_fetcher.fetch_pricepertoken_pricing',
-                   side_effect=ConnectionError('boom')), \
-             patch('pricing_fetcher.fetch_litellm_pricing') as mock_litellm:
-            mock_litellm.return_value = []
-            results = fetch_pricing(
-                {'type': 'pricepertoken', 'url': 'https://pricepertoken.com/foo'},
-                provider_for_fallback='openai',
-            )
-        assert results == []
-        mock_litellm.assert_called_once_with(provider_filter='openai')
-
-    def test_fetch_pricing_unknown_domain_uses_litellm(self):
-        from pricing_fetcher import fetch_pricing
-
-        with patch('pricing_fetcher.fetch_litellm_pricing') as mock_litellm:
-            mock_litellm.return_value = []
-            fetch_pricing(
-                {'type': 'unknown', 'domain': 'mystery.example.com'},
-                provider_for_fallback='openai',
-            )
-        mock_litellm.assert_called_once_with(provider_filter='openai')
-
-    def test_primary_success_does_not_call_litellm(self):
-        from pricing_fetcher import fetch_pricing
-
-        primary = [{'match_key': 'y', 'raw_model_id': 'y',
-                    'display_name': 'y', 'input_cost_per_mtok': 3.0,
-                    'output_cost_per_mtok': 9.0}]
-        with patch('pricing_fetcher.fetch_openrouter_pricing', return_value=primary), \
-             patch('pricing_fetcher.fetch_litellm_pricing') as mock_litellm:
-            results = fetch_pricing(
-                {'type': 'openrouter_api', 'url': 'https://openrouter.ai/api/v1/models'},
-                provider_for_fallback='openrouter',
-            )
-        assert results == primary
-        mock_litellm.assert_not_called()

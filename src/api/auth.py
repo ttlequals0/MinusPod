@@ -7,6 +7,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from utils.session_defaults import base_url_is_https
 from utils.validation import is_public_ip_for_lockout
+from api.auth_state import (
+    authenticate_session, authentication_required, password_is_set,
+    session_is_authenticated,
+)
+from api.csrf import validate as csrf_validate
 
 from api import (
     api, limiter, log_request, json_response, error_response,
@@ -55,14 +60,10 @@ def auth_status():
     This endpoint is always accessible (no auth required).
     """
     db = get_database()
-    password_hash = db.get_setting('app_password')
-    password_set = password_hash is not None and password_hash != ''
+    password_set = password_is_set(db)
 
     # If no password is set, everyone is authenticated
-    if not password_set:
-        authenticated = True
-    else:
-        authenticated = session.get('authenticated', False)
+    authenticated = session_is_authenticated(db)
 
     return json_response({
         'passwordSet': password_set,
@@ -87,6 +88,8 @@ def auth_login():
     password_set = stored_hash is not None and stored_hash != ''
 
     if not password_set:
+        if authentication_required(db):
+            return error_response('Set the application password before logging in', 503)
         return json_response({
             'authenticated': True,
             'message': 'No password configured'
@@ -121,9 +124,10 @@ def auth_login():
         db.record_auth_success(ip)
 
     # Rotate the session on login so a pre-auth cookie can't ride the new authenticated state (fixation).
-    session.clear()
-    session.permanent = True
-    session['authenticated'] = True
+    generation = db.auth_generation_if_password_equal(stored_hash)
+    if generation is None:
+        return error_response('Password changed during login; try again', 409)
+    authenticate_session(db, generation)
     logger.info(f"Successful login from {ip}")
     _warn_if_session_cookie_unstorable()
 
@@ -145,7 +149,6 @@ def auth_logout():
     returns None when session.authenticated is False), preserving the
     "always callable to clear stale state" property.
     """
-    from api.csrf import validate as csrf_validate
     csrf_err = csrf_validate(request)
     if csrf_err:
         logger.warning("CSRF check failed on /auth/logout ip=%s", request.remote_addr)
@@ -196,7 +199,9 @@ def auth_set_password():
 
     # Remove password protection if empty
     if not new_password:
-        db.set_setting('app_password', '')
+        if db.replace_password_and_revoke(current_hash, '') is None:
+            return error_response('Password changed; try again', 409)
+        session.clear()
         logger.info(f"Password protection removed by {request.remote_addr}")
         return json_response({
             'message': 'Password protection removed',
@@ -212,13 +217,13 @@ def auth_set_password():
     # Pin the hash method so security decisions are visible in code rather
     # than depending on whichever default werkzeug ships today.
     password_hash = generate_password_hash(new_password, method='scrypt')
-    db.set_setting('app_password', password_hash)
+    generation = db.replace_password_and_revoke(current_hash, password_hash)
+    if generation is None:
+        return error_response('Password changed; try again', 409)
     logger.info(f"Password {'changed' if password_set else 'set'} by {request.remote_addr}")
 
     # Rotate the session on password change for the same reason as /auth/login.
-    session.clear()
-    session.permanent = True
-    session['authenticated'] = True
+    authenticate_session(db, generation)
     _warn_if_session_cookie_unstorable()
 
     return json_response({

@@ -55,9 +55,10 @@ function Dashboard() {
   const deleteMutation = useMutation({
     mutationFn: deleteFeed,
     onMutate: () => setActionError(null),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       setDeleteConfirm(null);
+      if (result?.pending) setActionError(result.message);
     },
     onError: (err) => { setDeleteConfirm(null); setActionError((err as Error).message); },
   });

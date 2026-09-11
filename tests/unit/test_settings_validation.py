@@ -586,6 +586,13 @@ class TestAudioBitrateValidation:
 class TestArtworkBadgePositionValidation:
     """artworkBadgePosition round-trip + validation (issue #600)."""
 
+    @pytest.fixture(autouse=True)
+    def _reset_artwork_badge_position(self):
+        db = database.Database()
+        db.set_setting('artwork_badge_position', 'bottom-right', is_default=True)
+        yield
+        db.set_setting('artwork_badge_position', 'bottom-right', is_default=True)
+
     def _get_settings(self, client):
         resp = client.get('/api/v1/settings')
         assert resp.status_code == 200

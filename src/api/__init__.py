@@ -1,7 +1,9 @@
 """REST API for MinusPod web UI."""
 import logging
+import ipaddress
 import os
 import re
+import secrets
 import time
 from typing import Optional
 from flask import Blueprint, abort, jsonify, request, session
@@ -10,9 +12,15 @@ from flask_limiter.util import get_remote_address
 from functools import wraps
 
 from config import normalize_model_key
-from utils.http import client_ip
+from api.auth_state import authentication_required, session_is_authenticated
+from api.csrf import validate as csrf_validate
+from utils.validation import is_dangerous_slug
+from utils.http import client_ip, redact_feed_credentials
 # Import registers the memory-threadsafe scheme before the Limiter resolves it.
-from utils.ratelimit_storage import STORAGE_URI as RATELIMIT_STORAGE_URI
+from utils.ratelimit_storage import (
+    STORAGE_URI as RATELIMIT_STORAGE_URI,
+    ensure_storage_available,
+)
 from utils.text import extract_text_in_range
 from sponsor_service import SponsorService
 
@@ -71,6 +79,8 @@ def init_limiter(app):
     being enabled.
     """
     limiter.init_app(app)
+    storage_uri = os.environ.get('RATE_LIMIT_STORAGE_URI', RATELIMIT_STORAGE_URI)
+    ensure_storage_available(storage_uri, limiter.storage)
     logger.debug("Rate limiter initialized: 200/min, 1000/hr default limits")
 
 
@@ -105,11 +115,36 @@ AUTH_EXEMPT_PATHS = frozenset({
 
 # Strict pattern exemption for podcast-app cross-origin artwork GETs.
 # <img src> can't bounce through an auth dance on 401, so this one GET is
-# public. The regex mirrors the strict slug shape (is_valid_slug); bad
-# slugs fall through to the authenticated path and 401.
-PODCAST_APP_EXEMPT_PATTERNS = (
-    re.compile(r'^/api/v1/feeds/[a-z0-9][a-z0-9-]{0,63}/artwork$'),
-)
+# public. It enforces the route's accepted 200-character slug limit;
+# malformed paths fall through to the authenticated path and 401.
+PODCAST_ARTWORK_PATH = re.compile(r'^/api/v1/feeds/([^/]+)/artwork$')
+
+
+def _is_public_artwork_request(path, method):
+    """Allow podcast artwork reads for canonical and safe legacy slugs."""
+    if method not in ('GET', 'HEAD'):
+        return False
+    match = PODCAST_ARTWORK_PATH.fullmatch(path)
+    if not match:
+        return False
+    slug = match.group(1)
+    return len(slug) <= 200 and not is_dangerous_slug(slug)
+
+
+def _remote_setup_allowed():
+    if os.environ.get('MINUSPOD_REQUIRE_AUTH', 'false').lower() != 'true':
+        return True
+    try:
+        if ipaddress.ip_address(request.remote_addr or '').is_loopback:
+            return True
+    except ValueError:
+        pass
+    expected = os.environ.get('MINUSPOD_SETUP_TOKEN', '')
+    supplied = request.headers.get('X-MinusPod-Setup-Token', '')
+    try:
+        return bool(expected and secrets.compare_digest(supplied, expected))
+    except TypeError:
+        return False
 
 
 @api.before_request
@@ -123,13 +158,16 @@ def check_auth():
     """
     path = request.path
 
+    if path == '/api/v1/auth/password':
+        db = get_database()
+        if not db.get_setting('app_password') and not _remote_setup_allowed():
+            return error_response('Remote setup requires a setup token', 403)
+
     if path in AUTH_EXEMPT_PATHS:
         return None
 
-    if request.method == 'GET':
-        for pattern in PODCAST_APP_EXEMPT_PATTERNS:
-            if pattern.match(path):
-                return None
+    if _is_public_artwork_request(path, request.method):
+        return None
 
     # Check if password is set
     db = get_database()
@@ -140,17 +178,18 @@ def check_auth():
         # served (no auth, no CSRF) until a password is set under Settings >
         # Security, at which point the session + CSRF checks below take over. A
         # no-password instance exposed to the network is fully open by design.
+        if authentication_required(db):
+            return error_response('Set the application password before using the API', 503)
         return None
 
     # Check session
-    if not session.get('authenticated', False):
+    if not session_is_authenticated(db):
         return error_response('Authentication required', 401)
 
     # Double-submit CSRF check for mutating methods. SameSite=Strict on
     # the session cookie is the primary defense; the token header is a
     # belt-and-suspenders layer for same-site edge cases (subdomain
     # takeover, CNAME trust, etc.).
-    from api.csrf import validate as csrf_validate
     csrf_err = csrf_validate(request)
     if csrf_err:
         logger.warning("CSRF check failed path=%s method=%s ip=%s", path, request.method, request.remote_addr)
@@ -241,11 +280,13 @@ def log_request(f):
             result = f(*args, **kwargs)
             elapsed = (time.time() - start_time) * 1000  # ms
             status = result.status_code if hasattr(result, 'status_code') else 200
-            logger.info(f"{request.method} {request.path} {status} {elapsed:.0f}ms [{ip}] [{user_agent}]")
+            path = redact_feed_credentials(request.path)
+            logger.info(f"{request.method} {path} {status} {elapsed:.0f}ms [{ip}] [{user_agent}]")
             return result
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
-            logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{ip}] - {e}")
+            path = redact_feed_credentials(request.path)
+            logger.error(f"{request.method} {path} ERROR {elapsed:.0f}ms [{ip}] - {e}")
             raise
     return decorated
 

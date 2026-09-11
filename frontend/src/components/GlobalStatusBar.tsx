@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { storeLoginRedirect } from '../utils/loginRedirect';
 import { getStageLabel } from '../utils/processingStage';
 import { focusRing } from './fieldStyles';
+import { apiRequest } from '../api/client';
 
 interface ProcessingJob {
   slug: string;
@@ -13,6 +14,7 @@ interface ProcessingJob {
   progress: number;
   startedAt: number;
   elapsed: number;
+  runId?: string | null;
 }
 
 interface QueuedEpisode {
@@ -54,6 +56,7 @@ interface StatusData {
   feedRefreshes: FeedRefresh[];
   hold?: QueueHold;
   lastUpdated: number;
+  revision?: number;
 }
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -117,7 +120,7 @@ function holdSummary(hold: QueueHold | undefined): string | null {
  *  currentJob, so that is the fallback. */
 function jobKeys(status: StatusData | null): Set<string> {
   const list = status?.jobs ?? (status?.currentJob ? [status.currentJob] : []);
-  return new Set(list.map((job) => `${job.slug}:${job.episodeId}`));
+  return new Set(list.map((job) => `${job.slug}:${job.episodeId}:${job.runId ?? ''}`));
 }
 
 /** Server elapsed plus seconds ticked locally since the frame carrying it arrived. */
@@ -134,10 +137,8 @@ function formatDuration(seconds: number): string {
   return `${mins}m ${secs}s`;
 }
 
-// SSE reconnection constants
-const SSE_INITIAL_DELAY = 1000;  // Start with 1 second
-const SSE_MAX_DELAY = 30000;     // Max 30 seconds
-const SSE_BACKOFF_MULTIPLIER = 2;
+const STATUS_POLL_MS = 2000;
+const STATUS_RETRY_MAX_MS = 30000;
 
 function GlobalStatusBar() {
   const [status, setStatus] = useState<StatusData | null>(null);
@@ -148,9 +149,7 @@ function GlobalStatusBar() {
   // job.elapsed plus seconds ticked locally since this frame landed, so a
   // client clock skewed from the server's never shows a wrong duration.
   const [receivedAt, setReceivedAt] = useState(() => Date.now());
-  const [, setReconnectAttempt] = useState(0);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<number | null>(null);
+  const pollTimeoutRef = useRef<number | null>(null);
   const prevStatusRef = useRef<StatusData | null>(null);
   const queryClient = useQueryClient();
 
@@ -164,101 +163,62 @@ function GlobalStatusBar() {
   }, [jobs.length]);
 
   useEffect(() => {
-    function connect() {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+    const controller = new AbortController();
+    let stopped = false;
+    let failures = 0;
+
+    const applyStatus = (data: StatusData) => {
+      setStatus(data);
+      setNow(Date.now());
+      setReceivedAt(Date.now());
+      const prev = prevStatusRef.current;
+      const nextKeys = jobKeys(data);
+      if ([...jobKeys(prev)].some((key) => !nextKeys.has(key))) {
+        queryClient.invalidateQueries({ queryKey: ['episode'] });
+        queryClient.invalidateQueries({ queryKey: ['episodes'] });
+        queryClient.invalidateQueries({ queryKey: ['feed'] });
+        queryClient.invalidateQueries({ queryKey: ['feeds'] });
       }
+      if (prev?.feedRefreshes?.length &&
+          data.feedRefreshes.length < prev.feedRefreshes.length) {
+        queryClient.invalidateQueries({ queryKey: ['feeds'] });
+        queryClient.invalidateQueries({ queryKey: ['episodes'] });
+      }
+      prevStatusRef.current = data;
+    };
 
-      const eventSource = new EventSource('/api/v1/status/stream');
-      eventSourceRef.current = eventSource;
-
-      eventSource.onopen = () => {
+    const poll = async () => {
+      let delay = STATUS_POLL_MS;
+      try {
+        const data = await apiRequest<StatusData>(
+          '/status', { signal: controller.signal, skipRetry: true },
+        );
+        applyStatus(data);
+        failures = 0;
         setIsConnected(true);
-        setReconnectAttempt(0); // Reset backoff on successful connection
-      };
-
-      // EventSource cannot see HTTP 401; the backend emits an
-      // application-level auth-failed event when the session has lapsed,
-      // so we listen for it and redirect to /login. Without this the
-      // bar would silently reconnect-loop against a route that now
-      // requires auth.
-      eventSource.addEventListener('auth-failed', () => {
-        eventSource.close();
-        if (!window.location.pathname.includes('/login')) {
-          storeLoginRedirect(window.location.pathname, window.location.search);
-          window.location.href = '/ui/login';
-        }
-      });
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as StatusData;
-          setStatus(data);
-          setNow(Date.now());
-          setReceivedAt(Date.now());
-
-          // Invalidate React Query caches on status transitions so
-          // pages (FeedDetail, EpisodeDetail, Dashboard) pick up
-          // changes without manual refresh.
-          const prev = prevStatusRef.current;
-          const nextKeys = jobKeys(data);
-          if ([...jobKeys(prev)].some((key) => !nextKeys.has(key))) {
-            // A job in the previous frame is missing from this one, so it
-            // finished. A count would miss one ending as another starts.
-            queryClient.invalidateQueries({ queryKey: ['episode'] });
-            queryClient.invalidateQueries({ queryKey: ['episodes'] });
-            queryClient.invalidateQueries({ queryKey: ['feed'] });
-            queryClient.invalidateQueries({ queryKey: ['feeds'] });
-          }
-          if (prev?.feedRefreshes?.length &&
-              data.feedRefreshes.length < prev.feedRefreshes.length) {
-            // Feed refresh completed
-            queryClient.invalidateQueries({ queryKey: ['feeds'] });
-            queryClient.invalidateQueries({ queryKey: ['episodes'] });
-          }
-          prevStatusRef.current = data;
-        } catch (e) {
-          console.error('Failed to parse status data:', e);
-        }
-      };
-
-      eventSource.onerror = () => {
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        failures += 1;
+        delay = Math.min(STATUS_POLL_MS * (2 ** failures), STATUS_RETRY_MAX_MS);
         setIsConnected(false);
-        eventSource.close();
-
-        // Calculate exponential backoff delay
-        setReconnectAttempt((prev) => {
-          const attempt = prev + 1;
-          const delay = Math.min(
-            SSE_INITIAL_DELAY * Math.pow(SSE_BACKOFF_MULTIPLIER, attempt - 1),
-            SSE_MAX_DELAY
-          );
-
-          console.log(`SSE reconnecting in ${delay}ms (attempt ${attempt})`);
-
-          // Reconnect after exponential delay
-          if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
+        if (error instanceof Error && error.message === 'Authentication required') {
+          if (!window.location.pathname.includes('/login')) {
+            storeLoginRedirect(window.location.pathname, window.location.search);
           }
-          reconnectTimeoutRef.current = window.setTimeout(connect, delay);
+          return;
+        }
+      }
+      if (!stopped) pollTimeoutRef.current = window.setTimeout(poll, delay);
+    };
 
-          return attempt;
-        });
-      };
-    }
-
-    connect();
+    void poll();
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
+      stopped = true;
+      controller.abort();
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
     };
-    // queryClient is stable across renders (react-query); SSE connect is
-    // intentionally one-shot on mount, not re-keyed off the client identity.
+    // queryClient is stable across renders; polling is one-shot on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

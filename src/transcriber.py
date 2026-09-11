@@ -36,6 +36,7 @@ from utils.safe_http import (
 )
 from utils.rate_limit import parse_retry_after
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.ttl_cache import TTLCache
 from whisper_pool import get_pool
 from config import (
@@ -153,7 +154,7 @@ def extract_audio_chunk(
     try:
         duration = end_time - start_time
         cmd = [
-            'ffmpeg', '-y',
+            'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
             '-ss', str(start_time),
             '-i', audio_path,
             '-t', str(duration),
@@ -748,7 +749,7 @@ def _probe_upload(skip_flac_compression: bool) -> tuple[str, bytes]:
         fd, flac_path = tempfile.mkstemp(suffix='.flac')
         os.close(fd)
         encode = tracked_run(
-            ['ffmpeg', '-y', '-i', wav_path, '-c:a', 'flac', flac_path],
+            ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y', '-i', wav_path, '-c:a', 'flac', flac_path],
             capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT,
         )
         if encode.returncode == 0 and os.path.getsize(flac_path) > 0:
@@ -1288,7 +1289,7 @@ class Transcriber:
                 os.close(fd)
                 try:
                     ffmpeg_result = tracked_run(
-                        ['ffmpeg', '-y', '-i', transcribe_path, '-c:a', 'flac', flac_path],
+                        ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y', '-i', transcribe_path, '-c:a', 'flac', flac_path],
                         capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT,
                     )
                     if ffmpeg_result.returncode == 0 and os.path.exists(flac_path):
@@ -1718,7 +1719,7 @@ class Transcriber:
 
         try:
             cmd = [
-                'ffmpeg', '-y', '-i', input_path,
+                'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y', '-i', input_path,
                 '-vn',           # ignore embedded cover art (#556)
                 '-ar', '16000',  # 16kHz (Whisper native sample rate)
                 '-ac', '1',      # Mono

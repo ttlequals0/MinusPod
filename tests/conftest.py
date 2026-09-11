@@ -9,6 +9,25 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from database import Database
+from storage import Storage
+
+
+def _restore_loaded_app_singletons():
+    app_module = sys.modules.get('main_app')
+    app_db = getattr(app_module, 'db', None) if app_module else None
+    app_storage = getattr(app_module, 'storage', None) if app_module else None
+    if app_db is not None:
+        Database._instance = app_db
+    if app_storage is not None:
+        Storage._instance = app_storage
+
+
+@pytest.fixture(autouse=True)
+def _align_loaded_app_singletons():
+    """Keep constructor lookups aligned with imported app references."""
+    _restore_loaded_app_singletons()
+    yield
+    _restore_loaded_app_singletons()
 
 
 @pytest.fixture
@@ -21,19 +40,14 @@ def temp_dir():
 
 @pytest.fixture
 def temp_db(temp_dir):
-    """Create a temporary database for testing.
-
-    IMPORTANT: Database uses singleton pattern - we must reset _instance
-    to get a fresh database for each test.
-    """
-    # Reset singleton to ensure fresh database
+    """Create a temporary database and restore the prior singleton."""
+    previous = Database._instance
     Database._instance = None
 
     db = Database(data_dir=temp_dir)
     yield db
 
-    # Reset singleton after test
-    Database._instance = None
+    Database._instance = previous
 
 
 @pytest.fixture

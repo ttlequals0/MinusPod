@@ -7,6 +7,8 @@ const RETRY_DELAYS = [1000, 3000]; // 2 retries with 1s and 3s backoff
 const CSRF_COOKIE_NAME = 'minuspod_csrf';
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
 const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const MUTATION_UNCERTAIN_MESSAGE =
+  'The server did not confirm this change. It may have completed. Check the current state before trying again.';
 
 export function getCsrfToken(): string | null {
   const cookies = document.cookie.split('; ');
@@ -42,6 +44,8 @@ interface RequestOptions {
   skipAuthRedirect?: boolean;
   signal?: AbortSignal;
   skipRetry?: boolean;
+  retry?: boolean;
+  onResponse?: (status: number) => void;
 }
 
 function isRetryable(status: number): boolean {
@@ -126,8 +130,13 @@ function handleUnauthorized(endpoint: string): void {
 }
 
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, skipAuthRedirect = false, signal, skipRetry = false } = options;
-  const maxAttempts = skipRetry ? 1 : RETRY_DELAYS.length + 1;
+  const {
+    method = 'GET', body, skipAuthRedirect = false, signal,
+    skipRetry = false, retry, onResponse,
+  } = options;
+  const safeMethod = CSRF_SAFE_METHODS.has(method.toUpperCase());
+  const retryEnabled = retry ?? (safeMethod && !skipRetry);
+  const maxAttempts = retryEnabled ? RETRY_DELAYS.length + 1 : 1;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -146,6 +155,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
         body: isFormData ? (body as FormData) : body ? JSON.stringify(body) : undefined,
         signal,
       });
+      onResponse?.(response.status);
 
       // Handle 401 Unauthorized - redirect to login
       if (response.status === 401 && !skipAuthRedirect) {
@@ -179,6 +189,11 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
       if (err instanceof TypeError && attempt < maxAttempts - 1) {
         await sleep(RETRY_DELAYS[attempt], signal);
         continue;
+      }
+      if (err instanceof TypeError && !safeMethod) {
+        const uncertain = new Error(MUTATION_UNCERTAIN_MESSAGE) as Error & { cause?: unknown };
+        uncertain.cause = err;
+        throw uncertain;
       }
       throw err;
     }

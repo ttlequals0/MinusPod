@@ -13,6 +13,7 @@ from typing import ClassVar
 from config import FFPROBE_TIMEOUT
 from storage import _detect_image_mime
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ def get_audio_codec(audio_path: str) -> str | None:
     """Codec name of the first audio stream via ffprobe (e.g. 'mp3',
     'aac'), or None when it cannot be determined."""
     cmd = [
-        'ffprobe', '-v', 'error',
+        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error',
         '-select_streams', 'a:0',
         '-show_entries', 'stream=codec_name',
         '-of', 'default=noprint_wrappers=1:nokey=1',
@@ -49,7 +50,7 @@ def get_audio_duration(audio_path: str) -> float | None:
         Duration in seconds, or None if unable to determine
     """
     cmd = [
-        'ffprobe', '-v', 'error',
+        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error',
         '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1',
         audio_path
@@ -87,7 +88,7 @@ def extract_embedded_artwork(audio_path: str) -> tuple[bytes, str] | None:
     os.close(fd)
     try:
         cmd = [
-            'ffmpeg', '-y', '-i', audio_path,
+            'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y', '-i', audio_path,
             '-an', '-codec:v', 'copy', '-frames:v', '1',
             '-f', 'image2', out_path,
         ]

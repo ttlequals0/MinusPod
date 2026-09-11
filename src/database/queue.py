@@ -51,6 +51,7 @@ _QUEUE_STATUS_ITEMS_LIMIT = 100
 
 # Bound on the pending rows returned by get_pending_queued_episodes.
 PENDING_QUEUE_LIMIT = 200
+QUEUE_INSERT_CHUNK = 50
 
 
 def compute_queue_priority(feed_priority, published_at_iso, manual=False,
@@ -121,14 +122,10 @@ class QueueMixin:
                                       priority: int = 0) -> int | None:
         """Add an episode to the auto-process queue. Returns queue ID or None if already queued."""
         conn = self.get_connection()
-
-        # Get podcast ID
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             logger.error(f"Cannot queue episode: podcast not found: {slug}")
             return None
-
-        podcast_id = podcast['id']
 
         try:
             cursor = conn.execute(
@@ -136,7 +133,7 @@ class QueueMixin:
                    (podcast_id, episode_id, original_url, title, published_at, description, priority)
                    VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
-                (podcast_id, episode_id, original_url, title, published_at, description, priority)
+                (podcast['id'], episode_id, original_url, title, published_at, description, priority)
             )
             conn.commit()
             return cursor.lastrowid if cursor.rowcount > 0 else None
@@ -144,6 +141,37 @@ class QueueMixin:
             conn.rollback()
             logger.error(f"Failed to queue episode for processing: {e}")
             return None
+
+    def queue_episodes_for_processing(
+            self, slug: str, episodes: list[dict], podcast: dict | None = None,
+    ) -> set[str]:
+        """Queue a bounded batch and return the episode ids inserted."""
+        if not episodes:
+            return set()
+        podcast = podcast or self.get_podcast_row(slug)
+        if not podcast:
+            logger.error(f"Cannot queue episodes: podcast not found: {slug}")
+            return set()
+
+        inserted = set()
+        for start in range(0, len(episodes), QUEUE_INSERT_CHUNK):
+            with self.transaction(immediate=True) as conn:
+                for episode in episodes[start:start + QUEUE_INSERT_CHUNK]:
+                    cursor = conn.execute(
+                        """INSERT INTO auto_process_queue
+                           (podcast_id, episode_id, original_url, title,
+                            published_at, description, priority)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)
+                           ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
+                        (
+                            podcast['id'], episode['episode_id'], episode['original_url'],
+                            episode.get('title'), episode.get('published_at'),
+                            episode.get('description'), episode.get('priority', 0),
+                        ),
+                    )
+                    if cursor.rowcount:
+                        inserted.add(episode['episode_id'])
+        return inserted
 
     def upsert_episode_for_processing(self, slug: str, episode_id: str,
                                       original_url: str, title: str = None,

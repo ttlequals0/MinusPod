@@ -39,6 +39,33 @@ export async function regenerateFeedKey(): Promise<{ feedAuthKey: string }> {
   });
 }
 
+export interface ProviderBudget {
+  enabled: boolean;
+  dailyLimitMicrousd: number;
+  maxReservations: number;
+  unknownCost: 'deny' | 'allow' | 'reserve';
+  unknownReserveMicrousd: number;
+  status: {
+    provider: string;
+    spentMicrousd: number;
+    reservedMicrousd: number;
+    activeReservations: number;
+  };
+}
+
+export async function getProviderBudget(): Promise<ProviderBudget> {
+  return apiRequest<ProviderBudget>('/settings/provider-budget');
+}
+
+export async function updateProviderBudget(
+  settings: Omit<ProviderBudget, 'status'>,
+): Promise<ProviderBudget> {
+  return apiRequest<ProviderBudget>('/settings/provider-budget', {
+    method: 'PUT',
+    body: settings,
+  });
+}
+
 export async function getModels(provider?: string): Promise<ClaudeModel[]> {
   const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
   const response = await apiRequest<{ models: ClaudeModel[] }>(`/settings/models${params}`);
@@ -62,6 +89,31 @@ export async function refreshModels(): Promise<{ models: ClaudeModel[]; count: n
 
 export async function getSystemStatus(): Promise<SystemStatus> {
   return apiRequest<SystemStatus>('/system/status');
+}
+
+export async function checkpointDatabase(): Promise<{
+  busy: boolean;
+  logPages: number;
+  checkpointedPages: number;
+  durationMs: number;
+}> {
+  return apiRequest('/system/database/checkpoint', { method: 'POST' });
+}
+
+export interface ProcessingAdmission {
+  paused: boolean;
+  activeRuns: number;
+  queuedEpisodes: number;
+}
+
+export async function getProcessingAdmission(): Promise<ProcessingAdmission> {
+  return apiRequest('/status/processing-admission');
+}
+
+export async function setProcessingAdmission(paused: boolean): Promise<ProcessingAdmission> {
+  return apiRequest('/status/processing-admission', {
+    method: 'PUT', body: { paused },
+  });
 }
 
 export async function runCleanup(): Promise<{ message: string; episodesRemoved: number; spaceFreedMb: number }> {

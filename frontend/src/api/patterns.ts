@@ -211,6 +211,40 @@ export async function submitCorrection(
   });
 }
 
+export interface UnresolvedCorrectionCandidate {
+  slug: string;
+  podcast_title: string | null;
+  episode_title: string | null;
+}
+
+export interface UnresolvedCorrection {
+  id: number;
+  episode_id: string;
+  podcast_title: string | null;
+  episode_title: string | null;
+  correction_type: string;
+  created_at: string;
+  original_bounds: { start: number; end: number } | null;
+  corrected_bounds: { start: number; end: number } | null;
+  candidates: UnresolvedCorrectionCandidate[];
+}
+
+export interface UnresolvedCorrectionsResponse {
+  count: number;
+  corrections: UnresolvedCorrection[];
+}
+
+export async function getUnresolvedCorrections(): Promise<UnresolvedCorrectionsResponse> {
+  return apiRequest<UnresolvedCorrectionsResponse>('/patterns/corrections/unresolved');
+}
+
+export async function assignUnresolvedCorrection(id: number, slug: string): Promise<void> {
+  await apiRequest(`/patterns/corrections/${id}/assign`, {
+    method: 'POST',
+    body: { slug, confirm: true },
+  });
+}
+
 export async function getSplitCandidates(
   slug: string,
   episodeId: string,

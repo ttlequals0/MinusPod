@@ -49,6 +49,9 @@ jobs:
       - name: Install project requirements
         run: pip install -r requirements.txt
 
+      - name: Check Markdown links and anchors
+        run: python scripts/check_markdown_links.py
+
       - name: Set up Node 22 (for frontend build that produces static/ui)
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
@@ -95,6 +98,9 @@ jobs:
 
       - name: Lint (eslint)
         run: npm run lint
+
+      - name: Test (Vitest)
+        run: npm run test
 
       - name: Build (runs tsc then vite build)
         run: npm run build

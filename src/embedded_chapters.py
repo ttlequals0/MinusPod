@@ -21,6 +21,7 @@ import tempfile
 from config import FFMPEG_LONG_TIMEOUT, FFPROBE_TIMEOUT
 from utils.audio import get_audio_duration
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS
 from utils.time import adjust_timestamp, span_inside_any_cut
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ def probe_chapters(audio_path: str) -> list[dict] | None:
     ffmpeg's default passthrough keeps them (stale but recoverable).
     """
     cmd = [
-        'ffprobe', '-v', 'quiet', '-show_chapters', '-of', 'json', audio_path,
+        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'quiet', '-show_chapters', '-of', 'json', audio_path,
     ]
     try:
         result = tracked_run(cmd, capture_output=True, timeout=FFPROBE_TIMEOUT)
@@ -181,7 +182,7 @@ def embed_chapters(audio_path: str, chapters: list[dict],
         with os.fdopen(meta_fd, 'w', encoding='utf-8') as f:
             f.write(render_ffmetadata(spans))
         cmd = [
-            'ffmpeg', '-y',
+            'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
             '-i', audio_path,
             '-f', 'ffmetadata', '-i', meta_path,
             # -1 drops every chapter frame: an empty set is "remove them all".

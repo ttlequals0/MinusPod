@@ -27,7 +27,7 @@ def _default_session_cookie_secure() -> bool:
     Unset or empty BASE_URL defaults to True (safe).
     """
     explicit = os.environ.get('SESSION_COOKIE_SECURE')
-    if explicit is not None:
+    if explicit is not None and explicit.strip().lower() != 'auto':
         return explicit.strip().lower() == 'true'
     base_url = os.environ.get('BASE_URL', '')
     # Downgrade only on a positive plain-HTTP signal; unknown/empty stays True.

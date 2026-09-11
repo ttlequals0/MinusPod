@@ -29,7 +29,7 @@ from config import (
     AUDIO_CUE_ONSET_LAG_SECONDS,
 )
 from utils.audio import get_audio_duration
-from utils.ffmpeg_run import ffmpeg_timeout, decode_stderr
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout, decode_stderr
 from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger('podcast.audio_analysis.cue')
@@ -126,7 +126,7 @@ class AudioCueDetector:
             f"lowpass=f={int(self.freq_max_hz)},"
             f"ebur128=framelog=verbose:peak=sample"
         )
-        cmd = ['ffmpeg', '-v', 'verbose', '-i', audio_path, '-af', af, '-f', 'null', '-']
+        cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'verbose', '-i', audio_path, '-af', af, '-f', 'null', '-']
         timeout = ffmpeg_timeout(duration)
 
         try:

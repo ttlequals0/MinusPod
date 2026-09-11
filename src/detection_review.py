@@ -51,9 +51,10 @@ def _reviewer_moved_from_marker(marker: dict) -> bool:
 
 
 def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
-    by_episode: dict[str, list[dict]] = {}
+    by_episode: dict[tuple[object, str], list[dict]] = {}
     for c in corrections:
-        by_episode.setdefault(c['episode_id'], []).append(c)
+        if c.get('podcast_id') is not None:
+            by_episode.setdefault((c['podcast_id'], c['episode_id']), []).append(c)
 
     items = []
     for row in rows:
@@ -63,7 +64,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
             continue
         if not isinstance(markers, list):
             continue
-        episode_corrections = by_episode.get(row['episode_id'], [])
+        episode_corrections = by_episode.get((row.get('podcast_id'), row['episode_id']), [])
         for marker in markers:
             if not isinstance(marker, dict):
                 continue

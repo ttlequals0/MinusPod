@@ -12,6 +12,7 @@ imports the ``api`` package (which imports this module) before it finishes
 initializing -- a module-level import here would be circular.
 """
 import json
+import hashlib
 import logging
 import os
 import shutil
@@ -26,11 +27,15 @@ from api import (api, limiter, log_request, json_response, error_response,
 from api.episodes import _episode_base_json
 from api.feeds import _validate_p20_items, _p20_tag_attrs
 from config import MIN_PRESERVED_CHAPTERS
+from cancel import request_cancellation, wait_for_cancellation
 from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
-from local_import import build_import_plan, get_import_status, plan_hash, start_commit
-from processing_queue import ProcessingQueue
+from local_import import (
+    _release_import_lock, _try_acquire_import_lock, build_import_plan,
+    bump_staging_generation, get_import_status, plan_hash,
+    read_staging_generation, start_commit,
+)
 from storage import _detect_image_mime
 from utils.audio import extract_embedded_artwork, get_audio_duration
 from utils.constants import EpisodeStatus
@@ -119,18 +124,6 @@ def _read_capped(file_storage, max_bytes):
     True, ``data`` must be discarded rather than persisted."""
     data = file_storage.stream.read(max_bytes + 1)
     return data, len(data) > max_bytes
-
-
-def _next_episode_number(db, podcast_id, season_number):
-    """1 + the highest existing episode_number in this season (0 if none)."""
-    conn = db.get_connection()
-    cursor = conn.execute(
-        "SELECT MAX(episode_number) FROM episodes WHERE podcast_id = ? AND season_number = ?",
-        (podcast_id, season_number)
-    )
-    row = cursor.fetchone()
-    max_ep = row[0] if row else None
-    return (max_ep or 0) + 1
 
 
 def _validate_p20_item(value):
@@ -272,17 +265,27 @@ def upload_local_episode(slug):
             return error_response('artwork must be a JPEG or PNG image', 400)
         artwork_bytes = raw
 
-    episode_number = (episode_param if episode_param is not None
-                      else _next_episode_number(db, podcast['id'], season))
-    episode_id = f's{season:02d}e{episode_number:02d}'
+    if episode_param is None:
+        reservation = db.reserve_next_episode_upload(slug, season)
+        if not reservation:
+            return error_response('feed is being deleted', 409)
+        reservation_id = reservation['id']
+        episode_number = reservation['episode_number']
+        episode_id = reservation['episode_id']
+    else:
+        episode_number = episode_param
+        episode_id = f's{season:02d}e{episode_number:02d}'
+        reserved = db.reserve_episode_uploads(
+            slug, [episode_id], operation='individual')
+        if reserved['conflicts']:
+            return error_response(f'Episode {episode_id} already exists or is uploading', 409)
+        reservation_id = reserved['reserved'][episode_id]
     if not is_valid_episode_id(episode_id):
+        db.fail_upload_reservation(reservation_id)
         return error_response('season/episode out of range', 400)
 
     if not title:
         title = f'Episode {episode_number}'
-
-    if db.get_episode(slug, episode_id):
-        return error_response(f'Episode {episode_id} already exists', 409)
 
     _, total_before = db.get_episodes(slug, status='all', limit=1)
 
@@ -295,42 +298,58 @@ def upload_local_episode(slug):
     tmp_fd, tmp_name = tempfile.mkstemp(suffix='.mp3', dir=str(final_path.parent))
     os.close(tmp_fd)
     tmp_path = Path(tmp_name)
+    published = False
     try:
+        temp_relative = str(tmp_path.resolve().relative_to(storage.data_dir.resolve()))
+        if not db.prepare_upload_reservation(reservation_id, temp_relative):
+            return error_response('upload reservation was lost', 409)
         upload.save(tmp_path)
 
         duration = get_audio_duration(str(tmp_path))
         if duration is None:
             return error_response('not playable audio', 400)
 
-        shutil.move(str(tmp_path), str(final_path))
-        tmp_path = None  # ownership transferred; nothing left to clean up
+        backup_path = final_path.parent / f'.upload-{reservation_id}.backup'
+        data_root = storage.data_dir.resolve()
+        backup_relative = str(backup_path.resolve().relative_to(data_root))
+        if not db.begin_upload_publication(
+                reservation_id, temp_relative, backup_relative):
+            return error_response('upload reservation was lost', 409)
 
         published_at = published_at or utc_now_iso()
-
-        # Insert the row immediately after the move. This narrows the
-        # window where the audio file is on disk with no corresponding DB
-        # row, and -- more importantly -- the chapters/artwork writes
-        # below need the row to already exist: save_chapters_json goes
-        # through save_episode_details, which raises ValueError (silently
-        # swallowed to a warning by the storage layer) when the episode
-        # isn't in the episodes table yet.
-        db.upsert_episode(
-            slug, episode_id,
-            title=title,
-            description=description,
-            status=EpisodeStatus.DISCOVERED.value,
-            original_url=f'local://{episode_id}',
-            published_at=published_at,
-            episode_number=episode_number,
-            season_number=season,
-            original_duration=duration,
-            # The retained original IS the audio just moved into place above
-            # -- without this, hasOriginalAudio stays false and the
-            # /original.mp3 route 404s until a processing run happens to
-            # write this column itself. Same relative-path form
-            # main_app/processing.py's _persist_episode_state uses.
-            original_file=f'episodes/{episode_id}-original.mp3',
-        )
+        moved = False
+        try:
+            with db.transaction(immediate=True):
+                if not db.owns_upload_reservation(reservation_id, 'publishing'):
+                    raise RuntimeError('upload reservation was lost during publication')
+                if final_path.exists():
+                    os.replace(final_path, backup_path)
+                os.replace(tmp_path, final_path)
+                moved = True
+                db.upsert_episode(
+                    slug, episode_id, commit=False,
+                    title=title,
+                    description=description,
+                    status=EpisodeStatus.DISCOVERED.value,
+                    original_url=f'local://{episode_id}',
+                    published_at=published_at,
+                    episode_number=episode_number,
+                    season_number=season,
+                    original_duration=duration,
+                    original_file=f'episodes/{episode_id}-original.mp3',
+                )
+                if not db.finish_upload_reservation(
+                        reservation_id, 'published', commit=False):
+                    raise RuntimeError('upload reservation was lost during publication')
+            published = True
+            tmp_path = None
+        except BaseException:
+            if moved and final_path.exists():
+                os.replace(final_path, tmp_path)
+            if backup_path.exists():
+                os.replace(backup_path, final_path)
+            raise
+        db.cleanup_published_upload_backup(reservation_id)
 
         chapters = probe_chapters(str(final_path))
         if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
@@ -373,6 +392,8 @@ def upload_local_episode(slug):
     finally:
         if tmp_path is not None and tmp_path.exists():
             tmp_path.unlink()
+        if not published:
+            db.fail_upload_reservation(reservation_id)
 
     episode = db.get_episode(slug, episode_id)
     # slug/is_local/storage are required for the local-artwork fallback
@@ -503,11 +524,29 @@ def delete_local_episode(slug, episode_id):
     if not episode:
         return error_response('Episode not found', 404)
 
-    # A worker actively processing this episode is reading/writing its
-    # files right now; deleting out from under it would race the worker
-    # and leave it referencing a gone row/file.
-    if ProcessingQueue().is_processing(slug, episode_id):
-        return error_response('episode is processing; cancel it first', 409)
+    active = db.mark_episodes_for_deletion(slug, [episode_id])
+    if active['uploading']:
+        return json_response({
+            'message': 'Episode deletion is waiting for its upload to finish',
+            'episodeId': episode_id,
+        }, 202)
+    for active_episode_id in active['processing']:
+        run_id = request_cancellation(slug, active_episode_id)
+        if not run_id:
+            return error_response(
+                'Could not record cancellation; episode was not deleted', 503)
+        if not wait_for_cancellation(run_id, timeout=2.0):
+            return json_response({
+                'message': 'Episode deletion is waiting for processing to stop',
+                'episodeId': episode_id,
+            }, 202)
+
+    active = db.mark_episodes_for_deletion(slug, [episode_id])
+    if active['processing'] or active['uploading']:
+        return json_response({
+            'message': 'Episode deletion is waiting for active work to stop',
+            'episodeId': episode_id,
+        }, 202)
 
     deleted = db.delete_episode_rows(slug, [episode_id], storage)
 
@@ -630,6 +669,16 @@ def _client_import_plan(plan):
     return {**plan, 'entries': entries}
 
 
+def _bind_staging_generation(plan, storage, slug, source):
+    if source not in ('staging', 'both'):
+        return plan
+    generation = read_staging_generation(storage, slug)
+    plan['stagingGeneration'] = generation
+    value = f"{plan['planHash']}:{generation}".encode()
+    plan['planHash'] = hashlib.sha256(value).hexdigest()
+    return plan
+
+
 def _existing_episode_ids(db, slug):
     episodes, _ = db.get_episodes(slug, status='all', limit=10000)
     return {ep['episode_id'] for ep in episodes}
@@ -695,17 +744,63 @@ def upload_import_files(slug):
 
     staged = []
     rejected = []
-    staging_dir = None
+    seen_names = set()
+    temp_dir = storage.data_dir / '.import-upload-tmp' / slug
     for upload in uploads:
         name = upload.filename or ''
         reason = _reject_reason_for_basename(name)
+        if not reason and name in seen_names:
+            reason = 'duplicate filename in request'
         if reason:
             rejected.append({'file': name, 'reason': reason})
             continue
-        if staging_dir is None:
-            staging_dir = storage.import_staging_dir(slug, create=True)
+        seen_names.add(name)
+        reservation_id = db.reserve_staging_upload(slug, name)
+        if not reservation_id:
+            rejected.append({'file': name, 'reason': 'file is already uploading'})
+            continue
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_path = temp_dir / f'{reservation_id}.part'
+        lock_fh = None
+        published = False
         try:
-            upload.save(str(staging_dir / name))
+            temp_relative = str(
+                temp_path.resolve().relative_to(storage.data_dir.resolve()))
+            if not db.prepare_upload_reservation(reservation_id, temp_relative):
+                raise OSError('upload reservation was lost')
+            upload.save(str(temp_path))
+            lock_fh = _try_acquire_import_lock(storage, slug)
+            if lock_fh is None:
+                raise OSError('an import started while this file was uploading')
+            staging_dir = storage.import_staging_dir(slug, create=True)
+            final_path = staging_dir / name
+            backup_path = temp_dir / f'{reservation_id}.backup'
+            if not db.begin_upload_publication(
+                    reservation_id,
+                    str(temp_path.resolve().relative_to(storage.data_dir.resolve())),
+                    str(backup_path.resolve().relative_to(storage.data_dir.resolve()))):
+                raise OSError('upload reservation was lost')
+            moved = False
+            try:
+                with db.transaction(immediate=True):
+                    if not db.owns_upload_reservation(reservation_id, 'publishing'):
+                        raise OSError('upload reservation was lost')
+                    if final_path.exists():
+                        os.replace(final_path, backup_path)
+                    os.replace(temp_path, final_path)
+                    moved = True
+                    bump_staging_generation(storage, slug)
+                    if not db.finish_upload_reservation(
+                            reservation_id, 'published', commit=False):
+                        raise OSError('upload reservation was lost during publication')
+                published = True
+            except BaseException:
+                if moved and final_path.exists():
+                    os.replace(final_path, temp_path)
+                if backup_path.exists():
+                    os.replace(backup_path, final_path)
+                raise
+            db.cleanup_published_upload_backup(reservation_id)
         except OSError as exc:
             # Belt-and-suspenders alongside the length check above: any
             # other filesystem-rejected name (e.g. reserved characters on
@@ -713,6 +808,13 @@ def upload_import_files(slug):
             # rather than a 500 for the whole batch.
             rejected.append({'file': name, 'reason': f'could not save file: {exc}'})
             continue
+        finally:
+            if lock_fh is not None:
+                _release_import_lock(lock_fh)
+            if temp_path.exists():
+                temp_path.unlink()
+            if not published:
+                db.fail_upload_reservation(reservation_id)
         staged.append(name)
 
     return json_response({'staged': staged, 'rejected': rejected}, 200)
@@ -739,11 +841,18 @@ def scan_import(slug):
     if verr:
         return verr
 
-    sources = _collect_import_sources(storage, slug, source)
-    existing_ids = _existing_episode_ids(db, slug)
-    plan = build_import_plan(slug, sources, existing_ids,
-                             overwrite=overwrite, now_iso=utc_now_iso(),
-                             source=source)
+    lock_fh = _try_acquire_import_lock(storage, slug)
+    if lock_fh is None:
+        return error_response('cannot scan while an import is running', 409)
+    try:
+        sources = _collect_import_sources(storage, slug, source)
+        existing_ids = _existing_episode_ids(db, slug)
+        plan = build_import_plan(slug, sources, existing_ids,
+                                 overwrite=overwrite, now_iso=utc_now_iso(),
+                                 source=source)
+        _bind_staging_generation(plan, storage, slug, source)
+    finally:
+        _release_import_lock(lock_fh)
     return json_response(_client_import_plan(plan), 200)
 
 
@@ -787,6 +896,7 @@ def commit_import(slug):
     plan = build_import_plan(slug, sources, existing_ids,
                              overwrite=overwrite, now_iso=utc_now_iso(),
                              source=source)
+    _bind_staging_generation(plan, storage, slug, source)
     if plan['planHash'] != client_hash:
         # Disambiguate the two ways a hash can go stale: the flag folds
         # into plan_hash (see its docstring), so a client-echoed hash that
@@ -795,7 +905,9 @@ def commit_import(slug):
         # was just flipped after the scan -- and the operator needs a
         # different fix (re-scan, not re-check files) than a real content
         # change would call for.
-        if plan_hash(sources, not overwrite) == client_hash:
+        opposite = {'planHash': plan_hash(sources, not overwrite)}
+        _bind_staging_generation(opposite, storage, slug, source)
+        if opposite['planHash'] == client_hash:
             return error_response(
                 'overwrite setting changed since scan; re-run scan', 409)
         return error_response('files changed since scan; re-run scan', 409)
@@ -866,18 +978,22 @@ def clear_import_staging(slug):
     if err:
         return err
 
-    if get_import_status(slug, storage).get('state') == 'running':
+    lock_fh = _try_acquire_import_lock(storage, slug)
+    if lock_fh is None:
         return error_response('cannot clear staging while an import is running', 409)
-
-    staging_dir = storage.import_staging_dir(slug, create=False)
-    if staging_dir.is_dir():
-        for child in staging_dir.iterdir():
-            try:
-                if child.is_dir():
-                    shutil.rmtree(child, ignore_errors=True)
-                else:
-                    child.unlink()
-            except OSError:
-                logger.warning(f"[{slug}] could not remove staged file {child}")
+    try:
+        staging_dir = storage.import_staging_dir(slug, create=False)
+        if staging_dir.is_dir():
+            for child in staging_dir.iterdir():
+                try:
+                    if child.is_dir():
+                        shutil.rmtree(child, ignore_errors=True)
+                    else:
+                        child.unlink()
+                except OSError:
+                    logger.warning(f"[{slug}] could not remove staged file {child}")
+        bump_staging_generation(storage, slug)
+    finally:
+        _release_import_lock(lock_fh)
 
     return json_response({'message': 'staging cleared'}, 200)

@@ -12,17 +12,15 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from tests.app_bootstrap import authenticate_test_client
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='xep-scan-test-'))
 
 
 def _csrf(app_client):
-    with app_client.session_transaction() as sess:
-        sess['authenticated'] = True
-    app_client.get('/api/v1/auth/status')
-    cookie = app_client.get_cookie('minuspod_csrf')
-    return {'X-CSRF-Token': cookie.value} if cookie else {}
+    return authenticate_test_client(app_client)
 
 
 def _write_wav(path, sr=16000, duration_s=2.0):

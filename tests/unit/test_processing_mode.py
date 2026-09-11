@@ -85,7 +85,9 @@ class TestResolveFeedProcessingMode:
 
 
 def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
-                   enable_ad_review=False):
+                   enable_ad_review=False, admission=None,
+                   download_error=None, detect_error=None,
+                   token_cost=0.123456):
     """Drive process_episode with all stages stubbed (mirrors
     test_skip_ad_detection's harness) and return the interesting mocks."""
     with ExitStack() as stack:
@@ -97,6 +99,9 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         p(processing.ad_detector, 'get_model', return_value='test-model')
         p(processing.ad_detector, 'get_verification_model', return_value='test-model')
         p(processing, 'start_episode_token_tracking')
+        p(processing, 'get_episode_token_totals', return_value={
+            'input_tokens': 1, 'output_tokens': 1, 'cost': token_cost,
+        })
         p(processing, 'get_available_memory_gb', return_value=None)
         p(processing, 'get_min_cut_confidence', return_value=0.8)
         dat = p(processing, '_download_and_transcribe',
@@ -120,6 +125,12 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
+        db.reserve_provider_spend.return_value = (
+            admission or {'allowed': True, 'reservation_id': 'provider-run-1'})
+        if download_error is not None:
+            dat.side_effect = download_error
+        if detect_error is not None:
+            detect.side_effect = detect_error
         if enable_ad_review:
             db.get_setting.side_effect = (
                 lambda key, *a, **k: 'true' if key == 'enable_ad_review' else 'false')
@@ -184,6 +195,36 @@ class TestProcessEpisodeModePlumbing:
         assert m['result'] is True
         assert m['detect'].call_args.kwargs['keep_content'] is None
         assert m['verify'].call_args.kwargs['skip_verification'] is False
+
+    def test_provider_denial_happens_after_transcription_before_detection(self):
+        m = _run_pipeline(
+            _row(), admission={'allowed': False, 'reason': 'daily limit'})
+        assert m['result'] is False
+        m['dat'].assert_called_once()
+        m['detect'].assert_not_called()
+        m['db'].release_provider_spend.assert_not_called()
+        m['db'].reconcile_provider_spend.assert_not_called()
+
+    def test_download_failure_creates_no_provider_reservation(self):
+        m = _run_pipeline(_row(), download_error=RuntimeError('download failed'))
+        assert m['result'] is False
+        m['db'].reserve_provider_spend.assert_not_called()
+        m['db'].release_provider_spend.assert_not_called()
+        m['db'].reconcile_provider_spend.assert_not_called()
+
+    def test_provider_reservation_uncertain_after_attempt(self):
+        m = _run_pipeline(_row(), detect_error=RuntimeError('provider failed'))
+        assert m['result'] is False
+        m['db'].reconcile_provider_spend.assert_called_once_with(
+            'provider-run-1', None)
+        m['db'].release_provider_spend.assert_not_called()
+
+    def test_provider_reservation_reconciles_actual_cost(self):
+        m = _run_pipeline(_row(), token_cost=0.123456)
+        assert m['result'] is True
+        m['db'].reconcile_provider_spend.assert_called_once_with(
+            'provider-run-1', 123456)
+        m['db'].release_provider_spend.assert_not_called()
 
 
 INVERTED = [{'start': 0.0, 'end': 60.0, 'confidence': 0.9,

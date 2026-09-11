@@ -1002,6 +1002,28 @@ export interface SystemStatus {
     cryptoReady: boolean;
     plaintextSecretsCount: number;
   };
+  database?: {
+    journalMode: string;
+    synchronous: number;
+    busyTimeoutMs: number;
+    pageSizeBytes: number;
+    pageCount: number;
+    freelistPages: number;
+    walAutocheckpointPages: number;
+    databaseBytes: number;
+    walBytes: number;
+    shmBytes: number;
+    instrumentation: {
+      scope: string;
+      processId: number;
+      slowStatements: number;
+      slowCommits: number;
+      failedCommits: number;
+      longTransactions: number;
+      lastCommitMs: number;
+      maxCommitMs: number;
+    };
+  };
 }
 
 export interface Sponsor {

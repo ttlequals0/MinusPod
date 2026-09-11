@@ -9,6 +9,7 @@ from pathlib import Path
 from utils.audio import AudioMetadata, get_audio_duration
 from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.paths import resolve_data_dir
 from config import (
     FFMPEG_LONG_TIMEOUT,
@@ -129,7 +130,7 @@ class AudioProcessor:
         try:
             duration = self.get_audio_duration(input_path) or 0
             cmd = [
-                'ffmpeg', '-y',
+                'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
                 '-vn',
                 '-acodec', 'libmp3lame',
@@ -195,7 +196,7 @@ class AudioProcessor:
         try:
             duration = self.get_audio_duration(input_path) or 0
             cmd = [
-                'ffmpeg', '-y',
+                'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
                 '-filter:a', filter_str,
                 '-acodec', 'libmp3lame',
@@ -525,7 +526,7 @@ class AudioProcessor:
 
             # Run FFMPEG
             cmd = [
-                'ffmpeg', '-y',
+                'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
                 '-i', replace_audio_path,
             ]

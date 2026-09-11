@@ -11,6 +11,10 @@ import logging
 import os
 import sys
 
+from gunicorn.glogging import Logger
+
+from utils.http import redact_feed_credentials
+
 _app_port = os.environ.get("MINUSPOD_PORT", "8000")
 _env_bind = os.environ.get("GUNICORN_BIND", "")
 bind = [b.strip() for b in _env_bind.split(",") if b.strip()] or [f"0.0.0.0:{_app_port}"]
@@ -24,8 +28,21 @@ worker_class = "gthread"
 accesslog = "-"
 errorlog = "-"
 loglevel = os.environ.get("GUNICORN_LOG_LEVEL", "info")
+access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s "%(f)s" "%(a)s"'
+
+
+class RedactingLogger(Logger):
+    def atoms(self, resp, req, environ, request_time):
+        values = super().atoms(resp, req, environ, request_time)
+        values['U'] = redact_feed_credentials(values.get('U', ''))
+        values['f'] = redact_feed_credentials(values.get('f', ''))
+        return values
+
+
+logger_class = RedactingLogger
 
 _log = logging.getLogger("gunicorn.lifecycle")
+_runtime_lock_fd = None
 
 
 def on_starting(server):
@@ -44,10 +61,13 @@ def on_starting(server):
     workers don't inherit a live WAL handle. Each worker opens its own
     SQLite connection via post_fork + lazy Database().
     """
+    global _runtime_lock_fd
     src_dir = "/app/src"
     if src_dir not in sys.path:
         sys.path.insert(0, src_dir)
     try:
+        from maintenance_lock import acquire_runtime_lock
+        _runtime_lock_fd = acquire_runtime_lock()
         from database import Database
         db = Database()
         # No chapter regeneration thread survived the restart, so every stamp is dead.

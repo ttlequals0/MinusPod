@@ -1,4 +1,5 @@
 """SQLite database package for MinusPod."""
+import os
 import sqlite3
 import threading
 import time
@@ -20,6 +21,9 @@ from database.queue import QueueMixin
 from database.search import SearchMixin
 from database.auth_lockout import AuthLockoutMixin
 from database.podping_hosts import PodpingHostMixin
+from database.feed_subscribers import FeedSubscriberMixin
+from database.provider_admission import ProviderAdmissionMixin
+from database.upload_reservations import UploadReservationMixin
 from utils.paths import resolve_data_dir
 
 logger = logging.getLogger(__name__)
@@ -27,6 +31,31 @@ logger = logging.getLogger(__name__)
 # Statements that wait this long on the lock, and write transactions held open
 # this long, are logged so a "database is locked" burst names its holder.
 SLOW_SQLITE_SECONDS = 5.0
+_sqlite_metrics_lock = threading.Lock()
+_sqlite_metrics = {
+    'slowStatements': 0,
+    'slowCommits': 0,
+    'failedCommits': 0,
+    'longTransactions': 0,
+    'lastCommitMs': 0.0,
+    'maxCommitMs': 0.0,
+}
+
+
+def sqlite_metrics_snapshot() -> dict:
+    with _sqlite_metrics_lock:
+        return {'scope': 'worker_process', 'processId': os.getpid(), **_sqlite_metrics}
+
+
+def _record_sqlite_metric(name: str, value: float | None = None) -> None:
+    with _sqlite_metrics_lock:
+        if value is None:
+            _sqlite_metrics[name] += 1
+        else:
+            _sqlite_metrics['lastCommitMs'] = value
+            _sqlite_metrics['maxCommitMs'] = max(_sqlite_metrics['maxCommitMs'], value)
+            if value >= SLOW_SQLITE_SECONDS * 1000:
+                _sqlite_metrics['slowCommits'] += 1
 
 
 class TracedConnection(sqlite3.Connection):
@@ -56,16 +85,44 @@ class TracedConnection(sqlite3.Connection):
             self._note_statement(sql, started, was_in_tx)
 
     def commit(self):
-        self._note_transaction_end('commit')
-        super().commit()
+        tx_started = self._tx_started
+        tx_opener = self._tx_opener
+        started = time.monotonic()
+        try:
+            super().commit()
+        except Exception:
+            _record_sqlite_metric('failedCommits')
+            raise
+        else:
+            _record_sqlite_metric('commit', (time.monotonic() - started) * 1000)
+            self._note_transaction_end('commit', tx_started, tx_opener)
 
     def rollback(self):
-        self._note_transaction_end('rollback')
-        super().rollback()
+        tx_started = self._tx_started
+        tx_opener = self._tx_opener
+        try:
+            super().rollback()
+        finally:
+            self._note_transaction_end('rollback', tx_started, tx_opener)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:
+            try:
+                self.commit()
+            except BaseException:
+                try:
+                    self.rollback()
+                except Exception:
+                    pass
+                raise
+        else:
+            self.rollback()
+        return False
 
     def _note_statement(self, sql, started, was_in_tx):
         elapsed = time.monotonic() - started
         if elapsed >= SLOW_SQLITE_SECONDS:
+            _record_sqlite_metric('slowStatements')
             logger.warning(
                 "SQLite statement took %.1fs on thread %s: %s",
                 elapsed, threading.current_thread().name, _sql_head(sql))
@@ -76,17 +133,15 @@ class TracedConnection(sqlite3.Connection):
             self._tx_started = started
             self._tx_opener = _sql_head(sql)
 
-    def _note_transaction_end(self, how):
-        if self._tx_started is None:
+    def _note_transaction_end(self, how, tx_started=None, tx_opener=None):
+        if tx_started is None:
             return
-        if not self.in_transaction:
-            self._tx_started = self._tx_opener = None
-            return
-        held = time.monotonic() - self._tx_started
+        held = time.monotonic() - tx_started
         if held >= SLOW_SQLITE_SECONDS:
+            _record_sqlite_metric('longTransactions')
             logger.warning(
                 "SQLite write transaction held %.1fs before %s on thread %s; opened by: %s",
-                held, how, threading.current_thread().name, self._tx_opener)
+                held, how, threading.current_thread().name, tx_opener)
         self._tx_started = None
         self._tx_opener = None
 
@@ -376,7 +431,9 @@ Transcript:
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                PatternMixin, SponsorMixin, StatsMixin, MaintenanceMixin,
                FingerprintMixin, CueTemplateMixin, CueDetectionMixin,
-               QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin):
+               QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
+               FeedSubscriberMixin, ProviderAdmissionMixin,
+               UploadReservationMixin):
     """SQLite database manager with thread-safe connections."""
 
     _instance = None

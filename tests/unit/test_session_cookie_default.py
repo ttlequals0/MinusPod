@@ -54,3 +54,13 @@ class TestDefaultSessionCookieSecure:
         monkeypatch.setenv('SESSION_COOKIE_SECURE', '  true  ')
         monkeypatch.delenv('BASE_URL', raising=False)
         assert fn() is True
+
+    def test_auto_uses_plaintext_base_url(self, monkeypatch):
+        monkeypatch.setenv('SESSION_COOKIE_SECURE', 'auto')
+        monkeypatch.setenv('BASE_URL', 'http://localhost:8000')
+        assert fn() is False
+
+    def test_auto_uses_https_base_url(self, monkeypatch):
+        monkeypatch.setenv('SESSION_COOKIE_SECURE', 'AUTO')
+        monkeypatch.setenv('BASE_URL', 'https://example.com')
+        assert fn() is True

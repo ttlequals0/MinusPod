@@ -2119,6 +2119,67 @@ def regenerate_feed_auth_key():
     return json_response({'feedAuthKey': new_key})
 
 
+@api.route('/settings/provider-budget', methods=['GET'])
+@log_request
+def get_provider_budget():
+    return json_response(_provider_budget_payload())
+
+
+def _provider_budget_payload():
+    db = get_database()
+    provider = db.get_setting('llm_provider') or 'anthropic'
+    return {
+        'enabled': db.get_setting_bool('provider_budget_enabled', False),
+        'dailyLimitMicrousd': db.get_setting_int(
+            'provider_budget_daily_limit_microusd', 0
+        ),
+        'maxReservations': db.get_setting_int(
+            'provider_budget_max_reservations', 1
+        ),
+        'unknownCost': db.get_setting('provider_budget_unknown_cost') or 'deny',
+        'unknownReserveMicrousd': db.get_setting_int(
+            'provider_budget_unknown_reserve_microusd', 0
+        ),
+        'status': db.provider_budget_status(provider),
+    }
+
+
+@api.route('/settings/provider-budget', methods=['PUT'])
+@limiter.limit('10 per hour')
+@log_request
+def update_provider_budget():
+    data = request.get_json(silent=True) or {}
+    enabled = data.get('enabled')
+    limit = data.get('dailyLimitMicrousd')
+    maximum = data.get('maxReservations')
+    action = data.get('unknownCost')
+    reserve = data.get('unknownReserveMicrousd')
+    if not isinstance(enabled, bool):
+        return error_response('enabled must be a boolean', 400)
+    if not isinstance(limit, int) or limit < 0:
+        return error_response('dailyLimitMicrousd must be a non-negative integer', 400)
+    if not isinstance(maximum, int) or not 1 <= maximum <= 64:
+        return error_response('maxReservations must be between 1 and 64', 400)
+    if action not in ('deny', 'allow', 'reserve'):
+        return error_response('unknownCost must be deny, allow, or reserve', 400)
+    if not isinstance(reserve, int) or reserve < 0:
+        return error_response('unknownReserveMicrousd must be a non-negative integer', 400)
+    if enabled and action == 'reserve' and reserve == 0:
+        return error_response('unknownReserveMicrousd must be positive for reserve', 400)
+    db = get_database()
+    values = {
+        'provider_budget_enabled': str(enabled).lower(),
+        'provider_budget_daily_limit_microusd': str(limit),
+        'provider_budget_max_reservations': str(maximum),
+        'provider_budget_unknown_cost': action,
+        'provider_budget_unknown_reserve_microusd': str(reserve),
+    }
+    with db.transaction(immediate=True) as conn:
+        for key, value in values.items():
+            db._upsert_setting(conn, key, value, is_default=False)
+    return json_response(_provider_budget_payload())
+
+
 @api.route('/settings/ad-detection/reset', methods=['POST'])
 @log_request
 def reset_ad_detection_settings():

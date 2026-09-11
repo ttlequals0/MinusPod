@@ -37,8 +37,11 @@ class _FakeDb:
     def __init__(self, action_map):
         self._action_map = action_map
 
-    def get_false_positive_corrections(self, episode_id):
+    def get_false_positive_corrections(self, podcast_id, episode_id):
         return []
+
+    def get_podcast_by_slug(self, slug):
+        return {'id': 1}
 
     def get_podcast_false_positive_texts(self, slug):
         return []

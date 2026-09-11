@@ -36,7 +36,11 @@ from ad_reviewer import (
 )
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
 from audio_processor import get_replacement_duration, AudioProcessor
-from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
+from cancel import (
+    ProcessingCancelled, ProcessingOwnershipLost, _check_cancel,
+    _cancel_events, _cancel_events_lock,
+)
+from processing_queue import ProcessingQueue, is_processing_paused
 from differential_fetcher import (
     differential_region_overlapping,
     fetch_and_diff,
@@ -113,6 +117,7 @@ from llm_client import (
     is_limit_exceeded_error, is_auth_error, LimitExceededError,
     ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
+    get_effective_provider,
 )
 from database.queue import compute_queue_priority
 from offline_queue import is_offline_queue_enabled, record_probe_state
@@ -168,7 +173,24 @@ from main_app.verification_reconciliation import (
 # Replaces a positional 10-tuple from _get_components() that the audit
 # flagged as silently break-on-reorder.
 from main_app import (db, storage, transcriber, ad_detector, audio_processor,
-                      audio_analyzer, sponsor_service, status_service, pattern_service)
+                      audio_analyzer, sponsor_service, status_service, pattern_service,
+                      shutdown_event)
+
+
+def _require_publication_owner(slug: str, episode_id: str) -> None:
+    """Stop a run that cannot prove its durable lease before publication."""
+    ctx = run_context.current()
+    run_id = getattr(ctx, 'run_id', None)
+    if run_id:
+        _check_cancel(None, slug, episode_id, run_id)
+
+
+def _publish_status(method: str, slug: str, episode_id: str, *args):
+    _require_publication_owner(slug, episode_id)
+    run_id = getattr(run_context.current(), 'run_id', None)
+    if run_id:
+        return getattr(status_service, method)(slug, episode_id, *args, run_id=run_id)
+    return getattr(status_service, method)(slug, episode_id, *args)
 
 
 def get_min_cut_confidence() -> float:
@@ -291,10 +313,10 @@ def is_transient_error(error: Exception) -> bool:
     return True
 
 
-def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None):
+def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None, run_id=None):
     """Background thread wrapper for process_episode with queue management."""
     ctx = run_context.begin(slug, episode_id)
-    from processing_queue import ProcessingQueue
+    ctx.run_id = run_id
     queue = ProcessingQueue()
     start_time = time.time()
     # The run log is bracketed here, not inside process_episode: the fallback
@@ -302,25 +324,29 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
     # recorder to finalize onto it (#660).
     recorder = _start_run_log(slug, episode_id)
     try:
-        process_episode(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at, cancel_event=cancel_event)
+        process_episode(slug, episode_id, original_url, title, podcast_name,
+                        description, artwork_url, published_at,
+                        cancel_event=cancel_event, run_id=run_id)
     except ProcessingCancelled:
         # Clear any transaction the aborted run left open so the status
         # reset below writes on a clean connection (issue #566).
         db.clear_leaked_transaction(audio_logger, 'episode processing (cancel)')
-        audio_logger.info(f"[{slug}:{episode_id}] Cancelled - cleaning up partial files")
-        try:
-            podcast_row = db.get_podcast_by_slug(slug)
-            storage.delete_processed_file(
-                slug, episode_id, keep_original=is_local_feed(podcast_row))
-        except Exception as cleanup_err:
-            audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up partial file: {cleanup_err}")
-        # Reset DB status (before finally releases queue, preventing re-queue race)
-        try:
-            db.upsert_episode(slug, episode_id, status=EpisodeStatus.PENDING.value,
-                              error_message=CANCELED_ERROR_MESSAGE)
-        except Exception as db_err:
-            audio_logger.warning(f"[{slug}:{episode_id}] Failed to reset status after cancel: {db_err}")
-        status_service.complete_job(slug, episode_id)
+        if queue.owns(run_id, allow_cancel_requested=True):
+            audio_logger.info(f"[{slug}:{episode_id}] Cancelled - cleaning up partial files")
+            try:
+                podcast_row = db.get_podcast_by_slug(slug)
+                storage.delete_processed_file(
+                    slug, episode_id, keep_original=is_local_feed(podcast_row))
+            except Exception as cleanup_err:
+                audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up partial file: {cleanup_err}")
+            try:
+                db.upsert_episode(slug, episode_id, status=EpisodeStatus.PENDING.value,
+                                  error_message=CANCELED_ERROR_MESSAGE)
+                status_service.complete_job(slug, episode_id, run_id=run_id)
+            except Exception as db_err:
+                audio_logger.warning(f"[{slug}:{episode_id}] Failed to reset status after cancel: {db_err}")
+    except ProcessingOwnershipLost as exc:
+        audio_logger.error("[%s:%s] Stopping without publishing: %s", slug, episode_id, exc)
     except Exception as e:
         # This outer handler only fires if process_episode's own error handling
         # raises (e.g., DB unreachable during _handle_processing_failure).
@@ -340,9 +366,10 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
         # Backstop for swallowed write failures anywhere in the run: this
         # thread's connection must not leave here with an open transaction.
         db.clear_leaked_transaction(audio_logger, 'episode processing')
-        queue.release(slug, episode_id)
+        cancelled = cancel_event is not None and cancel_event.is_set()
+        queue.release(run_id, terminal_state='interrupted' if cancelled else 'finished')
         with _cancel_events_lock:
-            _cancel_events.pop(f"{slug}:{episode_id}", None)
+            _cancel_events.pop(run_id, None)
         run_context.end(ctx)
 
 
@@ -358,8 +385,12 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         - (False, "queue_busy:slug:episode_id") if another episode is processing
         - (False, "rate_limit_paused") while a rate-limit hold is active
     """
-    from processing_queue import ProcessingQueue
     queue = ProcessingQueue()
+
+    if shutdown_event.is_set():
+        return False, "shutdown_draining"
+    if is_processing_paused(db):
+        return False, "processing_paused"
 
     # Only the leader's dispatcher refreshes on a loop, so a non-leader worker
     # would otherwise hold whatever settings it saw at boot. TTL-throttled.
@@ -380,7 +411,8 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         return False, "rate_limit_paused"
 
     # Check if queue is busy with another episode
-    if not queue.acquire(slug, episode_id, limit=get_pool().max_episodes, timeout=0):
+    run_id = queue.acquire(slug, episode_id, limit=get_pool().max_episodes, timeout=0)
+    if not run_id:
         current = queue.get_current()
         if current:
             return False, f"queue_busy:{current[0][0]}:{current[0][1]}"
@@ -388,18 +420,17 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
 
     # Update StatusService IMMEDIATELY after lock acquired (prevents race condition)
     # This ensures the new episode is tracked before any other episode can start
-    status_service.start_job(slug, episode_id, title, podcast_name)
+    status_service.start_job(slug, episode_id, title, podcast_name, run_id=run_id)
 
     # Create cancel event for cooperative cancellation
     cancel_event = threading.Event()
-    key = f"{slug}:{episode_id}"
     with _cancel_events_lock:
-        _cancel_events[key] = cancel_event
+        _cancel_events[run_id] = cancel_event
 
     # Start background thread
     processing_thread = threading.Thread(
         target=_process_episode_background,
-        args=(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at, cancel_event),
+        args=(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at, cancel_event, run_id),
         daemon=True
     )
     try:
@@ -409,9 +440,9 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         # Hand back "queue_busy" and the caller enqueues instead.
         audio_logger.error(f"[{slug}:{episode_id}] Could not start processing thread: {e}")
         with _cancel_events_lock:
-            _cancel_events.pop(key, None)
-        status_service.fail_job(slug, episode_id)
-        queue.release(slug, episode_id)
+            _cancel_events.pop(run_id, None)
+        status_service.fail_job(slug, episode_id, run_id=run_id)
+        queue.release(run_id, terminal_state='interrupted')
         return False, "queue_busy"
 
     return True, "started"
@@ -667,7 +698,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
             audio_path = _download_episode_audio(episode_url)
 
-        status_service.update_job_stage(slug, episode_id, "pass1:transcribing", 20)
+        _publish_status('update_job_stage', slug, episode_id, "pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
         language_override = get_feed_language_override(db, slug)
         segments = transcriber.transcribe_chunked(
@@ -710,7 +741,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
 
 def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detection=False):
     """Pipeline stage: Run volume + transition detection on audio."""
-    status_service.update_job_stage(slug, episode_id, "pass1:analyzing", 25)
+    _publish_status('update_job_stage', slug, episode_id, "pass1:analyzing", 25)
     audio_logger.info(f"[{slug}:{episode_id}] Running audio analysis")
     try:
         # Resolve the feed PK so the cue analyzer can pick a per-feed template
@@ -722,7 +753,8 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detect
             transcript_segments=segments,
             feed_id=feed_id,
             force_cue_detection=force_cue_detection,
-            status_callback=lambda stage, progress: status_service.update_job_stage(slug, episode_id, stage, progress)
+            status_callback=lambda stage, progress: _publish_status(
+                'update_job_stage', slug, episode_id, stage, progress)
         )
         if result.signals:
             audio_logger.info(
@@ -903,7 +935,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     """
     slug = ctx.slug
     episode_id = ctx.episode_id
-    status_service.update_job_stage(slug, episode_id, "pass1:detecting", 50)
+    _publish_status('update_job_stage', slug, episode_id, "pass1:detecting", 50)
     clear_fallback(episode_id, PASS_AD_DETECTION_1)
 
     ad_result = ad_detector.process_transcript(
@@ -1213,11 +1245,15 @@ def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
 
 def _load_user_corrections(slug, episode_id, db):
     """Load FP and confirmed corrections for the episode and log counts."""
-    false_positive_corrections = db.get_false_positive_corrections(episode_id)
+    podcast = db.get_podcast_by_slug(slug)
+    podcast_id = podcast['id'] if podcast else None
+    false_positive_corrections = db.get_false_positive_corrections(
+        podcast_id, episode_id) if podcast_id is not None else []
     if false_positive_corrections:
         audio_logger.info(f"[{slug}:{episode_id}] Loaded {len(false_positive_corrections)} false positive corrections")
 
-    confirmed_corrections = db.get_confirmed_corrections(episode_id)
+    confirmed_corrections = db.get_confirmed_corrections(
+        podcast_id, episode_id) if podcast_id is not None else []
     if confirmed_corrections:
         audio_logger.info(f"[{slug}:{episode_id}] Loaded {len(confirmed_corrections)} confirmed corrections")
 
@@ -1990,7 +2026,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     if not accepted_originals and not eligible_originals:
         return
 
-    status_service.update_job_stage(slug, episode_id, "pass2:reviewing", 90)
+    _publish_status('update_job_stage', slug, episode_id, "pass2:reviewing", 90)
 
     podcast_id = ctx.podcast_id
 
@@ -2212,7 +2248,8 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     if not ads_to_remove and not eligible:
         return ads_to_remove, all_ads_with_validation
 
-    status_service.update_job_stage(slug, episode_id, f"pass{pass_num}:reviewing", 75)
+    _publish_status('update_job_stage', slug, episode_id,
+                    f"pass{pass_num}:reviewing", 75)
 
     audio_logger.info(
         f"[{slug}:{episode_id}] Reviewer pass {pass_num}: "
@@ -2440,8 +2477,12 @@ def _finalize_user_confirmed_bounds(
     """
     if not ads_to_remove:
         return ads_to_remove
-    corrections = (confirmed_corrections if confirmed_corrections is not None
-                   else db.get_confirmed_corrections(episode_id))
+    if confirmed_corrections is None:
+        podcast = db.get_podcast_by_slug(slug)
+        corrections = (db.get_confirmed_corrections(podcast['id'], episode_id)
+                       if podcast else [])
+    else:
+        corrections = confirmed_corrections
     def matching_correction(marker):
         for corr in corrections or []:
             ratio = overlap_ratio(
@@ -2559,7 +2600,10 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     # Pass-1 cut user-rejections in original time; verification
     # operates on cut audio, so map them to processed coordinates
     # before the validator can use them to auto-reject overlaps.
-    fp_corrections_orig = db.get_false_positive_corrections(episode_id) or []
+    podcast = db.get_podcast_by_slug(slug)
+    fp_corrections_orig = (
+        db.get_false_positive_corrections(podcast['id'], episode_id)
+        if podcast else [])
     fp_corrections_processed = []
     if fp_corrections_orig:
         ts_map = _build_timestamp_map(ads_to_remove) if ads_to_remove else []
@@ -2650,6 +2694,9 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers):
     if not holds:
         return 0
     try:
+        podcast = db.get_podcast_by_slug(slug)
+        if not podcast:
+            return 0
         # Same preconditions the recut API enforces; without the retained
         # original or segments a recut would fail and mark the episode FAILED.
         if not storage.get_original_path(slug, episode_id).exists():
@@ -2711,6 +2758,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers):
                 text_snippet=(
                     f"auto-approved: pass-2 corroborated "
                     f"{m.get('hold_reason')} hold"),
+                podcast_id=podcast['id'],
             )
             audio_logger.info(
                 f"[{slug}:{episode_id}] Auto-approving hold "
@@ -2908,7 +2956,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             pass1_kept_markers,
             pass1_cuts,
             false_positive_corrections=(
-                db.get_false_positive_corrections(episode_id) or []),
+                db.get_false_positive_corrections(ctx.podcast_id, episode_id) or []),
         )
 
         (verification_ads_processed,
@@ -3561,6 +3609,7 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
     ``run_started_iso``: when the run began; only pending-recut stamps from
     before then are cleared, so a decision recorded mid-run survives.
     """
+    _require_publication_owner(slug, episode_id)
     original_final = storage.get_original_path(slug, episode_id)
     original_file_rel = f"episodes/{episode_id}-original.mp3" if original_final.exists() else None
     processed_file_rel = episode_relative_path(episode_id, processed_version)
@@ -3715,7 +3764,7 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
         db.upsert_episode_for_processing(
             slug, episode_id, episode_url, episode_title,
             episode_published_at, episode_description, priority=-10)
-        status_service.queue_episode(slug, episode_id, episode_title, podcast_name)
+        _publish_status('queue_episode', slug, episode_id, episode_title, podcast_name)
         audio_logger.info(
             f"low_ad_yield_action fired action={mode} slug={slug} "
             f"episode_id={episode_id} removed={yield_info['removedSeconds']:.1f}s "
@@ -3769,7 +3818,7 @@ def _log_completion_summary(slug, episode_id, pass1_cut_count, *, verification_c
     # Periodic memory cleanup to prevent fragmentation over many processing cycles
     clear_gpu_memory()
     mem_info = get_available_memory_gb()
-    if mem_info is not None:
+    if mem_info is not None and mem_info[0] is not None:
         mem_val, mem_desc = mem_info
         audio_logger.info(f"[{slug}:{episode_id}] Post-cleanup memory: {mem_val:.1f} GB ({mem_desc})")
 
@@ -3866,6 +3915,7 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
     when `record_processing_history` raised, which signals a real DB
     write failure that would leave the History page out of sync.
     """
+    _require_publication_owner(slug, episode_id)
     ads_removed_total = pass1_cut_count + verification_count
     history_write_raised = False
     try:
@@ -3968,7 +4018,8 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
     """Override ad bounds with the user's boundary_adjustment corrections so a
     recut cuts the adjusted spans. Each is matched to its ad by original-bounds
     overlap; newest wins; unmatched corrections are skipped."""
-    corrections = db.get_episode_corrections(episode_id) or []
+    podcast = db.get_podcast_by_slug(slug)
+    corrections = db.get_episode_corrections(podcast['id'], episode_id) if podcast else []
     adjusted = set()
     applied = 0
     for c in corrections:  # newest first (ORDER BY id DESC)
@@ -4131,8 +4182,8 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
     run_stats = {'mode': 'passthrough'}
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Pass-through: \"{episode_title}\"")
-        status_service.start_job(slug, episode_id, episode_title, podcast_name)
-        status_service.update_job_stage(slug, episode_id, "downloading", 10)
+        _publish_status('start_job', slug, episode_id, episode_title, podcast_name)
+        _publish_status('update_job_stage', slug, episode_id, "downloading", 10)
 
         upsert_kwargs = dict(
             original_url=episode_url, title=episode_title,
@@ -4192,6 +4243,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 
         new_version = _next_processed_version(episode_data)
         final_path = storage.get_episode_path(slug, episode_id, version=new_version)
+        _require_publication_owner(slug, episode_id)
         shutil.move(audio_path, final_path)
         audio_path = None
 
@@ -4204,7 +4256,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                            processed_version=new_version,
                            audio_cue_detections=0,
                            run_stats=run_stats)
-        status_service.complete_job(slug, episode_id)
+        _publish_status('complete_job', slug, episode_id)
         return True
 
     except ProcessingCancelled:
@@ -4249,8 +4301,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     episode_data = db.get_episode(slug, episode_id)
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Recut: \"{episode_title}\"")
-        status_service.start_job(slug, episode_id, episode_title, podcast_name)
-        status_service.update_job_stage(slug, episode_id, "recut:loading", 10)
+        _publish_status('start_job', slug, episode_id, episode_title, podcast_name)
+        _publish_status('update_job_stage', slug, episode_id, "recut:loading", 10)
         db.upsert_episode(slug, episode_id, status=EpisodeStatus.PROCESSING.value)
 
         original_path = storage.get_original_path(slug, episode_id)
@@ -4304,7 +4356,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         )
         _check_cancel(cancel_event, slug, episode_id)
 
-        status_service.update_job_stage(slug, episode_id, "recut:processing", 60)
+        _publish_status('update_job_stage', slug, episode_id, "recut:processing", 60)
         # 'beep' is derived from action_applied so a marker stamped beep in
         # an earlier pass still renders as beep on recut, not a full remove.
         audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
@@ -4340,9 +4392,10 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         previous_version = (episode_data or {}).get('processed_version') or 0
         new_version = previous_version + 1  # recut is always a reprocess
         final_path = storage.get_episode_path(slug, episode_id, version=new_version)
+        _require_publication_owner(slug, episode_id)
         shutil.move(processed_path, final_path)
 
-        status_service.update_job_stage(slug, episode_id, "recut:assets", 85)
+        _publish_status('update_job_stage', slug, episode_id, "recut:assets", 85)
         # Skip chapter regeneration: its topic-boundary detection is an LLM call,
         # and recut is meant to be AI-free. The stored chapters JSON is instead
         # remapped arithmetically onto the new cut list; the user can still
@@ -4402,7 +4455,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                            audio_cue_detections=audio_cue_detections,
                            run_stats=finalize_run_stats,
                            ads_held=held_count, ads_not_cut=not_cut_count)
-        status_service.complete_job(slug, episode_id)
+        _publish_status('complete_job', slug, episode_id)
         return True
 
     except ProcessingCancelled:
@@ -4425,6 +4478,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                 episode_data, error, start_time, run_stats=None):
     """Handle processing failure: GPU cleanup, retry logic, error recording."""
+    _require_publication_owner(slug, episode_id)
     processing_time = time.time() - start_time
     audio_logger.error(f"[{slug}:{episode_id}] Failed: {error} ({processing_time:.1f}s)")
 
@@ -4437,7 +4491,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     except Exception as cleanup_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up GPU memory: {cleanup_err}")
 
-    status_service.fail_job(slug, episode_id)
+    _publish_status('fail_job', slug, episode_id)
 
     # Rate-limit hold (#696): a 429 with a reset sends the episode back to
     # the queue and pauses new starts until the reset. Runs before the
@@ -4591,7 +4645,8 @@ def build_podcast_context(podcast_settings):
 def process_episode(slug: str, episode_id: str, episode_url: str,
                    episode_title: str = "Unknown", podcast_name: str = "Unknown",
                    episode_description: str = None, episode_artwork_url: str = None,
-                   episode_published_at: str = None, cancel_event: threading.Event = None):
+                   episode_published_at: str = None, cancel_event: threading.Event = None,
+                   run_id: str = None):
     """Process a single episode through the full ad removal pipeline.
 
     Pipeline stages:
@@ -4608,6 +4663,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     """
     start_time = time.time()
     start_episode_token_tracking()
+    if run_id:
+        ctx = run_context.current()
+        if ctx is not None:
+            ctx.run_id = run_id
+        _check_cancel(cancel_event, slug, episode_id, run_id)
 
     episode_data = db.get_episode(slug, episode_id)
     reprocess_mode = episode_data.get('reprocess_mode') if episode_data else None
@@ -4677,6 +4737,20 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     if skip_transcription_active:
         run_stats['transcription_skipped'] = True
 
+    provider_reservation_id = None
+    provider_attempted = False
+
+    def _reserve_provider():
+        nonlocal provider_reservation_id
+        if provider_reservation_id is not None:
+            return
+        admission = db.reserve_provider_spend(
+            get_effective_provider(), None, run_id=run_id)
+        if not admission['allowed']:
+            raise RuntimeError(
+                f"Provider admission denied: {admission['reason']}")
+        provider_reservation_id = admission['reservation_id']
+
     def _fire_degraded_redetect():
         # Closes over this run's fixed identifiers; episode_data is the
         # pre-run snapshot captured above, so the transition-into-degraded
@@ -4694,8 +4768,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         min_cut_confidence = get_min_cut_confidence()
         audio_logger.info(f"[{slug}:{episode_id}] Confidence threshold: {min_cut_confidence:.0%}")
 
-        status_service.start_job(slug, episode_id, episode_title, podcast_name)
-        status_service.update_job_stage(slug, episode_id, "downloading", 0)
+        _publish_status('start_job', slug, episode_id, episode_title, podcast_name)
+        _publish_status('update_job_stage', slug, episode_id, "downloading", 0)
 
         upsert_kwargs = dict(
             original_url=episode_url, title=episode_title,
@@ -4747,7 +4821,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Stamp from the main thread BEFORE the worker starts: all status
             # stamps stay on the main thread, so the pass1 ordering 22 -> 25
             # is monotonic and an abandoned worker never stamps another job.
-            status_service.update_job_stage(slug, episode_id, "pass1:differential", 22)
+            _publish_status('update_job_stage', slug, episode_id,
+                            "pass1:differential", 22)
 
             def _diff_worker():
                 try:
@@ -4806,7 +4881,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Progress callback for detection stages
             current_pass = "pass1"
             def detection_progress_callback(stage, percent):
-                status_service.update_job_stage(slug, episode_id, f"{current_pass}:{stage}", percent)
+                _publish_status('update_job_stage', slug, episode_id,
+                                f"{current_pass}:{stage}", percent)
 
             # Build the per-episode immutable context once. Podcast tags drive
             # the matcher's community-pattern eligibility check; podcast_id is
@@ -4884,6 +4960,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                             f"continuing without hint: {e}")
 
                 # Stage 3: First-pass detection
+                _reserve_provider()
+                provider_attempted = True
                 first_pass_ads, first_pass_count, ad_result = _detect_ads_first_pass(
                     ctx, segments, audio_path,
                     skip_patterns, audio_analysis_result,
@@ -5064,7 +5142,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
             # Stage 5: Process audio
-            status_service.update_job_stage(slug, episode_id, "pass1:processing", 80)
+            _publish_status('update_job_stage', slug, episode_id,
+                            "pass1:processing", 80)
             audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(ads_to_remove)} ads to remove)")
 
             settings = db.get_all_settings()
@@ -5203,6 +5282,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             new_version = _next_processed_version(existing_episode)
 
             final_path = storage.get_episode_path(slug, episode_id, version=new_version)
+            _require_publication_owner(slug, episode_id)
             shutil.move(processed_path, final_path)
 
             # Retain the pre-cut audio for the ad-editor "Review mode" playback
@@ -5222,6 +5302,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # replacement beep per span), not the UI ad list: gap-merged
             # pass-2 ads share a single beep in the audio.
             all_cuts_for_assets = applied_cuts + v_cuts_for_assets
+            if skip_detection:
+                _reserve_provider()
+                provider_attempted = True
             _generate_assets(slug, episode_id, segments, all_cuts_for_assets,
                               episode_description, podcast_name, episode_title,
                               audio_path=final_path, audio_duration=new_duration,
@@ -5271,6 +5354,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    owns_failure=False,
                                    progress=recut_progress,
                                    podcast_row=podcast_settings):
+                    if provider_reservation_id:
+                        totals = get_episode_token_totals()
+                        db.reconcile_provider_spend(
+                            provider_reservation_id,
+                            round(totals['cost'] * 1_000_000))
                     _fire_degraded_redetect()
                     return True
                 if recut_progress.get('mutated'):
@@ -5281,6 +5369,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         db.get_episode(slug, episode_id),
                         RuntimeError('Approval recut failed after rewriting the '
                                      'episode'), start_time, run_stats=run_stats)
+                    if provider_reservation_id:
+                        db.reconcile_provider_spend(provider_reservation_id, None)
                     return False
                 # Nothing was overwritten: finalize this run's render and leave
                 # the filed confirms for the next run to apply.
@@ -5305,7 +5395,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 episode_description, episode_published_at, episode_data, run_stats,
                 podcast_row=podcast_settings)
 
-            status_service.complete_job(slug, episode_id)
+            _publish_status('complete_job', slug, episode_id)
+            if provider_reservation_id:
+                totals = get_episode_token_totals()
+                db.reconcile_provider_spend(
+                    provider_reservation_id,
+                    round(totals['cost'] * 1_000_000))
             return True
 
         finally:
@@ -5316,8 +5411,18 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 os.unlink(audio_path)
 
     except ProcessingCancelled:
+        if provider_reservation_id:
+            if provider_attempted:
+                db.reconcile_provider_spend(provider_reservation_id, None)
+            else:
+                db.release_provider_spend(provider_reservation_id)
         raise
     except Exception as e:
+        if provider_reservation_id:
+            if provider_attempted:
+                db.reconcile_provider_spend(provider_reservation_id, None)
+            else:
+                db.release_provider_spend(provider_reservation_id)
         _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                     episode_data, e, start_time,
                                     run_stats=run_stats)

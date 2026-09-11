@@ -36,29 +36,47 @@ describe('apiRequest: retry on 429', () => {
     vi.unstubAllGlobals();
   });
 
-  it('retries a 429-then-success, honoring Retry-After for the wait', async () => {
+  it('does not replay a POST after a retryable response', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(fakeResponse({ error: 'rate limited' }, 429, { 'Retry-After': '2' }))
       .mockResolvedValueOnce(fakeResponse({ staged: ['a.mp3'], rejected: [] }, 200));
     vi.stubGlobal('fetch', fetchMock);
 
-    let settled: unknown;
     const promise = apiRequest('/feeds/show/import/upload', {
       method: 'POST',
       body: new FormData(),
-    }).then((r) => { settled = r; });
+    }).catch((error: Error) => error);
 
-    // The fixed schedule's first delay is 1s; if Retry-After (2s) weren't
-    // honored the retry (and this promise) would already be done by now.
-    await vi.advanceTimersByTimeAsync(1000);
+    expect(await promise).toBeInstanceOf(Error);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(settled).toBeUndefined();
+  });
 
-    await vi.advanceTimersByTimeAsync(1000); // total 2000ms: Retry-After elapses
-    await promise;
+  it('reports an uncertain result without replaying a POST after a network error', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', fetchMock);
 
+    const error = await apiRequest('/settings/webhooks', {
+      method: 'POST',
+      body: { url: 'https://example.com/hook' },
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain('may have completed');
+    expect((error as Error).message).toContain('Check the current state');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a POST only when the caller opts in', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(fakeResponse({ error: 'rate limited' }, 429))
+      .mockResolvedValueOnce(fakeResponse({ ok: true }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = apiRequest('/idempotent-action', { method: 'POST', retry: true });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(await promise).toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(settled).toEqual({ staged: ['a.mp3'], rejected: [] });
   });
 
   it('falls back to the fixed backoff schedule when Retry-After is absent', async () => {

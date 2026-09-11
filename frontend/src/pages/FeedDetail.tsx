@@ -162,8 +162,14 @@ function FeedDetail() {
   const deleteMutation = useMutation({
     mutationFn: () => deleteFeed(slug!),
     onMutate: () => setActionError(null),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
+      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+      if (result?.pending) {
+        setDeleteConfirm(false);
+        setActionError(result.message);
+        return;
+      }
       navigate('/');
     },
     onError: (err) => {

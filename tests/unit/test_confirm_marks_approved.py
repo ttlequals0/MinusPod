@@ -123,25 +123,30 @@ def test_confirm_trimmed_moves_marker_bounds_and_approves(temp_db):
 
     # And the validator-facing accessor exposes it as confirmed_span so a
     # later reprocess clamps a re-detected wider span to the approved trim.
-    corrections = temp_db.get_confirmed_corrections(eid)
+    podcast_id = temp_db.get_podcast_by_slug(slug)['id']
+    corrections = temp_db.get_confirmed_corrections(podcast_id, eid)
     assert corrections[0]['start'] == 100.0 and corrections[0]['end'] == 200.0
     assert corrections[0]['confirmed_span'] == {'start': 130.0, 'end': 200.0}
 
 
 def test_newer_boundary_adjustment_overrides_older_trimmed_confirm(temp_db):
     episode_id = 'correction-order-test'
+    temp_db.create_podcast('correction-order', 'https://example.com/feed.xml', 'Test')
+    podcast_id = temp_db.get_podcast_by_slug('correction-order')['id']
     temp_db.create_pattern_correction(
         correction_type='confirm', episode_id=episode_id,
         original_bounds={'start': 100.0, 'end': 200.0},
         corrected_bounds={'start': 120.0, 'end': 180.0},
+        podcast_id=podcast_id,
     )
     temp_db.create_pattern_correction(
         correction_type='boundary_adjustment', episode_id=episode_id,
         original_bounds={'start': 120.0, 'end': 180.0},
         corrected_bounds={'start': 125.0, 'end': 175.0},
+        podcast_id=podcast_id,
     )
 
-    corrections = temp_db.get_confirmed_corrections(episode_id)
+    corrections = temp_db.get_confirmed_corrections(podcast_id, episode_id)
 
     assert corrections == [
         {
@@ -171,6 +176,43 @@ def test_confirm_without_trim_keeps_marker_bounds(temp_db):
     assert m['start'] == 100.0 and m['end'] == 200.0
     assert 'reviewer_original_start' not in m
     assert m['reviewer_moved'] is False
+
+
+def test_corrections_are_scoped_when_episode_ids_collide(temp_db):
+    shared_id = 'shared-episode-id'
+    for slug in ('scope-a', 'scope-b'):
+        temp_db.create_podcast(
+            slug, f'https://example.com/{slug}.xml', slug)
+        temp_db.upsert_episode(
+            slug, shared_id, original_url=f'https://example.com/{slug}.mp3')
+    podcast_a = temp_db.get_podcast_by_slug('scope-a')['id']
+    podcast_b = temp_db.get_podcast_by_slug('scope-b')['id']
+    temp_db.create_pattern_correction(
+        correction_type='false_positive', podcast_id=podcast_a,
+        episode_id=shared_id, original_bounds={'start': 10, 'end': 20})
+    temp_db.create_pattern_correction(
+        correction_type='false_positive', podcast_id=podcast_b,
+        episode_id=shared_id, original_bounds={'start': 30, 'end': 40})
+    temp_db.create_pattern_correction(
+        correction_type='confirm', podcast_id=podcast_a,
+        episode_id=shared_id, original_bounds={'start': 50, 'end': 60})
+    temp_db.create_pattern_correction(
+        correction_type='confirm', podcast_id=podcast_b,
+        episode_id=shared_id, original_bounds={'start': 70, 'end': 80})
+
+    assert temp_db.get_false_positive_corrections(
+        podcast_a, shared_id) == [{'start': 10, 'end': 20}]
+    assert temp_db.get_false_positive_corrections(
+        podcast_b, shared_id) == [{'start': 30, 'end': 40}]
+    assert temp_db.get_confirmed_corrections(
+        podcast_a, shared_id)[0]['start'] == 50
+    assert temp_db.get_confirmed_corrections(
+        podcast_b, shared_id)[0]['start'] == 70
+
+    prior_a = temp_db.get_podcast_corrections_for_prior('scope-a', [shared_id])
+    prior_b = temp_db.get_podcast_corrections_for_prior('scope-b', [shared_id])
+    assert {row['start'] for row in prior_a} == {10, 50}
+    assert {row['start'] for row in prior_b} == {30, 70}
 
 
 def _confirm_raw(temp_db, slug, eid, original, data):
