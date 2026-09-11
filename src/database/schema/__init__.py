@@ -181,6 +181,8 @@ class SchemaMixin:
         # Create indexes for processing_history
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_processed_at ON processing_history(processed_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_podcast_episode ON processing_history(podcast_id, episode_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_history_podcast_episode_status ON processing_history(podcast_id, episode_id, status)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_history_episode_podcast ON processing_history(episode_id, podcast_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_status ON processing_history(status)")
 
         conn.execute(
@@ -515,6 +517,14 @@ class SchemaMixin:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_corrections_podcast_episode "
             "ON pattern_corrections(podcast_id, episode_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_history_episode_podcast "
+            "ON processing_history(episode_id, podcast_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_history_podcast_episode_status "
+            "ON processing_history(podcast_id, episode_id, status)"
         )
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_processing_runs_active_episode "

@@ -4,19 +4,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection, {
   useCollapsibleOpen, useSectionVisible,
 } from '../../components/CollapsibleSection';
-import { getErrorMessage } from '../../api/client';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import {
   getOfflineQueueSettings,
+  getProviderBudget,
   updateOfflineQueueSettings,
+  updateProviderBudget,
   getRateLimitHoldSettings,
   updateRateLimitHoldSettings,
+  type ProviderBudget,
 } from '../../api/settings';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { SkeletonRows } from '../../components/Skeleton';
 import SavedBadge from './SavedBadge';
 import { focusRing } from '../../components/fieldStyles';
+import Checkbox from '../../components/Checkbox';
+import { getErrorMessage } from '../../api/client';
 
 const STORAGE_KEY = 'settings-section-queue-control';
 
@@ -29,6 +33,38 @@ interface QueueControlSectionProps {
   onQueueFreshBoostChange: (value: number) => void;
   queueBulkBoost: number;
   onQueueBulkBoostChange: (value: number) => void;
+}
+
+function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState<Omit<ProviderBudget, 'status'>>({
+    enabled: value.enabled,
+    dailyLimitMicrousd: value.dailyLimitMicrousd,
+    maxReservations: value.maxReservations,
+    unknownCost: value.unknownCost,
+    unknownReserveMicrousd: value.unknownReserveMicrousd,
+  });
+  const [message, setMessage] = useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: updateProviderBudget,
+    onSuccess: (result) => {
+      queryClient.setQueryData(['provider-budget'], result);
+      setMessage('Provider admission settings saved');
+    },
+    onError: (error) => setMessage(getErrorMessage(error, 'Failed to save provider admission settings')),
+  });
+  return <div className="space-y-4">
+    <Checkbox checked={draft.enabled} onChange={(enabled) => setDraft({ ...draft, enabled })} label="Enable provider admission controls" />
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div><label htmlFor="dailyBudget" className="block text-sm font-medium text-foreground mb-1">Daily limit in USD</label><NumberInput id="dailyBudget" value={draft.dailyLimitMicrousd / 1_000_000} min={0} max={1000000} fallback={0} step={0.01} onCommit={(amount) => setDraft({ ...draft, dailyLimitMicrousd: Math.round(amount * 1_000_000) })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground" /><p className="mt-1 text-xs text-muted-foreground">0 allows unlimited daily spending.</p></div>
+      <div><label htmlFor="maxReservations" className="block text-sm font-medium text-foreground mb-1">Concurrent reservations</label><NumberInput id="maxReservations" value={draft.maxReservations} min={1} max={64} fallback={1} parse={parseInt} onCommit={(maxReservations) => setDraft({ ...draft, maxReservations })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground" /></div>
+    </div>
+    <div><label htmlFor="unknownCost" className="block text-sm font-medium text-foreground mb-1">When cost is unknown</label><select id="unknownCost" value={draft.unknownCost} onChange={(event) => setDraft({ ...draft, unknownCost: event.target.value as ProviderBudget['unknownCost'] })} className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`}><option value="deny">Deny the request</option><option value="reserve">Reserve a fixed amount</option><option value="allow">Allow without a reservation</option></select></div>
+    {draft.unknownCost === 'reserve' && <div><label htmlFor="unknownReserve" className="block text-sm font-medium text-foreground mb-1">Unknown cost reservation in USD</label><NumberInput id="unknownReserve" value={draft.unknownReserveMicrousd / 1_000_000} min={0.000001} max={1000000} fallback={0.01} step={0.01} onCommit={(amount) => setDraft({ ...draft, unknownReserveMicrousd: Math.round(amount * 1_000_000) })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground" /></div>}
+    <p className="text-xs text-muted-foreground">Today: ${(value.status.spentMicrousd / 1_000_000).toFixed(2)} spent, ${(value.status.reservedMicrousd / 1_000_000).toFixed(2)} reserved, {value.status.activeReservations} active.</p>
+    {message && <p className={`text-sm ${mutation.isError ? 'text-destructive' : 'text-success'}`}>{message}</p>}
+    <button type="button" onClick={() => mutation.mutate(draft)} disabled={mutation.isPending} className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}>{mutation.isPending ? 'Saving...' : 'Save admission settings'}</button>
+  </div>;
 }
 
 interface HoldBlockConfig<
@@ -235,6 +271,9 @@ function QueueControlSection({
   // episodes; skip that until the section is on screen.
   const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);
   const visible = useSectionVisible(STORAGE_KEY, open);
+  const providerBudget = useQuery({
+    queryKey: ['provider-budget'], queryFn: getProviderBudget, enabled: visible,
+  });
   return (
     <CollapsibleSection
       title="Queue Control"
@@ -243,8 +282,14 @@ function QueueControlSection({
       onToggle={setOpen}
     >
       <div className="space-y-6">
-        {/* Process new episodes first: fresh-episode queue boost, saves immediately */}
         <div>
+          <h3 className="text-base font-semibold text-foreground mb-1">Provider admission</h3>
+          <p className="text-sm text-muted-foreground mb-4">Limit concurrent provider requests and reserve a daily allowance before work starts. Final provider charges can exceed an estimate, so this is an admission limit rather than a guaranteed spending cap.</p>
+          {providerBudget.data && <ProviderAdmissionForm value={providerBudget.data} />}
+        </div>
+
+        {/* Process new episodes first: fresh-episode queue boost, saves immediately */}
+        <div className="pt-4 border-t border-border">
           <label className="flex items-center gap-3 cursor-pointer">
             <ToggleSwitch
               checked={processNewEpisodesFirst}

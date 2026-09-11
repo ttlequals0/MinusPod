@@ -68,13 +68,15 @@ def _personalize_rss_for_subscriber(cached_rss: str) -> str:
     if not SUBSCRIBER_KEY_RE.fullmatch(supplied):
         return cached_rss
     slug = request.view_args.get('slug', '') if request.view_args else ''
-    base_url = (
-        extract_cached_base_url(cached_rss)
-        or os.getenv('BASE_URL', '')
-    ).rstrip('/')
+    base_url = (extract_cached_base_url(cached_rss)
+                or rss_parser._resolved_base_url()).rstrip('/')
     if not slug or not base_url:
         abort(503, description='cannot safely personalize scoped RSS')
-    asset_path = rf'(?:episodes/{re.escape(slug)}/[^"\'<> ]*|{re.escape(slug)}/cover-minuspod(?:-[0-9a-f]{{8}})?\.jpg)'
+    if slug == 'recents':
+        asset_path = (r'(?:episodes/[^/"\'<> ]+/[^"\'<> ]*|'
+                      r'recents/cover-minuspod(?:-[0-9a-f]{8})?\.jpg)')
+    else:
+        asset_path = rf'(?:episodes/{re.escape(slug)}/[^"\'<> ]*|{re.escape(slug)}/cover-minuspod(?:-[0-9a-f]{{8}})?\.jpg)'
     key_query = re.compile(
         rf'({re.escape(base_url)}/{asset_path}[?&](?:amp;)?key=)[0-9a-f]{{64}}'
     )

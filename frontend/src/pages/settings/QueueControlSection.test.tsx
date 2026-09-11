@@ -16,6 +16,8 @@ vi.mock('../../api/settings', () => ({
   updateOfflineQueueSettings: vi.fn(),
   getRateLimitHoldSettings: vi.fn(),
   updateRateLimitHoldSettings: vi.fn(),
+  getProviderBudget: vi.fn(),
+  updateProviderBudget: vi.fn(),
 }));
 
 const mocked = vi.mocked(settingsApi);
@@ -52,7 +54,14 @@ function renderSection(
 }
 
 describe('QueueControlSection', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocked.getProviderBudget.mockResolvedValue({
+      enabled: false, dailyLimitMicrousd: 0, maxReservations: 1,
+      unknownCost: 'deny', unknownReserveMicrousd: 0,
+      status: { provider: 'test', spentMicrousd: 0, reservedMicrousd: 0, activeReservations: 0 },
+    });
+  });
 
   it('renders the process-new-first toggle with its current state', () => {
     mocked.getOfflineQueueSettings.mockResolvedValue({

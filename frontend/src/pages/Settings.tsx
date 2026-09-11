@@ -13,6 +13,7 @@ import type { BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, Whi
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
 import DataManagementSection from './settings/DataManagementSection';
+import DatabaseStatsSection from './settings/DatabaseStatsSection';
 import NotificationsSection from './settings/NotificationsSection';
 import AuthenticatedFeedsSection from './settings/AuthenticatedFeedsSection';
 import SecuritySection from './settings/SecuritySection';
@@ -1281,6 +1282,8 @@ function Settings() {
         maxRssBytes={maxRssBytes}
         onMaxRssBytesChange={setMaxRssBytes}
       />
+
+      <DatabaseStatsSection database={status?.database} />
 
       <DatabaseBackupSection />
 

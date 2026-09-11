@@ -26,6 +26,23 @@ def test_subscriber_key_api_reveals_once_and_revokes(app_client, temp_db):
     assert not temp_db.verify_feed_subscriber_key('example-feed', body['token'])
 
 
+def test_subscriber_key_api_deletes_only_revoked_records(app_client, temp_db):
+    temp_db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')
+    created = app_client.post(
+        '/api/v1/feeds/example-feed/subscriber-keys', json={'label': 'Phone'}
+    ).get_json()
+    record_url = f"/api/v1/feeds/example-feed/subscriber-keys/{created['id']}/record"
+
+    assert app_client.delete(record_url).status_code == 409
+    assert temp_db.verify_feed_subscriber_key('example-feed', created['token'])
+    assert app_client.delete(
+        f"/api/v1/feeds/example-feed/subscriber-keys/{created['id']}"
+    ).status_code == 200
+    assert not temp_db.verify_feed_subscriber_key('example-feed', created['token'])
+    assert app_client.delete(record_url).get_json() == {'deleted': True}
+    assert not temp_db.verify_feed_subscriber_key('example-feed', created['token'])
+
+
 def test_provider_budget_api_validates_and_updates_atomically(app_client, temp_db):
     response = app_client.put('/api/v1/settings/provider-budget', json={
         'enabled': True,

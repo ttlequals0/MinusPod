@@ -950,6 +950,15 @@ class EpisodeMixin:
             params += [limit, offset]
         return [dict(r) for r in self.get_connection().execute(query, params).fetchall()]
 
+    def is_recent_processed_episode(self, source_slug: str, episode_id: str,
+                                    since: str) -> bool:
+        """Return whether an episode is eligible for Recents."""
+        conn = self.get_connection()
+        return bool(conn.execute(
+            f"SELECT 1 {self._RECENTS_WHERE} AND p.slug = ? AND e.episode_id = ?",
+            (since, source_slug, episode_id),
+        ).fetchone())
+
     def get_chapters_json_for_podcast(self, podcast_id: int) -> dict[str, str]:
         """{episode_id: chapters_json} for a feed's processed episodes; one
         query instead of a full-row join per served item. Processed only:

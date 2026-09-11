@@ -21,24 +21,10 @@ vi.mock('../../api/auth', () => ({
 
 const mockGetSettings = vi.fn();
 const mockUpdateSettings = vi.fn();
-const mockGetProviderBudget = vi.fn();
-const mockUpdateProviderBudget = vi.fn();
-const mockGetSubscriberKeys = vi.fn();
-const mockCreateSubscriberKey = vi.fn();
-const mockRevokeSubscriberKey = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   getSettings: (...args: unknown[]) => mockGetSettings(...args),
   updateSettings: (...args: unknown[]) => mockUpdateSettings(...args),
-  getProviderBudget: (...args: unknown[]) => mockGetProviderBudget(...args),
-  updateProviderBudget: (...args: unknown[]) => mockUpdateProviderBudget(...args),
-}));
-
-vi.mock('../../api/feeds', () => ({
-  feedsQueryOptions: { queryKey: ['feeds'], queryFn: () => Promise.resolve({ feeds: [{ slug: 'example-feed', title: 'Example Feed' }] }) },
-  getSubscriberKeys: (...args: unknown[]) => mockGetSubscriberKeys(...args),
-  createSubscriberKey: (...args: unknown[]) => mockCreateSubscriberKey(...args),
-  revokeSubscriberKey: (...args: unknown[]) => mockRevokeSubscriberKey(...args),
 }));
 
 const NO_PASSWORD_TEXT = /This instance has no password, so anyone with network access has full control/;
@@ -74,12 +60,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetSettings.mockResolvedValue(makeSettings());
   mockUpdateSettings.mockResolvedValue({ message: 'ok' });
-  mockGetSubscriberKeys.mockResolvedValue([]);
-  mockGetProviderBudget.mockResolvedValue({
-    enabled: false, dailyLimitMicrousd: 0, maxReservations: 1,
-    unknownCost: 'deny', unknownReserveMicrousd: 0,
-    status: { provider: 'anthropic', spentMicrousd: 0, reservedMicrousd: 0, activeReservations: 0 },
-  });
 });
 
 describe('SecuritySection hardened controls', () => {
@@ -89,27 +69,6 @@ describe('SecuritySection hardened controls', () => {
     expect(screen.queryByRole('button', { name: /Rotate Master Passphrase/ })).toBeNull();
   });
 
-  it('creates a scoped subscriber key and reveals its URL once', async () => {
-    mockCreateSubscriberKey.mockResolvedValue({
-      id: '0123456789abcdef', label: 'Living room', created_at: '2026-09-10T00:00:00Z',
-      last_used_at: null, revoked_at: null, token: 'token', feedUrl: 'https://example.com/feed.xml?key=token',
-    });
-    renderSection({ isPasswordSet: true, cryptoReady: true });
-    await userEvent.type(await screen.findByLabelText('Subscriber label'), 'Living room');
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
-    expect(mockCreateSubscriberKey).toHaveBeenCalledWith('example-feed', 'Living room');
-    expect((await screen.findByLabelText('New subscriber feed URL') as HTMLInputElement).value).toBe('https://example.com/feed.xml?key=token');
-  });
-
-  it('saves provider admission values in integer microusd', async () => {
-    mockUpdateProviderBudget.mockImplementation(async (value) => ({
-      ...value, status: { provider: 'anthropic', spentMicrousd: 0, reservedMicrousd: 0, activeReservations: 0 },
-    }));
-    renderSection({ isPasswordSet: true, cryptoReady: true });
-    await userEvent.click(await screen.findByText('Enable provider admission controls'));
-    await userEvent.click(screen.getByRole('button', { name: 'Save admission settings' }));
-    expect(mockUpdateProviderBudget.mock.calls[0][0]).toEqual(expect.objectContaining({ enabled: true, dailyLimitMicrousd: 0 }));
-  });
 });
 
 describe('SecuritySection warning: no password, no passphrase', () => {

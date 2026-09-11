@@ -75,6 +75,51 @@ def test_stats_by_podcast_episode_count_distinct_run_count_total(temp_db):
     assert row['runCount'] == 3
 
 
+def test_episode_stat_queries_use_completed_history_probe_index(temp_db):
+    """Both episode aggregates probe history by podcast, episode, and status."""
+    conn = temp_db.get_connection()
+    temp_db.create_podcast('show-plan', 'https://example.com/plan.xml', 'Show Plan')
+    _seed_episode(
+        temp_db, 'show-plan', 'episode-plan',
+        original=3600, new=3300, ads_per_run=(1,),
+    )
+    traced = []
+    conn.set_trace_callback(traced.append)
+    try:
+        temp_db.get_dashboard_stats()
+        temp_db.get_stats_by_podcast()
+    finally:
+        conn.set_trace_callback(None)
+
+    queries = [
+        query for query in traced
+        if 'FROM episodes e' in query and 'FROM processing_history h' in query
+    ]
+    assert len(queries) == 2
+    for query in queries:
+        plan = conn.execute(f"EXPLAIN QUERY PLAN {query}").fetchall()
+        details = [row['detail'] for row in plan]
+        assert any(
+            'idx_history_podcast_episode_status' in detail
+            and 'podcast_id=? AND episode_id=? AND status=?' in detail
+            for detail in details
+        )
+
+
+def test_existing_database_adds_completed_history_probe_index(temp_db):
+    conn = temp_db.get_connection()
+    conn.execute('DROP INDEX idx_history_podcast_episode_status')
+    conn.commit()
+
+    temp_db._create_new_tables_only(conn)
+
+    indexes = {
+        row['name'] for row in conn.execute(
+            "PRAGMA index_list(processing_history)").fetchall()
+    }
+    assert 'idx_history_podcast_episode_status' in indexes
+
+
 def test_credit_time_saved_dedups_reprocess(temp_db):
     temp_db.create_podcast('show-g', 'https://example.com/g.xml', 'Show G')
     temp_db.upsert_episode('show-g', 'ep1',

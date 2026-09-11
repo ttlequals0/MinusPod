@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.96.16
+  version: 2.96.17
   contact:
     name: MinusPod
   license:
@@ -2768,6 +2768,48 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Pattern'
+
+  /patterns/corrections/unresolved:
+    get:
+      tags: [Patterns]
+      summary: List unassigned legacy corrections
+      description: >-
+        Candidates are current feed episodes or durable processing-history
+        entries for an active feed. History candidates include their entry
+        count and latest processing timestamp. They do not imply a current
+        episode, transcript, or media file exists.
+      responses:
+        '200':
+          description: Unassigned corrections and safe feed candidates
+
+  /patterns/corrections/{correction_id}/assign:
+    post:
+      tags: [Patterns]
+      summary: Assign an unassigned correction to a feed
+      parameters:
+        - $ref: '#/components/parameters/correction_id'
+      responses:
+        '200':
+          description: Correction assigned after explicit confirmation
+        '409':
+          description: Correction was already assigned
+
+  /patterns/corrections/{correction_id}:
+    delete:
+      tags: [Patterns]
+      summary: Delete one unassigned correction
+      description: >-
+        Deletes only a correction whose feed is still unassigned. It never
+        changes patterns, processing history, media, or feed records.
+      parameters:
+        - $ref: '#/components/parameters/correction_id'
+      responses:
+        '200':
+          description: Unassigned correction deleted
+        '404':
+          description: Correction not found
+        '409':
+          description: Correction is already assigned
 
   /patterns/{pattern_id}:
     get:
@@ -5770,6 +5812,29 @@ paths:
       responses:
         '200':
           description: Key revoked
+
+  /feeds/{slug}/subscriber-keys/{key_id}/record:
+    parameters:
+      - $ref: '#/components/parameters/slug'
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9a-f]{16}$'
+    delete:
+      tags: [Feeds]
+      summary: Delete a revoked subscriber key record
+      description: >-
+        Removes only a record that was already revoked. The deleted token
+        stays invalid because no matching credential remains.
+      responses:
+        '200':
+          description: Revoked key record deleted
+        '404':
+          description: Subscriber key not found
+        '409':
+          description: Subscriber key is still active
 
   /settings/provider-budget:
     get:
@@ -8897,6 +8962,13 @@ components:
         ``/auth/status``, ``/health``, ``/health/live``) declare ``security: []``.
 
   parameters:
+    correction_id:
+      name: correction_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
     slug:
       name: slug
       in: path

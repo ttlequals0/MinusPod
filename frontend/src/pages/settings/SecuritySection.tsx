@@ -2,18 +2,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword, AuthStatus } from '../../api/auth';
-import {
-  getProviderBudget, getSettings, updateProviderBudget, updateSettings,
-  type ProviderBudget,
-} from '../../api/settings';
-import {
-  createSubscriberKey, feedsQueryOptions, getSubscriberKeys,
-  revokeSubscriberKey,
-} from '../../api/feeds';
+import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
-import Checkbox from '../../components/Checkbox';
-import NumberInput from '../../components/NumberInput';
 import { focusRing } from '../../components/fieldStyles';
 
 const MIN_PASSWORD_LENGTH = 12;
@@ -24,38 +15,6 @@ interface SecuritySectionProps {
   logout: () => Promise<void>;
   refreshStatus: () => Promise<AuthStatus>;
   plaintextSecretsCount?: number;
-}
-
-function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
-  const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<Omit<ProviderBudget, 'status'>>({
-    enabled: value.enabled,
-    dailyLimitMicrousd: value.dailyLimitMicrousd,
-    maxReservations: value.maxReservations,
-    unknownCost: value.unknownCost,
-    unknownReserveMicrousd: value.unknownReserveMicrousd,
-  });
-  const [message, setMessage] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: updateProviderBudget,
-    onSuccess: (result) => {
-      queryClient.setQueryData(['provider-budget'], result);
-      setMessage('Provider admission settings saved');
-    },
-    onError: (error) => setMessage(getErrorMessage(error, 'Failed to save provider admission settings')),
-  });
-  return <div className="space-y-4">
-    <Checkbox checked={draft.enabled} onChange={(enabled) => setDraft({ ...draft, enabled })} label="Enable provider admission controls" />
-    <div className="grid gap-4 sm:grid-cols-2">
-      <div><label htmlFor="dailyBudget" className="block text-sm font-medium text-foreground mb-1">Daily limit in USD</label><NumberInput id="dailyBudget" value={draft.dailyLimitMicrousd / 1_000_000} min={0} max={1000000} fallback={0} step={0.01} onCommit={(amount) => setDraft({ ...draft, dailyLimitMicrousd: Math.round(amount * 1_000_000) })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground" /><p className="mt-1 text-xs text-muted-foreground">0 allows unlimited daily spending.</p></div>
-      <div><label htmlFor="maxReservations" className="block text-sm font-medium text-foreground mb-1">Concurrent reservations</label><NumberInput id="maxReservations" value={draft.maxReservations} min={1} max={64} fallback={1} parse={parseInt} onCommit={(maxReservations) => setDraft({ ...draft, maxReservations })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground" /></div>
-    </div>
-    <div><label htmlFor="unknownCost" className="block text-sm font-medium text-foreground mb-1">When cost is unknown</label><select id="unknownCost" value={draft.unknownCost} onChange={(event) => setDraft({ ...draft, unknownCost: event.target.value as ProviderBudget['unknownCost'] })} className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`}><option value="deny">Deny the request</option><option value="reserve">Reserve a fixed amount</option><option value="allow">Allow without a reservation</option></select></div>
-    {draft.unknownCost === 'reserve' && <div><label htmlFor="unknownReserve" className="block text-sm font-medium text-foreground mb-1">Unknown cost reservation in USD</label><NumberInput id="unknownReserve" value={draft.unknownReserveMicrousd / 1_000_000} min={0.000001} max={1000000} fallback={0.01} step={0.01} onCommit={(amount) => setDraft({ ...draft, unknownReserveMicrousd: Math.round(amount * 1_000_000) })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground" /></div>}
-    <p className="text-xs text-muted-foreground">Today: ${(value.status.spentMicrousd / 1_000_000).toFixed(2)} spent, ${(value.status.reservedMicrousd / 1_000_000).toFixed(2)} reserved, {value.status.activeReservations} active.</p>
-    {message && <p className={`text-sm ${mutation.isError ? 'text-destructive' : 'text-success'}`}>{message}</p>}
-    <button type="button" onClick={() => mutation.mutate(draft)} disabled={mutation.isPending} className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}>{mutation.isPending ? 'Saving...' : 'Save admission settings'}</button>
-  </div>;
 }
 
 function SecuritySection({
@@ -115,34 +74,6 @@ function SecuritySection({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const { data: feedsData } = useQuery(feedsQueryOptions);
-  const feeds = feedsData?.feeds ?? [];
-  const [selectedFeed, setSelectedFeed] = useState('');
-  const [subscriberLabel, setSubscriberLabel] = useState('');
-  const [createdFeedUrl, setCreatedFeedUrl] = useState<string | null>(null);
-  const [subscriberError, setSubscriberError] = useState<string | null>(null);
-  const activeFeed = selectedFeed || feeds[0]?.slug || '';
-  const { data: subscriberKeys = [] } = useQuery({
-    queryKey: ['subscriber-keys', activeFeed],
-    queryFn: () => getSubscriberKeys(activeFeed),
-    enabled: Boolean(activeFeed),
-  });
-  const createKeyMutation = useMutation({
-    mutationFn: () => createSubscriberKey(activeFeed, subscriberLabel.trim()),
-    onSuccess: (created) => {
-      setCreatedFeedUrl(created.feedUrl);
-      setSubscriberLabel('');
-      setSubscriberError(null);
-      queryClient.invalidateQueries({ queryKey: ['subscriber-keys', activeFeed] });
-    },
-    onError: (error) => setSubscriberError(getErrorMessage(error, 'Failed to create subscriber key')),
-  });
-  const revokeKeyMutation = useMutation({
-    mutationFn: (id: string) => revokeSubscriberKey(activeFeed, id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subscriber-keys', activeFeed] }),
-    onError: (error) => setSubscriberError(getErrorMessage(error, 'Failed to revoke subscriber key')),
-  });
-  const { data: providerBudget } = useQuery({ queryKey: ['provider-budget'], queryFn: getProviderBudget });
 
   const handleLogout = async () => {
     await logout();
@@ -311,36 +242,6 @@ function SecuritySection({
           <p>Run <code className="font-mono break-all">python scripts/rotate_master_passphrase.py</code>, update the container environment, then restart all workers together.</p>
           <p>Keep an encrypted backup and the current passphrase until the restarted service can read every stored key.</p>
         </div>}
-      </div>
-
-      <div className="mt-6 pt-6 border-t border-border">
-        <h3 className="text-base font-semibold text-foreground mb-1">Feed subscriber keys</h3>
-        <p className="text-sm text-muted-foreground mb-4">Create a separate feed URL for each subscriber. Revoking one URL does not affect other subscribers.</p>
-        {feeds.length === 0 ? <p className="text-sm text-muted-foreground">Add a feed before creating subscriber keys.</p> : (
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-foreground" htmlFor="subscriberFeed">Feed</label>
-            <select id="subscriberFeed" value={activeFeed} onChange={(event) => { setSelectedFeed(event.target.value); setCreatedFeedUrl(null); }} className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`}>
-              {feeds.map((feed) => <option key={feed.slug} value={feed.slug}>{feed.title}</option>)}
-            </select>
-            <label className="block text-sm font-medium text-foreground" htmlFor="subscriberLabel">Subscriber label</label>
-            <div className="flex gap-2">
-              <input id="subscriberLabel" value={subscriberLabel} maxLength={100} onChange={(event) => setSubscriberLabel(event.target.value)} placeholder="Living room" className={`min-w-0 flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`} />
-              <button type="button" onClick={() => createKeyMutation.mutate()} disabled={createKeyMutation.isPending} className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}>Create</button>
-            </div>
-            {createdFeedUrl && <div className="rounded-md border border-success/40 bg-success/10 p-3 text-sm"><p className="font-medium text-success mb-2">Copy this URL now. It will not be shown again.</p><div className="flex gap-2"><input readOnly value={createdFeedUrl} aria-label="New subscriber feed URL" className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-xs" /><button type="button" onClick={() => navigator.clipboard.writeText(createdFeedUrl)} className={`px-3 py-1 rounded ${btnOutline} ${focusRing}`}>Copy</button></div></div>}
-            {subscriberError && <p className="text-sm text-destructive">{subscriberError}</p>}
-            <div className="space-y-2">
-              {subscriberKeys.map((key) => <div key={key.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-foreground">{key.label || 'Unlabeled subscriber'}</p><p className="text-xs text-muted-foreground">Created {new Date(key.created_at).toLocaleDateString()}{key.revoked_at ? ' - revoked' : ''}</p></div>{!key.revoked_at && <button type="button" onClick={() => revokeKeyMutation.mutate(key.id)} disabled={revokeKeyMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Revoke</button>}</div>)}
-              {subscriberKeys.length === 0 && <p className="text-sm text-muted-foreground">No subscriber keys for this feed.</p>}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-6 pt-6 border-t border-border">
-        <h3 className="text-base font-semibold text-foreground mb-1">Provider admission</h3>
-        <p className="text-sm text-muted-foreground mb-4">Limit concurrent provider requests and reserve a daily allowance before work starts. Final provider charges can exceed an estimate, so this is an admission limit rather than a guaranteed spending cap.</p>
-        {providerBudget && <ProviderAdmissionForm value={providerBudget} />}
       </div>
 
       <div className="mt-6 pt-6 border-t border-border">

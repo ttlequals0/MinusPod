@@ -652,6 +652,8 @@ CREATE INDEX IF NOT EXISTS idx_provider_spend_run
 
 CREATE INDEX IF NOT EXISTS idx_history_processed_at ON processing_history(processed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_history_podcast_episode ON processing_history(podcast_id, episode_id);
+CREATE INDEX IF NOT EXISTS idx_history_podcast_episode_status ON processing_history(podcast_id, episode_id, status);
+CREATE INDEX IF NOT EXISTS idx_history_episode_podcast ON processing_history(episode_id, podcast_id);
 CREATE INDEX IF NOT EXISTS idx_history_status ON processing_history(status);
 
 -- auto_process_queue table (queue for automatic episode processing)

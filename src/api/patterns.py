@@ -180,6 +180,17 @@ def assign_unresolved_correction(correction_id):
     return json_response({'assigned': True, 'correctionId': correction_id, 'slug': slug})
 
 
+@api.route('/patterns/corrections/<int:correction_id>', methods=['DELETE'])
+@log_request
+def delete_unresolved_correction(correction_id):
+    result = get_database().delete_unresolved_correction(correction_id)
+    if result == 'missing':
+        return error_response('Correction not found', 404)
+    if result == 'assigned':
+        return error_response('Assigned corrections cannot be deleted here', 409)
+    return json_response({'deleted': True, 'correctionId': correction_id})
+
+
 @api.route('/patterns/health', methods=['GET'])
 @log_request
 def get_pattern_health():

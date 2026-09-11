@@ -7,6 +7,9 @@ import NumberInput from '../../components/NumberInput';
 import { btnDestructive, btnGhost } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 import { getStageLabel } from '../../utils/processingStage';
+import { getProcessingAdmission, setProcessingAdmission } from '../../api/settings';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { btnSecondary } from '../../components/buttonStyles';
 
 const STORAGE_KEY = 'settings-section-processing-queue';
 
@@ -50,6 +53,14 @@ function ProcessingQueueSection({
   onPriorityChange,
   priorityIsPending,
 }: ProcessingQueueSectionProps) {
+  const queryClient = useQueryClient();
+  const admission = useQuery({
+    queryKey: ['processing-admission'], queryFn: getProcessingAdmission,
+  });
+  const updateAdmission = useMutation({
+    mutationFn: (paused: boolean) => setProcessingAdmission(paused),
+    onSuccess: (data) => queryClient.setQueryData(['processing-admission'], data),
+  });
   const episodes = processingEpisodes ?? [];
   const active = episodes.filter((e) => e.stage !== 'queued');
   const queued = episodes.filter((e) => e.stage === 'queued');
@@ -138,6 +149,26 @@ function ProcessingQueueSection({
       storageKey={STORAGE_KEY}
       key={hasProcessing ? 'processing-active' : 'processing-idle'}
     >
+      {admission.data ? (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-5">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Processing admission</h3>
+            <p className="text-xs text-muted-foreground">
+              {admission.data.paused
+                ? `${admission.data.activeRuns} active runs are draining. New work stays queued.`
+                : `${admission.data.activeRuns} active runs and ${admission.data.queuedEpisodes} queued episodes.`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => updateAdmission.mutate(!admission.data.paused)}
+            disabled={updateAdmission.isPending}
+            className={`px-3 py-2 rounded-lg text-sm ${btnSecondary} ${focusRing} disabled:opacity-50`}
+          >
+            {admission.data.paused ? 'Resume new work' : 'Pause new work'}
+          </button>
+        </div>
+      ) : null}
       {hasProcessing ? (
         <div className="space-y-4">
           {active.length > 0 && (

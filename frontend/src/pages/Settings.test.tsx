@@ -34,6 +34,7 @@ vi.mock('../context/AuthContext', () => ({
 vi.mock('./settings/SystemStatusSection', () => ({ default: () => null }));
 vi.mock('./settings/StorageRetentionSection', () => ({ default: () => null }));
 vi.mock('./settings/DataManagementSection', () => ({ default: () => null }));
+vi.mock('./settings/DatabaseStatsSection', () => ({ default: () => null }));
 vi.mock('./settings/NotificationsSection', () => ({ default: () => null }));
 vi.mock('./settings/AuthenticatedFeedsSection', () => ({ default: () => null }));
 vi.mock('./settings/SecuritySection', () => ({ default: () => null }));

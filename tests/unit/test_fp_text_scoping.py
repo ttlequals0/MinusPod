@@ -216,6 +216,36 @@ def test_unresolved_correction_lists_candidates_and_requires_matching_feed():
     assert row['podcast_id'] == db.get_podcast_by_slug(slug_b)['id']
 
 
+def test_unresolved_correction_allows_explicit_historical_feed_choice():
+    slug, episode_id = _make_episode('unresolved-history-feed', 'ep-unresolved-history-001')
+    podcast = db.get_podcast_by_slug(slug)
+    correction_id = db.create_pattern_correction(
+        correction_type='confirm', episode_id=episode_id,
+        podcast_title='Legacy title', original_bounds={'start': 1.0, 'end': 2.0},
+    )
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title=podcast['title'],
+        episode_id=episode_id, episode_title='Deleted episode', status='completed',
+    )
+    db.get_connection().execute(
+        "DELETE FROM episodes WHERE podcast_id = ? AND episode_id = ?",
+        (podcast['id'], episode_id),
+    )
+    db.get_connection().commit()
+
+    unresolved = db.get_unresolved_corrections()
+    correction = next(item for item in unresolved['corrections'] if item['id'] == correction_id)
+    candidate = correction['candidates'][0]
+    assert candidate['slug'] == slug
+    assert candidate['podcast_title'] == 'FP Scope Test'
+    assert candidate['episode_title'] == 'Deleted episode'
+    assert candidate['episode_available'] is False
+    assert candidate['source'] == 'history'
+    assert candidate['history_run_count'] == 1
+    assert candidate['history_latest_processed_at'] is not None
+    assert db.assign_unresolved_correction(correction_id, slug) == 'updated'
+
+
 def test_unresolved_correction_api_requires_explicit_confirmation(app_client):
     episode_id = 'ep-unresolved-api-001'
     slug, _ = _make_episode('unresolved-api-feed', episode_id)
@@ -239,6 +269,27 @@ def test_unresolved_correction_api_requires_explicit_confirmation(app_client):
         json={'slug': slug, 'confirm': True},
     )
     assert assigned.status_code == 200
+
+
+def test_delete_unresolved_correction_rejects_assigned_and_preserves_other_rows(app_client):
+    slug, episode_id = _make_episode('unresolved-delete-feed', 'ep-unresolved-delete-001')
+    unassigned_id = db.create_pattern_correction(
+        correction_type='confirm', episode_id='ep-unresolved-delete-orphan',
+        original_bounds={'start': 3.0, 'end': 4.0},
+    )
+    assigned_id = db.create_pattern_correction(
+        correction_type='confirm', episode_id=episode_id,
+        original_bounds={'start': 5.0, 'end': 6.0},
+    )
+    assert db.assign_unresolved_correction(assigned_id, slug) == 'updated'
+
+    deleted = app_client.delete(f'/api/v1/patterns/corrections/{unassigned_id}')
+    assert deleted.get_json() == {'deleted': True, 'correctionId': unassigned_id}
+    assert app_client.delete(f'/api/v1/patterns/corrections/{unassigned_id}').status_code == 404
+    assert app_client.delete(f'/api/v1/patterns/corrections/{assigned_id}').status_code == 409
+    assert db.get_connection().execute(
+        "SELECT 1 FROM pattern_corrections WHERE id = ?", (assigned_id,)
+    ).fetchone()
 
 
 def test_reject_differential_hold_writes_null_text_and_source_hold_reason():

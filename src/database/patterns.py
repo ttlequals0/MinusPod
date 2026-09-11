@@ -506,17 +506,34 @@ class PatternMixin:
                     except (TypeError, ValueError):
                         pass
             candidates = conn.execute(
-                "SELECT p.slug, p.title AS podcast_title, e.title AS episode_title "
-                "FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
-                "WHERE e.episode_id = ? ORDER BY p.title, p.slug",
-                (row['episode_id'],),
+                """SELECT p.slug, p.title AS podcast_title, e.title AS episode_title,
+                          1 AS episode_available, 'current' AS source,
+                          NULL AS history_run_count, NULL AS history_latest_processed_at
+                   FROM episodes e JOIN podcasts p ON p.id = e.podcast_id
+                   WHERE e.episode_id = ?
+                   UNION ALL
+                   SELECT p.slug, p.title AS podcast_title, h.episode_title,
+                          0 AS episode_available, 'history' AS source,
+                          COUNT(*) AS history_run_count,
+                          MAX(h.processed_at) AS history_latest_processed_at
+                   FROM processing_history h JOIN podcasts p ON p.id = h.podcast_id
+                   WHERE h.episode_id = ? AND NOT EXISTS (
+                       SELECT 1 FROM episodes e
+                       WHERE e.podcast_id = h.podcast_id AND e.episode_id = h.episode_id
+                   )
+                   GROUP BY p.id
+                   ORDER BY podcast_title, slug""",
+                (row['episode_id'], row['episode_id']),
             ).fetchall()
-            item['candidates'] = [dict(candidate) for candidate in candidates]
+            item['candidates'] = [
+                {**dict(candidate), 'episode_available': bool(candidate['episode_available'])}
+                for candidate in candidates
+            ]
             corrections.append(item)
         return {'count': count, 'corrections': corrections}
 
     def assign_unresolved_correction(self, correction_id: int, slug: str) -> str:
-        """Assign one unresolved correction to a feed containing its episode."""
+        """Assign one unresolved correction to a current or historical feed."""
         with self.transaction(immediate=True) as conn:
             correction = conn.execute(
                 "SELECT episode_id, podcast_id FROM pattern_corrections WHERE id = ?",
@@ -527,9 +544,13 @@ class PatternMixin:
             if correction['podcast_id'] is not None:
                 return 'assigned'
             candidate = conn.execute(
-                "SELECT p.id FROM podcasts p JOIN episodes e ON e.podcast_id = p.id "
-                "WHERE p.slug = ? AND e.episode_id = ?",
-                (slug, correction['episode_id']),
+                """SELECT p.id FROM podcasts p WHERE p.slug = ? AND (
+                       EXISTS (SELECT 1 FROM episodes e
+                               WHERE e.podcast_id = p.id AND e.episode_id = ?)
+                       OR EXISTS (SELECT 1 FROM processing_history h
+                                  WHERE h.podcast_id = p.id AND h.episode_id = ?)
+                   )""",
+                (slug, correction['episode_id'], correction['episode_id']),
             ).fetchone()
             if not candidate:
                 return 'invalid_feed'
@@ -539,6 +560,23 @@ class PatternMixin:
                 (candidate['id'], correction_id),
             )
             return 'updated' if cursor.rowcount == 1 else 'assigned'
+
+    def delete_unresolved_correction(self, correction_id: int) -> str:
+        """Delete one correction only when it is still unassigned."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT podcast_id FROM pattern_corrections WHERE id = ?",
+                (correction_id,),
+            ).fetchone()
+            if not row:
+                return 'missing'
+            if row['podcast_id'] is not None:
+                return 'assigned'
+            conn.execute(
+                "DELETE FROM pattern_corrections WHERE id = ? AND podcast_id IS NULL",
+                (correction_id,),
+            )
+            return 'deleted'
 
     def get_episode_corrections(self, podcast_id: int, episode_id: str) -> list[dict]:
         """Get all corrections for a specific episode, newest first."""

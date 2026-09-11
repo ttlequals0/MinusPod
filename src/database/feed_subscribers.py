@@ -75,3 +75,19 @@ class FeedSubscriberMixin:
                 (utc_now_iso(), key_id, slug),
             )
             return cursor.rowcount == 1
+
+    def delete_revoked_feed_subscriber_key(self, slug: str, key_id: str) -> str:
+        """Delete a revoked key record without restoring its credential."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                """SELECT k.revoked_at FROM feed_subscriber_keys k
+                   JOIN podcasts p ON p.id = k.podcast_id
+                   WHERE k.id = ? AND p.slug = ?""",
+                (key_id, slug),
+            ).fetchone()
+            if not row:
+                return 'missing'
+            if row['revoked_at'] is None:
+                return 'active'
+            conn.execute("DELETE FROM feed_subscriber_keys WHERE id = ?", (key_id,))
+            return 'deleted'

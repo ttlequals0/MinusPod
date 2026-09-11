@@ -215,6 +215,10 @@ export interface UnresolvedCorrectionCandidate {
   slug: string;
   podcast_title: string | null;
   episode_title: string | null;
+  episode_available: boolean;
+  source: 'current' | 'history';
+  history_run_count: number | null;
+  history_latest_processed_at: string | null;
 }
 
 export interface UnresolvedCorrection {
@@ -243,6 +247,10 @@ export async function assignUnresolvedCorrection(id: number, slug: string): Prom
     method: 'POST',
     body: { slug, confirm: true },
   });
+}
+
+export async function deleteUnresolvedCorrection(id: number): Promise<void> {
+  await apiRequest(`/patterns/corrections/${id}`, { method: 'DELETE' });
 }
 
 export async function getSplitCandidates(

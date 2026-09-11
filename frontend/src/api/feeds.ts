@@ -187,6 +187,13 @@ export async function revokeSubscriberKey(slug: string, id: string) {
   );
 }
 
+export async function deleteSubscriberKeyRecord(slug: string, id: string) {
+  return apiRequest<{ deleted: boolean }>(
+    `/feeds/${encodeURIComponent(slug)}/subscriber-keys/${encodeURIComponent(id)}/record`,
+    { method: 'DELETE' },
+  );
+}
+
 export async function getAdDistribution(slug: string): Promise<AdDistribution> {
   return apiRequest<AdDistribution>(`/feeds/${slug}/ad-distribution`);
 }

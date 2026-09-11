@@ -1,18 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import SystemStatusSection from './SystemStatusSection';
+import DatabaseStatsSection from './DatabaseStatsSection';
 import type { SystemStatus } from '../../api/types';
 
 const mockCheckpoint = vi.fn();
-const mockGetAdmission = vi.fn();
-const mockSetAdmission = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   checkpointDatabase: (...args: unknown[]) => mockCheckpoint(...args),
-  getProcessingAdmission: (...args: unknown[]) => mockGetAdmission(...args),
-  setProcessingAdmission: (...args: unknown[]) => mockSetAdmission(...args),
 }));
 
 vi.mock('./UpdateStatusPanel', () => ({ default: () => null }));
@@ -41,28 +37,23 @@ function renderSection() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <SystemStatusSection status={STATUS} statusLoading={false} />
+      <DatabaseStatsSection database={STATUS.database} />
     </QueryClientProvider>,
   );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockGetAdmission.mockResolvedValue({ paused: false, activeRuns: 1, queuedEpisodes: 2 });
-  mockSetAdmission.mockResolvedValue({ paused: true, activeRuns: 1, queuedEpisodes: 2 });
   mockCheckpoint.mockResolvedValue({
     busy: false, logPages: 8, checkpointedPages: 8, durationMs: 1.25,
   });
 });
 
-describe('SystemStatusSection database controls', () => {
-  it('shows worker-scoped diagnostics and pauses new work', async () => {
+describe('DatabaseStatsSection', () => {
+  it('shows worker-scoped diagnostics', async () => {
     renderSection();
     expect(screen.getByText(/worker process 42/)).toBeTruthy();
     expect(screen.getByText('12.25 ms')).toBeTruthy();
-    await userEvent.click(await screen.findByRole('button', { name: 'Pause new work' }));
-    await waitFor(() => expect(mockSetAdmission).toHaveBeenCalledWith(true));
-    expect(await screen.findByRole('button', { name: 'Resume new work' })).toBeTruthy();
   });
 
   it('reports the passive checkpoint result', async () => {

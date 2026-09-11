@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   assignUnresolvedCorrection,
+  deleteUnresolvedCorrection,
   getUnresolvedCorrections,
   type UnresolvedCorrection,
 } from '../../api/patterns';
-import { btnPrimary } from '../../components/buttonStyles';
+import { btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { ConfirmModal } from '../../components/Modal';
 
 function formatBounds(bounds: { start: number; end: number } | null): string | null {
   if (!bounds) return null;
@@ -17,10 +19,16 @@ function CorrectionRow({ correction }: { correction: UnresolvedCorrection }) {
   const queryClient = useQueryClient();
   const [slug, setSlug] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const mutation = useMutation({
     mutationFn: () => assignUnresolvedCorrection(correction.id, slug),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['unresolved-corrections'] }),
   });
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteUnresolvedCorrection(correction.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['unresolved-corrections'] }),
+  });
+  const selectedCandidate = correction.candidates.find((candidate) => candidate.slug === slug);
 
   return (
     <li className="rounded border border-border bg-background p-4">
@@ -52,7 +60,7 @@ function CorrectionRow({ correction }: { correction: UnresolvedCorrection }) {
           {correction.candidates.map((candidate) => (
             <div
               key={candidate.slug}
-              className={`flex cursor-pointer gap-3 rounded border p-3 ${
+              className={`flex flex-col gap-2 rounded border p-3 sm:flex-row sm:items-center sm:gap-3 ${
                 slug === candidate.slug ? 'border-primary bg-primary/5' : 'border-border'
               }`}
             >
@@ -66,20 +74,33 @@ function CorrectionRow({ correction }: { correction: UnresolvedCorrection }) {
                   className="mt-1"
                 />
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-foreground">
+                  <span className={`block text-sm font-medium text-foreground ${candidate.episode_available ? 'truncate' : 'break-words'}`}>
                     {candidate.podcast_title || candidate.slug}
                   </span>
-                  <span className="block truncate text-xs text-muted-foreground">
+                  <span className={`block text-xs text-muted-foreground ${candidate.episode_available ? 'truncate' : 'break-words'}`}>
                     {candidate.slug} / {candidate.episode_title || correction.episode_id}
                   </span>
                 </span>
               </label>
-              <a
-                href={`/ui/feeds/${encodeURIComponent(candidate.slug)}/episodes/${encodeURIComponent(correction.episode_id)}`}
-                className={`shrink-0 self-center text-xs text-primary hover:underline ${focusRing}`}
-              >
-                Review episode
-              </a>
+              {candidate.episode_available ? (
+                <a
+                  href={`/ui/feeds/${encodeURIComponent(candidate.slug)}/episodes/${encodeURIComponent(correction.episode_id)}`}
+                  className={`self-end text-xs text-primary hover:underline sm:shrink-0 sm:self-center ${focusRing}`}
+                >
+                  Review episode
+                </a>
+              ) : (
+                <span className="text-xs text-muted-foreground sm:shrink-0 sm:self-center sm:text-right">
+                  Historical record
+                  <span className="block">Episode review is unavailable because the current episode is gone.</span>
+                  {candidate.history_run_count != null && (
+                    <span className="block">{candidate.history_run_count} processing history {candidate.history_run_count === 1 ? 'entry' : 'entries'}</span>
+                  )}
+                  {candidate.history_latest_processed_at && (
+                    <span className="block">Last processed {new Date(candidate.history_latest_processed_at).toLocaleDateString()}</span>
+                  )}
+                </span>
+              )}
             </div>
           ))}
         </fieldset>
@@ -95,7 +116,9 @@ function CorrectionRow({ correction }: { correction: UnresolvedCorrection }) {
             onChange={(event) => setConfirmed(event.target.checked)}
             className="mt-1"
           />
-          <span>I checked the episode and confirm this feed.</span>
+          <span>{selectedCandidate?.episode_available
+            ? 'I checked the episode and confirm this feed.'
+            : 'I reviewed the historical record and confirm this feed.'}</span>
         </label>
       )}
 
@@ -111,12 +134,29 @@ function CorrectionRow({ correction }: { correction: UnresolvedCorrection }) {
         {mutation.error && (
           <p className="text-sm text-destructive">{(mutation.error as Error).message}</p>
         )}
+        <button type="button" onClick={() => setConfirmDelete(true)} className={`rounded px-3 py-2 text-sm ${btnOutline} ${focusRing}`}>
+          Delete
+        </button>
       </div>
+      {deleteMutation.error && <p className="mt-2 text-sm text-destructive">{(deleteMutation.error as Error).message}</p>}
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete this saved correction?"
+          confirmLabel="Delete"
+          busyLabel="Deleting..."
+          pending={deleteMutation.isPending}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => deleteMutation.mutate()}
+        >
+          <p>This permanently removes this saved correction record. It does not change source patterns, media, or feeds.</p>
+        </ConfirmModal>
+      )}
     </li>
   );
 }
 
 export default function UnresolvedCorrectionsPanel() {
+  const [isOpen, setIsOpen] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ['unresolved-corrections'],
     queryFn: getUnresolvedCorrections,
@@ -126,25 +166,38 @@ export default function UnresolvedCorrectionsPanel() {
 
   return (
     <section className="mb-6 rounded-lg border border-warning/40 bg-warning/5 p-4">
-      <div className="flex items-center gap-2">
+      <button
+        type="button"
+        className={`flex w-full items-center gap-2 text-left ${focusRing}`}
+        aria-expanded={isOpen}
+        aria-controls="unassigned-corrections"
+        onClick={() => setIsOpen((open) => !open)}
+      >
         <h2 className="text-base font-semibold text-foreground">Unassigned corrections</h2>
         {data && (
           <span className="rounded-full bg-warning/20 px-2 py-0.5 text-xs font-medium text-warning">
             {data.count}
           </span>
         )}
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Choose the feed that owns each legacy correction. The assignment changes saved review history.
-      </p>
-      {error ? (
-        <p className="mt-3 text-sm text-destructive">Could not load unassigned corrections.</p>
-      ) : (
-        <ul className="mt-4 space-y-3">
-          {data?.corrections.map((correction) => (
-            <CorrectionRow key={correction.id} correction={correction} />
-          ))}
-        </ul>
+        <svg className={`ml-auto h-5 w-5 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div id="unassigned-corrections">
+          <p className="mt-1 text-sm text-muted-foreground">
+            Choose the feed that owns each legacy correction. The assignment changes saved review history.
+          </p>
+          {error ? (
+            <p className="mt-3 text-sm text-destructive">Could not load unassigned corrections.</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {data?.corrections.map((correction) => (
+                <CorrectionRow key={correction.id} correction={correction} />
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </section>
   );

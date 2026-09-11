@@ -18,6 +18,7 @@ import re
 import secrets
 from functools import wraps
 
+from database.podcasts import is_recents_feed, recents_cutoff
 from flask import abort, request
 
 from utils.http import client_ip
@@ -69,6 +70,19 @@ def active_feed_key(db):
     return db.get_setting('feed_auth_key') or None
 
 
+def subscriber_key_allows_asset(db, slug: str, episode_id: str | None,
+                                token: str) -> bool:
+    """Allow a direct feed key or a Recents key for a current Recents item."""
+    if db.verify_feed_subscriber_key(slug, token):
+        return True
+    if not episode_id or not db.verify_feed_subscriber_key('recents', token):
+        return False
+    recents = db.get_podcast_by_slug('recents')
+    if not is_recents_feed(recents):
+        return False
+    return db.is_recent_processed_episode(slug, episode_id, recents_cutoff(recents))
+
+
 def extract_key_from_cover_token(token):
     """Pull the feed key out of a cover-art path token.
 
@@ -107,8 +121,10 @@ def require_feed_key(f):
             )
             subscriber_match = bool(
                 supplied and SUBSCRIBER_KEY_RE.fullmatch(supplied)
-                and db.verify_feed_subscriber_key(
-                    kwargs.get('slug') or (args[0] if args else None), supplied
+                and subscriber_key_allows_asset(
+                    db, kwargs.get('slug') or (args[0] if args else None),
+                    kwargs.get('episode_id') or (args[1] if len(args) > 1 else None),
+                    supplied,
                 )
             )
             if not (global_match or subscriber_match):

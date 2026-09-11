@@ -1500,6 +1500,20 @@ def revoke_feed_subscriber_key(slug, key_id):
     return json_response({'revoked': True})
 
 
+@api.route('/feeds/<slug>/subscriber-keys/<key_id>/record', methods=['DELETE'])
+@limiter.limit('30 per hour')
+@log_request
+def delete_revoked_feed_subscriber_key(slug, key_id):
+    if not re.fullmatch(r'[0-9a-f]{16}', key_id):
+        return error_response('Subscriber key not found', 404)
+    result = get_database().delete_revoked_feed_subscriber_key(slug, key_id)
+    if result == 'missing':
+        return error_response('Subscriber key not found', 404)
+    if result == 'active':
+        return error_response('Revoke the subscriber key before deleting its record', 409)
+    return json_response({'deleted': True})
+
+
 @api.route('/feeds/<slug>', methods=['GET'])
 @log_request
 def get_feed(slug):

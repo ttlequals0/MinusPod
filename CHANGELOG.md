@@ -9,6 +9,22 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.96.17] - 2026-09-10
+
+### Added
+
+- Unassigned corrections show durable processing-history evidence for active feeds when the current episode is gone. An operator can choose a proven feed, or permanently delete only an unassigned correction after confirmation.
+- Revoked subscriber key records can be removed after revocation. Removing the record does not make its URL valid again.
+
+### Changed
+
+- Settings groups long correction and key lists, keeps revoked key removal separate from revocation, and provides working copy controls for subscriber URLs.
+
+### Fixed
+
+- A subscriber URL for Recents now works for eligible source episode assets and its channel cover without exposing the global feed key.
+- Dashboard statistics use a processing-history index for completed-episode checks.
+
 ## [2.96.16] - 2026-09-10
 
 ### Added
