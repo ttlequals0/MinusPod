@@ -18,7 +18,7 @@ release notes.
 
 ### Changed
 
-- Settings groups long correction and key lists, keeps revoked key removal separate from revocation, and provides working copy controls for subscriber URLs.
+- Provider Admission is in Queue Control, processing admission is at the top of Processing Queue, database statistics are in Data & Security, and subscriber keys are in Authenticated Feeds.
 
 ### Fixed
 
