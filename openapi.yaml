@@ -5846,9 +5846,37 @@ paths:
     put:
       tags: [Settings]
       summary: Update provider admission settings
+      description: >-
+        Provider charges and enforcement remain in USD. A non-USD save uses the
+        current server-fetched reference rate and records its currency and date.
       responses:
         '200':
           description: Updated settings and reservation totals
+
+  /settings/provider-budget/currencies:
+    get:
+      tags: [Settings]
+      summary: List provider budget display currencies
+      responses:
+        '200':
+          description: Supported ISO currency codes
+        '503':
+          description: Currency service unavailable
+
+  /settings/provider-budget/rate/{currency}:
+    get:
+      tags: [Settings]
+      summary: Read the current USD reference rate for a display currency
+      parameters:
+        - name: currency
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Z]{3}$' }
+      responses:
+        '200':
+          description: Current USD reference rate and source date
+        '503':
+          description: Currency service unavailable
 
   /system/backup:
     get:

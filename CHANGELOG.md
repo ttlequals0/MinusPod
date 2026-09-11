@@ -19,6 +19,7 @@ release notes.
 ### Changed
 
 - Provider Admission is in Queue Control, processing admission is at the top of Processing Queue, database statistics are in Data & Security, and subscriber keys are in Authenticated Feeds.
+- Provider admission budgets accept supported ISO currencies while continuing to enforce a saved USD cap. The selected rate and source date are saved with each budget change.
 
 ### Fixed
 

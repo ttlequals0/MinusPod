@@ -120,7 +120,9 @@ Enabling or rotating the global key changes every global URL, so podcast apps us
 
 ### Provider admission controls
 
-Security > Provider admission can reserve a daily allowance and limit concurrent provider runs. Reservation writes use one SQLite transaction, so workers cannot both claim the final slot. Each reservation records its processing run, and an expired lease still holds its concurrency slot while that run has a live owner. Unknown-cost requests can be denied, admitted without a reservation, or charged a fixed reservation. A timed-out or lost response stays charged as uncertain until a later result reconciles it. This is an admission limit, not a guaranteed provider spending cap, because a final charge can exceed its estimate.
+Queue Control > Provider admission can reserve a daily allowance and limit concurrent provider runs. Reservation writes use one SQLite transaction, so workers cannot both claim the final slot. Each reservation records its processing run, and an expired lease still holds its concurrency slot while that run has a live owner. Unknown-cost requests can be denied, admitted without a reservation, or charged a fixed reservation. A timed-out or lost response stays charged as uncertain until a later result reconciles it. This is an admission limit, not a guaranteed provider spending cap, because a final charge can exceed its estimate.
+
+Budgets can be entered in supported ISO currencies. MinusPod fetches a Frankfurter reference rate only when a non-USD budget change is saved or a currency switch needs a preview. It rejects rates older than 7 days and saves the rate with the selected currency and source date. Admission checks always use the resulting USD micro-dollar limit, so no worker needs an exchange-rate lookup. The saved rate remains visible when the currency service is unavailable.
 
 Compose deployments disable unauthenticated just-in-time processing by default. Set `MINUSPOD_ALLOW_PUBLIC_PROCESSING=true` only when a public request should be allowed to start transcription and provider work. Enabling Authenticated Feeds also permits a valid global or feed-scoped subscriber credential to start that work.
 

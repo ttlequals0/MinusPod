@@ -1,6 +1,7 @@
 """Settings mixin for MinusPod database."""
 import os
 import logging
+from decimal import Decimal, InvalidOperation
 from dataclasses import dataclass
 from typing import Any
 from collections.abc import Callable
@@ -72,6 +73,14 @@ def _float_in_range(bounds: tuple[float, float]) -> Callable[[str], bool]:
         except (TypeError, ValueError):
             return False
     return check
+
+
+def _positive_decimal(value: str) -> bool:
+    try:
+        parsed = Decimal(value)
+        return parsed.is_finite() and parsed > 0
+    except (InvalidOperation, TypeError, ValueError):
+        return False
 
 
 def _one_of(*values: str) -> Callable[[str], bool]:
@@ -316,6 +325,17 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'provider_budget_unknown_reserve_microusd': SettingSpec(
         default='0', seeded=True, resettable=False,
         validator=_int_in_range((0, 1_000_000_000_000))),
+    'provider_budget_display_currency': SettingSpec(
+        default='USD', seeded=True, resettable=False,
+        validator=lambda value: (
+            isinstance(value, str) and len(value) == 3 and value.isascii()
+            and value.isupper() and value.isalpha())),
+    'provider_budget_fx_rate': SettingSpec(
+        default='1', seeded=True, resettable=False, validator=_positive_decimal),
+    'provider_budget_fx_source_date': SettingSpec(
+        default='', seeded=True, resettable=False),
+    'provider_budget_fx_fetched_at': SettingSpec(
+        default='', seeded=True, resettable=False),
     'processing_soft_timeout_seconds': SettingSpec(
         default='3600', env='PROCESSING_SOFT_TIMEOUT', seeded=True,
         resettable=False),

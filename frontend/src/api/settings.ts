@@ -45,6 +45,15 @@ export interface ProviderBudget {
   maxReservations: number;
   unknownCost: 'deny' | 'allow' | 'reserve';
   unknownReserveMicrousd: number;
+  dailyLimit: string;
+  unknownReserve: string;
+  displayCurrency: string;
+  fxRate: {
+    localPerUsd: string;
+    source: string;
+    sourceDate: string | null;
+    fetchedAt: string | null;
+  };
   status: {
     provider: string;
     spentMicrousd: number;
@@ -53,17 +62,60 @@ export interface ProviderBudget {
   };
 }
 
+export interface ProviderBudgetUpdate {
+  enabled: boolean;
+  maxReservations: number;
+  unknownCost: 'deny' | 'allow' | 'reserve';
+  displayCurrency?: string;
+  dailyLimit?: string;
+  unknownReserve?: string;
+  dailyLimitMicrousd?: number;
+  unknownReserveMicrousd?: number;
+}
+
+export interface CurrencyOption {
+  code: string;
+  name: string;
+}
+
+export interface ProviderBudgetRate {
+  currency: string;
+  localPerUsd: string;
+  source: string;
+  sourceDate: string | null;
+  dailyLimit: string;
+  unknownReserve: string;
+}
+
 export async function getProviderBudget(): Promise<ProviderBudget> {
   return apiRequest<ProviderBudget>('/settings/provider-budget');
 }
 
 export async function updateProviderBudget(
-  settings: Omit<ProviderBudget, 'status'>,
+  settings: ProviderBudgetUpdate,
 ): Promise<ProviderBudget> {
   return apiRequest<ProviderBudget>('/settings/provider-budget', {
     method: 'PUT',
     body: settings,
   });
+}
+
+export async function getProviderBudgetCurrencies(): Promise<CurrencyOption[]> {
+  const result = await apiRequest<{ currencies: CurrencyOption[] }>('/settings/provider-budget/currencies');
+  return result.currencies;
+}
+
+export async function getProviderBudgetRate(
+  currency: string, fromCurrency?: string, dailyLimit?: string, unknownReserve?: string,
+  fromRate?: string,
+): Promise<ProviderBudgetRate> {
+  const params = new URLSearchParams();
+  if (fromCurrency) params.set('from', fromCurrency);
+  if (dailyLimit !== undefined) params.set('dailyLimit', dailyLimit);
+  if (unknownReserve !== undefined) params.set('unknownReserve', unknownReserve);
+  if (fromRate) params.set('fromRate', fromRate);
+  const suffix = params.size ? `?${params}` : '';
+  return apiRequest<ProviderBudgetRate>(`/settings/provider-budget/rate/${encodeURIComponent(currency)}${suffix}`);
 }
 
 export async function getModels(provider?: string): Promise<ClaudeModel[]> {
