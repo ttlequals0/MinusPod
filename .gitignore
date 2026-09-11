@@ -177,6 +177,7 @@ backup/
 # Claude AI specific files
 .claude/
 CLAUDE.md
+AGENTS.md
 test_env/
 test-venv/
 docs/development/
