@@ -7,7 +7,6 @@ import tempfile
 import threading
 import time
 from contextlib import contextmanager
-from dataclasses import replace
 
 import requests
 import requests.exceptions
@@ -25,6 +24,7 @@ from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.boundaries import (
+    _content_duration_in_range,
     snap_extended_ad_tails_to_splice,
     snap_terminal_ad_to_splice,
     transition_pair_silence_events,
@@ -60,6 +60,7 @@ from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
+    MAX_MERGED_DURATION,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     CORRECTION_MATCH_MIN_COVERAGE,
     HOLD_REASON_NO_CUE,
@@ -1981,14 +1982,13 @@ def _stamp_reviewer_fields(ad, v):
 def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
-                           cue_gate_enabled=False):
+                           cue_gate_enabled=False, pass1_cuts=None,
+                           protected_original_ranges=None):
     """Run the reviewer on pass 2 results, in original transcript coordinates.
 
     Mutates ``v_ads_to_cut``, ``v_ads_for_ui`` and ``v_ads_held`` in place.
-    Adjust verdicts are coerced to confirmed in pass 2 because applying a
-    boundary shift in original coords cannot safely round-trip through pass 1
-    cuts to processed coords; supporting it would require a per-pass-1-cut
-    timestamp map.
+    Maps adjustments only to surviving, unprotected pass-1 output; redundant
+    spans are dropped and ambiguous proposals become holds.
 
     Contradiction holds (verdict confirmed/adjust whose reasoning denies the
     ad exists) divert the ad out of the cut list into ``v_ads_held`` as an
@@ -2094,18 +2094,55 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
             continue
 
         if v.verdict == 'adjust':
-            # Pass 2 cannot safely round-trip a boundary shift across pass 1
-            # cuts, so coerce to confirmed instead of mutating boundaries.
-            audio_logger.info(
-                f"[{slug}:{episode_id}] Pass 2 reviewer proposed adjust "
-                f"@ {v.original_start:.1f}s; treating as confirmed"
-            )
-            coerced = replace(v, verdict='confirmed',
-                              adjusted_start=None, adjusted_end=None)
-            if proc_ad is not None:
-                _stamp_reviewer_fields(proc_ad, coerced)
-            if ui_ad is not None:
-                _stamp_reviewer_fields(ui_ad, coerced)
+            adjusted_start, adjusted_end = v.adjusted_start, v.adjusted_end
+            if (adjusted_start is None or adjusted_end is None
+                    or adjusted_end <= adjusted_start):
+                adjusted_start, adjusted_end = None, None
+            cuts = pass1_cuts or []
+            if (adjusted_start is not None
+                    and span_inside_any_cut(adjusted_start, adjusted_end, cuts)):
+                if proc_ad in v_ads_to_cut:
+                    v_ads_to_cut.remove(proc_ad)
+                if proc_ad is not None:
+                    proc_ad['was_cut'] = False
+                if ui_ad in v_ads_for_ui:
+                    v_ads_for_ui.remove(ui_ad)
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Pass 2 reviewer adjustment is "
+                    "already covered by pass 1; skipping duplicate cut"
+                )
+                continue
+            crosses_cut = adjusted_start is None or any(
+                ranges_overlap(adjusted_start, adjusted_end, cut['start'], cut['end'])
+                              for cut in cuts)
+            crosses_protected = (adjusted_start is not None and any(
+                ranges_overlap(adjusted_start, adjusted_end,
+                               protected['start'], protected['end'])
+                for protected in (protected_original_ranges or [])))
+            if crosses_cut or crosses_protected or proc_ad is None or ui_ad is None:
+                if proc_ad in v_ads_to_cut:
+                    v_ads_to_cut.remove(proc_ad)
+                if proc_ad is not None:
+                    proc_ad['was_cut'] = False
+                if ui_ad in v_ads_for_ui:
+                    v_ads_for_ui.remove(ui_ad)
+                held_ad = ui_ad or original_by_key.get(key)
+                if held_ad is not None:
+                    _stamp_reviewer_fields(held_ad, v)
+                    held_ad['was_cut'] = False
+                    held_ad['held_for_review'] = True
+                    held_ad['hold_reason'] = HOLD_REASON_REVIEWER_CONTRADICTION
+                    if adjusted_start is not None:
+                        held_ad['reviewer_proposed_start'] = adjusted_start
+                        held_ad['reviewer_proposed_end'] = adjusted_end
+                    v_ads_held.append(held_ad)
+                continue
+            beep = get_replacement_duration()
+            proc_ad['start'] = adjust_timestamp(adjusted_start, cuts, beep)
+            proc_ad['end'] = adjust_timestamp(adjusted_end, cuts, beep)
+            _apply_reviewer_verdict_to_ad(ui_ad, v)
+            _stamp_reviewer_fields(proc_ad, v)
+            invalidate_tail_provenance(proc_ad, proc_ad['end'])
             continue
 
         if v.verdict == 'reject':
@@ -2151,6 +2188,32 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
             _stamp_reviewer_fields(ui_ad, v)
 
     _log_reviewer_verdicts(slug, episode_id, 2, result.verdicts)
+
+
+def _hold_adjustments_crossing_final_holds(processed_ads, original_ads, held_ads):
+    """Hold adjusted pass-2 cuts that overlap a sibling hold from the same batch."""
+    changed = True
+    while changed:
+        changed = False
+        for processed, original in list(zip(processed_ads, original_ads, strict=False)):
+            if not original.get('reviewer_moved') or not any(
+                    ranges_overlap(original['start'], original['end'],
+                                   held['start'], held['end'])
+                    for held in held_ads):
+                continue
+            proposed_start, proposed_end = original['start'], original['end']
+            original['start'] = original.get('reviewer_original_start', proposed_start)
+            original['end'] = original.get('reviewer_original_end', proposed_end)
+            original['reviewer_proposed_start'] = proposed_start
+            original['reviewer_proposed_end'] = proposed_end
+            original['was_cut'] = False
+            original['held_for_review'] = True
+            original['hold_reason'] = HOLD_REASON_REVIEWER_CONTRADICTION
+            processed['was_cut'] = False
+            processed_ads.remove(processed)
+            original_ads.remove(original)
+            held_ads.append(original)
+            changed = True
 
 
 def _ad_review_enabled(db) -> bool:
@@ -2793,6 +2856,138 @@ def _pass2_cuts_in_original(recut_applied, pass1_cuts):
     } for c in recut_applied]
 
 
+def _pass1_action_for_applied_cut(cut, pass1_markers):
+    """Return the action shared by markers covered by one rendered pass-1 cut."""
+    if 'beep' in cut:
+        return 'beep' if cut['beep'] else 'remove'
+    actions = {
+        marker.get('action_applied')
+        for marker in pass1_markers or []
+        if marker.get('action_applied') in ('remove', 'beep')
+        and _covered_by_cuts(marker, [cut])
+    }
+    return actions.pop() if len(actions) == 1 else None
+
+
+def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
+                        original_segments, protected_ranges, min_content):
+    """Return a safe original-coordinate rerender plan when pass boundaries join."""
+    if not pass1_cuts or not pass2_original_cuts:
+        return None
+    candidates = []
+    for cut in pass1_cuts:
+        action = _pass1_action_for_applied_cut(cut, pass1_markers)
+        if action is None:
+            return None
+        candidates.append(dict(
+            cut, action_applied=action, _trusted_split_fragment=True,
+            _crosspass_sources={'pass1'}))
+    for cut in pass2_original_cuts:
+        action = cut.get('action_applied')
+        if action not in ('remove', 'beep'):
+            return None
+        candidates.append(dict(cut, _crosspass_sources={'pass2'}))
+    if any(
+            left['action_applied'] != right['action_applied']
+            and left['start'] < right['end'] and left['end'] > right['start']
+            for index, left in enumerate(candidates)
+            for right in candidates[index + 1:]):
+        return None
+
+    def crosses_protected(start, end):
+        return any(
+            protected['start'] < end and protected['end'] > start
+            for protected in protected_ranges or [])
+
+    planned = []
+    merged_crosspass = False
+    for candidate in sorted(candidates, key=lambda item: item['start']):
+        if not planned:
+            planned.append(candidate)
+            continue
+        current = planned[-1]
+        start, end = current['start'], max(current['end'], candidate['end'])
+        same_action = current['action_applied'] == candidate['action_applied']
+        combines_passes = current['_crosspass_sources'] != candidate['_crosspass_sources']
+        gap = candidate['start'] - current['end']
+        speech = (_content_duration_in_range(
+            original_segments, current['end'], candidate['start'])
+            if gap > 0 and original_segments else 0.0)
+        eligible = gap <= 0 or (
+            bool(original_segments) and min_content > 0 and speech < min_content)
+        if (same_action and combines_passes and eligible
+                and end - start <= MAX_MERGED_DURATION
+                and not crosses_protected(start, end)):
+            current['end'] = max(current['end'], candidate['end'])
+            current['_crosspass_sources'].update(candidate['_crosspass_sources'])
+            current['_trusted_split_fragment'] = bool(
+                current.get('_trusted_split_fragment')
+                or candidate.get('_trusted_split_fragment'))
+            merged_crosspass = True
+            continue
+        planned.append(candidate)
+    if not merged_crosspass:
+        return None
+    for cut in planned:
+        cut.pop('_crosspass_sources', None)
+    return planned
+
+
+def _rerender_crosspass_from_original(slug, episode_id, original_audio_path,
+                                      processed_path, planned_cuts,
+                                      local_audio_processor, cut_barriers):
+    """Render a final cross-pass union without mutating either input on failure."""
+    audio_segments = [dict(cut, beep=(cut['action_applied'] == 'beep'))
+                      for cut in planned_cuts]
+    result = local_audio_processor.process_episode(
+        original_audio_path, audio_segments, cut_barriers=cut_barriers)
+    if not result:
+        audio_logger.error(
+            f"[{slug}:{episode_id}] Cross-pass original rerender failed; keeping pass 1 output")
+        return processed_path, None, False
+    rerendered_path, applied = result
+    if os.path.exists(processed_path):
+        try:
+            os.unlink(processed_path)
+        except OSError as e:
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Failed to remove superseded pass 1 output: {e}")
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Cross-pass original rerender applied {len(applied)} cut(s)")
+    return rerendered_path, applied, True
+
+
+def _drop_uncovered_crosspass_ads(slug, episode_id, processed_ads, original_ads,
+                                  applied_cuts, total_duration):
+    """Keep pass-2 UI markers only when the final original render covers them."""
+    for processed, original in list(zip(processed_ads, original_ads, strict=False)):
+        if _covered_by_cuts(original, applied_cuts, total_duration):
+            continue
+        if processed in processed_ads:
+            processed_ads.remove(processed)
+        if original in original_ads:
+            original_ads.remove(original)
+        processed['was_cut'] = False
+        original['was_cut'] = False
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Pass 2 ad {original['start']:.1f}s-"
+            f"{original['end']:.1f}s was filtered out of cross-pass rerender")
+
+
+def _protected_ranges_in_processed_audio(ranges, pass1_cuts):
+    """Map visible original protected ranges onto the pass-1 output timeline."""
+    timestamp_map = _build_timestamp_map(pass1_cuts)
+    replacement_duration = get_replacement_duration()
+    mapped = []
+    for protected in ranges:
+        span = _map_correction_to_processed(
+            protected['start'], protected['end'], timestamp_map,
+            replacement_duration)
+        if span is not None:
+            mapped.append({'start': span[0], 'end': span[1]})
+    return mapped
+
+
 def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
                             local_audio_processor,
                             cut_barriers=None):
@@ -2831,7 +3026,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             max_ad_duration_override=None, cue_gate_enabled=False,
                             pass1_held_markers=None, pass1_kept_markers=None,
                             skip_verification=False, segment_actions=None,
-                            differential_override=None, run_stats=None):
+                            differential_override=None, run_stats=None,
+                            original_audio_path=None, pass1_markers=None):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -2847,6 +3043,10 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     ``pass1_kept_markers`` are pass-1 markers with action_applied == 'keep';
     a verification finding overlapping one is dropped before it can be cut,
     held, or logged as a miss (see _exclude_kept_spans_from_verification).
+
+    When an eligible pass-2 cut joins a pass-1 cut, ``pass1_cuts`` is mutated
+    only after a successful original-audio rerender. It then holds the final
+    rendered union and is the sole cut authority for downstream assets.
 
     ``skip_verification`` covers both opt-outs the caller resolves: skipping
     ad detection (#538), which would otherwise still pay for a second LLM
@@ -2871,9 +3071,17 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     v_ads_held = []
     verification_cue_count = 0
     v_corroborated_count = 0
+    crosspass_rerender_failed = False
     clear_fallback(episode_id, PASS_AD_DETECTION_2)
     if segment_actions is None:
         segment_actions = db.resolve_segment_actions(slug)
+    false_positive_corrections = (
+        db.get_false_positive_corrections(ctx.podcast_id, episode_id) or [])
+    protected_original_ranges = [
+        *list(pass1_held_markers or []),
+        *list(pass1_kept_markers or []),
+        *false_positive_corrections,
+    ]
 
     # Read once per verification pass: standalone-miss hold/autocut floors
     # for _gate_verification_ads_by_confidence (registry defaults when unset).
@@ -2954,8 +3162,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             verification_ads_original,
             pass1_kept_markers,
             pass1_cuts,
-            false_positive_corrections=(
-                db.get_false_positive_corrections(ctx.podcast_id, episode_id) or []),
+            false_positive_corrections=false_positive_corrections,
         )
 
         (verification_ads_processed,
@@ -3024,18 +3231,24 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 )
                 v_ads_held.extend(gated_held)
 
-                # Pass 2 reviewer operates on original-coord ads (the prompt
-                # context window comes from the original transcript). Adjust
-                # verdicts are coerced to confirmed in pass 2 because mapping
-                # a boundary shift back to processed coordinates is unsafe
-                # across pass 1 cuts.
+                # Reviewer adjustments map back only when they stay in
+                # surviving, unprotected original audio.
+                reviewer_protected = [
+                    *protected_original_ranges,
+                    *kept_conflicts,
+                    *v_ads_held,
+                ]
                 _apply_pass2_reviewer(
                     ctx,
                     v_ads_to_cut, v_ads_for_ui, v_ads_held,
                     verification_ads_processed, verification_ads_original,
                     original_segments, min_cut_confidence,
                     cue_gate_enabled=cue_gate_enabled,
+                    pass1_cuts=pass1_cuts,
+                    protected_original_ranges=reviewer_protected,
                 )
+                _hold_adjustments_crossing_final_holds(
+                    v_ads_to_cut, v_ads_for_ui, v_ads_held)
 
                 _stamp_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, segment_actions)
@@ -3043,29 +3256,67 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     v_ads_to_cut, v_ads_for_ui, pass1_cuts)
 
                 if v_ads_to_cut:
-                    audio_logger.info(
-                        f"[{slug}:{episode_id}] Re-cutting pass 1 output for "
-                        f"{len(v_ads_to_cut)} verification ad(s)")
                     # Probed above, before the recut deletes the pre-recut
                     # file: the coverage check needs the bounds the recut
                     # clamped to.
                     pre_recut_duration = processed_duration
-                    processed_path, recut_applied, recut_ok = _recut_processed_audio(
-                        slug, episode_id, processed_path, v_ads_to_cut,
-                        local_audio_processor,
-                        cut_barriers=keep_barriers_processed,
-                    )
-                    if recut_ok:
-                        _drop_uncovered_pass2_ads(
-                            slug, episode_id, v_ads_to_cut, v_ads_for_ui,
-                            recut_applied, verification_ads_processed,
-                            verification_ads_original, pre_recut_duration,
+                    crosspass_protected = [
+                        *protected_original_ranges,
+                        *kept_conflicts,
+                        *v_ads_held,
+                    ]
+                    crosspass_plan = _crosspass_cut_plan(
+                        pass1_cuts, pass1_markers, v_ads_for_ui,
+                        original_segments, crosspass_protected,
+                        _setting_float(
+                            db, 'min_content_between_ads_seconds',
+                            MIN_CONTENT_BETWEEN_ADS_SECONDS, allow_zero=True))
+                    if crosspass_plan and original_audio_path:
+                        original_render_duration = local_audio_processor.get_audio_duration(
+                            original_audio_path)
+                        processed_path, recut_applied, recut_ok = _rerender_crosspass_from_original(
+                            slug, episode_id, original_audio_path, processed_path,
+                            crosspass_plan, local_audio_processor,
+                            cut_barriers=crosspass_protected)
+                    else:
+                        audio_logger.info(
+                            f"[{slug}:{episode_id}] Re-cutting pass 1 output for "
+                            f"{len(v_ads_to_cut)} verification ad(s)")
+                        recut_protected = [
+                            *protected_original_ranges,
+                            *kept_conflicts,
+                            *v_ads_held,
+                        ]
+                        recut_barriers = [
+                            *keep_barriers_processed,
+                            *_protected_ranges_in_processed_audio(
+                                recut_protected, pass1_cuts),
+                        ]
+                        processed_path, recut_applied, recut_ok = _recut_processed_audio(
+                            slug, episode_id, processed_path, v_ads_to_cut,
+                            local_audio_processor,
+                            cut_barriers=recut_barriers,
                         )
-                        verification_count = len(v_ads_to_cut)
-                        v_cuts_for_assets = _pass2_cuts_in_original(
-                            recut_applied, pass1_cuts)
+                    if recut_ok:
+                        if crosspass_plan and original_audio_path:
+                            _drop_uncovered_crosspass_ads(
+                                slug, episode_id, v_ads_to_cut, v_ads_for_ui,
+                                recut_applied, original_render_duration)
+                            pass1_cuts[:] = recut_applied
+                            verification_count = len(v_ads_to_cut)
+                        else:
+                            _drop_uncovered_pass2_ads(
+                                slug, episode_id, v_ads_to_cut, v_ads_for_ui,
+                                recut_applied, verification_ads_processed,
+                                verification_ads_original, pre_recut_duration,
+                            )
+                            verification_count = len(v_ads_to_cut)
+                            v_cuts_for_assets = _pass2_cuts_in_original(
+                                recut_applied, pass1_cuts)
                     else:
                         v_ads_for_ui = []
+                        if crosspass_plan and original_audio_path:
+                            crosspass_rerender_failed = True
 
         # Kept conflicts are disjoint from the category and confidence output.
         # They remain uncut and must never also enter v_ads_for_ui.
@@ -3075,7 +3326,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 and not kept_conflicts):
             audio_logger.info(f"[{slug}:{episode_id}] Verification: clean")
 
-        verification_ok = True
+        verification_ok = not crosspass_rerender_failed
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")
         # The pass did not complete; callers must not report a clean scan.
@@ -5229,6 +5480,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 segment_actions=segment_actions,
                 differential_override=keep_override,
                 run_stats=run_stats,
+                original_audio_path=audio_path,
+                pass1_markers=ads_to_remove,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and
