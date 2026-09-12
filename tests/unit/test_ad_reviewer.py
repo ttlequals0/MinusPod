@@ -237,10 +237,13 @@ def test_merged_ad_inward_end_shrink_is_blocked():
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
         pass_num=1, pass_model='claude-test',
     )
-    out = result.accepted_after_review[0]
     assert result.verdicts[0].verdict == 'adjust'
-    assert out['start'] == 100.0   # outward expansion allowed
-    assert out['end'] == 180.0     # inward shrink blocked, held at union end
+    assert result.accepted_after_review == []
+    held = result.held_by_boundary_conflict[0]
+    assert held['start'] == 120.0
+    assert held['end'] == 180.0
+    assert held['reviewer_proposed_start'] == 100.0
+    assert held['reviewer_proposed_end'] == 160.0
 
 
 def test_merged_ad_outward_growth_allowed():
@@ -265,9 +268,8 @@ def test_merged_ad_outward_growth_allowed():
     assert out['end'] == 195.0
 
 
-def test_merged_distinct_full_inward_shrink_yields_confirmed():
-    """When both edges are pulled inward on a merged span and fully blocked,
-    the net delta is zero, so the verdict is confirmed (no change applied)."""
+def test_merged_distinct_full_inward_shrink_is_held():
+    """A full inward trim on a merged span becomes a boundary-conflict hold."""
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
@@ -282,11 +284,69 @@ def test_merged_distinct_full_inward_shrink_yields_confirmed():
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
         pass_num=1, pass_model='claude-test',
     )
-    out = result.accepted_after_review[0]
-    assert out['start'] == 120.0   # inward start push blocked
-    assert out['end'] == 180.0     # inward end pull blocked
-    # Both edges fully cancelled -> net delta is zero -> confirmed, not adjust.
+    assert result.accepted_after_review == []
+    held = result.held_by_boundary_conflict[0]
+    assert held['start'] == 120.0
+    assert held['end'] == 180.0
+    assert held['reviewer_proposed_start'] == 130.0
+    assert held['reviewer_proposed_end'] == 165.0
+
+
+def test_tracked_merge_rounding_noise_stays_confirmed():
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 120.01, "end": 179.99, "confidence": 0.85}]'
+    )
+    ad = {
+        'start': 120.0,
+        'end': 180.0,
+        'confidence': 0.9,
+        'merged_distinct_ads': True,
+        'merged_protected_start': 120.0,
+        'merged_protected_end': 180.0,
+    }
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+
+    assert result.held_by_boundary_conflict == []
     assert result.verdicts[0].verdict == 'confirmed'
+    assert result.accepted_after_review == [ad]
+
+
+def test_merged_dai_core_inward_shrink_keeps_existing_core_clamp():
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 130.0, "end": 160.0, "confidence": 0.85}]'
+    )
+    ad = {
+        'start': 100.0,
+        'end': 200.0,
+        'confidence': 0.9,
+        'merged_distinct_ads': True,
+        'merged_protected_start': None,
+        'merged_protected_end': None,
+        'dai_core_spans': [{'start': 120.0, 'end': 170.0}],
+    }
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+
+    accepted = result.accepted_after_review[0]
+    assert (accepted['start'], accepted['end']) == (120.0, 170.0)
+    assert result.held_by_boundary_conflict == []
 
 
 def test_non_merged_ad_inward_shrink_still_allowed():
@@ -368,6 +428,29 @@ def test_user_prompt_candidate_lines_are_timestamped():
     assert re.search(r'lines? carry \[start-end\] second timestamps', prompt)
     # The old stripped single-anchor context form is gone.
     assert '[60.0s] show content' not in prompt
+
+
+def test_user_prompt_includes_word_timing_near_candidate_edges():
+    reviewer = _build_reviewer({'review_prompt': 'review'})
+    segments = [{
+        'start': 100.0,
+        'end': 200.0,
+        'text': 'candidate text',
+        'words': [
+            {'start': 119.8, 'end': 120.1, 'word': 'Sponsor'},
+            {'start': 179.7, 'end': 180.0, 'word': 'return'},
+        ],
+    }]
+    prompt = reviewer._build_user_prompt(
+        ad={'start': 120.0, 'end': 180.0},
+        segments=segments,
+        episode_meta=_mock_episode_meta(),
+        pool='accepted',
+    )
+
+    assert 'Boundary word timing, use these timestamps for corrections:' in prompt
+    assert '[119.80s-120.10s] Sponsor' in prompt
+    assert '[179.70s-180.00s] return' in prompt
 
 
 def test_resurrect_prompt_candidate_lines_are_timestamped():

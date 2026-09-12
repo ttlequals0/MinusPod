@@ -447,6 +447,7 @@ export interface AdSegment {
     | 'no_cue_evidence'
     | 'uncorroborated_tail'
     | 'reviewer_contradiction'
+    | 'reviewer_boundary_conflict'
     | 'no_splice_evidence'
     | 'verification_miss'
     | 'differential_uncorroborated'

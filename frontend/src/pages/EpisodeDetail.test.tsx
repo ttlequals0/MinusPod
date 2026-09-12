@@ -673,6 +673,19 @@ describe('New hold reasons: tooltip titles', () => {
     await waitFor(() => expect(screen.getByTitle('The reviewer disagreed with the detected boundaries')).toBeDefined());
   });
 
+  it('shows the reviewer boundary conflict title and reasoning', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [{
+        ...heldMarker,
+        hold_reason: 'reviewer_boundary_conflict',
+        reviewer_reasoning: 'The candidate starts after the protected boundary.',
+      }],
+    }));
+    await waitFor(() => expect(screen.getByTitle(
+      'The reviewer proposed a boundary that crosses protected ad evidence')).toBeDefined());
+    expect(screen.getByText('The candidate starts after the protected boundary.')).toBeDefined();
+  });
+
   it('shows the no_splice_evidence title', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'no_splice_evidence' }] }));
     await waitFor(() => expect(screen.getByTitle('No splice artifact found at either edge')).toBeDefined());

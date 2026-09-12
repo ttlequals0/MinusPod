@@ -24,7 +24,8 @@ import pytest
 
 import main_app.processing as processing
 from ad_reviewer import AdReviewer, ReviewVerdict, reasoning_contradicts_cut, reasoning_affirms_ad
-from config import HOLD_REASON_REVIEWER_CONTRADICTION
+from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+                    HOLD_REASON_REVIEWER_CONTRADICTION)
 from llm_client import ProviderRateLimitedError
 
 
@@ -459,12 +460,11 @@ def test_merged_ad_with_null_protection_recovers_trim():
     assert result.verdicts[0].adjusted_end == 150.0
 
 
-def test_merged_ad_recovery_clamped_to_protected_union():
+def test_merged_ad_recovery_keeps_raw_proposal_on_contradiction_hold():
     # Tracked merge with a transcript-anchored member protected at
     # 120.0-170.0 inside span 100.0-200.0. Recovery proposes a sub-span
-    # (130.0, 150.0) that would sever the protected member; the recovered
-    # bounds stored on the hold must widen back out to the protected union
-    # (120.0, 170.0) rather than offer a one-tap trim that drops it.
+    # (130.0, 150.0) that would sever the protected member. Contradiction
+    # holds retain raw recovery output only as review information.
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
         'review_max_boundary_shift': '60',
@@ -491,12 +491,46 @@ def test_merged_ad_recovery_clamped_to_protected_union():
     assert held['held_for_review'] is True
     assert held['was_cut'] is False
     assert held['start'] == 100.0 and held['end'] == 200.0
-    assert held['reviewer_proposed_start'] == 120.0
-    assert held['reviewer_proposed_end'] == 170.0
+    assert held['reviewer_proposed_start'] == 130.0
+    assert held['reviewer_proposed_end'] == 150.0
     # Stashed on the verdict so _apply_reviewer_verdict_to_ad mirrors it
     # onto the master ad.
-    assert result.verdicts[0].adjusted_start == 120.0
-    assert result.verdicts[0].adjusted_end == 170.0
+    assert result.verdicts[0].adjusted_start == 130.0
+    assert result.verdicts[0].adjusted_end == 150.0
+
+
+def test_tracked_merge_conflict_marks_master_pending_review():
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 100.0, "end": 180.0, "confidence": 0.9, '
+        '"reason": "Confirmed sponsor read"}]'
+    )
+    ad = {
+        'start': 100.0,
+        'end': 200.0,
+        'confidence': 0.9,
+        'was_cut': True,
+        'merged_distinct_ads': True,
+        'merged_protected_start': 100.0,
+        'merged_protected_end': 200.0,
+    }
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    master = [dict(ad)]
+
+    processing._merge_reviewer_result(result, master)
+
+    assert result.accepted_after_review == []
+    assert master[0]['was_cut'] is False
+    assert master[0]['hold_reason'] == HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+    assert (master[0]['start'], master[0]['end']) == (100.0, 200.0)
+    assert (master[0]['reviewer_proposed_start'], master[0]['reviewer_proposed_end']) == (100.0, 180.0)
 
 
 def test_contradicted_confirmed_without_trim_language_skips_recovery_call():
@@ -813,6 +847,28 @@ def test_affirmed_confirm_with_trim_language_applies_recovered_trim():
     assert verdict.adjusted_end == pytest.approx(1040.9)
 
 
+def test_affirmed_recovery_conflicting_with_tracked_member_is_held():
+    ad = {
+        'start': 100.0,
+        'end': 200.0,
+        'confidence': 0.95,
+        'merged_distinct_ads': True,
+        'merged_protected_start': 100.0,
+        'merged_protected_end': 200.0,
+    }
+    result, llm = _run_affirmed_confirm(
+        _resp('{"ad_start": 120.0, "ad_end": 180.0}'),
+        reasoning='This is a genuine ad break, but the ending should be trimmed.',
+        ad=ad,
+    )
+
+    assert llm.messages_create.call_count == 2
+    assert result.accepted_after_review == []
+    held = result.held_by_boundary_conflict[0]
+    assert (held['start'], held['end']) == (100.0, 200.0)
+    assert (held['reviewer_proposed_start'], held['reviewer_proposed_end']) == (120.0, 180.0)
+
+
 def test_reviewer_end_adjustment_clears_stale_tail_eligibility():
     ad = {
         'start': 837.2,
@@ -882,7 +938,7 @@ def test_dai_core_that_erases_recovered_trim_accepts_unchanged():
         _resp('{"ad_start": 120.0, "ad_end": 180.0}'), ad=ad)
 
     assert llm.messages_create.call_count == 2
-    assert result.held_by_contradiction == []
+    assert result.held_by_boundary_conflict == []
     accepted = result.accepted_after_review[0]
     assert (accepted['start'], accepted['end']) == (100.0, 200.0)
     assert result.verdicts[0].verdict == 'confirmed'
@@ -891,7 +947,8 @@ def test_dai_core_that_erases_recovered_trim_accepts_unchanged():
 def test_dai_core_widens_tiny_recovered_span_before_duration_floor():
     ad = {
         'start': 100.0, 'end': 200.0, 'confidence': 0.95,
-        'detection_stage': 'dai_differential',
+        'detection_stage': 'dai_differential', 'merged_distinct_ads': True,
+        'merged_protected_start': None, 'merged_protected_end': None,
         'dai_core_spans': [{'start': 120.0, 'end': 150.0}],
     }
 

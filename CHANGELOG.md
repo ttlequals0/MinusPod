@@ -9,6 +9,20 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.96.24] - 2026-09-12
+
+### Fixed
+
+- Reviewer boundary corrections that conflict with protected merged-ad evidence are held for manual review instead of cutting the full merged span.
+
+## [2.96.23] - 2026-09-12
+
+### Fixed
+
+- Pass-2 reviewer adjustments now skip already removed audio and hold when they cross removed, kept, held, or user-rejected ranges.
+- Compatible pass-1 and pass-2 cuts that touch, overlap, or have less than the configured speech threshold between them now render once from the original audio, preserving transcript and chapter timing.
+- Local environment files are ignored while `.env.example` remains tracked, and historical endpoint examples use neutral URLs.
+
 ## [2.96.22] - 2026-09-11
 
 ### Changed
@@ -6193,7 +6207,7 @@ Frontend build-tooling rollup. Replaces dependabot PRs #170 (vite 8), #171 (tail
 
 Hot-fix on top of 2.0.15. The 2.0.15 fix removed the per-instance ``self._llm_client`` cache in ``AdDetector`` / ``ChaptersGenerator`` and routed every call through ``get_llm_client()``. That closed half the staleness bug. The other half is the **per-worker** cache in ``llm_client._cached_client``: gunicorn runs two workers, each with its own module-level cache, and only the worker that handles the settings PUT runs ``force_new`` to rebuild. The sibling worker keeps its old client and silently routes requests to the previous provider/base_url.
 
-Direct evidence: at 2026-04-25 23:27:09 the user switched provider from ``openrouter`` to ``openai-compatible`` (``http://192.168.5.35/v1``). Worker A handled the PUT and rebuilt. The reprocess at 23:27:27 landed in Worker B, whose cache was last set at 23:26:46 (during the parallel UI poll) to ``openrouter``. At 23:29:51 all six ad-detection windows POST'd ``claude-sonnet-4-6`` to ``https://openrouter.ai/api/v1/chat/completions`` (visible in Loki), got 400 ``"is not a valid model ID"`` from OpenRouter, and the run failed.
+Direct evidence: at 2026-04-25 23:27:09 the user switched provider from ``openrouter`` to ``openai-compatible`` (``http://your-server:8000/v1``). Worker A handled the PUT and rebuilt. The reprocess at 23:27:27 landed in Worker B, whose cache was last set at 23:26:46 (during the parallel UI poll) to ``openrouter``. At 23:29:51 all six ad-detection windows POST'd ``claude-sonnet-4-6`` to ``https://openrouter.ai/api/v1/chat/completions`` (visible in Loki), got 400 ``"is not a valid model ID"`` from OpenRouter, and the run failed.
 
 ### Fixed
 
@@ -6209,7 +6223,7 @@ Two related fixes to LLM-client behavior that surfaced together while running an
 
 ### Fixed
 
-- `src/ad_detector.py` and `src/chapters_generator.py` no longer cache the LLM client instance on `self._llm_client`. Both classes now expose `_llm_client` as a `@property` that reads through `get_llm_client()` on every access. Direct evidence: on 2026-04-25 the user switched provider via `/settings` from openai-compatible to openrouter, the global cached client correctly rebuilt to `https://openrouter.ai/api/v1`, but `AdDetector` (a module-level singleton in `src/main_app/__init__.py`) still held the old instance whose `base_url` was `http://192.168.5.35:8001/v1`. Three POSTs at 22:28-22:29 routed `deepseek/deepseek-v4-flash` to the local endpoint and got 502s. The property closes the per-instance cache layer entirely; only the global, lock-protected, settings-API-invalidated cache in `llm_client._cached_client` remains. A test-only setter writes to a `_llm_client_override` slot so existing tests that mock `det._llm_client = MagicMock()` keep working.
+- `src/ad_detector.py` and `src/chapters_generator.py` no longer cache the LLM client instance on `self._llm_client`. Both classes now expose `_llm_client` as a `@property` that reads through `get_llm_client()` on every access. Direct evidence: on 2026-04-25 the user switched provider via `/settings` from openai-compatible to openrouter, the global cached client correctly rebuilt to `https://openrouter.ai/api/v1`, but `AdDetector` (a module-level singleton in `src/main_app/__init__.py`) still held the old instance whose `base_url` was `http://your-server:8000/v1`. Three POSTs at 22:28-22:29 routed `deepseek/deepseek-v4-flash` to the local endpoint and got 502s. The property closes the per-instance cache layer entirely; only the global, lock-protected, settings-API-invalidated cache in `llm_client._cached_client` remains. A test-only setter writes to a `_llm_client_override` slot so existing tests that mock `det._llm_client = MagicMock()` keep working.
 - `src/llm_client.py` now skips `circuit_breaker.record_failure()` when `is_rate_limit_error(e)` is true in both `AnthropicClient.messages_create` and `OpenAICompatibleClient.messages_create`. Throttling is the provider asking us to slow down, not a provider outage; counting it would open the breaker after 5 free-tier 429s and block the entire provider for 60s. Non-rate-limit errors (5xx, network, timeout) still record failure as before.
 - `src/ad_detector._call_llm_for_window` honors the `Retry-After` header on 429s. New helper `extract_retry_after()` in `src/llm_client.py` reads the header off `error.response.headers` (both Anthropic and OpenAI SDK shapes), routed through `parse_retry_after()` in the new `src/utils/rate_limit.py` (delta-seconds + RFC 7231 HTTP-date, clamped to 300s). Server hint gets an additive 0-2s jitter so concurrent workers don't all wake on the same tick. When the header is absent, the rate-limit branch uses `calculate_backoff(attempt, base_delay=30.0, max_delay=120.0)` -- closer to the prior 60s minute-window behavior than the default 2s exponential backoff would have been. The previous unconditional `delay = 60.0` is gone.
 
