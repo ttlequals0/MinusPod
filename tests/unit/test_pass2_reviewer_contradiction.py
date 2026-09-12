@@ -20,7 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from main_app import processing
 from ad_reviewer import ReviewResult, ReviewVerdict, log_contradiction_event
-from config import HOLD_REASON_REVIEWER_CONTRADICTION, is_pending_review
+from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+                    HOLD_REASON_REVIEWER_CONTRADICTION, is_pending_review)
 
 CONTRADICTING = 'This span is not an ad, it is host conversation'
 AFFIRMING = 'Confirmed sponsor read for BetterHelp'
@@ -33,13 +34,15 @@ def _ctx():
     )
 
 
-def _verdict(verdict, start, end, reasoning, adjusted=None, pool='accepted'):
+def _verdict(verdict, start, end, reasoning, adjusted=None, pool='accepted',
+             boundary_conflict=False):
     return ReviewVerdict(
         pool=pool, pass_num=2, verdict=verdict,
         original_start=start, original_end=end,
         adjusted_start=adjusted[0] if adjusted else None,
         adjusted_end=adjusted[1] if adjusted else None,
         reasoning=reasoning, confidence=0.9, model_used='test-model',
+        boundary_conflict=boundary_conflict,
     )
 
 
@@ -50,14 +53,14 @@ def _pair(o_start, o_end, p_start, p_end):
 
 
 def _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui, v_ads_held,
-               ads_processed, ads_original, **kwargs):
+               ads_processed, ads_original, resurrection_eligible=None, **kwargs):
     result = ReviewResult(verdicts=list(verdicts))
     monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
     monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage',
                         lambda *a, **k: None)
     monkeypatch.setattr(processing, 'split_resurrection_pool',
-                        lambda *a, **k: [])
+                        lambda *a, **k: resurrection_eligible or [])
     def _review(**kw):
         # Stands in for AdReviewer.review's accepted-pool loop, the single
         # site that emits contradiction telemetry.
@@ -152,6 +155,66 @@ def test_pass2_contradiction_adjust_is_held_not_coerced_to_cut(monkeypatch):
     assert o1['reviewer_proposed_start'] == 110.0
     assert o1['reviewer_proposed_end'] == 150.0
     assert o1['reviewer_verdict'] == 'adjust'
+
+
+def test_pass2_boundary_conflict_holds_original_and_raw_proposal(monkeypatch):
+    original, processed = _pair(100.0, 200.0, 50.0, 150.0)
+    original.update(merged_distinct_ads=True,
+                    merged_protected_start=100.0,
+                    merged_protected_end=200.0)
+    cuts, ui, held = [processed], [original], []
+    verdict = _verdict('adjust', 100.0, 200.0, AFFIRMING,
+                       adjusted=(120.0, 180.0), boundary_conflict=True)
+
+    _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original])
+
+    assert cuts == []
+    assert ui == []
+    assert held == [original]
+    assert (original['start'], original['end']) == (100.0, 200.0)
+    assert original['was_cut'] is False
+    assert original['hold_reason'] == HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+    assert (original['reviewer_proposed_start'], original['reviewer_proposed_end']) == (120.0, 180.0)
+
+
+def test_pass2_resurrection_boundary_conflict_persists_without_ui_twin(monkeypatch):
+    original, processed = _pair(100.0, 200.0, 50.0, 150.0)
+    cuts, ui, held = [], [], []
+    verdict = _verdict('adjust', 100.0, 200.0, AFFIRMING,
+                       adjusted=(120.0, 180.0), pool='resurrection',
+                       boundary_conflict=True)
+
+    _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
+               resurrection_eligible=[original])
+
+    assert cuts == []
+    assert held == [original]
+    assert original['was_cut'] is False
+    assert original['hold_reason'] == HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+
+
+def test_pass2_boundary_conflict_blocks_later_adjustment(monkeypatch):
+    held_original, held_processed = _pair(100.0, 200.0, 100.0, 200.0)
+    adjusted_original, adjusted_processed = _pair(150.0, 220.0, 150.0, 220.0)
+    cuts = [held_processed, adjusted_processed]
+    ui = [held_original, adjusted_original]
+    held = []
+    verdicts = [
+        _verdict('adjust', 100.0, 200.0, AFFIRMING,
+                 adjusted=(120.0, 180.0), boundary_conflict=True),
+        _verdict('adjust', 150.0, 220.0, AFFIRMING,
+                 adjusted=(155.0, 215.0)),
+    ]
+
+    _run_pass2(monkeypatch, verdicts, cuts, ui, held,
+               [held_processed, adjusted_processed],
+               [held_original, adjusted_original])
+    processing._hold_adjustments_crossing_final_holds(cuts, ui, held)
+
+    assert cuts == []
+    assert ui == []
+    assert held == [held_original, adjusted_original]
+    assert adjusted_original['hold_reason'] == HOLD_REASON_REVIEWER_CONTRADICTION
 
 
 def test_pass2_non_held_ads_unaffected_by_sibling_hold(monkeypatch):

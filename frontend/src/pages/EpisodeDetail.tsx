@@ -1317,6 +1317,8 @@ function EpisodeDetail() {
                 ? 'Trailing ad with no audio evidence to back it'
                 : segment.hold_reason === 'reviewer_contradiction'
                 ? 'The reviewer disagreed with the detected boundaries'
+                : segment.hold_reason === 'reviewer_boundary_conflict'
+                ? 'The reviewer proposed a boundary that crosses protected ad evidence'
                 : segment.hold_reason === 'no_splice_evidence'
                 ? 'No splice artifact found at either edge'
                 : segment.hold_reason === 'verification_miss'
@@ -1414,7 +1416,9 @@ function EpisodeDetail() {
                       {segment.reason}
                     </p>
                   )}
-                  {segment.hold_reason === 'reviewer_contradiction' && segment.reviewer_reasoning && (
+                  {(segment.hold_reason === 'reviewer_contradiction'
+                    || segment.hold_reason === 'reviewer_boundary_conflict')
+                    && segment.reviewer_reasoning && (
                     <p className="text-sm text-muted-foreground mt-1">
                       <span className="font-medium">Reviewer:</span>{' '}
                       {segment.reviewer_reasoning}

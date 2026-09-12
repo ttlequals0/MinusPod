@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.96.24] - 2026-09-12
+
+### Fixed
+
+- Reviewer boundary corrections that conflict with protected merged-ad evidence are held for manual review instead of cutting the full merged span.
+
 ## [2.96.23] - 2026-09-12
 
 ### Fixed

@@ -47,6 +47,7 @@ HOLD_REASON_MAX_DURATION = 'max_duration'
 HOLD_REASON_NO_CUE = 'no_cue_evidence'
 HOLD_REASON_NO_SPLICE = 'no_splice_evidence'
 HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
+HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT = 'reviewer_boundary_conflict'
 HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
 HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 # A standalone pass-2 detection that overlaps no pass-1 marker: too low a

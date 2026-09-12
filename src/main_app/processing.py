@@ -65,6 +65,7 @@ from config import (
     CORRECTION_MATCH_MIN_COVERAGE,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
+    HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     PROCESSING_MODE_PASSTHROUGH,
@@ -2062,6 +2063,26 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         proc_ad = original_to_processed.get(key)
         ui_ad = ui_by_key.get(key)
 
+        if v.boundary_conflict:
+            if proc_ad in v_ads_to_cut:
+                v_ads_to_cut.remove(proc_ad)
+            if proc_ad is not None:
+                proc_ad['was_cut'] = False
+                _stamp_reviewer_fields(proc_ad, v)
+            held_ad = ui_ad or original_by_key.get(key)
+            if held_ad is None:
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Pass 2 reviewer boundary conflict @ "
+                    f"{v.original_start:.1f}s has no original marker"
+                )
+                continue
+            _apply_reviewer_verdict_to_ad(held_ad, v)
+            if held_ad in v_ads_for_ui:
+                v_ads_for_ui.remove(held_ad)
+            if held_ad not in v_ads_held:
+                v_ads_held.append(held_ad)
+            continue
+
         # Contradiction hold (same criterion the reviewer used to populate
         # result.held_by_contradiction): the ad must NOT cut. Checked before
         # the adjust->confirmed coercion so a held adjust is not coerced into
@@ -2228,6 +2249,15 @@ def _ad_review_enabled(db) -> bool:
 def _apply_reviewer_verdict_to_ad(ad, v):
     """Merge a single reviewer verdict into the master ad dict, in place."""
     _stamp_reviewer_fields(ad, v)
+    if v.boundary_conflict:
+        ad['was_cut'] = False
+        ad['held_for_review'] = True
+        ad['hold_reason'] = HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+        ad['reviewer_boundary_conflict'] = True
+        ad['source'] = 'reviewer'
+        ad['reviewer_proposed_start'] = v.adjusted_start
+        ad['reviewer_proposed_end'] = v.adjusted_end
+        return
     if is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad):
         # Contradiction guard (spec 1.4): hold for a human, never auto-reject.
         # Boundaries stay at the pass-1 values; an "adjust" whose reasoning

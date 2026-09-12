@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.96.23
+  version: 2.96.24
   contact:
     name: MinusPod
   license:
@@ -11060,6 +11060,26 @@ components:
           description: >-
             Set on a held-for-review marker once its confirm correction is
             recorded; the approval is applied by the next recut.
+        held_for_review:
+          type: boolean
+          description: True when this marker remains in the audio pending a human decision.
+        hold_reason:
+          type: string
+          nullable: true
+          enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, null]
+          description: Why the marker requires review. reviewer_boundary_conflict means a reviewer proposal crossed protected merged-ad evidence.
+        reviewer_reasoning:
+          type: string
+          nullable: true
+          description: Reviewer explanation when the reviewer evaluated this marker.
+        reviewer_proposed_start:
+          type: number
+          nullable: true
+          description: Informational reviewer-proposed start on a held marker. It is not applied until a human confirms it.
+        reviewer_proposed_end:
+          type: number
+          nullable: true
+          description: Informational reviewer-proposed end on a held marker. It is not applied until a human confirms it.
         validation:
           type: object
           description: Validation results from post-detection validation layer

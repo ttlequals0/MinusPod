@@ -15,6 +15,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MAX,
     resolve_env_backed_default,
     HOLD_REASON_REVIEWER_CONTRADICTION,
+    HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
     AUDIO_CUE_ROLE_DEFAULT,
     AUDIO_CUE_ROLE_NON_AD,
     AUDIO_CUE_TYPE_CONTENT_TRANSITION,
@@ -37,6 +38,7 @@ from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S,
     get_timestamped_transcript_for_range,
+    get_timestamped_words_for_range,
 )
 
 
@@ -280,6 +282,23 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     return updated
 
 
+def _boundary_conflict_hold(ad: dict, verdict: "ReviewVerdict") -> dict:
+    """Keep the original span when a proposed trim crosses protected evidence."""
+    held = dict(ad)
+    held['was_cut'] = False
+    held['held_for_review'] = True
+    held['hold_reason'] = HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+    held['reviewer_boundary_conflict'] = True
+    held['reviewer_verdict'] = verdict.verdict
+    held['reviewer_reasoning'] = verdict.reasoning
+    held['reviewer_confidence'] = verdict.confidence
+    held['reviewer_model'] = verdict.model_used
+    held['source'] = 'reviewer'
+    held['reviewer_proposed_start'] = verdict.adjusted_start
+    held['reviewer_proposed_end'] = verdict.adjusted_end
+    return held
+
+
 def is_contradiction_hold(verdict: str, reasoning: str | None,
                           structured_is_ad: bool | None = None) -> bool:
     """Single hold criterion shared by the reviewer pool split and both
@@ -442,6 +461,7 @@ class ReviewVerdict:
     latency_ms: int = 0
     success: bool = True
     structured_is_ad: bool | None = None
+    boundary_conflict: bool = False
 
 
 @dataclass
@@ -457,6 +477,7 @@ class ReviewResult:
     resurrected: list[dict] = field(default_factory=list)
     verdicts: list[ReviewVerdict] = field(default_factory=list)
     held_by_contradiction: list[dict] = field(default_factory=list)
+    held_by_boundary_conflict: list[dict] = field(default_factory=list)
 
 
 def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
@@ -834,6 +855,9 @@ class AdReviewer:
                 marked["reviewer_model"] = verdict.model_used
                 marked["source"] = "reviewer"
                 result.rejected_by_reviewer.append(marked)
+            elif verdict.boundary_conflict:
+                result.held_by_boundary_conflict.append(
+                    _boundary_conflict_hold(updated_ad, verdict))
             elif is_contradiction_hold(
                     verdict.verdict, verdict.reasoning,
                     verdict.structured_is_ad):
@@ -904,6 +928,20 @@ class AdReviewer:
                 )
                 if recovered is None:
                     result.accepted_after_review.append(updated_ad)
+                elif self._proposal_conflicts_with_protection(
+                        updated_ad, recovered[0], recovered[1],
+                        verdict.original_start, verdict.original_end):
+                    verdict.verdict = "adjust"
+                    verdict.adjusted_start, verdict.adjusted_end = recovered
+                    verdict.boundary_conflict = True
+                    logger.warning(
+                        f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
+                        f"Reviewer boundary conflict @ "
+                        f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s: "
+                        f"recovered {recovered[0]:.1f}-{recovered[1]:.1f}s retained for review"
+                    )
+                    result.held_by_boundary_conflict.append(
+                        _boundary_conflict_hold(updated_ad, verdict))
                 else:
                     new_start, new_end = self._clamp_proposed_bounds(
                         updated_ad, recovered[0], recovered[1],
@@ -944,7 +982,10 @@ class AdReviewer:
         )
         for verdict, updated_ad in resurrection_results:
             result.verdicts.append(verdict)
-            if verdict.verdict == "resurrect":
+            if verdict.boundary_conflict:
+                result.held_by_boundary_conflict.append(
+                    _boundary_conflict_hold(updated_ad, verdict))
+            elif verdict.verdict == "resurrect":
                 marked = dict(updated_ad)
                 marked["was_cut"] = True
                 marked["reviewer_verdict"] = "resurrect"
@@ -1146,6 +1187,9 @@ class AdReviewer:
         except (TypeError, ValueError):
             confidence = None
 
+        boundary_conflict = self._proposal_conflicts_with_protection(
+            ad, new_start, new_end, original_start, original_end)
+
         clamped_start, clamped_end = self._clamp_proposed_bounds(
             ad, new_start, new_end, original_start, original_end,
             max_shift, slug, episode_id)
@@ -1173,6 +1217,25 @@ class AdReviewer:
             verdict = "confirmed"
         else:
             verdict = "adjust"
+
+        if boundary_conflict:
+            logger.warning(
+                f"[{slug}:{episode_id}] Reviewer boundary conflict @ "
+                f"{original_start:.1f}-{original_end:.1f}s: proposed "
+                f"{new_start:.1f}-{new_end:.1f}s retained for review"
+            )
+            return (
+                ReviewVerdict(
+                    pool=pool, pass_num=pass_num, verdict="adjust",
+                    original_start=original_start, original_end=original_end,
+                    adjusted_start=new_start, adjusted_end=new_end,
+                    reasoning=reason, confidence=confidence,
+                    model_used=model, latency_ms=latency_ms, success=True,
+                    structured_is_ad=structured_is_ad,
+                    boundary_conflict=True,
+                ),
+                ad,
+            )
 
         if verdict == "adjust":
             _warn_prose_boundary_mismatch(
@@ -1277,6 +1340,23 @@ class AdReviewer:
         if clamped_end <= clamped_start:
             clamped_start, clamped_end = original_start, original_end
         return clamped_start, clamped_end
+
+    @staticmethod
+    def _proposal_conflicts_with_protection(ad, start, end,
+                                             original_start, original_end):
+        """Return whether an inward proposal crosses protected evidence."""
+        if end <= start or not ad.get('merged_distinct_ads'):
+            return False
+        protected_start = protected_end = None
+        if 'merged_protected_start' in ad:
+            protected_start = ad.get('merged_protected_start')
+            protected_end = ad.get('merged_protected_end')
+        else:
+            protected_start, protected_end = original_start, original_end
+        return ((protected_start is not None
+                 and start - protected_start > _CONFIRMED_BOUNDARY_TOLERANCE_S)
+                or (protected_end is not None
+                    and protected_end - end > _CONFIRMED_BOUNDARY_TOLERANCE_S))
 
     def _recover_contradiction_trim(
         self,
@@ -1383,28 +1463,16 @@ class AdReviewer:
         end = min(end, o_end)
         if end <= start:
             return None
-        # Widen back out to the protected union so a tracked merged ad's
-        # recovered trim cannot sever a transcript-anchored member.
-        if ad.get('merged_distinct_ads'):
-            p_start = ad.get('merged_protected_start')
-            p_end = ad.get('merged_protected_end')
-            if p_start is not None:
-                start = min(start, p_start)
-            if p_end is not None:
-                end = max(end, p_end)
-        core_start, core_end = dai_core_bounds(ad)
-        if core_start is not None:
-            start = min(start, core_start)
-            end = max(end, core_end)
-        # Protected merge members or measured DAI evidence can widen the
-        # recovered proposal back to the full marker. That is no longer a
-        # trim, so neither review path should surface it as one.
+        protection_conflict = self._proposal_conflicts_with_protection(
+            ad, start, end, o_start, o_end)
+        if not protection_conflict:
+            core_start, core_end = dai_core_bounds(ad)
+            if core_start is not None:
+                start = min(start, core_start)
+                end = max(end, core_end)
         if (start - o_start) + (o_end - end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S:
             return None
-        # Evaluate the render floor after protected bounds expand the model's
-        # raw proposal. A tiny proposal inside a substantial measured core is
-        # still a valid core-sized trim.
-        if end - start < MIN_AD_DURATION_FOR_REMOVAL:
+        if end - start < MIN_AD_DURATION_FOR_REMOVAL and not protection_conflict:
             logger.info(
                 f"[{slug}:{episode_id}] {call_label} recovered trim "
                 f"{start:.1f}-{end:.1f}s is {end - start:.1f}s, under the "
@@ -1457,6 +1525,17 @@ class AdReviewer:
             fallback = ad.get("end_text", "") or ""
             ad_text = f"[{start:.1f}s-{end:.1f}s] {fallback}" if fallback else ""
         after_text = get_timestamped_transcript_for_range(segments, end, end + 60.0)
+        start_words = get_timestamped_words_for_range(
+            segments, max(0.0, start - max_shift), start + max_shift)
+        end_words = get_timestamped_words_for_range(
+            segments, max(0.0, end - max_shift), end + max_shift)
+        word_context = ''
+        if start_words or end_words:
+            word_context = (
+                'Boundary word timing, use these timestamps for corrections:\n'
+                f'Start edge:\n{start_words}\n'
+                f'End edge:\n{end_words}\n'
+            )
 
         podcast_name = episode_meta.get("podcast_name", "Unknown")
         episode_title = episode_meta.get("episode_title", "Unknown")
@@ -1516,6 +1595,7 @@ class AdReviewer:
             f"{ad_text}\n"
             f"<<< CANDIDATE AD END [{end:.1f}s] <<<\n"
             f"{after_text}\n"
+            f"{word_context}"
         )
 
     def _render_review_prompt(self, max_shift: int, sponsor_block: str) -> str:
