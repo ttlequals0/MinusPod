@@ -57,6 +57,27 @@ def test_the_keep_override_round_trips(client):
     assert after['isDefault'] is False
 
 
+def test_review_provider_round_trips(client):
+    assert client.get(BASE).get_json()['reviewProvider']['value'] == 'same_as_pass'
+
+    try:
+        r = client.put(f'{BASE}/ad-detection',
+                       data=json.dumps({'reviewProvider': 'openrouter'}),
+                       content_type='application/json')
+        assert r.status_code == 200, r.get_data(as_text=True)
+
+        after = client.get(BASE).get_json()['reviewProvider']
+        assert after['value'] == 'openrouter'
+        assert after['isDefault'] is False
+    finally:
+        # This module shares one DB singleton with other settings test
+        # modules in the same pytest run; leaving review_provider explicit
+        # would falsely exempt other stages from provider-change pruning.
+        client.put(f'{BASE}/ad-detection',
+                   data=json.dumps({'reviewProvider': 'same_as_pass'}),
+                   content_type='application/json')
+
+
 def test_ad_chapter_settings_round_trip(client):
     before = client.get(BASE).get_json()
     assert before['adChaptersEnabled']['value'] is False

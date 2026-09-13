@@ -1103,6 +1103,10 @@ function Settings() {
           tunables={settings.stageTunables}
           defaults={settings.stageTunableDefaults}
           llmProvider={llmProvider}
+          detectionProvider={detectionProvider}
+          verificationProvider={verificationProvider}
+          chaptersProvider={chaptersProvider}
+          reviewProvider={reviewer.provider}
           onSave={(payload) => stageTunablesMutation.mutate(payload)}
           saveIsPending={stageTunablesMutation.isPending}
           saveIsSuccess={stageTunablesMutation.isSuccess}

@@ -1576,6 +1576,23 @@ def _apply_transcribe_chunk_fields(db, data):
     return None
 
 
+def _stage_follows_global_provider(db, stage: str) -> bool:
+    """True when `stage` has no explicit provider override anywhere in its
+    fallback chain, so it always tracks the global llmProvider (mirrors the
+    resolution order in llm_route.py: verification/chapters fall back to
+    detection, review falls back to detection when same_as_pass/unset)."""
+    if stage == 'detection':
+        return not db.get_setting('detection_provider')
+    if stage in ('verification', 'chapters'):
+        return not db.get_setting(f'{stage}_provider') and _stage_follows_global_provider(db, 'detection')
+    if stage == 'review':
+        review_provider = db.get_setting('review_provider')
+        if review_provider and review_provider != 'same_as_pass':
+            return False
+        return _stage_follows_global_provider(db, 'detection')
+    return True
+
+
 def _apply_provider_fields(db, data):
     """Persist LLM provider + base URL + key, then run post-change side effects.
 
@@ -1671,13 +1688,18 @@ def _apply_provider_fields(db, data):
             # Cleared review_model reads back as its registry default
             # same_as_pass, so the reviewer falls back to the pass model.
             explicit = {
-                'claude_model': 'claudeModel',
-                'verification_model': 'verificationModel',
-                'chapters_model': 'chaptersModel',
-                'review_model': 'reviewModel',
+                'claude_model': ('claudeModel', 'detection'),
+                'verification_model': ('verificationModel', 'verification'),
+                'chapters_model': ('chaptersModel', 'chapters'),
+                'review_model': ('reviewModel', 'review'),
             }
-            for setting_key, json_key in explicit.items():
+            for setting_key, (json_key, stage) in explicit.items():
                 if json_key in data:
+                    continue
+                # advertised is the NEW global provider's catalog; a stage
+                # routed elsewhere by its own provider override never used
+                # that catalog, so its saved model must not be judged by it.
+                if not _stage_follows_global_provider(db, stage):
                     continue
                 current = db.get_setting(setting_key)
                 # review_model's same_as_pass sentinel is never a catalog entry.

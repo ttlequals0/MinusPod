@@ -3,10 +3,10 @@
  * LLM Tunables section.
  */
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import StageTunablesSection from './StageTunablesSection';
-import type { UpdateSettingsPayload } from '../../api/types';
+import type { LlmProvider, UpdateSettingsPayload } from '../../api/types';
 import { baseDefaults, baseTunables } from './tunablesTestFixtures';
 
 // openai-compatible renders the reasoning field as a <select> (not a number
@@ -15,15 +15,29 @@ import { baseDefaults, baseTunables } from './tunablesTestFixtures';
 function Harness({
   omitTemperature = false,
   onSave = () => {},
+  llmProvider = 'openai-compatible',
+  detectionProvider = '',
+  verificationProvider = '',
+  chaptersProvider = '',
+  reviewProvider = '',
 }: {
   omitTemperature?: boolean;
   onSave?: (payload: UpdateSettingsPayload) => void;
+  llmProvider?: LlmProvider;
+  detectionProvider?: string;
+  verificationProvider?: string;
+  chaptersProvider?: string;
+  reviewProvider?: string;
 }) {
   return (
     <StageTunablesSection
       tunables={baseTunables}
       defaults={baseDefaults}
-      llmProvider="openai-compatible"
+      llmProvider={llmProvider}
+      detectionProvider={detectionProvider}
+      verificationProvider={verificationProvider}
+      chaptersProvider={chaptersProvider}
+      reviewProvider={reviewProvider}
       onSave={onSave}
       saveIsPending={false}
       saveIsSuccess={false}
@@ -87,5 +101,44 @@ describe('StageTunablesSection: Do not send temperature toggle', () => {
     for (const input of temperatureInputs) {
       expect(input.disabled).toBe(false);
     }
+  });
+});
+
+// Each stage block renders its own bordered card headed by an <h4>; scoping
+// assertions to that card (rather than the whole page) is what lets these
+// tests tell one stage's control apart from another's.
+function stageCard(label: string) {
+  return screen.getByRole('heading', { name: label, level: 4 }).closest('.border') as HTMLElement;
+}
+
+describe('StageTunablesSection: per-stage effective provider', () => {
+  it('shows the Anthropic control for a stage on the global provider and the generic control for one routed elsewhere', () => {
+    render(<Harness llmProvider="anthropic" verificationProvider="ollama" />);
+
+    const detection = stageCard('Ad Detection (Pass 1)');
+    expect(within(detection).getByText('Reasoning budget (Anthropic)')).toBeDefined();
+    expect(within(detection).queryByText('Reasoning effort')).toBeNull();
+
+    const verification = stageCard('Verification (Ad Detection Pass 2)');
+    expect(within(verification).getByText('Reasoning effort')).toBeDefined();
+    expect(within(verification).queryByText('Reasoning budget (Anthropic)')).toBeNull();
+  });
+
+  it('routing verification to another provider does not change the chapters or detection blocks', () => {
+    render(<Harness llmProvider="anthropic" verificationProvider="ollama" />);
+
+    expect(within(stageCard('Ad Detection (Pass 1)')).getByText('Reasoning budget (Anthropic)')).toBeDefined();
+    expect(within(stageCard('Chapter Title Generation')).getByText('Reasoning budget (Anthropic)')).toBeDefined();
+    expect(within(stageCard('Chapter Boundary Detection')).getByText('Reasoning budget (Anthropic)')).toBeDefined();
+  });
+
+  it('routes chapters to its own override independently of verification', () => {
+    render(<Harness llmProvider="anthropic" verificationProvider="ollama" chaptersProvider="openrouter" />);
+
+    // openrouter is non-Anthropic, same generic control as ollama, but the
+    // point is chapters picked up its OWN override, not verification's.
+    expect(within(stageCard('Chapter Title Generation')).getByText('Reasoning effort')).toBeDefined();
+    expect(within(stageCard('Verification (Ad Detection Pass 2)')).getByText('Reasoning effort')).toBeDefined();
+    expect(within(stageCard('Ad Detection (Pass 1)')).getByText('Reasoning budget (Anthropic)')).toBeDefined();
   });
 });

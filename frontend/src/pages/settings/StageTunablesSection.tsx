@@ -14,10 +14,21 @@ import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../../components/Dra
 import { selectBase } from '../../components/fieldStyles';
 import { focusRing } from '../../components/fieldStyles';
 
+// Which per-phase provider override (see llm_route.py) governs a stage
+// block's own effective provider, for the Anthropic-vs-generic reasoning
+// control below. Both chapter blocks route through chaptersProvider.
+type ProviderStage = 'detection' | 'verification' | 'review' | 'chapters';
+
 interface StageTunablesSectionProps {
   tunables: StageTunables;
   defaults: Record<keyof StageTunables, number | string | null>;
   llmProvider: LlmProvider;
+  // '' (or 'same_as_pass' for reviewProvider) inherits; see AIModelsSection
+  // and AdReviewerSection for the matching selectors.
+  detectionProvider: string;
+  verificationProvider: string;
+  chaptersProvider: string;
+  reviewProvider: string;
   onSave: (payload: UpdateSettingsPayload) => void;
   saveIsPending: boolean;
   saveIsSuccess: boolean;
@@ -29,6 +40,7 @@ interface StageTunablesSectionProps {
 
 interface StageBlock {
   label: string;
+  providerStage: ProviderStage;
   temperatureKey: keyof StageTunables;
   maxTokensKey: keyof StageTunables;
   budgetKey: keyof StageTunables;
@@ -39,6 +51,7 @@ interface StageBlock {
 const STAGES: StageBlock[] = [
   {
     label: 'Ad Detection (Pass 1)',
+    providerStage: 'detection',
     temperatureKey: 'detectionTemperature',
     maxTokensKey: 'detectionMaxTokens',
     budgetKey: 'detectionReasoningBudget',
@@ -47,6 +60,7 @@ const STAGES: StageBlock[] = [
   },
   {
     label: 'Verification (Ad Detection Pass 2)',
+    providerStage: 'verification',
     temperatureKey: 'verificationTemperature',
     maxTokensKey: 'verificationMaxTokens',
     budgetKey: 'verificationReasoningBudget',
@@ -55,6 +69,7 @@ const STAGES: StageBlock[] = [
   },
   {
     label: 'Reviewer (Pass 1 and Pass 2)',
+    providerStage: 'review',
     temperatureKey: 'reviewerTemperature',
     maxTokensKey: 'reviewerMaxTokens',
     budgetKey: 'reviewerReasoningBudget',
@@ -63,6 +78,7 @@ const STAGES: StageBlock[] = [
   },
   {
     label: 'Chapter Boundary Detection',
+    providerStage: 'chapters',
     temperatureKey: 'chapterBoundaryTemperature',
     maxTokensKey: 'chapterBoundaryMaxTokens',
     budgetKey: 'chapterBoundaryReasoningBudget',
@@ -71,6 +87,7 @@ const STAGES: StageBlock[] = [
   },
   {
     label: 'Chapter Title Generation',
+    providerStage: 'chapters',
     temperatureKey: 'chapterTitleTemperature',
     maxTokensKey: 'chapterTitleMaxTokens',
     budgetKey: 'chapterTitleReasoningBudget',
@@ -262,7 +279,7 @@ function StageBlockEditor({
   tunables,
   defaults,
   draft,
-  llmProvider,
+  stageProvider,
   omitTemperature,
   setField,
 }: {
@@ -270,7 +287,7 @@ function StageBlockEditor({
   tunables: StageTunables;
   defaults: Record<keyof StageTunables, number | string | null>;
   draft: DraftRecord;
-  llmProvider: LlmProvider;
+  stageProvider: LlmProvider;
   omitTemperature: boolean;
   setField: (key: string, value: DraftValue) => void;
 }) {
@@ -279,7 +296,7 @@ function StageBlockEditor({
   const budgetEnv = readEnvOverride(tunables[block.budgetKey]);
   const levelEnv = readEnvOverride(tunables[block.levelKey]);
 
-  const useAnthropic = llmProvider === LLM_PROVIDERS.ANTHROPIC;
+  const useAnthropic = stageProvider === LLM_PROVIDERS.ANTHROPIC;
 
   const tempDraft = draft[block.temperatureKey] as number | null;
   const maxDraft = draft[block.maxTokensKey] as number | null;
@@ -536,6 +553,10 @@ function StageTunablesSection({
   tunables,
   defaults,
   llmProvider,
+  detectionProvider,
+  verificationProvider,
+  chaptersProvider,
+  reviewProvider,
   onSave,
   saveIsPending,
   saveIsSuccess,
@@ -558,6 +579,24 @@ function StageTunablesSection({
       : null;
   const omitTemperatureDraft = draft[OMIT_TEMPERATURE_KEY] as boolean;
 
+  // Effective provider per stage (mirrors llm_route.py): verification and
+  // chapters fall back to detection, review falls back to detection too
+  // when same_as_pass/unset (the reviewer block has no single pass to
+  // inherit from here, so it uses detection's provider like same_as_pass
+  // does for pass 1).
+  const effectiveDetectionProvider = (detectionProvider || llmProvider) as LlmProvider;
+  const effectiveVerificationProvider = (verificationProvider || effectiveDetectionProvider) as LlmProvider;
+  const effectiveChaptersProvider = (chaptersProvider || effectiveDetectionProvider) as LlmProvider;
+  const effectiveReviewProvider = (
+    reviewProvider && reviewProvider !== 'same_as_pass' ? reviewProvider : effectiveDetectionProvider
+  ) as LlmProvider;
+  const providerByStage: Record<ProviderStage, LlmProvider> = {
+    detection: effectiveDetectionProvider,
+    verification: effectiveVerificationProvider,
+    review: effectiveReviewProvider,
+    chapters: effectiveChaptersProvider,
+  };
+
   return (
     <CollapsibleSection title="LLM Tunables">
       <p className="text-sm text-muted-foreground mb-3">
@@ -575,7 +614,7 @@ function StageTunablesSection({
             tunables={tunables}
             defaults={defaults}
             draft={draft}
-            llmProvider={llmProvider}
+            stageProvider={providerByStage[block.providerStage]}
             omitTemperature={omitTemperatureDraft}
             setField={setField}
           />
