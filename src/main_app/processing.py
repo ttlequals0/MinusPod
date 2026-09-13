@@ -105,6 +105,7 @@ from config import (
     ModelNotConfiguredError,
     coerce_bool_setting,
 )
+from database import Database
 from database.podcasts import is_local_feed
 from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
@@ -4972,6 +4973,13 @@ def _resolve_route_snapshot() -> dict | None:
     ({provider_key, configured_model}). None when resolution fails (e.g. no
     model configured yet): callers then fall back to today's per-call
     resolution against the live global settings.
+
+    The review entry also freezes the raw review_provider/review_model
+    setting VALUES as of run start under 'gate'. AdReviewer resolves its
+    route from this frozen gate (honoring same_as_pass against whichever
+    pass is calling) instead of re-reading settings per call, so an
+    operator changing review_provider mid-run cannot change pass-2's
+    provider after pass-1 already ran on a different one.
     """
     try:
         detection = resolve_route('detection')
@@ -4980,13 +4988,23 @@ def _resolve_route_snapshot() -> dict | None:
         review = resolve_route(
             'review', pass_provider=detection.provider_key,
             pass_model=detection.model_id)
+        # Database(), not the module-level db: resolve_route above already
+        # reads settings through its own fresh Database() singleton lookup,
+        # and the gate must match that same source of truth.
+        settings_db = Database()
+        review_gate = {
+            'review_provider': settings_db.get_setting('review_provider'),
+            'review_model': settings_db.get_setting('review_model'),
+        }
     except Exception as exc:
         audio_logger.warning(f"Could not resolve per-phase LLM routes: {exc}")
         return None
-    return {
+    snapshot = {
         route.phase: {'provider_key': route.provider_key, 'configured_model': route.model_id}
         for route in (detection, review, verification, chapters)
     }
+    snapshot['review']['gate'] = review_gate
+    return snapshot
 
 
 def _resolve_or_load_route_snapshot(run_id: str | None) -> dict | None:

@@ -60,14 +60,41 @@ def _chapters_model(db) -> str:
     return model if model else _detection_model(db)
 
 
-def _review_model(db, pass_model: str | None) -> str:
-    configured = db.get_setting('review_model') or SAME_AS_PASS
-    if configured != SAME_AS_PASS:
-        return configured
+def _resolve_review_provider_and_model(
+        review_provider_setting: str | None, review_model_setting: str | None,
+        pass_provider: str | None, pass_model: str | None) -> tuple[str, str]:
+    """Review phase (provider, model) from explicit review_provider/
+    review_model setting values. Shared by resolve_route's live read and
+    AdReviewer's frozen run-start gate (checkpoint 02 task 3), so the
+    same_as_pass rule never drifts between the two call paths.
+    """
+    configured_provider = review_provider_setting or SAME_AS_PASS
+    if configured_provider == SAME_AS_PASS:
+        if not pass_provider or not pass_model:
+            raise ValueError(
+                "review phase requires pass_provider and pass_model "
+                "when review_provider is same_as_pass")
+        return pass_provider, pass_model
+
+    configured_model = review_model_setting or SAME_AS_PASS
+    if configured_model != SAME_AS_PASS:
+        return configured_provider, configured_model
     if not pass_model:
         raise ValueError(
             "review phase requires pass_model when review_model is same_as_pass")
-    return pass_model
+    return configured_provider, pass_model
+
+
+def resolve_review_route(*, review_provider_setting: str | None,
+                          review_model_setting: str | None,
+                          pass_provider: str | None,
+                          pass_model: str | None) -> Route:
+    """Review route from explicit setting values, for callers holding a
+    frozen run-start gate instead of live settings (see AdReviewer)."""
+    provider, model = _resolve_review_provider_and_model(
+        review_provider_setting, review_model_setting, pass_provider, pass_model)
+    return Route(phase='review', provider_key=provider, model_id=model,
+                 base_url=_base_url_for_provider(provider))
 
 
 def resolve_route(phase: str, *, pass_model: str | None = None,
@@ -91,17 +118,10 @@ def resolve_route(phase: str, *, pass_model: str | None = None,
         provider = db.get_setting('chapters_provider') or _detection_provider(db)
         model = _chapters_model(db)
     else:  # review
-        configured_provider = db.get_setting('review_provider') or SAME_AS_PASS
-        if configured_provider == SAME_AS_PASS:
-            if not pass_provider or not pass_model:
-                raise ValueError(
-                    "review phase requires pass_provider and pass_model "
-                    "when review_provider is same_as_pass")
-            provider = pass_provider
-            model = pass_model
-        else:
-            provider = configured_provider
-            model = _review_model(db, pass_model)
+        return resolve_review_route(
+            review_provider_setting=db.get_setting('review_provider'),
+            review_model_setting=db.get_setting('review_model'),
+            pass_provider=pass_provider, pass_model=pass_model)
 
     return Route(phase=phase, provider_key=provider, model_id=model,
                  base_url=_base_url_for_provider(provider))

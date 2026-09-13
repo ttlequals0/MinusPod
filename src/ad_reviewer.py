@@ -26,8 +26,8 @@ from config import (
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
-from llm_route import resolve_route
-from run_context import run_in_worker_thread
+from llm_route import resolve_review_route, resolve_route
+from run_context import route_for_phase, run_in_worker_thread
 from llm_client import (
     get_client_for_provider, get_effective_provider,
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
@@ -1700,9 +1700,23 @@ class AdReviewer:
 
     def _resolve_route(self, pass_provider: str | None, pass_model: str):
         """Review phase route: same_as_pass inherits BOTH provider and model
-        from the pass that produced ``pass_model``. A missing pass_provider
-        (tests, calibration) falls back to the global effective provider,
-        matching the single-provider behavior these callers already assume."""
+        from the pass that produced ``pass_model``.
+
+        Inside a run, uses the gate (review_provider/review_model setting
+        values) frozen into the snapshot at run start instead of re-reading
+        settings, so a mid-run operator change cannot make pass-2 review use
+        a different provider than pass-1 already used. Outside a run (tests,
+        calibration) falls back to a live resolve_route call; a missing
+        pass_provider there falls back to the global effective provider,
+        matching the single-provider behavior these callers already assume.
+        """
+        route_entry = route_for_phase('review')
+        gate = route_entry.get('gate') if route_entry else None
+        if gate is not None:
+            return resolve_review_route(
+                review_provider_setting=gate.get('review_provider'),
+                review_model_setting=gate.get('review_model'),
+                pass_provider=pass_provider, pass_model=pass_model)
         return resolve_route(
             'review', pass_provider=pass_provider or get_effective_provider(),
             pass_model=pass_model)

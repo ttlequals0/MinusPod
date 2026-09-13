@@ -46,7 +46,7 @@ ROUTE_SETTING_KEYS = (
 @pytest.fixture
 def mixed_provider_settings():
     """detection/verification/chapters=anthropic, review=openrouter, on the
-    same real Database singleton main_app.processing already holds -- these
+    same real Database singleton main_app.processing already holds. These
     settings are read directly (not through the cached effective-provider
     fallback), so no cache invalidation race with other tests."""
     from api import get_database
@@ -124,7 +124,8 @@ class TestRouteSnapshotResolutionAndPersistence:
         assert snapshot['chapters'] == {
             'provider_key': 'anthropic', 'configured_model': 'claude-detect'}
         assert snapshot['review'] == {
-            'provider_key': 'openrouter', 'configured_model': 'or-review-model'}
+            'provider_key': 'openrouter', 'configured_model': 'or-review-model',
+            'gate': {'review_provider': 'openrouter', 'review_model': 'or-review-model'}}
 
         raw = _persisted_snapshot_raw(db, run_row['run_id'])
         assert raw is not None
@@ -178,7 +179,8 @@ class TestProcessEpisodeWiresSnapshotAtRunStart:
             assert ctx.route_snapshot['detection'] == {
                 'provider_key': 'anthropic', 'configured_model': 'claude-detect'}
             assert ctx.route_snapshot['review'] == {
-                'provider_key': 'openrouter', 'configured_model': 'or-review-model'}
+                'provider_key': 'openrouter', 'configured_model': 'or-review-model',
+                'gate': {'review_provider': 'openrouter', 'review_model': 'or-review-model'}}
         finally:
             run_context.end(ctx)
 
@@ -268,5 +270,103 @@ class TestPhasesUseTheirRoutedClientAndModel:
 
             assert calls == ['ollama']
             assert client is not None
+        finally:
+            run_context.end(ctx)
+
+
+def _reviewer_call_kwargs(pass_num, pass_model, pass_provider):
+    return {
+        'accepted_ads': [{'start': 10.0, 'end': 20.0, 'confidence': 0.9}],
+        'resurrection_eligible': [],
+        'segments': [{'start': 0.0, 'end': 30.0, 'text': 'ad content here'}],
+        'episode_meta': {
+            'slug': 's', 'episode_id': 'e', 'podcast_name': 'p',
+            'episode_title': 't', 'episode_description': '',
+            'podcast_description': '',
+        },
+        'pass_num': pass_num, 'pass_model': pass_model, 'pass_provider': pass_provider,
+    }
+
+
+def _patch_reviewer_client(monkeypatch, calls):
+    fake_client = MagicMock()
+    fake_client.messages_create.return_value = MagicMock(
+        content='[{"start": 10.0, "end": 20.0, "confidence": 0.9, "reason": "ad"}]')
+
+    def fake_get_client_for_provider(provider_key, base_url=None, force_new=False):
+        calls.append(provider_key)
+        return fake_client
+
+    monkeypatch.setattr('ad_reviewer.get_client_for_provider',
+                        fake_get_client_for_provider)
+
+
+class TestReviewerGateFrozenAtRunStart:
+    """The reviewer's route must not re-read review_provider/review_model
+    live: a mid-run operator change must not affect a run already in
+    flight. The gate frozen into the snapshot's 'review' entry at run start
+    is what AdReviewer._resolve_route consults instead."""
+
+    def test_explicit_review_provider_survives_live_setting_change_before_pass2(
+            self, run_row, monkeypatch):
+        db = run_row['db']
+        run_id = run_row['run_id']
+
+        # Snapshot resolved once at run start: review_provider=openrouter,
+        # review_model=or-review-model (mixed_provider_settings).
+        snapshot = processing._resolve_or_load_route_snapshot(run_id)
+        assert snapshot['review']['gate'] == {
+            'review_provider': 'openrouter', 'review_model': 'or-review-model'}
+
+        ctx = run_context.begin(run_row['slug'], run_row['episode_id'], run_id=run_id)
+        ctx.set_route_snapshot(snapshot)
+        try:
+            # Operator changes review_provider well after pass-1 review
+            # would already have run on openrouter.
+            db.set_setting('review_provider', 'ollama', is_default=False)
+            db.set_setting('review_model', 'local-review-model', is_default=False)
+
+            calls = []
+            _patch_reviewer_client(monkeypatch, calls)
+            reviewer = AdReviewer(db=db, sponsor_service=None)
+
+            # Pass-2 context deliberately differs from pass-1's, to prove
+            # the frozen gate (not the live setting, not the pass) pins the
+            # provider when review_provider is explicit.
+            result = reviewer.review(**_reviewer_call_kwargs(
+                pass_num=2, pass_model='or-verify-model', pass_provider='anthropic'))
+
+            assert calls == ['openrouter']
+            assert result.verdicts
+            assert result.verdicts[0].model_used == 'or-review-model'
+        finally:
+            run_context.end(ctx)
+
+    def test_same_as_pass_gate_still_inherits_the_calling_pass_route(
+            self, run_row, monkeypatch):
+        db = run_row['db']
+        run_id = run_row['run_id']
+        db.clear_setting('review_provider')
+        db.clear_setting('review_model')
+
+        snapshot = processing._resolve_or_load_route_snapshot(run_id)
+        assert snapshot['review']['gate'] == {
+            'review_provider': None, 'review_model': None}
+
+        ctx = run_context.begin(run_row['slug'], run_row['episode_id'], run_id=run_id)
+        ctx.set_route_snapshot(snapshot)
+        try:
+            calls = []
+            _patch_reviewer_client(monkeypatch, calls)
+            reviewer = AdReviewer(db=db, sponsor_service=None)
+
+            reviewer.review(**_reviewer_call_kwargs(
+                pass_num=1, pass_model='claude-detect', pass_provider='anthropic'))
+            reviewer.review(**_reviewer_call_kwargs(
+                pass_num=2, pass_model='or-verify-model', pass_provider='openrouter'))
+
+            # same_as_pass in the frozen gate still tracks whichever pass is
+            # actually calling, not a single value pinned at run start.
+            assert calls == ['anthropic', 'openrouter']
         finally:
             run_context.end(ctx)
