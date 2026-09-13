@@ -29,7 +29,7 @@ class TestFeed304Refresh(unittest.TestCase):
         """When upstream returns 304 and episodes exist with artwork cached,
         last_checked_at should be updated so the feed is not perpetually stale."""
         # Simulate existing podcast with etag
-        db.get_podcast_by_slug.return_value = {
+        db.get_podcast_row.return_value = {
             'id': 1, 'feed_url': 'https://example.com/rss',
             'etag': '"abc123"', 'last_modified': None,
             'artwork_cached': True,
@@ -64,7 +64,7 @@ class TestFeed304Refresh(unittest.TestCase):
     ):
         """When upstream returns 304 but artwork is not cached,
         a full fetch should be forced (no early return)."""
-        db.get_podcast_by_slug.return_value = {
+        db.get_podcast_row.return_value = {
             'id': 1, 'feed_url': 'https://example.com/rss',
             'etag': '"abc123"', 'last_modified': None,
             'artwork_cached': False

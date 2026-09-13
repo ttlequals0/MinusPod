@@ -14,7 +14,8 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('feedauth_test_', secret_key='feedauth-test-secret')
 
 import database
-from main_app import app, db as app_db
+from database.podcasts import RECENTS_SLUG
+from main_app import app, db as app_db, status_service
 import main_app.feeds as feeds_mod
 import main_app.routes as routes_mod
 
@@ -72,6 +73,15 @@ def db():
     return app_db
 
 
+@pytest.fixture
+def recents_subscriber_feed(db):
+    yield
+    status_service.complete_job('recents-source', 'abcdef123456')
+    db.delete_podcast('recents')
+    db.delete_podcast('recents-source')
+    feeds_mod.invalidate_feed_cache()
+
+
 def _seed_feed(db, slug, key=None):
     if not db.get_podcast_by_slug(slug):
         db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
@@ -122,6 +132,149 @@ def test_rss_200_with_key(client, db):
     assert f'?key={KEY}' in resp.get_data(as_text=True)
 
 
+def test_scoped_subscriber_rss_never_discloses_global_key(client, db):
+    _set_auth(db, True)
+    slug = 'subscriber-feed'
+    _seed_feed(db, slug, key=KEY)
+    cached = routes_mod.storage.get_rss(slug).replace(
+        '</channel>',
+        f'<image><url>{BASE}/{slug}/cover-minuspod-deadbeef-{KEY}.jpg</url></image></channel>',
+    )
+    routes_mod.storage.save_rss(slug, cached)
+    scoped = db.create_feed_subscriber_key(slug, 'Phone')['token']
+    assert db.verify_feed_subscriber_key(slug, scoped)
+
+    response = client.get(f'/{slug}?key={scoped}')
+
+    assert response.status_code == 200
+    xml = response.get_data(as_text=True)
+    assert KEY not in xml
+    assert f'?key={scoped}' in xml
+    assert response.headers['Referrer-Policy'] == 'no-referrer'
+    assert client.get(
+        f'/episodes/{slug}/aaaaaaaaaaaa.mp3?key={scoped}'
+    ).status_code != 401
+
+
+def test_scoped_subscriber_rewrites_unversioned_global_cover_key(client, db):
+    _set_auth(db, True)
+    slug = 'subscriber-unversioned'
+    _seed_feed(db, slug, key=KEY)
+    cached = routes_mod.storage.get_rss(slug).replace(
+        '</channel>',
+        f'<link>https://publisher.example/episodes/{slug}/item.mp3?key={OTHER_KEY}</link>'
+        f'<image><url>https://publisher.example/{slug}/cover-minuspod-{OTHER_KEY}.jpg</url></image>'
+        f'<image><url>{BASE}/{slug}/cover-minuspod-{KEY}.jpg</url></image></channel>',
+    )
+    routes_mod.storage.save_rss(slug, cached)
+    scoped = db.create_feed_subscriber_key(slug, 'Phone')['token']
+
+    response = client.get(f'/{slug}?key={scoped}')
+
+    assert response.status_code == 200
+    xml = response.get_data(as_text=True)
+    assert f'https://publisher.example/episodes/{slug}/item.mp3?key={OTHER_KEY}' in xml
+    assert f'https://publisher.example/{slug}/cover-minuspod-{OTHER_KEY}.jpg' in xml
+    assert f'/cover-minuspod.jpg?key={scoped}' in xml
+    assert f'/episodes/{slug}/abcdefabcdef.mp3?key={scoped}' in xml
+
+
+@pytest.mark.parametrize('cover_prefix', [
+    'cover-minuspod',
+    'cover-minuspod-deadbeef',
+])
+def test_scoped_subscriber_rewrites_cover_on_episode_less_feed(
+        client, db, monkeypatch, cover_prefix):
+    _set_auth(db, True)
+    monkeypatch.setenv('BASE_URL', BASE)
+    slug = 'subscriber-empty'
+    if not db.get_podcast_by_slug(slug):
+        db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    routes_mod.storage.save_rss(
+        slug,
+        f'<rss><channel><image><url>{BASE}/{slug}/{cover_prefix}-{KEY}.jpg'
+        f'</url></image></channel></rss>',
+    )
+    feeds_mod.invalidate_feed_cache()
+    scoped = db.create_feed_subscriber_key(slug, 'Phone')['token']
+
+    xml = client.get(f'/{slug}?key={scoped}').get_data(as_text=True)
+
+    assert KEY not in xml
+    assert f'{BASE}/{slug}/{cover_prefix}.jpg?key={scoped}' in xml
+
+
+def test_scoped_subscriber_key_does_not_cross_feeds(client, db):
+    _set_auth(db, True)
+    _seed_feed(db, 'subscriber-a', key=KEY)
+    _seed_feed(db, 'subscriber-b', key=KEY)
+    scoped = db.create_feed_subscriber_key('subscriber-a', 'Phone')['token']
+
+    assert client.get(f'/subscriber-b?key={scoped}').status_code == 401
+
+
+def test_recents_subscriber_key_allows_only_current_recents_episode_assets(
+        client, db, recents_subscriber_feed):
+    _set_auth(db, True)
+    source_slug = 'recents-source'
+    episode_id = 'abcdef123456'
+    _seed_feed(db, source_slug, key=KEY)
+    db.create_podcast(RECENTS_SLUG, 'recents://', 'Recents', feed_type='recents')
+    db.get_connection().execute(
+        "UPDATE podcasts SET created_at = '2026-09-01T00:00:00Z' WHERE slug = ?",
+        (RECENTS_SLUG,),
+    )
+    db.get_connection().commit()
+    db.upsert_episode(
+        source_slug, episode_id, original_url='https://example.com/item.mp3',
+        title='Recent item', status='processed', processed_file='item.mp3',
+        published_at='2026-09-10T00:00:00Z',
+    )
+    db.upsert_episode(
+        source_slug, 'abcdef123457', original_url='https://example.com/old.mp3',
+        title='Older item', status='processed', processed_file='old.mp3',
+        published_at='2026-08-31T00:00:00Z',
+    )
+    db.upsert_episode(
+        source_slug, 'abcdef123458', original_url='https://example.com/new.mp3',
+        title='Unprocessed item', status='discovered',
+        published_at='2026-09-10T00:00:00Z',
+    )
+    db.upsert_episode(
+        source_slug, 'abcdef123459', original_url='https://example.com/later.mp3',
+        title='Later item', status='processed', processed_file='later.mp3',
+        published_at='2026-09-11T00:00:00Z',
+    )
+    db.update_podcast(RECENTS_SLUG, max_episodes=1)
+    cached = _cached_rss(source_slug, KEY).replace('abcdefabcdef', episode_id)
+    cached = cached.replace(
+        '</channel>', f'<image><url>{BASE}/{RECENTS_SLUG}/cover-minuspod.jpg?key={KEY}'
+        '</url></image></channel>',
+    )
+    routes_mod.storage.save_rss(RECENTS_SLUG, cached)
+    feeds_mod.invalidate_feed_cache()
+    scoped = db.create_feed_subscriber_key(RECENTS_SLUG, 'Phone')['token']
+    recents = db.get_podcast_by_slug(RECENTS_SLUG)
+    assert db.is_recent_processed_episode(
+        source_slug, episode_id, recents['created_at'][:10],
+    )
+
+    rss = client.get(f'/{RECENTS_SLUG}?key={scoped}')
+    assert rss.status_code == 200
+    assert KEY not in rss.get_data(as_text=True)
+    assert f'?key={scoped}' in rss.get_data(as_text=True)
+    assert client.get(f'/{RECENTS_SLUG}/cover-minuspod.jpg?key={scoped}').status_code != 401
+    assert client.get(
+        f'/episodes/{source_slug}/{episode_id}.vtt?key={scoped}'
+    ).status_code != 401
+    assert client.get(f'/episodes/{source_slug}/fedcba654321.mp3?key={scoped}').status_code == 401
+    assert client.get(f'/episodes/{source_slug}/abcdef123457.mp3?key={scoped}').status_code == 401
+    assert client.get(f'/episodes/{source_slug}/abcdef123458.mp3?key={scoped}').status_code == 401
+    assert client.get(f'/{source_slug}?key={scoped}').status_code == 401
+    assert db.revoke_feed_subscriber_key(RECENTS_SLUG, scoped.split('.', 1)[0])
+    assert client.get(f'/recents?key={scoped}').status_code == 401
+
+
 def test_mp3_with_valid_key_reaches_handler(client, db):
     _set_auth(db, True)
     _seed_feed(db, 'auth-feed', key=KEY)
@@ -129,6 +282,18 @@ def test_mp3_with_valid_key_reaches_handler(client, db):
     # the handler's own answer (JIT flow), never the 401.
     resp = client.get(f'/episodes/auth-feed/aaaaaaaaaaaa.mp3?key={KEY}')
     assert resp.status_code != 401
+
+
+def test_public_request_cannot_start_processing_when_disabled(client, db, monkeypatch):
+    _set_auth(db, False)
+    _seed_feed(db, 'public-feed')
+    monkeypatch.setenv('MINUSPOD_ALLOW_PUBLIC_PROCESSING', 'false')
+
+    with patch('main_app.processing.start_background_processing') as start:
+        response = client.get('/episodes/public-feed/abcdefabcdef.mp3')
+
+    assert response.status_code == 503
+    assert not start.called
 
 
 def test_cover_with_path_key_200(client, db):

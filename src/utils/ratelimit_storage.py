@@ -11,6 +11,15 @@ SCHEME = 'memory-threadsafe'
 STORAGE_URI = f'{SCHEME}://'
 
 
+def ensure_storage_available(uri, storage):
+    if uri.startswith(('memory://', STORAGE_URI)):
+        return
+    if not storage.check():
+        raise RuntimeError(
+            'RATE_LIMIT_STORAGE_URI is configured but its backend is unreachable'
+        )
+
+
 class ThreadSafeMemoryStorage(MemoryStorage):
     """MemoryStorage whose expiry-timer restart cannot double-start a thread."""
 

@@ -4,6 +4,21 @@
 
 ---
 
+## Contents
+
+- [How it finds the cue](#how-it-finds-the-cue)
+- [Cue types](#cue-types)
+- [Marking a cue](#marking-a-cue)
+- [Finding cues automatically](#finding-cues-automatically)
+- [Finding cues across episodes](#finding-cues-across-episodes)
+- [Managing cues](#managing-cues)
+- [Cue matches on an episode](#cue-matches-on-an-episode)
+- [Settings](#settings)
+- [Cue-only preset](#cue-only-preset)
+- [Per-feed overrides](#per-feed-overrides)
+- [Requirements and notes](#requirements-and-notes)
+- [Screenshots](#screenshots)
+
 Some shows play a short non-spoken cue, a chime or stinger, right before or after
 an ad break. The transcript cannot capture it, so detection lands a beat late. A
 cue never marks an ad on its own: the model must still find ad content in the

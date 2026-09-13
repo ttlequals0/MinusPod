@@ -23,6 +23,7 @@ interface TunablesState {
   learningMaxPatternDuration: number;
   differentialMeasuredCorrMax: number;
   differentialHoldMinSeconds: number;
+  daiDifferentialOverridesKeep: boolean;
 }
 
 function defaultState(): TunablesState {
@@ -39,6 +40,7 @@ function defaultState(): TunablesState {
     learningMaxPatternDuration: 120,
     differentialMeasuredCorrMax: 0.6,
     differentialHoldMinSeconds: 10,
+    daiDifferentialOverridesKeep: true,
   };
 }
 
@@ -76,6 +78,8 @@ function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
         onDifferentialMeasuredCorrMaxChange={patch('differentialMeasuredCorrMax')}
         differentialHoldMinSeconds={state.differentialHoldMinSeconds}
         onDifferentialHoldMinSecondsChange={patch('differentialHoldMinSeconds')}
+        daiDifferentialOverridesKeep={state.daiDifferentialOverridesKeep}
+        onDaiDifferentialOverridesKeepChange={patch('daiDifferentialOverridesKeep')}
       />
       <button onClick={() => onCommit(state)}>Commit</button>
     </>
@@ -114,6 +118,23 @@ describe('AdDetectionSection: autocut toggle', () => {
     expect((screen.getByLabelText('Autocut floor') as HTMLInputElement).value).toBe('0.5');
     await user.click(toggle);
     expect(screen.queryByLabelText('Autocut floor')).toBeNull();
+  });
+});
+
+describe('AdDetectionSection: kept-category override toggle', () => {
+  it('is on by default, so an inserted ad in a kept category is still cut', () => {
+    render(<Harness onCommit={() => {}} />);
+    const toggle = screen.getByRole('switch', { name: 'Cut inserted ads in kept categories' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('switches off and reports the change to the parent', async () => {
+    let committed: TunablesState | null = null;
+    render(<Harness onCommit={(payload) => { committed = payload; }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name: 'Cut inserted ads in kept categories' }));
+    await user.click(screen.getByText('Commit'));
+    expect(committed!.daiDifferentialOverridesKeep).toBe(false);
   });
 });
 
@@ -190,6 +211,7 @@ describe('AdDetectionSection: commit fires the batched save payload with camelCa
       learningMaxPatternDuration: 300,
       differentialMeasuredCorrMax: 0.4,
       differentialHoldMinSeconds: 20,
+      daiDifferentialOverridesKeep: true,
     });
   });
 });

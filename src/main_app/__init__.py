@@ -1,4 +1,5 @@
 """Main Flask web server for podcast ad removal with web UI."""
+import copy
 import fcntl
 import json
 import logging
@@ -8,6 +9,7 @@ import signal
 import socket
 import sys
 import threading
+import time
 import uuid
 from utils.session_defaults import _default_session_cookie_secure
 from utils.paths import resolve_data_dir
@@ -43,6 +45,31 @@ class _RequestIDFilter(logging.Filter):
         except Exception:
             pass
         return True
+
+
+class SingleLineFormatter(logging.Formatter):
+    """Text formatter that keeps one record on one line.
+
+    Docker splits a multi-line record into separate lines, and the
+    continuation lines carry no level prefix, so a scraper re-sniffs their
+    level from the text: a logged prompt body whose line reads "CRITICAL:"
+    arrives as a critical entry. The record is copied rather than mutated,
+    since the per-episode run log handler formats the same record and wants
+    the real line breaks. An exc_info traceback is appended by the base
+    formatter and keeps its own.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        # Args are interpolated only when present, so the common no-args
+        # record is not built twice per line at DEBUG volume.
+        message = record.getMessage() if record.args else str(record.msg)
+        if '\n' not in message and '\r' not in message:
+            return super().format(record)
+        flat = copy.copy(record)
+        flat.msg = (message.replace('\r\n', '\\n')
+                    .replace('\n', '\\n').replace('\r', '\\n'))
+        flat.args = ()
+        return super().format(flat)
 
 
 class JSONFormatter(logging.Formatter):
@@ -96,7 +123,7 @@ def setup_logging():
     if log_format == 'json':
         formatter = JSONFormatter(datefmt='%Y-%m-%dT%H:%M:%S')
     else:
-        formatter = logging.Formatter(
+        formatter = SingleLineFormatter(
             '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
@@ -145,6 +172,7 @@ logger = logging.getLogger('podcast.app')
 audio_logger = logging.getLogger('podcast.audio')
 
 # Import components
+from maintenance_lock import acquire_runtime_lock
 from storage import Storage
 from rss_parser import RSSParser
 from transcriber import Transcriber
@@ -157,8 +185,10 @@ from sponsor_service import SponsorService
 from status_service import StatusService
 from pattern_service import PatternService
 from secrets_crypto import migrate_plaintext_secrets
+from utils.subprocess_registry import terminate_all
 
 # Initialize components
+_runtime_lock_fd = acquire_runtime_lock(resolve_data_dir())
 storage = Storage()
 rss_parser = RSSParser()
 transcriber = Transcriber()
@@ -173,6 +203,8 @@ pattern_service = PatternService(db)
 # Graceful shutdown support
 shutdown_event = threading.Event()
 processing_queue = ProcessingQueue()
+_previous_signal_handlers = {}
+_shutdown_started = False
 
 # One-shot startup backfills, version-gated via system_settings so
 # they only run on the first boot that ships the corresponding code.
@@ -368,23 +400,39 @@ def get_or_create_secret_key():
 
 
 def graceful_shutdown(signum, frame):
-    """Handle shutdown signals gracefully.
-
-    Sets the shutdown event to signal background threads to stop.
-    Does NOT block the signal handler -- Gunicorn's --graceful-timeout (330s)
-    provides the actual wait period before SIGKILL. Blocking here would prevent
-    gthread worker heartbeats, causing premature SIGKILL after --timeout.
-    """
+    """Stop admission, drain this worker's runs, then continue server shutdown."""
+    global _shutdown_started
     sig_name = signal.Signals(signum).name
+    if _shutdown_started:
+        logger.warning("Received %s again; forcing shutdown", sig_name)
+        drain_seconds = 0
+    else:
+        _shutdown_started = True
+        try:
+            drain_seconds = int(os.environ.get('MINUSPOD_SHUTDOWN_DRAIN_SECONDS', '300'))
+        except ValueError:
+            drain_seconds = 300
+        drain_seconds = min(max(drain_seconds, 0), 3600)
     logger.info(f"Received {sig_name} signal, initiating graceful shutdown...")
 
-    # Signal all background threads to stop
     shutdown_event.set()
 
-    current = processing_queue.get_current()
-    if current:
-        logger.info(f"Shutdown signal sent, processing in progress: {current[0]}:{current[1]}")
-        logger.info("Gunicorn graceful-timeout will allow processing to finish")
+    deadline = time.monotonic() + drain_seconds
+    owned = processing_queue.owned_active_run_ids()
+    if owned:
+        logger.info("Draining %d processing run(s) for up to %d seconds",
+                    len(owned), drain_seconds)
+    while owned and time.monotonic() < deadline:
+        time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+        owned = processing_queue.owned_active_run_ids()
+    if owned is None:
+        while time.monotonic() < deadline:
+            time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+            owned = processing_queue.owned_active_run_ids()
+            if owned == []:
+                break
+    if owned:
+        logger.warning("Shutdown drain expired with %d processing run(s) active", len(owned))
 
     # Release the background-leader flock explicitly. Linux frees the
     # advisory lock when the FD closes anyway, so this is defensive;
@@ -399,14 +447,15 @@ def graceful_shutdown(signum, frame):
         except Exception as exc:
             logger.warning("Failed to release background leader lock: %s", exc)
 
-    # Terminate any tracked subprocess children so a SIGTERM on the
-    # worker does not leave ffmpeg / whisper processes orphaned. The
-    # registry is a no-op if no processes have been registered.
     try:
-        from utils.subprocess_registry import terminate_all
         terminate_all(timeout=5.0)
     except Exception as exc:
         logger.warning("subprocess_registry terminate_all failed: %s", exc)
+
+    previous = _previous_signal_handlers.get(signum)
+    if callable(previous) and previous is not graceful_shutdown:
+        previous(signum, frame)
+    raise SystemExit(0)
 
 
 def _background_leader_lock_path() -> Path:
@@ -660,8 +709,13 @@ register_routes(app)
 # Re-export public API for downstream consumers
 from main_app.feeds import refresh_rss_feed, refresh_all_feeds, invalidate_feed_cache, get_feed_map
 from main_app.processing import start_background_processing
-from main_app.background import background_rss_refresh, background_queue_processor, reset_stuck_processing_episodes
+from main_app.background import (
+    background_rss_refresh, background_queue_processor,
+    reset_stuck_processing_episodes,
+)
+from whisper_pool import mark_background_leader
 from podping_listener import podping_listener_loop
+import stall_watchdog
 from status_service import reconcile_startup_state
 
 # The logo as ASCII: mirrored waveform with the strikethrough (the minus)
@@ -715,17 +769,30 @@ def _startup():
     """
 
     is_leader = _try_become_background_leader()
+    if is_leader:
+        mark_background_leader()
 
     # Reset any episodes stuck in 'processing' status from previous crash.
     # Leader-only - the followers would just race the same UPDATE.
     if is_leader:
+        # Slots without a recorded start time cannot be told from a recycled
+        # pid. Ones that carry it are left alone: a respawned leader has
+        # sibling workers whose runs are still live.
+        processing_queue.drop_slots_without_start_time()
+        processing_queue.reconcile_dead_owners()
         reset_stuck_processing_episodes()
         reconcile_startup_state(db)
 
     # Register signal handlers for graceful shutdown (every worker needs them).
-    signal.signal(signal.SIGTERM, graceful_shutdown)
-    signal.signal(signal.SIGINT, graceful_shutdown)
+    for shutdown_signal in (signal.SIGTERM, signal.SIGINT):
+        _previous_signal_handlers[shutdown_signal] = signal.getsignal(shutdown_signal)
+        signal.signal(shutdown_signal, graceful_shutdown)
     logger.debug("Registered signal handlers for graceful shutdown")
+
+    # Every worker: a stall is per-process, and only the leader's threads
+    # would otherwise be sampled.
+    if _background_threads_enabled():
+        stall_watchdog.start()
 
     base_url = os.getenv('BASE_URL', 'http://localhost:8000')
 

@@ -24,6 +24,7 @@ from user_agent import download_user_agent
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get, stream_to_file_capped
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 
 # Realistic podcast-client UA strings for the refetch pool.
 REFETCH_USER_AGENTS = (
@@ -107,7 +108,7 @@ def _decode_pcm(audio_path: str, work_dir: str, tag: str) -> np.ndarray:
     pcm_path = os.path.join(work_dir, f'diff_{tag}.pcm')
     try:
         tracked_run(
-            ['ffmpeg', '-y', '-i', audio_path, '-ac', '1', '-ar', str(PCM_RATE),
+            ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y', '-i', audio_path, '-ac', '1', '-ar', str(PCM_RATE),
              '-f', 's16le', '-acodec', 'pcm_s16le', pcm_path],
             check=True, capture_output=True, timeout=DECODE_TIMEOUT_S)
         data = np.fromfile(pcm_path, dtype=np.int16).astype(np.float32) / 32768.0
@@ -514,3 +515,32 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
                 os.unlink(refetch_path)
         except OSError:
             pass
+
+
+def differential_region_overlapping(dai_differential, start: float, end: float,
+                                    corr_max: float):
+    """The measured `differential` region overlapping [start, end), or None.
+
+    A high-corr region mostly matched across fetches and proves nothing, so
+    corr must be numeric and at or under corr_max; legacy stored regions
+    carry a hard-coded 0.0 and still qualify. Shared by the validator's
+    Layer 3 corroboration and the keep-map override so the two cannot drift.
+
+    Overlap is strict, not utils.time.ranges_overlap: a marker that merely
+    touches a region's edge shares no audio with it and is not evidence.
+    """
+    regions = (dai_differential or {}).get('regions') or []
+    for region in regions:
+        if region.get('kind') != 'differential':
+            continue
+        corr = region.get('corr')
+        if not isinstance(corr, (int, float)) or isinstance(corr, bool):
+            continue
+        if corr > corr_max:
+            continue
+        try:
+            if float(region['start_s']) < float(end) and float(region['end_s']) > float(start):
+                return region
+        except (KeyError, TypeError, ValueError):
+            continue
+    return None

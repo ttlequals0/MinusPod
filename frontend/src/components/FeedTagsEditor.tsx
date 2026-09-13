@@ -7,7 +7,7 @@ import {
   type FeedTagBreakdown,
 } from '../api/community';
 import { TagChips } from './TagChips';
-import LoadingSpinner from './LoadingSpinner';
+import { Skeleton } from './Skeleton';
 import { btnOutline } from './buttonStyles';
 import { selectBase } from './fieldStyles';
 import { focusRing } from './fieldStyles';
@@ -64,7 +64,15 @@ export function FeedTagsEditor({ slug }: Props) {
   return (
     <div className="flex flex-col gap-1 min-w-0">
         {isLoading || !tags ? (
-          <LoadingSpinner className="py-4" />
+          <div
+            className="flex flex-wrap gap-1"
+            role="status" aria-busy="true" aria-label="Loading"
+            data-testid="skeleton-tags"
+          >
+            <Skeleton className="h-6 w-16 rounded-full" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
         ) : (
           <>
             {effective.length === 0 && (

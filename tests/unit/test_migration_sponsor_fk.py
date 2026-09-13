@@ -1,4 +1,6 @@
 """Tests for the v2.2.0 sponsor FK migration in SchemaMixin._migrate_sponsor_fk."""
+import sqlite3
+import threading
 
 
 # --- Helpers -------------------------------------------------------------
@@ -313,3 +315,114 @@ def test_create_correction_type_accepted_after_migration(temp_db):
     }
     assert 'create' in types
     assert 'auto_promotion' in types
+
+
+def test_migration_preserves_scoped_correction_columns(temp_db):
+    conn = temp_db.get_connection()
+    temp_db.create_podcast('migration-feed', 'https://example.com/feed.xml', 'Feed')
+    podcast_id = temp_db.get_podcast_by_slug('migration-feed')['id']
+    temp_db.upsert_episode(
+        'migration-feed', 'episode-1', original_url='https://example.com/1.mp3')
+    _rebuild_pre_migration_shape(conn)
+    conn.execute(
+        "INSERT INTO ad_patterns (scope, text_template, sponsor) "
+        "VALUES ('global', 'ad text', 'Acme')"
+    )
+    conn.execute(
+        "ALTER TABLE pattern_corrections ADD COLUMN podcast_id INTEGER "
+        "REFERENCES podcasts(id) ON DELETE SET NULL"
+    )
+    conn.execute("ALTER TABLE pattern_corrections ADD COLUMN source_hold_reason TEXT")
+    conn.execute(
+        "ALTER TABLE pattern_corrections ADD COLUMN fp_suppressed INTEGER DEFAULT 0"
+    )
+    conn.execute(
+        "INSERT INTO pattern_corrections "
+        "(pattern_id, episode_id, podcast_id, correction_type, "
+        "source_hold_reason, fp_suppressed) VALUES (1, ?, ?, 'false_positive', ?, 1)",
+        ('episode-1', podcast_id, 'differential_low_confidence'),
+    )
+    conn.commit()
+
+    temp_db._migrate_sponsor_fk(conn)
+
+    row = conn.execute(
+        "SELECT podcast_id, source_hold_reason, fp_suppressed "
+        "FROM pattern_corrections"
+    ).fetchone()
+    assert dict(row) == {
+        'podcast_id': podcast_id,
+        'source_hold_reason': 'differential_low_confidence',
+        'fp_suppressed': 1,
+    }
+    assert conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'index' "
+        "AND name = 'idx_corrections_podcast_episode'"
+    ).fetchone()
+
+
+def test_search_trigger_replacement_has_no_writer_gap(temp_db):
+    conn = temp_db.get_connection()
+    conn.execute("DELETE FROM search_index_changes")
+    conn.commit()
+    drop_reached = threading.Event()
+    continue_replacement = threading.Event()
+    writer_started = threading.Event()
+    writer_done = threading.Event()
+    errors = []
+
+    def replace_triggers():
+        migration_conn = sqlite3.connect(temp_db.db_path, timeout=5)
+        paused = False
+
+        def trace(sql):
+            nonlocal paused
+            if not paused and sql.startswith('DROP TRIGGER'):
+                paused = True
+                drop_reached.set()
+                continue_replacement.wait(timeout=5)
+
+        migration_conn.set_trace_callback(trace)
+        try:
+            migration_conn.execute('BEGIN IMMEDIATE')
+            temp_db._execute_search_change_trigger_ddl(
+                migration_conn, replace=True)
+            migration_conn.commit()
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            migration_conn.close()
+
+    def write_source_row():
+        writer_conn = sqlite3.connect(temp_db.db_path, timeout=5)
+        try:
+            writer_started.set()
+            writer_conn.execute(
+                "INSERT INTO podcasts (slug, source_url, title) VALUES (?, ?, ?)",
+                ('trigger-race', 'https://example.com/race.xml', 'Race'),
+            )
+            writer_conn.commit()
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            writer_conn.close()
+            writer_done.set()
+
+    migration = threading.Thread(target=replace_triggers)
+    migration.start()
+    assert drop_reached.wait(timeout=5)
+    writer = threading.Thread(target=write_source_row)
+    writer.start()
+    assert writer_started.wait(timeout=5)
+    assert not writer_done.wait(timeout=0.1)
+    continue_replacement.set()
+    migration.join(timeout=5)
+    writer.join(timeout=5)
+
+    assert not errors
+    assert writer_done.is_set()
+    journaled = conn.execute(
+        "SELECT 1 FROM search_index_changes "
+        "WHERE content_type = 'podcast' AND content_id = 'trigger-race'"
+    ).fetchone()
+    assert journaled

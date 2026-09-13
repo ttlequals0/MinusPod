@@ -25,6 +25,7 @@ except ImportError:
 
 from utils.audio import get_audio_duration
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from config import (
     FFMPEG_SHORT_TIMEOUT,
     FPCALC_TIMEOUT,
@@ -674,7 +675,7 @@ class AudioFingerprinter:
     def _extract_wav_segment(self, audio_path, tmp_path, start, duration):
         """Decode [start, start+duration) (duration None = to EOF) to mono
         16 kHz WAV at tmp_path for fpcalc."""
-        cmd = ['ffmpeg', '-y', '-i', audio_path, '-ss', str(start)]
+        cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y', '-i', audio_path, '-ss', str(start)]
         if duration is not None:
             cmd.extend(['-t', str(duration)])
         cmd.extend(['-ac', '1', '-ar', '16000', '-f', 'wav', tmp_path])

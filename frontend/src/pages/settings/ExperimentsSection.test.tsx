@@ -1,112 +1,16 @@
 /**
- * Tests for per-prompt reset wiring in ExperimentsSection (#626): review and
- * resurrect each get their own two-click reset button; the bulk button is
- * unaffected.
+ * Tests for the Experiments group, which now holds only the ad addressing
+ * mode; Ad Reviewer moved to AI & Processing.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ExperimentsSection, { type ReviewerState } from './ExperimentsSection';
-
-function baseReviewer(): ReviewerState {
-  return {
-    enabled: false,
-    model: 'same_as_pass',
-    maxShift: 60,
-    reviewPrompt: 'review text',
-    resurrectPrompt: 'resurrect text',
-    reviewPromptOverride: '',
-    resurrectPromptOverride: '',
-    parallelAds: 4,
-    updatePatterns: true,
-    minTrimThreshold: 20,
-  };
-}
-
-describe('ExperimentsSection: per-prompt reset', () => {
-  it('renders both per-field reset buttons disabled when both prompts are at their default', () => {
-    render(
-      <ExperimentsSection
-        reviewer={baseReviewer()}
-        onChange={vi.fn()}
-        onResetPrompts={vi.fn()}
-        resetIsPending={false}
-        reviewPromptIsDefault
-        resurrectPromptIsDefault
-        onResetReviewPrompt={vi.fn()}
-        onResetResurrectPrompt={vi.fn()}
-        addressingMode="timestamps"
-        onAddressingModeChange={vi.fn()}
-      />,
-    );
-    const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
-    expect(resetButtons).toHaveLength(2);
-    for (const btn of resetButtons) expect(btn).toHaveProperty('disabled', true);
-    expect(screen.getByRole('button', { name: 'Reset Reviewer Prompts to Default' })).toBeDefined();
-  });
-
-  it('fires resetPrompt(review) only from the review field', async () => {
-    const onResetReviewPrompt = vi.fn();
-    const onResetResurrectPrompt = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ExperimentsSection
-        reviewer={baseReviewer()}
-        onChange={vi.fn()}
-        onResetPrompts={vi.fn()}
-        resetIsPending={false}
-        reviewPromptIsDefault={false}
-        resurrectPromptIsDefault
-        onResetReviewPrompt={onResetReviewPrompt}
-        onResetResurrectPrompt={onResetResurrectPrompt}
-        addressingMode="timestamps"
-        onAddressingModeChange={vi.fn()}
-      />,
-    );
-    const [resetBtn] = screen.getAllByRole('button', { name: 'Reset' });
-    await user.click(resetBtn);
-    await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
-    expect(onResetReviewPrompt).toHaveBeenCalledTimes(1);
-    expect(onResetResurrectPrompt).not.toHaveBeenCalled();
-  });
-
-  it('fires resetPrompt(resurrect) only from the resurrect field', async () => {
-    const onResetReviewPrompt = vi.fn();
-    const onResetResurrectPrompt = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ExperimentsSection
-        reviewer={baseReviewer()}
-        onChange={vi.fn()}
-        onResetPrompts={vi.fn()}
-        resetIsPending={false}
-        reviewPromptIsDefault
-        resurrectPromptIsDefault={false}
-        onResetReviewPrompt={onResetReviewPrompt}
-        onResetResurrectPrompt={onResetResurrectPrompt}
-        addressingMode="timestamps"
-        onAddressingModeChange={vi.fn()}
-      />,
-    );
-    const resetBtn = screen.getAllByRole('button', { name: 'Reset' })[1];
-    await user.click(resetBtn);
-    await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
-    expect(onResetResurrectPrompt).toHaveBeenCalledTimes(1);
-    expect(onResetReviewPrompt).not.toHaveBeenCalled();
-  });
-});
+import ExperimentsSection from './ExperimentsSection';
 
 describe('ExperimentsSection: addressing mode', () => {
   it('renders the addressing mode select with the current value', () => {
     render(
-      <ExperimentsSection
-        reviewer={baseReviewer()}
-        onChange={vi.fn()}
-        onResetPrompts={vi.fn()}
-        resetIsPending={false}
-        addressingMode="segment_ids"
-        onAddressingModeChange={vi.fn()}
-      />,
+      <ExperimentsSection addressingMode="segment_ids" onAddressingModeChange={vi.fn()} />,
     );
     const select = screen.getByLabelText('Ad addressing mode') as HTMLSelectElement;
     expect(select.value).toBe('segment_ids');
@@ -119,10 +23,6 @@ describe('ExperimentsSection: addressing mode', () => {
     const user = userEvent.setup();
     render(
       <ExperimentsSection
-        reviewer={baseReviewer()}
-        onChange={vi.fn()}
-        onResetPrompts={vi.fn()}
-        resetIsPending={false}
         addressingMode="timestamps"
         onAddressingModeChange={onAddressingModeChange}
       />,
@@ -130,5 +30,11 @@ describe('ExperimentsSection: addressing mode', () => {
     const select = screen.getByLabelText('Ad addressing mode');
     await user.selectOptions(select, 'segment_ids');
     expect(onAddressingModeChange).toHaveBeenCalledWith('segment_ids');
+  });
+
+  it('no longer renders the Ad Reviewer controls', () => {
+    render(<ExperimentsSection addressingMode="timestamps" onAddressingModeChange={vi.fn()} />);
+    expect(screen.queryByText('Enable ad reviewer')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reset Reviewer Prompts to Default' })).toBeNull();
   });
 });

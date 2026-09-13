@@ -65,6 +65,10 @@ class EmptyCompletionError(Exception):
     """
 
 
+class ReasoningExhaustedError(EmptyCompletionError):
+    """The response budget was exhausted by reasoning before an answer."""
+
+
 def _completion_is_empty(response) -> bool:
     """True when the model returned no usable content (empty or whitespace)."""
     content = getattr(response, 'content', None)
@@ -75,8 +79,26 @@ def _call_once(llm_client, llm_kwargs, model):
     """One LLM call; raise EmptyCompletionError if it comes back content-less."""
     response = llm_client.messages_create(**llm_kwargs)
     if _completion_is_empty(response):
+        if (getattr(response, 'reasoning_exhausted', False)
+                or (getattr(response, 'reasoning_present', False)
+                    and getattr(response, 'finish_reason', None) in ('max_tokens', 'length'))):
+            raise ReasoningExhaustedError(
+                f"empty completion from {model} after reasoning exhausted the output budget"
+            )
         raise EmptyCompletionError(f"empty completion from {model} (no content returned)")
     return response
+
+
+def _apply_reasoning_fallback(error, llm_kwargs, *, slug, episode_id, call_label):
+    """Disable reasoning after a truncated reasoning-only response."""
+    if (not isinstance(error, ReasoningExhaustedError)
+            or llm_kwargs.get('reasoning_effort') == 'none'):
+        return
+    llm_kwargs['reasoning_effort'] = 'none'
+    logger.warning(
+        f"[{slug}:{episode_id}] {call_label} reasoning exhausted the output budget; "
+        "retrying with reasoning disabled"
+    )
 
 
 def _is_retryable(error) -> bool:
@@ -92,6 +114,85 @@ def _fire_limit_exceeded_webhook(error, model):
         )
     except Exception:
         logger.exception("Failed to fire limit-exceeded webhook")
+
+
+def _fire_auth_failure_webhook(error, model):
+    try:
+        from webhook_service import fire_auth_failure_event
+        fire_auth_failure_event(
+            get_effective_provider(), model, str(error),
+            getattr(error, 'status_code', None),
+        )
+    except Exception:
+        logger.exception("Failed to fire auth-failure webhook")
+
+
+def _terminal_error(error, *, model, slug, episode_id, call_label):
+    """Return a terminal or normalized provider error, else None."""
+    daily_quota = classify_daily_quota_exhaustion(error)
+    if daily_quota is not None:
+        provider = get_effective_provider()
+        limit = daily_quota.get('limit')
+        actionable = (
+            f"{provider} free-tier daily quota"
+            + (f" (limit {limit})" if limit else "")
+            + " exhausted; retry tomorrow, raise the tier, or switch provider."
+        )
+        logger.warning(
+            f"[{slug}:{episode_id}] {call_label} daily quota exhausted: {actionable}"
+        )
+        return StructuralRateLimitError(actionable)
+
+    structural = classify_structural_rate_limit(error)
+    if structural is not None:
+        provider = get_effective_provider()
+        limit = structural.get('limit')
+        used = structural.get('used')
+        requested = structural.get('requested')
+        actionable = (
+            f"{provider} rate limit: one detection window's token request "
+            f"(~{requested}) exceeds the per-minute cap ({limit}). "
+            f"Reduce the detection window size in Settings > LLM Tunables, "
+            f"or change provider/tier."
+        )
+        logger.warning(
+            f"[{slug}:{episode_id}] {call_label} structural rate limit: {actionable}"
+        )
+        try:
+            from webhook_service import fire_structural_rate_limit_event
+            fire_structural_rate_limit_event(
+                provider, model, limit, used, requested, str(error),
+            )
+        except Exception:
+            logger.exception("Failed to fire structural rate-limit webhook")
+        return StructuralRateLimitError(actionable)
+
+    if is_limit_exceeded_error(error):
+        logger.warning(
+            f"[{slug}:{episode_id}] {call_label} provider limit exceeded: {error}"
+        )
+        _fire_limit_exceeded_webhook(error, model)
+        return error
+
+    if is_rate_limit_error(error) and is_rate_limit_hold_enabled():
+        hold_after = extract_retry_after(error, max_seconds=MAX_RESET_SECONDS)
+        if hold_after is not None and hold_after > MIN_HOLD_RESET_SECONDS:
+            held = ProviderRateLimitedError(
+                f"provider rate limit resets in {hold_after:.0f}s: {error}",
+                retry_after_seconds=hold_after)
+            logger.warning(
+                f"[{slug}:{episode_id}] {call_label} rate limit: "
+                f"holding queue {hold_after:.0f}s until provider reset"
+            )
+            return held
+
+    if _is_retryable(error):
+        return None
+
+    logger.warning(f"[{slug}:{episode_id}] {call_label} failed: {error}")
+    if is_auth_error(error):
+        _fire_auth_failure_webhook(error, model)
+    return error
 
 
 def call_llm(
@@ -141,69 +242,15 @@ def call_llm(
             return response, None
         except Exception as e:
             last_error = e
-            daily_quota = classify_daily_quota_exhaustion(e)
-            if daily_quota is not None:
-                provider = get_effective_provider()
-                limit = daily_quota.get('limit')
-                actionable = (
-                    f"{provider} free-tier daily quota"
-                    + (f" (limit {limit})" if limit else "")
-                    + " exhausted; retry tomorrow, raise the tier, or switch provider."
-                )
-                logger.warning(
-                    f"[{slug}:{episode_id}] {call_label} daily quota exhausted: {actionable}"
-                )
-                # Cannot recover within this run; excluded from the retry paths.
-                last_error = StructuralRateLimitError(actionable)
+            _apply_reasoning_fallback(
+                e, llm_kwargs, slug=slug, episode_id=episode_id,
+                call_label=call_label)
+            terminal = _terminal_error(
+                e, model=model, slug=slug, episode_id=episode_id,
+                call_label=call_label)
+            if terminal is not None:
+                last_error = terminal
                 break
-            structural = classify_structural_rate_limit(e)
-            if structural is not None:
-                provider = get_effective_provider()
-                limit = structural.get('limit')
-                used = structural.get('used')
-                requested = structural.get('requested')
-                actionable = (
-                    f"{provider} rate limit: one detection window's token request "
-                    f"(~{requested}) exceeds the per-minute cap ({limit}). "
-                    f"Reduce the detection window size in Settings > LLM Tunables, "
-                    f"or change provider/tier."
-                )
-                logger.warning(
-                    f"[{slug}:{episode_id}] {call_label} structural rate limit: {actionable}"
-                )
-                # StructuralRateLimitError is excluded from is_retryable_error so
-                # the post-loop secondary retry path skips it.
-                last_error = StructuralRateLimitError(actionable)
-                try:
-                    from webhook_service import fire_structural_rate_limit_event
-                    fire_structural_rate_limit_event(
-                        provider, model, limit, used, requested, str(e),
-                    )
-                except Exception:
-                    logger.exception("Failed to fire structural rate-limit webhook")
-                break
-            if is_limit_exceeded_error(e):
-                logger.warning(
-                    f"[{slug}:{episode_id}] {call_label} provider limit exceeded: {e}"
-                )
-                _fire_limit_exceeded_webhook(e, model)
-                # is_retryable_error excludes limit-exceeded errors, so the
-                # post-loop secondary retry pass below also skips them.
-                break
-            # Rate-limit hold (#696): a reset past the in-process sleep cap
-            # breaks the loop on any attempt rather than sleeping. Shorter
-            # resets ride the sleep path below and recover in-process.
-            if is_rate_limit_error(e) and is_rate_limit_hold_enabled():
-                hold_after = extract_retry_after(e, max_seconds=MAX_RESET_SECONDS)
-                if hold_after is not None and hold_after > MIN_HOLD_RESET_SECONDS:
-                    last_error = ProviderRateLimitedError(
-                        f"provider rate limit resets in {hold_after:.0f}s: {e}",
-                        retry_after_seconds=hold_after)
-                    logger.warning(
-                        f"[{slug}:{episode_id}] {call_label} rate limit: "
-                        f"holding queue {hold_after:.0f}s until provider reset"
-                    )
-                    break
             if _is_retryable(e) and attempt < max_retries:
                 if is_rate_limit_error(e):
                     retry_after = extract_retry_after(e)
@@ -226,13 +273,6 @@ def call_llm(
                 time.sleep(delay)
                 continue
             logger.warning(f"[{slug}:{episode_id}] {call_label} failed: {e}")
-            if is_auth_error(e):
-                from webhook_service import fire_auth_failure_event
-                provider = get_effective_provider()
-                fire_auth_failure_event(
-                    provider, model, str(e),
-                    getattr(e, 'status_code', None),
-                )
             break
 
     if response is None and last_error is not None and _is_retryable(last_error):
@@ -250,14 +290,19 @@ def call_llm(
                 return response, None
             except Exception as e:
                 last_error = e
+                if retry_num < 2:
+                    _apply_reasoning_fallback(
+                        e, llm_kwargs, slug=slug, episode_id=episode_id,
+                        call_label=call_label)
+                terminal = _terminal_error(
+                    e, model=model, slug=slug, episode_id=episode_id,
+                    call_label=call_label)
+                if terminal is not None:
+                    last_error = terminal
+                    break
                 logger.warning(
                     f"[{slug}:{episode_id}] {call_label} retry {retry_num} failed: {e}"
                 )
-                # A limit can trip mid-retry (the main loop only saw the
-                # transient error); alert and stop the pointless second try.
-                if is_limit_exceeded_error(e):
-                    _fire_limit_exceeded_webhook(e, model)
-                    break
 
     return None, last_error
 

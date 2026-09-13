@@ -3,6 +3,7 @@
 Provides shared transcript text extraction functions.
 """
 
+import math
 import re
 
 from utils.time import parse_timestamp
@@ -103,6 +104,29 @@ def get_timestamped_transcript_for_range(
                 f"[{seg['start']:.1f}s-{seg['end']:.1f}s] {seg.get('text', '')}"
             )
     return '\n'.join(lines)
+
+
+def get_timestamped_words_for_range(
+    segments: list[dict],
+    start_time: float,
+    end_time: float,
+) -> str:
+    """Get timestamped words from segments that provide word timing."""
+    words = []
+    for segment in segments:
+        for word in segment.get('words') or []:
+            try:
+                start = float(word['start'])
+                end = float(word.get('end', start))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not math.isfinite(start) or not math.isfinite(end) or end < start:
+                continue
+            if end >= start_time and start <= end_time:
+                text = str(word.get('word', '')).strip()
+                if text:
+                    words.append(f"[{start:.2f}s-{end:.2f}s] {text}")
+    return '\n'.join(words)
 
 
 def extract_text_in_range(

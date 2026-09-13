@@ -1,21 +1,28 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection, {
   useCollapsibleOpen, useSectionVisible,
 } from '../../components/CollapsibleSection';
-import { getErrorMessage } from '../../api/client';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import {
   getOfflineQueueSettings,
+  getProviderBudget,
+  getProviderBudgetCurrencies,
+  getProviderBudgetRate,
   updateOfflineQueueSettings,
+  updateProviderBudget,
   getRateLimitHoldSettings,
   updateRateLimitHoldSettings,
+  type ProviderBudget,
 } from '../../api/settings';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { SkeletonRows } from '../../components/Skeleton';
 import SavedBadge from './SavedBadge';
 import { focusRing } from '../../components/fieldStyles';
+import Checkbox from '../../components/Checkbox';
+import { getErrorMessage } from '../../api/client';
 
 const STORAGE_KEY = 'settings-section-queue-control';
 
@@ -30,22 +37,142 @@ interface QueueControlSectionProps {
   onQueueBulkBoostChange: (value: number) => void;
 }
 
-interface HoldBlockConfig<T extends { enabled: boolean; ttlHours: number }> {
+function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState({
+    enabled: value.enabled,
+    maxReservations: value.maxReservations,
+    unknownCost: value.unknownCost,
+    displayCurrency: value.displayCurrency,
+    dailyLimit: value.dailyLimit,
+    unknownReserve: value.unknownReserve,
+  });
+  const [budgetDirty, setBudgetDirty] = useState(false);
+  const [preview, setPreview] = useState<{
+    currency: string; fromCurrency: string; dailyLimit: string; unknownReserve: string; fromRate: string;
+  } | null>(null);
+  const [previewApplied, setPreviewApplied] = useState(true);
+  const displayedRate = useRef({
+    currency: value.displayCurrency,
+    localPerUsd: value.fxRate.localPerUsd,
+  });
+  const [message, setMessage] = useState<string | null>(null);
+  const currencies = useQuery({
+    queryKey: ['provider-budget-currencies'],
+    queryFn: getProviderBudgetCurrencies,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  const rate = useQuery({
+    queryKey: ['provider-budget-rate', preview],
+    queryFn: () => getProviderBudgetRate(
+      preview?.currency as string, preview?.fromCurrency, preview?.dailyLimit, preview?.unknownReserve, preview?.fromRate),
+    enabled: preview !== null,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  const mutation = useMutation({
+    mutationFn: () => updateProviderBudget(budgetDirty ? draft : {
+      enabled: draft.enabled,
+      dailyLimitMicrousd: value.dailyLimitMicrousd,
+      maxReservations: draft.maxReservations,
+      unknownCost: draft.unknownCost,
+      unknownReserveMicrousd: value.unknownReserveMicrousd,
+    }),
+    onSuccess: (result) => {
+      queryClient.setQueryData(['provider-budget'], result);
+      setDraft({
+        enabled: result.enabled,
+        maxReservations: result.maxReservations,
+        unknownCost: result.unknownCost,
+        displayCurrency: result.displayCurrency,
+        dailyLimit: result.dailyLimit,
+        unknownReserve: result.unknownReserve,
+      });
+      displayedRate.current = { currency: result.displayCurrency, localPerUsd: result.fxRate.localPerUsd };
+      setBudgetDirty(false);
+      setPreview(null);
+      setPreviewApplied(true);
+      setMessage('Provider admission settings saved');
+    },
+    onError: (error) => setMessage(getErrorMessage(error, 'Failed to save provider admission settings')),
+  });
+  const currentRate = preview?.currency === draft.displayCurrency && previewApplied
+    ? rate.data
+    : draft.displayCurrency === value.displayCurrency && preview === null ? {
+      localPerUsd: value.fxRate.localPerUsd,
+      source: value.fxRate.source,
+      sourceDate: value.fxRate.sourceDate,
+    } : draft.displayCurrency === 'USD' && value.displayCurrency === 'USD' ? {
+      localPerUsd: '1', source: 'Identity', sourceDate: null,
+    } : undefined;
+  useEffect(() => {
+    const previous = displayedRate.current;
+    if (!rate.data || previous.currency === draft.displayCurrency) return;
+    setDraft((current) => ({
+      ...current,
+      dailyLimit: rate.data.dailyLimit,
+      unknownReserve: rate.data.unknownReserve,
+    }));
+    displayedRate.current = { currency: draft.displayCurrency, localPerUsd: rate.data.localPerUsd };
+    setPreviewApplied(true);
+  }, [draft.displayCurrency, rate.data]);
+  const formatLocal = (microusd: number) => new Intl.NumberFormat(undefined, {
+    style: 'currency', currency: draft.displayCurrency,
+  }).format((microusd / 1_000_000) * Number(currentRate?.localPerUsd));
+  const needsCurrentRate = preview?.currency === draft.displayCurrency && !currentRate;
+  const switchPending = preview?.currency === draft.displayCurrency && !previewApplied && !rate.isError;
+  const hasSelectedCurrency = currencies.data?.some((currency) => currency.code === draft.displayCurrency);
+
+  return <div className="space-y-4">
+    <Checkbox checked={draft.enabled} onChange={(enabled) => setDraft({ ...draft, enabled })} label="Enable provider admission controls" />
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div><label htmlFor="budgetCurrency" className="block text-sm font-medium text-foreground mb-1">Budget currency</label><select id="budgetCurrency" value={draft.displayCurrency} disabled={switchPending} onChange={(event) => { const currency = event.target.value; setPreviewApplied(false); setPreview({ currency, fromCurrency: draft.displayCurrency, dailyLimit: draft.dailyLimit, unknownReserve: draft.unknownReserve, fromRate: displayedRate.current.localPerUsd }); setDraft({ ...draft, displayCurrency: currency }); setBudgetDirty(true); }} className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground disabled:opacity-50 ${focusRing}`}><option value="USD">USD, US Dollar</option>{draft.displayCurrency !== 'USD' && !hasSelectedCurrency && <option value={draft.displayCurrency}>{draft.displayCurrency}</option>}{currencies.data?.filter((currency) => currency.code !== 'USD').map((currency) => <option key={currency.code} value={currency.code}>{currency.code}, {currency.name}</option>)}</select></div>
+      <div><label htmlFor="dailyBudget" className="block text-sm font-medium text-foreground mb-1">Daily limit in {draft.displayCurrency}</label><input id="dailyBudget" value={draft.dailyLimit} inputMode="decimal" disabled={needsCurrentRate} onChange={(event) => { setDraft({ ...draft, dailyLimit: event.target.value }); setBudgetDirty(true); }} className="w-full px-3 py-2 rounded-lg border border-input bg-background disabled:opacity-50" /><p className="mt-1 text-xs text-muted-foreground">0 allows unlimited daily spending.</p></div>
+      <div><label htmlFor="maxReservations" className="block text-sm font-medium text-foreground mb-1">Concurrent reservations</label><NumberInput id="maxReservations" value={draft.maxReservations} min={1} max={64} fallback={1} parse={parseInt} onCommit={(maxReservations) => setDraft({ ...draft, maxReservations })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground" /></div>
+    </div>
+    <div><label htmlFor="unknownCost" className="block text-sm font-medium text-foreground mb-1">When cost is unknown</label><select id="unknownCost" value={draft.unknownCost} onChange={(event) => setDraft({ ...draft, unknownCost: event.target.value as ProviderBudget['unknownCost'] })} className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`}><option value="deny">Deny the request</option><option value="reserve">Reserve a fixed amount</option><option value="allow">Allow without a reservation</option></select></div>
+    {draft.unknownCost === 'reserve' && <div><label htmlFor="unknownReserve" className="block text-sm font-medium text-foreground mb-1">Unknown cost reservation in {draft.displayCurrency}</label><input id="unknownReserve" value={draft.unknownReserve} inputMode="decimal" disabled={needsCurrentRate} onChange={(event) => { setDraft({ ...draft, unknownReserve: event.target.value }); setBudgetDirty(true); }} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground disabled:opacity-50" /></div>}
+    {currentRate && draft.displayCurrency !== 'USD' && <p className="text-xs text-muted-foreground">Rate: 1 USD = {currentRate.localPerUsd} {draft.displayCurrency}, {currentRate.sourceDate ?? 'date unavailable'}, via {currentRate.source}. Saving checks the latest available rate.</p>}
+    {rate.isError && <p className="text-sm text-destructive">Could not load a current rate. Choose USD or try again.</p>}
+    {currentRate ? <p className="text-xs text-muted-foreground">Today: {formatLocal(value.status.spentMicrousd)} spent, {formatLocal(value.status.reservedMicrousd)} reserved, {value.status.activeReservations} active.</p> : <p className="text-xs text-muted-foreground">Loading the current rate.</p>}
+    {message && <p className={`text-sm ${mutation.isError ? 'text-destructive' : 'text-success'}`}>{message}</p>}
+    <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || needsCurrentRate} className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}>{mutation.isPending ? 'Saving...' : 'Save admission settings'}</button>
+  </div>;
+}
+
+interface HoldBlockConfig<
+  T extends {
+    enabled: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }
+> {
   queryKey: string[];
   load: () => Promise<T>;
-  save: (args: { enabled: boolean; ttlHours: number }) => Promise<unknown>;
+  save: (args: {
+    enabled: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }) => Promise<unknown>;
   toggleLabel: string;
   ariaLabel: string;
   description: ReactNode;
-  ttlInputId: string;
+  /** Omit for a feature with no give-up window. */
+  ttlInputId?: string;
+  /** Rate-limit-hold only: renders the usage URL + probe interval fields. */
+  probeFields?: boolean;
   loadErrorText: string;
-  /** Rendered under the TTL field while the feature holds episodes. */
+  /** Rendered under the toggle while the feature holds the queue. */
   status?: (data: T) => ReactNode | null;
 }
 
-// Shared shape of the offline-queue and rate-limit-hold settings: a toggle
-// plus a give-up window, with draft state and an explicit Save (#482, #696).
-function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
+// Shared shape of the offline-queue and rate-limit-hold settings: a toggle,
+// an optional give-up window, draft state and an explicit Save (#482, #696).
+function QueueHoldBlock<
+  T extends {
+    enabled: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }
+>(
   { config, active }: { config: HoldBlockConfig<T>; active: boolean }
 ) {
   const qc = useQueryClient();
@@ -55,13 +182,22 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
     enabled: active,
   });
 
-  const [draft, setDraft] = useState<{ enabled?: boolean; ttlHours?: number }>({});
+  const [draft, setDraft] = useState<{
+    enabled?: boolean; ttlHours?: number;
+    llmUsageUrl?: string; rateLimitProbeMinutes?: number;
+  }>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const enabled = draft.enabled ?? data?.enabled ?? false;
   const ttlHours = draft.ttlHours ?? data?.ttlHours ?? 48;
+  const llmUsageUrl = draft.llmUsageUrl ?? data?.llmUsageUrl ?? '';
+  const rateLimitProbeMinutes = draft.rateLimitProbeMinutes ?? data?.rateLimitProbeMinutes ?? 5;
 
   const save = useMutation({
-    mutationFn: () => config.save({ enabled, ttlHours }),
+    mutationFn: () => config.save({
+      enabled,
+      ...(config.ttlInputId ? { ttlHours } : {}),
+      ...(config.probeFields ? { llmUsageUrl, rateLimitProbeMinutes } : {}),
+    }),
     onSuccess: () => {
       setSaveError(null);
       setDraft({});
@@ -71,7 +207,7 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
   });
 
   if (isLoading || !active) {
-    return <p className="text-sm text-muted-foreground">Loading...</p>;
+    return <SkeletonRows count={3} />;
   }
   if (isError || !data) {
     // A failed GET must not render the editable form from fallback
@@ -102,33 +238,77 @@ function QueueHoldBlock<T extends { enabled: boolean; ttlHours: number }>(
       </label>
       <p className="text-sm text-muted-foreground -mt-2">{config.description}</p>
 
-      <div className="space-y-1">
-        <div className="flex items-center gap-3">
-          <label
-            htmlFor={config.ttlInputId}
-            className="text-sm text-muted-foreground whitespace-nowrap"
-          >
-            Give up after:
-          </label>
-          <NumberInput
-            id={config.ttlInputId}
-            value={ttlHours}
-            min={1}
-            max={720}
-            step={1}
-            fallback={48}
-            parse={(s) => parseInt(s, 10)}
-            onCommit={(v) => setDraft((d) => ({ ...d, ttlHours: v }))}
-            className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
-          />
-          <span className="text-xs text-muted-foreground">hours</span>
+      {config.ttlInputId && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <label
+              htmlFor={config.ttlInputId}
+              className="text-sm text-muted-foreground whitespace-nowrap"
+            >
+              Give up after:
+            </label>
+            <NumberInput
+              id={config.ttlInputId}
+              value={ttlHours}
+              min={1}
+              max={720}
+              step={1}
+              fallback={48}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={(v) => setDraft((d) => ({ ...d, ttlHours: v }))}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
+            />
+            <span className="text-xs text-muted-foreground">hours</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Episodes still waiting after this long are marked failed and
+            logged. Applies to episodes already in the queue even if you
+            turn the toggle off.
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Episodes still waiting after this long are marked failed and
-          logged. Applies to episodes already in the queue even if you
-          turn the toggle off.
-        </p>
-      </div>
+      )}
+
+      {config.probeFields && (
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="llmUsageUrl" className="block text-sm font-medium text-foreground mb-2">
+              Usage endpoint (optional)
+            </label>
+            <input
+              type="text"
+              id="llmUsageUrl"
+              value={llmUsageUrl}
+              onChange={(e) => setDraft((d) => ({ ...d, llmUsageUrl: e.target.value }))}
+              placeholder="https://your-proxy:8001/v1/usage"
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+            />
+            <p className="mt-1 text-sm text-muted-foreground">
+              Checked first while the queue is paused; without one, a single test
+              call to the LLM provider stands in.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <label htmlFor="rateLimitProbeMinutes" className="text-sm text-muted-foreground whitespace-nowrap">
+              Check every:
+            </label>
+            <NumberInput
+              id="rateLimitProbeMinutes"
+              value={rateLimitProbeMinutes}
+              min={0}
+              max={60}
+              step={1}
+              fallback={5}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={(v) => setDraft((d) => ({ ...d, rateLimitProbeMinutes: v }))}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
+            />
+            <span className="text-xs text-muted-foreground">minutes</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            0 turns off checking; the queue then waits out the provider's own reset.
+          </p>
+        </div>
+      )}
 
       {config.status?.(data)}
 
@@ -165,6 +345,9 @@ function QueueControlSection({
   // episodes; skip that until the section is on screen.
   const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);
   const visible = useSectionVisible(STORAGE_KEY, open);
+  const providerBudget = useQuery({
+    queryKey: ['provider-budget'], queryFn: getProviderBudget, enabled: visible,
+  });
   return (
     <CollapsibleSection
       title="Queue Control"
@@ -173,8 +356,14 @@ function QueueControlSection({
       onToggle={setOpen}
     >
       <div className="space-y-6">
-        {/* Process new episodes first: fresh-episode queue boost, saves immediately */}
         <div>
+          <h3 className="text-base font-semibold text-foreground mb-1">Provider admission</h3>
+          <p className="text-sm text-muted-foreground mb-4">Limit concurrent provider requests and reserve a daily allowance before work starts. Final provider charges can exceed an estimate, so this is an admission limit rather than a guaranteed spending cap.</p>
+          {providerBudget.data && <ProviderAdmissionForm value={providerBudget.data} />}
+        </div>
+
+        {/* Process new episodes first: fresh-episode queue boost, saves immediately */}
+        <div className="pt-4 border-t border-border">
           <label className="flex items-center gap-3 cursor-pointer">
             <ToggleSwitch
               checked={processNewEpisodesFirst}
@@ -291,24 +480,22 @@ function QueueControlSection({
               save: updateRateLimitHoldSettings,
               toggleLabel: 'Pause the queue when the LLM provider is rate limited',
               ariaLabel: 'Rate-limit hold toggle',
-              ttlInputId: 'rate-limit-hold-ttl',
+              probeFields: true,
               loadErrorText: 'Could not load rate-limit hold settings.',
               description: (
                 <>
                   When the provider answers 429 with a reset longer than five
-                  minutes, episodes stop retrying and wait; shorter resets keep
-                  retrying normally. The queue stays paused until the reset
-                  passes, then processes on its own. Off by default. Turning the
-                  toggle off lifts the pause and releases held episodes; Play
-                  and Reprocess always run.
+                  minutes, the episode goes back to the queue and nothing else
+                  is claimed until the reset passes; shorter resets keep
+                  retrying normally. Play and Reprocess wait with the rest.
+                  Off by default. Turning the toggle off lifts an active pause.
                 </>
               ),
               status: (data) => {
                 const holdUntil = data.holdUntil ? String(data.holdUntil) : null;
                 if (!holdUntil) return null;
-                const count = Number(data.holdCount ?? 0);
                 return `Queue paused until ${new Date(holdUntil).toLocaleString()} (provider
-                  rate limit). ${count} episode${count === 1 ? '' : 's'} waiting.`;
+                  rate limit).`;
               },
             }}
           />

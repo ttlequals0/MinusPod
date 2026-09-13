@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import type { StageTunables, UpdateSettingsPayload } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
@@ -12,6 +12,7 @@ import {
   useServerDraft,
 } from './StageTunablesSection';
 import { focusRing } from '../../components/fieldStyles';
+import AdChaptersBlock, { type AdChaptersBlockProps } from './AdChaptersBlock';
 
 const CHAPTER_GEOMETRY_FIELDS = [
   {
@@ -130,51 +131,66 @@ function ChapterGeometryBlock({
   );
 }
 
+export function ToggleRow({ checked, onChange, label, disabled, children }: {
+  checked: boolean;
+  onChange: (enabled: boolean) => void;
+  label: string;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <label className={`flex items-center gap-3 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+        <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} ariaLabel={label} />
+        <span className="text-sm font-medium text-foreground">{label}</span>
+      </label>
+      <p className="mt-2 text-sm text-muted-foreground ml-14">{children}</p>
+    </div>
+  );
+}
+
 interface Podcasting20SectionProps {
   vttTranscriptsEnabled: boolean;
   chaptersEnabled: boolean;
+  chaptersInNotes: boolean;
   onVttTranscriptsEnabledChange: (enabled: boolean) => void;
   onChaptersEnabledChange: (enabled: boolean) => void;
+  onChaptersInNotesChange: (enabled: boolean) => void;
+  adChapters?: AdChaptersBlockProps;
   geometry?: ChapterGeometryProps;
 }
 
 function Podcasting20Section({
   vttTranscriptsEnabled,
   chaptersEnabled,
+  chaptersInNotes,
   onVttTranscriptsEnabledChange,
   onChaptersEnabledChange,
+  onChaptersInNotesChange,
+  adChapters,
   geometry,
 }: Podcasting20SectionProps) {
   return (
     <CollapsibleSection title="Transcripts & Chapters">
       <div className="space-y-4">
-        <div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <ToggleSwitch
-              checked={vttTranscriptsEnabled}
-              onChange={onVttTranscriptsEnabledChange}
-              ariaLabel="Generate VTT Transcripts"
-            />
-            <span className="text-sm font-medium text-foreground">Generate VTT Transcripts</span>
-          </label>
-          <p className="mt-2 text-sm text-muted-foreground ml-14">
-            Create WebVTT transcripts with adjusted timestamps for podcast apps
-          </p>
-        </div>
+        <ToggleRow checked={vttTranscriptsEnabled} onChange={onVttTranscriptsEnabledChange}
+          label="Generate VTT Transcripts">
+          Create WebVTT transcripts with adjusted timestamps for podcast apps
+        </ToggleRow>
 
-        <div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <ToggleSwitch
-              checked={chaptersEnabled}
-              onChange={onChaptersEnabledChange}
-              ariaLabel="Generate Chapters"
-            />
-            <span className="text-sm font-medium text-foreground">Generate Chapters</span>
-          </label>
-          <p className="mt-2 text-sm text-muted-foreground ml-14">
-            Create JSON chapters from ad boundaries and description timestamps
-          </p>
-        </div>
+        <ToggleRow checked={chaptersEnabled} onChange={onChaptersEnabledChange}
+          label="Generate Chapters">
+          Create JSON chapters from ad boundaries and description timestamps
+        </ToggleRow>
+
+        {adChapters && <AdChaptersBlock {...adChapters} />}
+
+        <ToggleRow checked={chaptersInNotes} onChange={onChaptersInNotesChange}
+          label="List chapters in episode descriptions">
+          Append the chapter list (timestamp and title) to each episode&apos;s
+          description in the served feed and on the episode page, for apps
+          that only show chapters during playback. Feeds can override this.
+        </ToggleRow>
 
         {geometry && <ChapterGeometryBlock {...geometry} />}
       </div>

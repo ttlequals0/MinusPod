@@ -4,7 +4,9 @@ from email.utils import format_datetime
 
 import pytest
 
-from utils.rate_limit import parse_retry_after
+from utils.rate_limit import parse_retry_after, parse_upstream_reset
+
+from tests.unit.rate_limit_fixtures import PRODUCTION_RESET_BODY
 
 
 class TestParseRetryAfterDeltaSeconds:
@@ -116,3 +118,88 @@ class TestParseGroqRateLimitBody:
         body = {"error": {"message": "TPM: Limit 6000, Used 0, Requested ~7500", "type": "tokens"}}
         result = parse_groq_rate_limit_body(body)
         assert result == {"limit": 6000, "used": 0, "requested": 7500}
+
+
+class TestParseUpstreamReset:
+    def test_seconds_until_reset_is_exact(self):
+        assert parse_upstream_reset(PRODUCTION_RESET_BODY, max_seconds=86400) == 8129.0
+
+    def test_json_string_body(self):
+        import json
+        assert parse_upstream_reset(json.dumps(PRODUCTION_RESET_BODY), max_seconds=86400) == 8129.0
+
+    def test_list_wrapped_body(self):
+        assert parse_upstream_reset([PRODUCTION_RESET_BODY], max_seconds=86400) == 8129.0
+
+    def test_resets_at_only(self):
+        future_epoch = datetime.now(timezone.utc).timestamp() + 900
+        body = {"error": {"resets_at": future_epoch}}
+        result = parse_upstream_reset(body, max_seconds=86400)
+        assert result is not None
+        assert 890.0 <= result <= 905.0
+
+    def test_resets_at_iso_only(self):
+        future = datetime.now(timezone.utc) + timedelta(seconds=900)
+        body = {"error": {"resets_at_iso": future.isoformat()}}
+        result = parse_upstream_reset(body, max_seconds=86400)
+        assert result is not None
+        assert 890.0 <= result <= 905.0
+
+    def test_reset_in_the_past_clamps_to_zero(self):
+        past = datetime.now(timezone.utc) - timedelta(minutes=5)
+        body = {"error": {"resets_at_iso": past.isoformat()}}
+        result = parse_upstream_reset(body, max_seconds=86400)
+        assert result == 0.0
+
+    def test_clamps_to_max_seconds(self):
+        body = {"error": {"seconds_until_reset": 99999}}
+        assert parse_upstream_reset(body, max_seconds=300.0) == 300.0
+
+    def test_no_reset_fields_returns_none(self):
+        assert parse_upstream_reset({"error": {"message": "slow down"}}) is None
+
+    @pytest.mark.parametrize("body", [None, "", "garbage", {}, 12345])
+    def test_unparseable_inputs_return_none(self, body):
+        assert parse_upstream_reset(body) is None
+
+    def test_finds_reset_nested_in_openrouter_metadata_raw(self):
+        """OpenRouter proxies the upstream body as a JSON string under
+        error.metadata.raw; the reset fields live inside that, not at the
+        top level."""
+        import json
+        body = {
+            "error": {
+                "message": "Provider returned error",
+                "metadata": {"raw": json.dumps(PRODUCTION_RESET_BODY)},
+            }
+        }
+        assert parse_upstream_reset(body, max_seconds=86400) == 8129.0
+
+    def test_outer_reset_field_wins_over_nested_metadata_raw(self):
+        """An outer error carrying its own reset must not be shadowed by an
+        inner body nested under metadata.raw."""
+        import json
+        body = {
+            "error": {
+                "message": "Provider returned error",
+                "seconds_until_reset": 42,
+                "metadata": {"raw": json.dumps(PRODUCTION_RESET_BODY)},
+            }
+        }
+        assert parse_upstream_reset(body, max_seconds=86400) == 42.0
+
+    @pytest.mark.parametrize("unparseable_outer", ["", "not-a-number", None])
+    def test_unparseable_outer_reset_still_descends_to_nested_metadata_raw(self, unparseable_outer):
+        """An outer resets_at that fails to parse must not block descent into
+        a nested, genuinely parseable metadata.raw body (regression: an empty
+        string, non-numeric string, or explicit null previously counted as
+        'has its own reset' and suppressed the descent)."""
+        import json
+        body = {
+            "error": {
+                "message": "Provider returned error",
+                "resets_at": unparseable_outer,
+                "metadata": {"raw": json.dumps(PRODUCTION_RESET_BODY)},
+            }
+        }
+        assert parse_upstream_reset(body, max_seconds=86400) == 8129.0

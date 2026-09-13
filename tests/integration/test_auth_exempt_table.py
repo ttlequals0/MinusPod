@@ -113,20 +113,19 @@ def test_artwork_post_does_not_leak(client_with_password):
     assert response.status_code != 200
 
 
-def test_artwork_exempt_regex_rejects_uppercase(client_with_password):
-    """The exemption regex is strict lowercase [a-z0-9-]. An uppercase
-    slug must fall through to the authenticated path (401 when unauth).
-    Using plain ASCII so Werkzeug routing doesn't normalise the request
-    away before the exemption check runs."""
+def test_artwork_exemption_accepts_safe_legacy_uppercase(client_with_password):
     response = client_with_password.get('/api/v1/feeds/UPPERCASE/artwork')
-    assert response.status_code == 401
+    assert response.status_code in (200, 404)
 
 
-def test_artwork_exempt_regex_rejects_hyphen_start(client_with_password):
-    """Regex requires leading [a-z0-9]; a hyphen-leading slug must fall
-    through to the authenticated path."""
-    response = client_with_password.get('/api/v1/feeds/-bad-slug/artwork')
-    assert response.status_code == 401
+def test_artwork_head_is_public_for_podcast_clients(client_with_password):
+    response = client_with_password.head('/api/v1/feeds/valid-slug/artwork')
+    assert response.status_code in (200, 404)
+
+
+def test_artwork_exemption_rejects_traversal(client_with_password):
+    response = client_with_password.get('/api/v1/feeds/%2e%2e/artwork')
+    assert response.status_code in (400, 401, 404)
 
 
 def test_auth_password_remains_exempt(client_with_password):

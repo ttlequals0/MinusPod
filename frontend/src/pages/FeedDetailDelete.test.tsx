@@ -119,6 +119,23 @@ describe('FeedDetail: deleting the feed', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'));
   });
 
+  it('stays on the feed while a running job drains before deletion', async () => {
+    mockDeleteFeed.mockResolvedValue({
+      message: 'Deletion will finish after active processing stops.',
+      slug: 'test-feed',
+      pending: true,
+    });
+    await renderFeedDetail();
+
+    await userEvent.click(deleteButton());
+    await userEvent.click(deleteButton());
+
+    await waitFor(() => {
+      expect(screen.getByText('Deletion will finish after active processing stops.')).toBeDefined();
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
   it('disarms after 3s so a stale click cannot delete the feed', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });

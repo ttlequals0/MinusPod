@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.95.3
+  version: 2.96.25
   contact:
     name: MinusPod
   license:
@@ -36,7 +36,9 @@ servers:
 
 tags:
   - name: Auth
-    description: Authentication management (optional password protection)
+    description: >-
+      Authentication management. Direct source runs may be passwordless;
+      shipped Compose deployments require first-password setup.
   - name: Feeds
     description: Podcast feed management
   - name: Episodes
@@ -95,7 +97,7 @@ paths:
       tags:
         - Auth
       summary: Login with password
-      description: Authenticate with the configured password. Rate limited to 5 attempts per minute.
+      description: Authenticate with the configured password. Rate limited to 3 attempts per minute and 10 attempts per hour.
       operationId: login
       security: []
       requestBody:
@@ -128,13 +130,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '503':
+          description: Authentication is required but the first password has not been set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/logout:
     post:
       tags:
         - Auth
       summary: Logout and clear session
-      description: Clears the current session, requiring re-authentication.
+      description: >-
+        Clears the current session. An authenticated logout requires the
+        CSRF cookie/header pair; an unauthenticated caller may clear stale state.
       operationId: logout
       security: []
       responses:
@@ -149,6 +159,12 @@ paths:
                     type: boolean
                   message:
                     type: string
+        '403':
+          description: Missing or invalid CSRF token for an authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/password:
     put:
@@ -158,11 +174,22 @@ paths:
       description: |
         Set or change the application password. Rate limited to 3 attempts per hour.
 
-        - If no password is set, creates a new password
-        - If password is set, requires current password for verification
-        - Set newPassword to empty string to remove password protection
-        - Minimum password length: 8 characters
+        - Initial setup is allowed from loopback. When required auth is on,
+          remote setup needs the configured value in X-MinusPod-Setup-Token.
+        - An existing password requires currentPassword instead of CSRF.
+        - A new or changed password rotates the session generation, revokes
+          every older session, and authenticates this request's new session.
+        - Empty or null newPassword removes protection and clears this session.
+        - A non-empty newPassword must contain at least 12 characters.
       operationId: setPassword
+      security: []
+      parameters:
+        - name: X-MinusPod-Setup-Token
+          in: header
+          required: false
+          description: Required only for remote initial setup when required auth is enabled.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -176,8 +203,8 @@ paths:
                   type: string
                   description: Current password (required if password is already set)
                 newPassword:
-                  type: string
-                  description: New password (min 8 chars, or empty to remove protection)
+                  type: [string, 'null']
+                  description: New password (at least 12 characters, or empty/null to remove protection)
       responses:
         '200':
           description: Password updated successfully
@@ -185,9 +212,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [message, passwordSet]
                 properties:
-                  success:
-                    type: boolean
                   message:
                     type: string
                   passwordSet:
@@ -200,6 +226,18 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           description: Current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Remote initial setup token missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Password changed concurrently; retry with current state
           content:
             application/json:
               schema:
@@ -235,13 +273,15 @@ paths:
         - Feeds
       summary: Add a new feed
       description: >-
-        Add a new podcast feed. Two shapes: a subscribed feed (default),
-        which requires sourceUrl and fetches/parses it before saving; or a
+        Add a new podcast feed. Three shapes: a subscribed feed (default),
+        which requires sourceUrl and fetches/parses it before saving; a
         local (archive-import) feed, set with feedType: "local", which
         takes no sourceUrl and no upstream is ever fetched: metadata comes
-        entirely from the request body. The local branch still validates
-        slug (or derives one from title) but skips URL/SSRF validation
-        since there is no URL.
+        entirely from the request body; or the single combined recents feed,
+        feedType: "recents", served at /recents with a fixed slug, taking
+        only title and description (409 when one already exists). The local
+        branch still validates slug (or derives one from title) but skips
+        URL/SSRF validation since there is no URL.
       operationId: addFeed
       requestBody:
         required: true
@@ -263,7 +303,7 @@ paths:
                   example: my-podcast
                 feedType:
                   type: string
-                  enum: [subscribed, local]
+                  enum: [subscribed, local, recents]
                   default: subscribed
                   description: >-
                     "local" creates an archive-import feed with no upstream
@@ -553,7 +593,10 @@ paths:
       tags:
         - Feeds
       summary: Update feed settings
-      description: Update podcast feed settings like network override, DAI platform, processing overrides, and the source RSS URL
+      description: >-
+        Update podcast feed settings like network override, DAI platform, processing overrides,
+        and the source RSS URL. The recents feed accepts only title and description; any other
+        field returns 400.
       operationId: updateFeed
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -628,6 +671,31 @@ paths:
                     - 'off'
                     - null
                   description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null resets to the default 'auto' behavior.
+                chaptersInNotes:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - 'on'
+                    - 'off'
+                    - null
+                  description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+                adChaptersEnabled:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - 'on'
+                    - 'off'
+                    - null
+                  description: Per-feed override for publishing kept ad segments as skippable chapters. null follows the global adChaptersEnabled setting.
+                adChapterCategories:
+                  type:
+                    - object
+                    - 'null'
+                  additionalProperties:
+                    type: boolean
+                  description: Per-feed override mapping each segment category to whether it gets an ad chapter. null follows the global adChapterCategories setting.
                 queuePriority:
                   type:
                     - string
@@ -954,18 +1022,38 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [slug, message, outcome, episodeCount, lastRefreshed, lastPodpingAt]
                 properties:
                   slug:
                     type: string
                   message:
                     type: string
+                  outcome:
+                    $ref: '#/components/schemas/RefreshOutcome'
                   episodeCount:
                     type: integer
                   lastRefreshed:
-                    type: string
+                    type: [string, 'null']
                     format: date-time
+                  lastPodpingAt:
+                    type: [string, 'null']
+                    format: date-time
+        '400':
+          description: Feed has no upstream source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '502':
+          description: Upstream fetch failed or returned content that could not be parsed as RSS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /feeds/refresh:
     post:
@@ -1001,12 +1089,15 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  feedCount:
-                    type: integer
+                $ref: '#/components/schemas/RefreshAllResult'
+        '207':
+          description: Refresh pass completed with at least one feed failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshAllResult'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /feeds/refresh-artwork:
     post:
@@ -1064,8 +1155,11 @@ paths:
       tags:
         - Feeds
       summary: Get feed artwork
-      description: Returns the cached podcast artwork image
+      description: >-
+        Returns cached podcast artwork without admin authentication. Safe
+        legacy slugs are accepted up to 200 characters.
       operationId: getFeedArtwork
+      security: []
       parameters:
         - $ref: '#/components/parameters/slug'
       responses:
@@ -1080,6 +1174,19 @@ paths:
               schema:
                 type: string
                 format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+    head:
+      tags: [Feeds]
+      summary: Check cached feed artwork
+      description: Same public validation and response headers as GET, without a body.
+      operationId: headFeedArtwork
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      responses:
+        '200':
+          description: Artwork exists
         '404':
           $ref: '#/components/responses/NotFound'
     post:
@@ -1159,7 +1266,10 @@ paths:
       tags:
         - Episodes
       summary: List episodes for a feed
-      description: Returns paginated list of episodes for a podcast
+      description: >-
+        Returns paginated list of episodes for a podcast. For the recents feed the rows come from
+        the source feeds (see feedSlug and feedTitle); they are all processed, so a status filter
+        other than processed returns an empty page.
       operationId: listEpisodes
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -1926,13 +2036,15 @@ paths:
         requiring full reprocessing. The VTT transcript must already exist.
         The new chapters are also embedded into the processed MP3 as ID3
         frames so players that ignore podcast:chapters pick them up.
+        The work runs in the background because the topic pass can outlast
+        a reverse proxy's request timeout; the episode reports progress.
       operationId: regenerateChapters
       parameters:
         - $ref: '#/components/parameters/slug'
         - $ref: '#/components/parameters/episode_id'
       responses:
-        '200':
-          description: Chapters regenerated successfully
+        '202':
+          description: Regeneration started in the background. Poll the episode; chaptersRegenerating clears when it finishes and chaptersRegenError carries a failure.
           content:
             application/json:
               schema:
@@ -1940,24 +2052,12 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: Chapters regenerated
+                    example: Chapter regeneration started
                   episodeId:
                     type: string
-                  chapterCount:
-                    type: integer
-                  chapters:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        startTime:
-                          type: number
-                          description: Chapter start time in seconds
-                        title:
-                          type: string
-                  embedded:
-                    type: boolean
-                    description: Whether the chapters were also written into the processed MP3 as ID3 frames
+                  status:
+                    type: string
+                    enum: [started]
         '400':
           description: No VTT transcript available (full reprocess required)
           content:
@@ -1966,6 +2066,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: A regeneration is already running, the episode is being processed, or an LLM provider rate-limit hold is active
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -2129,9 +2231,37 @@ paths:
       parameters:
         - $ref: '#/components/parameters/slug'
         - $ref: '#/components/parameters/episode_id'
+        - $ref: '#/components/parameters/audio_download'
       responses:
         '200':
           description: Original audio stream
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episode_id}/processed.mp3:
+    get:
+      tags:
+        - Episodes
+      summary: Stream the current cut (ad-free) audio
+      description: |
+        Returns the current processed version of the episode under the
+        session auth the UI already has. The public feed route serves the
+        same file but needs a feed key when authenticated feeds are on.
+        404 when the episode has not been processed or the file is missing.
+        Supports Range requests.
+      operationId: serveProcessedAudio
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+        - $ref: '#/components/parameters/audio_download'
+      responses:
+        '200':
+          description: Processed audio stream
           content:
             audio/mpeg:
               schema:
@@ -2480,7 +2610,7 @@ paths:
       tags:
         - Stats
       summary: Get dashboard statistics
-      description: Returns aggregate stats with avg/min/max for time saved, ads removed, cost, processing time, episode length, and token usage. Optionally filtered by podcast.
+      description: Returns aggregate stats with avg/min/max for time saved, ads removed, cost, processing time, episode length, and token usage. Optionally filtered by podcast. Episode-scoped fields (totalEpisodesProcessed, episodesWithTimeSaved, and the episode length and time-saved figures) count each surviving episode once; run-scoped fields (ads, audio cues, cost, tokens, processing time, totalRuns) count every completed processing run, including reprocesses.
       parameters:
         - name: podcast_slug
           in: query
@@ -2496,6 +2626,10 @@ paths:
                 type: object
                 properties:
                   totalEpisodesProcessed:
+                    type: integer
+                  totalRuns:
+                    type: integer
+                  episodesWithTimeSaved:
                     type: integer
                   avgTimeSavedSeconds:
                     type: number
@@ -2556,6 +2690,7 @@ paths:
       tags:
         - Stats
       summary: Get per-podcast aggregate stats
+      description: episodeCount counts distinct surviving episodes with at least one completed run; runCount counts every completed processing run, including reprocesses.
       responses:
         '200':
           description: Per-podcast stats ordered by total ads
@@ -2574,6 +2709,8 @@ paths:
                         podcastTitle:
                           type: string
                         episodeCount:
+                          type: integer
+                        runCount:
                           type: integer
                         totalAds:
                           type: integer
@@ -2708,6 +2845,143 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Pattern'
+
+  /patterns/corrections/unresolved:
+    get:
+      tags: [Patterns]
+      summary: List unassigned legacy corrections
+      description: >-
+        Candidates are current feed episodes or durable processing-history
+        entries for an active feed. History candidates include their entry
+        count and latest processing timestamp. They do not imply a current
+        episode, transcript, or media file exists.
+      responses:
+        '200':
+          description: Unassigned corrections and safe feed candidates
+
+  /patterns/corrections/unresolved/bulk:
+    post:
+      tags: [Patterns]
+      summary: Assign or delete selected unassigned corrections
+      operationId: bulkUpdateUnresolvedCorrections
+      description: >-
+        Updates up to 500 unique correction IDs in one transaction. Assignment
+        requires one feed with current episode or processing-history evidence
+        for every selected correction. Any stale or invalid row rejects the
+        whole request without changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, correctionIds, confirm]
+              properties:
+                action:
+                  type: string
+                  enum: [assign, delete]
+                correctionIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  uniqueItems: true
+                  items:
+                    type: integer
+                    minimum: 1
+                slug:
+                  type: string
+                  description: Required when action is assign.
+                confirm:
+                  type: boolean
+                  enum: [true]
+      responses:
+        '200':
+          description: All selected corrections updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [action, correctionIds]
+                properties:
+                  action:
+                    type: string
+                    enum: [assign, delete]
+                  correctionIds:
+                    type: array
+                    items:
+                      type: integer
+        '400':
+          description: Invalid action, confirmation, feed, or correction IDs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: A selected correction changed or lacks feed evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /patterns/corrections/{correction_id}/assign:
+    post:
+      tags: [Patterns]
+      summary: Assign an unassigned correction to a feed
+      parameters:
+        - $ref: '#/components/parameters/correction_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, confirm]
+              properties:
+                slug: { type: string }
+                confirm: { type: boolean, const: true }
+      responses:
+        '200':
+          description: Correction assigned after explicit confirmation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [assigned, correctionId, slug]
+                properties:
+                  assigned: { type: boolean, const: true }
+                  correctionId: { type: integer }
+                  slug: { type: string }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Correction was already assigned
+
+  /patterns/corrections/{correction_id}:
+    delete:
+      tags: [Patterns]
+      summary: Delete one unassigned correction
+      description: >-
+        Deletes only a correction whose feed is still unassigned. It never
+        changes patterns, processing history, media, or feed records.
+      parameters:
+        - $ref: '#/components/parameters/correction_id'
+      responses:
+        '200':
+          description: Unassigned correction deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, correctionId]
+                properties:
+                  deleted: { type: boolean, const: true }
+                  correctionId: { type: integer }
+        '404':
+          description: Correction not found
+        '409':
+          description: Correction is already assigned
 
   /patterns/{pattern_id}:
     get:
@@ -3779,11 +4053,18 @@ paths:
       tags:
         - Status
       summary: Get current processing status
-      description: Returns current processing status including active episode and queue depth
+      description: >-
+        Returns shared processing status including active jobs and queue depth.
+        The browser polls this route every 2 seconds and backs off to 30
+        seconds after failures.
       operationId: getStatus
       responses:
         '200':
           description: Current status
+          headers:
+            ETag:
+              description: Hash of the returned status payload.
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -3795,18 +4076,21 @@ paths:
         - Status
       summary: Real-time status stream (SSE)
       description: |
-        Server-Sent Events stream of processing status updates.
+        Compatibility Server-Sent Events stream of processing status updates.
+        A stream lasts at most 30 seconds and polls shared state every 2 seconds.
+        Concurrent streams are bounded to one fewer than the configured
+        gunicorn thread count.
 
         Authentication is snapshotted once at connect time, not on the
-        HTTP handshake -- the endpoint is in `AUTH_EXEMPT_PATHS` because
+        HTTP handshake. The endpoint is in `AUTH_EXEMPT_PATHS` because
         browser `EventSource` clients cannot surface a 401 response.
         An unauthenticated connect receives a single
         `event: auth-failed` SSE frame and the stream closes; the
         frontend handler redirects to `/ui/login` on that event. An
         authenticated connect opens the real data stream.
 
-        A session that lapses mid-stream is caught on the client's next
-        non-SSE API call, which 401-redirects normally.
+        A password change or removal revokes the stream on its next state
+        poll with `event: auth-failed`.
       operationId: streamStatus
       responses:
         '200':
@@ -3825,6 +4109,8 @@ paths:
 
                   Unauthenticated stream: single frame
                   `event: auth-failed\ndata: {}\n\n` then close.
+        '410':
+          description: SSE compatibility is disabled because no stream slots are configured
 
   /detections:
     get:
@@ -4179,35 +4465,15 @@ paths:
     post:
       tags:
         - Settings
-      summary: Rotate the master passphrase used to encrypt provider keys
+      summary: Report that master-passphrase rotation must run offline
       description: |
-        Re-encrypts every stored provider key under a new passphrase + new
-        salt in a single SQLite transaction. The caller MUST update
-        `MINUSPOD_MASTER_PASSPHRASE` in the container environment to the new
-        value before the next restart, otherwise stored keys will not decrypt.
+        Online rotation is refused because sibling workers cannot safely
+        receive the replacement passphrase. Stop all workers and run
+        `python scripts/rotate_master_passphrase.py`, update the deployment
+        environment, then restart every worker together.
       operationId: rotateMasterPassphrase
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [oldPassphrase, newPassphrase]
-              properties:
-                oldPassphrase: { type: string, description: 'Current MINUSPOD_MASTER_PASSPHRASE value' }
-                newPassphrase: { type: string }
       responses:
-        '200':
-          description: Rotation complete
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  rotated: { type: integer, description: 'Number of secret rows re-encrypted' }
-        '400': { description: 'Missing or invalid input (e.g., current passphrase mismatch, new equals old)' }
-        '409': { description: 'provider_crypto_unavailable (MINUSPOD_MASTER_PASSPHRASE unset)' }
-        '500': { description: 'Rotation failed (rolled back)' }
+        '409': { description: 'Rotation requires the offline command' }
   /settings/providers/{provider}/test:
     post:
       tags:
@@ -4421,6 +4687,21 @@ paths:
                   maximum: 600
                   description: Overlap, in seconds, between consecutive transcription chunks.
                   example: 30
+                whisperPoolEnabled:
+                  type: boolean
+                  description: Bound concurrent requests to the remote Whisper API to avoid rate limits.
+                whisperPoolMaxRequests:
+                  type: integer
+                  minimum: 1
+                  maximum: 64
+                  description: Maximum concurrent in-flight requests to the remote Whisper API when the pool is enabled.
+                  example: 4
+                whisperPoolMaxEpisodes:
+                  type: integer
+                  minimum: 1
+                  maximum: 16
+                  description: Maximum episodes transcribing concurrently against the remote Whisper API when the pool is enabled.
+                  example: 1
                 whisperComputeType:
                   type: string
                   enum: [auto, float16, int8_float16, int8, float32]
@@ -4762,6 +5043,49 @@ paths:
                   type: boolean
                   description: Generate podcast:chapters JSON for each processed episode.
                   example: true
+                chaptersInNotes:
+                  type: boolean
+                  description: Append the generated chapter list to served episode descriptions and the episode API description. Feeds can override per feed.
+                  example: false
+                adChaptersEnabled:
+                  type: boolean
+                  description: Publish kept or held ad segments as skippable chapters in the generated chapter list.
+                  example: false
+                adChapterCategories:
+                  type: object
+                  additionalProperties:
+                    type: boolean
+                  description: Partial map of segment category to whether it gets an ad chapter, merged over the stored map.
+                  example: {sponsor: true, cross_promo: true}
+                adChaptersIncludeHeld:
+                  type: boolean
+                  description: Also publish held-for-review segments as ad chapters.
+                  example: false
+                adChapterTitleFormat:
+                  type: string
+                  description: >-
+                    Title template for an ad chapter; {label} is the category name
+                    and {category} its id. Send an empty string to restore the default.
+                  example: 'Ad: {label}'
+                adChapterHeldTitleFormat:
+                  type: string
+                  description: >-
+                    Title template for a held segment's ad chapter; {label} is the
+                    category name and {category} its id. Send an empty string to restore the default.
+                  example: 'Possible ad: {label}'
+                adChapterResumeTitle:
+                  type: string
+                  description: >-
+                    Title of the chapter that marks the return to show content after an
+                    ad chapter. Send an empty string to restore the default.
+                  example: Show
+                adChapterMinConfidence:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  description: Minimum marker confidence required before a segment becomes an ad chapter.
+                  example: 0.9
                 audioBitrate:
                   type: string
                   enum: ['64k', '96k', '128k', '192k', '256k']
@@ -4844,6 +5168,17 @@ paths:
                     LiteLLM catalog; 'free' disables cost tracking (use only for local models with no cost).
                   enum: [auto, litellm, free]
                   example: auto
+                modelPricingOverrides:
+                  type: object
+                  description: >-
+                    Partial map of model IDs to operator pricing in USD per 1 million
+                    tokens. Operator pricing takes precedence over catalog pricing.
+                    Set an entry to null to remove its override. Both rates may be 0
+                    for a free model.
+                  additionalProperties:
+                    oneOf:
+                      - $ref: '#/components/schemas/ModelPricingOverride'
+                      - type: 'null'
                 openrouterApiKey:
                   type: string
                   description: API key for OpenRouter (only used when provider is openrouter)
@@ -5018,6 +5353,14 @@ paths:
                     A longer span is split at its ad transitions and each piece
                     is learned separately (default 120).
                   example: 120
+                daiDifferentialOverridesKeep:
+                  type: boolean
+                  description: >-
+                    A marker overlapping a measured differential region is cut
+                    even when segmentCategoryActions maps its category to
+                    keep. Audio that differs between two fetches of the same
+                    enclosure was inserted, whatever the category says
+                    (default true).
                 differentialMeasuredCorrMax:
                   type: number
                   format: float
@@ -5305,6 +5648,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SystemStatus'
+
+  /system/database/checkpoint:
+    post:
+      tags:
+        - System
+      summary: Run a passive SQLite WAL checkpoint
+      operationId: checkpointDatabase
+      responses:
+        '200':
+          description: Checkpoint completed
+        '409':
+          description: Active readers prevented the checkpoint from completing
 
   /system/updates:
     get:
@@ -5620,6 +5975,209 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /feeds/{slug}/subscriber-keys:
+    parameters:
+      - $ref: '#/components/parameters/slug'
+    get:
+      tags: [Feeds]
+      summary: List feed subscriber keys
+      responses:
+        '200':
+          description: Labels and timestamps without secret values
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeedSubscriberKeyRecord'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Feeds]
+      summary: Create a feed subscriber key
+      description: Returns the scoped token and feed URL once.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                  maxLength: 100
+      responses:
+        '201':
+          description: Scoped token and feed URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedSubscriberKeyCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/subscriber-keys/{key_id}:
+    parameters:
+      - $ref: '#/components/parameters/slug'
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9a-f]{16}$'
+    delete:
+      tags: [Feeds]
+      summary: Revoke a feed subscriber key
+      responses:
+        '200':
+          description: Key revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties:
+                  revoked: { type: boolean, const: true }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/subscriber-keys/{key_id}/record:
+    parameters:
+      - $ref: '#/components/parameters/slug'
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9a-f]{16}$'
+    delete:
+      tags: [Feeds]
+      summary: Delete a revoked subscriber key record
+      description: >-
+        Removes only a record that was already revoked. The deleted token
+        stays invalid because no matching credential remains.
+      responses:
+        '200':
+          description: Revoked key record deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted: { type: boolean, const: true }
+        '404':
+          description: Subscriber key not found
+        '409':
+          description: Subscriber key is still active
+
+  /settings/provider-budget:
+    get:
+      tags: [Settings]
+      summary: Read provider admission settings
+      responses:
+        '200':
+          description: Settings and current reservation totals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderBudget'
+    put:
+      tags: [Settings]
+      summary: Update provider admission settings
+      description: >-
+        Provider charges and enforcement remain in USD. A non-USD save uses the
+        current server-fetched reference rate and records its currency and date.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderBudgetUpdate'
+      responses:
+        '200':
+          description: Updated settings and reservation totals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderBudget'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          description: Update limit of 10 requests per hour exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Currency service unavailable for a non-USD update
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /settings/provider-budget/currencies:
+    get:
+      tags: [Settings]
+      summary: List provider budget display currencies
+      responses:
+        '200':
+          description: Supported ISO currency codes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [currencies]
+                properties:
+                  currencies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CurrencyOption'
+        '503':
+          description: Currency service unavailable
+
+  /settings/provider-budget/rate/{currency}:
+    get:
+      tags: [Settings]
+      summary: Read the current USD reference rate for a display currency
+      parameters:
+        - name: currency
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Z]{3}$' }
+        - name: from
+          in: query
+          schema: { type: string, pattern: '^[A-Z]{3}$' }
+          description: Existing display currency for preview conversion.
+        - name: fromRate
+          in: query
+          schema: { type: string }
+          description: Positive decimal local-per-USD rate for the existing currency.
+        - name: dailyLimit
+          in: query
+          schema: { type: string }
+          description: Non-negative decimal amount to convert for preview.
+        - name: unknownReserve
+          in: query
+          schema: { type: string }
+          description: Non-negative decimal amount to convert for preview.
+      responses:
+        '200':
+          description: Current USD reference rate and source date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderBudgetRate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          description: Currency service unavailable
+
   /system/backup:
     get:
       tags:
@@ -5813,8 +6371,8 @@ paths:
       summary: Get rate-limit hold configuration
       description: >-
         Rate-limit queue hold (#696). When enabled, a provider 429 carrying a
-        reset time defers the episode and pauses new queue claims until the
-        reset instead of failing the job.
+        reset time sends the episode back to the queue and pauses new queue
+        claims until the reset instead of failing the job.
       operationId: getRateLimitHoldSettings
       responses:
         '200':
@@ -5826,20 +6384,18 @@ paths:
                 properties:
                   enabled:
                     type: boolean
-                  ttlHours:
-                    type: integer
-                    minimum: 1
-                    maximum: 720
-                    description: Hours a held episode waits before being marked permanently failed.
                   holdUntil:
                     type:
                       - string
                       - 'null'
                     format: date-time
                     description: Until when new queue claims pause; null when no hold is active.
-                  holdCount:
+                  llmUsageUrl:
+                    type: string
+                    description: Operator-configured provider usage/limit endpoint the hold probe checks first; empty when unset.
+                  rateLimitProbeMinutes:
                     type: integer
-                    description: Episodes currently held by the rate-limit hold.
+                    description: Minutes between hold probes; 0 disables probing.
     put:
       tags:
         - Settings
@@ -5854,12 +6410,15 @@ paths:
               properties:
                 enabled:
                   type: boolean
-                  description: Pause the queue on a provider 429 with a reset time longer than five minutes. Off by default; setting false clears an active pause and releases held episodes.
-                ttlHours:
+                  description: Pause the queue on a provider 429 with a reset time longer than five minutes. Off by default; setting false clears an active pause.
+                llmUsageUrl:
+                  type: string
+                  description: Provider usage/limit endpoint the hold probe checks first (tier 1); an empty string clears it. Must pass the same SSRF check as the other operator-configured base URLs.
+                rateLimitProbeMinutes:
                   type: integer
-                  minimum: 1
-                  maximum: 720
-                  description: Hours a held episode waits before being marked permanently failed.
+                  minimum: 0
+                  maximum: 60
+                  description: Minutes between hold probes; 0 disables probing.
       responses:
         '200':
           description: Rate-limit hold settings updated
@@ -5870,15 +6429,80 @@ paths:
                 properties:
                   enabled:
                     type: boolean
-                  ttlHours:
-                    type: integer
                   holdUntil:
                     type:
                       - string
                       - 'null'
                     format: date-time
-                  holdCount:
+                  llmUsageUrl:
+                    type: string
+                  rateLimitProbeMinutes:
                     type: integer
+
+  /settings/whisper/capacity:
+    get:
+      tags:
+        - Settings
+      summary: Resolved Whisper pool capacity and in-flight counts
+      description: >-
+        What the operator configured, whether the pool is active (enabled and
+        the backend is the remote OpenAI-compatible API), and what is
+        currently in flight against it. Read from this process's own pool
+        instance; the queue leader refreshes its own pool every dispatcher
+        pass, so no cross-process signal is needed.
+      operationId: getWhisperCapacity
+      responses:
+        '200':
+          description: Pool state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  backend:
+                    type: string
+                  active:
+                    type: boolean
+                    description: enabled and backend is openai-api
+                  inactiveReason:
+                    type:
+                      - string
+                      - 'null'
+                    enum: [disabled, local_backend, null]
+                  capacity:
+                    type: integer
+                  inFlight:
+                    type: integer
+                  transcribingEpisodes:
+                    type: integer
+                  maxEpisodes:
+                    type: object
+                    properties:
+                      configured:
+                        type: integer
+                      effective:
+                        type: integer
+                  chunkWorkers:
+                    type: object
+                    properties:
+                      configured:
+                        type: integer
+                      effective:
+                        type: integer
+                  worstCaseInFlight:
+                    type: integer
+                  exceedsCapacity:
+                    type: boolean
+                  leader:
+                    type: boolean
+                    description: >-
+                      Whether this process is the background leader that runs
+                      transcriptions. inFlight/transcribingEpisodes are only
+                      meaningful when true; other workers always report 0.
+                  health:
+                    $ref: '#/components/schemas/WhisperHealthProbe'
 
   /settings/update-check:
     get:
@@ -6436,6 +7060,19 @@ paths:
                     type: array
                     items:
                       type: string
+                  skippedEpisodes:
+                    type: array
+                    description: Episodes skipped because their state changed or processing already owns them.
+                    items:
+                      type: object
+                      required:
+                        - episodeId
+                        - reason
+                      properties:
+                        episodeId:
+                          type: string
+                        reason:
+                          type: string
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -8661,11 +9298,20 @@ components:
       name: session
       description: |
         Flask session cookie issued by ``POST /auth/login``. Every mutating
-        endpoint additionally requires a matching ``X-CSRF-Token`` header
-        (double-submit). Public endpoints (``/auth/login``, ``/auth/logout``,
-        ``/auth/status``, ``/health``, ``/health/live``) declare ``security: []``.
+        endpoint normally requires a matching ``X-CSRF-Token`` header
+        (double-submit). ``/auth/password`` instead verifies the current
+        password, or the remote setup token during first setup. Auth routes,
+        health probes, and public feed-artwork reads declare ``security: []``;
+        logout still enforces CSRF when its session is authenticated.
 
   parameters:
+    correction_id:
+      name: correction_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
     slug:
       name: slug
       in: path
@@ -8675,6 +9321,17 @@ components:
         type: string
         example: my-podcast
 
+    audio_download:
+      name: download
+      in: query
+      required: false
+      description: >-
+        When `1`, the file is sent as an attachment named after the episode
+        title (`<Title>-original.mp3` or `<Title>-cut.mp3`) instead of
+        streamed inline.
+      schema:
+        type: string
+        enum: ['1']
     episode_id:
       name: episode_id
       in: path
@@ -8767,6 +9424,49 @@ components:
         reachable: { type: boolean, description: 'The server returned any HTTP response' }
         status:    { type: integer, description: 'HTTP status code, when a response was received' }
         detail:    { type: string, description: 'Human-readable outcome' }
+        health:
+          allOf:
+            - $ref: '#/components/schemas/WhisperHealthProbe'
+          description: 'whisper only, present when ok is true: result of sampling the backend''s optional /health endpoint'
+    WhisperHealthProbe:
+      type: object
+      description: >-
+        Result of sampling a self-hosted Whisper backend's optional /health
+        endpoint. Behind a load balancer, repeated calls round-robin across
+        replicas, so sampling reveals the replica count and total concurrency.
+        Not necessarily live: a result is cached for 120 seconds, and a request
+        arriving while a probe for that backend is already running is answered
+        from the last successful probe, which may be up to 6 minutes old.
+      properties:
+        available:
+          type: boolean
+          description: The backend exposes a working /health endpoint
+        instances:
+          type: array
+          items:
+            type: object
+            properties:
+              instance:      { type: string }
+              model:         { type: string }
+              device:        { type: string }
+              compute_type:  { type: string }
+              batch_size:    { type: integer }
+              max_concurrent: { type: integer }
+              vad_filter:    { type: boolean }
+        suggested_max_requests:
+          type: integer
+          description: Sum of each distinct instance's max_concurrent, floored at 1 per instance
+        mismatch:
+          type: array
+          items:
+            type: string
+          description: Fields (model, compute_type, device) whose values differ across instances
+        sampled_floor:
+          type: boolean
+          description: >-
+            Sampling ran out before any instance repeated three times in a row,
+            so it never demonstrably wrapped the replica set. The instance count
+            and suggested_max_requests are lower bounds, not confirmed totals.
     CueMatch:
       type: object
       description: One cue match within an episode
@@ -9185,13 +9885,16 @@ components:
           description: URL-safe identifier for the feed
         feedType:
           type: string
-          enum: [subscribed, local]
+          enum: [subscribed, local, recents]
           description: >-
             "subscribed" (default) mirrors an upstream RSS feed; "local" is
             an archive-import feed MinusPod builds and serves itself, with
-            no upstream. Several fields and actions (refresh, Podping,
-            differential fetch, sourceUrl) are meaningless for a local
-            feed; see the Local Feeds guide.
+            no upstream; "recents" is the single combined feed of every
+            processed episode published on or after its creation, which
+            accepts only title and description on PATCH. Several fields and
+            actions (refresh, Podping, differential fetch, sourceUrl) are
+            meaningless for local and recents feeds; see the Local Feeds
+            guide.
         title:
           type: string
           description: Podcast title. Mirrors the upstream RSS <title> for a subscribed feed (overwritten on refresh); user-set and PATCHable for a local feed.
@@ -9356,6 +10059,31 @@ components:
             - 'off'
             - null
           description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null means not set, which resolves to 'auto'.
+        chaptersInNotes:
+          type:
+            - string
+            - 'null'
+          enum:
+            - 'on'
+            - 'off'
+            - null
+          description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+        adChaptersEnabled:
+          type:
+            - string
+            - 'null'
+          enum:
+            - 'on'
+            - 'off'
+            - null
+          description: Per-feed override for publishing kept ad segments as skippable chapters. null follows the global adChaptersEnabled setting.
+        adChapterCategories:
+          type:
+            - object
+            - 'null'
+          additionalProperties:
+            type: boolean
+          description: Per-feed override mapping each segment category to whether it gets an ad chapter. null follows the global adChapterCategories setting.
         queuePriority:
           type: string
           enum:
@@ -9590,6 +10318,12 @@ components:
     EpisodeSummary:
       type: object
       properties:
+        feedSlug:
+          type: string
+          description: Set on rows of the recents feed; the feed the episode belongs to.
+        feedTitle:
+          type: string
+          description: Set on rows of the recents feed; the source feed's title.
         episodeId:
           type: string
         title:
@@ -9721,6 +10455,14 @@ components:
                     - 'null'
             transcriptAvailable:
               type: boolean
+            chaptersRegenerating:
+              type: boolean
+              description: A chapter regeneration started by regenerate-chapters is still running
+            chaptersRegenError:
+              type:
+                - string
+                - 'null'
+              description: Why the last chapter regeneration failed; null after a successful one
             originalTranscriptAvailable:
               type: boolean
               description: Whether an original (pre-cut) transcript is available
@@ -9761,6 +10503,34 @@ components:
                   type: number
                 sampleSize:
                   type: integer
+            incompleteCoverage:
+              type:
+                - object
+                - 'null'
+              description: >
+                Windows the latest completed run lost, per pass. Null when both passes answered every
+                window. Set independently of partialDetection: a run that answers most windows still
+                completes, so the skipped stretches were never examined for ads. A pass key is present
+                only when that pass lost at least one window.
+              properties:
+                detection:
+                  type: object
+                  properties:
+                    failed:
+                      type: integer
+                    total:
+                      type:
+                        - integer
+                        - 'null'
+                verification:
+                  type: object
+                  properties:
+                    failed:
+                      type: integer
+                    total:
+                      type:
+                        - integer
+                        - 'null'
 
     LocalEpisodeEditFields:
       type: object
@@ -10049,6 +10819,16 @@ components:
                   type: integer
                 failed:
                   type: integer
+            verificationWindows:
+              type:
+                - object
+                - 'null'
+              description: Verification-pass window counts. Null when the verification pass was skipped or ended before its detection call.
+              properties:
+                total:
+                  type: integer
+                failed:
+                  type: integer
             stageHits:
               type:
                 - object
@@ -10085,6 +10865,64 @@ components:
               description: Ads the second scan of the output audio found and cut. 0 means the scan ran and came back clean. Absent or null means the scan did not run, either because it was skipped (see verificationSkipped and detectionSkipped) or because it failed.
             secondsRemoved:
               type: number
+            thinkingNotices:
+              type: array
+              description: >-
+                Reasoning and thinking compatibility notices recorded by this
+                run. Present only when a provider rejected a requested setting
+                and the client retried with pass defaults. Provider error text
+                is never stored.
+              items:
+                $ref: '#/components/schemas/ThinkingCompatibilityNotice'
+
+    ThinkingCompatibilityNotice:
+      type: object
+      required: [pass, provider, model, requested, compatibility, fallback]
+      properties:
+        pass:
+          type: string
+          enum:
+            - ad_detection_pass_1
+            - reviewer_pass_1
+            - ad_detection_pass_2
+            - reviewer_pass_2
+            - chapter_generation
+          description: Pipeline pass that made the rejected request.
+        provider:
+          type: string
+          enum: [anthropic, openrouter, openai-compatible, ollama, unknown]
+          description: Configured provider identifier. Endpoint URLs are not stored.
+        model:
+          type: string
+          description: Model identifier, or redacted when the value was not safe to retain.
+        requested:
+          oneOf:
+            - type: integer
+            - type: string
+              enum: [none, low, medium, high]
+          description: Requested reasoning effort or Anthropic thinking token budget.
+        compatibility:
+          type: string
+          enum: [required, unsupported, incompatible]
+          description: >-
+            What the provider response proved. incompatible means the response
+            identified the setting but did not reliably say whether thinking
+            is required or unsupported.
+        fallback:
+          type: object
+          required: [maxTokens, temperature, reasoningEffort]
+          description: Pass defaults used for the retry.
+          properties:
+            maxTokens:
+              type: integer
+            temperature:
+              type: number
+            reasoningEffort:
+              type:
+                - integer
+                - string
+                - 'null'
+              description: Null means the retry omitted the reasoning setting.
 
     CueDetection:
       type: object
@@ -10222,6 +11060,26 @@ components:
           description: >-
             Set on a held-for-review marker once its confirm correction is
             recorded; the approval is applied by the next recut.
+        held_for_review:
+          type: boolean
+          description: True when this marker remains in the audio pending a human decision.
+        hold_reason:
+          type: string
+          nullable: true
+          enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, null]
+          description: Why the marker requires review. reviewer_boundary_conflict means a reviewer proposal crossed protected merged-ad evidence.
+        reviewer_reasoning:
+          type: string
+          nullable: true
+          description: Reviewer explanation when the reviewer evaluated this marker.
+        reviewer_proposed_start:
+          type: number
+          nullable: true
+          description: Informational reviewer-proposed start on a held marker. It is not applied until a human confirms it.
+        reviewer_proposed_end:
+          type: number
+          nullable: true
+          description: Informational reviewer-proposed end on a held marker. It is not applied until a human confirms it.
         validation:
           type: object
           description: Validation results from post-detection validation layer
@@ -10329,6 +11187,24 @@ components:
           type: number
           nullable: true
           description: Output cost per million tokens (USD), present when pricing is known
+        pricingSource:
+          type: string
+          nullable: true
+          description: Pricing source, including operator when a configured override applies
+
+    ModelPricingOverride:
+      type: object
+      additionalProperties: false
+      required: [inputCostPerMtok, outputCostPerMtok]
+      properties:
+        inputCostPerMtok:
+          type: number
+          minimum: 0
+          description: Input price in USD per 1 million tokens
+        outputCostPerMtok:
+          type: number
+          minimum: 0
+          description: Output price in USD per 1 million tokens
 
     WhisperModel:
       type: object
@@ -10558,6 +11434,30 @@ components:
         transcribeChunkOverlapSeconds:
           type: object
           description: Overlap, in seconds, between consecutive transcription chunks.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        whisperPoolEnabled:
+          type: object
+          description: Bound concurrent requests to the remote Whisper API to avoid rate limits.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        whisperPoolMaxRequests:
+          type: object
+          description: Maximum concurrent in-flight requests to the remote Whisper API when the pool is enabled.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        whisperPoolMaxEpisodes:
+          type: object
+          description: Maximum episodes transcribing concurrently against the remote Whisper API when the pool is enabled.
           properties:
             value:
               type: integer
@@ -10808,6 +11708,17 @@ components:
           properties:
             value:
               type: integer
+            isDefault:
+              type: boolean
+        daiDifferentialOverridesKeep:
+          type: object
+          description: >-
+            A marker overlapping a measured differential region is cut even
+            when segmentCategoryActions maps its category to keep
+            (default true).
+          properties:
+            value:
+              type: boolean
             isDefault:
               type: boolean
         differentialMeasuredCorrMax:
@@ -11224,6 +12135,73 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        chaptersInNotes:
+          type: object
+          description: Append the generated chapter list to served episode descriptions and the episode API description.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        adChaptersEnabled:
+          type: object
+          description: Publish kept or held ad segments as skippable chapters in the generated chapter list.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        adChapterCategories:
+          type: object
+          description: Map of segment category to whether it gets an ad chapter.
+          properties:
+            value:
+              type: object
+              additionalProperties:
+                type: boolean
+            isDefault:
+              type: boolean
+        adChaptersIncludeHeld:
+          type: object
+          description: Also publish held-for-review segments as ad chapters.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        adChapterTitleFormat:
+          type: object
+          description: Title template for an ad chapter; {label} is the category name and {category} its id, both optional.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        adChapterHeldTitleFormat:
+          type: object
+          description: Title template for a held segment's ad chapter; {label} is the category name and {category} its id, both optional.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        adChapterResumeTitle:
+          type: object
+          description: Title of the chapter that marks the return to show content after an ad chapter.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        adChapterMinConfidence:
+          type: object
+          description: Minimum marker confidence required before a segment becomes an ad chapter.
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
         audioNormalizeEnabled:
           type: object
           description: Loudness-normalize processed audio output.
@@ -11283,6 +12261,15 @@ components:
               type: string
               description: Pricing source mode (auto, litellm, free)
               enum: [auto, litellm, free]
+            isDefault:
+              type: boolean
+        modelPricingOverrides:
+          type: object
+          properties:
+            value:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/ModelPricingOverride'
             isDefault:
               type: boolean
         apiKeyConfigured:
@@ -11817,6 +12804,34 @@ components:
             elapsed:
               type: number
               description: Seconds since the job started
+        jobs:
+          type: array
+          description: Every episode currently processing, oldest first. currentJob is jobs[0].
+          items:
+            type: object
+            properties:
+              slug:
+                type: string
+              episodeId:
+                type: string
+              title:
+                type: string
+              podcastName:
+                type: string
+              stage:
+                type: string
+                description: Current processing stage (e.g. pass1:transcribing)
+              progress:
+                type: number
+                description: Progress percentage (0-100)
+              startedAt:
+                type: number
+                description: Unix timestamp the job started
+              elapsed:
+                type: number
+                description: Seconds since the job started
+        whisper:
+          $ref: '#/components/schemas/WhisperPoolSnapshot'
         queueLength:
           type: integer
           description: Number of episodes waiting to be processed
@@ -11871,16 +12886,13 @@ components:
             - string
             - 'null'
           format: date-time
-          description: The provider's own rate-limit reset time, or null
+          description: The provider's own rate-limit reset time while the pause is active, or null
         holdSince:
           type:
             - string
             - 'null'
           format: date-time
-          description: When the current pause began, or null when nothing is held
-        rateLimitHeld:
-          type: integer
-          description: Episodes held by the rate-limit hold
+          description: When the current pause began, or null when the queue is not paused
         offlineHeld:
           type: integer
           description: |
@@ -11909,6 +12921,42 @@ components:
                   - string
                   - 'null'
                 format: date-time
+
+    WhisperPoolSnapshot:
+      type: object
+      description: Bounded admission state for remote Whisper requests, as read by this process's pool.
+      properties:
+        enabled:
+          type: boolean
+        backend:
+          type: string
+        active:
+          type: boolean
+          description: enabled and backend is openai-api
+        inactiveReason:
+          type:
+            - string
+            - 'null'
+          enum: [disabled, local_backend, null]
+        capacity:
+          type: integer
+        inFlight:
+          type: integer
+        transcribingEpisodes:
+          type: integer
+        maxEpisodes:
+          type: object
+          properties:
+            configured:
+              type: integer
+            effective:
+              type: integer
+        leader:
+          type: boolean
+          description: >-
+            Whether this process is the background leader that runs
+            transcriptions. inFlight/transcribingEpisodes are only
+            meaningful when true; other workers always report 0.
 
     ProcessingHistoryEntry:
       type: object
@@ -12238,6 +13286,130 @@ components:
           type: string
         recipients:
           type: string
+
+    RefreshOutcome:
+      type: object
+      required: [success, status, new_episodes, queued_episodes, error]
+      properties:
+        success: { type: boolean }
+        status:
+          type: string
+          enum: [refreshed, coalesced, not_modified, fetch_failed, parse_failed, internal_error]
+        new_episodes: { type: integer, minimum: 0 }
+        queued_episodes: { type: integer, minimum: 0 }
+        error: { type: [string, 'null'] }
+
+    RefreshAllResult:
+      type: object
+      required: [message, feedCount, success, succeeded, failed, outcomes]
+      properties:
+        message: { type: string }
+        feedCount: { type: integer, minimum: 0 }
+        success: { type: boolean }
+        succeeded: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        outcomes:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/RefreshOutcome'
+
+    FeedSubscriberKeyRecord:
+      type: object
+      required: [id, label, created_at, last_used_at, revoked_at]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{16}$' }
+        label: { type: string }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, 'null'], format: date-time }
+        revoked_at: { type: [string, 'null'], format: date-time }
+
+    FeedSubscriberKeyCreated:
+      type: object
+      required: [id, token, label, created_at, feedUrl]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{16}$' }
+        token:
+          type: string
+          pattern: '^[0-9a-f]{16}\.[0-9a-f]{64}$'
+          description: Bearer credential returned only at creation.
+        label: { type: string }
+        created_at: { type: string, format: date-time }
+        feedUrl: { type: string, format: uri }
+
+    ProviderBudgetFxRate:
+      type: object
+      required: [localPerUsd, source, sourceDate, fetchedAt]
+      properties:
+        localPerUsd: { type: string }
+        source: { type: string }
+        sourceDate: { type: [string, 'null'], format: date }
+        fetchedAt: { type: [string, 'null'], format: date-time }
+
+    ProviderBudgetStatus:
+      type: object
+      required: [provider, spentMicrousd, reservedMicrousd, activeReservations]
+      properties:
+        provider: { type: string }
+        spentMicrousd: { type: integer, minimum: 0 }
+        reservedMicrousd: { type: integer, minimum: 0 }
+        activeReservations: { type: integer, minimum: 0 }
+
+    ProviderBudget:
+      type: object
+      required: [enabled, dailyLimitMicrousd, maxReservations, unknownCost,
+        unknownReserveMicrousd, displayCurrency, dailyLimit, unknownReserve,
+        fxRate, status]
+      properties:
+        enabled: { type: boolean }
+        dailyLimitMicrousd: { type: integer, minimum: 0 }
+        maxReservations: { type: integer, minimum: 1, maximum: 64 }
+        unknownCost: { type: string, enum: [deny, allow, reserve] }
+        unknownReserveMicrousd: { type: integer, minimum: 0 }
+        displayCurrency: { type: string, pattern: '^[A-Z]{3}$' }
+        dailyLimit: { type: string }
+        unknownReserve: { type: string }
+        fxRate: { $ref: '#/components/schemas/ProviderBudgetFxRate' }
+        status: { $ref: '#/components/schemas/ProviderBudgetStatus' }
+
+    ProviderBudgetUpdate:
+      type: object
+      required: [enabled, maxReservations, unknownCost]
+      properties:
+        enabled: { type: boolean }
+        maxReservations: { type: integer, minimum: 1, maximum: 64 }
+        unknownCost: { type: string, enum: [deny, allow, reserve] }
+        displayCurrency:
+          type: string
+          pattern: '^[A-Za-z]{3}$'
+          description: When present, dailyLimit and unknownReserve are required decimal strings.
+        dailyLimit: { type: string }
+        unknownReserve: { type: string }
+        dailyLimitMicrousd:
+          type: integer
+          minimum: 0
+          description: Required when displayCurrency is absent.
+        unknownReserveMicrousd:
+          type: integer
+          minimum: 0
+          description: Required when displayCurrency is absent.
+
+    CurrencyOption:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, pattern: '^[A-Z]{3}$' }
+        name: { type: string }
+
+    ProviderBudgetRate:
+      type: object
+      required: [currency, localPerUsd, source, sourceDate, dailyLimit, unknownReserve]
+      properties:
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        localPerUsd: { type: string }
+        source: { type: string }
+        sourceDate: { type: [string, 'null'], format: date }
+        dailyLimit: { type: string }
+        unknownReserve: { type: string }
 
     Error:
       type: object

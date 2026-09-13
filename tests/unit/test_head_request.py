@@ -3,7 +3,6 @@
 HEAD requests on unprocessed episodes should NOT trigger JIT processing.
 They should proxy upstream audio headers instead.
 """
-import shutil
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 
@@ -319,8 +318,3 @@ class TestJITRetryCooldown:
         # retry_count=0 skips cooldown, proceeds to processing
         assert resp.status_code == 503
         mock_start.assert_called_once()
-
-
-def teardown_module():
-    """Clean up temp directory."""
-    shutil.rmtree(_test_data_dir, ignore_errors=True)

@@ -122,3 +122,57 @@ def test_batch_is_committed_and_readable_afterwards():
     stored = db.get_episode(slug, ep_id)
     assert stored is not None
     assert stored['status'] == 'discovered'
+
+
+def test_same_chunk_backfill_prevents_duplicate_title_date_insert():
+    slug = _feed('upsert-backfill-dedupe')
+    existing_id = _eid()
+    duplicate_id = _eid()
+    db.upsert_episode(
+        slug, existing_id, title=None, published_at=None,
+        original_url='https://example.com/original.mp3', status='discovered')
+
+    inserted = db.bulk_upsert_discovered_episodes(slug, [
+        _episode(existing_id, title='Shared title'),
+        _episode(duplicate_id, title='Shared title'),
+    ])
+
+    assert inserted == 0
+    episodes, total = db.get_episodes(slug, status='all', limit=10)
+    assert total == 1
+    assert episodes[0]['episode_id'] == duplicate_id
+    assert episodes[0]['title'] == 'Shared title'
+
+
+@pytest.mark.parametrize('barrier', ['status', 'active_run'])
+def test_guid_rename_rechecks_processing_barrier_under_writer_lock(monkeypatch, barrier):
+    slug = _feed(f'upsert-guid-barrier-{barrier}')
+    old_id = _eid()
+    new_id = _eid()
+    original = _episode(old_id, title='Shared title')
+    db.bulk_upsert_discovered_episodes(slug, [original])
+    real_refresh = db._refresh_discovery_state
+
+    def refresh_then_transition(conn, podcast_id, chunk, existing_by_id, title_date_map):
+        real_refresh(conn, podcast_id, chunk, existing_by_id, title_date_map)
+        if barrier == 'status':
+            conn.execute(
+                "UPDATE episodes SET status = 'processing' "
+                "WHERE podcast_id = ? AND episode_id = ?", (podcast_id, old_id))
+        else:
+            conn.execute(
+                "INSERT INTO processing_runs "
+                "(run_id, podcast_id, episode_id, owner_pid, state) "
+                "VALUES ('run-guid-barrier', ?, ?, 1, 'running')",
+                (podcast_id, old_id))
+
+    monkeypatch.setattr(db, '_refresh_discovery_state', refresh_then_transition)
+    db.bulk_upsert_discovered_episodes(
+        slug, [_episode(new_id, title='Shared title')])
+
+    assert db.get_episode(slug, old_id) is not None
+    assert db.get_episode(slug, new_id) is None
+    if barrier == 'active_run':
+        conn = db.get_connection()
+        conn.execute("DELETE FROM processing_runs WHERE run_id = 'run-guid-barrier'")
+        conn.commit()

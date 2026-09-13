@@ -3,8 +3,6 @@
 These routes prevent /favicon.ico and /apple-touch-icon*.png from falling through
 to the /<slug> feed route, which would trigger expensive DB lookups.
 """
-import shutil
-
 import pytest
 
 from tests.app_bootstrap import bootstrap
@@ -83,8 +81,3 @@ class TestAppleTouchIconRoute:
         """GET /apple-touch-icon.png should return non-empty response body."""
         resp = client.get('/apple-touch-icon.png')
         assert len(resp.data) > 0
-
-
-def teardown_module():
-    """Clean up temp directory."""
-    shutil.rmtree(_test_data_dir, ignore_errors=True)

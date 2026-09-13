@@ -6,9 +6,10 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FeedDetail from './FeedDetail';
-import type { Feed } from '../api/types';
+import type { Episode, Feed } from '../api/types';
 
 const mockNavigate = vi.fn();
 let mockLocationState: { notice?: string } | null = null;
@@ -27,11 +28,11 @@ vi.mock('./feeds/FeedStatsCards', () => ({ default: () => <div data-testid="feed
 vi.mock('./feeds/PodcastAdDistributionPanel', () => ({ default: () => <div data-testid="ad-distribution-panel" /> }));
 vi.mock('./feeds/CueTemplatesPanel', () => ({ default: () => <div data-testid="cue-templates-panel" /> }));
 vi.mock('../components/Artwork', () => ({ default: ({ alt }: { alt: string }) => <img alt={alt} /> }));
-vi.mock('../components/LoadingSpinner', () => ({ default: () => <div data-testid="spinner" /> }));
 
 const mockGetFeed = vi.fn();
 const mockGetFeedsResponse = vi.fn();
 const mockGetEpisodes = vi.fn();
+const mockBulkEpisodeAction = vi.fn();
 
 vi.mock('../api/feeds', () => ({
   getFeed: (...a: unknown[]) => mockGetFeed(...a),
@@ -43,7 +44,7 @@ vi.mock('../api/feeds', () => ({
   refreshFeed: vi.fn(),
   updateFeed: vi.fn(),
   reprocessAllEpisodes: vi.fn(),
-  bulkEpisodeAction: vi.fn(),
+  bulkEpisodeAction: (...a: unknown[]) => mockBulkEpisodeAction(...a),
 }));
 
 function makeFeed(overrides: Partial<Feed> = {}): Feed {
@@ -63,10 +64,10 @@ function makeClient() {
   });
 }
 
-function renderFeedDetail(feed: Feed) {
+function renderFeedDetail(feed: Feed, episodes: Episode[] = []) {
   mockGetFeed.mockResolvedValue(feed);
   mockGetFeedsResponse.mockResolvedValue({ feeds: [feed], lastRefreshCompletedAt: null });
-  mockGetEpisodes.mockResolvedValue({ episodes: [], total: 0 });
+  mockGetEpisodes.mockResolvedValue({ episodes, total: episodes.length });
   return render(
     <QueryClientProvider client={makeClient()}>
       <FeedDetail />
@@ -187,5 +188,80 @@ describe('FeedDetail: notice from router state', () => {
       expect(screen.getByText('Test Feed')).toBeDefined();
     });
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('recents feed page', () => {
+  it('shows the title, description and artwork controls and hides processing controls', async () => {
+    renderFeedDetail(makeFeed({ slug: 'recents', feedType: 'recents', title: 'Recents', sourceUrl: 'recents://' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Recents feed/ }));
+    expect(await screen.findByLabelText('Feed title')).toBeTruthy();
+    expect(screen.getByLabelText('Feed description')).toBeTruthy();
+    expect(screen.getByLabelText('Artwork')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Refresh/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Reprocess/ })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Chapters' })).toBeNull();
+    // Processed-only and newest-first by definition: no status or sort selects.
+    expect(screen.queryByText('All statuses')).toBeNull();
+  });
+});
+
+describe('FeedDetail loading state', () => {
+  it('shows a layout skeleton while loading, not a page spinner', () => {
+    mockGetFeed.mockReturnValue(new Promise(() => {}));
+    mockGetFeedsResponse.mockReturnValue(new Promise(() => {}));
+    mockGetEpisodes.mockReturnValue(new Promise(() => {}));
+    const { container } = render(
+      <QueryClientProvider client={makeClient()}>
+        <FeedDetail />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId('skeleton-page-header')).toBeDefined();
+    expect(container.querySelector('.animate-spin')).toBeNull();
+  });
+
+  it('shows skeleton rows while only the episode list is loading', async () => {
+    mockGetFeed.mockResolvedValue(makeFeed());
+    mockGetFeedsResponse.mockResolvedValue({ feeds: [], lastRefreshCompletedAt: null });
+    mockGetEpisodes.mockReturnValue(new Promise(() => {}));
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <FeedDetail />
+      </QueryClientProvider>,
+    );
+    // Wait out the feedLoading branch, which renders skeleton rows of its own.
+    await screen.findByText('Test Feed');
+    expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
+    expect(screen.getByTestId('skeleton-rows')).toBeDefined();
+  });
+});
+
+describe('FeedDetail: pending bulk processing', () => {
+  it('offers Process now for a pending row and explains an active queue skip', async () => {
+    const user = userEvent.setup();
+    mockBulkEpisodeAction.mockResolvedValue({
+      queued: 0,
+      skipped: 1,
+      freedMb: 0,
+      errors: [],
+      skippedEpisodes: [{ episodeId: 'aa11bb22cc33', reason: 'Already queued' }],
+    });
+    renderFeedDetail(makeFeed(), [{
+      id: 'aa11bb22cc33',
+      title: 'Pending episode',
+      published: '2026-09-11T00:00:00Z',
+      status: 'pending',
+    }]);
+
+    await user.click(await screen.findByRole('button', { name: 'Select episode' }));
+    expect(screen.getByRole('button', { name: 'Process now (1)' })).toBeTruthy();
+    expect(screen.queryByText(/No actionable items/)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Process now (1)' }));
+    await waitFor(() => {
+      expect(mockBulkEpisodeAction).toHaveBeenCalledWith(
+        'test-feed', ['aa11bb22cc33'], 'process');
+    });
+    expect(await screen.findByText('Episodes already queued or processing were skipped.')).toBeTruthy();
   });
 });

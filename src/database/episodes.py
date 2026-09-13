@@ -2,15 +2,30 @@
 import json
 import logging
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
 from utils.constants import EpisodeStatus
+from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
 # Columns the ad-detection and cut stages regenerate (issue #349 LLM-only
 # reprocess). Shared by clear_episode_ad_data and batch_clear_episode_ad_data.
+# Episodes per discovery write transaction. One transaction spanning a large
+# archive feed held the single write lock long enough for every other writer to
+# exceed its 30s busy_timeout and fail with "database is locked".
+DISCOVERY_UPSERT_CHUNK = 50
+
+# A regen stamp older than this belongs to a worker that died mid-run.
+CHAPTERS_REGEN_STALE_SECONDS = 900
+
+
+def _chapters_regen_cutoff() -> str:
+    """Stamps at or below this are stale and can be taken over."""
+    return (utc_now() - timedelta(seconds=CHAPTERS_REGEN_STALE_SECONDS)).strftime(ISO_FORMAT)
+
 AD_DATA_NULL_SET_SQL = """SET ad_markers_json = NULL,
                    first_pass_prompt = NULL,
                    first_pass_response = NULL,
@@ -30,13 +45,15 @@ def normalize_published_at(value: str | None) -> str | None:
     """
     if not value:
         return value
-    if value[0].isdigit():
-        return value
+    # Stored as true UTC: cross-feed ordering and the recents cutoff compare
+    # these strings directly, so a publisher's local offset must not survive.
     try:
-        parsed = parsedate_to_datetime(value)
-        return parsed.strftime('%Y-%m-%dT%H:%M:%SZ')
+        parsed = datetime.fromisoformat(value) if value[0].isdigit() else parsedate_to_datetime(value)
     except (ValueError, TypeError):
         return value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).strftime(ISO_FORMAT)
 
 
 def _serialize_applied_cut(cut: dict) -> dict:
@@ -116,6 +133,8 @@ class EpisodeMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT e.*, p.slug, p.title AS podcast_title,
+                      -- Fixed-width ISO stamps compare as strings; NULL yields NULL.
+                      (e.chapters_regen_started_at > ?) AS chapters_regen_active,
                       ed.transcript_text,
                       (ed.original_transcript_text IS NOT NULL) as has_original_transcript,
                       ed.transcript_vtt,
@@ -127,7 +146,7 @@ class EpisodeMixin:
                JOIN podcasts p ON e.podcast_id = p.id
                LEFT JOIN episode_details ed ON e.id = ed.episode_id
                WHERE p.slug = ? AND e.episode_id = ?""",
-            (slug, episode_id)
+            (_chapters_regen_cutoff(), slug, episode_id)
         )
         row = cursor.fetchone()
         return dict(row) if row else None
@@ -171,7 +190,9 @@ class EpisodeMixin:
             'next': _neighbor('<', 'DESC'),      # older: largest key below current
         }
 
-    def get_episode_statuses_for_podcast(self, slug: str) -> tuple[dict[str, str], dict[tuple[str, str], str]]:
+    def get_episode_statuses_for_podcast(
+            self, slug: str, podcast_id: int | None = None,
+    ) -> tuple[dict[str, str], dict[tuple[str, str], str]]:
         """Bulk-load episode statuses for a podcast (lightweight, no JOINs to details).
 
         Returns:
@@ -180,13 +201,15 @@ class EpisodeMixin:
                 - {(title, published_at): episode_id} dict for dedup lookups
         """
         conn = self.get_connection()
-        podcast = self.get_podcast_by_slug(slug)
-        if not podcast:
-            return {}, {}
+        if podcast_id is None:
+            podcast = self.get_podcast_by_slug(slug)
+            if not podcast:
+                return {}, {}
+            podcast_id = podcast['id']
 
         cursor = conn.execute(
             "SELECT episode_id, status, title, published_at FROM episodes WHERE podcast_id = ?",
-            (podcast['id'],)
+            (podcast_id,)
         )
         id_to_status = {}
         title_date_to_id = {}
@@ -196,7 +219,8 @@ class EpisodeMixin:
                 title_date_to_id[(row['title'], row['published_at'])] = row['episode_id']
         return id_to_status, title_date_to_id
 
-    def upsert_episode(self, slug: str, episode_id: str, defer_index: bool = False, **kwargs) -> int:
+    def upsert_episode(self, slug: str, episode_id: str, defer_index: bool = False,
+                       commit: bool = True, **kwargs) -> int:
         """Insert or update an episode, returning its database ID. defer_index leaves a
         new row out of the search index so a bulk caller can index the batch itself."""
         conn = self.get_connection()
@@ -239,7 +263,7 @@ class EpisodeMixin:
                                'deferred_at', 'deferred_service', 'detection_degraded',
                                'low_yield_rerun_at', 'reprocess_source',
                                'season_number', 'p20_item_json',
-                               'pending_recut_at'):
+                               'pending_recut_at', 'chapters_regen_error'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -255,7 +279,8 @@ class EpisodeMixin:
                         f"UPDATE episodes SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
                         values
                     )
-                    conn.commit()
+                    if commit:
+                        conn.commit()
         else:
             # Insert new episode
             cursor = conn.execute(
@@ -302,7 +327,8 @@ class EpisodeMixin:
                 # Indexed on the open connection so the insert and its index row
                 # land in one transaction.
                 self.index_episodes([(episode_id, slug)], conn=conn)
-            conn.commit()
+            if commit:
+                conn.commit()
 
         return db_id
 
@@ -321,6 +347,68 @@ class EpisodeMixin:
         )
         row = cursor.fetchone()
         return row['id'] if row else None
+
+    def get_episode_state(self, slug: str, episode_id: str) -> dict | None:
+        """Just the fields a caller needs to decide whether to act on an episode."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT e.status, e.processed_version,
+                      (ed.transcript_vtt IS NOT NULL) AS has_transcript_vtt
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               LEFT JOIN episode_details ed ON e.id = ed.episode_id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def claim_chapters_regen(self, slug: str, episode_id: str) -> str | None:
+        """Stamp a chapter regeneration as in flight and return the stamp that owns
+        it. None when a fresh stamp exists or the episode is processing; a stale
+        stamp is taken over."""
+        conn = self.get_connection()
+        stamp = utc_now_iso()
+        cursor = conn.execute(
+            """UPDATE episodes
+               SET chapters_regen_started_at = ?, chapters_regen_error = NULL
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                 AND status != 'processing'
+                 AND (chapters_regen_started_at IS NULL
+                      OR chapters_regen_started_at <= ?)""",
+            (stamp, episode_id, slug, _chapters_regen_cutoff())
+        )
+        conn.commit()
+        return stamp if cursor.rowcount == 1 else None
+
+    def finish_chapters_regen(self, slug: str, episode_id: str, stamp: str,
+                              error: str | None = None):
+        """Clear the in-flight stamp; error is kept until the next run starts.
+        A stamp taken over by a newer run no longer matches, so its state stands."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """UPDATE episodes
+               SET chapters_regen_started_at = NULL, chapters_regen_error = ?
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                 AND chapters_regen_started_at = ?""",
+            (error, episode_id, slug, stamp)
+        )
+        conn.commit()
+        if cursor.rowcount == 0:
+            logger.info(f"[{slug}:{episode_id}] Chapter regen stamp {stamp} was taken over; "
+                        f"outcome dropped (error={error})")
+
+    def clear_chapters_regen_stamps(self) -> int:
+        """Drop every in-flight stamp; a restart killed the threads behind them."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """UPDATE episodes SET chapters_regen_started_at = NULL
+               WHERE chapters_regen_started_at IS NOT NULL"""
+        )
+        conn.commit()
+        return cursor.rowcount
 
     def save_episode_details(self, slug: str, episode_id: str,
                             transcript_text: str = None,
@@ -627,38 +715,34 @@ class EpisodeMixin:
         row = cursor.fetchone()
         return row['transcript'] if row else None
 
-    def save_episode_audio_analysis(self, slug: str, episode_id: str, audio_analysis_json: str):
-        """Save audio analysis results for an episode."""
-        conn = self.get_connection()
+    _DETAIL_JSON_UPSERT = {
+        'audio_analysis_json': """
+            INSERT INTO episode_details (episode_id, audio_analysis_json)
+            VALUES (?, ?)
+            ON CONFLICT(episode_id) DO UPDATE
+            SET audio_analysis_json = excluded.audio_analysis_json""",
+        'dai_differential_json': """
+            INSERT INTO episode_details (episode_id, dai_differential_json)
+            VALUES (?, ?)
+            ON CONFLICT(episode_id) DO UPDATE
+            SET dai_differential_json = excluded.dai_differential_json""",
+    }
 
+    def _upsert_episode_detail_json(self, slug, episode_id, column, value) -> bool:
+        """Set one JSON column on episode_details in a single immediate
+        transaction, so a locked write rolls back instead of leaking (#566)."""
         db_episode_id = self._get_episode_db_id(slug, episode_id)
         if not db_episode_id:
-            logger.warning(f"Episode not found for audio analysis: {slug}/{episode_id}")
-            return
+            logger.warning(f"Episode not found for {column}: {slug}/{episode_id}")
+            return False
+        with self.transaction(immediate=True) as conn:
+            conn.execute(self._DETAIL_JSON_UPSERT[column], (db_episode_id, value))
+        return True
 
-        # Check if details exist
-        cursor = conn.execute(
-            "SELECT id FROM episode_details WHERE episode_id = ?",
-            (db_episode_id,)
-        )
-        row = cursor.fetchone()
-
-        if row:
-            # Update existing
-            conn.execute(
-                "UPDATE episode_details SET audio_analysis_json = ? WHERE id = ?",
-                (audio_analysis_json, row['id'])
-            )
-        else:
-            # Insert new
-            conn.execute(
-                """INSERT INTO episode_details (episode_id, audio_analysis_json)
-                   VALUES (?, ?)""",
-                (db_episode_id, audio_analysis_json)
-            )
-
-        conn.commit()
-        logger.debug(f"[{slug}:{episode_id}] Saved audio analysis to database")
+    def save_episode_audio_analysis(self, slug: str, episode_id: str, audio_analysis_json: str):
+        """Save audio analysis results for an episode."""
+        if self._upsert_episode_detail_json(slug, episode_id, 'audio_analysis_json', audio_analysis_json):
+            logger.debug(f"[{slug}:{episode_id}] Saved audio analysis to database")
 
     def get_episode_audio_analysis(self, slug: str, episode_id: str):
         """Return the raw audio_analysis_json for an episode, or None."""
@@ -675,33 +759,8 @@ class EpisodeMixin:
     def save_episode_dai_differential(self, slug: str, episode_id: str,
                                       dai_differential_json: str):
         """Save the cross-fetch differential result for an episode."""
-        conn = self.get_connection()
-
-        db_episode_id = self._get_episode_db_id(slug, episode_id)
-        if not db_episode_id:
-            logger.warning(f"Episode not found for dai differential: {slug}/{episode_id}")
-            return
-
-        cursor = conn.execute(
-            "SELECT id FROM episode_details WHERE episode_id = ?",
-            (db_episode_id,)
-        )
-        row = cursor.fetchone()
-
-        if row:
-            conn.execute(
-                "UPDATE episode_details SET dai_differential_json = ? WHERE id = ?",
-                (dai_differential_json, row['id'])
-            )
-        else:
-            conn.execute(
-                """INSERT INTO episode_details (episode_id, dai_differential_json)
-                   VALUES (?, ?)""",
-                (db_episode_id, dai_differential_json)
-            )
-
-        conn.commit()
-        logger.debug(f"[{slug}:{episode_id}] Saved dai differential to database")
+        if self._upsert_episode_detail_json(slug, episode_id, 'dai_differential_json', dai_differential_json):
+            logger.debug(f"[{slug}:{episode_id}] Saved DAI differential to database")
 
     def get_episode_dai_differential(self, slug: str, episode_id: str):
         """Return the raw dai_differential_json for an episode, or None."""
@@ -732,7 +791,8 @@ class EpisodeMixin:
         ).fetchone()
         return row['created_at'] if row else None
 
-    def clear_episode_details(self, slug: str, episode_id: str):
+    def clear_episode_details(self, slug: str, episode_id: str,
+                              *, commit: bool = True):
         """Clear transcript and ad markers for an episode."""
         conn = self.get_connection()
 
@@ -748,7 +808,8 @@ class EpisodeMixin:
             "UPDATE episodes SET pending_review_count = 0 WHERE id = ?",
             (db_episode_id,)
         )
-        conn.commit()
+        if commit:
+            conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Cleared episode details from database")
 
     def clear_episode_ad_data(self, slug: str, episode_id: str):
@@ -809,7 +870,7 @@ class EpisodeMixin:
         episodes, excluding the given one. Baseline for the low-ad-yield
         comparison (#519)."""
         conn = self.get_connection()
-        rows = conn.execute(
+        rows = conn.execute(  # noqa: S608
             """SELECT original_duration - new_duration AS removed
                FROM episodes
                WHERE podcast_id = ? AND episode_id != ? AND status = 'processed'
@@ -824,7 +885,8 @@ class EpisodeMixin:
         cross-episode ad review endpoint."""
         conn = self.get_connection()
         cursor = conn.execute('''
-            SELECT p.slug AS feed_slug, p.title AS feed_title,
+            SELECT e.podcast_id AS podcast_id,
+                   p.slug AS feed_slug, p.title AS feed_title,
                    e.episode_id, e.title AS episode_title,
                    e.published_at, e.created_at, e.original_file,
                    e.processed_version, e.original_duration,
@@ -850,6 +912,65 @@ class EpisodeMixin:
             (podcast_id,)
         )
         return [dict(row) for row in cursor.fetchall()]
+
+    # Membership of the recents feed (#721): processed episodes across
+    # subscribed and local feeds published on or after the cutoff. Publish
+    # date only: a backlog episode processed later keeps its old date.
+    _RECENTS_WHERE = ("FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+                      "WHERE e.status = 'processed' AND e.processed_file IS NOT NULL "
+                      "AND p.feed_type IN ('subscribed', 'local') "
+                      "AND e.published_at IS NOT NULL AND e.published_at >= ?")
+    _RECENTS_SOURCE_COLS = ("p.slug AS source_slug, "
+                            "COALESCE(NULLIF(p.title_override, ''), NULLIF(p.title, ''), p.slug) AS source_title, "
+                            "p.feed_type AS source_feed_type, p.chapters_in_notes AS source_chapters_in_notes")
+
+    def count_recent_processed_episodes(self, since: str) -> int:
+        return self.get_connection().execute(
+            f"SELECT COUNT(*) {self._RECENTS_WHERE}", (since,)).fetchone()[0]
+
+    def get_recent_processed_episodes(self, since: str, limit: int | None = None,
+                                      offset: int = 0, sort_by: str = 'published_at',
+                                      sort_dir: str = 'desc', details: bool = False) -> list[dict]:
+        """Each row carries its source feed's slug, display title, feed type and
+        chapters override. details=True adds chapters_json and has_transcript_vtt
+        for the feed renderer; typeof() reads the record header instead of
+        copying the VTT text."""
+        sort_col = sort_by if sort_by in self.VALID_SORT_COLUMNS else 'published_at'
+        direction = 'ASC' if str(sort_dir).lower() == 'asc' else 'DESC'
+        cols = f"e.*, {self._RECENTS_SOURCE_COLS}"
+        join = ''
+        if details:
+            cols += ", d.chapters_json, typeof(d.transcript_vtt) = 'text' AS has_transcript_vtt"
+            join = "LEFT JOIN episode_details d ON d.episode_id = e.id "
+        where = self._RECENTS_WHERE.replace('WHERE ', f'{join}WHERE ', 1)
+        query = f"SELECT {cols} {where} ORDER BY e.{sort_col} {direction}, e.id DESC"
+        params: list = [since]
+        if limit:
+            query += " LIMIT ? OFFSET ?"
+            params += [limit, offset]
+        return [dict(r) for r in self.get_connection().execute(query, params).fetchall()]
+
+    def is_recent_processed_episode(self, source_slug: str, episode_id: str,
+                                    since: str) -> bool:
+        """Return whether an episode is eligible for Recents."""
+        conn = self.get_connection()
+        return bool(conn.execute(
+            f"SELECT 1 {self._RECENTS_WHERE} AND p.slug = ? AND e.episode_id = ?",
+            (since, source_slug, episode_id),
+        ).fetchone())
+
+    def get_chapters_json_for_podcast(self, podcast_id: int) -> dict[str, str]:
+        """{episode_id: chapters_json} for a feed's processed episodes; one
+        query instead of a full-row join per served item. Processed only:
+        the timestamps are on the cut timeline, so they must not be listed
+        against original audio."""
+        cursor = self.get_connection().execute(
+            """SELECT e.episode_id, d.chapters_json
+               FROM episodes e JOIN episode_details d ON d.episode_id = e.id
+               WHERE e.podcast_id = ? AND e.status = 'processed'
+                     AND d.chapters_json IS NOT NULL""",
+            (podcast_id,))
+        return {row['episode_id']: row['chapters_json'] for row in cursor.fetchall()}
 
     _EPISODE_JSON_COLS = frozenset({'ad_markers_json', 'audio_analysis_json',
                                     'original_segments_json'})
@@ -977,7 +1098,9 @@ class EpisodeMixin:
         )
         conn.commit()
 
-    def batch_reset_episodes_to_discovered(self, slug: str, episode_ids: list[str]) -> None:
+    def batch_reset_episodes_to_discovered(
+            self, slug: str, episode_ids: list[str], *, commit: bool = True,
+    ) -> None:
         """Reset multiple episodes to discovered state in one query."""
         if not episode_ids:
             return
@@ -997,95 +1120,162 @@ class EpisodeMixin:
             WHERE podcast_id = ? AND episode_id IN ({placeholders})""",  # noqa: S608
             [podcast['id']] + list(episode_ids)
         )
-        conn.commit()
+        if commit:
+            conn.commit()
 
-    def bulk_upsert_discovered_episodes(self, slug: str, episodes: list[dict]) -> int:
+    def bulk_upsert_discovered_episodes(
+            self, slug: str, episodes: list[dict], *, return_state: bool = False,
+    ) -> int | tuple[int, dict[str, str], dict[tuple[str, str], str]]:
         """Insert or update episodes as 'discovered'.
 
         On conflict, backfills empty title/description from new data but
         never overwrites an existing episode's status or non-empty metadata.
         Returns count of newly inserted rows.
 
-        Runs in an immediate transaction: a deferred begin upgrades to a write
-        lock at the first INSERT, and that upgrade fails instantly with
-        "database is locked" rather than waiting on busy_timeout (issue #566).
+        Not atomic across the feed: a chunk raising leaves earlier chunks
+        committed, and the caller records a refresh failure and retries. The
+        upsert is idempotent, so the retry reconciles.
+
+        Each chunk runs in its own immediate transaction: a deferred begin
+        upgrades to a write lock at the first INSERT, and that upgrade fails
+        instantly with "database is locked" rather than waiting on
+        busy_timeout (issue #566). Chunking bounds how long that lock is
+        held, since one transaction spanning a large archive feed starved
+        every other writer past its busy_timeout (#728 follow-up).
         """
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             logger.error(f"Cannot upsert discovered episodes: podcast not found: {slug}")
-            return 0
+            return (0, {}, {}) if return_state else 0
 
         podcast_id = podcast['id']
         inserted = 0
         skipped = 0
 
-        with self.transaction(immediate=True) as conn:
-            # Snapshot existing GUIDs so we can count real inserts. SQLite's
-            # cursor.rowcount is 1 for both the INSERT and the UPDATE branch of
-            # an UPSERT (and even for an UPDATE that sets every column to its
-            # current value), so it cannot distinguish "new" from "re-touched".
-            # The downstream log line "Discovered N new episode(s)" needs the
-            # real new-row count, not the upsert-touched count.
-            existing_ids = {
-                row['episode_id'] for row in conn.execute(
-                    "SELECT episode_id FROM episodes WHERE podcast_id = ?",
-                    (podcast_id,),
-                ).fetchall()
-            }
+        normalized = []
+        for episode in episodes:
+            item = dict(episode)
+            item['_iso_published'] = normalize_published_at(item.get('published', '')) or None
+            item['_tags_json'] = json.dumps(item.get('tags') or [])
+            normalized.append(item)
 
-            newly_inserted_pairs = []
-            for ep in episodes:
-                row_inserted, row_skipped = self._upsert_one_discovered_episode(
-                    conn, podcast_id, slug, ep, existing_ids)
-                inserted += row_inserted
-                skipped += row_skipped
-                if row_inserted:
-                    newly_inserted_pairs.append((ep['id'], slug))
+        rows = self.get_connection().execute(
+            "SELECT episode_id, episode_number, status, title, published_at "
+            "FROM episodes WHERE podcast_id = ?", (podcast_id,)
+        ).fetchall()
+        existing_by_id = {row['episode_id']: dict(row) for row in rows}
+        title_date_map = {
+            (row['title'], row['published_at']): row['episode_id']
+            for row in rows if row['title'] and row['published_at']
+        }
 
-            # Batched inside this same transaction: one DELETE + INSERT for the
-            # whole discovery, never index_episode() per row (that commits per call).
-            if newly_inserted_pairs:
-                self.index_episodes(newly_inserted_pairs, conn=conn)
+        for start in range(0, len(normalized), DISCOVERY_UPSERT_CHUNK):
+            chunk = normalized[start:start + DISCOVERY_UPSERT_CHUNK]
+            with self.transaction(immediate=True) as conn:
+                self._refresh_discovery_state(
+                    conn, podcast_id, chunk, existing_by_id, title_date_map)
+                newly_inserted_pairs = []
+                for ep in chunk:
+                    row_inserted, row_skipped = self._upsert_one_discovered_episode(
+                        conn, podcast_id, slug, ep, existing_by_id, title_date_map)
+                    inserted += row_inserted
+                    skipped += row_skipped
+                    if row_inserted:
+                        newly_inserted_pairs.append((ep['id'], slug))
+
+                # Indexed in the chunk's own transaction, so a crash between
+                # commit and index cannot leave rows unindexed. Never
+                # index_episode() per row (it commits per call).
+                if newly_inserted_pairs:
+                    self.index_episodes(newly_inserted_pairs, conn=conn)
 
         if skipped:
             logger.warning(
                 f"[{slug}] skipped {skipped} of {len(episodes)} discovered "
                 f"episodes on per-row faults"
             )
+        if return_state:
+            statuses = {episode_id: row['status'] for episode_id, row in existing_by_id.items()}
+            return inserted, statuses, title_date_map
         return inserted
 
-    def _upsert_one_discovered_episode(self, conn, podcast_id, slug, ep, existing_ids):
+    @staticmethod
+    def _refresh_discovery_state(
+            conn, podcast_id, chunk, existing_by_id, title_date_map):
+        """Refresh the chunk's dedup keys after taking the writer lock."""
+        ids = [episode['id'] for episode in chunk if episode.get('id')]
+        title_dates = [
+            (episode.get('title'), episode['_iso_published']) for episode in chunk
+            if episode.get('title') and episode['_iso_published']
+        ]
+        clauses = []
+        params = [podcast_id]
+        if ids:
+            clauses.append(f"episode_id IN ({','.join('?' for _ in ids)})")
+            params.extend(ids)
+        if title_dates:
+            clauses.append(
+                f"(title, published_at) IN ({','.join('(?, ?)' for _ in title_dates)})")
+            for title, published_at in title_dates:
+                params.extend((title, published_at))
+        if not clauses:
+            return
+
+        for episode_id in ids:
+            existing_by_id.pop(episode_id, None)
+        for key in title_dates:
+            title_date_map.pop(key, None)
+        rows = conn.execute(
+            "SELECT episode_id, episode_number, status, title, published_at "  # noqa: S608
+            f"FROM episodes WHERE podcast_id = ? AND ({' OR '.join(clauses)})",
+            params,
+        ).fetchall()
+        for raw_row in rows:
+            row = dict(raw_row)
+            existing_by_id[row['episode_id']] = row
+            if row['title'] and row['published_at']:
+                title_date_map[(row['title'], row['published_at'])] = row['episode_id']
+
+    def _upsert_one_discovered_episode(
+            self, conn, podcast_id, slug, ep, existing_by_id, title_date_map):
         """Upsert one discovered episode. Returns an (inserted, skipped) delta.
 
         Lock errors propagate so the whole batch fails and the caller retries the
         feed; only per-row data faults are counted as skipped.
         """
         try:
-            iso_published = normalize_published_at(ep.get('published', '')) or None
+            iso_published = ep['_iso_published']
 
             # Check for existing episode with same title+date but different ID
             # Skip insert to prevent duplicate rows from GUID changes
             if ep.get('title') and iso_published:
-                existing = conn.execute(
-                    """SELECT episode_id, episode_number, status FROM episodes
-                       WHERE podcast_id = ? AND title = ? AND published_at = ?
-                       AND episode_id != ?""",
-                    (podcast_id, ep.get('title'), iso_published, ep['id'])
-                ).fetchone()
-                if existing:
+                existing_id = title_date_map.get((ep.get('title'), iso_published))
+                existing = existing_by_id.get(existing_id) if existing_id != ep['id'] else None
+                if existing is not None:
                     # Update episode_id to match new GUID for discovered episodes
                     # (no cached files yet, safe to update)
                     if existing['status'] == 'discovered':
-                        conn.execute(
+                        renamed = conn.execute(
                             """UPDATE episodes SET episode_id = ?
-                               WHERE podcast_id = ? AND episode_id = ?""",
+                               WHERE podcast_id = ? AND episode_id = ?
+                                 AND status = 'discovered'
+                                 AND NOT EXISTS (
+                                   SELECT 1 FROM processing_runs r
+                                   WHERE r.podcast_id = episodes.podcast_id
+                                     AND r.episode_id = episodes.episode_id
+                                     AND r.state IN ('running', 'cancel_requested')
+                                 )""",
                             (ep['id'], podcast_id, existing['episode_id'])
                         )
-                        # The row moved to a new id, so its index row has to move with it:
-                        # the batched reindex below only covers newly inserted rows.
-                        self._delete_indexed_episodes(conn, [(existing['episode_id'], slug)])
-                        self.index_episodes([(ep['id'], slug)], conn=conn)
-                    current_id = ep['id'] if existing['status'] == 'discovered' else existing['episode_id']
+                        if renamed.rowcount:
+                            self._delete_indexed_episodes(
+                                conn, [(existing['episode_id'], slug)])
+                            self.index_episodes([(ep['id'], slug)], conn=conn)
+                            existing_by_id.pop(existing['episode_id'], None)
+                            existing['episode_id'] = ep['id']
+                            existing_by_id[ep['id']] = existing
+                            title_date_map[(ep.get('title'), iso_published)] = ep['id']
+                    current_id = existing['episode_id']
                     # Backfill episode_number on existing row if missing
                     if ep.get('episode_number') and not existing['episode_number']:
                         conn.execute(
@@ -1094,11 +1284,13 @@ class EpisodeMixin:
                                AND episode_number IS NULL""",
                             (ep.get('episode_number'), podcast_id, current_id)
                         )
+                        existing['episode_number'] = ep.get('episode_number')
                     # Episode already exists under a different GUID.
                     return 0, 0
 
-            tags_json = json.dumps(ep.get('tags') or [])
-            cursor = conn.execute(
+            tags_json = ep['_tags_json']
+            current = existing_by_id.get(ep['id'])
+            conn.execute(
                 """INSERT INTO episodes
                    (podcast_id, episode_id, original_url, title, description,
                     artwork_url, episode_number, published_at, rss_duration,
@@ -1113,7 +1305,16 @@ class EpisodeMixin:
                     title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
                     description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
                     artwork_url = COALESCE(episodes.artwork_url, excluded.artwork_url),
-                    tags = CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END""",
+                    tags = CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END
+                   WHERE episodes.episode_number IS NOT COALESCE(episodes.episode_number, excluded.episode_number)
+                      OR episodes.published_at IS NOT COALESCE(episodes.published_at, excluded.published_at)
+                      OR episodes.rss_duration IS NOT COALESCE(episodes.rss_duration, excluded.rss_duration)
+                      OR episodes.upstream_chapters_url IS NOT COALESCE(episodes.upstream_chapters_url, excluded.upstream_chapters_url)
+                      OR episodes.original_url IS NOT COALESCE(episodes.original_url, excluded.original_url)
+                      OR episodes.title IS NOT CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END
+                      OR episodes.description IS NOT CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END
+                      OR episodes.artwork_url IS NOT COALESCE(episodes.artwork_url, excluded.artwork_url)
+                      OR episodes.tags IS NOT CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END""",
                 (
                     podcast_id,
                     ep['id'],
@@ -1128,9 +1329,27 @@ class EpisodeMixin:
                     tags_json,
                 )
             )
-            if cursor.rowcount > 0 and ep['id'] not in existing_ids:
-                existing_ids.add(ep['id'])
+            if ep['id'] not in existing_by_id:
+                existing_by_id[ep['id']] = {
+                    'episode_id': ep['id'], 'episode_number': ep.get('episode_number'),
+                    'status': 'discovered', 'title': ep.get('title'),
+                    'published_at': iso_published,
+                }
+                if ep.get('title') and iso_published:
+                    title_date_map[(ep.get('title'), iso_published)] = ep['id']
                 return 1, 0
+            old_key = (current['title'], current['published_at'])
+            effective_title = current['title'] or ep.get('title')
+            effective_published = current['published_at'] or iso_published
+            if all(old_key) and title_date_map.get(old_key) == ep['id']:
+                title_date_map.pop(old_key)
+            current.update(
+                episode_number=ep.get('episode_number') or current['episode_number'],
+                title=effective_title,
+                published_at=effective_published,
+            )
+            if effective_title and effective_published:
+                title_date_map[(effective_title, effective_published)] = ep['id']
         except sqlite3.OperationalError:
             raise
         except Exception as e:
@@ -1216,6 +1435,58 @@ class EpisodeMixin:
 
         freed_mb = freed_bytes / (1024 * 1024)
         return len(ids_to_reset), freed_mb
+
+    def mark_episodes_for_deletion(self, slug: str,
+                                   episode_ids: list[str]) -> dict[str, list[str]]:
+        """Persist deletion intent and report active processing or uploads."""
+        if not episode_ids:
+            return {'processing': [], 'uploading': []}
+        with self.transaction(immediate=True) as conn:
+            podcast = conn.execute(
+                "SELECT id FROM podcasts WHERE slug = ?", (slug,)
+            ).fetchone()
+            if not podcast:
+                return {'processing': [], 'uploading': []}
+            placeholders = ','.join('?' for _ in episode_ids)
+            params = [podcast['id']] + list(episode_ids)
+            conn.execute(  # noqa: S608
+                f"UPDATE episodes SET deletion_requested_at = "  # noqa: S608
+                f"COALESCE(deletion_requested_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) "
+                f"WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
+                params,
+            )
+            processing = conn.execute(  # noqa: S608
+                f"SELECT episode_id FROM processing_runs WHERE podcast_id = ? "  # noqa: S608
+                f"AND episode_id IN ({placeholders}) "
+                f"AND state IN ('running', 'cancel_requested')",  # noqa: S608
+                params,
+            ).fetchall()
+            uploading = conn.execute(  # noqa: S608
+                f"SELECT target_key AS episode_id FROM upload_reservations "  # noqa: S608
+                f"WHERE podcast_id = ? AND scope = 'episode' "
+                f"AND target_key IN ({placeholders}) "
+                f"AND state IN ('reserved', 'prepared', 'publishing')",  # noqa: S608
+                params,
+            ).fetchall()
+        return {
+            'processing': [row['episode_id'] for row in processing],
+            'uploading': [row['episode_id'] for row in uploading],
+        }
+
+    def clear_episode_deletion_requests(self, slug: str,
+                                        episode_ids: list[str]) -> None:
+        if not episode_ids:
+            return
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return
+        placeholders = ','.join('?' for _ in episode_ids)
+        self.get_connection().execute(  # noqa: S608
+            f"UPDATE episodes SET deletion_requested_at = NULL "  # noqa: S608
+            f"WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
+            [podcast['id']] + list(episode_ids),
+        )
+        self.get_connection().commit()
 
     def delete_episode_rows(self, slug: str, episode_ids: list[str], storage) -> int:
         """Hard-delete episode rows (local feeds only; subscribed feeds only

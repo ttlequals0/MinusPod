@@ -14,6 +14,8 @@ import wave
 import numpy as np
 import pytest
 
+from tests.app_bootstrap import authenticate_test_client
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 os.environ.setdefault(
@@ -40,11 +42,7 @@ def _write_wav(path, duration_s, sr=16000):
 
 
 def _csrf(client):
-    with client.session_transaction() as sess:
-        sess['authenticated'] = True
-    client.get('/api/v1/auth/status')
-    cookie = client.get_cookie('minuspod_csrf')
-    return {'X-CSRF-Token': cookie.value} if cookie else {}
+    return authenticate_test_client(client)
 
 
 @pytest.fixture

@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import type { WhisperHealthProbe } from './types';
 
 export type ProviderName = 'anthropic' | 'openai' | 'openrouter' | 'whisper' | 'ollama';
 
@@ -57,6 +58,8 @@ export interface ConnectionTestResult {
   reachable: boolean;
   status?: number;
   detail: string;
+  // whisper only, present when ok is true.
+  health?: WhisperHealthProbe;
 }
 
 // Connection tests send the values currently in the form (saved or not) so
@@ -85,12 +88,5 @@ export function testLlmConnection(
 export function testPodcastIndex() {
   return apiRequest<ConnectionTestResult>('/settings/podcast-index/test', {
     method: 'POST',
-  });
-}
-
-export function rotateMasterPassphrase(oldPassphrase: string, newPassphrase: string) {
-  return apiRequest<{ rotated: number }>('/settings/providers/rotate-passphrase', {
-    method: 'POST',
-    body: { oldPassphrase, newPassphrase },
   });
 }

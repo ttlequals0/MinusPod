@@ -23,18 +23,23 @@ Configuration via environment variables:
 import json
 import logging
 import os
+import re
 import socket
 import threading
+import uuid
+from urllib.parse import urlparse
 from types import SimpleNamespace
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Union
 
+import run_context
+
 import requests
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.rate_limit import (
-    parse_retry_after, parse_groq_rate_limit_body,
+    parse_retry_after, parse_groq_rate_limit_body, parse_upstream_reset,
     parse_google_retry_delay, parse_google_daily_quota,
 )
 from utils.http import safe_url_for_log
@@ -60,6 +65,7 @@ from config import (
     ModelNotConfiguredError,
 )
 from llm_capabilities import (
+    classify_reasoning_rejection,
     get_pass_defaults,
     is_fallback_eligible_error,
     is_fallback_set,
@@ -194,6 +200,9 @@ class LLMResponse:
     content: str
     model: str
     usage: dict[str, int] | None = None
+    finish_reason: str | None = None
+    reasoning_present: bool = False
+    reasoning_exhausted: bool = False
 
 
 @dataclass
@@ -397,24 +406,51 @@ def _apply_pass_fallback(
     temperature: float,
     reasoning_effort: Union[int, str] | None,
 ):
-    """If the pass already tripped its fallback flag, swap in defaults."""
+    """Return effective tunables and whether this call started in fallback."""
     if pass_name and is_fallback_set(episode_id, pass_name):
         defaults = get_pass_defaults(pass_name)
-        return defaults.max_tokens, defaults.temperature, defaults.reasoning_effort
-    return max_tokens, temperature, reasoning_effort
+        return (
+            defaults.max_tokens,
+            defaults.temperature,
+            defaults.reasoning_effort,
+            True,
+        )
+    return max_tokens, temperature, reasoning_effort, False
 
 
 def _should_fallback_retry(
     error: Exception,
-    episode_id: str | None,
     pass_name: str | None,
+    started_in_fallback: bool,
 ) -> bool:
-    """True for a first 4xx (non-429) in a tracked pass -- caller retries once with defaults."""
-    if not pass_name:
-        return False
-    if is_fallback_set(episode_id, pass_name):
-        return False
-    return is_fallback_eligible_error(error)
+    """True when this call sent user tunables rejected by the provider."""
+    return (
+        bool(pass_name)
+        and not started_in_fallback
+        and is_fallback_eligible_error(error)
+    )
+
+
+def _provider_error_kind(error: Exception) -> str:
+    """Return an error type and status without retaining its response body."""
+    status = getattr(error, 'status_code', None)
+    if status is None:
+        status = getattr(getattr(error, 'response', None), 'status_code', None)
+    kind = type(error).__name__
+    try:
+        status = int(status)
+    except (TypeError, ValueError):
+        return kind
+    return f'{kind} HTTP {status}'
+
+
+def _safe_reasoning_value(value: Union[int, str] | None):
+    """Keep only reasoning values accepted by the provider translators."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.lower() in ('none', 'low', 'medium', 'high'):
+        return value.lower()
+    return None if value is None else 'redacted'
 
 
 def _log_fallback(
@@ -429,9 +465,59 @@ def _log_fallback(
 ) -> None:
     logger.warning(
         f"[{episode_id}:{pass_name}] {provider_label} rejected user tunables "
-        f"(model={model}, max_tokens={max_tokens}, temperature={temperature}, "
-        f"reasoning_effort={reasoning_effort!r}): {error}. Retrying with defaults."
+        f"(model={_safe_model_identifier(model)}, max_tokens={max_tokens}, "
+        f"temperature={temperature}, "
+        f"reasoning_effort={_safe_reasoning_value(reasoning_effort)!r}; "
+        f"{_provider_error_kind(error)}). Retrying with defaults."
     )
+
+
+def _safe_model_identifier(model: str) -> str:
+    """Return a bounded model ID without URLs or secret-like values."""
+    value = str(model or '')
+    lowered = value.lower()
+    if (not value or len(value) > 160 or '://' in value
+            or any(char in value for char in ('?', '#', '=', '@'))
+            or re.search(r'(^|[/._:-])(?:sk|key|token|secret|password)[-_]', lowered)
+            or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/+\-]*', value)):
+        return 'redacted'
+    return value
+
+
+def _record_reasoning_fallback_notice(
+    provider: str,
+    model: str,
+    episode_id: str | None,
+    pass_name: str,
+    requested: Union[int, str] | None,
+    error: Exception,
+) -> None:
+    compatibility = classify_reasoning_rejection(error)
+    requested_value = _safe_reasoning_value(requested)
+    if (compatibility is None or requested_value == 'redacted'
+            or not translate_reasoning_effort(provider, requested)):
+        return
+    ctx = run_context.current()
+    if (ctx is None or not ctx.run_id
+            or ctx.episode_id != str(episode_id)):
+        return
+    provider_id = provider if provider in {
+        PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
+        PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+    } else 'unknown'
+    defaults = get_pass_defaults(pass_name)
+    ctx.add_thinking_notice(ctx.run_id, {
+        'pass': pass_name,
+        'provider': provider_id,
+        'model': _safe_model_identifier(model),
+        'requested': requested_value,
+        'compatibility': compatibility,
+        'fallback': {
+            'max_tokens': defaults.max_tokens,
+            'temperature': defaults.temperature,
+            'reasoning_effort': defaults.reasoning_effort,
+        },
+    })
 
 
 def _log_temperature_omission(
@@ -443,7 +529,9 @@ def _log_temperature_omission(
 ) -> None:
     logger.warning(
         f"[{episode_id}:{pass_name}] {provider_label} rejected temperature "
-        f"for model={model}: {error}. Retrying with temperature omitted "
+        f"for model={_safe_model_identifier(model)} "
+        f"({_provider_error_kind(error)}). "
+        f"Retrying with temperature omitted "
         f"(remembered for the rest of this process)."
     )
 
@@ -510,6 +598,7 @@ class LLMClient(ABC):
     def _send_with_fallback(
         self,
         provider_label: str,
+        provider: str,
         model: str,
         eff_max: int,
         eff_temp: float,
@@ -519,6 +608,7 @@ class LLMClient(ABC):
         user_reasoning: Union[int, str] | None,
         episode_id: str | None,
         pass_name: str | None,
+        started_in_fallback: bool,
         send_fn,
     ):
         """Run send_fn(eff_max, eff_temp, eff_reasoning) with one retry on
@@ -548,7 +638,8 @@ class LLMClient(ABC):
                     raise
                 return response, eff_max, eff_temp, eff_reasoning
 
-            will_fallback = _should_fallback_retry(e, episode_id, pass_name)
+            will_fallback = _should_fallback_retry(
+                e, pass_name, started_in_fallback)
             if not is_rate_limit_error(e) and not will_fallback:
                 self._record_circuit_breaker(success=False, error=e)
             if not will_fallback:
@@ -557,6 +648,9 @@ class LLMClient(ABC):
                           user_max, user_temp, user_reasoning, e)
             set_fallback(episode_id, pass_name)
             defaults = get_pass_defaults(pass_name)
+            _record_reasoning_fallback_notice(
+                provider, model, episode_id, pass_name,
+                user_reasoning, e)
             try:
                 response = send_fn(defaults.max_tokens, defaults.temperature, defaults.reasoning_effort)
             except Exception as e2:
@@ -681,7 +775,7 @@ class AnthropicClient(LLMClient):
 
         # If a previous call in this pass already tripped the fallback flag,
         # use the built-in defaults from llm_capabilities instead of user values.
-        eff_max, eff_temp, eff_reasoning = _apply_pass_fallback(
+        eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
@@ -718,21 +812,27 @@ class AnthropicClient(LLMClient):
             return self._client.messages.create(**kw)
 
         response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
-            "Anthropic", model,
+            "Anthropic", PROVIDER_ANTHROPIC, model,
             eff_max, eff_temp, eff_reasoning,
             max_tokens, temperature, reasoning_effort,
             episode_id, pass_name,
+            started_in_fallback,
             _send,
         )
 
         self._record_circuit_breaker(success=True)
 
+        blocks = response.content or []
+        reasoning_present = any(
+            getattr(block, 'type', None) in ('thinking', 'redacted_thinking')
+            for block in blocks
+        )
         if tool_spec is not None:
             # Forced tool_choice guarantees exactly one tool_use block; its
             # `input` is the schema-validated answer. Re-serialize to JSON
             # text since downstream parsing expects a JSON string.
             content = ""
-            for block in (response.content or []):
+            for block in blocks:
                 if getattr(block, 'type', None) == 'tool_use':
                     content = json.dumps(block.input)
                     break
@@ -741,15 +841,14 @@ class AnthropicClient(LLMClient):
             # redacted_thinking block first; the answer is in a later text
             # block. Find it instead of assuming content[0] is text.
             content = ""
-            for block in (response.content or []):
+            for block in blocks:
                 text = getattr(block, 'text', None)
                 if getattr(block, 'type', None) == 'text' and text is not None:
                     content = text
                     break
 
-        self._warn_if_truncated(
-            getattr(response, 'stop_reason', None), eff_max, model
-        )
+        finish_reason = getattr(response, 'stop_reason', None)
+        self._warn_if_truncated(finish_reason, eff_max, model)
 
         llm_response = LLMResponse(
             content=content,
@@ -758,6 +857,13 @@ class AnthropicClient(LLMClient):
                 'input_tokens': response.usage.input_tokens,
                 'output_tokens': response.usage.output_tokens
             } if response.usage else None,
+            finish_reason=finish_reason,
+            reasoning_present=reasoning_present,
+            reasoning_exhausted=(
+                not content.strip()
+                and reasoning_present
+                and finish_reason in ('max_tokens', 'length')
+            ),
         )
 
         # Log response
@@ -879,7 +985,7 @@ class OpenAICompatibleClient(LLMClient):
 
         all_messages = [{"role": "system", "content": system}] + messages
 
-        eff_max, eff_temp, eff_reasoning = _apply_pass_fallback(
+        eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
@@ -974,26 +1080,54 @@ class OpenAICompatibleClient(LLMClient):
                 raise
 
         response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
-            "OpenAI", model,
+            "OpenAI", active_provider, model,
             eff_max, eff_temp, eff_reasoning,
             max_tokens, temperature, reasoning_effort,
             episode_id, pass_name,
+            started_in_fallback,
             _send,
         )
 
         self._record_circuit_breaker(success=True)
 
         # Log reasoning/chain-of-thought if present (e.g. qwen3 think mode)
-        if response.choices:
-            msg = response.choices[0].message
+        choice = response.choices[0] if response.choices else None
+        msg = getattr(choice, 'message', None)
+        reasoning = None
+        reasoning_details = None
+        if msg is not None:
             reasoning = getattr(msg, 'reasoning', None) or getattr(msg, 'reasoning_content', None)
+            reasoning_details = getattr(msg, 'reasoning_details', None)
             if reasoning:
                 logger.debug(f"LLM reasoning field present ({len(str(reasoning))} chars)")
 
-        content = (response.choices[0].message.content or "") if response.choices else ""
+        content = (getattr(msg, 'content', None) or "") if msg is not None else ""
 
-        finish_reason = getattr(response.choices[0], 'finish_reason', None) if response.choices else None
+        finish_reason = getattr(choice, 'finish_reason', None)
         self._warn_if_truncated(finish_reason, eff_max, model)
+
+        usage = getattr(response, 'usage', None)
+        usage_details = getattr(usage, 'completion_tokens_details', None)
+        reasoning_tokens = getattr(usage_details, 'reasoning_tokens', None)
+        if isinstance(usage_details, dict):
+            reasoning_tokens = usage_details.get('reasoning_tokens')
+        has_reasoning_tokens = (
+            not isinstance(reasoning_tokens, bool)
+            and isinstance(reasoning_tokens, (int, float))
+            and reasoning_tokens > 0
+        )
+        has_reasoning_details = (
+            isinstance(reasoning_details, (str, list, tuple, dict))
+            and bool(reasoning_details)
+        )
+        reasoning_present = bool(reasoning) or has_reasoning_details or has_reasoning_tokens
+        output_tokens = getattr(usage, 'completion_tokens', None)
+        exhausted_without_reason = (
+            finish_reason is None
+            and not isinstance(output_tokens, bool)
+            and isinstance(output_tokens, (int, float))
+            and output_tokens >= eff_max
+        )
 
         llm_response = LLMResponse(
             content=content,
@@ -1002,6 +1136,13 @@ class OpenAICompatibleClient(LLMClient):
                 'input_tokens': response.usage.prompt_tokens,
                 'output_tokens': response.usage.completion_tokens
             } if response.usage else None,
+            finish_reason=finish_reason,
+            reasoning_present=reasoning_present,
+            reasoning_exhausted=(
+                not content.strip()
+                and reasoning_present
+                and (finish_reason in ('max_tokens', 'length') or exhausted_without_reason)
+            ),
         )
 
         # Log response
@@ -1332,80 +1473,46 @@ _llm_circuit_breaker = CircuitBreaker(
     "llm-api", failure_threshold=5, recovery_timeout=60,
     cause_classifier=lambda error: is_auth_error(error))
 
-# Per-episode token accumulator.
-#
-# Backed by a single lock-protected object rather than thread-local storage
-# so that ad-detection windows running on a ThreadPoolExecutor (2.5.23+) all
-# contribute to the same totals. The processing queue (fcntl flock on
-# .processing_queue.lock) guarantees only one episode is mid-accumulation at
-# any time per gunicorn worker process, so a single accumulator is correct.
-class _EpisodeAccumulator:
-    def __init__(self):
-        self._lock = threading.Lock()
-        self.active = False
-        self.input_tokens = 0
-        self.output_tokens = 0
-        self.cost = 0.0
-
-    def start(self):
-        with self._lock:
-            self.active = True
-            self.input_tokens = 0
-            self.output_tokens = 0
-            self.cost = 0.0
-
-    def add(self, input_tokens: int, output_tokens: int, cost: float) -> None:
-        with self._lock:
-            if not self.active:
-                return
-            self.input_tokens += input_tokens
-            self.output_tokens += output_tokens
-            self.cost += cost
-
-    def is_active(self) -> bool:
-        with self._lock:
-            return self.active
-
-    def collect_and_reset(self) -> dict:
-        with self._lock:
-            totals = {
-                'input_tokens': self.input_tokens,
-                'output_tokens': self.output_tokens,
-                'cost': self.cost,
-            }
-            self.active = False
-            self.input_tokens = 0
-            self.output_tokens = 0
-            self.cost = 0.0
-        return totals
-
-
-_episode_accumulator = _EpisodeAccumulator()
+# Per-run token accumulator, keyed by run_context (one per thread's run):
+# pool workers (ad-detection windows, reviewer batches) are bound to their
+# submitting thread's run, so totals aggregate per run, not per process.
 
 
 def _get_accumulator_active() -> bool:
-    """Return whether the per-episode accumulator is currently active."""
-    return _episode_accumulator.is_active()
+    """Return whether the calling thread's run has active token tracking."""
+    ctx = run_context.current()
+    return bool(ctx and ctx.tokens.is_active())
 
 
 def start_episode_token_tracking():
-    """Reset and activate the per-episode token accumulator.
-
-    Safe to call from any thread; updates from any thread will be aggregated
-    until ``get_episode_token_totals()`` is invoked.
-    """
-    _episode_accumulator.start()
-    logger.info(f"Episode token tracking: ACTIVATED (thread={threading.current_thread().name})")
+    """Reset and activate the calling run's token accumulator."""
+    ctx = run_context.current()
+    if ctx is None:
+        logger.debug("Episode token tracking requested outside a run; ignored")
+        return
+    ctx.tokens.start()
+    logger.info(f"Episode token tracking: ACTIVATED ({ctx.key})")
 
 
 def get_episode_token_totals() -> dict:
-    """Return accumulated totals, deactivate, and reset the accumulator."""
-    totals = _episode_accumulator.collect_and_reset()
+    """Return the calling run's totals, deactivate, and reset."""
+    ctx = run_context.current()
+    if ctx is None:
+        return {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+    totals = ctx.tokens.collect_and_reset()
     logger.info(
         f"Episode token totals: in={totals['input_tokens']} out={totals['output_tokens']}"
-        f" cost=${totals['cost']:.6f} (thread={threading.current_thread().name})"
+        f" cost=${totals['cost']:.6f} ({ctx.key})"
     )
     return totals
+
+
+def get_last_episode_token_totals() -> dict:
+    """Return the calling run's most recently collected token totals."""
+    ctx = run_context.current()
+    if ctx is None:
+        return {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+    return ctx.tokens.last_totals()
 
 
 def _record_token_usage(model: str, usage: dict):
@@ -1431,7 +1538,9 @@ def _record_token_usage(model: str, usage: dict):
         f" cost=${cost:.6f} accum_active={accum_active}"
         f" (thread={threading.current_thread().name})"
     )
-    _episode_accumulator.add(input_tokens, output_tokens, cost)
+    ctx = run_context.current()
+    if ctx is not None:
+        ctx.tokens.add(input_tokens, output_tokens, cost)
 
 
 def get_llm_client(force_new: bool = False) -> LLMClient:
@@ -1497,6 +1606,19 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
         return _cached_client
 
 
+# OpenCode Go and Zen route a session's requests to one backend for prompt
+# caching and reject requests without the session header (#719). One id per
+# process: every MinusPod call shares the same system prompts.
+_OPENCODE_SESSION_ID = uuid.uuid4().hex
+
+
+def _opencode_headers(base_url: str) -> dict[str, str]:
+    host = (urlparse(base_url).hostname or '').lower()
+    if host != 'opencode.ai' and not host.endswith('.opencode.ai'):
+        return {}
+    return {'x-opencode-session': _OPENCODE_SESSION_ID, 'x-opencode-client': 'minuspod'}
+
+
 def _build_client(provider: str) -> LLMClient | None:
     """Build an LLM client for a given provider without caching."""
     if provider == PROVIDER_ANTHROPIC:
@@ -1520,7 +1642,8 @@ def _build_client(provider: str) -> LLMClient | None:
             api_key = get_effective_ollama_api_key() or 'not-needed'
         else:
             api_key = get_effective_openai_api_key()
-        return OpenAICompatibleClient(base_url=base_url, api_key=api_key)
+        return OpenAICompatibleClient(base_url=base_url, api_key=api_key,
+                                      extra_headers=_opencode_headers(base_url))
     return None
 
 
@@ -2000,22 +2123,30 @@ def classify_daily_quota_exhaustion(error: Exception) -> dict | None:
 def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> float | None:
     """Pull a recommended wait (seconds) from a provider rate-limit exception.
 
-    Reads the `Retry-After` header off the attached ``httpx.Response`` first; when
-    that is absent (Google/Gemini, including via OpenRouter, put the wait in the
-    body instead), falls back to the body's RetryInfo ``retryDelay`` / "retry in
-    Ns" hint. Returns ``None`` when neither is present so callers fall through to
+    Reads, in order: the larger of the `Retry-After` header and a body-carried
+    reset field, then Google/Gemini's RetryInfo ``retryDelay`` / "retry in Ns"
+    hint. Returns ``None`` when nothing is usable, so callers fall through to
     their existing backoff curve.
+
+    A body reset can exceed the header (or be the only value present), so the
+    in-process sleep this drives can reach the caller's `max_seconds` cap.
     """
     response = getattr(error, 'response', None)
     headers = getattr(response, 'headers', None) if response is not None else None
+    header_seconds = None
     if headers is not None:
         raw = headers.get('Retry-After') or headers.get('retry-after')
-        parsed = parse_retry_after(raw, max_seconds=max_seconds)
-        if parsed is not None:
-            return parsed
-    # No usable header: Google/Gemini (incl. via OpenRouter) put the recommended
-    # wait in the body (RetryInfo.retryDelay / "retry in Ns"). Fall back to the
-    # exception's str when no body is reachable but its text carries the hint
-    # (mirrors the classify_* helpers' `or str(error)` guard).
-    return parse_google_retry_delay(
-        extract_error_body(error) or str(error), max_seconds=max_seconds)
+        header_seconds = parse_retry_after(raw, max_seconds=max_seconds)
+
+    body = extract_error_body(error) or str(error)
+    reset_seconds = parse_upstream_reset(body, max_seconds=max_seconds)
+
+    if header_seconds is not None and reset_seconds is not None:
+        return max(header_seconds, reset_seconds)
+    if reset_seconds is not None:
+        return reset_seconds
+    if header_seconds is not None:
+        return header_seconds
+    # No header and no reset field: Google/Gemini (incl. via OpenRouter) put a
+    # retry delay in the body instead (RetryInfo.retryDelay / "retry in Ns").
+    return parse_google_retry_delay(body, max_seconds=max_seconds)

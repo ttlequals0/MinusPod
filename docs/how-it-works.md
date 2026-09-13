@@ -4,6 +4,11 @@
 
 ---
 
+## Contents
+
+- [How It Works](#how-it-works)
+- [Advanced Features (Quick Reference)](#advanced-features-quick-reference)
+
 ## How It Works
 
 1. **Transcription** - Whisper converts audio to text with timestamps (local GPU via faster-whisper, or remote API via OpenAI-compatible endpoint)
@@ -66,14 +71,16 @@ At the defaults a 60-minute episode is processed as 9 overlapping windows, with 
 
 ### Processing Queue
 
-To prevent memory issues from concurrent processing, episodes are processed one at a time:
+Processing admission protects memory and provider capacity:
 
-- Only one episode processes at a time (Whisper + FFmpeg are memory-intensive)
+- One episode processes at a time by default. A remote Whisper pool can raise the episode limit.
 - Within an episode, chunk preparation overlaps transcription: ffmpeg cuts
   and normalizes upcoming chunks while the GPU transcribes the current one
   (see [Chunked transcription](transcription.md#chunked-transcription))
 - Processing runs in a background thread, so the UI stays responsive
-- Episodes stuck in "processing" status reset automatically on server restart
+- Each run has an immutable ID, owner process identity, and heartbeat in SQLite
+- Only the owner of that run can publish results, update its status, or release its slot
+- A dead owner is recovered at startup or before new work is admitted; its episode and queue row return to pending without a retry penalty
 - View the active episode and the full waiting queue in Settings > Processing
   Queue, listed in the order the worker will claim them, and cancel any of them
   there
@@ -85,6 +92,8 @@ When you request an episode that needs processing:
 4. Once processed, subsequent requests serve the stored file directly from disk
 
 HEAD requests (sent by podcast apps like Pocket Casts during feed refresh) proxy headers from the upstream audio source without triggering processing. This prevents feed refreshes from flooding the processing queue.
+
+Cancellation is stored in SQLite, so any gunicorn worker can request it. The owner checks that state between steps and before publishing. The API returns HTTP 202 if the owner is still stopping after 2 seconds. Feed and episode deletion use the same ownership checks, and an older run cannot publish over a successor.
 
 Separately from episode processing, MinusPod polls every feed's upstream RSS on a schedule (default every 15 minutes, configurable 5-1440 minutes) to discover new episodes. An opt-in Podping listener can refresh a feed ahead of the next poll. See [Configuration > Feed Refresh and Podping](configuration.md#feed-refresh-and-podping) and [Podcasting 2.0 > Podping](podcasting-2.0.md#podping).
 
@@ -114,6 +123,7 @@ A fourth outcome is **held for review**. An ad is held when one of these rules b
 - **Standalone verification-pass miss** - global tunable (Settings > Ad Detection, default 0.60 confidence). A pass-2 detection overlapping no pass-1 marker clears the verification-miss hold floor but not the (off-by-default) autocut floor. Shown with a "Verification catch" chip. See [Verification Pass](#verification-pass).
 - **No splice evidence** - global rule with a per-feed override. A cut of 60 seconds or more from the detector or a learned pattern is held unless the audio shows an edit point near one of its edges. That can be a DAI transition pair, an ad-break cue template, a volume step of 12 dB or more, a splice event, or an overlapping differential region. Intro and outro cues never count, since they mark the show rather than a break. The rule applies only once the feed's splice calibration says `calibrated`, which takes five episodes of stored history. What matters is whether the ad was joined into the audio, not who reads it. An ad recorded separately and edited in leaves an edit point; one spoken straight through in a single take does not, so a feed whose ads are never joined in has every long cut held. Turn the check off for that feed on its settings page. See [Outbound splice check](configuration.md#splice-check).
 - **Uncorroborated cross-fetch differential region** - global tunable. The two fetches measurably differ, but no other stage, overlap, or matched audio cue backs the region as an ad. See [Cross-Fetch Differential](#cross-fetch-differential).
+- **Reviewer boundary conflict** - a reviewer proposed moving inside protected evidence from a merged candidate. The original span stays in the audio and the proposed boundaries appear for manual review.
 
 Held ads stay in the audio. The episode publishes with them intact. The episode page shows held ads in an amber "Held for Review (N)" section with Approve & Recut and Dismiss buttons. Approve & Recut stores a confirm correction and immediately re-cuts via the Recut Audio mode (no LLM re-run) if the original audio is still retained; without it, the button reads Approve and the cut applies on the next reprocess. Dismiss records a rejection and leaves the audio unchanged. The episode list shows an "N held" chip on any episode with held ads.
 
@@ -167,7 +177,7 @@ Access the Patterns page from the navigation bar to:
 
 ### Real-Time Processing Status
 
-A global status bar shows real-time processing progress via Server-Sent Events. It displays the current episode title, processing stage (Transcribing, Detecting Ads, Processing Audio), a progress bar, and queue depth. Click it to navigate to the processing episode.
+A global status bar polls `GET /api/v1/status` every 2 seconds and backs off to 30 seconds after failures. The response comes from shared status and SQLite state, so any gunicorn worker can answer it. The finite 30-second SSE route remains for compatible clients. The bar shows active jobs, stage, progress, queue depth, provider holds, and offline waits.
 
 ### Chapter Generation
 

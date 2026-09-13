@@ -29,6 +29,7 @@ import numpy as np
 from scipy.fft import dct, rfft
 
 from utils.subprocess_registry import tracked_run
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS
 
 logger = logging.getLogger('podcast.audio_analysis.cue_features')
 
@@ -219,7 +220,7 @@ def decode_pcm_window(audio_path: Path | str,
 
     start = max(0.0, float(start_seconds))
     cmd = [
-        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error',
         '-ss', f'{start:.3f}',
         '-i', str(audio_path),
     ]
@@ -300,7 +301,7 @@ def _probe_audio_stream(data: bytes):
     in-memory PCM buffer first.
     """
     cmd = [
-        'ffprobe', '-v', 'error', '-select_streams', 'a:0',
+        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error', '-select_streams', 'a:0',
         '-show_entries', 'stream=sample_rate,channels', '-of', 'json', 'pipe:0',
     ]
     out = _run_ffmpeg_pipe(cmd, data, op_desc='ffprobe')
@@ -316,7 +317,7 @@ def _probe_audio_stream(data: bytes):
 def pcm_to_flac(pcm_bytes: bytes, sample_rate: int) -> bytes:
     """Encode int16 mono PCM to a FLAC byte stream (lossless, ~half the size)."""
     cmd = [
-        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error',
         '-f', 's16le', '-ar', str(sample_rate), '-ac', '1', '-i', 'pipe:0',
         '-c:a', 'flac', '-f', 'flac', 'pipe:1',
     ]
@@ -337,7 +338,7 @@ def flac_to_wav(flac_bytes: bytes, max_seconds: float,
         raise RuntimeError(
             f"cue audio must be mono {sample_rate} Hz, got {channels}ch {sr}Hz")
     cmd = [
-        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error',
         '-i', 'pipe:0', '-t', str(max_seconds),
         '-c:a', 'pcm_s16le', '-f', 'wav', 'pipe:1',
     ]

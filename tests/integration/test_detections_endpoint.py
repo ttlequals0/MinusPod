@@ -129,9 +129,11 @@ def test_reviewer_filter_narrows_rows_and_cut_summary(app_client, seeded_detecti
 def test_resolved_detection_leaves_needs_review(app_client, seeded_detections):
     _csrf(app_client)
     db = seeded_detections['db']
+    podcast_id = db.get_podcast_by_slug(seeded_detections['slug'])['id']
     db.create_pattern_correction(
         correction_type='false_positive', pattern_id=None,
-        episode_id='det-ep-1', original_bounds={'start': 100.0, 'end': 130.0})
+        episode_id='det-ep-1', original_bounds={'start': 100.0, 'end': 130.0},
+        podcast_id=podcast_id)
     body = app_client.get('/api/v1/detections').get_json()
     starts = [d['start'] for d in body['detections']]
     assert starts == [200.0]

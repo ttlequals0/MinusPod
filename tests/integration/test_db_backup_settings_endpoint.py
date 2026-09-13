@@ -14,6 +14,7 @@ Hits the real Flask app and the real filesystem (tmp dirs), no mocks.
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -50,7 +51,7 @@ def test_get_defaults(app_client, db):
     assert body['enabled'] is False
     assert body['cron'] == '30 3 * * *'
     assert body['dest'] == ''
-    assert body['effectiveDest'] == str(db.data_dir / 'backups')
+    assert body['effectiveDest'] == str((db.data_dir / 'backups').resolve())
     assert body['destWritable'] is True
     assert body['keepCount'] == 1
     assert body['lastRun'] is None
@@ -73,7 +74,7 @@ def test_put_full_roundtrip(app_client, db):
     assert body['enabled'] is True
     assert body['cron'] == '0 4 * * *'
     assert body['dest'] == dest
-    assert body['effectiveDest'] == dest
+    assert body['effectiveDest'] == str(Path(dest).resolve())
     assert body['keepCount'] == 7
 
 
@@ -94,7 +95,7 @@ def test_put_dest_empty_resets_to_default(app_client, db):
     assert r.status_code == 200
     body = r.get_json()
     assert body['dest'] == ''
-    assert body['effectiveDest'] == str(db.data_dir / 'backups')
+    assert body['effectiveDest'] == str((db.data_dir / 'backups').resolve())
 
 
 # -- PUT 400s with exact messages --

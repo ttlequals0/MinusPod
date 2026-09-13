@@ -109,6 +109,17 @@ class TestBlockedHosts:
             with pytest.raises(SSRFError, match="Blocked cloud metadata IP"):
                 validate_url('http://168.63.129.16/')
 
+    @pytest.mark.parametrize('allow_private', [False, True])
+    @pytest.mark.parametrize('address', [
+        '::ffff:168.63.129.16',
+        '::ffff:169.254.169.254',
+    ])
+    def test_ipv4_mapped_metadata_blocked(self, address, allow_private):
+        from utils.url import check_resolved_ip
+
+        with pytest.raises(SSRFError, match="Blocked cloud metadata IP"):
+            check_resolved_ip(address, allow_private=allow_private)
+
 
 class TestBlockedPorts:
     """Non-standard ports must be blocked."""

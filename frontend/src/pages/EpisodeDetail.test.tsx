@@ -11,13 +11,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import EpisodeDetail from './EpisodeDetail';
+import EpisodeDetail, { KeyedEpisodeDetail } from './EpisodeDetail';
 import EpisodeList from '../components/EpisodeList';
 import type { Episode, EpisodeDetail as EpisodeDetailType } from '../api/types';
 
-// react-router stubs
+// react-router stubs. Mutable so a test can move the view to another episode.
+const routeParams = vi.hoisted(() => ({ slug: 'test-feed', episodeId: 'ep-1' }));
 vi.mock('react-router', () => ({
-  useParams: () => ({ slug: 'test-feed', episodeId: 'ep-1' }),
+  useParams: () => ({ ...routeParams }),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -72,6 +73,7 @@ const mockSubmitCorrection = vi.fn();
 const mockReprocessEpisode = vi.fn();
 const mockRegenerateChapters = vi.fn();
 const mockUpdateLocalEpisode = vi.fn();
+const mockDownloadEpisodeAudio = vi.fn();
 const mockUploadLocalEpisodeArtwork = vi.fn();
 
 vi.mock('../api/feeds', () => ({
@@ -83,6 +85,7 @@ vi.mock('../api/feeds', () => ({
   regenerateChapters: (...args: unknown[]) => mockRegenerateChapters(...args),
   episodeOriginalUrl: (slug: string, episodeId: string) =>
     `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`,
+  downloadEpisodeAudio: (...args: unknown[]) => mockDownloadEpisodeAudio(...args),
   updateLocalEpisode: (...args: unknown[]) => mockUpdateLocalEpisode(...args),
   uploadLocalEpisodeArtwork: (...args: unknown[]) => mockUploadLocalEpisodeArtwork(...args),
 }));
@@ -361,6 +364,148 @@ describe('Held for Review: Dismiss', () => {
   });
 });
 
+describe('Held for Review: re-detect offer once every held marker is rejected', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+    mockRegenerateChapters.mockReset();
+    mockSubmitCorrection.mockResolvedValue({});
+    mockReprocessEpisode.mockResolvedValue({});
+    mockRegenerateChapters.mockResolvedValue({});
+  });
+
+  it('offers Re-detect Ads after the last held marker is marked not an ad, and runs the llm mode', async () => {
+    const user = userEvent.setup();
+    const ep = makeEpisode({ transcriptAvailable: true });
+    renderDetail(ep);
+    await screen.findByTestId('dismiss-0');
+    // The refetch after the reject comes back with the held list empty.
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [] }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    const button = await screen.findByTestId('redetect-after-review');
+    expect(screen.queryByTestId('held-for-review-section')).toBeNull();
+    await user.click(button);
+    await waitFor(() => {
+      expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'llm');
+    });
+    expect(screen.queryByTestId('held-review-cleared')).toBeNull();
+  });
+
+  it('does not resurface the offer after a later reprocess', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [] }));
+    await user.click(screen.getByTestId('dismiss-0'));
+    await screen.findByTestId('redetect-after-review');
+
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Full Analysis'));
+
+    await waitFor(() => expect(screen.queryByTestId('held-review-cleared')).toBeNull());
+  });
+
+  it('does not offer it while other held markers remain', async () => {
+    const user = userEvent.setup();
+    const second = { ...heldMarker, start: 400, end: 500 };
+    renderDetail(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [heldMarker, second] }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [second] }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId('held-review-cleared')).toBeNull();
+  });
+
+  it('does not carry the offer to the next episode: the route keys on it', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true }));
+    const view = render(
+      <QueryClientProvider client={client}><KeyedEpisodeDetail /></QueryClientProvider>,
+    );
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, pendingReviewMarkers: [] }));
+    await user.click(screen.getByTestId('dismiss-0'));
+    await screen.findByTestId('redetect-after-review');
+
+    routeParams.episodeId = 'ep-2';
+    setupEpisodeMock(makeEpisode({
+      id: 'ep-2', title: 'Second Episode', transcriptAvailable: true, pendingReviewMarkers: [],
+    }));
+    view.rerender(
+      <QueryClientProvider client={client}><KeyedEpisodeDetail /></QueryClientProvider>,
+    );
+
+    await screen.findByText('Second Episode');
+    expect(screen.queryByTestId('redetect-after-review')).toBeNull();
+    routeParams.episodeId = 'ep-1';
+  });
+
+  it('offers Regenerate Chapters alongside it and fires the regeneration', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({
+      transcriptAvailable: true, transcriptVttAvailable: true, pendingReviewMarkers: [],
+    }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    const button = await screen.findByTestId('regenerate-chapters-after-review');
+    await user.click(button);
+    await waitFor(() => {
+      expect(mockRegenerateChapters).toHaveBeenCalledWith('test-feed', 'ep-1');
+    });
+    expect(screen.queryByTestId('held-review-cleared')).toBeNull();
+  });
+
+  it('omits Regenerate Chapters without a VTT transcript', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: false }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({
+      transcriptAvailable: true, transcriptVttAvailable: false, pendingReviewMarkers: [],
+    }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    await screen.findByTestId('redetect-after-review');
+    expect(screen.queryByTestId('regenerate-chapters-after-review')).toBeNull();
+  });
+
+  it('disables Regenerate Chapters while a regeneration is in flight', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({
+      transcriptAvailable: true, transcriptVttAvailable: true,
+      pendingReviewMarkers: [], chaptersRegenerating: true,
+    }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    const button = await screen.findByTestId('regenerate-chapters-after-review');
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(true));
+  });
+
+  it('does not offer it without a transcript to re-run detection on', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: false }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: false, pendingReviewMarkers: [] }));
+
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByTestId('held-for-review-section')).toBeNull());
+    expect(screen.queryByTestId('held-review-cleared')).toBeNull();
+  });
+});
+
 describe('Held for Review: failed Approve & Recut does not arm pendingRecutRef', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
@@ -526,6 +671,19 @@ describe('New hold reasons: tooltip titles', () => {
   it('shows the reviewer_contradiction title', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'reviewer_contradiction' }] }));
     await waitFor(() => expect(screen.getByTitle('The reviewer disagreed with the detected boundaries')).toBeDefined());
+  });
+
+  it('shows the reviewer boundary conflict title and reasoning', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [{
+        ...heldMarker,
+        hold_reason: 'reviewer_boundary_conflict',
+        reviewer_reasoning: 'The candidate starts after the protected boundary.',
+      }],
+    }));
+    await waitFor(() => expect(screen.getByTitle(
+      'The reviewer proposed a boundary that crosses protected ad evidence')).toBeDefined());
+    expect(screen.getByText('The candidate starts after the protected boundary.')).toBeDefined();
   });
 
   it('shows the no_splice_evidence title', async () => {
@@ -1009,6 +1167,149 @@ describe('Partial detection (degraded pass-1)', () => {
   });
 });
 
+describe('Incomplete window coverage', () => {
+  it('names both passes and their counts when windows were lost', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      incompleteCoverage: {
+        detection: { failed: 3, total: 13 },
+        verification: { failed: 1, total: 12 },
+      },
+    }));
+    await waitFor(() => {
+      expect(screen.getByText(
+        '3 of 13 detection windows failed and 1 of 12 verification windows failed; '
+        + 'that part of the episode was not examined for ads.',
+      )).toBeDefined();
+    });
+  });
+
+  it('says nothing when coverage was complete', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], incompleteCoverage: null }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.queryByText(/windows failed/)).toBeNull();
+  });
+});
+
+describe('Thinking setting fallback', () => {
+  it('shows affected stages from the latest completed run without provider details', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      processingRuns: [
+        {
+          runNumber: 1,
+          processedAt: '2026-01-01T00:00:00Z',
+          status: 'completed',
+          adsDetected: 0,
+          processingDurationSeconds: null,
+          errorMessage: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          llmCost: 0,
+          stats: {
+            thinkingNotices: [
+              {
+                pass: 'ad_detection_pass_1',
+                provider: 'openai-compatible',
+                model: 'private-model-name',
+                requested: 'high',
+                compatibility: 'unsupported',
+                fallback: { maxTokens: 4096, temperature: 0, reasoningEffort: null },
+              },
+              {
+                pass: 'ad_detection_pass_2',
+                provider: 'openai-compatible',
+                model: 'private-model-name',
+                requested: 'high',
+                compatibility: 'incompatible',
+                fallback: { maxTokens: 4096, temperature: 0, reasoningEffort: null },
+              },
+            ],
+          },
+        },
+      ],
+    }));
+
+    const notice = await screen.findByRole('status');
+    expect(notice.textContent).toContain(
+      'The requested thinking setting was not accepted for ad detection and verification. This run used provider defaults.',
+    );
+    expect(notice.textContent).not.toContain('openai-compatible');
+    expect(notice.textContent).not.toContain('private-model-name');
+  });
+
+  it('uses the latest completed run and omits the notice when no completed run has one', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      processingRuns: [
+        {
+          runNumber: 1,
+          processedAt: '2026-01-01T00:00:00Z',
+          status: 'completed',
+          adsDetected: 0,
+          processingDurationSeconds: null,
+          errorMessage: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          llmCost: 0,
+          stats: {
+            thinkingNotices: [
+              {
+                pass: 'ad_detection_pass_1',
+                provider: 'unknown',
+                model: 'redacted',
+                requested: 'medium',
+                compatibility: 'required',
+                fallback: { maxTokens: 4096, temperature: 0, reasoningEffort: null },
+              },
+            ],
+          },
+        },
+        {
+          runNumber: 2,
+          processedAt: '2026-01-02T00:00:00Z',
+          status: 'completed',
+          adsDetected: 0,
+          processingDurationSeconds: null,
+          errorMessage: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          llmCost: 0,
+          stats: null,
+        },
+        {
+          runNumber: 3,
+          processedAt: '2026-01-03T00:00:00Z',
+          status: 'failed',
+          adsDetected: 0,
+          processingDurationSeconds: null,
+          errorMessage: 'failure',
+          inputTokens: 0,
+          outputTokens: 0,
+          llmCost: 0,
+          stats: {
+            thinkingNotices: [
+              {
+                pass: 'chapter_generation',
+                provider: 'unknown',
+                model: 'redacted',
+                requested: 1024,
+                compatibility: 'required',
+                fallback: { maxTokens: 300, temperature: 0.1, reasoningEffort: null },
+              },
+            ],
+          },
+        },
+      ],
+    }));
+
+    await screen.findByText('Test Episode');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
 describe('Regenerate Chapters: progress and result feedback', () => {
   beforeEach(() => {
     mockRegenerateChapters.mockReset();
@@ -1074,6 +1375,71 @@ describe('Regenerate Chapters: progress and result feedback', () => {
     expect(menuItem).toHaveProperty('disabled', true);
 
     resolveRegenerate();
+  });
+});
+
+describe('Regenerate Chapters: background run reported by the episode', () => {
+  beforeEach(() => {
+    mockRegenerateChapters.mockReset();
+  });
+
+  it('shows progress and disables the item while the episode reports a run in flight', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [], transcriptVttAvailable: true, chaptersRegenerating: true,
+    }));
+
+    expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    const menuItem = screen.getByText('Regenerate Chapters').closest('button');
+    expect(menuItem).toHaveProperty('disabled', true);
+  });
+
+  it('shows the last failure the episode carries', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [], transcriptVttAvailable: true,
+      chaptersRegenError: 'Failed to generate chapters',
+    }));
+
+    expect(await screen.findByText('Chapter regeneration failed: Failed to generate chapters')).not.toBeNull();
+  });
+
+  it('refetches the episode when the start is refused', async () => {
+    const user = userEvent.setup();
+    mockRegenerateChapters.mockRejectedValueOnce(new Error('Chapters are already being regenerated'));
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    // The 409 came from a run the cache did not know about; the refetch shows it.
+    setupEpisodeMock(makeEpisode({
+      pendingReviewMarkers: [], transcriptVttAvailable: true, chaptersRegenerating: true,
+    }));
+
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Regenerate Chapters'));
+
+    expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
+  });
+
+  it('confirms only once a run started here has finished', async () => {
+    const user = userEvent.setup();
+    mockRegenerateChapters.mockResolvedValue({ status: 'started' });
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    // The refetch after the POST still reports the run in flight.
+    setupEpisodeMock(makeEpisode({
+      pendingReviewMarkers: [], transcriptVttAvailable: true, chaptersRegenerating: true,
+    }));
+
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Regenerate Chapters'));
+
+    expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
+    expect(screen.queryByText('Chapters regenerated.')).toBeNull();
+
+    // The next poll sees it finished.
+    setupEpisodeMock(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    expect(await screen.findByText('Chapters regenerated.', {}, { timeout: 5000 })).not.toBeNull();
+    expect(screen.queryByText('Regenerating chapters...')).toBeNull();
   });
 });
 
@@ -1260,5 +1626,56 @@ describe('Process vs Reprocess label (single episode)', () => {
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     await user.click(screen.getByRole('button', { name: 'Process' }));
     expect(screen.getAllByText('Process').length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('Download menu', () => {
+  beforeEach(() => {
+    mockDownloadEpisodeAudio.mockReset();
+    mockDownloadEpisodeAudio.mockResolvedValue(undefined);
+  });
+
+  it('offers cut and original audio and downloads the chosen one', async () => {
+    renderDetail(makeEpisode());
+    await userEvent.click(await screen.findByRole('button', { name: /download audio/i }));
+    expect(screen.getByText('Cut audio')).toBeTruthy();
+    await userEvent.click(screen.getByText('Original audio'));
+    await waitFor(() => expect(mockDownloadEpisodeAudio).toHaveBeenCalledWith('test-feed', 'ep-1', 'original'));
+  });
+
+  it('keeps the last cut available while a reprocess is in flight', async () => {
+    renderDetail(makeEpisode({ status: 'processing' }));
+    await userEvent.click(await screen.findByRole('button', { name: /download audio/i }));
+    expect(screen.getByText('Cut audio')).toBeTruthy();
+  });
+
+  it('shows the API error instead of leaving the page', async () => {
+    mockDownloadEpisodeAudio.mockRejectedValueOnce(new Error('Original audio not retained for this episode'));
+    renderDetail(makeEpisode());
+    await userEvent.click(await screen.findByRole('button', { name: /download audio/i }));
+    await userEvent.click(screen.getByText('Original audio'));
+    expect(await screen.findByText('Original audio not retained for this episode')).toBeTruthy();
+  });
+
+  it('hides the button when nothing is downloadable', async () => {
+    renderDetail(makeEpisode({ hasOriginalAudio: false, processedAt: null, status: 'pending' }));
+    await screen.findByText('Test Episode');
+    expect(screen.queryByRole('button', { name: /download audio/i })).toBeNull();
+  });
+});
+
+describe('EpisodeDetail loading state', () => {
+  it('shows a layout skeleton while loading, not a page spinner', () => {
+    (getEpisode as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    (getFeed as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    const { container } = render(
+      <QueryClientProvider client={makeClient()}>
+        <EpisodeDetail />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId('skeleton-page-header')).toBeDefined();
+    // Both shapes: the file stubs LoadingSpinner, so check the stub and the real class.
+    expect(screen.queryByTestId('spinner')).toBeNull();
+    expect(container.querySelector('.animate-spin')).toBeNull();
   });
 });

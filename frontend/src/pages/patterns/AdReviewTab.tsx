@@ -14,7 +14,7 @@ import AdReviewModal, {
   type AdReviewSubmit,
 } from '../../components/AdReviewModal';
 import { Pagination } from '../../components/Pagination';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { SkeletonRows } from '../../components/Skeleton';
 import {
   DetectionRows, RESOLUTION_BADGE, STATUS_BADGE,
 } from './DetectionRows';
@@ -145,7 +145,7 @@ export default function AdReviewTab() {
       {actionError && (
         <div className="text-destructive text-sm mb-3">{actionError}</div>
       )}
-      {isLoading && <LoadingSpinner className="py-12" />}
+      {isLoading && <SkeletonRows count={6} />}
       {error && (
         <div className="text-destructive text-sm">
           Failed to load detections.

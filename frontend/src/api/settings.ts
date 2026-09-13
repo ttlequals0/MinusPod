@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -39,10 +39,93 @@ export async function regenerateFeedKey(): Promise<{ feedAuthKey: string }> {
   });
 }
 
+export interface ProviderBudget {
+  enabled: boolean;
+  dailyLimitMicrousd: number;
+  maxReservations: number;
+  unknownCost: 'deny' | 'allow' | 'reserve';
+  unknownReserveMicrousd: number;
+  dailyLimit: string;
+  unknownReserve: string;
+  displayCurrency: string;
+  fxRate: {
+    localPerUsd: string;
+    source: string;
+    sourceDate: string | null;
+    fetchedAt: string | null;
+  };
+  status: {
+    provider: string;
+    spentMicrousd: number;
+    reservedMicrousd: number;
+    activeReservations: number;
+  };
+}
+
+export interface ProviderBudgetUpdate {
+  enabled: boolean;
+  maxReservations: number;
+  unknownCost: 'deny' | 'allow' | 'reserve';
+  displayCurrency?: string;
+  dailyLimit?: string;
+  unknownReserve?: string;
+  dailyLimitMicrousd?: number;
+  unknownReserveMicrousd?: number;
+}
+
+export interface CurrencyOption {
+  code: string;
+  name: string;
+}
+
+export interface ProviderBudgetRate {
+  currency: string;
+  localPerUsd: string;
+  source: string;
+  sourceDate: string | null;
+  dailyLimit: string;
+  unknownReserve: string;
+}
+
+export async function getProviderBudget(): Promise<ProviderBudget> {
+  return apiRequest<ProviderBudget>('/settings/provider-budget');
+}
+
+export async function updateProviderBudget(
+  settings: ProviderBudgetUpdate,
+): Promise<ProviderBudget> {
+  return apiRequest<ProviderBudget>('/settings/provider-budget', {
+    method: 'PUT',
+    body: settings,
+  });
+}
+
+export async function getProviderBudgetCurrencies(): Promise<CurrencyOption[]> {
+  const result = await apiRequest<{ currencies: CurrencyOption[] }>('/settings/provider-budget/currencies');
+  return result.currencies;
+}
+
+export async function getProviderBudgetRate(
+  currency: string, fromCurrency?: string, dailyLimit?: string, unknownReserve?: string,
+  fromRate?: string,
+): Promise<ProviderBudgetRate> {
+  const params = new URLSearchParams();
+  if (fromCurrency) params.set('from', fromCurrency);
+  if (dailyLimit !== undefined) params.set('dailyLimit', dailyLimit);
+  if (unknownReserve !== undefined) params.set('unknownReserve', unknownReserve);
+  if (fromRate) params.set('fromRate', fromRate);
+  const suffix = params.size ? `?${params}` : '';
+  return apiRequest<ProviderBudgetRate>(`/settings/provider-budget/rate/${encodeURIComponent(currency)}${suffix}`);
+}
+
 export async function getModels(provider?: string): Promise<ClaudeModel[]> {
   const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
   const response = await apiRequest<{ models: ClaudeModel[] }>(`/settings/models${params}`);
   return response.models;
+}
+
+export async function getWhisperCapacity(): Promise<WhisperCapacity> {
+  return apiRequest<WhisperCapacity>('/settings/whisper/capacity');
 }
 
 export async function getWhisperModels(): Promise<WhisperModel[]> {
@@ -58,6 +141,31 @@ export async function refreshModels(): Promise<{ models: ClaudeModel[]; count: n
 
 export async function getSystemStatus(): Promise<SystemStatus> {
   return apiRequest<SystemStatus>('/system/status');
+}
+
+export async function checkpointDatabase(): Promise<{
+  busy: boolean;
+  logPages: number;
+  checkpointedPages: number;
+  durationMs: number;
+}> {
+  return apiRequest('/system/database/checkpoint', { method: 'POST' });
+}
+
+export interface ProcessingAdmission {
+  paused: boolean;
+  activeRuns: number;
+  queuedEpisodes: number;
+}
+
+export async function getProcessingAdmission(): Promise<ProcessingAdmission> {
+  return apiRequest('/status/processing-admission');
+}
+
+export async function setProcessingAdmission(paused: boolean): Promise<ProcessingAdmission> {
+  return apiRequest('/status/processing-admission', {
+    method: 'PUT', body: { paused },
+  });
 }
 
 export async function runCleanup(): Promise<{ message: string; episodesRemoved: number; spaceFreedMb: number }> {
@@ -117,9 +225,9 @@ export async function getPendingRecuts(slug?: string): Promise<{
   return apiRequest(`/episodes/pending-recuts${query}`);
 }
 
-/** Recut every pending episode once, or one feed's when `slug` is given. */
+/** Apply every pending episode once, or one feed's when `slug` is given. */
 export async function applyPendingRecuts(slug?: string): Promise<{
-  queued: number; skipped: number;
+  queued: number; skipped: number; chaptersRebuilding: number;
 }> {
   return apiRequest('/episodes/pending-recuts/apply', {
     method: 'POST',
@@ -286,10 +394,12 @@ export async function updateOfflineQueueSettings(
 
 export interface RateLimitHoldSettings {
   enabled: boolean;
-  ttlHours: number;
   /** ISO timestamp until which new queue claims pause, or null when idle. */
   holdUntil: string | null;
-  holdCount: number;
+  /** Provider usage/limit endpoint the hold probe checks first; empty when unset. */
+  llmUsageUrl: string;
+  /** Minutes between hold probes; 0 disables probing. */
+  rateLimitProbeMinutes: number;
 }
 
 export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings> {
@@ -297,7 +407,7 @@ export async function getRateLimitHoldSettings(): Promise<RateLimitHoldSettings>
 }
 
 export async function updateRateLimitHoldSettings(
-  args: Partial<Pick<RateLimitHoldSettings, 'enabled' | 'ttlHours'>>,
+  args: Partial<Pick<RateLimitHoldSettings, 'enabled' | 'llmUsageUrl' | 'rateLimitProbeMinutes'>>,
 ): Promise<RateLimitHoldSettings> {
   return apiRequest<RateLimitHoldSettings>('/settings/rate-limit-hold', {
     method: 'PUT',

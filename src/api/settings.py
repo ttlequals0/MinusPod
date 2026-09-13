@@ -6,6 +6,7 @@ import os
 import threading
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal, DecimalException, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 from typing import Any
 from collections.abc import Mapping
 
@@ -29,6 +30,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MIN,
     AD_REVIEWER_PARALLEL_ADS_MAX,
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
+    WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
     coerce_bool_setting,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
@@ -42,6 +44,9 @@ from config import (
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
+    resolve_ad_chapter_categories_map,
+    valid_ad_chapter_title_format,
+    validate_ad_chapter_categories,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
 )
@@ -63,10 +68,14 @@ from offline_queue import (
     TTL_HOURS_MIN, TTL_HOURS_MAX,
 )
 from rate_limit_hold import (
-    get_hold_until, get_rate_limit_hold_ttl_hours,
-    is_rate_limit_hold_enabled, RATE_LIMIT_DEFERRED_SERVICE, clear_hold,
+    get_active_hold, is_rate_limit_hold_enabled, clear_hold,
+    clear_hold_for_provider_change,
+    get_llm_usage_url, get_rate_limit_probe_minutes,
+    RATE_LIMIT_PROBE_MINUTES_MIN, RATE_LIMIT_PROBE_MINUTES_MAX,
 )
 from pricing_fetcher import force_refresh_pricing
+from transcriber import _get_chunk_settings, probe_whisper_health
+from whisper_pool import get_pool
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
     get_llm_client, create_client_for_provider,
@@ -81,7 +90,7 @@ from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from webhook_service import (
     render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS,
-    get_notification_timezone,
+    get_notification_timezone, fire_queue_resumed_event,
 )
 import email_service
 from email.utils import parseaddr
@@ -90,6 +99,8 @@ from db_backup_service import (
     validate_backup_dest,
 )
 from utils.cron import is_valid_expression
+from utils.time import utc_now_iso
+from fx_rates import FxRateError, get_currencies, get_usd_rate
 
 # Every LLM provider the settings API accepts.
 VALID_LLM_PROVIDERS = (
@@ -211,6 +222,8 @@ def get_settings():
     chapters_value = _setting_value(
         settings, 'chapters_enabled', registry_default('chapters_enabled'))
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
+    chapters_in_notes = coerce_bool_setting(_setting_value(
+        settings, 'chapters_in_notes', registry_default('chapters_in_notes')))
     only_expose_processed_value = _setting_value(
         settings, 'only_expose_processed_default',
         registry_default('only_expose_processed_default'))
@@ -290,6 +303,9 @@ def get_settings():
         except (TypeError, ValueError):
             return registry_get_default(key)
 
+    def _str_setting(key):
+        return _setting_value(settings, key, registry_default(key))
+
     queue_manual_boost = _int_setting('queue_manual_boost')
     queue_fresh_boost = _int_setting('queue_fresh_boost')
     queue_bulk_boost = _int_setting('queue_bulk_boost')
@@ -326,6 +342,7 @@ def get_settings():
     openai_base_url = get_effective_base_url()
     pricing_source_mode = _setting_value(
         settings, 'pricing_source_mode', registry_default('pricing_source_mode'))
+    model_pricing_overrides = db.get_model_pricing_overrides()
     api_key = get_api_key()
     api_key_configured = bool(api_key and api_key != 'not-needed')
     openrouter_api_key = get_effective_openrouter_api_key()
@@ -439,6 +456,13 @@ def get_settings():
         'transcribe_concurrent_chunks', registry_get_default('transcribe_concurrent_chunks'))
     transcribe_chunk_overlap_seconds = _db_int(
         'transcribe_chunk_overlap_seconds', registry_get_default('transcribe_chunk_overlap_seconds'))
+    whisper_pool_max_requests = _db_int(
+        'whisper_pool_max_requests', registry_get_default('whisper_pool_max_requests'))
+    whisper_pool_max_episodes = _db_int(
+        'whisper_pool_max_episodes', registry_get_default('whisper_pool_max_episodes'))
+    whisper_pool_enabled_raw = _setting_value(
+        settings, 'whisper_pool_enabled', registry_default('whisper_pool_enabled'))
+    whisper_pool_enabled = coerce_bool_setting(whisper_pool_enabled_raw)
 
     # Per-stage LLM tunables: resolved value (DB > env > default) and env-default provenance.
     from config import (
@@ -505,6 +529,22 @@ def get_settings():
     audio_cue_create_from_pairs = coerce_bool_setting(_setting_value(
         settings, 'audio_cue_create_from_pairs',
         registry_default('audio_cue_create_from_pairs')))
+
+    dai_differential_overrides_keep = coerce_bool_setting(_setting_value(
+        settings, 'dai_differential_overrides_keep',
+        registry_default('dai_differential_overrides_keep')))
+
+    ad_chapters_enabled = coerce_bool_setting(_str_setting('ad_chapters_enabled'))
+    ad_chapter_categories = resolve_ad_chapter_categories_map(
+        _str_setting('ad_chapter_categories'))
+    ad_chapters_include_held = coerce_bool_setting(
+        _str_setting('ad_chapters_include_held'))
+    ad_chapter_title_format = _str_setting('ad_chapter_title_format')
+    ad_chapter_held_title_format = _str_setting('ad_chapter_held_title_format')
+    ad_chapter_resume_title = _str_setting('ad_chapter_resume_title')
+    ad_chapter_min_confidence = _db_float(
+        'ad_chapter_min_confidence',
+        registry_get_default('ad_chapter_min_confidence'))
 
     # Learned positional prior experiment (#360)
     positional_prior_enabled = coerce_bool_setting(_setting_value(
@@ -606,6 +646,15 @@ def get_settings():
         'opmlOriginalUrl': opml_original_url,
         'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
+        'chaptersInNotes': _sv('chapters_in_notes', chapters_in_notes),
+        'adChaptersEnabled': _sv('ad_chapters_enabled', ad_chapters_enabled),
+        'adChapterCategories': _sv('ad_chapter_categories', ad_chapter_categories),
+        'adChaptersIncludeHeld': _sv('ad_chapters_include_held', ad_chapters_include_held),
+        'adChapterTitleFormat': _sv('ad_chapter_title_format', ad_chapter_title_format),
+        'adChapterHeldTitleFormat': _sv(
+            'ad_chapter_held_title_format', ad_chapter_held_title_format),
+        'adChapterResumeTitle': _sv('ad_chapter_resume_title', ad_chapter_resume_title),
+        'adChapterMinConfidence': _sv('ad_chapter_min_confidence', ad_chapter_min_confidence),
         'chaptersModel': _sv('chapters_model', chapters_model),
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
@@ -613,6 +662,8 @@ def get_settings():
         'llmJsonSchemaEnabled': _sv('llm_json_schema_enabled', llm_json_schema_enabled),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
         'pricingSourceMode': _sv('pricing_source_mode', pricing_source_mode),
+        'modelPricingOverrides': _sv(
+            'model_pricing_overrides', model_pricing_overrides),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         # value is resolved, not raw: unset falls back to PodcastIndex when
@@ -671,6 +722,8 @@ def get_settings():
         'learningMaxPatternDuration': _sv('learning_max_pattern_duration', learning_max_pattern_duration),
         'differentialMeasuredCorrMax': _sv('differential_measured_corr_max', differential_measured_corr_max),
         'differentialHoldMinSeconds': _sv('differential_hold_min_seconds', differential_hold_min_seconds),
+        'daiDifferentialOverridesKeep': _sv(
+            'dai_differential_overrides_keep', dai_differential_overrides_keep),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
@@ -685,6 +738,9 @@ def get_settings():
         'transcribeMaxChunkSeconds': _sv('transcribe_max_chunk_seconds', transcribe_max_chunk_seconds),
         'transcribeConcurrentChunks': _sv('transcribe_concurrent_chunks', transcribe_concurrent_chunks),
         'transcribeChunkOverlapSeconds': _sv('transcribe_chunk_overlap_seconds', transcribe_chunk_overlap_seconds),
+        'whisperPoolEnabled': _sv('whisper_pool_enabled', whisper_pool_enabled),
+        'whisperPoolMaxRequests': _sv('whisper_pool_max_requests', whisper_pool_max_requests),
+        'whisperPoolMaxEpisodes': _sv('whisper_pool_max_episodes', whisper_pool_max_episodes),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'stageTunables': tunables_payload,
@@ -729,6 +785,7 @@ def update_ad_detection_settings():
         _apply_prompt_fields,
         _apply_review_fields,
         _apply_model_fields,
+        _apply_model_pricing_fields,
         _apply_processing_flags,
         _apply_feed_refresh_fields,
         _apply_queue_boost_fields,
@@ -747,6 +804,7 @@ def update_ad_detection_settings():
         _apply_max_ad_duration_fields,
         _apply_detection_tuning_fields,
         _apply_segment_category_actions,
+        _apply_ad_chapter_fields,
         _apply_community_sync_categories,
         _apply_jit_blocked_user_agents,
         _apply_user_agent_fields,
@@ -850,6 +908,55 @@ def _apply_model_fields(db, data):
         db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
         logger.info(f"Updated chapters model to: {data['chaptersModel']}")
     return
+
+
+def _apply_model_pricing_fields(db, data):
+    """Validate and merge per-model USD pricing overrides."""
+    if 'modelPricingOverrides' not in data:
+        return None
+    submitted = data['modelPricingOverrides']
+    if not isinstance(submitted, Mapping):
+        return error_response('modelPricingOverrides must be an object', 400)
+
+    patch = {}
+    for raw_model_id, rates in submitted.items():
+        if not isinstance(raw_model_id, str) or not raw_model_id.strip():
+            return error_response('model pricing override IDs must be non-empty strings', 400)
+        model_id = raw_model_id.strip()
+        if model_id in patch:
+            return error_response(
+                f'modelPricingOverrides contains duplicate model ID {model_id}', 400)
+        if rates is None:
+            patch[model_id] = None
+            continue
+        if not isinstance(rates, Mapping):
+            return error_response(
+                f'modelPricingOverrides.{model_id} must be an object or null', 400)
+        required = {'inputCostPerMtok', 'outputCostPerMtok'}
+        if set(rates) != required:
+            return error_response(
+                f'modelPricingOverrides.{model_id} must contain inputCostPerMtok '
+                'and outputCostPerMtok', 400)
+
+        parsed = {}
+        for field in required:
+            value = rates[field]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return error_response(
+                    f'modelPricingOverrides.{model_id}.{field} must be a '
+                    'non-negative number', 400)
+            value = float(value)
+            if not math.isfinite(value) or value < 0:
+                return error_response(
+                    f'modelPricingOverrides.{model_id}.{field} must be a '
+                    'non-negative number', 400)
+            parsed[field] = value
+        patch[model_id] = parsed
+
+    if patch:
+        db.merge_model_pricing_overrides(patch)
+        logger.info("Updated model pricing overrides for %d model(s)", len(patch))
+    return None
 
 
 def _apply_size_caps(db, data):
@@ -1097,6 +1204,20 @@ def _apply_processing_flags(db, data):
         db.set_setting('chapters_enabled', value, is_default=False)
         logger.info(f"Updated chapters generation to: {value}")
 
+    if 'chaptersInNotes' in data:
+        value = 'true' if data['chaptersInNotes'] else 'false'
+        changed = (db.get_setting('chapters_in_notes') or 'false') != value
+        db.set_setting('chapters_in_notes', value, is_default=False)
+        logger.info(f"Updated chapters in descriptions to: {value}")
+        if changed:
+            # Re-render now (local feeds included) rather than wait for a
+            # scheduled refresh that would 304-skip the change.
+            from main_app.feeds import rebuild_all_served_feeds
+            try:
+                rebuild_all_served_feeds()
+            except Exception as e:
+                logger.warning(f"Served feed rebuild after chaptersInNotes change failed: {e}")
+
     if 'omitTemperature' in data:
         value = 'true' if data['omitTemperature'] else 'false'
         db.set_setting('omit_temperature', value, is_default=False)
@@ -1175,6 +1296,64 @@ def _apply_segment_category_actions(db, data):
         merged.update(value)
         db.set_setting('segment_category_actions', json.dumps(merged), is_default=False)
         logger.info(f"Updated segment category actions: {merged}")
+    return None
+
+
+def _apply_ad_chapter_fields(db, data):
+    """Persist the ad chapter settings; the category map merges over the stored map.
+
+    An empty title string resets that field to its default, matching the
+    contract _apply_user_agent_fields uses for the other free-text settings.
+    """
+    # Validate every field first so a bad value leaves nothing half-written.
+    writes = []
+    for key, setting in (('adChaptersEnabled', 'ad_chapters_enabled'),
+                         ('adChaptersIncludeHeld', 'ad_chapters_include_held')):
+        if key in data:
+            writes.append((setting, 'true' if coerce_bool_setting(data[key]) else 'false'))
+
+    for key, setting in (('adChapterTitleFormat', 'ad_chapter_title_format'),
+                         ('adChapterHeldTitleFormat', 'ad_chapter_held_title_format'),
+                         ('adChapterResumeTitle', 'ad_chapter_resume_title')):
+        if key not in data:
+            continue
+        title = data[key]
+        if not isinstance(title, str):
+            return error_response(f'{key} must be a string', 400)
+        if not title.strip():
+            writes.append((setting, ''))
+            continue
+        # Only the two format fields carry {label} or {category} placeholders.
+        if setting != 'ad_chapter_resume_title' and not valid_ad_chapter_title_format(title):
+            return error_response(
+                f'{key} must be text using only the {{label}} and {{category}} placeholders', 400)
+        writes.append((setting, title.strip()))
+
+    if 'adChapterMinConfidence' in data:
+        value = data['adChapterMinConfidence']
+        if not SETTINGS_REGISTRY['ad_chapter_min_confidence'].validator(str(value)):
+            return error_response('adChapterMinConfidence must be between 0 and 1', 400)
+        writes.append(('ad_chapter_min_confidence', str(float(value))))
+
+    merged = None
+    if 'adChapterCategories' in data:
+        value = data['adChapterCategories']
+        error = validate_ad_chapter_categories(value)
+        if error:
+            return error_response(error, 400)
+        merged = resolve_ad_chapter_categories_map(db.get_setting('ad_chapter_categories'))
+        merged.update(value)
+        writes.append(('ad_chapter_categories', json.dumps(merged)))
+
+    for setting, value in writes:
+        # Only the title fields can be blank here, and blank means reset.
+        if value == '':
+            db.clear_setting(setting)
+            logger.info(f"Reset {setting} to the default")
+        else:
+            db.set_setting(setting, value, is_default=False)
+    if merged is not None:
+        logger.info(f"Updated ad chapter categories: {merged}")
     return None
 
 
@@ -1312,6 +1491,10 @@ def _apply_transcribe_chunk_fields(db, data):
         ('transcribeChunkOverlapSeconds', 'transcribe_chunk_overlap_seconds', 1, 600),
         ('whisperApiTimeoutSeconds', 'whisper_api_timeout_seconds',
          WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX),
+        ('whisperPoolMaxRequests', 'whisper_pool_max_requests',
+         *WHISPER_POOL_MAX_REQUESTS_RANGE),
+        ('whisperPoolMaxEpisodes', 'whisper_pool_max_episodes',
+         *WHISPER_POOL_MAX_EPISODES_RANGE),
     ):
         if field_name not in data:
             continue
@@ -1325,31 +1508,45 @@ def _apply_transcribe_chunk_fields(db, data):
             )
         parsed[db_key] = value
 
-    if not parsed:
-        return None
+    pool_enabled = None
+    if 'whisperPoolEnabled' in data:
+        if not isinstance(data['whisperPoolEnabled'], bool):
+            return json_response({'error': 'whisperPoolEnabled must be a boolean'}, 400)
+        pool_enabled = data['whisperPoolEnabled']
 
-    # Cross-field: overlap must stay below the chunk size. An overlap >= chunk
-    # makes every chunk span its whole neighbor, wasting work and degenerating
-    # the merge dedupe. Validate the effective values (incoming where present,
-    # stored otherwise) so changing one field can't cross the other.
-    def _effective(db_key, fallback):
-        if db_key in parsed:
-            return parsed[db_key]
-        stored = db.get_setting(db_key)
-        try:
-            return int(stored) if stored else fallback
-        except (ValueError, TypeError):
-            return fallback
+    pool_touched = ('whisperPoolEnabled' in data
+                    or 'whisper_pool_max_requests' in parsed
+                    or 'whisper_pool_max_episodes' in parsed)
 
-    if _effective('transcribe_chunk_overlap_seconds', 30) >= _effective('transcribe_max_chunk_seconds', 600):
-        return json_response(
-            {'error': 'transcribeChunkOverlapSeconds must be less than transcribeMaxChunkSeconds'},
-            400,
-        )
+    if parsed:
+        # Cross-field: overlap must stay below the chunk size. An overlap >= chunk
+        # makes every chunk span its whole neighbor, wasting work and degenerating
+        # the merge dedupe. Validate the effective values (incoming where present,
+        # stored otherwise) so changing one field can't cross the other.
+        def _effective(db_key, fallback):
+            if db_key in parsed:
+                return parsed[db_key]
+            stored = db.get_setting(db_key)
+            try:
+                return int(stored) if stored else fallback
+            except (ValueError, TypeError):
+                return fallback
+
+        if _effective('transcribe_chunk_overlap_seconds', 30) >= _effective('transcribe_max_chunk_seconds', 600):
+            return json_response(
+                {'error': 'transcribeChunkOverlapSeconds must be less than transcribeMaxChunkSeconds'},
+                400,
+            )
+
+    if pool_enabled is not None:
+        db.set_setting('whisper_pool_enabled', 'true' if pool_enabled else 'false', is_default=False)
+        logger.info(f"Updated whisper_pool_enabled to: {pool_enabled}")
 
     for db_key, value in parsed.items():
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
+    if pool_touched:
+        get_pool().refresh(force=True)
     return None
 
 
@@ -1360,8 +1557,13 @@ def _apply_provider_fields(db, data):
     fresh client, probe again, refresh pricing in a background thread, and
     (only when the new provider's catalog probe returns a non-empty list)
     prune any saved model ID that the new provider does not advertise.
+
+    A change of provider, endpoint, or key also lifts an active rate-limit
+    hold: the pause belonged to the account that returned the 429.
     """
     provider_changed = False
+    # Narrower than provider_changed: pricing mode is not a new account.
+    credentials_changed = False
     if 'llmProvider' in data:
         if data['llmProvider'] not in VALID_LLM_PROVIDERS:
             return json_response(
@@ -1370,6 +1572,7 @@ def _apply_provider_fields(db, data):
         db.set_setting('llm_provider', data['llmProvider'], is_default=False)
         logger.info(f"Updated LLM provider to: {data['llmProvider']}")
         provider_changed = True
+        credentials_changed = True
 
     if 'openaiBaseUrl' in data:
         try:
@@ -1379,6 +1582,7 @@ def _apply_provider_fields(db, data):
         db.set_setting('openai_base_url', data['openaiBaseUrl'], is_default=False)
         logger.info(f"Updated OpenAI base URL to: {data['openaiBaseUrl']}")
         provider_changed = True
+        credentials_changed = True
 
     if 'pricingSourceMode' in data:
         valid_modes = ('auto', 'litellm', 'free')
@@ -1400,6 +1604,10 @@ def _apply_provider_fields(db, data):
             return error_response('provider_crypto_unavailable', 409)
         logger.info("Updated OpenRouter API key")
         provider_changed = True
+        credentials_changed = True
+
+    if credentials_changed:
+        clear_hold_for_provider_change(db, 'LLM provider settings changed')
 
     if provider_changed:
         # Clear the cached probe answers so the new endpoint gets re-probed:
@@ -1434,16 +1642,20 @@ def _apply_provider_fields(db, data):
             # exactly what the typed-model-ID entry exists for (proxies,
             # private deployments). The prune only targets settings the
             # request did not touch.
+            # Cleared review_model reads back as its registry default
+            # same_as_pass, so the reviewer falls back to the pass model.
             explicit = {
                 'claude_model': 'claudeModel',
                 'verification_model': 'verificationModel',
                 'chapters_model': 'chaptersModel',
+                'review_model': 'reviewModel',
             }
             for setting_key, json_key in explicit.items():
                 if json_key in data:
                     continue
                 current = db.get_setting(setting_key)
-                if current and current not in advertised:
+                # review_model's same_as_pass sentinel is never a catalog entry.
+                if current and current != 'same_as_pass' and current not in advertised:
                     logger.info(
                         "Clearing %s='%s' on provider change: not advertised by new provider",
                         setting_key, current,
@@ -1474,6 +1686,7 @@ def _apply_whisper_fields(db, data):
             )
         db.set_setting('whisper_backend', data['whisperBackend'], is_default=False)
         logger.info(f"Updated whisper backend to: {data['whisperBackend']}")
+        get_pool().refresh(force=True)
 
     if 'whisperApiBaseUrl' in data:
         if data['whisperApiBaseUrl']:
@@ -1769,6 +1982,12 @@ def _apply_positional_prior_fields(db, data):
         enabled = coerce_bool_setting(data['positionalPriorEnabled'])
         db.set_setting('positional_prior_enabled', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated positional_prior_enabled to: {enabled}")
+
+    if 'daiDifferentialOverridesKeep' in data:
+        enabled = coerce_bool_setting(data['daiDifferentialOverridesKeep'])
+        db.set_setting('dai_differential_overrides_keep',
+                       'true' if enabled else 'false', is_default=False)
+        logger.info(f"Updated dai_differential_overrides_keep to: {enabled}")
     return
 
 
@@ -1977,6 +2196,207 @@ def regenerate_feed_auth_key():
     db.clear_all_podcast_etags()
     logger.info("Feed auth key regenerated")
     return json_response({'feedAuthKey': new_key})
+
+
+@api.route('/settings/provider-budget', methods=['GET'])
+@log_request
+def get_provider_budget():
+    return json_response(_provider_budget_payload())
+
+
+def _provider_budget_payload():
+    db = get_database()
+    provider = db.get_setting('llm_provider') or 'anthropic'
+    currency = (db.get_setting('provider_budget_display_currency') or 'USD').upper()
+    rate = db.get_setting('provider_budget_fx_rate') or '1'
+    try:
+        local_per_usd = Decimal(rate)
+        if not local_per_usd.is_finite() or local_per_usd <= 0:
+            raise InvalidOperation
+    except InvalidOperation:
+        local_per_usd = Decimal('1')
+        rate = '1'
+    return {
+        'enabled': db.get_setting_bool('provider_budget_enabled', False),
+        'dailyLimitMicrousd': db.get_setting_int(
+            'provider_budget_daily_limit_microusd', 0
+        ),
+        'maxReservations': db.get_setting_int(
+            'provider_budget_max_reservations', 1
+        ),
+        'unknownCost': db.get_setting('provider_budget_unknown_cost') or 'deny',
+        'unknownReserveMicrousd': db.get_setting_int(
+            'provider_budget_unknown_reserve_microusd', 0
+        ),
+        'displayCurrency': currency,
+        'dailyLimit': _microusd_to_local(
+            db.get_setting_int('provider_budget_daily_limit_microusd', 0), local_per_usd),
+        'unknownReserve': _microusd_to_local(
+            db.get_setting_int('provider_budget_unknown_reserve_microusd', 0), local_per_usd),
+        'fxRate': {
+            'localPerUsd': rate,
+            'source': 'Identity' if currency == 'USD' else 'Frankfurter',
+            'sourceDate': db.get_setting('provider_budget_fx_source_date') or None,
+            'fetchedAt': db.get_setting('provider_budget_fx_fetched_at') or None,
+        },
+        'status': db.provider_budget_status(provider),
+    }
+
+
+@api.route('/settings/provider-budget/currencies', methods=['GET'])
+@log_request
+def get_provider_budget_currencies():
+    try:
+        return json_response({'currencies': get_currencies()})
+    except FxRateError as exc:
+        return error_response(str(exc), 503)
+
+
+@api.route('/settings/provider-budget/rate/<currency>', methods=['GET'])
+@log_request
+def get_provider_budget_rate(currency):
+    try:
+        rate = get_usd_rate(currency)
+    except FxRateError as exc:
+        return error_response(str(exc), 503)
+    try:
+        from_currency = request.args.get('from')
+        if from_currency:
+            from_rate = _preview_rate(request.args.get('fromRate', ''))
+            daily_limit = _convert_local_amount(
+                request.args.get('dailyLimit', ''), from_rate, rate.local_per_usd)
+            unknown_reserve = _convert_local_amount(
+                request.args.get('unknownReserve', ''), from_rate, rate.local_per_usd)
+        else:
+            db = get_database()
+            daily_limit = _microusd_to_local(
+                db.get_setting_int('provider_budget_daily_limit_microusd', 0), rate.local_per_usd)
+            unknown_reserve = _microusd_to_local(
+                db.get_setting_int('provider_budget_unknown_reserve_microusd', 0), rate.local_per_usd)
+        return json_response({
+            'currency': rate.currency,
+            'localPerUsd': str(rate.local_per_usd),
+            'source': rate.source,
+            'sourceDate': rate.source_date,
+            'dailyLimit': daily_limit,
+            'unknownReserve': unknown_reserve,
+        })
+    except FxRateError as exc:
+        return error_response(str(exc), 400)
+
+
+def _local_amount_to_microusd(value, rate: Decimal, rounding) -> int:
+    if not isinstance(value, str) or len(value) > 64:
+        raise ValueError('Currency amounts must be decimal strings')
+    try:
+        amount = Decimal(value)
+    except InvalidOperation as exc:
+        raise ValueError('Currency amount must be a valid decimal') from exc
+    if (not amount.is_finite() or amount < 0
+            or (not amount.is_zero() and not -18 <= amount.adjusted() <= 18)):
+        raise ValueError('Currency amount must be a non-negative finite decimal')
+    try:
+        converted = (amount * Decimal(1_000_000) / rate).to_integral_value(rounding=rounding)
+    except (DecimalException, OverflowError) as exc:
+        raise ValueError('Currency amount is too large') from exc
+    result = int(converted)
+    if amount > 0 and result == 0:
+        raise ValueError('Currency amount is too small to enforce')
+    if result > 1_000_000_000_000:
+        raise ValueError('Currency amount is too large')
+    return result
+
+
+def _microusd_to_local(microusd: int, rate: Decimal) -> str:
+    return format(Decimal(microusd) * rate / Decimal(1_000_000), 'f')
+
+
+def _convert_local_amount(value: str, from_rate: Decimal, to_rate: Decimal) -> str:
+    if not isinstance(value, str) or len(value) > 64:
+        raise FxRateError('Currency amount is invalid')
+    try:
+        amount = Decimal(value)
+        if (not amount.is_finite() or amount < 0
+                or (not amount.is_zero() and not -18 <= amount.adjusted() <= 18)):
+            raise ValueError
+        return format(amount * to_rate / from_rate, 'f')
+    except (DecimalException, ValueError, OverflowError) as exc:
+        raise FxRateError('Currency amount is invalid') from exc
+
+
+def _preview_rate(value: str) -> Decimal:
+    if not isinstance(value, str) or len(value) > 64:
+        raise FxRateError('Currency rate is invalid')
+    try:
+        rate = Decimal(value)
+        if not rate.is_finite() or rate <= 0 or not -18 <= rate.adjusted() <= 18:
+            raise ValueError
+        return rate
+    except (DecimalException, ValueError, OverflowError) as exc:
+        raise FxRateError('Currency rate is invalid') from exc
+
+
+@api.route('/settings/provider-budget', methods=['PUT'])
+@limiter.limit('10 per hour')
+@log_request
+def update_provider_budget():
+    data = request.get_json(silent=True) or {}
+    enabled = data.get('enabled')
+    limit = data.get('dailyLimitMicrousd')
+    maximum = data.get('maxReservations')
+    action = data.get('unknownCost')
+    reserve = data.get('unknownReserveMicrousd')
+    currency = data.get('displayCurrency')
+    if not isinstance(enabled, bool):
+        return error_response('enabled must be a boolean', 400)
+    if currency is None and (not isinstance(limit, int) or limit < 0):
+        return error_response('dailyLimitMicrousd must be a non-negative integer', 400)
+    if not isinstance(maximum, int) or not 1 <= maximum <= 64:
+        return error_response('maxReservations must be between 1 and 64', 400)
+    if action not in ('deny', 'allow', 'reserve'):
+        return error_response('unknownCost must be deny, allow, or reserve', 400)
+    if currency is None and (not isinstance(reserve, int) or reserve < 0):
+        return error_response('unknownReserveMicrousd must be a non-negative integer', 400)
+    if currency is None and enabled and action == 'reserve' and reserve == 0:
+        return error_response('unknownReserveMicrousd must be positive for reserve', 400)
+    if currency is not None:
+        if not isinstance(currency, str) or len(currency) != 3 or not currency.isascii() or not currency.isalpha():
+            return error_response('displayCurrency must be an ISO currency code', 400)
+        daily_local = data.get('dailyLimit')
+        reserve_local = data.get('unknownReserve')
+        if not isinstance(daily_local, str) or not isinstance(reserve_local, str):
+            return error_response('dailyLimit and unknownReserve must be decimal strings', 400)
+        try:
+            fx_rate = get_usd_rate(currency)
+            limit = _local_amount_to_microusd(
+                daily_local, fx_rate.local_per_usd, ROUND_FLOOR)
+            reserve = _local_amount_to_microusd(
+                reserve_local, fx_rate.local_per_usd, ROUND_CEILING)
+        except FxRateError as exc:
+            return error_response(str(exc), 503)
+        except ValueError as exc:
+            return error_response(str(exc), 400)
+        if enabled and action == 'reserve' and reserve == 0:
+            return error_response('unknownReserve must be positive for reserve', 400)
+    db = get_database()
+    values = {
+        'provider_budget_enabled': str(enabled).lower(),
+        'provider_budget_daily_limit_microusd': str(limit),
+        'provider_budget_max_reservations': str(maximum),
+        'provider_budget_unknown_cost': action,
+        'provider_budget_unknown_reserve_microusd': str(reserve),
+    }
+    if currency is not None:
+        values.update({
+            'provider_budget_display_currency': fx_rate.currency,
+            'provider_budget_fx_rate': str(fx_rate.local_per_usd),
+            'provider_budget_fx_source_date': fx_rate.source_date,
+            'provider_budget_fx_fetched_at': utc_now_iso(),
+        })
+    with db.transaction(immediate=True) as conn:
+        for key, value in values.items():
+            db._upsert_setting(conn, key, value, is_default=False)
+    return json_response(_provider_budget_payload())
 
 
 @api.route('/settings/ad-detection/reset', methods=['POST'])
@@ -2300,8 +2720,7 @@ def _offline_queue_view(db) -> dict:
     return {
         'enabled': is_offline_queue_enabled(db),
         'ttlHours': get_offline_queue_ttl_hours(db),
-        'deferredCount': db.count_deferred_episodes(
-            exclude_service=RATE_LIMIT_DEFERRED_SERVICE),
+        'deferredCount': db.count_deferred_episodes(),
     }
 
 
@@ -2332,12 +2751,11 @@ def update_offline_queue_settings():
     return json_response(view)
 
 
-def _apply_toggle_ttl_update(db, data, prefix: str):
-    """Validate and store {enabled, ttlHours} for a deferral feature.
+def _apply_enabled_update(db, data, prefix: str):
+    """Validate and store {enabled} for a queue-wait feature.
 
     `prefix` is the settings key stem ('offline_queue', 'rate_limit_hold').
-    Returns an error response on invalid input, else None. Shared by the
-    offline-queue and rate-limit-hold PUT handlers (#482, #696).
+    Returns an error response on invalid input, else None.
     """
     if not isinstance(data, dict) or not data:
         return error_response('No data provided', 400)
@@ -2347,6 +2765,14 @@ def _apply_toggle_ttl_update(db, data, prefix: str):
             return error_response('enabled must be a boolean', 400)
         db.set_setting(f'{prefix}_enabled',
                        'true' if data['enabled'] else 'false', is_default=False)
+    return None
+
+
+def _apply_toggle_ttl_update(db, data, prefix: str):
+    """_apply_enabled_update plus the ttlHours give-up window (#482)."""
+    error = _apply_enabled_update(db, data, prefix)
+    if error:
+        return error
 
     if 'ttlHours' in data:
         ttl = data['ttlHours']
@@ -2362,9 +2788,9 @@ def _rate_limit_hold_view(db) -> dict:
     """Rate-limit hold settings payload shared by GET and PUT (#696)."""
     return {
         'enabled': is_rate_limit_hold_enabled(db),
-        'ttlHours': get_rate_limit_hold_ttl_hours(db),
-        'holdUntil': get_hold_until(db),
-        'holdCount': db.count_deferred_episodes(service=RATE_LIMIT_DEFERRED_SERVICE),
+        'holdUntil': get_active_hold(db)[0],
+        'llmUsageUrl': get_llm_usage_url(db),
+        'rateLimitProbeMinutes': get_rate_limit_probe_minutes(db),
     }
 
 
@@ -2380,23 +2806,64 @@ def get_rate_limit_hold_settings():
 def update_rate_limit_hold_settings():
     """Update rate-limit hold configuration (#696).
 
-    When enabled, a provider 429 carrying a reset time defers the episode
-    and pauses new queue claims until the reset instead of failing the job.
-    ttlHours bounds how long a held episode waits before being marked
-    permanently failed.
+    When enabled, a provider 429 carrying a reset time sends the episode
+    back to the queue and pauses new claims until the reset instead of
+    failing the job. llmUsageUrl and rateLimitProbeMinutes configure the
+    probe that periodically re-checks an active hold.
     """
     data = request.get_json()
     db = get_database()
-    error = _apply_toggle_ttl_update(db, data, 'rate_limit_hold')
+    error = _apply_enabled_update(db, data, 'rate_limit_hold')
     if error:
         return error
-    if data.get('enabled') is False:
-        # Escape hatch: lifting the hold releases the pause and lets the
-        # tick requeue every held episode on its next pass.
-        clear_hold(db)
+    if 'llmUsageUrl' in data:
+        usage_url = data['llmUsageUrl']
+        if usage_url:
+            try:
+                validate_base_url(usage_url)
+            except SSRFError as e:
+                return json_response({'error': f'Invalid LLM usage URL: {e}'}, 400)
+        db.set_setting('llm_usage_url', usage_url, is_default=False)
+    if 'rateLimitProbeMinutes' in data:
+        minutes = data['rateLimitProbeMinutes']
+        if not isinstance(minutes, int) or isinstance(minutes, bool) \
+                or minutes < RATE_LIMIT_PROBE_MINUTES_MIN or minutes > RATE_LIMIT_PROBE_MINUTES_MAX:
+            return error_response(
+                'rateLimitProbeMinutes must be an integer between '
+                f'{RATE_LIMIT_PROBE_MINUTES_MIN} and {RATE_LIMIT_PROBE_MINUTES_MAX}', 400)
+        db.set_setting('rate_limit_probe_minutes', str(minutes), is_default=False)
+    if data.get('enabled') is False and get_active_hold(db)[0]:
+        # Escape hatch: turning the hold off lifts an active pause.
+        fire_queue_resumed_event(held_since=clear_hold(db))
     view = _rate_limit_hold_view(db)
     logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
     return json_response(view)
+
+
+@api.route('/settings/whisper/capacity', methods=['GET'])
+@log_request
+def get_whisper_capacity():
+    """Resolved Whisper pool: what is configured, what is active, what is in flight.
+
+    Refreshes only this worker's pool; the leader's dispatcher refreshes its
+    own pool every pass (5s settings TTL), so no cross-process signal needed.
+    """
+    pool = get_pool()
+    pool.refresh(force=True)
+    snap = pool.snapshot()
+    configured = _get_chunk_settings()['concurrent_chunks']
+    effective = pool.chunk_workers(configured)
+    worst = snap['maxEpisodes']['effective'] * configured
+    # Probe only while the pool is active (enabled and on the API backend),
+    # so disabling it or switching to local stops polling a stale URL.
+    health = probe_whisper_health() if snap['active'] else {'available': False}
+    snap.update({
+        'chunkWorkers': {'configured': configured, 'effective': effective},
+        'worstCaseInFlight': worst,
+        'exceedsCapacity': bool(snap['active'] and worst > snap['capacity']),
+        'health': health,
+    })
+    return json_response(snap)
 
 
 # ========== Update check settings ==========

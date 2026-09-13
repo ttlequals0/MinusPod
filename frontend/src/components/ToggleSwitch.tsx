@@ -12,6 +12,7 @@ function ToggleSwitch({ checked, onChange, disabled, ariaLabel }: ToggleSwitchPr
     <div
       role="switch"
       aria-checked={checked}
+      aria-disabled={disabled}
       aria-label={ariaLabel}
       tabIndex={disabled ? -1 : 0}
       className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${focusRing} ${

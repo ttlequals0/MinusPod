@@ -29,7 +29,7 @@ from config import (
     SPLICE_CENTROID_STEP_MIN_HZ, SPLICE_FLATNESS_STEP_MIN,
     SPLICE_STEP_SIDE_WINDOW_SECONDS,
 )
-from utils.ffmpeg_run import ffmpeg_timeout
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
 from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger('podcast.audio_analysis.splice')
@@ -119,7 +119,7 @@ class SpliceDetector:
                         duration: float) -> np.ndarray | None:
         """Decode to 8kHz mono s16 PCM. Returns int16 array or None."""
         cmd = [
-            'ffmpeg', '-v', 'error', '-i', audio_path,
+            'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-i', audio_path,
             '-f', 's16le', '-acodec', 'pcm_s16le',
             '-ac', '1', '-ar', str(SAMPLE_RATE_HZ), '-',
         ]

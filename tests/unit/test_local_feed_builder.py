@@ -401,3 +401,23 @@ def test_enclosure_length_omitted_when_file_missing():
     # Neither fixture episode's audio file exists on disk in this test --
     # the enclosure tags must still render, just without a length attribute.
     assert 'length="' not in xml
+
+
+def test_chapter_list_in_description_follows_the_feed_override():
+    slug = 'archive-chapter-notes'
+    podcast = _seed(slug)
+    chapters = {'version': '1.2.0', 'chapters': [
+        {'startTime': 0, 'title': 'Intro'}, {'startTime': 75, 'title': 'Topic'}]}
+    mf.storage.save_chapters_json(slug, 's01e02', chapters)
+    # Unprocessed: its chapters are not on the cut timeline, so never listed.
+    mf.storage.save_chapters_json(slug, 's01e01', chapters)
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+
+    plain = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    assert 'Chapters</p>' not in plain
+
+    mf.db.update_podcast(slug, chapters_in_notes='on')
+    podcast = mf.db.get_podcast_by_slug(slug)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    assert 'Second episode<p>Chapters</p><p>00:00 Intro<br>01:15 Topic</p>' in xml
+    assert 'First episode<p>' not in xml

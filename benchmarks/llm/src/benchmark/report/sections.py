@@ -567,13 +567,13 @@ def _render_transcript_source() -> str:
         lines.append(f"| {k} | {v} |")
     lines += [
         "",
-        "**`model.transcribe()` invocation** (from `src/transcriber.py`):",
+        "**`model.transcribe()` invocation** (`src/transcriber.py` as of corpus transcription, before 2.96.0):",
         "",
         "```python",
         _WHISPER_TRANSCRIBE_SNIPPET,
         "```",
         "",
-        "The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). This biases what shows up in the transcript and therefore what every benchmarked LLM is scored against.",
+        "The `initial_prompt` seeded a sponsor vocabulary so Whisper produced consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`), biasing what showed up in the transcript and therefore what every benchmarked LLM is scored against. 2.96.0 removed the prompt because it dropped 7-17% of each episode's speech on the batched pipeline; the corpus has not been re-transcribed without it.",
         "",
     ]
     sponsors = _seed_sponsors()

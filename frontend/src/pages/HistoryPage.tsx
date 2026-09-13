@@ -12,7 +12,7 @@ import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatDateTime } from '../utils/format';
 import { ProcessingHistoryEntry } from '../api/types';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { btnSecondary } from '../components/buttonStyles';
@@ -94,7 +94,7 @@ function HistoryPage() {
   };
 
   if (isLoading) {
-    return <LoadingSpinner className="py-12" />;
+    return <div><SkeletonPageHeader /><SkeletonRows count={8} /></div>;
   }
 
   if (error) {

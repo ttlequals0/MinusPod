@@ -38,3 +38,25 @@ describe('Search page', () => {
     expect(allTab.className).toContain('bg-primary');
   });
 });
+
+describe('Search page loading placeholder', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows result skeletons while the search query is pending', async () => {
+    mockSearch.mockReturnValueOnce(new Promise(() => {}));
+    renderSearch('/search?q=xy');
+    expect(await screen.findByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once results land', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'xy', shows: [{ slug: 'example-podcast', title: 'The Daily Tech Show', snippet: null }],
+      episodes: [], transcripts: [], patterns: [], sponsors: [],
+    });
+    renderSearch('/search?q=xy');
+    await waitFor(() => screen.getByText('The Daily Tech Show'));
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});

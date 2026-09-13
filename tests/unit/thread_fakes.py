@@ -2,7 +2,7 @@
 
 
 class SyncThread:
-    def __init__(self, target=None, args=(), daemon=None):
+    def __init__(self, target=None, args=(), **_):
         self._target = target
         self._args = args
 

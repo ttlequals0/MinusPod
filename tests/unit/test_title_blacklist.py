@@ -70,10 +70,11 @@ class TestRssGateSkipsBlacklistedTitles:
             'artwork_cached': True,
             'title_skip_patterns': json.dumps(['Blacklisted*']),
         }
-        mock_db.bulk_upsert_discovered_episodes.return_value = 2
+        mock_db.get_podcast_row.return_value = mock_db.get_podcast_by_slug.return_value
+        mock_db.bulk_upsert_discovered_episodes.return_value = (2, {}, {})
         mock_db.is_auto_process_enabled_for_podcast.return_value = True
         mock_db.get_episode_statuses_for_podcast.return_value = ({}, {})
-        mock_db.queue_episode_for_processing.return_value = 99
+        mock_db.queue_episodes_for_processing.return_value = {'ep-normal'}
         mock_pattern.update_podcast_metadata.return_value = {}
 
         mock_rss.fetch_feed_conditional.return_value = (b'<rss/>', None, None)
@@ -98,8 +99,8 @@ class TestRssGateSkipsBlacklistedTitles:
 
         feeds_mod.refresh_rss_feed('show', 'https://example.com/f.xml', force=True)
 
-        queued_ids = [c.args[1] for c in mock_db.queue_episode_for_processing.call_args_list]
-        assert queued_ids == ['ep-normal']
+        queued = mock_db.queue_episodes_for_processing.call_args.args[1]
+        assert [episode['episode_id'] for episode in queued] == ['ep-normal']
 
 
 class TestOnDemandServeGate:
@@ -182,12 +183,30 @@ class TestClaimGateTitleBlacklist:
             'title_skip_patterns': json.dumps(['Blacklisted*'])}
         mock_db.is_auto_process_enabled_for_podcast.return_value = True
         mock_db.get_episode.return_value = {'reprocess_requested_at': reprocess_requested_at}
+        # Maintenance runs on the dispatcher's first pass; give it a
+        # well-formed result so it does not raise before the claim gate runs.
+        mock_db.reset_orphaned_queue_items.return_value = (0, 0)
+        mock_db.reset_failed_queue_items.return_value = 0
+
+        from whisper_pool import WhisperPool
+        inactive_pool = WhisperPool(lambda: {
+            'enabled': False, 'backend': 'local', 'max_requests': 4, 'max_episodes': 1})
 
         with patch.object(background, 'db', mock_db), \
              patch.object(background, 'shutdown_event') as ev, \
+             patch.object(background, 'get_pool', lambda: inactive_pool), \
+             patch.object(background, 'reset_stuck_processing_episodes'), \
+             patch('offline_queue.offline_queue_tick'), \
              patch('main_app.processing.start_background_processing',
                    return_value=start_return) as start:
-            ev.is_set.side_effect = [False, True]
+            # A gate-skipped claim never adds to `running`, so the inner
+            # claim loop only stops on is_set(); use an open-ended counter
+            # rather than a fixed-length side_effect list.
+            calls = {'n': 0}
+            def _is_set():
+                calls['n'] += 1
+                return calls['n'] > 2
+            ev.is_set.side_effect = _is_set
             ev.wait.return_value = None
             background.background_queue_processor()
 

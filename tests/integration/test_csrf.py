@@ -8,6 +8,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('csrf_test_', secret_key='csrf-test-secret', passphrase='csrf-test-passphrase')
 
 import database
+from api.auth_state import SESSION_GENERATION_KEY, current_generation
 
 
 @pytest.fixture
@@ -114,6 +115,7 @@ def test_authenticated_session_without_csrf_token_is_rejected(csrf_client):
 
     with csrf_client.session_transaction() as sess:
         sess['authenticated'] = True
+        sess[SESSION_GENERATION_KEY] = current_generation(db)
         sess.pop('_csrf_token', None)
 
     response = csrf_client.post(

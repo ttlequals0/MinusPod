@@ -7,7 +7,7 @@ import { getNormalizations, deleteNormalization } from '../../api/sponsors';
 import { SponsorNormalization } from '../../api/types';
 import NormalizationEditModal from '../../components/NormalizationEditModal';
 import { ConfirmModal } from '../../components/Modal';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { SkeletonRows } from '../../components/Skeleton';
 import { btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 
@@ -49,7 +49,7 @@ function TranscriptNormalizationSection() {
         transcribed three different ways still matches one pattern.
       </p>
       {isLoading || !visible ? (
-        <LoadingSpinner className="py-12" />
+        <SkeletonRows count={4} />
       ) : error ? (
         <div className="text-center py-12"><p className="text-destructive">Failed to load normalizations</p></div>
       ) : (

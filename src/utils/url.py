@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 # Cloud metadata IPs that must always be blocked
 _CLOUD_METADATA_IPS = frozenset({
-    '169.254.169.254',  # AWS, GCP metadata
-    '168.63.129.16',    # Azure metadata
+    ipaddress.ip_address('169.254.169.254'),  # AWS, GCP metadata
+    ipaddress.ip_address('168.63.129.16'),    # Azure metadata
 })
 
 
@@ -30,12 +30,14 @@ def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:
     Cloud metadata and link-local addresses are blocked at every tier;
     loopback/private/multicast/reserved are allowed only when allow_private.
     """
-    if ip_str in _CLOUD_METADATA_IPS:
-        raise SSRFError(f"Blocked cloud metadata IP: {ip_str}")
     try:
         addr = ipaddress.ip_address(ip_str)
     except ValueError:
         raise SSRFError(f"Invalid resolved IP: {ip_str}") from None
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+        addr = addr.ipv4_mapped
+    if addr in _CLOUD_METADATA_IPS:
+        raise SSRFError(f"Blocked cloud metadata IP: {ip_str}")
     if addr.is_link_local:
         raise SSRFError(f"Blocked link-local IP: {ip_str}")
     if allow_private:
@@ -172,8 +174,6 @@ def validate_outbound_host(host: str, port: int = 0) -> str:
     if not host or not host.strip():
         raise SSRFError("Empty host")
     host = host.strip().strip('[]')
-    if host in _CLOUD_METADATA_IPS:
-        raise SSRFError(f"Blocked cloud metadata IP: {host}")
     try:
         resolve_and_check(host, port, allow_private=True)
     except socket.gaierror:

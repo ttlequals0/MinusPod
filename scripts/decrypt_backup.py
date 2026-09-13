@@ -7,17 +7,19 @@ Usage::
         python scripts/decrypt_backup.py backup.db.enc backup.db
 
 The passphrase must match what the container that produced the backup
-had at the time of the export. The salt lives inside the container's
-SQLite ``provider_crypto_salt`` row, so decryption also needs access to
-that DB -- the script reads ``DATA_PATH`` (default ``/app/data``) for it,
-read-only, without constructing the full Database (which would create
-tables, run migrations, and could mint a new salt).
+had at the time of the export. Current backups carry their own KDF salt.
+Legacy MPBK01 files still read the salt from ``DATA_PATH``.
 """
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from secrets_crypto import decrypt_backup_file, decrypt_bytes
 
 
 def main() -> int:
@@ -32,13 +34,20 @@ def main() -> int:
         print("error: MINUSPOD_MASTER_PASSPHRASE is required", file=sys.stderr)
         return 3
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-    from secrets_crypto import decrypt_bytes
+    passphrase = os.environ["MINUSPOD_MASTER_PASSPHRASE"]
+    with src.open('rb') as source:
+        magic = source.read(7)
+    if magic == b'MPBK02\x00':
+        decrypt_backup_file(src, dst, passphrase)
+        print(f"decrypted {src.stat().st_size} bytes: {dst}")
+        return 0
 
     db = _ReadOnlySaltDB(os.environ.get("DATA_PATH", "/app/data"))
     blob = src.read_bytes()
     plaintext = decrypt_bytes(db, blob)
-    dst.write_bytes(plaintext)
+    fd = os.open(dst, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    with os.fdopen(fd, 'wb') as output:
+        output.write(plaintext)
     print(f"decrypted {len(blob)} -> {len(plaintext)} bytes: {dst}")
     return 0
 
@@ -54,7 +63,6 @@ class _ReadOnlySaltDB:
         self._path = Path(data_dir) / "podcast.db"
 
     def get_setting(self, key: str):
-        import sqlite3
         if not self._path.exists():
             return None
         conn = sqlite3.connect(f"file:{self._path}?mode=ro", uri=True)

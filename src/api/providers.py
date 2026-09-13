@@ -11,14 +11,15 @@ import requests
 from flask import request
 
 import transcriber
-from api import api, error_response, json_response
+from api import api, error_response, json_response, limiter
 from config import (
     HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE,
     PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE,
 )
 from database import Database
-from llm_client import get_effective_base_url, _normalize_base_url_for_provider
-from secrets_crypto import CryptoUnavailableError, is_available as crypto_available, rotate as rotate_passphrase
+from llm_client import get_effective_base_url, _normalize_base_url_for_provider, _opencode_headers
+from rate_limit_hold import clear_hold_for_provider_change
+from secrets_crypto import is_available as crypto_available
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get
@@ -34,6 +35,10 @@ _PROVIDERS = {
     'whisper':    {'secret': 'whisper_api_key',    'base_url': 'whisper_api_base_url','base_env': 'WHISPER_API_BASE_URL','model': 'whisper_api_model', 'env': 'WHISPER_API_KEY'},
     'ollama':     {'secret': 'ollama_api_key',     'base_url': 'openai_base_url',     'base_env': 'OPENAI_BASE_URL',    'model': None,                'env': 'OLLAMA_API_KEY'},
 }
+
+# Providers whose key or endpoint feeds the LLM client, so a write here can
+# invalidate a rate-limit hold. Whisper is a separate service (#696).
+_LLM_PROVIDERS = ('anthropic', 'openai', 'openrouter', 'ollama')
 
 
 def _source_for(db, cfg) -> str:
@@ -79,6 +84,7 @@ def update_provider(provider):
     body = request.get_json(silent=True) or {}
     cfg = _PROVIDERS[provider]
     db = Database()
+    credentials_changed = False
 
     if 'apiKey' in body:
         api_key = body['apiKey']
@@ -88,6 +94,7 @@ def update_provider(provider):
             set_or_clear_secret(db, cfg['secret'], api_key)
         except SecretWriteRejected:
             return error_response('provider_crypto_unavailable', 409)
+        credentials_changed = True
 
     if cfg['base_url'] and 'baseUrl' in body:
         url = body['baseUrl']
@@ -97,6 +104,7 @@ def update_provider(provider):
             except SSRFError:
                 return error_response('base URL failed SSRF validation', 400)
             db.set_setting(cfg['base_url'], url)
+            credentials_changed = True
         # Empty baseUrl ignored; clear via DELETE /providers/<name>. Issue #235.
 
     if cfg['model'] and 'model' in body:
@@ -107,6 +115,9 @@ def update_provider(provider):
     # immediately (see issue #234: stale cache made Save Changes vanish).
     from llm_client import invalidate_provider_cache
     invalidate_provider_cache()
+
+    if credentials_changed and provider in _LLM_PROVIDERS:
+        clear_hold_for_provider_change(db, f'{provider} credentials changed')
 
     logger.info("provider=%s updated source=%s", provider, _source_for(db, cfg))
     return json_response(_provider_status(db, cfg), 200)
@@ -123,6 +134,9 @@ def clear_provider(provider):
         db.set_setting(cfg['base_url'], '')
     from llm_client import invalidate_provider_cache
     invalidate_provider_cache()
+    if provider in _LLM_PROVIDERS:
+        # Lift even with no key left: the next run fails for its own reason.
+        clear_hold_for_provider_change(db, f'{provider} credentials cleared')
     logger.info("provider=%s cleared", provider)
     return json_response(_provider_status(db, cfg), 200)
 
@@ -136,39 +150,13 @@ def _resolve_key(db, cfg):
 
 
 @api.route('/settings/providers/rotate-passphrase', methods=['POST'])
+@limiter.limit('3 per hour')
 def rotate_master_passphrase():
-    if not crypto_available():
-        return error_response('provider_crypto_unavailable', 409)
-    body = request.get_json(silent=True) or {}
-    old = body.get('oldPassphrase')
-    new = body.get('newPassphrase')
-    if not isinstance(old, str) or not isinstance(new, str) or not old or not new:
-        return error_response('oldPassphrase and newPassphrase required', 400)
-    db = Database()
-    try:
-        rotated = rotate_passphrase(db, old, new)
-    except CryptoUnavailableError:
-        return error_response('provider_crypto_unavailable', 409)
-    except ValueError as e:
-        # Only pass through the known static error strings documented by
-        # secrets_crypto.rotate; anything else is logged server-side and
-        # surfaced as a generic 400 so exception messages cannot leak.
-        safe_rotation_errors = {
-            "current passphrase mismatch",
-            "new passphrase required",
-            "must differ from current",
-        }
-        msg = str(e)
-        if msg in safe_rotation_errors:
-            return error_response(msg, 400)
-        logger.warning("Unexpected ValueError from rotate_passphrase: %s", e)
-        return error_response('invalid rotation request', 400)
-    except Exception:
-        logger.exception("provider passphrase rotation failed")
-        return error_response('rotation failed', 500)
-    return json_response({'rotated': rotated}, 200)
-
-
+    return error_response(
+        'Passphrase rotation requires stopped workers; use '
+        'scripts/rotate_master_passphrase.py',
+        409,
+    )
 # Fixed public endpoints per provider: probe URL + auth header builder.
 # Shared by /test and /test-connection so the contract lives once. These
 # providers accept no baseUrl input anywhere, so the key can only ever be
@@ -248,6 +236,7 @@ def _models_request(base_url: str, api_key: str):
     by /test and /test-connection so the discovery contract lives once."""
     url = base_url.rstrip('/') + '/models'
     headers = {'Authorization': f'Bearer {api_key}'} if api_key else {}
+    headers.update(_opencode_headers(base_url))
     return url, headers
 
 
@@ -361,6 +350,27 @@ _CONNECTION_TEST_PROVIDERS = (
     ('whisper', 'openai', 'ollama') + tuple(_FIXED_PROVIDER_PROBES))
 
 
+def _health_detail(health: dict) -> str:
+    """One sentence on a health probe for the connection-test detail, or ''.
+
+    Hedges the count when the probe only established a floor, and reports a
+    disagreement rather than one replica's model, so this never contradicts
+    the same probe's warning in Settings.
+    """
+    instances = health.get('instances') or []
+    if not health.get('available') or not instances:
+        return ''
+    count = len(instances)
+    noun = 'instance' if count == 1 else 'instances'
+    hedge = 'At least ' if health.get('sampled_floor') else ''
+    mismatch = health.get('mismatch') or []
+    if mismatch:
+        fields = ', '.join(f.replace('_', ' ') for f in mismatch)
+        return f"{hedge}{count} {noun}, disagreeing on {fields}."
+    model = instances[0].get('model')
+    return f"{hedge}{count} {noun} reporting {model}." if model else f"{hedge}{count} {noun}."
+
+
 @api.route('/settings/providers/<provider>/test-connection', methods=['POST'])
 def test_provider_connection(provider):
     """End-to-end probe of a configured external endpoint (#544).
@@ -433,6 +443,16 @@ def test_provider_connection(provider):
         result = transcriber.probe_transcription_endpoint(
             base, api_key=api_key, model=model,
             skip_flac_compression=skip_flac)
+        if result.get('ok'):
+            # refresh=True: re-probe rather than report a cached result. If a
+            # probe for this backend is already running, that one's result is
+            # reused instead.
+            health = transcriber.probe_whisper_health(
+                base_url=base, api_key=api_key, refresh=True)
+            result['health'] = health
+            summary = _health_detail(health)
+            if summary:
+                result['detail'] = f"{result['detail']} {summary}"
     else:
         # The real client appends /v1 for Ollama; the probe must match or a
         # URL that works for episodes would fail the test and vice versa.

@@ -20,7 +20,7 @@ from pricing_fetcher import force_refresh_pricing
 from secrets_crypto import (
     count_plaintext_secrets,
     is_available as crypto_available,
-    encrypt_bytes as _encrypt_bytes,
+    encrypt_backup_file,
 )
 from db_backup_service import backup_now, BackupInProgressError
 
@@ -145,8 +145,21 @@ def get_system_status():
         'security': {
             'cryptoReady': crypto_available(),
             'plaintextSecretsCount': plaintext_secrets,
-        }
+        },
+        'database': db.sqlite_diagnostics(),
     })
+
+
+@api.route('/system/database/checkpoint', methods=['POST'])
+@limiter.limit("6 per hour")
+@log_request
+def checkpoint_database():
+    """Run a passive WAL checkpoint."""
+    result = get_database().checkpoint_wal()
+    logger.info(
+        "SQLite checkpoint: busy=%s log_pages=%s checkpointed_pages=%s duration_ms=%s",
+        result['busy'], result['logPages'], result['checkpointedPages'], result['durationMs'])
+    return json_response(result, 409 if result['busy'] else 200)
 
 
 @api.route('/system/updates', methods=['GET'])
@@ -323,15 +336,19 @@ def backup_database():
         encrypt_param = request.args.get('encrypted', 'true').lower() != 'false'
         if encrypt_param and crypto_available():
             try:
-                with open(tmp_path, 'rb') as f:
-                    blob = f.read()
-                enc_blob = _encrypt_bytes(get_database(), blob)
-                with open(tmp_path, 'wb') as f:
-                    f.write(enc_blob)
+                encrypted_path = f'{tmp_path}.enc'
+                try:
+                    encrypt_backup_file(
+                        tmp_path, encrypted_path,
+                        os.environ['MINUSPOD_MASTER_PASSPHRASE'],
+                    )
+                    os.replace(encrypted_path, tmp_path)
+                finally:
+                    Path(encrypted_path).unlink(missing_ok=True)
                 filename = f"minuspod-backup-{timestamp}.db.enc"
                 logger.info(
                     "Database backup encrypted: %s -> %s bytes (AES-GCM)",
-                    backup_size, len(enc_blob),
+                    backup_size, os.path.getsize(tmp_path),
                 )
             except Exception:
                 logger.exception("Backup encryption failed; aborting download")

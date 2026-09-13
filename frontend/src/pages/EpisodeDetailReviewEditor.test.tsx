@@ -133,6 +133,7 @@ vi.mock('../api/feeds', () => ({
   regenerateChapters: vi.fn(),
   episodeOriginalUrl: (slug: string, episodeId: string) =>
     `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`,
+  downloadEpisodeAudio: vi.fn(),
 }));
 
 vi.mock('../api/patterns', () => ({

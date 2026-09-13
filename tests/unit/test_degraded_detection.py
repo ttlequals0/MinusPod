@@ -149,6 +149,12 @@ class TestPersistEpisodeStateClearsFlag:
         _, kwargs = db.upsert_episode.call_args
         assert kwargs['detection_degraded'] == 'Overloaded (server busy)'
 
+    def test_finished_run_clears_a_stored_chapter_regen_error(self):
+        """This run replaced the chapters the failed regeneration was for."""
+        db = self._call()
+        _, kwargs = db.upsert_episode.call_args
+        assert kwargs['chapters_regen_error'] is None
+
 
 class TestFinalizeEpisodeComposesPersistDegradedFlag:
     """_finalize_episode is the sole caller of _persist_episode_state; covers

@@ -2,7 +2,31 @@
 
 Every term the app uses, in plain words, with a link to the part of the docs that covers it. If you hit a word in the UI that isn't here, open an issue.
 
+## Contents
+
+- [A](#a)
+- [C](#c)
+- [D](#d)
+- [E](#e)
+- [F](#f)
+- [H](#h)
+- [I](#i)
+- [K](#k)
+- [L](#l)
+- [N](#n)
+- [O](#o)
+- [P](#p)
+- [Q](#q)
+- [R](#r)
+- [S](#s)
+- [T](#t)
+- [U](#u)
+- [V](#v)
+- [W](#w)
+
 ## A
+
+**Ad chapter** - A chapter MinusPod adds for a segment it left in the audio (kept by category action, or waiting for review) so a chapter-aware player can skip it. [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 
 **Ad Review** - The Patterns page tab that lists every detection across all feeds so you can confirm or reject them in one place, with a play button for the flagged audio. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
@@ -118,7 +142,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## R
 
-**Rate-limit hold** - An opt-in hold that parks an episode when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming new work until that time passes. Unlike the offline queue it pauses everything, though anything you ask for by hand still runs. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
+**Rate-limit hold** - An opt-in hold that puts an episode back in the queue when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming any work until that time passes. Unlike the offline queue it pauses everything, Play and Reprocess included. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 
 **Recut** - Re-cutting the retained original audio using the current ad markers, with no download, transcription, or LLM involved. What "Approve & Recut" does. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
 
@@ -183,7 +207,5 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Waveform Ad Editor** - The visual editor for a single detection: waveform, transcript context, and draggable boundaries, with the original audio for reference. [Web Interface > Waveform Ad Editor](web-interface.md#waveform-ad-editor)
 
 **Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet, Queue Held, Queue Resumed, Service Offline, Service Reachable. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
-
----
 
 [< Docs index](README.md) | [Project README](../README.md)

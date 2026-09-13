@@ -29,16 +29,23 @@ export function PendingRecutsBar({ slug }: PendingRecutsBarProps) {
 
   const apply = useMutation({
     mutationFn: () => applyPendingRecuts(slug),
-    onSuccess: ({ queued, skipped }) => {
+    onSuccess: ({ queued, skipped, chaptersRebuilding }) => {
       setError(null);
+      const parts = [];
+      if (queued) {
+        parts.push(`Recutting ${queued} ${queued === 1 ? 'episode' : 'episodes'}.`);
+      }
+      // Decisions that changed no audio rebuild the chapters instead, so name
+      // that separately from the recuts. Both run in the background.
+      if (chaptersRebuilding) {
+        parts.push(`Rebuilding chapters on ${chaptersRebuilding} ${chaptersRebuilding === 1 ? 'episode that needs' : 'episodes that need'} no recut.`);
+      }
       // Skipped episodes keep their decisions and stay listed, so say so
       // rather than leaving a button that looks like it did nothing.
-      setResult(
-        queued === 0
-          ? `Nothing could be recut. ${skipped} ${skipped === 1 ? 'episode is' : 'episodes are'} already queued to run or missing what a recut needs. Your decisions are kept.`
-          : `Recutting ${queued} ${queued === 1 ? 'episode' : 'episodes'}.${
-            skipped ? ` ${skipped} skipped: already queued to run, or missing what a recut needs.` : ''}`,
-      );
+      if (skipped) {
+        parts.push(`${skipped} skipped: already queued to run, or missing what a recut needs. Your decisions are kept.`);
+      }
+      setResult(parts.join(' ') || 'Nothing to apply.');
       queryClient.invalidateQueries({ queryKey: ['pending-recuts'] });
       queryClient.invalidateQueries({ queryKey: ['detections'] });
     },

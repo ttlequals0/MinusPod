@@ -67,7 +67,7 @@ model.transcribe(
 )
 ```
 
-The `initial_prompt` carries a vocabulary of known sponsors so Whisper produces consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). This biases what shows up in the transcript and therefore what every benchmarked LLM is scored against. The list lives in [`src/utils/constants.py`](../../src/utils/constants.py) as `SEED_SPONSORS` (~250 sponsors as of this writing, each with canonical name, intentional alias spellings, and category).
+This is the call as it stood when the corpus was transcribed. The `initial_prompt` seeded 26 sponsor terms (`AD_VOCABULARY_TERMS`, plus the podcast name) so Whisper produced consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). That biased what showed up in the transcript, and therefore what every benchmarked LLM is scored against. 2.96.0 removed the prompt: on the batched pipeline it cost 7-17% of each episode's speech, so transcripts from current releases have no prompt, fuller coverage, and no spelling bias. The corpus has not been re-transcribed since. Sponsor names are still matched against [`src/utils/constants.py`](../../src/utils/constants.py) `SEED_SPONSORS` (~250 sponsors, each with canonical name, intentional alias spellings, and category).
 
 A second mapping, `SPONSOR_ALIASES`, is applied **after** transcription to normalize Whisper mishearings toward the canonical name (`a firm` -> `Affirm`, `xerox` -> `Xero`, `pure tea` -> `Purity`). About 174 such corrections in production. This affects sponsor-name matching but not the transcript fed to the LLM.
 
@@ -75,8 +75,8 @@ Both lists are rendered in full in the generated `results/report.md` under "Tran
 
 Two practical consequences for anyone reading the F1 numbers:
 
-- F1 numbers are upper-bounded by transcript quality. A smaller Whisper model or a transcript without the sponsor vocabulary would produce a different (almost certainly worse) ceiling.
-- If a model scores well here, it's scoring against `large-v3` transcripts. Production deployments running smaller Whisper models or skipping the `initial_prompt` vocabulary should expect lower F1 in practice.
+- F1 numbers are upper-bounded by transcript quality. A smaller Whisper model would produce a different (almost certainly worse) ceiling.
+- If a model scores well here, it's scoring against `large-v3` transcripts made with the pre-2.96.0 prompt. Deployments running smaller Whisper models should expect lower F1; 2.96.0 and later transcribe without the prompt, which recovers dropped speech (sponsor reads included) but loses the spelling bias, and that combination has not been benchmarked.
 
 ## Common workflows
 

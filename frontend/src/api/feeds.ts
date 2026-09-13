@@ -1,4 +1,4 @@
-import { apiRequest, buildQueryString } from './client';
+import { apiFileRequest, apiRequest, buildQueryString } from './client';
 import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
@@ -9,6 +9,18 @@ export const CUE_SCORE_MAX = 0.99;
 // with the session cookie (GET needs no CSRF).
 export function episodeOriginalUrl(slug: string, episodeId: string): string {
   return `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`;
+}
+
+// Saves the original or the current cut. A HEAD preflight surfaces a 401
+// (login redirect) or 404 as an error; the navigation itself then streams
+// the attachment to disk without buffering the file in memory.
+export async function downloadEpisodeAudio(
+  slug: string, episodeId: string, kind: 'original' | 'cut',
+): Promise<void> {
+  const file = kind === 'cut' ? 'processed' : 'original';
+  const path = `/feeds/${slug}/episodes/${episodeId}/${file}.mp3?download=1`;
+  await apiFileRequest(path, { method: 'HEAD' });
+  window.location.assign(`/api/v1${path}`);
 }
 
 // Direct URL for a run's raw JSONL log; the browser downloads it with the
@@ -141,6 +153,47 @@ export async function getFeed(slug: string): Promise<Feed> {
   return apiRequest<Feed>(`/feeds/${slug}`);
 }
 
+export interface SubscriberKey {
+  id: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+export interface CreatedSubscriberKey extends SubscriberKey {
+  token: string;
+  feedUrl: string;
+}
+
+export async function getSubscriberKeys(slug: string): Promise<SubscriberKey[]> {
+  const response = await apiRequest<{ keys: SubscriberKey[] }>(
+    `/feeds/${encodeURIComponent(slug)}/subscriber-keys`,
+  );
+  return response.keys;
+}
+
+export async function createSubscriberKey(slug: string, label: string) {
+  return apiRequest<CreatedSubscriberKey>(
+    `/feeds/${encodeURIComponent(slug)}/subscriber-keys`,
+    { method: 'POST', body: { label } },
+  );
+}
+
+export async function revokeSubscriberKey(slug: string, id: string) {
+  return apiRequest<{ revoked: boolean }>(
+    `/feeds/${encodeURIComponent(slug)}/subscriber-keys/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function deleteSubscriberKeyRecord(slug: string, id: string) {
+  return apiRequest<{ deleted: boolean }>(
+    `/feeds/${encodeURIComponent(slug)}/subscriber-keys/${encodeURIComponent(id)}/record`,
+    { method: 'DELETE' },
+  );
+}
+
 export async function getAdDistribution(slug: string): Promise<AdDistribution> {
   return apiRequest<AdDistribution>(`/feeds/${slug}/ad-distribution`);
 }
@@ -181,6 +234,26 @@ export async function addLocalFeed(payload: AddLocalFeedPayload): Promise<AddLoc
   });
 }
 
+export interface AddRecentsFeedPayload {
+  title?: string;
+  description?: string;
+}
+
+export interface AddRecentsFeedResult {
+  slug: string;
+  feedType: 'recents';
+  feedUrl: string;
+  message: string;
+}
+
+// The single combined feed of newly published episodes (#721).
+export async function addRecentsFeed(payload: AddRecentsFeedPayload): Promise<AddRecentsFeedResult> {
+  return apiRequest<AddRecentsFeedResult>('/feeds', {
+    method: 'POST',
+    body: { feedType: 'recents', ...payload },
+  });
+}
+
 export interface UploadFeedArtworkResult {
   message: string;
   artworkUrl: string;
@@ -199,8 +272,19 @@ export async function uploadFeedArtwork(slug: string, file: File): Promise<Uploa
   });
 }
 
-export async function deleteFeed(slug: string): Promise<void> {
-  await apiRequest(`/feeds/${slug}`, { method: 'DELETE' });
+export interface DeleteFeedResult {
+  message: string;
+  slug: string;
+  pending: boolean;
+}
+
+export async function deleteFeed(slug: string): Promise<DeleteFeedResult> {
+  let status = 0;
+  const result = await apiRequest<{ message: string; slug: string }>(`/feeds/${slug}`, {
+    method: 'DELETE',
+    onResponse: (responseStatus) => { status = responseStatus; },
+  });
+  return { ...result, pending: status === 202 };
 }
 
 export async function refreshFeed(
@@ -291,6 +375,9 @@ export interface UpdateFeedPayload {
   detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
+  chaptersInNotes?: 'on' | 'off' | null;
+  adChaptersEnabled?: 'on' | 'off' | null;
+  adChapterCategories?: Partial<Record<SegmentCategory, boolean>> | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;
@@ -393,14 +480,11 @@ export async function reprocessAllEpisodes(
   });
 }
 
+// The run is started in the background; the episode reports its outcome.
 export interface RegenerateChaptersResult {
   message: string;
-  chapterCount: number;
-  chapters: Array<{
-    title: string;
-    startTime: number;
-    endTime?: number;
-  }>;
+  episodeId: string;
+  status: 'started';
 }
 
 export async function regenerateChapters(
@@ -524,15 +608,10 @@ export interface ImportUploadResult {
 export async function importUpload(slug: string, files: File[]): Promise<ImportUploadResult> {
   const formData = new FormData();
   for (const file of files) formData.append('files', file);
-  // Retries ARE wanted here (default apiRequest behavior, so no
-  // skipRetry): the UI calls this once per file, so a retry re-saves at
-  // most one file under its original basename -- harmless -- and a bounded
-  // retry is exactly what turns a transient 429 (e.g. a large batch
-  // briefly hitting a rate limit) into a silent success instead of a
-  // rejected row.
   return apiRequest<ImportUploadResult>(`/feeds/${slug}/import/upload`, {
     method: 'POST',
     body: formData,
+    skipRetry: true,
   });
 }
 

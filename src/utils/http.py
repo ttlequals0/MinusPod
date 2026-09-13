@@ -5,16 +5,23 @@ removed after the 2.0 security audit; every outbound caller now routes
 through ``utils.safe_http`` so the per-redirect SSRF revalidation and
 downgrade guards apply. Only log-oriented helpers remain here.
 """
+import re
 from urllib.parse import urlsplit
+
+from flask import request
+
+_FEED_CREDENTIAL_RE = re.compile(
+    r'(?<![0-9a-f])(?:[0-9a-f]{16}\.)?[0-9a-f]{64}(?![0-9a-f])'
+)
+
+
+def redact_feed_credentials(value: str) -> str:
+    return _FEED_CREDENTIAL_RE.sub('[redacted-feed-key]', value)
 
 
 def client_ip():
-    """Real client IP for request logging: first X-Forwarded-For hop when a
-    trusted proxy fronts the app, else the socket peer. Flask request context
-    required; imported lazily so non-Flask callers of this module stay clean.
-    """
-    from flask import request
-    return request.headers.get('X-Forwarded-For', request.remote_addr)
+    """Client IP after the application's configured ProxyFix policy."""
+    return request.remote_addr or ''
 
 
 def safe_url_for_log(url, keep_path: bool = False,

@@ -14,10 +14,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SecuritySection from './SecuritySection';
 import type { Settings } from '../../api/types';
 
-vi.mock('../../api/providers', () => ({
-  rotateMasterPassphrase: vi.fn(),
-}));
-
 vi.mock('../../api/auth', () => ({
   setPassword: vi.fn(),
   removePassword: vi.fn(),
@@ -66,6 +62,15 @@ beforeEach(() => {
   mockUpdateSettings.mockResolvedValue({ message: 'ok' });
 });
 
+describe('SecuritySection hardened controls', () => {
+  it('shows offline rotation instructions instead of accepting a passphrase', async () => {
+    renderSection({ isPasswordSet: true, cryptoReady: true });
+    expect(await screen.findByText(/Stop every MinusPod worker/)).toBeDefined();
+    expect(screen.queryByRole('button', { name: /Rotate Master Passphrase/ })).toBeNull();
+  });
+
+});
+
 describe('SecuritySection warning: no password, no passphrase', () => {
   it('shows the original full warning', () => {
     renderSection({ isPasswordSet: false, cryptoReady: false });
@@ -98,6 +103,18 @@ describe('SecuritySection warning: password set', () => {
     // Password-set state still renders its normal UI.
     expect(screen.queryByText('Current Password')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Logout' })).not.toBeNull();
+  });
+});
+
+describe('SecuritySection password form', () => {
+  it('carries a hidden username field for password managers', () => {
+    const { container } = renderSection({ isPasswordSet: true, cryptoReady: true });
+
+    const username = container.querySelector('input[autocomplete="username"]');
+    expect(username).not.toBeNull();
+    expect((username as HTMLInputElement).hidden).toBe(true);
+    expect(username!.closest('form')).toBe(
+      container.querySelector('#newPassword')!.closest('form'));
   });
 });
 

@@ -275,18 +275,6 @@ def parse_iso_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value.replace('Z', '+00:00'))
 
 
-def first_not_none(*values):
-    """Return the first value that is not None.
-
-    Unlike Python's `or` operator, treats 0 and 0.0 as valid values.
-    This is critical for timestamps where 0.0 is a valid pre-roll position.
-    """
-    for v in values:
-        if v is not None:
-            return v
-    return None
-
-
 def overlap_seconds(start_a: float, end_a: float, start_b: float, end_b: float) -> float:
     """Return the overlap duration (seconds) of [start_a, end_a] and [start_b, end_b].
 

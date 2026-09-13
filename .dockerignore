@@ -62,11 +62,14 @@ scripts
 benchmarks
 
 # Local-only tooling and notes
+.superpowers
+superpowers
 .claude
 .claude-mem
 .playwright-mcp
 .trivyignore
 CLAUDE.md
+AGENTS.md
 
 # Editor / OS noise
 .vscode

@@ -277,54 +277,6 @@ def fetch_litellm_pricing(provider_filter: str | None = None) -> list[dict]:
     return results
 
 
-def fetch_pricing(source: dict, provider_for_fallback: str | None = None) -> list[dict]:
-    """Fetch pricing for a single resolved source config.
-
-    Falls back to the LiteLLM community JSON when the primary source is
-    unavailable or returns nothing, or when the provider domain is unknown.
-    Kept for single-source callers; the multi-source path is fetch_pricing_chain.
-    """
-    source_type = source.get('type')
-
-    if source_type == 'free':
-        logger.debug("Provider is local/free -- no pricing to fetch")
-        return []
-
-    if source_type == 'litellm':
-        return _try_litellm_fallback(source.get('provider_filter'))
-
-    if source_type == 'unknown':
-        logger.info(
-            f"Unknown provider domain '{source.get('domain')}' -- "
-            f"attempting LiteLLM fallback"
-        )
-        return _try_litellm_fallback(provider_for_fallback)
-
-    url = source.get('url', '')
-    logger.info(f"Fetching pricing from {source_type}: {safe_url_for_log(url)}")
-
-    primary_error: Exception | None = None
-    results: list[dict] = []
-    try:
-        if source_type == 'openrouter_api':
-            results = fetch_openrouter_pricing()
-        elif source_type == 'pricepertoken':
-            results = fetch_pricepertoken_pricing(url)
-    except Exception as e:
-        primary_error = e
-        logger.warning(f"Failed to fetch pricing from {safe_url_for_log(url)}: {e}")
-
-    if results:
-        logger.info(f"Fetched pricing for {len(results)} models from {source_type}")
-        return results
-
-    if primary_error is not None:
-        logger.warning(f"{source_type} fetch errored, trying LiteLLM fallback")
-    else:
-        logger.info(f"{source_type} returned no rows, trying LiteLLM fallback")
-    return _try_litellm_fallback(provider_for_fallback)
-
-
 def _fetch_single_source(source: dict) -> list[dict]:
     """Fetch one source with no cross-source fallback (chain handles that).
 
@@ -373,26 +325,6 @@ def fetch_pricing_chain(sources: list[dict]) -> list[dict]:
         f"({', '.join(summary) or 'no sources'})"
     )
     return list(merged.values())
-
-
-def _try_litellm_fallback(provider_filter: str | None) -> list[dict]:
-    """Attempt LiteLLM fallback and swallow fetch errors."""
-    try:
-        results = fetch_litellm_pricing(provider_filter=provider_filter)
-        if results:
-            logger.info(
-                f"Fetched pricing for {len(results)} models from litellm "
-                f"(filter={provider_filter or 'none'})"
-            )
-        else:
-            logger.warning(
-                f"LiteLLM fallback returned no rows "
-                f"(filter={provider_filter or 'none'}); costs may record as $0"
-            )
-        return results
-    except Exception as e:
-        logger.warning(f"LiteLLM fallback failed: {e}")
-        return []
 
 
 def refresh_pricing_if_stale(force: bool = False):
@@ -509,5 +441,3 @@ def _should_backfill_claude_defaults(db, provider: str) -> bool:
 def force_refresh_pricing():
     """Force a pricing refresh regardless of TTL. Called by manual API endpoint."""
     refresh_pricing_if_stale(force=True)
-
-

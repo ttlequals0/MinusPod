@@ -30,6 +30,7 @@ def _refresh(podcast_row, slug):
     storage = MagicMock()
 
     db.get_podcast_by_slug.return_value = podcast_row
+    db.get_podcast_row.return_value = podcast_row
     db.get_episodes.return_value = ([], 1)  # one discovered episode
     db.get_processed_episodes_for_feed.return_value = []
     db.bulk_upsert_discovered_episodes.return_value = 0

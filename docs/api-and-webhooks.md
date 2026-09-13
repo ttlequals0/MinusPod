@@ -4,11 +4,18 @@
 
 ---
 
+## Contents
+
+- [API](#api)
+- [Notifications](#notifications)
+- [Webhooks](#webhooks)
+- [Email notifications](#email-notifications)
+
 ## API
 
 REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full specification: [`openapi.yaml`](../openapi.yaml).
 
-Write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it for you; an external client has to read that cookie and echo it back on each write.
+Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it. An external client must echo the cookie on each write. `PUT /auth/password` is exempt: initial remote setup uses `X-MinusPod-Setup-Token`, while a later change requires `currentPassword`. Logout can clear stale unauthenticated state, but an authenticated logout still requires CSRF.
 
 Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
@@ -19,6 +26,9 @@ Key endpoints:
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
 - `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs)
 - `POST /api/v1/feeds/refresh-artwork` - Re-render every feed's cover art (used after toggling the cover-art badge or swapping the badge asset)
+- `POST /api/v1/feeds/{slug}/refresh` - Refresh one subscribed feed. Success includes a structured `outcome` with status, new and queued episode counts, plus refresh timestamps; source fetch or parse failures return 502.
+- `POST /api/v1/feeds/refresh` - Refresh every subscribed feed. Returns per-feed outcomes and totals; HTTP 207 means the pass completed with at least one feed failure.
+- `GET/HEAD /api/v1/feeds/{slug}/artwork` - Serve cached feed artwork without admin authentication. Traversal-like or over-200-character legacy slugs are rejected before this public exemption.
 - `GET /api/v1/podcast-search?q=query` - Search podcasts via PodcastIndex.org
 - `GET /api/v1/feeds/{slug}/episodes` - List episodes (supports `sort_by`, `sort_dir`, `status` filter, pagination)
 - `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, reprocess_llm, delete)
@@ -26,11 +36,15 @@ Key endpoints:
 - `GET /api/v1/feeds/{slug}/episodes/{id}/artwork` - Serve an episode's cover, fetching and caching it from the publisher on first request. Publishers block images requested with a cross-site Referer, so the web UI asks here instead of loading them directly. Redirects to the feed cover when the episode has none or the fetch is refused. The URL comes from the episode record, never from the caller
 - `POST /api/v1/episodes/{slug}/{id}/reprocess` - Reprocess an episode (body `mode`: reprocess/full/llm/recut; `llm` re-detects on the existing transcript and `recut` re-cuts from the saved ad list, both skipping transcription). See [Reprocessing](configuration.md#reprocessing) for the full mode reference. The older `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` ignores `mode` and always runs a full reprocess.
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cancel` - Cancel processing for a stuck episode
-- `POST /api/v1/feeds/{slug}/episodes/{id}/regenerate-chapters` - Regenerate chapter markers and rewrite the ID3 chapters embedded in the MP3
+- `POST /api/v1/feeds/{slug}/episodes/{id}/regenerate-chapters` - Regenerate chapter markers and rewrite the ID3 chapters embedded in the MP3. Returns 202 and runs in the background; the episode's `chaptersRegenerating` and `chaptersRegenError` fields report the run
 - `POST /api/v1/feeds/{slug}/reprocess-all` - Batch reprocess all episodes
 - `GET /api/v1/feeds/{slug}/ad-distribution` - Histogram of where ads have historically been cut across the feed's episodes, with learned prior zones. Informational; powers the feed detail Ad Distribution panel and is independent of the learned-positions experiment toggle.
 - `POST /api/v1/feeds/{slug}/episodes/{id}/retry-ad-detection` - Retry ad detection only
 - `POST /api/v1/feeds/{slug}/episodes/{id}/corrections` - Submit ad corrections
+- `GET /api/v1/patterns/corrections/unresolved` - List legacy corrections with no feed assignment and the evidence for safe candidates
+- `POST /api/v1/patterns/corrections/{id}/assign` - Assign one unresolved correction after `confirm: true`
+- `DELETE /api/v1/patterns/corrections/{id}` - Delete one unresolved correction without changing patterns, history, media, or feeds
+- `POST /api/v1/patterns/corrections/unresolved/bulk` - Assign or delete 1 to 500 unique correction IDs in one transaction. Both actions need `confirm: true`; assignment also needs one feed proven for every row. One stale or invalid row rejects the batch.
 - `GET/POST /api/v1/feeds/{slug}/cue-templates` - List a feed's audio-cue templates, or mark a new one from a window of an episode's original audio (`episodeId`, `startS`, `endS`, `cueType`; 0.2 to 10 seconds, up to 60 for show intro/outro)
 - `PATCH/DELETE /api/v1/cue-templates/{id}` - Enable/disable, change scope (`podcast` or `network`), set a per-template match threshold (`scoreThreshold`, 0.30-0.99, null clears), move the capture window (`sourceOffsetS`/`durationS`; re-extracts the audio blobs from the retained original, 409 when it has aged out), or delete a template
 - `GET /api/v1/cue-templates/{id}/export` - Download a template as a portable zip (lossless WAV plus JSON manifest)
@@ -54,24 +68,32 @@ Key endpoints:
 - `GET /api/v1/stats/dashboard` - Aggregate stats (avg/min/max time saved, ads, cost, tokens) with optional podcast filter
 - `GET /api/v1/stats/by-day` - Episodes processed by day of week
 - `GET /api/v1/stats/by-podcast` - Per-podcast stats (ads, time saved, tokens, cost)
-- `GET /api/v1/status` - Current processing status, including a `hold` block describing why the queue is not moving
-- `GET /api/v1/status/stream` - SSE endpoint for real-time status updates
+- `GET /api/v1/status` - Current processing status with an ETag; the browser polls every 2 seconds and backs off to 30 seconds after failures
+- `GET /api/v1/status/stream` - Authenticated SSE compatibility endpoint, limited to 30 seconds and bounded worker slots
 - `GET /api/v1/system/updates` - Latest stable and edge release info from GitHub Releases, cached 6 hours in-process (`?refresh=true` forces a live fetch, throttled to once per 30 seconds); returns 502 if GitHub is unreachable
 - `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
 - `GET /api/v1/system/model-pricing` - All known LLM model pricing rates
 - `POST /api/v1/system/model-pricing/refresh` - Force refresh pricing from provider source
 - `GET /api/v1/system/queue` - Auto-process queue status
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
+- `GET /api/v1/system/status` - System state including worker-scoped SQLite WAL, checkpoint, transaction, and busy diagnostics
+- `POST /api/v1/system/database/checkpoint` - Run a passive WAL checkpoint; returns 409 when active readers prevent completion
 - `GET /api/v1/system/backup` - Download SQLite database backup
 - `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running)
 - `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`)
+- `GET/PUT /api/v1/settings/provider-budget` - Read or update durable provider admission settings and current reserved/spent amounts
+- `GET /api/v1/settings/provider-budget/currencies` - List supported ISO display currencies
+- `GET /api/v1/settings/provider-budget/rate/{currency}` - Fetch a current USD reference rate and optional converted preview amounts
+- `GET/POST /api/v1/feeds/{slug}/subscriber-keys` - List scoped subscriber credentials or create one; the secret and feed URL appear only in the create response
+- `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}` - Revoke one scoped subscriber credential without changing global or sibling credentials
+- `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}/record` - Delete the audit record for a revoked key. Active keys return 409; deleting the record never revalidates the token.
 - `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status)
 - `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds
 - `GET/PUT /api/v1/settings/update-check` - Get or update the update-check settings (`enabled` for the daily auto-check, `channel`: `stable` or `edge`)
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)
-- `PUT /api/v1/settings/ad-detection` - Update ad detection config (model, provider, prompts)
+- `PUT /api/v1/settings/ad-detection` - Update ad detection config, including a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override.
 - `GET /api/v1/settings/models` - List available AI models from current provider
 - `POST /api/v1/settings/models/refresh` - Force refresh model list from provider
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
@@ -82,23 +104,48 @@ Key endpoints:
 
 ### Queue hold state
 
-`GET /api/v1/status` and every frame of `GET /api/v1/status/stream` carry a `hold` block saying why the queue is not moving. It reports what the maintenance tick last observed and never probes a service itself, so polling it costs nothing upstream.
+`GET /api/v1/status` and every frame of `GET /api/v1/status/stream` carry a `hold` block saying why the queue is not moving. It reports what the maintenance tick last observed and never probes a service itself, so polling it makes no provider or Whisper request.
 
 ```json
 {
   "hold": {
     "queuePaused": true,
     "holdUntil": "2026-01-01T12:30:00Z",
-    "rateLimitHeld": 4,
+    "holdSince": "2026-01-01T11:45:00Z",
     "offlineHeld": 2,
     "offlineServices": [
       {"service": "whisper", "held": 2, "reachable": false, "checkedAt": "2026-01-01T11:58:00Z"}
     ]
+  },
+  "jobs": [
+    {
+      "slug": "my-favorite-podcast",
+      "episodeId": "a1b2c3d4e5f6",
+      "title": "Episode 42: The Answer",
+      "podcastName": "My Favorite Podcast",
+      "stage": "pass1:transcribing",
+      "progress": 35,
+      "startedAt": 1767261900,
+      "elapsed": 120
+    }
+  ],
+  "whisper": {
+    "enabled": true,
+    "backend": "openai-api",
+    "active": true,
+    "inactiveReason": null,
+    "capacity": 4,
+    "inFlight": 2,
+    "transcribingEpisodes": 1,
+    "maxEpisodes": {"configured": 2, "effective": 2},
+    "leader": true
   }
 }
 ```
 
-`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
+`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time and `holdSince` is when the pause began, both null once the reset has passed. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
+
+`jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight. Pool counters are per gunicorn worker, so `inFlight` and `transcribingEpisodes` are only meaningful when `leader` is true; a non-leader worker always reports those as 0.
 
 ### Public feed-domain routes
 
@@ -107,6 +154,8 @@ A handful of routes live on the feed domain itself, outside `/api/v1`, and are n
 - `GET /episodes/{slug}/{episodeId}/artwork` - Serve a cached per-episode cover. Local-feed episodes get one whenever an upload, import, or embedded-artwork extraction cached one; 404 if nothing is cached (never fetches on demand). This is the URL a local feed's per-item `<itunes:image>` points at.
 
 All of these are gated by the feed auth key the same way as the RSS feed itself when Authenticated feeds is on; see [Security > Authenticated feeds](security-and-storage.md#authenticated-feeds-optional).
+
+GET and HEAD enforce the same feed key on every public route. A HEAD request for unprocessed subscribed audio proxies the upstream headers and never starts processing. Local audio answers from the retained original. This lets podcast apps inspect media without filling the queue.
 
 ## Notifications
 
@@ -130,8 +179,8 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Feed Refresh Failed` | A feed's upstream RSS fetch fails 3 times in a row. One alert per feed per 5 minutes, with a shared burst cap so an outage that breaks every feed at once sends one alert, not one per feed. |
 | `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
 | `Cue Template Quiet` | An enabled audio cue template on a `cue_only` feed has matched before but has zero above-threshold matches across the feed's last 5 telemetry-recorded episodes. Rate-limited to one alert per template per 5 minutes. |
-| `Queue Held` | A provider 429 with a reset time paused the queue (Queue Control > Rate-limit hold). One alert per 5 minutes. |
-| `Queue Resumed` | The rate-limit hold cleared and held episodes went back to the queue. One alert per 5 minutes. |
+| `Queue Held` | A provider 429 with a reset time paused the queue (Queue Control > Rate-limit hold). One alert per pause; a later 429 that extends the pause is silent. |
+| `Queue Resumed` | The rate-limit hold cleared and the queue is claiming work again. One alert per 5 minutes. |
 | `Service Offline` | An episode deferred because the LLM or Whisper endpoint was unreachable (Offline queue). One alert per service per 5 minutes. |
 | `Service Reachable` | The offline probe found a service back up and re-queued its deferred episodes. One alert per service per 5 minutes. |
 
@@ -249,7 +298,6 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `hold_until` | string | The provider's reset time; the queue claims no new work until then |
 | `hold_until_local` | string | The same reset time in the notification_timezone setting, with UTC offset |
-| `ttl_hours` | int | Hours a held episode waits before it expires and fails |
 | `error_message` | string | The 429 response that triggered the hold |
 | `slug` | string | Feed slug of the episode that hit the limit |
 | `episode_id` | string | ID of that episode |
@@ -263,7 +311,6 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `held_since` | string/null | When the hold began; null when no start time was recorded |
-| `requeued` | int | Held episodes sent back to the queue |
 
 **Service Offline events use a different payload:**
 
@@ -453,7 +500,6 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "timestamp_local": "2026-04-12T00:15:42+00:00",
   "hold_until": "2026-01-01T12:30:00Z",
   "hold_until_local": "2026-01-01T12:30:00+00:00",
-  "ttl_hours": 24,
   "error_message": "rate_limit_exceeded: retry after 900 seconds",
   "slug": "my-podcast",
   "episode_id": "a1b2c3d4e5f6",
@@ -468,8 +514,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "event": "Queue Resumed",
   "timestamp": "2026-04-12T00:15:42Z",
   "timestamp_local": "2026-04-12T00:15:42+00:00",
-  "held_since": "2026-01-01T12:15:00Z",
-  "requeued": 3
+  "held_since": "2026-01-01T12:15:00Z"
 }
 ```
 

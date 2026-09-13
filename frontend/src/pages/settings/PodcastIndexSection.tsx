@@ -80,33 +80,38 @@ function PodcastIndexSection({
               </a>
             </p>
 
-            <div>
-              <label htmlFor="podcastIndexApiKey" className="block text-sm font-medium text-foreground mb-2">
-                API Key
-              </label>
-              <input
-                type="password"
-                id="podcastIndexApiKey"
-                value={podcastIndexApiKey}
-                onChange={(e) => onApiKeyChange(e.target.value)}
-                placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API key'}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
-              />
-            </div>
+            {/* A form wrapper: Chrome warns about a password input outside one. */}
+            <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
+              <div>
+                <label htmlFor="podcastIndexApiKey" className="block text-sm font-medium text-foreground mb-2">
+                  API Key
+                </label>
+                <input
+                  type="password"
+                  id="podcastIndexApiKey"
+                  autoComplete="off"
+                  value={podcastIndexApiKey}
+                  onChange={(e) => onApiKeyChange(e.target.value)}
+                  placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API key'}
+                  className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+                />
+              </div>
 
-            <div>
-              <label htmlFor="podcastIndexApiSecret" className="block text-sm font-medium text-foreground mb-2">
-                API Secret
-              </label>
-              <input
-                type="password"
-                id="podcastIndexApiSecret"
-                value={podcastIndexApiSecret}
-                onChange={(e) => onApiSecretChange(e.target.value)}
-                placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API secret'}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
-              />
-            </div>
+              <div>
+                <label htmlFor="podcastIndexApiSecret" className="block text-sm font-medium text-foreground mb-2">
+                  API Secret
+                </label>
+                <input
+                  type="password"
+                  id="podcastIndexApiSecret"
+                  autoComplete="off"
+                  value={podcastIndexApiSecret}
+                  onChange={(e) => onApiSecretChange(e.target.value)}
+                  placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API secret'}
+                  className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+                />
+              </div>
+            </form>
 
             <div>
               <p className="text-sm font-medium text-foreground mb-1">Status</p>

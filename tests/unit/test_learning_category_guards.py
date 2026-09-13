@@ -69,6 +69,10 @@ def _seed_episode(temp_db, slug=SLUG, episode_id=EPISODE_ID, markers=None):
         temp_db.save_episode_details(slug, episode_id, ad_markers=markers)
 
 
+def _podcast_id(temp_db):
+    return temp_db.get_podcast_by_slug(SLUG)['id']
+
+
 def _keep_marker(start=100.0, end=130.0, category='cross_promo'):
     return {
         'start': start, 'end': end, 'sponsor': 'OurOwnShow',
@@ -110,7 +114,7 @@ class TestKeepMarkerCorrectionGuard:
                 content_type='application/json',
             )
         assert resp.status_code == 409, resp.data
-        assert temp_db.get_episode_corrections(EPISODE_ID) == []
+        assert temp_db.get_episode_corrections(_podcast_id(temp_db), EPISODE_ID) == []
         assert temp_db.get_podcast_false_positive_texts(SLUG) == []
 
     def test_confirm_on_keep_marker_is_non_actionable(self, client, temp_db):
@@ -122,7 +126,7 @@ class TestKeepMarkerCorrectionGuard:
                 content_type='application/json',
             )
         assert resp.status_code == 409, resp.data
-        assert temp_db.get_episode_corrections(EPISODE_ID) == []
+        assert temp_db.get_episode_corrections(_podcast_id(temp_db), EPISODE_ID) == []
 
     def test_adjust_on_keep_marker_is_non_actionable(self, client, temp_db):
         _seed_episode(temp_db, markers=[_keep_marker()])
@@ -134,7 +138,7 @@ class TestKeepMarkerCorrectionGuard:
                 content_type='application/json',
             )
         assert resp.status_code == 409, resp.data
-        assert temp_db.get_episode_corrections(EPISODE_ID) == []
+        assert temp_db.get_episode_corrections(_podcast_id(temp_db), EPISODE_ID) == []
 
     def test_reject_on_non_keep_marker_is_unaffected(self, client, temp_db):
         """Regression guard: a marker whose action_applied is not 'keep'
@@ -147,7 +151,7 @@ class TestKeepMarkerCorrectionGuard:
                 content_type='application/json',
             )
         assert resp.status_code == 200, resp.data
-        assert len(temp_db.get_episode_corrections(EPISODE_ID)) == 1
+        assert len(temp_db.get_episode_corrections(_podcast_id(temp_db), EPISODE_ID)) == 1
 
     def test_reject_with_no_matching_marker_is_unaffected(self, client, temp_db):
         """No persisted marker at all (e.g. a stale client payload) must not

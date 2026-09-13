@@ -198,3 +198,11 @@ describe('PatternsPage detected ads tab', () => {
     expect(tab.getAttribute('aria-selected')).toBe('true');
   });
 });
+
+describe('PatternsPage loading state', () => {
+  it('shows a layout skeleton while loading, not a page spinner', () => {
+    mockGetPatterns.mockReturnValueOnce(new Promise(() => {}));
+    renderPage();
+    expect(screen.getByTestId('skeleton-rows')).toBeDefined();
+  });
+});

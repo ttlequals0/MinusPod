@@ -432,24 +432,30 @@ class TestDatabaseIntegration:
 
     def test_corrections_query_scoped_to_podcast(self, temp_db):
         self._seed(temp_db)
-        temp_db.create_podcast('other-pod', 'https://example.com/o.xml', 'Other')
+        podcast_id = temp_db.get_podcast_by_slug(self.SLUG)['id']
+        other_id = temp_db.create_podcast(
+            'other-pod', 'https://example.com/o.xml', 'Other')
         temp_db.upsert_episode('other-pod', 'other-ep',
                                original_url='https://example.com/o.mp3',
                                title='Other', status='processed',
                                original_duration=DURATION)
         temp_db.create_pattern_correction(
             'false_positive', episode_id='ep-000',
-            original_bounds={'start': 300.0, 'end': 360.0})
+            original_bounds={'start': 300.0, 'end': 360.0},
+            podcast_id=podcast_id)
         temp_db.create_pattern_correction(
             'create', episode_id='ep-001',
-            corrected_bounds={'start': 500.0, 'end': 560.0})
+            corrected_bounds={'start': 500.0, 'end': 560.0},
+            podcast_id=podcast_id)
         temp_db.create_pattern_correction(
             'boundary_adjustment', episode_id='ep-002',
             original_bounds={'start': 300.0, 'end': 360.0},
-            corrected_bounds={'start': 450.0, 'end': 510.0})
+            corrected_bounds={'start': 450.0, 'end': 510.0},
+            podcast_id=podcast_id)
         temp_db.create_pattern_correction(
             'false_positive', episode_id='other-ep',
-            original_bounds={'start': 100.0, 'end': 160.0})
+            original_bounds={'start': 100.0, 'end': 160.0},
+            podcast_id=other_id)
 
         all_ids = [f'ep-{i:03d}' for i in range(5)] + ['other-ep']
         rows = temp_db.get_podcast_corrections_for_prior(self.SLUG, all_ids)
@@ -467,12 +473,15 @@ class TestDatabaseIntegration:
 
     def test_corrections_query_filters_by_episode_ids(self, temp_db):
         self._seed(temp_db)
+        podcast_id = temp_db.get_podcast_by_slug(self.SLUG)['id']
         temp_db.create_pattern_correction(
             'create', episode_id='ep-000',
-            corrected_bounds={'start': 500.0, 'end': 560.0})
+            corrected_bounds={'start': 500.0, 'end': 560.0},
+            podcast_id=podcast_id)
         temp_db.create_pattern_correction(
             'create', episode_id='ep-001',
-            corrected_bounds={'start': 500.0, 'end': 560.0})
+            corrected_bounds={'start': 500.0, 'end': 560.0},
+            podcast_id=podcast_id)
 
         rows = temp_db.get_podcast_corrections_for_prior(self.SLUG, ['ep-000'])
         assert len(rows) == 1

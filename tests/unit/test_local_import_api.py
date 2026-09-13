@@ -9,6 +9,7 @@ import os
 import shutil
 import sys
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -117,6 +118,38 @@ def test_upload_stages_files_under_original_basename(app_client, local_feed):
     staging_dir = get_storage().import_staging_dir(slug)
     assert (staging_dir / 's01e01 - Pilot.mp3').read_bytes() == b'audio-bytes'
     assert (staging_dir / 's01e01 - Pilot.json').read_bytes() == b'{"title": "Pilot"}'
+
+
+def test_staging_backup_cleanup_failure_keeps_published_result(
+        app_client, local_feed, monkeypatch):
+    from api import get_storage
+
+    slug = local_feed['slug']
+    db = local_feed['db']
+    storage = get_storage()
+    _authed(app_client)
+    assert _upload(app_client, slug, [('s01e01.mp3', b'old audio')]).status_code == 200
+    real_unlink = Path.unlink
+
+    def fail_backup_unlink(path, *args, **kwargs):
+        if path.name.endswith('.backup'):
+            raise OSError('simulated backup cleanup failure')
+        return real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'unlink', fail_backup_unlink)
+    response = _upload(app_client, slug, [('s01e01.mp3', b'new audio')])
+
+    assert response.status_code == 200
+    assert response.get_json() == {'staged': ['s01e01.mp3'], 'rejected': []}
+    assert (storage.import_staging_dir(slug) / 's01e01.mp3').read_bytes() == b'new audio'
+    row = db.get_connection().execute(
+        "SELECT state, backup_name FROM upload_reservations "
+        "WHERE scope = 'staging' AND target_key = 's01e01.mp3' "
+        "ORDER BY rowid DESC LIMIT 1"
+    ).fetchone()
+    assert row['state'] == 'published'
+    assert row['backup_name'] is not None
+    assert (storage.data_dir / row['backup_name']).read_bytes() == b'old audio'
 
 
 @pytest.mark.parametrize('name,reason_substr', [
@@ -566,9 +599,14 @@ def test_clear_staging_409_while_import_running(app_client, local_feed):
 
     _upload(app_client, slug, [('s01e01.mp3', b'audio-bytes')])
 
-    fake_status = {'state': 'running', 'processed': 0, 'total': 1, 'startedAt': '2026-08-27T00:00:00Z'}
-    with patch('api.local_episodes.get_import_status', return_value=fake_status):
+    from api import get_storage
+    from local_import import _release_import_lock, _try_acquire_import_lock
+    lock_fh = _try_acquire_import_lock(get_storage(), slug)
+    assert lock_fh is not None
+    try:
         resp = app_client.delete(f'/api/v1/feeds/{slug}/import/staging', headers=headers)
+    finally:
+        _release_import_lock(lock_fh)
 
     assert resp.status_code == 409
 

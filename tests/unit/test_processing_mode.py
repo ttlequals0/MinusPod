@@ -38,6 +38,7 @@ from config import (
 )
 from ad_detector import AdDetector
 import main_app.processing as processing
+import run_context
 from api.feeds import _normalize_processing_mode, _normalize_detection_mode
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
@@ -85,7 +86,10 @@ class TestResolveFeedProcessingMode:
 
 
 def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
-                   enable_ad_review=False):
+                   enable_ad_review=False, admission=None,
+                   download_error=None, detect_error=None,
+                   token_cost=0.012, real_token_tracking=False,
+                   approval_recut=False):
     """Drive process_episode with all stages stubbed (mirrors
     test_skip_ad_detection's harness) and return the interesting mocks."""
     with ExitStack() as stack:
@@ -96,7 +100,11 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         audio_processor = p(processing, 'audio_processor')
         p(processing.ad_detector, 'get_model', return_value='test-model')
         p(processing.ad_detector, 'get_verification_model', return_value='test-model')
-        p(processing, 'start_episode_token_tracking')
+        if not real_token_tracking:
+            p(processing, 'start_episode_token_tracking')
+            p(processing, 'get_episode_token_totals', return_value={
+                'input_tokens': 1, 'output_tokens': 1, 'cost': token_cost,
+            })
         p(processing, 'get_available_memory_gb', return_value=None)
         p(processing, 'get_min_cut_confidence', return_value=0.8)
         dat = p(processing, '_download_and_transcribe',
@@ -104,7 +112,16 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         p(processing, '_run_differential_fetch', return_value=None)
         analyze = p(processing, '_run_audio_analysis', return_value=None)
         p(processing, 'load_positional_prior', return_value=None)
-        detect = p(processing, '_detect_ads_first_pass', return_value=([], 0, None))
+        if real_token_tracking:
+            def detect_with_usage(*args, **kwargs):
+                run_context.current().tokens.add(120, 30, token_cost)
+                return [], 0, None
+
+            detect = p(processing, '_detect_ads_first_pass',
+                       side_effect=detect_with_usage)
+        else:
+            detect = p(processing, '_detect_ads_first_pass',
+                       return_value=([], 0, None))
         refine = p(processing, '_refine_and_validate', return_value=([], []))
         reviewer = p(processing, '_run_ad_reviewer', return_value=([], []))
         p(processing, '_snap_terminal_starts', return_value=[])
@@ -113,13 +130,29 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         verify = p(processing, '_run_verification_pass',
                    return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
         p(processing, '_generate_assets')
-        finalize = p(processing, '_finalize_episode')
+        if real_token_tracking:
+            finalize = p(processing, '_finalize_episode',
+                         side_effect=lambda *args, **kwargs:
+                         processing.get_episode_token_totals())
+        else:
+            finalize = p(processing, '_finalize_episode')
+        recut = None
+        if approval_recut:
+            p(processing, '_file_corroborated_hold_approvals', return_value=1)
+            recut = p(processing, '_recut_episode', side_effect=lambda *args, **kwargs:
+                      (processing.get_episode_token_totals(), True)[1])
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
         p(processing.os.path, 'exists', return_value=False)
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
+        db.reserve_provider_spend.return_value = (
+            admission or {'allowed': True, 'reservation_id': 'provider-run-1'})
+        if download_error is not None:
+            dat.side_effect = download_error
+        if detect_error is not None:
+            detect.side_effect = detect_error
         if enable_ad_review:
             db.get_setting.side_effect = (
                 lambda key, *a, **k: 'true' if key == 'enable_ad_review' else 'false')
@@ -138,7 +171,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
             'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
     return {'result': result, 'detect': detect, 'verify': verify,
             'analyze': analyze, 'refine': refine, 'finalize': finalize,
-            'dat': dat, 'db': db, 'reviewer': reviewer}
+            'dat': dat, 'db': db, 'reviewer': reviewer, 'recut': recut}
 
 
 def _row(pt=None, skip=None, mode=None):
@@ -184,6 +217,53 @@ class TestProcessEpisodeModePlumbing:
         assert m['result'] is True
         assert m['detect'].call_args.kwargs['keep_content'] is None
         assert m['verify'].call_args.kwargs['skip_verification'] is False
+
+    def test_provider_denial_happens_after_transcription_before_detection(self):
+        m = _run_pipeline(
+            _row(), admission={'allowed': False, 'reason': 'daily limit'})
+        assert m['result'] is False
+        m['dat'].assert_called_once()
+        m['detect'].assert_not_called()
+        m['db'].release_provider_spend.assert_not_called()
+        m['db'].reconcile_provider_spend.assert_not_called()
+
+    def test_download_failure_creates_no_provider_reservation(self):
+        m = _run_pipeline(_row(), download_error=RuntimeError('download failed'))
+        assert m['result'] is False
+        m['db'].reserve_provider_spend.assert_not_called()
+        m['db'].release_provider_spend.assert_not_called()
+        m['db'].reconcile_provider_spend.assert_not_called()
+
+    def test_provider_reservation_uncertain_after_attempt(self):
+        m = _run_pipeline(_row(), detect_error=RuntimeError('provider failed'))
+        assert m['result'] is False
+        m['db'].reconcile_provider_spend.assert_called_once_with(
+            'provider-run-1', None)
+        m['db'].release_provider_spend.assert_not_called()
+
+    def test_provider_reservation_reconciles_actual_cost(self):
+        ctx = run_context.begin('mode-feed', 'ep1')
+        try:
+            m = _run_pipeline(_row(), real_token_tracking=True)
+            assert m['result'] is True
+            m['db'].reconcile_provider_spend.assert_called_once_with(
+                'provider-run-1', 12_000)
+            m['db'].release_provider_spend.assert_not_called()
+        finally:
+            run_context.end(ctx)
+
+    def test_approval_recut_reconciles_actual_cost(self):
+        ctx = run_context.begin('mode-feed', 'ep1')
+        try:
+            m = _run_pipeline(
+                _row(), real_token_tracking=True, approval_recut=True)
+            assert m['result'] is True
+            m['recut'].assert_called_once()
+            m['finalize'].assert_not_called()
+            m['db'].reconcile_provider_spend.assert_called_once_with(
+                'provider-run-1', 12_000)
+        finally:
+            run_context.end(ctx)
 
 
 INVERTED = [{'start': 0.0, 'end': 60.0, 'confidence': 0.9,
@@ -369,7 +449,7 @@ class TestCueOnlyPipelineWiring:
              patch.object(processing.storage, 'get_original_path', return_value=None), \
              patch.object(processing.transcriber, 'transcribe_chunked') as tr:
             path, segments = processing._download_and_transcribe(
-                'slug', 'ep1', 'http://example.com/e.mp3', 'Pod', skip_transcription=True)
+                'slug', 'ep1', 'http://example.com/e.mp3', skip_transcription=True)
         tr.assert_not_called()
         assert path == '/tmp/a.mp3'
         assert segments == []
@@ -382,7 +462,7 @@ class TestCueOnlyPipelineWiring:
                           return_value='/tmp/copy.mp3') as copy, \
              patch.object(processing.transcriber, 'transcribe_chunked') as tr:
             path, segments = processing._download_and_transcribe(
-                'slug', 'ep1', 'http://example.com/e.mp3', 'Pod', skip_transcription=True)
+                'slug', 'ep1', 'http://example.com/e.mp3', skip_transcription=True)
         dl.assert_not_called()
         copy.assert_called_once_with('/tmp/orig.mp3')
         tr.assert_not_called()

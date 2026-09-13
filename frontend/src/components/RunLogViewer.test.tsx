@@ -149,3 +149,24 @@ describe('RunLogViewer', () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe('RunLogViewer loading placeholder', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetEpisodeRunLog.mockResolvedValue({
+      runNumber: 2, lines: LINES, truncated: false, bytes: 4096,
+    });
+  });
+
+  it('shows line skeletons while the log query is pending', async () => {
+    mockGetEpisodeRunLog.mockReturnValueOnce(new Promise(() => {}));
+    renderViewer();
+    expect(await screen.findByTestId('skeleton-rows')).toBeTruthy();
+  });
+
+  it('drops the skeletons once the log lands', async () => {
+    renderViewer();
+    await screen.findByText('Starting sweep');
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});

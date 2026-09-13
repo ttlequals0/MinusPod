@@ -544,6 +544,8 @@ class TestPodpingListenerLoop:
 
         fake_event = _FakeShutdownEvent()
         monkeypatch.setattr(background_module, 'shutdown_event', fake_event)
+        monkeypatch.setattr(
+            background_module.db, 'get_setting_bool', lambda key, default=False: False)
 
         podping_listener_loop()
 

@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
 from config import (
-    DEFAULT_SEGMENT_ACTION, MIN_AD_DURATION, SEGMENT_CATEGORIES,
-    count_pending_review, is_pending_review, normalize_segment_category,
+    MIN_AD_DURATION, SEGMENT_CATEGORIES,
+    count_pending_review, is_pending_review,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
 from utils.markers import BOUNDS_TOLERANCE_S, spans_match
@@ -155,6 +155,69 @@ def get_pattern_stats():
     stats['high_false_positive_patterns'] = stats['high_false_positive_patterns'][:20]
 
     return json_response(stats)
+
+
+@api.route('/patterns/corrections/unresolved', methods=['GET'])
+@log_request
+def list_unresolved_corrections():
+    return json_response(get_database().get_unresolved_corrections())
+
+
+@api.route('/patterns/corrections/<int:correction_id>/assign', methods=['POST'])
+@log_request
+def assign_unresolved_correction(correction_id):
+    data = request.get_json(silent=True) or {}
+    slug = data.get('slug')
+    if not isinstance(slug, str) or not slug or data.get('confirm') is not True:
+        return error_response('slug and confirm=true are required', 400)
+    result = get_database().assign_unresolved_correction(correction_id, slug)
+    if result == 'missing':
+        return error_response('Correction not found', 404)
+    if result == 'assigned':
+        return error_response('Correction was already assigned', 409)
+    if result == 'invalid_feed':
+        return error_response('Feed does not contain this episode', 400)
+    return json_response({'assigned': True, 'correctionId': correction_id, 'slug': slug})
+
+
+@api.route('/patterns/corrections/<int:correction_id>', methods=['DELETE'])
+@log_request
+def delete_unresolved_correction(correction_id):
+    result = get_database().delete_unresolved_correction(correction_id)
+    if result == 'missing':
+        return error_response('Correction not found', 404)
+    if result == 'assigned':
+        return error_response('Assigned corrections cannot be deleted here', 409)
+    return json_response({'deleted': True, 'correctionId': correction_id})
+
+
+@api.route('/patterns/corrections/unresolved/bulk', methods=['POST'])
+@log_request
+def bulk_unresolved_corrections():
+    data = request.get_json(silent=True) or {}
+    correction_ids = data.get('correctionIds')
+    action = data.get('action')
+    if (not isinstance(correction_ids, list) or not 1 <= len(correction_ids) <= 500
+            or len(set(correction_ids)) != len(correction_ids)
+            or any(isinstance(item, bool) or not isinstance(item, int) or item < 1 for item in correction_ids)):
+        return error_response('correctionIds must contain 1 to 500 unique positive integers', 400)
+    if data.get('confirm') is not True:
+        return error_response('confirm=true is required', 400)
+    db = get_database()
+    if action == 'delete':
+        result = db.bulk_delete_unresolved_corrections(correction_ids)
+    elif action == 'assign':
+        slug = data.get('slug')
+        if not isinstance(slug, str) or not slug:
+            return error_response('slug is required for assignment', 400)
+        result = db.bulk_assign_unresolved_corrections(correction_ids, slug)
+    else:
+        return error_response('action must be assign or delete', 400)
+    if result == 'invalid_feed':
+        return error_response('Feed does not prove every selected correction', 409)
+    if result == 'stale':
+        return error_response('Selected corrections changed. Refresh and try again.', 409)
+    return json_response({'action': action, 'correctionIds': correction_ids})
 
 
 @api.route('/patterns/health', methods=['GET'])
@@ -788,6 +851,7 @@ def _submit_correction_create(db, slug, episode_id, data):
         corrected_bounds={'start': start, 'end': end},
         text_snippet=text_template[:500],
         sponsor_id=sponsor_id,
+        podcast_id=db.get_podcast_by_slug(slug)['id'],
     )
 
     logger.info(
@@ -905,6 +969,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
                              if i == 0 else None),
             corrected_bounds={'start': piece['start'], 'end': piece['end']},
             text_snippet=piece['text'][:500],
+            podcast_id=db.get_podcast_by_slug(slug)['id'],
         )
 
     kept = [m for m in markers
@@ -1067,7 +1132,7 @@ def _handle_confirm_correction(
                     original_ad, label='confirmed',
                 )
 
-    deleted = db.delete_conflicting_corrections(episode_id, 'confirm', original_start, original_end)
+    deleted = db.delete_conflicting_corrections(db.get_podcast_by_slug(slug)['id'], episode_id, 'confirm', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting false_positive correction(s) for {slug}/{episode_id}")
 
@@ -1077,7 +1142,8 @@ def _handle_confirm_correction(
         episode_id=episode_id,
         original_bounds={'start': original_start, 'end': original_end},
         corrected_bounds={'start': eff_start, 'end': eff_end} if has_trim else None,
-        text_snippet=data.get('notes')
+        text_snippet=data.get('notes'),
+        podcast_id=db.get_podcast_by_slug(slug)['id'],
     )
 
     # adjusted_* are None exactly when there is no trim; the helper only
@@ -1141,7 +1207,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
             db.update_ad_pattern(pattern_id, false_positive_count=new_count)
             logger.info(f"Incremented false_positive_count to {new_count} for pattern {pattern_id}")
 
-    deleted = db.delete_conflicting_corrections(episode_id, 'false_positive', original_start, original_end)
+    deleted = db.delete_conflicting_corrections(db.get_podcast_by_slug(slug)['id'], episode_id, 'false_positive', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting confirm correction(s) for {slug}/{episode_id}")
 
@@ -1152,6 +1218,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
         original_bounds={'start': original_start, 'end': original_end},
         text_snippet=text_snippet,
         source_hold_reason=source_hold_reason,
+        podcast_id=db.get_podcast_by_slug(slug)['id'],
     )
 
     _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
@@ -1171,15 +1238,20 @@ def _matches_held_marker(m, start, end, tol):
             and abs(m_end - end) <= tol)
 
 
-def _load_markers(db, slug, episode_id):
+def _load_episode_markers(db, slug, episode_id):
+    """(episode row, parsed markers) from a single row load."""
     episode = db.get_episode(slug, episode_id) or {}
     raw = episode.get('ad_markers_json')
     if not raw:
-        return None
+        return episode, None
     try:
-        return json.loads(raw)
+        return episode, json.loads(raw)
     except (TypeError, ValueError):
-        return None
+        return episode, None
+
+
+def _load_markers(db, slug, episode_id):
+    return _load_episode_markers(db, slug, episode_id)[1]
 
 
 def _find_marker_in_list(markers, start, end, tol=BOUNDS_TOLERANCE_S):
@@ -1188,47 +1260,6 @@ def _find_marker_in_list(markers, start, end, tol=BOUNDS_TOLERANCE_S):
         if spans_match(m.get('start'), m.get('end'), start, end, tol):
             return m
     return None
-
-
-def _correction_changes_audio(db, slug, correction_type, marker, data) -> bool:
-    """True when a correction's outcome differs from what the audio holds.
-
-    Drives the pending-recut stamp: a decision that matches the current cut
-    (confirming an already-cut ad, rejecting one that was never cut) needs no
-    audio work, so it must not queue one.
-    """
-    if correction_type == 'create':
-        return True
-    if marker is None:
-        # Client bounds can trail a recut or reprocess past the match
-        # tolerance. With no marker to compare against, stamp: an unneeded
-        # recut is idempotent, a skipped one silently drops the decision.
-        return correction_type in ('confirm', 'reject', 'adjust', 'split')
-    was_cut = bool(marker.get('was_cut'))
-    if correction_type == 'confirm':
-        return not was_cut
-    if correction_type == 'reject':
-        return was_cut
-    if correction_type in ('adjust', 'split'):
-        return True
-    if correction_type == 'recategorize':
-        actions = db.resolve_segment_actions(slug)
-        new_action = actions.get(
-            normalize_segment_category(data.get('category')), DEFAULT_SEGMENT_ACTION)
-        return new_action != marker.get('action_applied')
-    return False
-
-
-def _find_marker_by_bounds(db, slug, episode_id, start, end, tol=0.5):
-    """Find the persisted marker matching (start, end) within tolerance,
-    regardless of pending-review state (unlike _matches_held_marker). A
-    keep-resolved marker clears its hold, so it's never pending review and
-    a pending-review-scoped lookup would miss it.
-
-    Returns the marker dict, or None if no match.
-    """
-    return _find_marker_in_list(
-        _load_markers(db, slug, episode_id), start, end, tol)
 
 
 def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
@@ -1447,7 +1478,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     # user is asserting is ad. The pre-adjustment bounds can cover an
     # unrelated overlapping span whose rejection must survive.
     deleted = db.delete_conflicting_corrections(
-        episode_id, 'boundary_adjustment', adjusted_start, adjusted_end)
+        db.get_podcast_by_slug(slug)['id'], episode_id, 'boundary_adjustment', adjusted_start, adjusted_end)
     if deleted:
         logger.info(
             f"Deleted {deleted} conflicting false_positive correction(s) "
@@ -1459,7 +1490,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         episode_id=episode_id,
         original_bounds={'start': original_start, 'end': original_end},
         corrected_bounds={'start': adjusted_start, 'end': adjusted_end},
-        text_snippet=adjusted_text
+        text_snippet=adjusted_text,
+        podcast_id=db.get_podcast_by_slug(slug)['id'],
     )
 
     return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id})
@@ -1513,8 +1545,12 @@ def submit_correction(slug, episode_id):
 
     # A keep-resolved marker is left in on purpose by the feed's category
     # action, so confirm/reject/adjust would record a decision the cut can
-    # never honor. Recategorizing changes that verdict, so it is exempt.
-    target_marker = _find_marker_by_bounds(db, slug, episode_id, original_start, original_end)
+    # never honor. Recategorizing changes that verdict, so it is exempt. The
+    # match ignores pending-review state: a keep-resolved marker clears its
+    # hold, so a pending-review-scoped lookup would miss it.
+    current_markers = _load_markers(db, slug, episode_id)
+    target_marker = _find_marker_in_list(
+        current_markers, original_start, original_end, 0.5)
     if (correction_type != 'recategorize'
             and target_marker is not None
             and target_marker.get('action_applied') == 'keep'):
@@ -1546,12 +1582,10 @@ def submit_correction(slug, episode_id):
         # type added to validation but not here returns 400, not a 500.
         return error_response('Invalid correction type', 400)
 
-    # Stamp the episode for a later bulk apply rather than recutting now: one
-    # episode often collects several decisions, and each should not rewrite
-    # its audio.
-    if (getattr(response, 'status_code', 500) < 400
-            and _correction_changes_audio(
-                db, slug, correction_type, target_marker, data)):
+    # Stamp for a later bulk apply rather than doing the work now: one episode
+    # often collects several decisions, and each should not rewrite its audio or
+    # its chapters. The apply decides which of the two an episode needs.
+    if getattr(response, 'status_code', 500) < 400:
         db.mark_episode_pending_recut(slug, episode_id)
     return response
 
@@ -1847,7 +1881,8 @@ def backfill_false_positive_texts():
     cursor = conn.execute('''
         SELECT pc.id, pc.episode_id, pc.original_bounds, p.slug
         FROM pattern_corrections pc
-        JOIN episodes e ON pc.episode_id = e.episode_id
+        JOIN episodes e ON pc.podcast_id = e.podcast_id
+                       AND pc.episode_id = e.episode_id
         JOIN podcasts p ON e.podcast_id = p.id
         WHERE pc.correction_type = 'false_positive'
         AND (pc.text_snippet IS NULL OR pc.text_snippet = '')

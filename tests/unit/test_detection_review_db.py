@@ -46,22 +46,28 @@ class TestGetReviewCorrections:
             self, temp_db, mock_podcast):
         temp_db.create_pattern_correction(
             correction_type='confirm', pattern_id=None, episode_id='ep-1',
-            original_bounds={'start': 10.0, 'end': 40.0})
+            original_bounds={'start': 10.0, 'end': 40.0},
+            podcast_id=mock_podcast['id'])
         temp_db.create_pattern_correction(
             correction_type='false_positive', pattern_id=None, episode_id='ep-2',
-            original_bounds={'start': 5.0, 'end': 25.0})
+            original_bounds={'start': 5.0, 'end': 25.0},
+            podcast_id=mock_podcast['id'])
         temp_db.create_pattern_correction(
             correction_type='boundary_adjustment', pattern_id=None,
-            episode_id='ep-3', original_bounds={'start': 1.0, 'end': 2.0})
+            episode_id='ep-3', original_bounds={'start': 1.0, 'end': 2.0},
+            podcast_id=mock_podcast['id'])
         temp_db.create_pattern_correction(
             correction_type='create', pattern_id=None,
-            episode_id='ep-4', original_bounds={'start': 3.0, 'end': 4.0})
+            episode_id='ep-4', original_bounds={'start': 3.0, 'end': 4.0},
+            podcast_id=mock_podcast['id'])
         rows = temp_db.get_review_corrections()
         types = sorted(r['correction_type'] for r in rows)
         assert types == ['boundary_adjustment', 'confirm', 'false_positive']
         confirm = next(r for r in rows if r['correction_type'] == 'confirm')
-        assert confirm == {'episode_id': 'ep-1', 'correction_type': 'confirm',
-                           'start': 10.0, 'end': 40.0}
+        assert confirm == {
+            'podcast_id': mock_podcast['id'], 'episode_id': 'ep-1',
+            'correction_type': 'confirm', 'start': 10.0, 'end': 40.0,
+        }
 
     def test_skips_rows_with_missing_bounds(self, temp_db):
         temp_db.create_pattern_correction(

@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { Trash2 } from 'lucide-react';
 import { Feed } from '../api/types';
-import { feedDisplayTitle } from '../utils/feedTitle';
+import { feedDisplayTitle, feedHasUpstream } from '../utils/feedTitle';
 import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
 import FeedArtworkLink from './FeedArtworkLink';
@@ -9,6 +9,7 @@ import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
+import FeedTypeBadge from './FeedTypeBadge';
 import PodpingBadge from './PodpingBadge';
 import { btnDestructive, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
@@ -22,6 +23,7 @@ interface FeedCardProps {
 
 function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
   const artworkUrl = feedArtworkSrc(feed.slug, feed.artworkUrl);
+  const hasUpstream = feedHasUpstream(feed);
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
@@ -44,41 +46,37 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
             >
               {feedDisplayTitle(feed)}
             </Link>
-            {feed.feedType === 'local' && (
-              <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
-                Local
-              </span>
-            )}
+            <FeedTypeBadge feedType={feed.feedType} />
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {feed.episodeCount} episodes
           </p>
-          {feed.lastRefreshed && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Updated {formatDate(feed.lastRefreshed)}
-            </p>
-          )}
-          <PodpingBadge
-            coverage={feed.podpingCoverage}
-            lastPodpingAt={feed.lastPodpingAt}
-            compact
-            className="text-xs mt-1 block"
-          />
-          {feed.feedType !== 'local' && feed.lastRefreshError && (
-            <p
-              className="text-xs text-warning mt-1"
-              title={feed.lastRefreshError}
-            >
-              Refresh failing
-            </p>
-          )}
-          <FeedStatusSummary counts={feed.statusCounts} className="mt-2" />
+          {/* Every slot below always renders so cards share one height. */}
+          <p className="text-xs text-muted-foreground mt-1 truncate">
+            {feed.lastRefreshed ? `Updated ${formatDate(feed.lastRefreshed)}` : 'Not refreshed yet'}
+            {hasUpstream && feed.lastRefreshError && (
+              <span className="text-warning ml-2" title={feed.lastRefreshError}>
+                Refresh failing
+              </span>
+            )}
+          </p>
+          <div className="h-4 mt-1">
+            <PodpingBadge
+              coverage={feed.podpingCoverage}
+              lastPodpingAt={feed.lastPodpingAt}
+              compact
+              className="text-xs block truncate"
+            />
+          </div>
+          <div className="mt-2 min-h-[1.375rem]">
+            <FeedStatusSummary counts={feed.statusCounts} />
+          </div>
         </div>
       </div>
       <div className="px-4 py-3 bg-secondary/50 border-t border-border rounded-b-lg flex justify-between items-center">
         <CopyButton text={feed.feedUrl} hideLabelOnMobile />
         <div className="flex gap-2">
-          {feed.feedType !== 'local' && (
+          {hasUpstream && (
             <DropdownMenu
               triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
               triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}

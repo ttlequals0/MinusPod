@@ -9,10 +9,12 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+import chapters_generator
 from chapters_generator import (
     ChaptersGenerator, _parse_description_anchors, TOPIC_DETECTION_TEMPERATURE,
     build_segment_hints,
 )
+from llm_client import ProviderRateLimitedError
 
 
 @pytest.fixture(autouse=True)
@@ -817,3 +819,45 @@ class TestGenerateChaptersHintsWiring:
         )
         # Nothing precedes this cut, so the seam maps to its own start (100s).
         assert '01:40 ad/segment break (sponsor)' in stub.topic_prompt
+
+
+RATE_LIMITED = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
+
+
+class TestProviderRateLimitPropagates:
+    """A 429 carrying a provider reset is queue-wide state (#696), so it must
+    reach the caller that records the hold instead of degrading the run."""
+
+    def _rate_limited(self, monkeypatch):
+        """A generator whose every LLM call comes back rate limited."""
+        monkeypatch.setattr(chapters_generator, 'call_llm',
+                            lambda **kwargs: (None, RATE_LIMITED))
+        gen = ChaptersGenerator(api_key='test')
+        gen._llm_client = object()
+        return gen
+
+    def test_topic_detection_raises(self, monkeypatch):
+        gen = self._rate_limited(monkeypatch)
+
+        with pytest.raises(ProviderRateLimitedError) as raised:
+            gen._detect_topic_boundaries(
+                transcript='[00:00] x', start_time=0.0, end_time=1800.0,
+                num_splits=3)
+        assert raised.value is RATE_LIMITED
+
+    def test_generate_chapters_propagates(self, monkeypatch):
+        gen = self._rate_limited(monkeypatch)
+
+        with pytest.raises(ProviderRateLimitedError):
+            gen.generate_chapters(
+                segments=_long_episode_segments(duration=5400),
+                podcast_name='Show', episode_title='Ep',
+                episode_id='ep-rate-limited')
+
+    def test_title_generation_raises(self, monkeypatch):
+        gen = self._rate_limited(monkeypatch)
+        chapters = [{'startTime': 0, 'title': None, 'needs_title': True}]
+
+        with pytest.raises(ProviderRateLimitedError):
+            gen.generate_chapter_titles(
+                chapters, _long_episode_segments(duration=1800), 'Show', 'Ep')

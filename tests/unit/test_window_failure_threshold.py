@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import ad_detector
 from ad_detector import AdDetector, WindowResult
+from llm_client import ProviderRateLimitedError
 
 
 def _make_windows(n: int):
@@ -38,7 +39,7 @@ def _window_result(idx, *, failed):
     )
 
 
-def _run_pass(detector, num_windows, failed_idxs):
+def _run_pass(detector, num_windows, failed_idxs, **extra):
     windows = _make_windows(num_windows)
     results = [_window_result(i, failed=i in failed_idxs) for i in range(num_windows)]
     with patch.object(detector, '_run_windows', return_value=results):
@@ -59,6 +60,7 @@ def _run_pass(detector, num_windows, failed_idxs):
             pass_name='ad_detection_1',
             window_label_prefix='Window',
             validate_timestamps=False,
+            **extra,
         )
 
 
@@ -151,3 +153,18 @@ class TestResolveMaxFailedWindowRatio:
     def test_junk_env_value_falls_back_to_the_registered_default(self, monkeypatch):
         monkeypatch.setenv('AD_DETECTION_MAX_FAILED_WINDOW_RATIO', 'junk')
         assert self._resolve(monkeypatch, None) == 0.25
+
+
+class TestCategoryRepairHold:
+    def test_a_held_429_during_repair_defers_the_episode(self):
+        """call_llm reports a hold through last_error, not by raising."""
+        detector = AdDetector(api_key='test-key')
+        error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
+        with patch('ad_detector.call_llm', return_value=(None, error)):
+            (final_ads, _raw, _fw, failure, *_rest) = _run_pass(
+                detector, 3, set(), category_repair_enabled=True)
+
+        assert failure is not None
+        assert failure['rate_limited_hold'] is True
+        assert failure['retry_after_seconds'] == 900.0
+        assert final_ads == []

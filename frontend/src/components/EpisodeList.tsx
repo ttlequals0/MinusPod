@@ -68,6 +68,8 @@ function EpisodeRow({
   selected: boolean;
   onToggle?: (id: string) => void;
 }) {
+  // Rows of the recents feed belong to another feed; link there.
+  const rowSlug = episode.feedSlug ?? feedSlug;
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '';
     const hours = Math.floor(seconds / 3600);
@@ -99,28 +101,34 @@ function EpisodeRow({
         </button>
       )}
       <Link
-        to={`/feeds/${feedSlug}/episodes/${episode.id}`}
+        to={`/feeds/${rowSlug}/episodes/${episode.id}`}
         className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
       >
         <Artwork
-          src={episodeArtworkSrc(feedSlug, episode.id, episode.artworkUrl, feedArtworkUrl)}
+          // A recents row falls back to its source feed's cover, not this feed's.
+          src={episodeArtworkSrc(rowSlug, episode.id, episode.artworkUrl, episode.feedSlug ? undefined : feedArtworkUrl)}
           alt=""
           loading="lazy"
           className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
         />
         <div className="flex-1 min-w-0">
           <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
-          {episode.description && (
-            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-              {stripHtml(episode.description)}
-            </p>
+          {episode.feedTitle && (
+            <p className="text-xs text-muted-foreground truncate">{episode.feedTitle}</p>
           )}
-          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-sm text-muted-foreground">
+          {/* Fixed slots (two description lines, one meta line, one badge
+              line) so every row in the list is the same height. */}
+          <p className="text-sm text-muted-foreground mt-1 line-clamp-2 min-h-10">
+            {episode.description ? stripHtml(episode.description) : ''}
+          </p>
+          <div className="flex gap-x-3 mt-2 text-sm text-muted-foreground truncate">
             <span className="whitespace-nowrap">{formatDate(episode.published)}</span>
             {episode.duration && <span className="whitespace-nowrap">{formatDuration(episode.duration)}</span>}
             {episode.ad_count !== undefined && episode.ad_count > 0 && (
               <span className="whitespace-nowrap">{episode.ad_count} ads detected</span>
             )}
+          </div>
+          <div className="flex items-center gap-2 mt-1 min-h-6">
             {episode.pendingReviewCount !== undefined && episode.pendingReviewCount > 0 && (
               <span className="px-2 py-0.5 text-xs rounded whitespace-nowrap bg-warning/20 text-warning">
                 {episode.pendingReviewCount} held

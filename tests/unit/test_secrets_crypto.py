@@ -1,5 +1,6 @@
 """Tests for src/secrets_crypto.py."""
 import base64
+import os
 
 import pytest
 
@@ -33,6 +34,78 @@ def test_encrypt_bytes_roundtrip(temp_db):
     assert blob.startswith(b"MPBK01\x00")
     assert blob != payload
     assert secrets_crypto.decrypt_bytes(temp_db, blob) == payload
+
+
+def test_backup_file_roundtrip_without_database(tmp_path):
+    source = tmp_path / 'source.db'
+    encrypted = tmp_path / 'backup.db.enc'
+    restored = tmp_path / 'restored.db'
+    source.write_bytes(os.urandom(2 * 1024 * 1024 + 17))
+
+    secrets_crypto.encrypt_backup_file(source, encrypted, 'backup-passphrase')
+    secrets_crypto.decrypt_backup_file(encrypted, restored, 'backup-passphrase')
+
+    assert restored.read_bytes() == source.read_bytes()
+    assert encrypted.read_bytes().startswith(b'MPBK02\x00')
+    assert restored.stat().st_mode & 0o777 == 0o600
+
+
+def test_backup_file_tamper_publishes_no_plaintext(tmp_path):
+    source = tmp_path / 'source.db'
+    encrypted = tmp_path / 'backup.db.enc'
+    restored = tmp_path / 'restored.db'
+    source.write_bytes(b'sensitive database bytes')
+    secrets_crypto.encrypt_backup_file(source, encrypted, 'backup-passphrase')
+    blob = bytearray(encrypted.read_bytes())
+    blob[-17] ^= 1
+    encrypted.write_bytes(blob)
+
+    with pytest.raises(ValueError, match='authentication failed'):
+        secrets_crypto.decrypt_backup_file(encrypted, restored, 'backup-passphrase')
+
+    assert not restored.exists()
+    assert not list(tmp_path.glob('.restored.db.*.tmp'))
+
+
+def test_backup_file_rejects_complete_ciphertext_truncation(tmp_path):
+    source = tmp_path / 'source.db'
+    encrypted = tmp_path / 'backup.db.enc'
+    restored = tmp_path / 'restored.db'
+    source.write_bytes(os.urandom(4096))
+    secrets_crypto.encrypt_backup_file(source, encrypted, 'backup-passphrase')
+    encrypted.write_bytes(encrypted.read_bytes()[:-32])
+
+    with pytest.raises(ValueError, match='length'):
+        secrets_crypto.decrypt_backup_file(encrypted, restored, 'backup-passphrase')
+
+    assert not restored.exists()
+
+
+def test_backup_file_decrypt_refuses_source_as_destination(tmp_path):
+    source = tmp_path / 'source.db'
+    encrypted = tmp_path / 'backup.db.enc'
+    source.write_bytes(b'sensitive database bytes')
+    secrets_crypto.encrypt_backup_file(source, encrypted, 'backup-passphrase')
+    original = encrypted.read_bytes()
+
+    with pytest.raises(ValueError, match='must differ'):
+        secrets_crypto.decrypt_backup_file(encrypted, encrypted, 'backup-passphrase')
+
+    assert encrypted.read_bytes() == original
+
+
+def test_backup_file_decrypt_refuses_existing_destination(tmp_path):
+    source = tmp_path / 'source.db'
+    encrypted = tmp_path / 'backup.db.enc'
+    destination = tmp_path / 'existing.db'
+    source.write_bytes(b'sensitive database bytes')
+    destination.write_bytes(b'keep this database')
+    secrets_crypto.encrypt_backup_file(source, encrypted, 'backup-passphrase')
+
+    with pytest.raises(FileExistsError):
+        secrets_crypto.decrypt_backup_file(encrypted, destination, 'backup-passphrase')
+
+    assert destination.read_bytes() == b'keep this database'
 
 
 def test_decrypt_bytes_rejects_non_envelope(temp_db):

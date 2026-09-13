@@ -1,13 +1,34 @@
 """search_index coverage: every episode status must be indexed, not just processed,
 since rebuild_search_index and index_episode used to filter on status='processed'."""
 
+import os
+import sqlite3
+import threading
+
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('search_index_coverage_')
 
 import database
 
-db = database.Database()
+db = None
+
+
+@pytest.fixture(scope='module', autouse=True)
+def isolated_search_database(tmp_path_factory):
+    global db
+    previous = database.Database._instance
+    database.Database._instance = None
+    try:
+        db = database.Database(data_dir=str(tmp_path_factory.mktemp('search-index-coverage')))
+    finally:
+        database.Database._instance = previous
+    yield
+    connection = getattr(db._local, 'connection', None)
+    if connection is not None:
+        connection.close()
 
 _counter = [0]
 
@@ -280,3 +301,229 @@ def test_upsert_new_row_indexes_inside_the_insert_transaction(monkeypatch):
 
     assert proxy.commit_calls == 1
     assert any(e['episodeId'] == ep_id for e in db.search_grouped('Solstice')['episodes'])
+
+
+def test_rebuild_streams_source_rows_in_bounded_write_chunks(monkeypatch):
+    slug = _feed('rebuild-lock-order')
+    db.upsert_episode(slug, _eid(), original_url='https://example.com/a.mp3',
+                      title='Indexed episode', status='processed')
+    conn = db.get_connection()
+    order = []
+    batch_sizes = []
+    real_execute = conn.execute
+    real_executemany = conn.executemany
+
+    def spy_execute(sql, *a):
+        order.append(('execute', ' '.join(str(sql).split())[:120]))
+        return real_execute(sql, *a)
+
+    def spy_executemany(sql, *a):
+        order.append(('executemany', ' '.join(str(sql).split())[:120]))
+        batch_sizes.append(len(a[0]))
+        return real_executemany(sql, *a)
+
+    monkeypatch.setattr(conn, 'execute', spy_execute)
+    monkeypatch.setattr(conn, 'executemany', spy_executemany)
+
+    assert db.rebuild_search_index() > 0
+
+    kinds = [k for k, _ in order]
+    sqls = [q for _, q in order]
+    first_write = next(i for i, q in enumerate(sqls) if q.startswith('INSERT INTO search_index_new'))
+    first_source_read = next(i for i, q in enumerate(sqls) if q.startswith('SELECT slug'))
+    assert first_source_read < first_write
+    assert batch_sizes and max(batch_sizes) <= 50
+    assert kinds[first_write] == 'executemany'
+    swap = next(i for i, sql in enumerate(sqls) if sql.startswith('DROP TABLE search_index'))
+    assert sqls[swap + 1].startswith('ALTER TABLE')
+    assert sqls[swap + 1].endswith('RENAME TO search_index')
+    assert sqls[swap + 2] == 'SELECT COUNT(*) FROM search_index'
+
+
+def test_rebuild_still_indexes_every_content_type(monkeypatch):
+    slug = _feed('rebuild-content-types')
+    db.upsert_episode(slug, _eid(), original_url='https://example.com/b.mp3',
+                      title='Findable episode', status='processed')
+
+    assert db.rebuild_search_index() > 0
+
+    conn = db.get_connection()
+    types = {r['content_type'] for r in conn.execute(
+        'SELECT DISTINCT content_type FROM search_index').fetchall()}
+    assert 'episode' in types and 'podcast' in types
+
+
+def test_rebuild_swaps_a_shadow_table_and_keeps_the_fts_definition():
+    conn = db.get_connection()
+    before = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'search_index'").fetchone()['sql']
+    ep = _eid()
+    slug = _feed('swap-podcast')
+    db.upsert_episode(slug, ep, original_url='https://example.com/a.mp3',
+                      title='Rebuild swap marker title', status='processed')
+    count = db.rebuild_search_index()
+    assert count >= 1
+    names = {r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE name LIKE 'search_index%' AND type = 'table'")}
+    assert 'search_index_new' not in names
+    after = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'search_index'").fetchone()['sql']
+    assert after.replace('"', '') == before.replace('"', '')
+    assert any(r['content_id'] == ep for r in conn.execute(
+        "SELECT content_id FROM search_index WHERE search_index MATCH 'swap'"))
+
+
+def test_rows_indexed_during_the_fill_survive_the_swap(monkeypatch):
+    slug = _feed('late-write-podcast')
+    conn = db.get_connection()
+    late_ep = _eid()
+    real_execute = conn.execute
+    begin_count = 0
+
+    def write_during_fill(sql, *a):
+        nonlocal begin_count
+        if str(sql).startswith('BEGIN IMMEDIATE'):
+            begin_count += 1
+        if begin_count == 2:
+            begin_count += 1
+            other = sqlite3.connect(str(db.db_path))
+            other.execute(
+                "INSERT INTO episodes (podcast_id, episode_id, original_url, title, status) "
+                "SELECT id, ?, 'https://example.com/late.mp3', 'Late arrival title', "
+                "'discovered' FROM podcasts WHERE slug = ?", (late_ep, slug))
+            other.commit()
+            other.close()
+        return real_execute(sql, *a)
+
+    monkeypatch.setattr(conn, 'execute', write_during_fill)
+    db.rebuild_search_index()
+    assert begin_count >= 2
+    assert any(r['content_id'] == late_ep for r in conn.execute(
+        "SELECT content_id FROM search_index WHERE search_index MATCH 'arrival'"))
+
+
+@pytest.mark.parametrize('operation', ['update', 'delete', 'rowid_reuse'])
+def test_source_changes_during_fill_are_replayed(monkeypatch, operation):
+    slug = _feed(f'journal-{operation}')
+    episode_id = _eid()
+    db.upsert_episode(
+        slug, episode_id, original_url='https://example.com/old.mp3',
+        title='Obsolete journal title', status='discovered')
+    conn = db.get_connection()
+    row_id = conn.execute(
+        "SELECT e.id FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+        "WHERE p.slug = ? AND e.episode_id = ?", (slug, episode_id)).fetchone()[0]
+    real_execute = conn.execute
+    begin_count = 0
+
+    def change_during_fill(sql, *args):
+        nonlocal begin_count
+        if str(sql).startswith('BEGIN IMMEDIATE'):
+            begin_count += 1
+        if begin_count == 2:
+            begin_count += 1
+            other = sqlite3.connect(str(db.db_path))
+            if operation == 'update':
+                other.execute(
+                    "UPDATE episodes SET title = 'Current journal title' WHERE id = ?",
+                    (row_id,))
+            else:
+                other.execute("DELETE FROM episodes WHERE id = ?", (row_id,))
+                if operation == 'rowid_reuse':
+                    other.execute(
+                        "INSERT INTO episodes "
+                        "(id, podcast_id, episode_id, original_url, title, status) "
+                        "SELECT ?, id, ?, 'https://example.com/new.mp3', "
+                        "'Replacement journal title', 'discovered' "
+                        "FROM podcasts WHERE slug = ?",
+                        (row_id, episode_id, slug))
+            other.commit()
+            other.close()
+        return real_execute(sql, *args)
+
+    monkeypatch.setattr(conn, 'execute', change_during_fill)
+    db.rebuild_search_index()
+    rows = conn.execute(
+        "SELECT title FROM search_index WHERE content_type = 'episode' "
+        "AND content_id = ? AND podcast_slug = ?", (episode_id, slug)).fetchall()
+    if operation == 'delete':
+        assert rows == []
+    else:
+        expected = 'Current journal title' if operation == 'update' else 'Replacement journal title'
+        assert [row['title'] for row in rows] == [expected]
+
+
+def test_sponsor_and_pattern_changes_during_fill_are_replayed(monkeypatch):
+    sponsor_id = db.create_known_sponsor('Obsolete Sponsor Name')
+    pattern_id = db.create_ad_pattern(
+        'global', text_template='sponsor message', sponsor_id=sponsor_id)
+    conn = db.get_connection()
+    real_execute = conn.execute
+    begin_count = 0
+
+    def change_during_fill(sql, *args):
+        nonlocal begin_count
+        if str(sql).startswith('BEGIN IMMEDIATE'):
+            begin_count += 1
+        if begin_count == 2:
+            begin_count += 1
+            other = sqlite3.connect(str(db.db_path))
+            other.execute(
+                "UPDATE known_sponsors SET name = 'Current Sponsor Name' WHERE id = ?",
+                (sponsor_id,))
+            other.commit()
+            other.close()
+        return real_execute(sql, *args)
+
+    monkeypatch.setattr(conn, 'execute', change_during_fill)
+    db.rebuild_search_index()
+    sponsor = conn.execute(
+        "SELECT title FROM search_index WHERE content_type = 'sponsor' AND content_id = ?",
+        (str(sponsor_id),)).fetchone()
+    pattern = conn.execute(
+        "SELECT title FROM search_index WHERE content_type = 'pattern' AND content_id = ?",
+        (str(pattern_id),)).fetchone()
+    assert sponsor['title'] == 'Current Sponsor Name'
+    assert pattern['title'] == 'Current Sponsor Name'
+
+
+def test_failed_fill_drops_the_shadow_and_keeps_the_old_index(monkeypatch):
+    conn = db.get_connection()
+    before = conn.execute("SELECT COUNT(*) FROM search_index").fetchone()[0]
+
+    def boom(sql, *a):
+        raise sqlite3.OperationalError('disk I/O error')
+
+    monkeypatch.setattr(conn, 'executemany', boom)
+    with pytest.raises(sqlite3.OperationalError):
+        db.rebuild_search_index()
+    assert not conn.in_transaction
+    names = [r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'search_index_new%'")]
+    assert names == []
+    assert conn.execute("SELECT COUNT(*) FROM search_index").fetchone()[0] == before
+
+
+def test_stale_shadow_from_a_crash_is_dropped_on_the_next_rebuild():
+    conn = db.get_connection()
+    conn.execute(
+        "CREATE VIRTUAL TABLE search_index_new_4194304_1 USING fts5(content_type, content_id, podcast_slug, title, body, metadata)")
+    conn.commit()
+    db.rebuild_search_index()
+    names = [r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'search_index_new%'")]
+    assert names == []
+
+
+def test_rebuild_drops_stale_shadow_named_for_a_live_pid():
+    conn = db.get_connection()
+    name = f'search_index_new_{os.getpid()}_{threading.get_ident()}'
+    conn.execute(
+        f"CREATE VIRTUAL TABLE {name} USING fts5(content_type, content_id, "
+        "podcast_slug, title, body, metadata)")
+    conn.commit()
+
+    db.rebuild_search_index()
+    names = [row['name'] for row in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'search_index_new%'")]
+    assert names == []

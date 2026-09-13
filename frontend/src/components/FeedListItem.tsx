@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { RefreshCw, Trash2 } from 'lucide-react';
 
 import { Feed } from '../api/types';
-import { feedDisplayTitle } from '../utils/feedTitle';
+import { feedDisplayTitle, feedHasUpstream } from '../utils/feedTitle';
 import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
 import FeedArtworkLink from './FeedArtworkLink';
@@ -10,6 +10,7 @@ import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
+import FeedTypeBadge from './FeedTypeBadge';
 import PodpingBadge from './PodpingBadge';
 import { btnDestructive, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
@@ -23,6 +24,7 @@ interface FeedListItemProps {
 
 function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemProps) {
   const artworkUrl = feedArtworkSrc(feed.slug, feed.artworkUrl);
+  const hasUpstream = feedHasUpstream(feed);
 
   return (
     <div className="bg-card rounded-lg border border-border p-3 flex items-center gap-3 sm:gap-4">
@@ -41,11 +43,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
           >
             {feedDisplayTitle(feed)}
           </Link>
-          {feed.feedType === 'local' && (
-            <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
-              Local
-            </span>
-          )}
+          <FeedTypeBadge feedType={feed.feedType} />
         </div>
         <p className="text-xs text-muted-foreground truncate">
           {feed.episodeCount} episodes
@@ -60,7 +58,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
             compact
             className="ml-2"
           />
-          {feed.feedType !== 'local' && feed.lastRefreshError && (
+          {hasUpstream && feed.lastRefreshError && (
             <span
               className="ml-2 text-warning"
               title={feed.lastRefreshError}
@@ -73,7 +71,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
       </div>
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <CopyButton text={feed.feedUrl} hideLabelOnMobile />
-        {feed.feedType !== 'local' && (
+        {hasUpstream && (
           <>
             <button
               onClick={() => onRefresh(feed.slug)}

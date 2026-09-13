@@ -14,13 +14,14 @@ const mockGetEmail = vi.fn();
 const mockUpdateEmail = vi.fn();
 const mockSendTest = vi.fn();
 const mockGetWebhooks = vi.fn();
+const mockCreateWebhook = vi.fn();
 const mockTestWebhook = vi.fn();
 const mockGetTimezone = vi.fn();
 const mockUpdateTimezone = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   getWebhooks: (...a: unknown[]) => mockGetWebhooks(...a),
-  createWebhook: vi.fn(),
+  createWebhook: (...a: unknown[]) => mockCreateWebhook(...a),
   updateWebhook: vi.fn(),
   deleteWebhook: vi.fn(),
   testWebhook: (...a: unknown[]) => mockTestWebhook(...a),
@@ -171,6 +172,24 @@ describe('NotificationsSection', () => {
       expect(screen.getByText('2 of 2 test payloads delivered')).toBeDefined();
     });
     expect(mockTestWebhook).toHaveBeenCalledWith('wh1');
+  });
+
+  it('shows an uncertain result when webhook creation loses its response', async () => {
+    mockGetWebhooks.mockResolvedValue([]);
+    mockCreateWebhook.mockRejectedValue(new Error(
+      'The server did not confirm this change. It may have completed. Check the current state before trying again.',
+    ));
+    renderSection();
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('No webhooks configured.')).toBeDefined());
+    await user.click(screen.getByRole('button', { name: 'Add Webhook' }));
+    await user.type(screen.getByLabelText('URL'), 'https://example.com/hook');
+    const eventChoices = screen.getAllByLabelText('Episode Failed');
+    await user.click(eventChoices[eventChoices.length - 1]);
+    await user.click(screen.getByRole('button', { name: 'Create Webhook' }));
+
+    expect(await screen.findByText(/may have completed/)).toBeDefined();
+    expect(mockCreateWebhook).toHaveBeenCalledTimes(1);
   });
 
   it('shows a partial-failure summary message when some events fail to deliver', async () => {

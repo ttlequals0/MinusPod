@@ -4,6 +4,15 @@
 
 ---
 
+## Contents
+
+- [How it fits together](#how-it-fits-together)
+- [1. Compose setup](#1-compose-setup)
+- [2. Port conflict](#2-port-conflict)
+- [3. Pull the model and enable word timestamps](#3-pull-the-model-and-enable-word-timestamps)
+- [4. Point MinusPod at it](#4-point-minuspod-at-it)
+- [5. Verify the GPU is doing the work](#5-verify-the-gpu-is-doing-the-work)
+
 This guide offloads Whisper transcription to an Intel GPU using [OpenVINO Model Server](https://docs.openvino.ai/2025/model-server/ovms_what_is_openvino_model_server.html) (OVMS) running alongside the MinusPod CPU image. MinusPod talks to it as a remote OpenAI-compatible Whisper backend, so the heavy transcription work lands on the GPU instead of pinning every CPU core.
 
 It applies to the **CPU image** on an Intel host with a capable integrated or discrete GPU (roughly 6th-gen / 2015 and newer; 11th-gen and newer perform best). It does not apply to the NVIDIA GPU image, which already uses local CUDA. There is no local OpenVINO device path inside MinusPod itself; OVMS runs as a separate container and MinusPod reaches it over HTTP.

@@ -21,7 +21,7 @@ def _ctx():
     )
 
 
-def _run(verification_result):
+def _run(verification_result, run_stats=None):
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
         db = p(processing, 'db')
@@ -34,7 +34,7 @@ def _run(verification_result):
 
         result = processing._run_verification_pass(
             _ctx(), '/tmp/verify-status-cut.mp3', [], False, 0.8,
-            MagicMock(), None,
+            MagicMock(), None, run_stats=run_stats,
         )
     return result, storage
 
@@ -133,3 +133,58 @@ class TestFailedDetectionVerification:
         assert 'Verification: clean' not in caplog.text
         assert 'Verification incomplete (detection_failed' in caplog.text
         storage.save_ads_json.assert_called_once()
+
+
+def _verification_detection(*, failed_windows, num_windows):
+    """run_verification_detection over a stubbed window pass."""
+    detector = ad_detector.AdDetector(api_key='test-key')
+    run_pass = MagicMock(return_value=([], [], failed_windows, None, 0, 0, 0,
+                                       ad_detector.AddressingStats()))
+    with ExitStack() as stack:
+        p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+        p(detector, 'initialize_client')
+        p(detector, '_effective_addressing_mode',
+          return_value=('timestamps', 'timestamps'))
+        p(detector, 'get_verification_prompt', return_value='verification')
+        p(detector, 'get_verification_model', return_value='model-x')
+        p(detector, '_build_known_pattern_hint', return_value='')
+        p(detector, '_resolve_segment_action_map', return_value=None)
+        p(detector, '_run_detection_pass', run_pass)
+        stack.enter_context(patch('ad_detector.create_windows',
+                                  return_value=[{}] * num_windows))
+        return detector.run_verification_detection(
+            [{'start': 0.0, 'end': 10.0, 'text': 'hello'}],
+            slug='verify-status-feed', episode_id='ep1')
+
+
+class TestVerificationWindowCounts:
+    def test_successful_pass_reports_its_window_counts(self):
+        result = _verification_detection(failed_windows=1, num_windows=12)
+
+        assert result['status'] == 'success'
+        assert result['windows_total'] == 12
+        assert result['windows_failed'] == 1
+
+    def test_counts_survive_a_clean_verification_pass(self):
+        result = _verify_with_detection({
+            'ads': [], 'status': 'success',
+            'windows_total': 12, 'windows_failed': 1,
+        })
+
+        assert result['status'] == 'clean'
+        assert result['windows_total'] == 12
+        assert result['windows_failed'] == 1
+
+    def test_run_stats_records_lost_verification_windows(self):
+        run_stats = {}
+        _run({'ads': [], 'ads_processed': [], 'segments': [],
+              'windows_total': 12, 'windows_failed': 1}, run_stats=run_stats)
+
+        assert run_stats['verification_windows'] == {'total': 12, 'failed': 1}
+
+    def test_run_stats_untouched_when_the_pass_never_reached_detection(self):
+        run_stats = {}
+        _run({'ads': [], 'ads_processed': [], 'segments': [],
+              'status': 'transcription_failed'}, run_stats=run_stats)
+
+        assert 'verification_windows' not in run_stats

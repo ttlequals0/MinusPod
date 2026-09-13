@@ -11,6 +11,7 @@ from transcriber import (
     Transcriber, _get_whisper_settings, _get_whisper_compute_type,
     check_whisper_connectivity, _api_timeout,
     _whisper_api_rejects_word_timestamps,
+    _whisper_api_rejects_vad_filter,
     extract_audio_chunk,
     _ffmpeg_error_tail,
     PREPROCESS_AUDIO_FILTERS,
@@ -143,7 +144,7 @@ class TestTranscribeViaApi:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(
-                    temp_path, 'TestPodcast', self._make_settings()
+                    temp_path, self._make_settings()
                 )
 
             assert result is not None
@@ -155,6 +156,72 @@ class TestTranscribeViaApi:
             assert result[1]['words'] == []
         finally:
             os.unlink(temp_path)
+
+    def test_sends_no_prompt_field(self):
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(b'fake audio data' * 200)
+            temp_path = f.name
+        mock_response = MagicMock(status_code=200)
+        mock_response.json.return_value = self._make_api_response([])
+        try:
+            with patch('transcriber.safe_post', return_value=mock_response) as mock_post:
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                transcriber._transcribe_via_api(temp_path, self._make_settings())
+        finally:
+            os.unlink(temp_path)
+        assert 'prompt' not in mock_post.call_args.kwargs['data']
+
+    def _post_data_for_vad(self, vad_filter):
+        """Form data the API upload sends for a given vad_filter."""
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(b'fake audio data' * 200)
+            temp_path = f.name
+        mock_response = MagicMock(status_code=200)
+        mock_response.json.return_value = self._make_api_response([])
+        try:
+            with patch('transcriber.safe_post', return_value=mock_response) as mock_post:
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                transcriber._transcribe_via_api(
+                    temp_path, self._make_settings(), vad_filter=vad_filter)
+        finally:
+            os.unlink(temp_path)
+        return mock_post.call_args.kwargs['data']
+
+    def test_sends_vad_filter_false_on_the_tail_upload(self):
+        assert self._post_data_for_vad(False)['vad_filter'] == 'false'
+
+    def test_omits_vad_filter_by_default(self):
+        assert 'vad_filter' not in self._post_data_for_vad(True)
+
+    def test_retries_without_vad_filter_when_server_rejects_it(self):
+        """A server 400-ing the unknown vad_filter field must not lose the
+        upload outright; drop the field and retry once."""
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(b'fake audio data' * 200)
+            temp_path = f.name
+
+        rejected = MagicMock(status_code=400, text='unknown field: vad_filter')
+        accepted = MagicMock(status_code=200)
+        accepted.json.return_value = self._make_api_response(
+            [{'start': 0.0, 'end': 1.0, 'text': 'hi', 'words': []}]
+        )
+        try:
+            with patch('transcriber.safe_post',
+                       side_effect=[rejected, accepted]) as mock_post:
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                result = transcriber._transcribe_via_api(
+                    temp_path, self._make_settings(), vad_filter=False)
+        finally:
+            os.unlink(temp_path)
+
+        assert result is not None
+        assert result[0]['text'] == 'hi'
+        assert mock_post.call_count == 2
+        assert mock_post.call_args_list[0].kwargs['data']['vad_filter'] == 'false'
+        assert 'vad_filter' not in mock_post.call_args_list[1].kwargs['data']
 
     def test_returns_none_on_missing_base_url(self):
         with patch('transcriber.safe_post') as mock_post:
@@ -266,7 +333,7 @@ class TestTranscriberBackendDispatch:
     @patch.object(Transcriber, '_transcribe_via_api', return_value=[{'start': 0, 'end': 5, 'text': 'test', 'words': []}])
     def test_dispatches_to_api_when_openai_api(self, mock_api, mock_settings):
         transcriber = Transcriber()
-        result = transcriber.transcribe('/tmp/test.wav', 'TestPodcast')
+        result = transcriber.transcribe('/tmp/test.wav')
         mock_api.assert_called_once()
         assert result is not None
 
@@ -505,6 +572,32 @@ class TestWordTimestampRejectionDetection:
         assert _whisper_api_rejects_word_timestamps(r) is False
 
 
+class TestVadFilterRejectionDetection:
+    """_whisper_api_rejects_vad_filter body-marker matcher."""
+
+    def _resp(self, status, body=''):
+        r = MagicMock()
+        r.status_code = status
+        r.text = body
+        return r
+
+    def test_none_response(self):
+        assert _whisper_api_rejects_vad_filter(None) is False
+
+    def test_200_is_never_rejection(self):
+        assert _whisper_api_rejects_vad_filter(self._resp(200, 'vad_filter')) is False
+
+    def test_400_naming_the_field(self):
+        assert _whisper_api_rejects_vad_filter(
+            self._resp(400, "unrecognized field 'vad_filter'")
+        ) is True
+
+    def test_unrelated_error_body_does_not_trigger(self):
+        assert _whisper_api_rejects_vad_filter(
+            self._resp(400, 'Internal server error: upstream timeout')
+        ) is False
+
+
 class TestSkipFlacCompressionSetting:
     """skip_flac_compression flag plumbing through _get_whisper_settings
     and _transcribe_via_api."""
@@ -577,7 +670,6 @@ class TestSkipFlacCompressionSetting:
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(
                     temp_path,
-                    'TestPodcast',
                     self._make_settings(skip_flac_compression=True),
                 )
                 assert result is not None
@@ -616,7 +708,6 @@ class TestSkipFlacCompressionSetting:
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 transcriber._transcribe_via_api(
                     temp_path,
-                    'TestPodcast',
                     self._make_settings(skip_flac_compression=False),
                 )
 
@@ -883,7 +974,7 @@ class TestChunkedSinglePass:
              patch('transcriber.safe_post', return_value=self._mock_api_response()), \
              patch('transcriber._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
             result = transcriber._transcribe_chunked_parallel_api(
-                '/tmp/full.mp3', 'TestPodcast', 50.0, self._make_settings()
+                '/tmp/full.mp3', 50.0, self._make_settings()
             )
 
         assert result is not None
@@ -905,7 +996,7 @@ class TestChunkedSinglePass:
              patch('transcriber.safe_post', return_value=self._mock_api_response()), \
              patch('transcriber._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
             result = transcriber._transcribe_chunked_parallel_api(
-                '/tmp/full.mp3', 'TestPodcast', 50.0,
+                '/tmp/full.mp3', 50.0,
                 self._make_settings(skip_flac_compression=True)
             )
 
@@ -929,7 +1020,7 @@ class TestChunkedSinglePass:
              patch('transcriber.safe_post', return_value=self._mock_api_response()), \
              patch('transcriber._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
             transcriber._transcribe_chunked_parallel_api(
-                '/tmp/full.mp3', 'TestPodcast', 50.0, self._make_settings()
+                '/tmp/full.mp3', 50.0, self._make_settings()
             )
 
         assert ffmpeg_cmds
@@ -953,7 +1044,7 @@ class TestChunkedSinglePass:
              patch('transcriber._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
             with pytest.raises(AudioExtractionError):
                 transcriber._transcribe_chunked_parallel_api(
-                    '/tmp/full.mp3', 'TestPodcast', 50.0, self._make_settings()
+                    '/tmp/full.mp3', 50.0, self._make_settings()
                 )
 
     def test_transcribe_via_api_preprocessed_flac_runs_no_ffmpeg(self):
@@ -968,7 +1059,7 @@ class TestChunkedSinglePass:
             with patch('transcriber.safe_post', return_value=self._mock_api_response()), \
                  patch('transcriber.tracked_run') as mock_run:
                 result = transcriber._transcribe_via_api(
-                    temp_path, 'TestPodcast', self._make_settings(),
+                    temp_path, self._make_settings(),
                     preprocessed=True,
                 )
             assert result is not None

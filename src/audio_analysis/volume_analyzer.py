@@ -13,7 +13,7 @@ import os
 from .base import AudioSegmentSignal, LoudnessFrame, SignalType
 from config import VOLUME_ANOMALY_THRESHOLD_DB
 from utils.audio import get_audio_duration
-from utils.ffmpeg_run import ffmpeg_timeout, decode_stderr
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout, decode_stderr
 from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger('podcast.audio_analysis.volume')
@@ -115,7 +115,7 @@ class VolumeAnalyzer:
             # Output format: [Parsed_ebur128_0 @ ...] t: 0.3     M: -23.5 S: -22.1 ...
             # Note: -v verbose is needed for filter output to appear in stderr
             cmd = [
-                'ffmpeg', '-v', 'verbose',
+                'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'verbose',
                 '-i', audio_path,
                 '-af', 'ebur128=framelog=verbose:peak=sample',
                 '-f', 'null', '-'

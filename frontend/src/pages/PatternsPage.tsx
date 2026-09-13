@@ -10,7 +10,7 @@ import {
 } from '../api/community';
 import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { ScopeBadge } from '../components/ScopeBadge';
@@ -25,6 +25,7 @@ import {
 } from '../utils/segmentCategory';
 import AdReviewTab from './patterns/AdReviewTab';
 import DetectedAdsTab from './patterns/DetectedAdsTab';
+import UnresolvedCorrectionsPanel from './patterns/UnresolvedCorrectionsPanel';
 import { btnOutline } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
 import { selectBase } from '../components/fieldStyles';
@@ -285,7 +286,9 @@ function PatternsPage() {
 
       {activeTab === 'patterns' && (<>
 
-      {isLoading && <LoadingSpinner className="py-12" />}
+      <UnresolvedCorrectionsPanel />
+
+      {isLoading && <SkeletonRows count={6} />}
       {error && (
         <div className="text-center py-12">
           <p className="text-destructive">Failed to load patterns</p>

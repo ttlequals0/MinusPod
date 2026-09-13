@@ -58,7 +58,9 @@ def test_apply_boundary_adjustments_overrides_bounds(monkeypatch):
         'original_bounds': {'start': 100.0, 'end': 160.0},
         'corrected_bounds': {'start': 105.0, 'end': 150.0},
     }]
-    monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda eid: corrections)
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
     processing._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads[0]['start'] == 105.0
     assert ads[0]['end'] == 150.0
@@ -72,7 +74,9 @@ def test_apply_boundary_adjustments_skips_unmatched(monkeypatch):
         'original_bounds': {'start': 900.0, 'end': 950.0},
         'corrected_bounds': {'start': 905.0, 'end': 940.0},
     }]
-    monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda eid: corrections)
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
     processing._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads[0]['start'] == 100.0
     assert ads[0]['end'] == 160.0
@@ -89,7 +93,9 @@ def test_apply_boundary_adjustments_newest_wins(monkeypatch):
          'original_bounds': {'start': 100.0, 'end': 160.0},
          'corrected_bounds': {'start': 101.0, 'end': 159.0}},
     ]
-    monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda eid: corrections)
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
     processing._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads[0]['start'] == 110.0
     assert ads[0]['end'] == 150.0
@@ -318,10 +324,13 @@ def test_build_recut_ad_list_drops_rejected(monkeypatch):
         {'start': 300.0, 'end': 360.0, 'confidence': 0.98, 'sponsor': 'B', 'reason': 'sponsor read for B'},
     ]
     monkeypatch.setattr(processing.db, 'get_episode', lambda s, e: {'ad_markers_json': json.dumps(ads)})
-    monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda eid: [])
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: [])
     monkeypatch.setattr(processing.db, 'get_false_positive_corrections',
-                        lambda eid: [{'start': 300.0, 'end': 360.0}])
-    monkeypatch.setattr(processing.db, 'get_confirmed_corrections', lambda eid: [])
+                        lambda podcast_id, eid: [{'start': 300.0, 'end': 360.0}])
+    monkeypatch.setattr(
+        processing.db, 'get_confirmed_corrections', lambda podcast_id, eid: [])
     segments = [
         {'start': 30.0, 'end': 90.0, 'text': 'sponsor a'},
         {'start': 300.0, 'end': 360.0, 'text': 'sponsor b'},
@@ -339,9 +348,14 @@ def test_build_recut_ad_list_keeps_confirmed(monkeypatch):
     # A low-confidence ad the user confirmed must still be cut.
     ads = [{'start': 30.0, 'end': 90.0, 'confidence': 0.40, 'sponsor': 'A', 'reason': 'maybe an ad for A'}]
     monkeypatch.setattr(processing.db, 'get_episode', lambda s, e: {'ad_markers_json': json.dumps(ads)})
-    monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda eid: [])
-    monkeypatch.setattr(processing.db, 'get_false_positive_corrections', lambda eid: [])
-    monkeypatch.setattr(processing.db, 'get_confirmed_corrections', lambda eid: [{'start': 30.0, 'end': 90.0}])
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: [])
+    monkeypatch.setattr(
+        processing.db, 'get_false_positive_corrections', lambda podcast_id, eid: [])
+    monkeypatch.setattr(
+        processing.db, 'get_confirmed_corrections',
+        lambda podcast_id, eid: [{'start': 30.0, 'end': 90.0}])
     segments = [{'start': 30.0, 'end': 90.0, 'text': 'maybe an ad'}]
     ads_to_remove, _ = processing._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80)
     assert {a['start'] for a in ads_to_remove} == {30.0}
@@ -352,9 +366,13 @@ def test_build_recut_ad_list_keeps_manual_add(monkeypatch):
     ads = [{'start': 120.0, 'end': 180.0, 'confidence': 1.0, 'detection_stage': 'manual',
             'sponsor': 'Manual Co', 'reason': 'Manual Co: manually added ad'}]
     monkeypatch.setattr(processing.db, 'get_episode', lambda s, e: {'ad_markers_json': json.dumps(ads)})
-    monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda eid: [])
-    monkeypatch.setattr(processing.db, 'get_false_positive_corrections', lambda eid: [])
-    monkeypatch.setattr(processing.db, 'get_confirmed_corrections', lambda eid: [])
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: [])
+    monkeypatch.setattr(
+        processing.db, 'get_false_positive_corrections', lambda podcast_id, eid: [])
+    monkeypatch.setattr(
+        processing.db, 'get_confirmed_corrections', lambda podcast_id, eid: [])
     segments = [{'start': 120.0, 'end': 180.0, 'text': 'manual'}]
     ads_to_remove, _ = processing._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80)
     assert {a['start'] for a in ads_to_remove} == {120.0}
@@ -382,11 +400,12 @@ def _stub_recut_db(monkeypatch, ads, fp=None, confirmed=None, overrides=None):
     import json as _json
     monkeypatch.setattr(processing.db, 'get_episode',
                         lambda s, e: {'ad_markers_json': _json.dumps(ads)})
-    monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda eid: [])
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: [])
     monkeypatch.setattr(processing.db, 'get_false_positive_corrections',
-                        lambda eid: fp or [])
+                        lambda podcast_id, eid: fp or [])
     monkeypatch.setattr(processing.db, 'get_confirmed_corrections',
-                        lambda eid: confirmed or [])
+                        lambda podcast_id, eid: confirmed or [])
     # Simulate per-feed settings overrides (or empty = both unset)
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug',
                         lambda s: {'id': 42})
