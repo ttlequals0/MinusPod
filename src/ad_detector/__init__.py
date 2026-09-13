@@ -351,6 +351,7 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
         "limit_exceeded": limit_exceeded,
         "rate_limited_hold": rate_limited_hold,
         "retry_after_seconds": getattr(last_error, 'retry_after_seconds', None),
+        "provider_key": getattr(last_error, 'provider_key', None),
         # Lets the pipeline tell "endpoint down" apart from a bad response so
         # the offline queue (#482) defers only genuine outages. Includes
         # CircuitBreakerOpen, which reaches here as last_error because

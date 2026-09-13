@@ -410,8 +410,17 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         return False, "queue_only"
 
     # Rate-limit hold (#696): the one choke point every start goes through,
-    # so a Play or Reprocess waits in the queue like the rest.
-    if is_queue_paused(db):
+    # so a Play or Reprocess waits in the queue like the rest. Provider-scoped
+    # (checkpoint 02 task 4): checked against every provider this run's
+    # phases would use, so a run needing only healthy providers is admitted
+    # even while a different provider is held, and a run needing a held
+    # provider is refused before it can spend a call on a healthy one it
+    # cannot finish with.
+    required_providers = _required_providers_for_admission()
+    if required_providers is None:
+        if is_queue_paused(db):
+            return False, "rate_limit_paused"
+    elif any(is_queue_paused(db, provider) for provider in required_providers):
         return False, "rate_limit_paused"
 
     # Check if queue is busy with another episode
@@ -973,6 +982,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             typed = ProviderRateLimitedError(
                 f"Ad detection failed: {error_msg}",
                 retry_after_seconds=float(ad_result.get('retry_after_seconds') or 0),
+                provider_key=ad_result.get('provider_key'),
             )
         elif ad_result.get('connectivity'):
             # Endpoint unreachable rather than a bad response, so the offline
@@ -3172,7 +3182,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 raise ProviderRateLimitedError(
                     f"Verification failed: {verification_result.get('error')}",
                     retry_after_seconds=float(
-                        verification_result.get('retry_after_seconds') or 0))
+                        verification_result.get('retry_after_seconds') or 0),
+                    provider_key=verification_result.get('provider_key'))
             v_error = verification_result.get('error')
             detail = f": {v_error}" if v_error else ""
             audio_logger.warning(
@@ -3862,7 +3873,8 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 hold_until = None
                 try:
                     hold_until = hold_queue_for_provider_limit(
-                        db, e, slug=slug, episode_id=episode_id, podcast_name=podcast_name)
+                        db, e, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
+                        provider_key=getattr(e, 'provider_key', None))
                 except Exception:
                     audio_logger.exception(
                         f"[{slug}:{episode_id}] Failed to record the rate-limit hold")
@@ -4792,7 +4804,8 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # offline-queue branch: throttling is not an outage. retry_count untouched.
     if isinstance(error, ProviderRateLimitedError):
         hold_until = hold_queue_for_provider_limit(
-            db, error, slug=slug, episode_id=episode_id, podcast_name=podcast_name)
+            db, error, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
+            provider_key=getattr(error, 'provider_key', None))
         if hold_until:
             db.upsert_episode(
                 slug, episode_id,
@@ -4966,6 +4979,17 @@ def _persist_route_snapshot(run_id: str, snapshot: dict) -> None:
         conn.commit()
     except Exception as exc:
         audio_logger.warning(f"Could not persist route snapshot for run {run_id}: {exc}")
+
+
+def _required_providers_for_admission() -> list[str] | None:
+    """Distinct provider_keys this run's phases would resolve to right now,
+    or None when resolution fails (admission then falls back to the legacy
+    unscoped hold check, a safe superset of any real per-provider hold).
+    """
+    snapshot = _resolve_route_snapshot()
+    if snapshot is None:
+        return None
+    return list({route['provider_key'] for route in snapshot.values()})
 
 
 def _resolve_route_snapshot() -> dict | None:

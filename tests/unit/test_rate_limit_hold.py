@@ -28,6 +28,7 @@ from rate_limit_hold import (
     is_queue_paused,
     is_rate_limit_hold_enabled,
     rate_limit_hold_tick,
+    record_hold_until,
 )
 from tests.unit.provider_error_fakes import FakeResponse, FakeProviderError, call_window
 from tests.unit.rate_limit_fixtures import PRODUCTION_RESET_BODY
@@ -254,6 +255,9 @@ def seeded_episode():
     _set_hold_enabled(False)
     db.set_setting('rate_limit_hold_until', '')
     db.clear_setting('rate_limit_hold_since')
+    from rate_limit_hold import _provider_hold_suffixes, clear_hold
+    for provider in _provider_hold_suffixes(db):
+        clear_hold(db, provider)
     db.get_connection().execute("DELETE FROM auto_process_queue")
     db.get_connection().commit()
 
@@ -380,6 +384,78 @@ class TestStartGate:
         db.set_setting('rate_limit_hold_until', future)
         started, reason = start_background_processing(
             SLUG, 'ep-play', 'https://example.com/e.mp3', 'E', 'P', None, None)
+        assert started is False
+        assert reason == 'rate_limit_paused'
+
+
+def _admit_or_refuse(monkeypatch, snapshot, episode_id):
+    """Drive start_background_processing far enough to observe the hold
+    gate's verdict without starting a real run: acquire() is stubbed to
+    fail immediately, so any non-hold refusal proves the gate admitted it.
+    """
+    from main_app import processing
+    from processing_queue import ProcessingQueue
+    monkeypatch.setattr(processing, '_resolve_route_snapshot', lambda: snapshot)
+    monkeypatch.setattr(ProcessingQueue, 'acquire', lambda self, *a, **kw: None)
+    return start_background_processing(
+        SLUG, episode_id, 'https://example.com/e.mp3', 'E', 'P', None, None)
+
+
+def _phase_snapshot(**routes):
+    """A route snapshot shaped like _resolve_route_snapshot's real return,
+    mapping each phase to an arbitrary provider_key for admission tests."""
+    return {phase: {'provider_key': provider, 'configured_model': 'model-x'}
+            for phase, provider in routes.items()}
+
+
+class TestProviderScopedAdmission:
+    """Checkpoint 02 task 4: a hold on one provider must not pause a run
+    whose phases all use a different, healthy provider, and a run needing a
+    held provider must be refused before it can spend a call on any other
+    provider it needs.
+    """
+
+    def test_hold_on_one_provider_leaves_other_provider_run_admissible(
+            self, monkeypatch, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        snapshot = _phase_snapshot(detection='provider-b', review='provider-b',
+                                   verification='provider-b', chapters='provider-b')
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-b')
+        assert started is False
+        assert reason == 'queue_busy'  # past the hold gate; acquire() is the stub
+
+    def test_run_needing_two_providers_is_held_while_one_is_held(
+            self, monkeypatch, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        snapshot = _phase_snapshot(detection='provider-a', review='provider-b',
+                                   verification='provider-a', chapters='provider-b')
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-mixed')
+        assert started is False
+        assert reason == 'rate_limit_paused'  # refused before any provider is called
+
+    def test_no_cross_provider_fallback_when_reviewer_provider_is_held(
+            self, monkeypatch, seeded_episode):
+        """Detection/verification/chapters are healthy on provider-b; only
+        the reviewer's provider-a is held. The run must still be refused
+        wholesale, not started with review silently skipped or rerouted."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        snapshot = _phase_snapshot(detection='provider-b', review='provider-a',
+                                   verification='provider-b', chapters='provider-b')
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-reviewer')
+        assert started is False
+        assert reason == 'rate_limit_paused'
+
+    def test_legacy_global_hold_still_blocks_every_provider(self, monkeypatch, seeded_episode):
+        """A hold recorded by pre-migration code (the bare, unscoped key)
+        still pauses every provider for one release."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)
+        snapshot = _phase_snapshot(detection='provider-b', review='provider-b',
+                                   verification='provider-b', chapters='provider-b')
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-legacy')
         assert started is False
         assert reason == 'rate_limit_paused'
 
@@ -629,3 +705,42 @@ class TestProviderChangeClear:
         db.set_setting('rate_limit_hold_until', '2020-01-01T00:00:00Z')
         assert clear_hold_for_provider_change(db, 'provider changed') is False
         mock_fire.assert_not_called()
+
+
+class TestProviderScopedHoldStorage:
+    """record_hold_until/get_active_hold/is_queue_paused directly, with an
+    explicit provider_key: a hold on one provider must not be visible when
+    a different provider is queried, and the legacy unscoped marker must
+    still be honored as a fallback for either.
+    """
+
+    def test_record_writes_only_that_providers_key(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        assert is_queue_paused(db, 'provider-a') is True
+        assert is_queue_paused(db, 'provider-b') is False
+        assert is_queue_paused(db) is False  # legacy key untouched
+
+    def test_get_active_hold_is_provider_specific(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        hold_until, hold_since = get_active_hold(db, 'provider-a')
+        assert hold_until == future
+        assert hold_since  # a fresh pause stamps its start
+        assert get_active_hold(db, 'provider-b') == (None, None)
+
+    def test_legacy_marker_is_a_fallback_for_any_provider(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)  # pre-migration write
+        assert is_queue_paused(db, 'provider-a') is True
+        assert is_queue_paused(db, 'provider-b') is True
+        assert get_active_hold(db, 'provider-a')[0] == future
+
+    def test_clear_for_provider_change_leaves_other_providers_held(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        record_hold_until(db, 'provider-b', future)
+        assert clear_hold_for_provider_change(
+            db, 'provider-a credentials changed', provider_key='provider-a') is True
+        assert is_queue_paused(db, 'provider-a') is False
+        assert is_queue_paused(db, 'provider-b') is True

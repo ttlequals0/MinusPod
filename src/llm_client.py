@@ -2104,9 +2104,11 @@ class ProviderRateLimitedError(Exception):
     connectivity classification so nothing downstream re-drives it.
     """
 
-    def __init__(self, message: str, retry_after_seconds: float):
+    def __init__(self, message: str, retry_after_seconds: float,
+                 provider_key: str | None = None):
         super().__init__(message)
         self.retry_after_seconds = float(retry_after_seconds)
+        self.provider_key = provider_key
 
 
 def extract_error_body(error: Exception) -> Any:

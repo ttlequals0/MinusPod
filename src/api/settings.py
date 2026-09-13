@@ -68,8 +68,8 @@ from offline_queue import (
     TTL_HOURS_MIN, TTL_HOURS_MAX,
 )
 from rate_limit_hold import (
-    get_active_hold, is_rate_limit_hold_enabled, clear_hold,
-    clear_hold_for_provider_change,
+    get_active_hold, is_rate_limit_hold_enabled,
+    clear_hold_for_provider_change, any_hold_active, clear_all_holds,
     get_llm_usage_url, get_rate_limit_probe_minutes,
     RATE_LIMIT_PROBE_MINUTES_MIN, RATE_LIMIT_PROBE_MINUTES_MAX,
 )
@@ -2809,9 +2809,10 @@ def update_rate_limit_hold_settings():
                 'rateLimitProbeMinutes must be an integer between '
                 f'{RATE_LIMIT_PROBE_MINUTES_MIN} and {RATE_LIMIT_PROBE_MINUTES_MAX}', 400)
         db.set_setting('rate_limit_probe_minutes', str(minutes), is_default=False)
-    if data.get('enabled') is False and get_active_hold(db)[0]:
-        # Escape hatch: turning the hold off lifts an active pause.
-        fire_queue_resumed_event(held_since=clear_hold(db))
+    if data.get('enabled') is False and any_hold_active(db):
+        # Escape hatch: turning the hold off lifts every active pause,
+        # legacy and provider-scoped, not just the default provider's.
+        fire_queue_resumed_event(held_since=clear_all_holds(db))
     view = _rate_limit_hold_view(db)
     logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
     return json_response(view)

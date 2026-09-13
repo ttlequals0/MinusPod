@@ -88,7 +88,7 @@ def test_a_future_reset_time_reports_the_queue_as_paused(clean_hold, app_client)
     from utils.time import utc_now
 
     reset_at = (utc_now() + timedelta(minutes=30)).isoformat()
-    record_hold_until(clean_hold, reset_at)
+    record_hold_until(clean_hold, None, reset_at)
 
     hold = _hold(app_client)
     assert hold['queuePaused'] is True

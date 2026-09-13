@@ -248,7 +248,7 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
 def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None:
     """Poll a started run to completion and close its claimed row with the verdict."""
     from processing_queue import ProcessingQueue
-    from rate_limit_hold import is_queue_paused
+    from rate_limit_hold import any_hold_active
     try:
         # Wait for processing to complete (poll status).
         # Cap at the hard timeout so this waiter outlives a slow
@@ -268,7 +268,7 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
             if episode and episode['status'] in ('processed', 'failed', 'permanently_failed', 'deferred'):
                 break
             # A rate-limit hold put the row back to pending.
-            if episode and episode['status'] == 'pending' and is_queue_paused(db):
+            if episode and episode['status'] == 'pending' and any_hold_active(db):
                 break
             if queue.is_processing(slug, episode_id):
                 orphan_polls = 0
@@ -319,7 +319,7 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
             db.close_claimed_queue_row(queue_id, 'completed')
             refresh_logger.info(f"[{slug}:{episode_id}] Deferred to offline queue (endpoint unreachable)")
         elif (episode and episode['status'] == 'pending'
-                and is_queue_paused(db)):
+                and any_hold_active(db)):
             # The failure handler already reopened the row as
             # pending; it is claimed again after the reset.
             refresh_logger.info(f"[{slug}:{episode_id}] Paused by rate-limit hold; stays queued")

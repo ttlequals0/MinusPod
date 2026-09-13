@@ -36,6 +36,7 @@ from llm_client import (
     ProviderRateLimitedError, start_episode_token_tracking, get_episode_token_totals,
 )
 import run_context
+from llm_route import resolve_route
 from rate_limit_hold import get_active_hold, hold_message, hold_queue_for_provider_limit
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT, batch_clear_episodes_for_mode,
@@ -1135,7 +1136,13 @@ def regenerate_chapters(slug, episode_id):
         return error_response('Episode not found', 404)
     if not episode['has_transcript_vtt']:
         return error_response('No VTT transcript available - full reprocess required', 400)
-    hold_until, _ = get_active_hold(db)
+    try:
+        chapters_provider = resolve_route('chapters').provider_key
+    except Exception:
+        # Resolution failed (e.g. no model configured yet): fall back to the
+        # legacy unscoped check, a safe superset of any real provider hold.
+        chapters_provider = None
+    hold_until, _ = get_active_hold(db, chapters_provider)
     if hold_until:
         return error_response(
             f'LLM provider is rate limited; new runs are held until {hold_until}', 409)
@@ -1176,7 +1183,8 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
         error = truncate(str(exc), 500) or 'Chapter regeneration failed'
         try:
             hold_until = hold_queue_for_provider_limit(
-                db, exc, slug=slug, episode_id=episode_id, podcast_name=podcast_name)
+                db, exc, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
+                provider_key=getattr(exc, 'provider_key', None))
             error = hold_message(hold_until, exc)
         except Exception:
             logger.exception(f"Failed to record the rate-limit hold for {slug}:{episode_id}")

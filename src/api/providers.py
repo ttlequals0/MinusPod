@@ -14,7 +14,8 @@ import transcriber
 from api import api, error_response, json_response, limiter
 from config import (
     HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE,
-    PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE,
+    PROVIDER_ANTHROPIC, PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE,
+    PROVIDER_OPENROUTER,
 )
 from database import Database
 from llm_client import get_effective_base_url, _normalize_base_url_for_provider, _opencode_headers
@@ -39,6 +40,16 @@ _PROVIDERS = {
 # Providers whose key or endpoint feeds the LLM client, so a write here can
 # invalidate a rate-limit hold. Whisper is a separate service (#696).
 _LLM_PROVIDERS = ('anthropic', 'openai', 'openrouter', 'ollama')
+
+# This endpoint's provider names ('openai') differ from the internal
+# provider_key hold markers are keyed by ('openai-compatible'); map to the
+# real key so clearing a hold here targets the marker that was actually set.
+_HOLD_PROVIDER_KEY = {
+    'anthropic': PROVIDER_ANTHROPIC,
+    'openai': PROVIDER_OPENAI_COMPATIBLE,
+    'openrouter': PROVIDER_OPENROUTER,
+    'ollama': PROVIDER_OLLAMA,
+}
 
 
 def _source_for(db, cfg) -> str:
@@ -117,7 +128,9 @@ def update_provider(provider):
     invalidate_provider_cache()
 
     if credentials_changed and provider in _LLM_PROVIDERS:
-        clear_hold_for_provider_change(db, f'{provider} credentials changed')
+        clear_hold_for_provider_change(
+            db, f'{provider} credentials changed',
+            provider_key=_HOLD_PROVIDER_KEY.get(provider))
 
     logger.info("provider=%s updated source=%s", provider, _source_for(db, cfg))
     return json_response(_provider_status(db, cfg), 200)
@@ -136,7 +149,9 @@ def clear_provider(provider):
     invalidate_provider_cache()
     if provider in _LLM_PROVIDERS:
         # Lift even with no key left: the next run fails for its own reason.
-        clear_hold_for_provider_change(db, f'{provider} credentials cleared')
+        clear_hold_for_provider_change(
+            db, f'{provider} credentials cleared',
+            provider_key=_HOLD_PROVIDER_KEY.get(provider))
     logger.info("provider=%s cleared", provider)
     return json_response(_provider_status(db, cfg), 200)
 

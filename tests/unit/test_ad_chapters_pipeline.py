@@ -366,7 +366,7 @@ def test_regenerate_endpoint_refuses_while_the_queue_is_held(app_client, seeded)
     from rate_limit_hold import clear_hold, record_hold_until
 
     until = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
-    record_hold_until(seeded, until)
+    record_hold_until(seeded, None, until)
     try:
         resp = app_client.post(
             f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
@@ -426,7 +426,7 @@ def test_regen_job_under_an_active_hold_does_not_alert_again(app_client, seeded)
              patch('rate_limit_hold.fire_queue_held_event') as fire, \
              patch('rate_limit_hold.get_llm_usage_url', lambda _db: ''):
             generator.return_value.generate_chapters.side_effect = error
-            record_hold_until(seeded, active_until)
+            record_hold_until(seeded, None, active_until)
             from api.episodes import _regenerate_chapters_job
             _regenerate_chapters_job(SLUG, EPISODE_ID, stamp)
         held_until = get_hold_until(seeded)

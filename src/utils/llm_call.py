@@ -187,7 +187,7 @@ def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None
         if hold_after is not None and hold_after > MIN_HOLD_RESET_SECONDS:
             held = ProviderRateLimitedError(
                 f"provider rate limit resets in {hold_after:.0f}s: {error}",
-                retry_after_seconds=hold_after)
+                retry_after_seconds=hold_after, provider_key=provider)
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} rate limit: "
                 f"holding queue {hold_after:.0f}s until provider reset"
