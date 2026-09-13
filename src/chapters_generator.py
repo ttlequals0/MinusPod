@@ -14,9 +14,10 @@ from utils.time import parse_timestamp, adjust_timestamp, span_inside_any_cut
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
-    get_llm_client, get_api_key, LLMClient,
+    get_llm_client, get_client_for_provider, get_api_key, LLMClient,
     get_llm_timeout, get_llm_max_retries, ProviderRateLimitedError,
 )
+from run_context import route_for_phase
 from utils.llm_call import call_llm
 
 logger = logging.getLogger(__name__)
@@ -165,7 +166,10 @@ def _format_hints_block(hints: list[dict]) -> str:
 
 
 def get_chapters_model() -> str:
-    """Get configured chapters model from database, else the detection model, else raise."""
+    """This run's chapters model, else the configured value outside a run."""
+    route = route_for_phase('chapters')
+    if route:
+        return route['configured_model']
     try:
         db = Database()
 
@@ -221,11 +225,14 @@ class ChaptersGenerator:
 
     @property
     def _llm_client(self) -> LLMClient | None:
-        """Current LLM client. Reads through ``get_llm_client`` on every access
-        so that provider/base-URL changes via the settings API take effect
-        immediately without restarting the worker."""
+        """Current LLM client: this run's chapters-route client, or the
+        global client outside a run. Reads through on every access so a
+        settings change takes effect without restarting the worker."""
         if self._llm_client_override is not None:
             return self._llm_client_override
+        route = route_for_phase('chapters')
+        if route:
+            return get_client_for_provider(route['provider_key'])
         if not self.api_key:
             return None
         return get_llm_client()
@@ -233,6 +240,11 @@ class ChaptersGenerator:
     @_llm_client.setter
     def _llm_client(self, value: LLMClient | None) -> None:
         self._llm_client_override = value
+
+    @staticmethod
+    def _chapters_provider() -> str | None:
+        route = route_for_phase('chapters')
+        return route['provider_key'] if route else None
 
     def _initialize_client(self):
         """Surface LLM client init errors before a generation run."""
@@ -365,6 +377,7 @@ class ChaptersGenerator:
                 episode_id=self._episode_id,
                 call_label="chapter topic detection",
                 pass_name=PASS_CHAPTER_GENERATION,
+                provider=self._chapters_provider(),
             )
             if response is None:
                 # A rate-limit hold is queue-wide state, not a degraded run.
@@ -548,6 +561,7 @@ class ChaptersGenerator:
             episode_id=self._episode_id,
             call_label="chapter title generation",
             pass_name=PASS_CHAPTER_GENERATION,
+            provider=self._chapters_provider(),
         )
         if response is None:
             # Caller (generate_chapter_titles) catches this and degrades to

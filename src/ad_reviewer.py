@@ -26,8 +26,10 @@ from config import (
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
+from llm_route import resolve_route
 from run_context import run_in_worker_thread
 from llm_client import (
+    get_client_for_provider, get_effective_provider,
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
     ProviderRateLimitedError, StructuralRateLimitError,
 )
@@ -731,14 +733,25 @@ class AdReviewer:
     def __init__(
         self,
         db,
-        llm_client,
+        llm_client=None,
         sponsor_service=None,
         sponsor_history_provider: Callable[[str], str] | None = None,
     ):
         self.db = db
-        self._llm_client = llm_client
+        self._llm_client_override = llm_client
+        self._active_route = None
         self.sponsor_service = sponsor_service
         self._sponsor_history_provider = sponsor_history_provider
+
+    @property
+    def _llm_client(self):
+        """Client for the in-progress review() call: an explicit override
+        (tests, calibration) wins; otherwise the resolved route's client."""
+        if self._llm_client_override is not None:
+            return self._llm_client_override
+        if self._active_route is None:
+            return None
+        return get_client_for_provider(self._active_route.provider_key)
 
     def review(
         self,
@@ -748,6 +761,7 @@ class AdReviewer:
         episode_meta: dict,
         pass_num: int,
         pass_model: str,
+        pass_provider: str | None = None,
     ) -> ReviewResult:
         """Run reviewer over both pools.
 
@@ -766,6 +780,10 @@ class AdReviewer:
             pass_num: 1 (first detection pass) or 2 (verification pass).
             pass_model: Model used by the corresponding pass; used as fallback
                 when ``review_model`` setting is ``same_as_pass``.
+            pass_provider: Provider used by the corresponding pass; used as
+                fallback when ``review_provider`` setting is ``same_as_pass``.
+                Omitted callers (tests, calibration) fall back to the global
+                effective provider.
 
         Returns:
             ReviewResult with the post-reviewer accepted list and the audit
@@ -776,7 +794,7 @@ class AdReviewer:
         try:
             return self._review_inner(
                 accepted_ads, resurrection_eligible, segments,
-                episode_meta, pass_num, pass_model,
+                episode_meta, pass_num, pass_model, pass_provider,
             )
         except ProviderRateLimitedError:
             raise
@@ -796,12 +814,14 @@ class AdReviewer:
         episode_meta: dict,
         pass_num: int,
         pass_model: str,
+        pass_provider: str | None = None,
     ) -> ReviewResult:
         if not accepted_ads and not resurrection_eligible:
             return ReviewResult()
 
         max_shift = self._read_max_boundary_shift()
-        model = self._resolve_model(pass_model)
+        self._active_route = self._resolve_route(pass_provider, pass_model)
+        model = self._active_route.model_id
         review_sponsor_block, resurrect_sponsor_block = self._sponsor_blocks()
         review_prompt = self._render_review_prompt(max_shift, review_sponsor_block)
         resurrect_prompt = self._render_resurrect_prompt(resurrect_sponsor_block)
@@ -1068,6 +1088,7 @@ class AdReviewer:
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
         max_tokens, temperature, reasoning = resolve_stage_tunables('reviewer')
 
+        provider = self._active_route.provider_key if self._active_route else None
         t0 = time.monotonic()
         response, error = call_llm_for_window(
             llm_client=self._llm_client,
@@ -1083,9 +1104,10 @@ class AdReviewer:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            provider=provider,
             response_format=schema_format_for(
                 model, 'ad_review', AD_REVIEW_JSON_SCHEMA,
-                'Review verdicts for the candidate ad.'),
+                'Review verdicts for the candidate ad.', provider=provider),
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
 
@@ -1409,6 +1431,7 @@ class AdReviewer:
         )
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
         call_label = f"reviewer-pass{pass_num}-trim-recovery"
+        provider = self._active_route.provider_key if self._active_route else None
         try:
             response, error = call_llm(
                 llm_client=self._llm_client,
@@ -1422,9 +1445,10 @@ class AdReviewer:
                 episode_id=episode_id,
                 call_label=call_label,
                 pass_name=pass_name,
+                provider=provider,
                 response_format=schema_format_for(
                     model, 'trim_recovery', TRIM_RECOVERY_JSON_SCHEMA,
-                    'Ad sub-span inside the original candidate.'),
+                    'Ad sub-span inside the original candidate.', provider=provider),
             )
         except Exception as e:
             # call_llm never raises by contract; belt-and-braces so a bug
@@ -1667,12 +1691,21 @@ class AdReviewer:
             return 60
 
     def _resolve_model(self, pass_model: str) -> str:
-        # Same same_as_pass rule as tools.reviewer_calibration._resolve_calibration_model,
-        # which resolves the pass model from settings instead of the live run.
+        # Model-only resolution, kept for test_settings_validation coverage.
+        # Live review() calls resolve the whole route via _resolve_route.
         configured = self._read_setting("review_model") or "same_as_pass"
         if configured == "same_as_pass":
             return pass_model
         return configured
+
+    def _resolve_route(self, pass_provider: str | None, pass_model: str):
+        """Review phase route: same_as_pass inherits BOTH provider and model
+        from the pass that produced ``pass_model``. A missing pass_provider
+        (tests, calibration) falls back to the global effective provider,
+        matching the single-provider behavior these callers already assume."""
+        return resolve_route(
+            'review', pass_provider=pass_provider or get_effective_provider(),
+            pass_model=pass_model)
 
     @staticmethod
     def _extract_response_text(response) -> str:

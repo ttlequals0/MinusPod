@@ -16,14 +16,14 @@ from typing import NamedTuple
 from audio_enforcer import AudioEnforcer
 from cancel import _check_cancel
 from llm_client import (
-    get_llm_client, get_api_key, LLMClient,
+    get_llm_client, get_client_for_provider, get_api_key, LLMClient,
     is_connectivity_error, is_retryable_error, is_not_found_error,
     is_rate_limit_error, is_limit_exceeded_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
     StructuralRateLimitError, ProviderRateLimitedError,
 )
-from run_context import run_in_worker_thread
+from run_context import route_for_phase, run_in_worker_thread
 from sponsor_normalize import segment_category_for
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
@@ -576,6 +576,15 @@ def _pattern_match_evidence(match, kind: str) -> str:
     return f'{kind} {pct}'
 
 
+def _phase_for_pass(pass_name: str) -> str:
+    """Route-snapshot phase key for a detection pass_name."""
+    if pass_name == PASS_AD_DETECTION_1:
+        return 'detection'
+    if pass_name == PASS_AD_DETECTION_2:
+        return 'verification'
+    raise ValueError(f"Unknown pass_name for ad_detector: {pass_name!r}")
+
+
 class AdDetector:
     """Detect advertisements in podcast transcripts using Claude API.
 
@@ -740,7 +749,10 @@ class AdDetector:
         return models_list
 
     def get_model(self) -> str:
-        """Get configured model from database, or raise if unset."""
+        """This run's detection model, or the configured value outside a run."""
+        route = route_for_phase('detection')
+        if route:
+            return route['configured_model']
         self._ensure_deps()
         try:
             model = self.db.get_setting('claude_model')
@@ -751,7 +763,10 @@ class AdDetector:
         raise ModelNotConfiguredError('claude_model')
 
     def get_verification_model(self) -> str:
-        """Get verification pass model from database, else fall back to first pass model."""
+        """This run's verification model, or the configured value outside a run."""
+        route = route_for_phase('verification')
+        if route:
+            return route['configured_model']
         self._ensure_deps()
         try:
             model = self.db.get_setting('verification_model')
@@ -760,6 +775,28 @@ class AdDetector:
         except Exception:
             pass
         return self.get_model()
+
+    def get_provider(self) -> str:
+        """This run's detection provider, or the global effective provider outside a run."""
+        route = route_for_phase('detection')
+        return route['provider_key'] if route else get_effective_provider()
+
+    def get_verification_provider(self) -> str:
+        """This run's verification provider, or the global effective provider outside a run."""
+        route = route_for_phase('verification')
+        return route['provider_key'] if route else get_effective_provider()
+
+    def _client_for_pass(self, pass_name: str) -> LLMClient | None:
+        """LLM client for a detection pass: the run's routed provider client,
+        or the legacy override/global client outside a run."""
+        if self._llm_client_override is not None:
+            return self._llm_client_override
+        route = route_for_phase(_phase_for_pass(pass_name))
+        if route:
+            return get_client_for_provider(route['provider_key'])
+        if not self.api_key:
+            return None
+        return get_llm_client()
 
     def _apply_pass_override(self, rendered: str, setting_key: str) -> str:
         """Append the user's per-pass override (empty by default -> no change)."""
@@ -994,17 +1031,13 @@ class AdDetector:
         the temperature/max_tokens/reasoning values, and is forwarded to the LLM
         client for per-pass fallback flag scoping.
         """
-        if pass_name == PASS_AD_DETECTION_1:
-            prefix = 'detection'
-        elif pass_name == PASS_AD_DETECTION_2:
-            prefix = 'verification'
-        else:
-            raise ValueError(f"Unknown pass_name for ad_detector: {pass_name!r}")
-
-        max_tokens, temperature, reasoning = resolve_stage_tunables(prefix)
+        phase = _phase_for_pass(pass_name)
+        max_tokens, temperature, reasoning = resolve_stage_tunables(phase)
+        route = route_for_phase(phase)
+        provider = route['provider_key'] if route else None
 
         return call_llm_for_window(
-            llm_client=self._llm_client,
+            llm_client=self._client_for_pass(pass_name),
             model=model,
             system_prompt=system_prompt,
             prompt=prompt,
@@ -1017,9 +1050,10 @@ class AdDetector:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            provider=provider,
             response_format=schema_format_for(
                 model, 'ad_detection', AD_DETECTION_JSON_SCHEMA,
-                'Ad segments detected in this window.'),
+                'Ad segments detected in this window.', provider=provider),
         )
 
     def _process_single_window(self, *, window_idx, window, total_windows,
@@ -1419,6 +1453,7 @@ class AdDetector:
                         slug=slug,
                         episode_id=episode_id,
                         window_label=window_label,
+                        pass_name=pass_name,
                     )
                 except ProviderRateLimitedError as e:
                     # Same rule as a held window: the hold defers the episode.
@@ -1463,7 +1498,7 @@ class AdDetector:
 
     def _repair_window_categories(self, *, ads, transcript_excerpt, model,
                                    llm_timeout, max_retries, slug, episode_id,
-                                   window_label):
+                                   window_label, pass_name=PASS_AD_DETECTION_1):
         """One follow-up LLM call asking only for categories on ``ads``
         missing one; prompt wording alone left most detections
         category-less on real episodes, so ask again narrowly instead.
@@ -1477,9 +1512,11 @@ class AdDetector:
             return 0
 
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
+        route = route_for_phase(_phase_for_pass(pass_name))
+        provider = route['provider_key'] if route else None
 
         response, error = call_llm(
-            llm_client=self._llm_client,
+            llm_client=self._client_for_pass(pass_name),
             model=model,
             system_prompt=CATEGORY_REPAIR_SYSTEM_PROMPT,
             prompt=prompt,
@@ -1489,10 +1526,11 @@ class AdDetector:
             slug=slug,
             episode_id=episode_id,
             call_label=f"{window_label} category repair",
+            provider=provider,
             response_format=schema_format_for(
                 model, 'segment_categories', CATEGORY_REPAIR_JSON_SCHEMA,
                 'Category for each listed segment.',
-                allow_provider_schema=True),
+                allow_provider_schema=True, provider=provider),
         )
         if response is None:
             # A rate-limit hold is queue-wide state, not a degraded window.

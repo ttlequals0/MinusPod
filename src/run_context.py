@@ -126,6 +126,15 @@ def current() -> RunContext | None:
         return _by_thread.get(threading.get_ident())
 
 
+def route_for_phase(phase: str) -> dict | None:
+    """This thread's run route for `phase` ({provider_key, configured_model}),
+    or None outside a run or before the snapshot is resolved."""
+    ctx = current()
+    if ctx is None or not ctx.route_snapshot:
+        return None
+    return ctx.route_snapshot.get(phase)
+
+
 def run_in_worker_thread(fn):
     """Bind a pool task to the submitting thread's run. Call on the
     submitting thread: exe.submit(run_in_worker_thread(fn), *args)."""

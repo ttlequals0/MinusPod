@@ -123,6 +123,7 @@ from llm_client import (
     get_effective_provider,
 )
 from database.queue import compute_queue_priority
+from llm_route import resolve_route
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
     hold_message, hold_queue_for_provider_limit, is_queue_paused,
@@ -1931,9 +1932,10 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
 
 
 def _build_reviewer(db, ad_detector) -> AdReviewer:
+    # No llm_client: the reviewer resolves its own route (possibly a
+    # different provider than detection) per review() call.
     return AdReviewer(
         db=db,
-        llm_client=ad_detector._llm_client,
         sponsor_service=getattr(ad_detector, 'sponsor_service', None),
         sponsor_history_provider=ad_detector._build_known_pattern_hint,
     )
@@ -2042,6 +2044,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         episode_title, podcast_description, episode_description,
     )
     pass2_model = ad_detector.get_verification_model()
+    pass2_provider = ad_detector.get_verification_provider()
     result = reviewer.review(
         accepted_ads=accepted_originals,
         resurrection_eligible=eligible_originals,
@@ -2049,6 +2052,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         episode_meta=episode_meta,
         pass_num=2,
         pass_model=pass2_model,
+        pass_provider=pass2_provider,
     )
 
     # Index by (start, end) so verdict application is O(V), not O(V*N).
@@ -2315,7 +2319,7 @@ def _merge_reviewer_result(result, all_ads_with_validation):
 def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
                      all_ads_with_validation, segments, podcast_name,
                      episode_title, episode_description, podcast_description,
-                     min_cut_confidence, pass_num, pass_model,
+                     min_cut_confidence, pass_num, pass_model, pass_provider=None,
                      audio_analysis=None, cue_gate_enabled=False):
     """Run the LLM ad reviewer over the cut list and resurrection-eligible
     rejects. Returns updated ``(ads_to_remove, all_ads_with_validation)``.
@@ -2362,6 +2366,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
         episode_meta=episode_meta,
         pass_num=pass_num,
         pass_model=pass_model,
+        pass_provider=pass_provider,
     )
 
     new_ads_to_remove = list(result.accepted_after_review)
@@ -4930,6 +4935,76 @@ def build_podcast_context(podcast_settings):
     return f"{description}\n\nOperator notes for this show:\n{notes}".strip()
 
 
+def _load_route_snapshot(run_id: str) -> dict | None:
+    """The persisted snapshot for an existing run row, or None when there
+    isn't one yet (fresh run) or the row/column can't be read."""
+    try:
+        row = db.get_connection().execute(
+            "SELECT route_snapshot_json FROM processing_runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+    except Exception as exc:
+        audio_logger.warning(f"Could not read route snapshot for run {run_id}: {exc}")
+        return None
+    if not row or not row['route_snapshot_json']:
+        return None
+    try:
+        return json.loads(row['route_snapshot_json'])
+    except (TypeError, ValueError) as exc:
+        audio_logger.warning(f"Could not parse route snapshot for run {run_id}: {exc}")
+        return None
+
+
+def _persist_route_snapshot(run_id: str, snapshot: dict) -> None:
+    try:
+        conn = db.get_connection()
+        conn.execute(
+            "UPDATE processing_runs SET route_snapshot_json = ? WHERE run_id = ?",
+            (json.dumps(snapshot), run_id),
+        )
+        conn.commit()
+    except Exception as exc:
+        audio_logger.warning(f"Could not persist route snapshot for run {run_id}: {exc}")
+
+
+def _resolve_route_snapshot() -> dict | None:
+    """Resolve this run's per-phase LLM routes once, non-secret only
+    ({provider_key, configured_model}). None when resolution fails (e.g. no
+    model configured yet): callers then fall back to today's per-call
+    resolution against the live global settings.
+    """
+    try:
+        detection = resolve_route('detection')
+        verification = resolve_route('verification')
+        chapters = resolve_route('chapters')
+        review = resolve_route(
+            'review', pass_provider=detection.provider_key,
+            pass_model=detection.model_id)
+    except Exception as exc:
+        audio_logger.warning(f"Could not resolve per-phase LLM routes: {exc}")
+        return None
+    return {
+        route.phase: {'provider_key': route.provider_key, 'configured_model': route.model_id}
+        for route in (detection, review, verification, chapters)
+    }
+
+
+def _resolve_or_load_route_snapshot(run_id: str | None) -> dict | None:
+    """This run's immutable route snapshot: reused from the row when a
+    prior resolution for the same run_id already persisted one (recovery),
+    else resolved fresh from current settings and persisted.
+    """
+    if run_id:
+        existing = _load_route_snapshot(run_id)
+        if existing is not None:
+            return existing
+
+    snapshot = _resolve_route_snapshot()
+    if snapshot is not None and run_id:
+        _persist_route_snapshot(run_id, snapshot)
+    return snapshot
+
+
 def process_episode(slug: str, episode_id: str, episode_url: str,
                    episode_title: str = "Unknown", podcast_name: str = "Unknown",
                    episode_description: str = None, episode_artwork_url: str = None,
@@ -4951,11 +5026,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     """
     start_time = time.time()
     start_episode_token_tracking()
+    ctx = run_context.current()
     if run_id:
-        ctx = run_context.current()
         if ctx is not None:
             ctx.run_id = run_id
         _check_cancel(cancel_event, slug, episode_id, run_id)
+
+    route_snapshot = _resolve_or_load_route_snapshot(run_id)
+    if ctx is not None and route_snapshot is not None:
+        ctx.set_route_snapshot(route_snapshot)
 
     episode_data = db.get_episode(slug, episode_id)
     reprocess_mode = episode_data.get('reprocess_mode') if episode_data else None
@@ -5364,6 +5443,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     episode_title, episode_description, podcast_description,
                     min_cut_confidence, pass_num=1,
                     pass_model=ad_detector.get_model(),
+                    pass_provider=ad_detector.get_provider(),
                     audio_analysis=audio_analysis_result,
                     cue_gate_enabled=cue_gate_enabled,
                 )

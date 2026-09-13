@@ -41,15 +41,20 @@ def json_schema_format(name: str, schema: dict, description: str | None = None) 
 
 def schema_format_for(model, name: str, schema: dict,
                       description: str | None = None,
-                      allow_provider_schema: bool = False) -> dict:
+                      allow_provider_schema: bool = False,
+                      provider: str | None = None) -> dict:
     """json_schema response_format when `model` supports it, else json_object.
 
     ``allow_provider_schema`` additionally accepts a provider with a proven
     schema path (Anthropic). Only for call sites that send no reasoning
     budget: see supports_json_schema_for_calls for why the two gates differ.
+
+    ``provider``, when given, is the resolved route's provider for this
+    call; omitted, this falls back to the global effective provider.
     """
     if supports_json_schema_for_calls(model) or (
-            allow_provider_schema and supports_json_schema(get_effective_provider())):
+            allow_provider_schema
+            and supports_json_schema(provider or get_effective_provider())):
         return json_schema_format(name, schema, description)
     return {"type": "json_object"}
 
@@ -105,33 +110,37 @@ def _is_retryable(error) -> bool:
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
 
 
-def _fire_limit_exceeded_webhook(error, model):
+def _fire_limit_exceeded_webhook(error, model, provider=None):
     try:
         from webhook_service import fire_limit_exceeded_event
         fire_limit_exceeded_event(
-            get_effective_provider(), model, str(error),
+            provider or get_effective_provider(), model, str(error),
             getattr(error, 'status_code', None),
         )
     except Exception:
         logger.exception("Failed to fire limit-exceeded webhook")
 
 
-def _fire_auth_failure_webhook(error, model):
+def _fire_auth_failure_webhook(error, model, provider=None):
     try:
         from webhook_service import fire_auth_failure_event
         fire_auth_failure_event(
-            get_effective_provider(), model, str(error),
+            provider or get_effective_provider(), model, str(error),
             getattr(error, 'status_code', None),
         )
     except Exception:
         logger.exception("Failed to fire auth-failure webhook")
 
 
-def _terminal_error(error, *, model, slug, episode_id, call_label):
-    """Return a terminal or normalized provider error, else None."""
+def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None):
+    """Return a terminal or normalized provider error, else None.
+
+    ``provider``, when given, is the call's resolved route provider; omitted,
+    error context falls back to the global effective provider.
+    """
+    provider = provider or get_effective_provider()
     daily_quota = classify_daily_quota_exhaustion(error)
     if daily_quota is not None:
-        provider = get_effective_provider()
         limit = daily_quota.get('limit')
         actionable = (
             f"{provider} free-tier daily quota"
@@ -145,7 +154,6 @@ def _terminal_error(error, *, model, slug, episode_id, call_label):
 
     structural = classify_structural_rate_limit(error)
     if structural is not None:
-        provider = get_effective_provider()
         limit = structural.get('limit')
         used = structural.get('used')
         requested = structural.get('requested')
@@ -171,7 +179,7 @@ def _terminal_error(error, *, model, slug, episode_id, call_label):
         logger.warning(
             f"[{slug}:{episode_id}] {call_label} provider limit exceeded: {error}"
         )
-        _fire_limit_exceeded_webhook(error, model)
+        _fire_limit_exceeded_webhook(error, model, provider)
         return error
 
     if is_rate_limit_error(error) and is_rate_limit_hold_enabled():
@@ -191,7 +199,7 @@ def _terminal_error(error, *, model, slug, episode_id, call_label):
 
     logger.warning(f"[{slug}:{episode_id}] {call_label} failed: {error}")
     if is_auth_error(error):
-        _fire_auth_failure_webhook(error, model)
+        _fire_auth_failure_webhook(error, model, provider)
     return error
 
 
@@ -211,12 +219,17 @@ def call_llm(
     reasoning_effort: Union[int, str] | None = None,
     pass_name: str | None = None,
     response_format: dict | None = None,
+    provider: str | None = None,
 ) -> tuple[object | None, Exception | None]:
     """Call LLM with primary retry + secondary fallback retry.
 
     Generic seam shared by ad detection/review (via ``call_llm_for_window``)
     and chapters generation. Never raises: all failures come back as the
     second tuple element so callers can degrade gracefully.
+
+    ``provider``, when given, is the resolved route's provider for this
+    call; error/webhook context uses it instead of the global effective
+    provider.
 
     Returns:
         Tuple of (response, last_error). response is None if all retries failed.
@@ -247,7 +260,7 @@ def call_llm(
                 call_label=call_label)
             terminal = _terminal_error(
                 e, model=model, slug=slug, episode_id=episode_id,
-                call_label=call_label)
+                call_label=call_label, provider=provider)
             if terminal is not None:
                 last_error = terminal
                 break
@@ -296,7 +309,7 @@ def call_llm(
                         call_label=call_label)
                 terminal = _terminal_error(
                     e, model=model, slug=slug, episode_id=episode_id,
-                    call_label=call_label)
+                    call_label=call_label, provider=provider)
                 if terminal is not None:
                     last_error = terminal
                     break
