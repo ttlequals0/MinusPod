@@ -9,6 +9,7 @@
 - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Using OpenRouter](#using-openrouter)
+- [Per-Stage Providers](#per-stage-providers)
 - [LLM Pricing](#llm-pricing)
 - [Custom model pricing](#custom-model-pricing)
 - [Reviewer Calibration Self-Test](#reviewer-calibration-self-test)
@@ -235,6 +236,20 @@ Any [OpenRouter model ID](https://openrouter.ai/models) works:
 The `openrouter/free` and `openrouter/auto` aliases are not in OpenRouter's `/api/v1/models` list, so MinusPod adds them to the dropdown for you. Other unlisted model IDs can be typed straight into any model field (the "Type a model ID" link next to each dropdown), or seeded with `OPENAI_MODEL`.
 
 All of these can be changed at runtime from the Settings UI. No container restart needed.
+
+## Per-Stage Providers
+
+The LLM Provider setting picks a default, but each pipeline stage can run on a different provider if you have more than one configured. Settings > AI & Processing > AI Models shows a provider selector next to each model selector:
+
+- **Ad Detection Provider** - defaults to the global LLM Provider. Configure API keys and endpoints for other providers under Settings > LLM Provider, then switch this to run detection on one of them instead.
+- **Verification Provider** - defaults to Same as detection. Pointing it at a separate provider is useful for cost control (a cheap pass-2 sanity check) or comparing two providers' output on the same episode.
+- **Chapters Provider** - defaults to Same as detection, independent of the other two.
+
+The Ad Reviewer section has its own provider selector, described in [Ad Reviewer](configuration.md#ad-reviewer): `Same as pass` inherits both the provider and model of whichever pass is being reviewed, and an explicit choice enables the Review Model selector for that provider's catalog.
+
+Switching a stage's provider only changes that stage. Model discovery re-runs for the newly selected provider, so the model dropdown next to it shows that provider's own catalog. Every other stage's provider and model stay exactly as you left them. A stage still accepts a hand-typed model ID (the "Type a model ID" link) for models a provider's catalog does not list, the same as the single-provider case.
+
+Each provider needs its own API key and, where relevant, base URL configured under Settings > LLM Provider before a stage can use it; an unconfigured provider's model list comes back empty until credentials are saved.
 
 ## LLM Pricing
 

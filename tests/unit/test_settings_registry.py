@@ -475,12 +475,13 @@ class TestGetDefaults:
         # chaptersInNotes (105 -> 106). whisperPoolEnabled +
         # whisperPoolMaxRequests + whisperPoolMaxEpisodes after that (106 -> 109),
         # then daiDifferentialOverridesKeep (109 -> 110),
-        # then the seven adChapter* keys (110 -> 117).
+        # then the seven adChapter* keys (110 -> 117), then reviewProvider,
+        # matching review_model's default-block presence (117 -> 118).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 117
+        assert len(payload_keys) == 118
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

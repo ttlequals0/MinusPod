@@ -208,6 +208,13 @@ def get_settings():
     verification_model = _setting_value(settings, 'verification_model')
     chapters_model = _setting_value(settings, 'chapters_model')
 
+    # Per-phase provider routing overrides (see llm_route.py). Unset (None)
+    # means "inherit": verification/chapters fall back to detection's
+    # provider, detection falls back to the global llmProvider.
+    detection_provider = _setting_value(settings, 'detection_provider')
+    verification_provider = _setting_value(settings, 'verification_provider')
+    chapters_provider = _setting_value(settings, 'chapters_provider')
+
     # Get whisper model setting (defaults to env var or 'small')
     default_whisper_model = registry_default('whisper_model')
     whisper_model = _setting_value(settings, 'whisper_model', default_whisper_model)
@@ -509,6 +516,8 @@ def get_settings():
         settings, 'enable_ad_review', registry_default('enable_ad_review'))
     enable_ad_review = str(enable_ad_review_raw).strip().lower() == 'true'
     review_model = _setting_value(settings, 'review_model', registry_default('review_model'))
+    review_provider = _setting_value(
+        settings, 'review_provider', registry_default('review_provider'))
     try:
         review_max_boundary_shift = int(_setting_value(
             settings, 'review_max_boundary_shift', registry_default('review_max_boundary_shift')))
@@ -586,6 +595,7 @@ def get_settings():
         'verificationPrompt': _sv('verification_prompt', _setting_value(settings, 'verification_prompt', DEFAULT_VERIFICATION_PROMPT) or DEFAULT_VERIFICATION_PROMPT),
         'enableAdReview': _sv('enable_ad_review', enable_ad_review),
         'reviewModel': _sv('review_model', review_model),
+        'reviewProvider': _sv('review_provider', review_provider),
         'reviewMaxBoundaryShift': _sv('review_max_boundary_shift', review_max_boundary_shift),
         'reviewPrompt': _sv('review_prompt', review_prompt),
         'resurrectPrompt': _sv('resurrect_prompt', resurrect_prompt),
@@ -597,6 +607,8 @@ def get_settings():
         'chapterPromptOverride': _sv('chapter_prompt_override', _setting_value(settings, 'chapter_prompt_override', '') or ''),
         'claudeModel': _sv('claude_model', current_model),
         'verificationModel': _sv('verification_model', verification_model),
+        'detectionProvider': _sv('detection_provider', detection_provider),
+        'verificationProvider': _sv('verification_provider', verification_provider),
         'whisperModel': _sv('whisper_model', whisper_model),
         'autoProcessEnabled': _sv('auto_process_enabled', auto_process_enabled),
         'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
@@ -656,6 +668,7 @@ def get_settings():
         'adChapterResumeTitle': _sv('ad_chapter_resume_title', ad_chapter_resume_title),
         'adChapterMinConfidence': _sv('ad_chapter_min_confidence', ad_chapter_min_confidence),
         'chaptersModel': _sv('chapters_model', chapters_model),
+        'chaptersProvider': _sv('chapters_provider', chapters_provider),
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
         'omitTemperature': _sv('omit_temperature', omit_temperature),
@@ -785,6 +798,7 @@ def update_ad_detection_settings():
         _apply_prompt_fields,
         _apply_review_fields,
         _apply_model_fields,
+        _apply_provider_routing_fields,
         _apply_model_pricing_fields,
         _apply_processing_flags,
         _apply_feed_refresh_fields,
@@ -868,6 +882,14 @@ def _apply_review_fields(db, data):
         # Fire-and-forget calibration self-test; never blocks this write.
         maybe_trigger_reviewer_calibration(db, old_model, new_model)
 
+    if 'reviewProvider' in data:
+        value = data['reviewProvider']
+        valid = VALID_LLM_PROVIDERS + ('same_as_pass',)
+        if value not in valid:
+            return error_response(f'reviewProvider must be one of: {", ".join(valid)}', 400)
+        db.set_setting('review_provider', value, is_default=False)
+        logger.info(f"Updated review_provider to: {value}")
+
     if 'reviewMaxBoundaryShift' in data:
         try:
             value = max(1, min(600, int(data['reviewMaxBoundaryShift'])))
@@ -908,6 +930,33 @@ def _apply_model_fields(db, data):
         db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
         logger.info(f"Updated chapters model to: {data['chaptersModel']}")
     return
+
+
+def _apply_provider_routing_fields(db, data):
+    """Persist per-phase LLM provider overrides (see llm_route.py).
+
+    An empty value clears the override so the phase falls back to its
+    default routing: detection falls back to the global llmProvider,
+    verification/chapters fall back to detection's resolved provider.
+    """
+    for payload_key, db_key in (
+        ('detectionProvider', 'detection_provider'),
+        ('verificationProvider', 'verification_provider'),
+        ('chaptersProvider', 'chapters_provider'),
+    ):
+        if payload_key not in data:
+            continue
+        value = data[payload_key]
+        if not value:
+            db.clear_setting(db_key)
+            logger.info(f"Cleared {db_key} (falls back to default routing)")
+        elif value in VALID_LLM_PROVIDERS:
+            db.set_setting(db_key, value, is_default=False)
+            logger.info(f"Updated {db_key} to: {value}")
+        else:
+            return error_response(
+                f'{payload_key} must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400)
+    return None
 
 
 def _apply_model_pricing_fields(db, data):

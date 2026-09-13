@@ -4,9 +4,13 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import PromptField from './PromptField';
 import NumberInput from '../../components/NumberInput';
 import { selectBase } from '../../components/fieldStyles';
+import { LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS, SAME_AS_PASS } from '../../api/types';
 
 export interface ReviewerState {
   enabled: boolean;
+  // 'same_as_pass' inherits both provider and model from whichever pass is
+  // being reviewed; reviewModel is only consulted when this is explicit.
+  provider: string;
   model: string;
   maxShift: number;
   reviewPrompt: string;
@@ -50,7 +54,7 @@ function AdReviewerSection({
   // private deployment, stale provider tag) displays as "Same as pass model".
   const modelIsOrphan =
     Boolean(reviewer.model) &&
-    reviewer.model !== 'same_as_pass' &&
+    reviewer.model !== SAME_AS_PASS &&
     !modelOptions.some((m) => m.id === reviewer.model);
 
   return (
@@ -77,29 +81,54 @@ function AdReviewerSection({
             </p>
           </div>
 
-          <div>
-            <label htmlFor="reviewModel" className="block text-sm font-medium text-foreground mb-2">
-              Review model
-            </label>
-            <select
-              id="reviewModel"
-              value={reviewer.model}
-              onChange={(e) => update('model', e.target.value)}
-              className={`w-full ${selectBase}`}
-            >
-              <option value="same_as_pass">Same as pass model</option>
-              {modelIsOrphan && (
-                <option value={reviewer.model}>{reviewer.model} (current, not in catalog)</option>
-              )}
-              {modelOptions.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-sm text-muted-foreground">
-              "Same as pass model" reuses each pass's own model for its review. Pick a specific model to use one for both passes instead.
-            </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="reviewProvider" className="block text-sm font-medium text-foreground mb-2">
+                Review provider
+              </label>
+              <select
+                id="reviewProvider"
+                value={reviewer.provider}
+                onChange={(e) => update('provider', e.target.value)}
+                className={`w-full ${selectBase}`}
+              >
+                <option value={SAME_AS_PASS}>Same as pass</option>
+                {LLM_PROVIDER_OPTIONS.map((p) => (
+                  <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-muted-foreground">
+                "Same as pass" runs the reviewer on whichever provider and model detected or verified the ad. Pick a provider to run the reviewer somewhere else.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="reviewModel" className="block text-sm font-medium text-foreground mb-2">
+                Review model
+              </label>
+              <select
+                id="reviewModel"
+                value={reviewer.model}
+                onChange={(e) => update('model', e.target.value)}
+                disabled={reviewer.provider === SAME_AS_PASS}
+                className={`w-full ${selectBase} disabled:opacity-50`}
+              >
+                <option value={SAME_AS_PASS}>Same as pass model</option>
+                {modelIsOrphan && (
+                  <option value={reviewer.model}>{reviewer.model} (current, not in catalog)</option>
+                )}
+                {modelOptions.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {reviewer.provider === SAME_AS_PASS
+                  ? 'Ignored while the review provider is "Same as pass": the model comes from the pass too.'
+                  : '"Same as pass model" reuses each pass\'s own model for its review. Pick a specific model to use one for both passes instead.'}
+              </p>
+            </div>
           </div>
 
           <div>

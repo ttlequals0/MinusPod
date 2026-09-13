@@ -29,9 +29,9 @@ Add a feed from the dashboard at `/ui/` (Add Feed, RSS URL, optional custom slug
 
 Customize ad detection in Settings:
 - **LLM Provider** - Switch between Anthropic (direct API), OpenRouter, Ollama (local), or OpenAI-compatible endpoints at runtime without restarting the container
-- **AI Model** - Model for first pass ad detection
-- **Verification Model** - Separate model for the post-cut verification pass
-- **Chapters Model** - Model for chapter generation (a small model like Haiku works well here)
+- **AI Model** - Model for first pass ad detection. A provider selector sits beside it; leave it on Default to use the LLM Provider above, or pick a different configured provider to run detection there instead
+- **Verification Model** - Separate model for the post-cut verification pass. Its provider selector defaults to Same as detection and can be pointed at any other configured provider
+- **Chapters Model** - Model for chapter generation (a small model like Haiku works well here). Its provider selector also defaults to Same as detection
 - **Ad chapters** - Publish segments left in the audio as their own chapters, so a chapter-aware player can skip them. Off by default. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
 - **System Prompts** - Customizable prompts for first pass and verification detection
@@ -62,7 +62,8 @@ Cost is one extra LLM call per detected ad (and one extra call per rejected dete
 Settings live under AI & Processing -> Ad Reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
-- **Review model** - `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
+- **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick a specific provider to run the reviewer somewhere else, such as detection on Anthropic with review on a cheaper OpenRouter model
+- **Review model** - only used when Review provider is not `Same as pass`. `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
 - **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
 - **Review prompt** - system prompt for the confirm/adjust/reject reviewer
 - **Resurrect prompt** - system prompt for the resurrect/reject reviewer over rejected detections

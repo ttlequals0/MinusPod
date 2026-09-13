@@ -556,6 +556,26 @@ export const LLM_PROVIDERS = {
   OPENROUTER: 'openrouter' as const,
 };
 
+// Display order and labels shared by the global provider select and every
+// per-stage provider override select.
+export const LLM_PROVIDER_OPTIONS: LlmProvider[] = [
+  LLM_PROVIDERS.ANTHROPIC,
+  LLM_PROVIDERS.OPENROUTER,
+  LLM_PROVIDERS.OPENAI_COMPATIBLE,
+  LLM_PROVIDERS.OLLAMA,
+];
+
+export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
+  [LLM_PROVIDERS.ANTHROPIC]: 'Anthropic',
+  [LLM_PROVIDERS.OPENROUTER]: 'OpenRouter',
+  [LLM_PROVIDERS.OPENAI_COMPATIBLE]: 'OpenAI Compatible',
+  [LLM_PROVIDERS.OLLAMA]: 'Ollama',
+};
+
+// Sentinel stored in review_provider (and only there): the reviewer inherits
+// both the provider and model of whichever pass it is reviewing.
+export const SAME_AS_PASS = 'same_as_pass';
+
 export const WHISPER_BACKENDS = {
   LOCAL: 'local' as const,
   OPENAI_API: 'openai-api' as const,
@@ -574,9 +594,16 @@ export interface Settings {
   chapterPromptOverride: SettingValue;
   enableAdReview: SettingValueBoolean;
   reviewModel: SettingValue;
+  // Provider for the reviewer pass; 'same_as_pass' inherits both provider
+  // and model from whichever pass is being reviewed (see llm_route.py).
+  reviewProvider: SettingValue;
   reviewMaxBoundaryShift: SettingValueNumber;
   claudeModel: SettingValue;
   verificationModel: SettingValue;
+  // Per-phase provider overrides: empty value inherits (detection falls
+  // back to llmProvider; verification/chapters fall back to detectionProvider).
+  detectionProvider: SettingValue;
+  verificationProvider: SettingValue;
   whisperModel: SettingValue;
   autoProcessEnabled: SettingValueBoolean;
   maxFeedEpisodes: SettingValueNumber;
@@ -671,6 +698,7 @@ export interface Settings {
   adChapterResumeTitle: SettingValue;
   adChapterMinConfidence: SettingValueNumber;
   chaptersModel: SettingValue;
+  chaptersProvider: SettingValue;
   minCutConfidence: SettingValueNumber;
   whisperBackend: SettingValue;
   whisperApiBaseUrl: SettingValue;
@@ -700,6 +728,7 @@ export interface Settings {
     chapterPrompt: string;
     enableAdReview: boolean;
     reviewModel: string;
+    reviewProvider: string;
     reviewMaxBoundaryShift: number;
     claudeModel: string;
     verificationModel: string;
@@ -811,9 +840,12 @@ export interface UpdateSettingsPayload {
   chapterPromptOverride?: string;
   enableAdReview?: boolean;
   reviewModel?: string;
+  reviewProvider?: string;
   reviewMaxBoundaryShift?: number;
   claudeModel?: string;
   verificationModel?: string;
+  detectionProvider?: string;
+  verificationProvider?: string;
   whisperModel?: string;
   autoProcessEnabled?: boolean;
   maxFeedEpisodes?: number;
@@ -908,6 +940,7 @@ export interface UpdateSettingsPayload {
   adChapterResumeTitle?: string;
   adChapterMinConfidence?: number;
   chaptersModel?: string;
+  chaptersProvider?: string;
   minCutConfidence?: number;
   llmProvider?: LlmProvider;
   openaiBaseUrl?: string;

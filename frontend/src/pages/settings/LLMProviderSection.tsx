@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LlmProvider, StageTunables, UpdateSettingsPayload } from '../../api/types';
-import { LLM_PROVIDERS } from '../../api/types';
+import { LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS, LLM_PROVIDERS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ConnectionTestButton from './ConnectionTestButton';
 import ProviderKeyField from './ProviderKeyField';
@@ -79,10 +79,9 @@ function LLMProviderSection({
             onChange={(e) => onProviderChange(e.target.value as LlmProvider)}
             className={`w-full ${selectBase}`}
           >
-            <option value={LLM_PROVIDERS.ANTHROPIC}>Anthropic</option>
-            <option value={LLM_PROVIDERS.OPENROUTER}>OpenRouter</option>
-            <option value={LLM_PROVIDERS.OPENAI_COMPATIBLE}>OpenAI Compatible</option>
-            <option value={LLM_PROVIDERS.OLLAMA}>Ollama</option>
+            {LLM_PROVIDER_OPTIONS.map((p) => (
+              <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
+            ))}
           </select>
         </div>
 

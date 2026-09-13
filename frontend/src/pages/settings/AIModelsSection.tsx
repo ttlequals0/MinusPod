@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ClaudeModel, ModelPricingOverride, ModelPricingOverrides } from '../../api/types';
+import { LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { formatModelLabel } from './settingsUtils';
@@ -11,12 +12,25 @@ import { focusRing } from '../../components/fieldStyles';
 interface AIModelsSectionProps {
   models: ClaudeModel[] | undefined;
   modelsLoading: boolean;
+  // Verification/chapters fall back to the detection catalog (`models`)
+  // when their own provider matches detection's, which is the common case;
+  // pass a distinct list only once that stage's provider diverges.
+  verificationModels?: ClaudeModel[];
+  chaptersModels?: ClaudeModel[];
   selectedModel: string;
   verificationModel: string;
   chaptersModel: string;
   onSelectedModelChange: (model: string) => void;
   onVerificationModelChange: (model: string) => void;
   onChaptersModelChange: (model: string) => void;
+  // '' means "inherit" (detection falls back to the global LLM Provider;
+  // verification/chapters fall back to detection's resolved provider).
+  detectionProvider: string;
+  verificationProvider: string;
+  chaptersProvider: string;
+  onDetectionProviderChange: (provider: string) => void;
+  onVerificationProviderChange: (provider: string) => void;
+  onChaptersProviderChange: (provider: string) => void;
   onRefresh: () => void;
   refreshIsPending: boolean;
   modelPricingOverrides?: ModelPricingOverrides;
@@ -31,12 +45,20 @@ interface AIModelsSectionProps {
 function AIModelsSection({
   models,
   modelsLoading,
+  verificationModels,
+  chaptersModels,
   selectedModel,
   verificationModel,
   chaptersModel,
   onSelectedModelChange,
   onVerificationModelChange,
   onChaptersModelChange,
+  detectionProvider,
+  verificationProvider,
+  chaptersProvider,
+  onDetectionProviderChange,
+  onVerificationProviderChange,
+  onChaptersProviderChange,
   onRefresh,
   refreshIsPending,
   modelPricingOverrides = {},
@@ -44,14 +66,17 @@ function AIModelsSection({
   onPricingOverrideUpdate,
   pricingOverrideSavingModel = null,
 }: AIModelsSectionProps) {
+  const effectiveVerificationModels = verificationModels ?? models;
+  const effectiveChaptersModels = chaptersModels ?? models;
+
   // A saved model id missing from the live catalog (wrong provider for
   // the stored tag, renamed model, transient probe failure) would render
   // the <select> blank, which users read as "the setting was reset".
-  const isOrphan = (value: string) =>
-    Boolean(value) && !!models && !models.some((m) => m.id === value);
+  const isOrphan = (value: string, catalog: ClaudeModel[] | undefined) =>
+    Boolean(value) && !!catalog && !catalog.some((m) => m.id === value);
 
-  const renderOrphan = (value: string) => {
-    if (!isOrphan(value)) return null;
+  const renderOrphan = (value: string, catalog: ClaudeModel[] | undefined) => {
+    if (!isOrphan(value, catalog)) return null;
     return <option value={value}>{value} (current, not in catalog)</option>;
   };
 
@@ -60,6 +85,10 @@ function AIModelsSection({
   // switch to free text. An orphaned value still renders as a list option
   // above, so the switch stays the user's call rather than an inference.
   const [typedFields, setTypedFields] = useState<Record<string, boolean>>({});
+  // Merge every fetched catalog for pricing lookups: verification/chapters
+  // can now be on a different provider than detection, each with its own
+  // catalog entry (and price) for the same model id.
+  const allCatalogModels = [...(models ?? []), ...(effectiveVerificationModels ?? []), ...(effectiveChaptersModels ?? [])];
   const configuredModelIds = Array.from(new Set([
     selectedModel,
     verificationModel,
@@ -68,16 +97,49 @@ function AIModelsSection({
     ...Object.keys(modelPricingOverrides),
   ].filter(Boolean)));
 
+  const renderProviderSelect = ({
+    id,
+    label,
+    value,
+    inheritLabel,
+    onChange,
+  }: {
+    id: string;
+    label: string;
+    value: string;
+    inheritLabel: string;
+    onChange: (provider: string) => void;
+  }) => (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">
+        {label}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full ${selectBase}`}
+      >
+        <option value="">{inheritLabel}</option>
+        {LLM_PROVIDER_OPTIONS.map((p) => (
+          <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
+        ))}
+      </select>
+    </div>
+  );
+
   const renderModelSelect = ({
     id,
     label,
     value,
+    catalog,
     onChange,
     description,
   }: {
     id: string;
     label: string;
     value: string;
+    catalog: ClaudeModel[] | undefined;
     onChange: (model: string) => void;
     description: ReactNode;
   }) => {
@@ -116,8 +178,8 @@ function AIModelsSection({
           className={`w-full ${selectBase}`}
         >
           {notConfigured && <option value="">Not configured</option>}
-          {renderOrphan(value)}
-          {models?.map((model) => (
+          {renderOrphan(value, catalog)}
+          {catalog?.map((model) => (
             <option key={model.id} value={model.id}>
               {formatModelLabel(model)}
             </option>
@@ -168,30 +230,60 @@ function AIModelsSection({
       )}
 
       <div className="space-y-4">
-        {renderModelSelect({
-          id: 'model',
-          label: 'Ad Detection Model',
-          value: selectedModel,
-          onChange: onSelectedModelChange,
-          description:
-            'Primary model for analyzing transcripts and detecting ads. Set the model here; the OPENAI_MODEL env var only seeds this value while it is unset.',
-        })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {renderProviderSelect({
+            id: 'detectionProvider',
+            label: 'Ad Detection Provider',
+            value: detectionProvider,
+            inheritLabel: 'Default (matches LLM Provider)',
+            onChange: onDetectionProviderChange,
+          })}
+          {renderModelSelect({
+            id: 'model',
+            label: 'Ad Detection Model',
+            value: selectedModel,
+            catalog: models,
+            onChange: onSelectedModelChange,
+            description:
+              'Primary model for analyzing transcripts and detecting ads. Set the model here; the OPENAI_MODEL env var only seeds this value while it is unset.',
+          })}
+        </div>
 
-        {renderModelSelect({
-          id: 'verificationModel',
-          label: 'Verification Model',
-          value: verificationModel,
-          onChange: onVerificationModelChange,
-          description: 'Re-runs detection on processed audio to catch missed ads (can differ for cost optimization)',
-        })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {renderProviderSelect({
+            id: 'verificationProvider',
+            label: 'Verification Provider',
+            value: verificationProvider,
+            inheritLabel: 'Same as detection',
+            onChange: onVerificationProviderChange,
+          })}
+          {renderModelSelect({
+            id: 'verificationModel',
+            label: 'Verification Model',
+            value: verificationModel,
+            catalog: effectiveVerificationModels,
+            onChange: onVerificationModelChange,
+            description: 'Re-runs detection on processed audio to catch missed ads (can differ for cost optimization)',
+          })}
+        </div>
 
-        {renderModelSelect({
-          id: 'chaptersModel',
-          label: 'Chapters Model',
-          value: chaptersModel,
-          onChange: onChaptersModelChange,
-          description: 'Chapter title generation and topic detection (smaller/cheaper models work well)',
-        })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {renderProviderSelect({
+            id: 'chaptersProvider',
+            label: 'Chapters Provider',
+            value: chaptersProvider,
+            inheritLabel: 'Same as detection',
+            onChange: onChaptersProviderChange,
+          })}
+          {renderModelSelect({
+            id: 'chaptersModel',
+            label: 'Chapters Model',
+            value: chaptersModel,
+            catalog: effectiveChaptersModels,
+            onChange: onChaptersModelChange,
+            description: 'Chapter title generation and topic detection (smaller/cheaper models work well)',
+          })}
+        </div>
 
         {onPricingOverrideUpdate && configuredModelIds.length > 0 && (
           <div className="pt-4 border-t border-border space-y-4">
@@ -208,7 +300,7 @@ function AIModelsSection({
                 fieldId={`modelPricing-${index}`}
                 modelId={modelId}
                 override={override}
-                catalogModel={models?.find((model) => model.id === modelId)}
+                catalogModel={allCatalogModels.find((model) => model.id === modelId)}
                 saving={pricingOverrideSavingModel === modelId}
                 onUpdate={onPricingOverrideUpdate}
               />;

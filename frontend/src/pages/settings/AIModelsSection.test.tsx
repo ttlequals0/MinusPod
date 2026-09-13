@@ -4,7 +4,7 @@
  * an explicit LLM model instead of a hardcoded fallback).
  */
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AIModelsSection from './AIModelsSection';
 import type { ClaudeModel } from '../../api/types';
@@ -25,6 +25,12 @@ function renderSection(overrides: Partial<Parameters<typeof AIModelsSection>[0]>
       onSelectedModelChange={() => {}}
       onVerificationModelChange={() => {}}
       onChaptersModelChange={() => {}}
+      detectionProvider=""
+      verificationProvider=""
+      chaptersProvider=""
+      onDetectionProviderChange={() => {}}
+      onVerificationProviderChange={() => {}}
+      onChaptersProviderChange={() => {}}
       onRefresh={() => {}}
       refreshIsPending={false}
       modelPricingOverrides={{}}
@@ -125,6 +131,56 @@ describe('AIModelsSection: typing a model ID', () => {
     renderSection({ selectedModel: 'retired-model' });
     expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('SELECT');
     expect(screen.getByRole('option', { name: 'retired-model (current, not in catalog)' })).toBeDefined();
+  });
+});
+
+describe('AIModelsSection: per-stage provider selects', () => {
+  it('renders a provider select beside each stage\'s model select', () => {
+    renderSection();
+    expect(screen.getByLabelText('Ad Detection Provider')).toBeDefined();
+    expect(screen.getByLabelText('Verification Provider')).toBeDefined();
+    expect(screen.getByLabelText('Chapters Provider')).toBeDefined();
+  });
+
+  it('defaults detection to "Default (matches LLM Provider)" and the others to "Same as detection"', () => {
+    renderSection();
+    expect((screen.getByLabelText('Ad Detection Provider') as HTMLSelectElement).selectedOptions[0].textContent)
+      .toBe('Default (matches LLM Provider)');
+    expect((screen.getByLabelText('Verification Provider') as HTMLSelectElement).selectedOptions[0].textContent)
+      .toBe('Same as detection');
+    expect((screen.getByLabelText('Chapters Provider') as HTMLSelectElement).selectedOptions[0].textContent)
+      .toBe('Same as detection');
+  });
+
+  it('changing the verification provider does not call the detection provider handler', async () => {
+    const user = userEvent.setup();
+    const onDetectionProviderChange = vi.fn();
+    const onVerificationProviderChange = vi.fn();
+    renderSection({ onDetectionProviderChange, onVerificationProviderChange });
+
+    await user.selectOptions(screen.getByLabelText('Verification Provider'), 'ollama');
+
+    expect(onVerificationProviderChange).toHaveBeenCalledWith('ollama');
+    expect(onDetectionProviderChange).not.toHaveBeenCalled();
+  });
+
+  it('lists the verification-specific catalog once its provider diverges from detection', () => {
+    renderSection({
+      verificationProvider: 'ollama',
+      verificationModels: [{ id: 'llama3', name: 'Llama 3' }],
+      verificationModel: 'llama3',
+    });
+    const select = screen.getByLabelText('Verification Model') as HTMLSelectElement;
+    expect(select.value).toBe('llama3');
+    expect(within(select).getByRole('option', { name: 'Llama 3' })).toBeDefined();
+    expect(within(select).queryByRole('option', { name: 'GPT-5' })).toBeNull();
+  });
+
+  it('falls back to the detection catalog for verification/chapters when no override list is given', () => {
+    renderSection();
+    const verifSelect = screen.getByLabelText('Verification Model') as HTMLSelectElement;
+    expect(screen.getAllByRole('option', { name: 'GPT-5' })).toHaveLength(3);
+    expect(verifSelect.value).toBe('gpt-5');
   });
 });
 

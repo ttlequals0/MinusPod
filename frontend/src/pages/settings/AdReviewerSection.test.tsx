@@ -11,6 +11,7 @@ import AdReviewerSection, { type ReviewerState } from './AdReviewerSection';
 function baseReviewer(): ReviewerState {
   return {
     enabled: false,
+    provider: 'same_as_pass',
     model: 'same_as_pass',
     maxShift: 60,
     reviewPrompt: 'review text',
@@ -117,5 +118,54 @@ describe('AdReviewerSection: review model select', () => {
     const select = screen.getByLabelText('Review model') as HTMLSelectElement;
     expect(select.value).toBe('z-ai/glm-5.3-flash');
     expect(screen.queryByRole('option', { name: /not in catalog/ })).toBeNull();
+  });
+});
+
+describe('AdReviewerSection: review provider select', () => {
+  it('renders "Same as pass" plus every configured provider', () => {
+    renderSection();
+    const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
+    expect(select.value).toBe('same_as_pass');
+    const labels = Array.from(select.options).map((o) => o.textContent);
+    expect(labels).toEqual(['Same as pass', 'Anthropic', 'OpenRouter', 'OpenAI Compatible', 'Ollama']);
+  });
+
+  it('disables the review model select while the provider is "Same as pass"', () => {
+    renderSection();
+    const modelSelect = screen.getByLabelText('Review model') as HTMLSelectElement;
+    expect(modelSelect.disabled).toBe(true);
+  });
+
+  it('enables the review model select and lists that provider\'s models once an explicit provider is chosen', () => {
+    const { rerender } = renderSection({
+      modelOptions: [{ id: 'claude-opus-5', label: 'Claude Opus 5' }],
+    });
+    rerender(
+      <AdReviewerSection
+        reviewer={{ ...baseReviewer(), provider: 'openrouter' }}
+        onChange={vi.fn()}
+        onResetPrompts={vi.fn()}
+        resetIsPending={false}
+        onResetReviewPrompt={vi.fn()}
+        onResetResurrectPrompt={vi.fn()}
+        modelOptions={[{ id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash' }]}
+      />,
+    );
+    const modelSelect = screen.getByLabelText('Review model') as HTMLSelectElement;
+    expect(modelSelect.disabled).toBe(false);
+    expect(screen.getByRole('option', { name: 'GLM 5.3 Flash' })).toBeDefined();
+    expect(screen.queryByRole('option', { name: 'Claude Opus 5' })).toBeNull();
+  });
+
+  it('changing the review provider only updates the reviewer.provider field', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const reviewer = baseReviewer();
+    renderSection({ reviewer, onChange });
+
+    await user.selectOptions(screen.getByLabelText('Review provider'), 'anthropic');
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith({ ...reviewer, provider: 'anthropic' });
   });
 });

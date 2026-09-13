@@ -295,7 +295,8 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='same_as_pass', seeded=True, resettable=False,
         payload_key='reviewModel'),
     'review_provider': SettingSpec(
-        default='same_as_pass', seeded=True, resettable=False),
+        default='same_as_pass', seeded=True, resettable=False,
+        payload_key='reviewProvider'),
     'review_max_boundary_shift': SettingSpec(
         default='60', seeded=True, resettable=False,
         payload_key='reviewMaxBoundaryShift', payload_kind='int'),

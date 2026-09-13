@@ -129,6 +129,7 @@ function Settings() {
   // neutral placeholders that are never displayed.
   const [reviewer, setReviewer] = useState({
     enabled: false,
+    provider: '',
     model: '',
     maxShift: 0,
     reviewPrompt: '',
@@ -233,6 +234,10 @@ function Settings() {
   }, [settingsQuery, settingsMatchKeys]);
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
+  // Per-phase provider overrides; '' inherits (see AIModelsSection's
+  // provider selects for the exact fallback per stage).
+  const [detectionProvider, setDetectionProvider] = useState('');
+  const [verificationProvider, setVerificationProvider] = useState('');
   const [whisperModel, setWhisperModel] = useState('');
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(false);
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
@@ -264,6 +269,7 @@ function Settings() {
   const [adChapterResumeTitle, setAdChapterResumeTitle] = useState('Show');
   const [adChapterMinConfidence, setAdChapterMinConfidence] = useState(0.9);
   const [chaptersModel, setChaptersModel] = useState('');
+  const [chaptersProvider, setChaptersProvider] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0);
   const [minContentBetweenAdsSeconds, setMinContentBetweenAdsSeconds] = useState(12);
   const [maxAdDurationSeconds, setMaxAdDurationSeconds] = useState(300);
@@ -349,11 +355,39 @@ function Settings() {
     queryFn: getReviewerSettings,
   });
 
+  // Per-phase model catalogs. Empty overrides inherit their fallback
+  // provider, so the common single-provider case shares one query key (and
+  // therefore one network request) across every stage.
+  const effectiveDetectionProvider = detectionProvider || llmProvider;
+  const effectiveVerificationProvider = verificationProvider || effectiveDetectionProvider;
+  const effectiveChaptersProvider = chaptersProvider || effectiveDetectionProvider;
+  const effectiveReviewProvider = reviewer.provider && reviewer.provider !== 'same_as_pass'
+    ? reviewer.provider
+    : null;
+
   const { data: models, isLoading: modelsLoading } = useQuery({
-    queryKey: ['models', llmProvider],
-    queryFn: () => getModels(llmProvider),
-    // Gate on llmProvider too: it is an empty placeholder until hydration runs.
-    enabled: !settingsLoading && !!llmProvider,
+    queryKey: ['models', effectiveDetectionProvider],
+    queryFn: () => getModels(effectiveDetectionProvider),
+    // Gate on the provider too: it is an empty placeholder until hydration runs.
+    enabled: !settingsLoading && !!effectiveDetectionProvider,
+  });
+
+  const { data: verificationModels } = useQuery({
+    queryKey: ['models', effectiveVerificationProvider],
+    queryFn: () => getModels(effectiveVerificationProvider),
+    enabled: !settingsLoading && !!effectiveVerificationProvider,
+  });
+
+  const { data: chaptersModels } = useQuery({
+    queryKey: ['models', effectiveChaptersProvider],
+    queryFn: () => getModels(effectiveChaptersProvider),
+    enabled: !settingsLoading && !!effectiveChaptersProvider,
+  });
+
+  const { data: reviewModels } = useQuery({
+    queryKey: ['models', effectiveReviewProvider],
+    queryFn: () => getModels(effectiveReviewProvider as string),
+    enabled: !settingsLoading && !!effectiveReviewProvider,
   });
 
   const { data: whisperModels } = useQuery({
@@ -500,12 +534,17 @@ function Settings() {
     { key: 'resurrectPromptOverride', kind: 'str', value: reviewer.resurrectPromptOverride, obj: 'reviewer', prop: 'resurrectPromptOverride' },
     { key: 'enableAdReview', kind: 'val', useDefault: true, value: reviewer.enabled, obj: 'reviewer', prop: 'enabled' },
     { key: 'reviewModel', kind: 'str', useDefault: true, value: reviewer.model, obj: 'reviewer', prop: 'model' },
+    { key: 'reviewProvider', kind: 'str', useDefault: true, value: reviewer.provider, obj: 'reviewer', prop: 'provider' },
     { key: 'reviewMaxBoundaryShift', kind: 'val', useDefault: true, value: reviewer.maxShift, obj: 'reviewer', prop: 'maxShift' },
     { key: 'adReviewerParallelAds', kind: 'val', useDefault: true, value: reviewer.parallelAds, obj: 'reviewer', prop: 'parallelAds' },
     // Models
     { key: 'claudeModel', kind: 'str', value: selectedModel, set: setSelectedModel },
     { key: 'verificationModel', kind: 'str', value: verificationModel, set: setVerificationModel },
     { key: 'chaptersModel', kind: 'str', value: chaptersModel, set: setChaptersModel },
+    // Per-phase provider overrides
+    { key: 'detectionProvider', kind: 'str', value: detectionProvider, set: setDetectionProvider },
+    { key: 'verificationProvider', kind: 'str', value: verificationProvider, set: setVerificationProvider },
+    { key: 'chaptersProvider', kind: 'str', value: chaptersProvider, set: setChaptersProvider },
     { key: 'whisperModel', kind: 'str', useDefault: true, value: whisperModel, set: setWhisperModel },
     // Providers
     { key: 'llmProvider', kind: 'str', useDefault: true, value: llmProvider, set: (v) => setLlmProvider(v as LlmProvider) },
@@ -1010,9 +1049,11 @@ function Settings() {
         pricingSourceMode={pricingSourceMode}
         onProviderChange={(p) => {
           setLlmProvider(p);
-          setSelectedModel('');
-          setVerificationModel('');
-          setChaptersModel('');
+          // Only clear a stage's model if this switch actually changes its
+          // effective provider, i.e. it has no explicit override of its own.
+          if (!detectionProvider) setSelectedModel('');
+          if (!verificationProvider && !detectionProvider) setVerificationModel('');
+          if (!chaptersProvider && !detectionProvider) setChaptersModel('');
         }}
         onBaseUrlChange={setOpenaiBaseUrl}
         onPricingSourceModeChange={setPricingSourceMode}
@@ -1030,12 +1071,20 @@ function Settings() {
       <AIModelsSection
         models={models}
         modelsLoading={modelsLoading}
+        verificationModels={verificationModels}
+        chaptersModels={chaptersModels}
         selectedModel={selectedModel}
         verificationModel={verificationModel}
         chaptersModel={chaptersModel}
         onSelectedModelChange={setSelectedModel}
         onVerificationModelChange={setVerificationModel}
         onChaptersModelChange={setChaptersModel}
+        detectionProvider={detectionProvider}
+        verificationProvider={verificationProvider}
+        chaptersProvider={chaptersProvider}
+        onDetectionProviderChange={setDetectionProvider}
+        onVerificationProviderChange={setVerificationProvider}
+        onChaptersProviderChange={setChaptersProvider}
         onRefresh={() => refreshModelsMutation.mutate()}
         refreshIsPending={refreshModelsMutation.isPending}
         modelPricingOverrides={settings?.modelPricingOverrides?.value ?? {}}
@@ -1150,7 +1199,8 @@ function Settings() {
         onChange={setReviewer}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
-        modelOptions={models?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
+        modelOptions={(effectiveReviewProvider ? reviewModels : models)
+          ?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
         reviewPromptIsDefault={settings?.reviewPrompt.isDefault}
         resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
         onResetReviewPrompt={() => resetPromptMutation.mutate('review')}

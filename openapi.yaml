@@ -4637,6 +4637,29 @@ paths:
                   type: string
                   description: Model for chapter title generation and topic detection (smaller/cheaper models work well). No model ships by default; unset until configured.
                   example: claude-haiku-4-5
+                detectionProvider:
+                  type: string
+                  description: |
+                    Provider override for first-pass ad detection. Empty string clears the
+                    override, which falls back to llmProvider.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                  example: ''
+                verificationProvider:
+                  type: string
+                  description: |
+                    Provider override for the verification pass. Empty string clears the
+                    override, which falls back to detectionProvider (or llmProvider if that
+                    is also unset).
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                  example: ''
+                chaptersProvider:
+                  type: string
+                  description: |
+                    Provider override for chapter title generation. Empty string clears the
+                    override, which falls back to detectionProvider (or llmProvider if that
+                    is also unset).
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                  example: ''
                 whisperModel:
                   type: string
                   description: Whisper model for transcription (tiny, base, small, medium, large-v3)
@@ -5121,6 +5144,14 @@ paths:
                   description: |
                     Number of ads the reviewer asks the LLM about at the same time.
                   example: 4
+                reviewProvider:
+                  type: string
+                  description: |
+                    Provider for the reviewer pass. `same_as_pass` runs the reviewer on
+                    whichever provider and model resolved the pass it is reviewing (both
+                    detection and verification); an explicit provider always overrides it.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, same_as_pass]
+                  example: same_as_pass
                 maxArtworkBytes:
                   type: integer
                   minimum: 65536
@@ -11279,6 +11310,18 @@ components:
               type: string
             isDefault:
               type: boolean
+        reviewProvider:
+          type: object
+          description: |
+            Provider used for the reviewer pass. Sentinel `same_as_pass`
+            (the default) inherits both the provider and model of the pass
+            being reviewed, ignoring reviewModel. An explicit provider
+            enables reviewModel.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
         reviewMaxBoundaryShift:
           type: object
           description: Cap on boundary shift in seconds for adjust verdicts.
@@ -11368,12 +11411,44 @@ components:
               type: string
             isDefault:
               type: boolean
+        detectionProvider:
+          type: object
+          description: |
+            Provider override for first-pass ad detection. Empty when unset,
+            which falls back to llmProvider.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        verificationProvider:
+          type: object
+          description: |
+            Provider override for the verification pass. Empty when unset,
+            which falls back to detectionProvider (or llmProvider if that is
+            also unset).
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
         chaptersModel:
           type: object
           properties:
             value:
               type: string
               description: Model for chapter title generation and topic detection
+            isDefault:
+              type: boolean
+        chaptersProvider:
+          type: object
+          description: |
+            Provider override for chapter title generation. Empty when
+            unset, which falls back to detectionProvider (or llmProvider if
+            that is also unset).
+          properties:
+            value:
+              type: string
             isDefault:
               type: boolean
         whisperModel:
