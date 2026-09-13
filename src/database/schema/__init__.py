@@ -162,6 +162,7 @@ class SchemaMixin:
         'token_usage',
         'ad_reviewer_log',
         'podping_hosts',
+        'llm_call_usage',
         'addressing_log',
         'processing_runs',
         'upload_reservations',
@@ -197,6 +198,11 @@ class SchemaMixin:
             "CREATE INDEX IF NOT EXISTS idx_podping_hosts_last_seen "
             "ON podping_hosts(last_seen_at DESC)"
         )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_run ON llm_call_usage(run_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_episode ON llm_call_usage(podcast_id, episode_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_model ON llm_call_usage(provider_key, configured_model)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_created ON llm_call_usage(created_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_state ON llm_call_usage(state)")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_addressing_log_episode "
             "ON addressing_log(episode_id)"

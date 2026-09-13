@@ -585,6 +585,31 @@ TABLE_DDL['addressing_log'] = """CREATE TABLE IF NOT EXISTS addressing_log (
     ads_dropped_too_long INTEGER
 )"""
 
+TABLE_DDL['llm_call_usage'] = """CREATE TABLE IF NOT EXISTS llm_call_usage (
+    attempt_id TEXT PRIMARY KEY,
+    run_id TEXT,
+    podcast_id INTEGER,
+    episode_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    finalized_at TEXT,
+    phase_key TEXT NOT NULL,
+    invoking_pass INTEGER,
+    window_label TEXT,
+    provider_key TEXT NOT NULL,
+    configured_model TEXT NOT NULL,
+    returned_model TEXT,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cache_read_tokens INTEGER,
+    cache_write_tokens INTEGER,
+    reasoning_tokens INTEGER,
+    cost_usd TEXT,
+    cost_source TEXT,
+    rate_snapshot TEXT,
+    pricing_revision TEXT,
+    state TEXT NOT NULL DEFAULT 'in_flight'
+)"""
+
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -753,6 +778,16 @@ CREATE INDEX IF NOT EXISTS idx_cue_dismissals_podcast
 """ + TABLE_DDL['podping_hosts'] + """;
 CREATE INDEX IF NOT EXISTS idx_podping_hosts_last_seen
     ON podping_hosts(last_seen_at DESC);
+
+-- llm_call_usage: append-only per-provider-attempt LLM call ledger.
+-- Downstream checkpoints write one row per attempt and derive counters
+-- from it in the same transaction.
+""" + TABLE_DDL['llm_call_usage'] + """;
+CREATE INDEX IF NOT EXISTS idx_llm_call_usage_run ON llm_call_usage(run_id);
+CREATE INDEX IF NOT EXISTS idx_llm_call_usage_episode ON llm_call_usage(podcast_id, episode_id);
+CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_model ON llm_call_usage(provider_key, configured_model);
+CREATE INDEX IF NOT EXISTS idx_llm_call_usage_created ON llm_call_usage(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_llm_call_usage_state ON llm_call_usage(state);
 
 -- addressing_log: per-pass addressing-mode compliance samples (random
 -- addressing mode A/B tracking). Aggregated per effective_mode by
