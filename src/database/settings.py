@@ -280,6 +280,13 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         factory=_seed_env_openai_model, seeded=True, in_ad_reset=True,
         payload_key='chaptersModel', payload_kind='str', default=None),
 
+    # -- Per-phase LLM provider routing (see llm_route.py): unset resolves to
+    # the global llm_provider (verification/chapters resolve to detection's
+    # provider instead when also unset).
+    'detection_provider': SettingSpec(default=None, seeded=True),
+    'verification_provider': SettingSpec(default=None, seeded=True),
+    'chapters_provider': SettingSpec(default=None, seeded=True),
+
     # -- Ad reviewer (seeded; only the prompts are resettable) --
     'enable_ad_review': SettingSpec(
         default='false', seeded=True, resettable=False,
@@ -287,6 +294,8 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'review_model': SettingSpec(
         default='same_as_pass', seeded=True, resettable=False,
         payload_key='reviewModel'),
+    'review_provider': SettingSpec(
+        default='same_as_pass', seeded=True, resettable=False),
     'review_max_boundary_shift': SettingSpec(
         default='60', seeded=True, resettable=False,
         payload_key='reviewMaxBoundaryShift', payload_kind='int'),

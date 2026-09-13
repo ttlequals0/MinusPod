@@ -110,6 +110,7 @@ SEED_SNAPSHOT = {
     'retention_period_minutes': '1440',
     'review_max_boundary_shift': '60',
     'review_model': 'same_as_pass',
+    'review_provider': 'same_as_pass',
     'review_prompt': ('sha256', '0a30979273b7dd4f7447c40536383d0bb3a3e3c649b2ec07c4772ea47880035e'),  # Updated for the #695 example format
     'rss_refresh_interval_minutes': '15',
     'queue_manual_boost': '20',
@@ -204,6 +205,7 @@ NON_RESETTABLE_KEYS = (
     'podping_enabled', 'positional_prior_enabled',
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
+    'review_provider',
     'rss_refresh_interval_minutes', 'segment_category_actions',
     'queue_manual_boost', 'queue_fresh_boost', 'queue_bulk_boost',
     'community_sync_categories',
