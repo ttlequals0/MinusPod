@@ -542,6 +542,8 @@ class SchemaMixin:
             "ON processing_runs(owner_pid, owner_pid_start) "
             "WHERE state IN ('running', 'cancel_requested')"
         )
+        runs_cols = self._get_table_columns(conn, 'processing_runs')
+        self._add_column_if_missing(conn, 'processing_runs', 'route_snapshot_json', 'TEXT', runs_cols)
         upload_cols = self._get_table_columns(conn, 'upload_reservations')
         self._add_column_if_missing(
             conn, 'upload_reservations', 'backup_name', 'TEXT', upload_cols)

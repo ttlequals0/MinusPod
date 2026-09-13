@@ -280,7 +280,8 @@ TABLE_DDL['processing_runs'] = """CREATE TABLE IF NOT EXISTS processing_runs (
     cancel_requested_at TEXT,
     started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     heartbeat_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    finished_at TEXT
+    finished_at TEXT,
+    route_snapshot_json TEXT
 )"""
 
 TABLE_DDL['upload_reservations'] = """CREATE TABLE IF NOT EXISTS upload_reservations (

@@ -59,6 +59,9 @@ class TokenAccumulator:
             return dict(self._last_totals)
 
 
+_FORBIDDEN_ROUTE_KEYS = {'api_key', 'apikey', 'authorization', 'headers', 'secret', 'token'}
+
+
 class RunContext:
     def __init__(self, slug: str, episode_id: str, run_id: str | None = None):
         self.slug = slug
@@ -67,8 +70,16 @@ class RunContext:
         self.run_id = run_id
         self.recorder = None
         self.tokens = TokenAccumulator()
+        self.route_snapshot = None
         self._thinking_notices = {}
         self._thinking_notice_lock = threading.Lock()
+
+    def set_route_snapshot(self, snapshot: dict) -> None:
+        """Store the non-secret per-phase route for this run. Rejects credential keys."""
+        for phase in snapshot.values():
+            if isinstance(phase, dict) and _FORBIDDEN_ROUTE_KEYS & {k.lower() for k in phase}:
+                raise ValueError("route snapshot must not contain credentials")
+        self.route_snapshot = copy.deepcopy(snapshot)
 
     def add_thinking_notice(self, run_id: str, notice: dict) -> bool:
         """Add one notice to this run, deduplicated across worker threads."""
