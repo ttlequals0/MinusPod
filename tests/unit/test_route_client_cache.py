@@ -45,6 +45,14 @@ class TestGetClientForProviderCache(unittest.TestCase):
         self.assertEqual(second.base_url, 'http://b/v1')
 
     @patch('llm_client._record_token_usage')
+    @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
+    def test_different_base_for_same_provider_shares_one_circuit_breaker(self, *_mocks):
+        first = get_client_for_provider('openai-compatible', base_url='http://a/v1')
+        second = get_client_for_provider('openai-compatible', base_url='http://b/v1')
+        self.assertIsNot(first, second)
+        self.assertIs(first._circuit_breaker, second._circuit_breaker)
+
+    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openrouter_api_key', return_value='sk-or')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
     @patch('llm_client.get_effective_base_url', return_value='http://a/v1')

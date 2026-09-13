@@ -405,11 +405,6 @@ class TestGetLlmClientConfigInvalidation(unittest.TestCase):
         self.assertEqual(second.base_url, 'http://b/v1')
         self.assertIs(llm_client._client_cache[('openai-compatible', 'http://b/v1')], second)
 
-    @patch('llm_client.get_effective_provider', return_value='anthropic')
-    def test_anthropic_config_key_is_stable(self, _prov):
-        from llm_client import _current_config_key
-        self.assertEqual(_current_config_key(), 'anthropic')
-
 
 if __name__ == '__main__':
     unittest.main()

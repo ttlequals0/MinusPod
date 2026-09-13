@@ -1432,7 +1432,7 @@ _client_lock = threading.Lock()
 
 # Cache of built clients keyed by (provider_key, normalized_base). Multiple
 # providers can be active concurrently (per-phase routing), so this is no
-# longer a single global slot -- each (provider, base) pair gets its own
+# longer a single global slot: each (provider, base) pair gets its own
 # entry and rebuilds independently when its own config changes.
 _client_cache: dict[tuple[str, str | None], LLMClient] = {}
 
@@ -1461,7 +1461,7 @@ def _resolve_cache_key(provider_key: str, base_url: str | None = None) -> tuple[
     """Client cache key for a provider: (provider_key, normalized_base).
 
     When base_url is omitted, falls back to the effective DB/env setting for
-    that provider -- this is what makes get_llm_client's global-provider path
+    that provider: this is what makes get_llm_client's global-provider path
     pick up cross-worker settings changes without an explicit force_new.
     Never includes a credential: callers resolve API keys separately inside
     _build_client at build time.
@@ -1476,28 +1476,10 @@ def _resolve_cache_key(provider_key: str, base_url: str | None = None) -> tuple[
     return (provider_key, base_url)
 
 
-def _current_config_key() -> str:
-    """Stable identifier for the *current* effective LLM client config.
-
-    Used by ``get_llm_client`` to detect cross-worker settings changes. Each
-    gunicorn worker has its own client cache; only the worker that handled a
-    settings PUT runs ``force_new``. Other workers must notice the change at
-    next call and rebuild themselves -- otherwise requests routed to a
-    sibling worker keep hitting the previous provider/base_url.
-    """
-    provider = get_effective_provider()
-    if provider == PROVIDER_ANTHROPIC:
-        return "anthropic"
-    if provider != PROVIDER_OPENROUTER and provider not in PROVIDERS_NON_ANTHROPIC:
-        return f"unknown:{provider}"
-    _, base = _resolve_cache_key(provider)
-    return f"{provider}:{base}"
-
-
 def _get_circuit_breaker_for_provider(provider_key: str) -> CircuitBreaker:
     """Return (creating if needed) the per-provider circuit breaker.
 
-    Isolated per provider so an outage on one does not open another's --
+    Isolated per provider so an outage on one does not open another's:
     concurrent phases routed to different providers must fail independently.
     cause_classifier is a lazy lambda (not `is_auth_error` directly) because
     that function is defined further down this module.
@@ -1591,9 +1573,9 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
     ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
     providers (used by per-phase routing); omit it to use the effective
     setting, which is also what makes the cache auto-invalidate on a
-    cross-worker settings change (see ``_current_config_key``). Credentials
-    are resolved inside ``_build_client`` at build time from provider_key --
-    never put an API key in the cache key.
+    cross-worker settings change (see ``_resolve_cache_key``). Credentials
+    are resolved inside ``_build_client`` at build time from provider_key.
+    Never put an API key in the cache key.
 
     force_new=True also flushes the provider settings cache.
     """
@@ -1628,7 +1610,7 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
 def get_llm_client(force_new: bool = False) -> LLMClient:
     """
     Factory function that returns the client for the globally configured
-    provider. Deprecated for per-phase calls -- resolve a Route via
+    provider. Deprecated for per-phase calls: resolve a Route via
     llm_route.resolve_route and call get_client_for_provider directly so
     each phase gets its own cached client and circuit breaker.
 
