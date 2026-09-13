@@ -119,6 +119,7 @@ from llm_client import (
     is_limit_exceeded_error, is_auth_error, LimitExceededError,
     ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
+    get_last_episode_token_totals,
     get_effective_provider,
 )
 from database.queue import compute_queue_priority
@@ -5644,7 +5645,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    progress=recut_progress,
                                    podcast_row=podcast_settings):
                     if provider_reservation_id:
-                        totals = get_episode_token_totals()
+                        totals = get_last_episode_token_totals()
                         db.reconcile_provider_spend(
                             provider_reservation_id,
                             round(totals['cost'] * 1_000_000))
@@ -5686,7 +5687,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             _publish_status('complete_job', slug, episode_id)
             if provider_reservation_id:
-                totals = get_episode_token_totals()
+                totals = get_last_episode_token_totals()
                 db.reconcile_provider_spend(
                     provider_reservation_id,
                     round(totals['cost'] * 1_000_000))

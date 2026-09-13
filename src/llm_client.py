@@ -1507,6 +1507,19 @@ def get_episode_token_totals() -> dict:
     return totals
 
 
+def get_last_episode_token_totals() -> dict:
+    """Return the calling run's most recently collected totals.
+
+    Non-destructive: unlike get_episode_token_totals() this never resets the
+    accumulator, so late readers (provider budget reconciliation) see the same
+    number the history path already captured instead of reading a zeroed one.
+    """
+    ctx = run_context.current()
+    if ctx is None:
+        return {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+    return ctx.tokens.last_totals()
+
+
 def _record_token_usage(model: str, usage: dict):
     """Module-level callback for recording token usage to the database."""
     input_tokens = usage.get('input_tokens', 0)
