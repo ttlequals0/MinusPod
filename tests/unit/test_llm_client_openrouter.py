@@ -107,7 +107,7 @@ class TestGetLlmClientOpenRouter(unittest.TestCase):
         from config import OPENROUTER_BASE_URL, OPENROUTER_HTTP_REFERER, OPENROUTER_APP_TITLE
 
         # Clear cached client
-        llm_client._cached_client = None
+        llm_client._client_cache.clear()
 
         client = get_llm_client(force_new=True)
 
@@ -118,7 +118,7 @@ class TestGetLlmClientOpenRouter(unittest.TestCase):
         self.assertEqual(client.extra_headers['X-Title'], OPENROUTER_APP_TITLE)
 
         # Clean up
-        llm_client._cached_client = None
+        llm_client._client_cache.clear()
 
     @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openrouter_api_key', return_value=None)
@@ -127,12 +127,12 @@ class TestGetLlmClientOpenRouter(unittest.TestCase):
         import llm_client
         from llm_client import get_llm_client
 
-        llm_client._cached_client = None
+        llm_client._client_cache.clear()
         client = get_llm_client(force_new=True)
 
         self.assertEqual(client.api_key, 'not-needed')
 
-        llm_client._cached_client = None
+        llm_client._client_cache.clear()
 
 
 class TestModelMatchesProviderOpenRouter(unittest.TestCase):
@@ -353,19 +353,17 @@ class TestAdDetectorLLMClientNotCached(unittest.TestCase):
 
 
 class TestGetLlmClientConfigInvalidation(unittest.TestCase):
-    """Each gunicorn worker has its own ``_cached_client``. Only the worker
+    """Each gunicorn worker has its own client cache. Only the worker
     that handles a settings PUT runs ``force_new``. Sibling workers must
     detect the config change at next call and rebuild themselves."""
 
     def setUp(self):
         import llm_client
-        llm_client._cached_client = None
-        llm_client._cached_client_config_key = None
+        llm_client._client_cache.clear()
 
     def tearDown(self):
         import llm_client
-        llm_client._cached_client = None
-        llm_client._cached_client_config_key = None
+        llm_client._client_cache.clear()
 
     @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openrouter_api_key', return_value='sk-or')
@@ -389,7 +387,7 @@ class TestGetLlmClientConfigInvalidation(unittest.TestCase):
         with patch('llm_client.get_effective_provider', return_value='anthropic'):
             second = get_llm_client()
         self.assertIsNot(first, second)
-        self.assertEqual(llm_client._cached_client_config_key, 'anthropic')
+        self.assertIs(llm_client._client_cache[('anthropic', None)], second)
 
     @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
@@ -405,7 +403,7 @@ class TestGetLlmClientConfigInvalidation(unittest.TestCase):
             second = get_llm_client()
         self.assertIsNot(first, second)
         self.assertEqual(second.base_url, 'http://b/v1')
-        self.assertEqual(llm_client._cached_client_config_key, 'openai-compatible:http://b/v1')
+        self.assertIs(llm_client._client_cache[('openai-compatible', 'http://b/v1')], second)
 
     @patch('llm_client.get_effective_provider', return_value='anthropic')
     def test_anthropic_config_key_is_stable(self, _prov):

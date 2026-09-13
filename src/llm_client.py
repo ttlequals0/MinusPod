@@ -1428,9 +1428,20 @@ def get_llm_max_retries() -> int:
 # Factory function - this is the main entry point
 # =============================================================================
 
-_cached_client: LLMClient | None = None
-_cached_client_config_key: str | None = None
 _client_lock = threading.Lock()
+
+# Cache of built clients keyed by (provider_key, normalized_base). Multiple
+# providers can be active concurrently (per-phase routing), so this is no
+# longer a single global slot -- each (provider, base) pair gets its own
+# entry and rebuilds independently when its own config changes.
+_client_cache: dict[tuple[str, str | None], LLMClient] = {}
+
+# Per-provider circuit breakers, keyed by provider_key only (a provider's
+# breaker state should not depend on which base_url built the client). An
+# outage on one provider must not open another's breaker, so this replaces
+# the old single process-wide breaker.
+_circuit_breakers: dict[str, CircuitBreaker] = {}
+_circuit_breaker_lock = threading.Lock()
 
 
 def _normalize_base_url_for_provider(provider: str, base_url: str) -> str:
@@ -1446,32 +1457,59 @@ def _normalize_base_url_for_provider(provider: str, base_url: str) -> str:
     return base_url
 
 
+def _resolve_cache_key(provider_key: str, base_url: str | None = None) -> tuple[str, str | None]:
+    """Client cache key for a provider: (provider_key, normalized_base).
+
+    When base_url is omitted, falls back to the effective DB/env setting for
+    that provider -- this is what makes get_llm_client's global-provider path
+    pick up cross-worker settings changes without an explicit force_new.
+    Never includes a credential: callers resolve API keys separately inside
+    _build_client at build time.
+    """
+    if provider_key == PROVIDER_ANTHROPIC:
+        return (provider_key, None)
+    if provider_key == PROVIDER_OPENROUTER:
+        return (provider_key, base_url or OPENROUTER_BASE_URL)
+    if provider_key in PROVIDERS_NON_ANTHROPIC:
+        raw = base_url or get_effective_base_url()
+        return (provider_key, _normalize_base_url_for_provider(provider_key, raw))
+    return (provider_key, base_url)
+
+
 def _current_config_key() -> str:
     """Stable identifier for the *current* effective LLM client config.
 
     Used by ``get_llm_client`` to detect cross-worker settings changes. Each
-    gunicorn worker has its own ``_cached_client``; only the worker that
-    handled a settings PUT runs ``force_new``. Other workers must notice the
-    change at next call and rebuild themselves -- otherwise requests routed
-    to a sibling worker keep hitting the previous provider/base_url.
+    gunicorn worker has its own client cache; only the worker that handled a
+    settings PUT runs ``force_new``. Other workers must notice the change at
+    next call and rebuild themselves -- otherwise requests routed to a
+    sibling worker keep hitting the previous provider/base_url.
     """
     provider = get_effective_provider()
     if provider == PROVIDER_ANTHROPIC:
         return "anthropic"
-    if provider == PROVIDER_OPENROUTER:
-        return f"openrouter:{OPENROUTER_BASE_URL}"
-    if provider in PROVIDERS_NON_ANTHROPIC:
-        base = _normalize_base_url_for_provider(provider, get_effective_base_url())
-        return f"{provider}:{base}"
-    return f"unknown:{provider}"
+    if provider != PROVIDER_OPENROUTER and provider not in PROVIDERS_NON_ANTHROPIC:
+        return f"unknown:{provider}"
+    _, base = _resolve_cache_key(provider)
+    return f"{provider}:{base}"
 
-# Circuit breaker for LLM API calls (one per process, shared across threads).
-# cause_classifier is a lazy lambda (not `is_auth_error` directly) because
-# that function is defined further down this module; the name is only
-# resolved when the breaker actually opens, well after import completes.
-_llm_circuit_breaker = CircuitBreaker(
-    "llm-api", failure_threshold=5, recovery_timeout=60,
-    cause_classifier=lambda error: is_auth_error(error))
+
+def _get_circuit_breaker_for_provider(provider_key: str) -> CircuitBreaker:
+    """Return (creating if needed) the per-provider circuit breaker.
+
+    Isolated per provider so an outage on one does not open another's --
+    concurrent phases routed to different providers must fail independently.
+    cause_classifier is a lazy lambda (not `is_auth_error` directly) because
+    that function is defined further down this module.
+    """
+    with _circuit_breaker_lock:
+        cb = _circuit_breakers.get(provider_key)
+        if cb is None:
+            cb = CircuitBreaker(
+                f"llm-api:{provider_key}", failure_threshold=5, recovery_timeout=60,
+                cause_classifier=lambda error: is_auth_error(error))
+            _circuit_breakers[provider_key] = cb
+        return cb
 
 # Per-run token accumulator, keyed by run_context (one per thread's run):
 # pool workers (ad-detection windows, reviewer batches) are bound to their
@@ -1543,9 +1581,56 @@ def _record_token_usage(model: str, usage: dict):
         ctx.tokens.add(input_tokens, output_tokens, cost)
 
 
+def get_client_for_provider(provider_key: str, base_url: str | None = None,
+                            force_new: bool = False) -> LLMClient:
+    """Cache-per-(provider, base) client with usage callback + a per-provider
+    circuit breaker attached. Concurrent phases on different providers each
+    get their own client and breaker, so an outage on one provider does not
+    open another's breaker.
+
+    ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
+    providers (used by per-phase routing); omit it to use the effective
+    setting, which is also what makes the cache auto-invalidate on a
+    cross-worker settings change (see ``_current_config_key``). Credentials
+    are resolved inside ``_build_client`` at build time from provider_key --
+    never put an API key in the cache key.
+
+    force_new=True also flushes the provider settings cache.
+    """
+    if force_new:
+        _clear_provider_cache()
+        _clear_model_list_cache()
+
+    with _client_lock:
+        cache_key = _resolve_cache_key(provider_key, base_url)
+        cached = _client_cache.get(cache_key)
+        if cached is not None and not force_new:
+            return cached
+
+        if cached is not None:
+            logger.info(f"LLM config changed for provider '{provider_key}', rebuilding client")
+
+        client = _build_client(provider_key, base_url)
+        if client is None:
+            logger.error(
+                f"Unknown LLM provider '{provider_key}' (valid values: anthropic, "
+                "openrouter, openai-compatible, ollama), defaulting to anthropic"
+            )
+            client = AnthropicClient()
+
+        client.set_usage_callback(_record_token_usage)
+        client.set_circuit_breaker(_get_circuit_breaker_for_provider(provider_key))
+        _client_cache[cache_key] = client
+        logger.info(f"LLM client initialized for provider '{provider_key}': {client.get_provider_name()}")
+        return client
+
+
 def get_llm_client(force_new: bool = False) -> LLMClient:
     """
-    Factory function that returns the appropriate LLM client based on config.
+    Factory function that returns the client for the globally configured
+    provider. Deprecated for per-phase calls -- resolve a Route via
+    llm_route.resolve_route and call get_client_for_provider directly so
+    each phase gets its own cached client and circuit breaker.
 
     The client is cached for reuse. Use force_new=True to create a fresh client
     (also flushes the provider settings cache). The cache also auto-invalidates
@@ -1568,42 +1653,7 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
     Returns:
         LLMClient instance
     """
-    global _cached_client, _cached_client_config_key
-
-    if force_new:
-        _clear_provider_cache()
-        _clear_model_list_cache()
-
-    with _client_lock:
-        current_key = _current_config_key()
-        if (
-            _cached_client is not None
-            and not force_new
-            and _cached_client_config_key == current_key
-        ):
-            return _cached_client
-
-        if _cached_client is not None and _cached_client_config_key != current_key:
-            logger.info(
-                f"LLM config changed ({_cached_client_config_key!r} -> {current_key!r}),"
-                " rebuilding client"
-            )
-
-        provider = get_effective_provider()
-
-        _cached_client = _build_client(provider)
-        if _cached_client is None:
-            logger.error(
-                f"Unknown LLM_PROVIDER '{provider}' (valid values: anthropic, "
-                "openrouter, openai-compatible, ollama), defaulting to anthropic"
-            )
-            _cached_client = AnthropicClient()
-
-        _cached_client.set_usage_callback(_record_token_usage)
-        _cached_client.set_circuit_breaker(_llm_circuit_breaker)
-        _cached_client_config_key = current_key
-        logger.info(f"LLM client initialized: {_cached_client.get_provider_name()}")
-        return _cached_client
+    return get_client_for_provider(get_effective_provider(), force_new=force_new)
 
 
 # OpenCode Go and Zen route a session's requests to one backend for prompt
@@ -1619,14 +1669,20 @@ def _opencode_headers(base_url: str) -> dict[str, str]:
     return {'x-opencode-session': _OPENCODE_SESSION_ID, 'x-opencode-client': 'minuspod'}
 
 
-def _build_client(provider: str) -> LLMClient | None:
-    """Build an LLM client for a given provider without caching."""
+def _build_client(provider: str, base_url: str | None = None) -> LLMClient | None:
+    """Build an LLM client for a given provider without caching.
+
+    ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
+    providers (used by per-provider routing); when omitted, the effective
+    setting is used as before. Credentials always resolve here, from
+    provider_key, at build time.
+    """
     if provider == PROVIDER_ANTHROPIC:
         return AnthropicClient()
     elif provider == PROVIDER_OPENROUTER:
         api_key = get_effective_openrouter_api_key() or 'not-needed'
         return OpenAICompatibleClient(
-            base_url=OPENROUTER_BASE_URL,
+            base_url=base_url or OPENROUTER_BASE_URL,
             api_key=api_key,
             extra_headers={
                 'HTTP-Referer': OPENROUTER_HTTP_REFERER,
@@ -1634,16 +1690,16 @@ def _build_client(provider: str) -> LLMClient | None:
             }
         )
     elif provider in PROVIDERS_NON_ANTHROPIC:
-        raw_base_url = get_effective_base_url()
-        base_url = _normalize_base_url_for_provider(provider, raw_base_url)
+        raw_base_url = base_url or get_effective_base_url()
+        normalized_base_url = _normalize_base_url_for_provider(provider, raw_base_url)
         if provider == PROVIDER_OLLAMA:
-            if base_url != raw_base_url:
-                logger.info(f"Ollama provider: normalized base_url to {safe_url_for_log(base_url)}")
+            if normalized_base_url != raw_base_url:
+                logger.info(f"Ollama provider: normalized base_url to {safe_url_for_log(normalized_base_url)}")
             api_key = get_effective_ollama_api_key() or 'not-needed'
         else:
             api_key = get_effective_openai_api_key()
-        return OpenAICompatibleClient(base_url=base_url, api_key=api_key,
-                                      extra_headers=_opencode_headers(base_url))
+        return OpenAICompatibleClient(base_url=normalized_base_url, api_key=api_key,
+                                      extra_headers=_opencode_headers(normalized_base_url))
     return None
 
 
@@ -1895,7 +1951,7 @@ def check_llm_connectivity(timeout: float = 5.0) -> bool:
         logger.debug(f"LLM connectivity probe failed: {e}")
         return False
     if reachable:
-        _llm_circuit_breaker.reset()
+        _get_circuit_breaker_for_provider(get_effective_provider()).reset()
     return reachable
 
 
