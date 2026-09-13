@@ -1508,12 +1508,7 @@ def get_episode_token_totals() -> dict:
 
 
 def get_last_episode_token_totals() -> dict:
-    """Return the calling run's most recently collected totals.
-
-    Non-destructive: unlike get_episode_token_totals() this never resets the
-    accumulator, so late readers (provider budget reconciliation) see the same
-    number the history path already captured instead of reading a zeroed one.
-    """
+    """Return the calling run's most recently collected token totals."""
     ctx = run_context.current()
     if ctx is None:
         return {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}

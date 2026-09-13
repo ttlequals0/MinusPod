@@ -53,6 +53,16 @@ def test_unknown_outcome_remains_charged_and_accepts_late_reconciliation(temp_db
     assert status['reservedMicrousd'] == 0
 
 
+def test_reconciled_spend_counts_against_daily_limit(temp_db):
+    _enable_budget(temp_db, limit=12_000, reserve=12_000)
+    reservation = temp_db.reserve_provider_spend('anthropic', None)
+    assert reservation['allowed']
+    assert temp_db.reconcile_provider_spend(reservation['reservation_id'], 12_000)
+    denied = temp_db.reserve_provider_spend('anthropic', 1)
+    assert not denied['allowed']
+    assert denied['reason'] == 'daily_budget'
+
+
 def test_release_requires_a_definitive_no_charge_outcome(temp_db):
     _enable_budget(temp_db)
     result = temp_db.reserve_provider_spend('anthropic', 100_000)

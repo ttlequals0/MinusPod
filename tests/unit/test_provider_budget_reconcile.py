@@ -1,9 +1,4 @@
-"""Regression: provider budget reconcile must see collected totals, not zeros.
-
-get_episode_token_totals() is one-shot and destructive, so the history path
-consumes the accumulator first and a second destructive read reconciles 0.
-The budget path must use the non-destructive get_last_episode_token_totals().
-"""
+"""Provider-budget reconciliation retains collected token totals."""
 
 import threading
 
@@ -14,19 +9,31 @@ from llm_client import (
 )
 
 
-def test_last_totals_survives_collect_and_reset():
+def test_last_totals_survives_inactive_collection():
     ctx = run_context.begin('feed', 'ep1')
     try:
         ctx.tokens.start()
-        ctx.tokens.add(166117, 596, 0.068906)
+        ctx.tokens.add(120, 30, 0.012)
         first = ctx.tokens.collect_and_reset()
         assert first == {
-            'input_tokens': 166117, 'output_tokens': 596, 'cost': 0.068906}
-        # Late reader still sees the real totals after the reset.
+            'input_tokens': 120, 'output_tokens': 30, 'cost': 0.012}
         assert ctx.tokens.last_totals() == first
-        assert ctx.tokens.last_totals()['cost'] != 0.0
         second = ctx.tokens.collect_and_reset()
         assert second == {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+        assert ctx.tokens.last_totals() == first
+    finally:
+        run_context.end(ctx)
+
+
+def test_start_clears_previous_run_snapshot():
+    ctx = run_context.begin('feed', 'ep1')
+    try:
+        ctx.tokens.start()
+        ctx.tokens.add(120, 30, 0.012)
+        ctx.tokens.collect_and_reset()
+        ctx.tokens.start()
+        assert ctx.tokens.last_totals() == {
+            'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
     finally:
         run_context.end(ctx)
 
@@ -48,14 +55,12 @@ def test_budget_reconcile_sees_history_totals():
     ctx = run_context.begin('feed', 'ep1')
     try:
         ctx.tokens.start()
-        ctx.tokens.add(166117, 596, 0.068906)
-        # History path consumes the accumulator first (one-shot).
+        ctx.tokens.add(120, 30, 0.012)
         history = get_episode_token_totals()
-        assert history['cost'] == 0.068906
-        # Budget reconcile reads the same number non-destructively.
+        assert history['cost'] == 0.012
         late = get_last_episode_token_totals()
         assert late == history
-        assert late['cost'] == 0.068906
+        assert late['cost'] == 0.012
     finally:
         run_context.end(ctx)
 
