@@ -359,7 +359,7 @@ def background_queue_processor():
     from offline_queue import offline_queue_tick
     from processing_queue import ProcessingQueue
     from rate_limit_hold import (
-        get_hold_until, hold_is_active, probe_rate_limit, rate_limit_hold_tick,
+        get_any_active_hold, probe_rate_limit, rate_limit_hold_tick,
     )
     refresh_logger.info("Auto-process queue processor started")
     registry = ProcessingQueue()
@@ -403,9 +403,13 @@ def background_queue_processor():
                     running.discard(waiter)
 
             # Rate-limit pause gate (#696): every claim waits for the
-            # provider's reset, then the tick drops the stale marker.
-            hold_until = get_hold_until(db)
-            if hold_is_active(hold_until):
+            # provider's reset, then the tick drops the stale marker. Any
+            # active hold pauses the dispatcher as a unit, legacy or
+            # provider-scoped; the per-run admission check in
+            # start_background_processing is what keeps a run on a
+            # different, healthy provider from being blocked by this.
+            hold_until, _ = get_any_active_hold(db)
+            if hold_until:
                 if not rate_limit_pause_logged:
                     refresh_logger.info(
                         "Queue paused: LLM provider rate limit; waiting for reset")
@@ -416,8 +420,7 @@ def background_queue_processor():
                 shutdown_event.wait(timeout=30)
                 continue
             rate_limit_pause_logged = False
-            if hold_until:
-                _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
+            _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
 
             # Refreshed every pass (cheap: the settings reader has its own
             # TTL) so an operator raising max_episodes takes effect without

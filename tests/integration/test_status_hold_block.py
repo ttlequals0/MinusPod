@@ -95,6 +95,24 @@ def test_a_future_reset_time_reports_the_queue_as_paused(clean_hold, app_client)
     assert hold['holdUntil'] == reset_at
 
 
+def test_a_provider_scoped_hold_reports_the_queue_as_paused(clean_hold, app_client):
+    """A single-provider install's real 429s land on a provider-scoped key
+    (checkpoint 02 task 4), not the legacy one; /status must still report
+    it as a pause instead of reading False/null against an unused key."""
+    from rate_limit_hold import clear_hold, record_hold_until
+    from utils.time import utc_now
+
+    reset_at = (utc_now() + timedelta(minutes=30)).isoformat()
+    record_hold_until(clean_hold, 'anthropic', reset_at)
+    try:
+        hold = _hold(app_client)
+    finally:
+        clear_hold(clean_hold, 'anthropic')
+
+    assert hold['queuePaused'] is True
+    assert hold['holdUntil'] == reset_at
+
+
 def test_a_past_reset_time_is_not_a_pause(clean_hold, app_client):
     from rate_limit_hold import HOLD_UNTIL_KEY
     from utils.time import utc_now

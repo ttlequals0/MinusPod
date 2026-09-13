@@ -23,10 +23,12 @@ from main_app.processing import (
 from rate_limit_hold import (
     clear_hold_for_provider_change,
     get_active_hold,
+    get_any_active_hold,
     hold_message,
     hold_queue_for_provider_limit,
     is_queue_paused,
     is_rate_limit_hold_enabled,
+    probe_rate_limit,
     rate_limit_hold_tick,
     record_hold_until,
 )
@@ -438,15 +440,33 @@ class TestProviderScopedAdmission:
     def test_no_cross_provider_fallback_when_reviewer_provider_is_held(
             self, monkeypatch, seeded_episode):
         """Detection/verification/chapters are healthy on provider-b; only
-        the reviewer's provider-a is held. The run must still be refused
-        wholesale, not started with review silently skipped or rerouted."""
+        the reviewer's provider-a is held. With the reviewer enabled and in
+        use, the run must still be refused wholesale, not started with
+        review silently skipped or rerouted."""
+        db.set_setting('enable_ad_review', 'true')
+        try:
+            future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            record_hold_until(db, 'provider-a', future)
+            snapshot = _phase_snapshot(detection='provider-b', review='provider-a',
+                                       verification='provider-b', chapters='provider-b')
+            started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-reviewer')
+        finally:
+            db.set_setting('enable_ad_review', 'false')
+        assert started is False
+        assert reason == 'rate_limit_paused'
+
+    def test_disabled_reviewer_provider_does_not_count_toward_admission(
+            self, monkeypatch, seeded_episode):
+        """enable_ad_review is off by default: a held review_provider must
+        not refuse a run that will never actually call the reviewer."""
+        assert db.get_setting('enable_ad_review') in (None, '', 'false')
         future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
         record_hold_until(db, 'provider-a', future)
         snapshot = _phase_snapshot(detection='provider-b', review='provider-a',
                                    verification='provider-b', chapters='provider-b')
-        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-reviewer')
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-disabled-review')
         assert started is False
-        assert reason == 'rate_limit_paused'
+        assert reason == 'queue_busy'  # past the hold gate; acquire() is the stub
 
     def test_legacy_global_hold_still_blocks_every_provider(self, monkeypatch, seeded_episode):
         """A hold recorded by pre-migration code (the bare, unscoped key)
@@ -585,6 +605,46 @@ class TestTick:
         db.set_setting('rate_limit_hold_until', future)
         rate_limit_hold_tick(db)
         assert is_queue_paused(db) is True
+
+
+class TestProviderScopedPauseProbeAndTick:
+    """A single-provider install's real 429s land on a provider-scoped key
+    (record_hold_until(db, 'anthropic', ...)), not the legacy one. The
+    dispatcher's blanket pause, the early-recovery probe, and the tick's
+    cleanup must all still react to that hold exactly as they do for a
+    legacy one. TestPauseGate/TestTick above only exercise
+    record_hold_until(db, None, ...) and would miss this regression.
+    """
+
+    def test_any_active_hold_reports_a_provider_scoped_pause(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)
+        hold_until, hold_since = get_any_active_hold(db)
+        assert hold_until == future
+        assert hold_since
+        assert is_queue_paused(db) is False  # legacy key untouched
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_probe_clears_the_effective_providers_own_key(self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)
+        db.set_setting('llm_usage_url', 'https://example-provider.test/v1/usage')
+        db.clear_setting('rate_limit_probe_at')
+        db.set_setting('rate_limit_probe_minutes', '5')
+        with patch('rate_limit_hold.get_effective_provider', return_value='anthropic'), \
+             patch('rate_limit_hold.read_usage_status', return_value={'blocked': False}):
+            assert probe_rate_limit(db) is True
+        assert is_queue_paused(db, 'anthropic') is False
+        mock_fire.assert_called_once()
+        db.clear_setting('llm_usage_url')
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_tick_clears_an_expired_provider_scoped_marker(self, mock_fire, seeded_episode):
+        past = (datetime.now(timezone.utc) - timedelta(seconds=5)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', past)
+        rate_limit_hold_tick(db)
+        assert is_queue_paused(db, 'anthropic') is False
+        mock_fire.assert_called_once()
 
 
 class TestToggleDefault:

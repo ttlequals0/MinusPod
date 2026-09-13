@@ -418,6 +418,8 @@ Only a reset further out than five minutes triggers a hold. Shorter ones keep th
 
 While a hold is active, a probe re-checks it instead of waiting out the provider's stated reset. With a usage endpoint configured it is checked first and can clear the hold early or push it out to a fresher reset; without one, a single minimal completion call does the same check.
 
+A hold on one provider is lifted automatically when you update that provider's own credentials in Settings > Providers, or when you turn this toggle off. Changing several provider settings together in one save does not clear a hold that belongs to just one of them.
+
 ## Whisper Pool
 
 Off by default. With a remote Whisper backend (`WHISPER_BACKEND=openai-api`)

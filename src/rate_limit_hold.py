@@ -16,17 +16,22 @@ resolve which provider hit the limit, still pauses the queue.
 While a hold is active, probe_rate_limit() periodically re-checks it: an
 operator-configured usage URL (tier 1) or a minimal LLM completion (tier 2)
 can clear the hold early or re-stamp it with a fresher reset, since the
-429's own stated reset can be wrong in either direction. The probe and the
-dispatcher's blanket pause still only watch the legacy unscoped key; a
-provider-scoped hold recovers by natural expiry (its reset time passing)
-instead.
+429's own stated reset can be wrong in either direction. The probe targets
+whichever key (the effective provider's own marker, or the legacy one) is
+actually the active source, so a single-provider install's real
+provider-scoped hold still gets probed, logged, and resumed exactly as
+before. The dispatcher's blanket pause and the tick's cleanup react to any
+active hold, legacy or provider-scoped, as a unit.
 """
 import logging
 from datetime import timedelta
 
 from config import coerce_bool_setting
 from database.settings import registry_current_value, registry_default
-from llm_client import extract_retry_after, get_llm_client, is_rate_limit_error
+from llm_client import (
+    extract_retry_after, get_effective_provider, get_llm_client,
+    is_rate_limit_error,
+)
 from utils.safe_http import safe_get, URLTrust
 from utils.time import ISO_FORMAT, epoch_to_iso, parse_iso_utc, utc_now, utc_now_iso
 from webhook_service import fire_queue_held_event, fire_queue_resumed_event
@@ -141,6 +146,30 @@ def _provider_hold_suffixes(db) -> list[str]:
         return []
 
 
+def get_any_active_hold(db) -> tuple[str | None, str | None]:
+    """(hold_until, hold_since) for whichever active hold, the legacy
+    marker or any provider-scoped one, resets latest, or (None, None)
+    when nothing is held.
+
+    For callers that react to "is anything held" as a single unit without
+    resolving a specific provider: the dispatcher's blanket pause/log/probe
+    trigger and /status reporting. NOT for admission, which must check the
+    run's own required provider(s) via is_queue_paused(db, provider_key) --
+    this would incorrectly treat an unrelated provider's hold as blocking.
+    """
+    candidates = []
+    legacy_until, legacy_since = get_active_hold(db)
+    if legacy_until:
+        candidates.append((legacy_until, legacy_since))
+    for provider in _provider_hold_suffixes(db):
+        provider_until = get_hold_until(db, provider)
+        if hold_is_active(provider_until):
+            candidates.append((provider_until, db.get_setting(_hold_since_key(provider)) or None))
+    if not candidates:
+        return None, None
+    return max(candidates, key=lambda pair: parse_iso_utc(pair[0]))
+
+
 def any_hold_active(db) -> bool:
     """True while the legacy hold or any provider-scoped hold is active.
 
@@ -149,9 +178,7 @@ def any_hold_active(db) -> bool:
     hatch. Not scoped enough to gate a start: admission must check the
     run's own required provider(s) via is_queue_paused(db, provider_key).
     """
-    if is_queue_paused(db):
-        return True
-    return any(is_queue_paused(db, provider) for provider in _provider_hold_suffixes(db))
+    return get_any_active_hold(db)[0] is not None
 
 
 def clear_all_holds(db) -> str | None:
@@ -191,16 +218,18 @@ def clear_hold_for_provider_change(db, reason: str, *,
     return True
 
 
-def clear_hold_if_unchanged(db, hold_until: str) -> tuple[bool, str | None]:
-    """Drop the pause only while the marker still reads `hold_until`.
+def clear_hold_if_unchanged(db, hold_until: str,
+                            provider_key: str | None = None) -> tuple[bool, str | None]:
+    """Drop provider_key's pause only while its marker still reads `hold_until`.
 
     A 429 landing between a caller's read and this call owns a newer marker,
     and resuming on it would put the queue straight back into the limit.
     """
-    held_since = db.get_setting(HOLD_SINCE_KEY)
-    if not db.clear_setting_if_equal(HOLD_UNTIL_KEY, hold_until):
+    since_key = _hold_since_key(provider_key)
+    held_since = db.get_setting(since_key)
+    if not db.clear_setting_if_equal(_hold_until_key(provider_key), hold_until):
         return False, None
-    db.clear_setting(HOLD_SINCE_KEY)
+    db.clear_setting(since_key)
     db.clear_setting(RATE_LIMIT_PROBE_AT_KEY)
     return True, held_since
 
@@ -259,11 +288,19 @@ def hold_message(hold_until: str | None, error) -> str:
 
 
 def rate_limit_hold_tick(db) -> None:
-    """Clear a pause marker whose reset time has passed."""
-    hold_until = get_hold_until(db)
+    """Clear every pause marker (legacy and provider-scoped) whose reset
+    time has passed, firing one resumed event per marker actually cleared.
+    """
+    _tick_one(db, None)
+    for provider in _provider_hold_suffixes(db):
+        _tick_one(db, provider)
+
+
+def _tick_one(db, provider_key: str | None) -> None:
+    hold_until = get_hold_until(db, provider_key)
     if not hold_until or hold_is_active(hold_until):
         return
-    cleared, held_since = clear_hold_if_unchanged(db, hold_until)
+    cleared, held_since = clear_hold_if_unchanged(db, hold_until, provider_key)
     if not cleared:
         return
     logger.info("Rate-limit hold: queue pause lifted after provider reset")
@@ -368,7 +405,18 @@ def _warn_probe_failure(hold_until: str, message: str) -> None:
     logger.warning(message)
 
 
-def _probe_usage_url(db, usage_url: str, hold_until: str) -> bool | None:
+def _clear_probed_hold(db, provider_key: str | None) -> str | None:
+    """Clear the key the probe found active, plus the legacy marker when
+    provider_key is a real provider (belt-and-suspenders for an unmigrated
+    legacy hold that may belong to the same account)."""
+    held_since = clear_hold(db, provider_key)
+    if provider_key is not None:
+        clear_hold(db)
+    return held_since
+
+
+def _probe_usage_url(db, usage_url: str, hold_until: str,
+                     provider_key: str | None) -> bool | None:
     """Tier 1: check the operator's usage endpoint.
 
     Returns True when the hold was cleared or re-stamped from this
@@ -381,14 +429,14 @@ def _probe_usage_url(db, usage_url: str, hold_until: str) -> bool | None:
         return None
     blocked = payload.get('blocked')
     if blocked is False:
-        held_since = clear_hold(db)
+        held_since = _clear_probed_hold(db, provider_key)
         fire_queue_resumed_event(held_since=held_since)
         logger.info("Rate-limit probe: usage endpoint reports clear; resuming queue")
         return True
     if blocked is True:
         reset_iso = usage_reset_iso(payload)
         if reset_iso is not None:
-            record_hold_until(db, None, reset_iso, force=True)
+            record_hold_until(db, provider_key, reset_iso, force=True)
             logger.info(f"Rate-limit probe: usage endpoint re-stamped hold to {reset_iso}")
             return True
         _warn_probe_failure(
@@ -399,7 +447,7 @@ def _probe_usage_url(db, usage_url: str, hold_until: str) -> bool | None:
     return None
 
 
-def _probe_via_completion(db) -> bool:
+def _probe_via_completion(db, provider_key: str | None) -> bool:
     """Tier 2: one minimal completion through the configured LLM client."""
     model = db.get_setting('claude_model')
     if not model:
@@ -415,12 +463,12 @@ def _probe_via_completion(db) -> bool:
             hold_after = extract_retry_after(e, max_seconds=MAX_RESET_SECONDS)
             if hold_after is not None:
                 hold_until_iso = (utc_now() + timedelta(seconds=max(0.0, hold_after))).strftime(ISO_FORMAT)
-                record_hold_until(db, None, hold_until_iso, force=True)
+                record_hold_until(db, provider_key, hold_until_iso, force=True)
                 logger.info(f"Rate-limit probe: completion probe re-stamped hold to {hold_until_iso}")
             return False
         logger.debug(f"Rate-limit probe: completion probe failed, leaving hold: {e}")
         return False
-    held_since = clear_hold(db)
+    held_since = _clear_probed_hold(db, provider_key)
     fire_queue_resumed_event(held_since=held_since)
     logger.info("Rate-limit probe: completion probe succeeded; resuming queue")
     return True
@@ -439,8 +487,27 @@ def probe_rate_limit(db) -> bool:
         return False
 
 
+def _active_hold_source(db) -> tuple[str | None, str | None]:
+    """(hold_until, provider_key) for the marker the probe should act on.
+
+    The effective (currently in-use) provider's own marker wins when it is
+    active: that is the account the usage URL/completion probe below
+    actually tests. Otherwise fall back to the legacy marker, so a
+    single-provider install (whose real holds land on this key today) and
+    a not-yet-migrated hold both keep working exactly as before.
+    """
+    provider = get_effective_provider()
+    provider_until = get_hold_until(db, provider)
+    if hold_is_active(provider_until):
+        return provider_until, provider
+    legacy_until = get_hold_until(db)
+    if hold_is_active(legacy_until):
+        return legacy_until, None
+    return None, None
+
+
 def _probe_rate_limit(db) -> bool:
-    hold_until, _ = get_active_hold(db)
+    hold_until, provider_key = _active_hold_source(db)
     if not hold_until:
         return False
     minutes = get_rate_limit_probe_minutes(db)
@@ -453,8 +520,8 @@ def _probe_rate_limit(db) -> bool:
 
     usage_url = get_llm_usage_url(db)
     if usage_url:
-        result = _probe_usage_url(db, usage_url, hold_until)
+        result = _probe_usage_url(db, usage_url, hold_until, provider_key)
         if result is not None:
             return result
 
-    return _probe_via_completion(db)
+    return _probe_via_completion(db, provider_key)

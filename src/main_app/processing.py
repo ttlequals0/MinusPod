@@ -416,7 +416,7 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
     # even while a different provider is held, and a run needing a held
     # provider is refused before it can spend a call on a healthy one it
     # cannot finish with.
-    required_providers = _required_providers_for_admission()
+    required_providers = _required_providers_for_admission(slug)
     if required_providers is None:
         if is_queue_paused(db):
             return False, "rate_limit_paused"
@@ -4981,15 +4981,50 @@ def _persist_route_snapshot(run_id: str, snapshot: dict) -> None:
         audio_logger.warning(f"Could not persist route snapshot for run {run_id}: {exc}")
 
 
-def _required_providers_for_admission() -> list[str] | None:
-    """Distinct provider_keys this run's phases would resolve to right now,
-    or None when resolution fails (admission then falls back to the legacy
-    unscoped hold check, a safe superset of any real per-provider hold).
+def _chapters_enabled_for_admission(settings_db, slug: str) -> bool:
+    """Whether this run's chapter step could call the chapters LLM at all.
+
+    Mirrors the two settings that turn chapters off outright: the global
+    chapters_enabled flag and the per-feed chapters_mode. Fails open (True)
+    on any lookup problem or an unresolved/'auto' mode, since counting an
+    unused provider as required is always the safe direction; only a
+    definite 'off' excludes it.
+    """
+    chapters_enabled = settings_db.get_setting('chapters_enabled')
+    if chapters_enabled is not None and chapters_enabled.lower() != 'true':
+        return False
+    try:
+        podcast_row = settings_db.get_podcast_by_slug(slug)
+    except Exception:
+        return True
+    return resolve_chapters_mode(podcast_row) != CHAPTERS_MODE_OFF
+
+
+def _required_providers_for_admission(slug: str) -> list[str] | None:
+    """Distinct provider_keys this run's *enabled* phases would resolve to
+    right now, or None when resolution fails (admission then falls back to
+    the legacy unscoped hold check, a safe superset of any real per-provider
+    hold).
+
+    A phase whose feature is off for this run is excluded: a held provider
+    that this run will never actually call must not refuse it.
     """
     snapshot = _resolve_route_snapshot()
     if snapshot is None:
         return None
-    return list({route['provider_key'] for route in snapshot.values()})
+    active_phases = dict(snapshot)
+    try:
+        settings_db = Database()
+        if not _ad_review_enabled(settings_db):
+            active_phases.pop('review', None)
+        if not _chapters_enabled_for_admission(settings_db, slug):
+            active_phases.pop('chapters', None)
+    except Exception as exc:
+        # Fail open to the full (unfiltered) phase set: overcounting a
+        # provider as required is the safe direction, a crash here is not.
+        audio_logger.warning(f"Could not resolve phase enablement for admission: {exc}")
+        active_phases = dict(snapshot)
+    return list({route['provider_key'] for route in active_phases.values()})
 
 
 def _resolve_route_snapshot() -> dict | None:
