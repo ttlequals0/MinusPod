@@ -273,15 +273,21 @@ def list_episodes(slug):
         episodes, total = db.get_episodes(slug, status=status, limit=limit, offset=offset,
                                           sort_by=sort_by, sort_dir=sort_dir)
 
+    # One batched lookup for the whole page rather than one query per row.
+    pending_queue_keys = db.get_pending_queue_keys([ep['episode_id'] for ep in episodes])
+
     episode_list = []
     for ep in episodes:
         source_slug = ep.get('source_slug')
+        owner_slug = source_slug or slug
         item = _episode_base_json(
-            ep, slug=source_slug or slug,
+            ep, slug=owner_slug,
             is_local=(ep.get('source_feed_type') == 'local') if source_slug else is_local,
             storage=storage)
         item['ad_count'] = ep['ads_removed']
         item['episodeNumber'] = ep.get('episode_number')
+        item['jobState'] = _job_state(
+            item['status'], (owner_slug, ep['episode_id']) in pending_queue_keys)
         if source_slug:
             item['feedSlug'] = source_slug
             item['feedTitle'] = ep['source_title']
@@ -327,6 +333,16 @@ def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
     if not storage.has_episode_artwork(slug, ep['episode_id']):
         return None
     return f"/api/v1/feeds/{slug}/episodes/{ep['episode_id']}/artwork"
+
+
+def _job_state(status, has_queue_row):
+    """Authoritative jobState, derived from live queue state rather than the
+    stored lifecycle status ('submitting' is a client-only transient)."""
+    if status == EpisodeStatus.PROCESSING:
+        return 'processing'
+    if has_queue_row:
+        return 'queued'
+    return 'idle'
 
 
 def _episode_base_json(ep, *, slug=None, is_local=False, storage=None):
@@ -551,6 +567,8 @@ def get_episode(slug, episode_id):
     base['chapterNotes'] = (format_chapter_block(episode.get('chapters_json'))
                             if resolve_chapters_in_notes(db, podcast) else '')
     status = base['status']
+    pending_queue_keys = db.get_pending_queue_keys([episode_id])
+    base['jobState'] = _job_state(status, (slug, episode_id) in pending_queue_keys)
 
     # Get file size and Podcasting 2.0 asset availability if processed
     file_size = None

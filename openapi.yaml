@@ -10331,6 +10331,10 @@ components:
         status:
           type: string
           enum: [discovered, pending, processing, completed, failed, permanently_failed, deferred]
+        jobState:
+          type: string
+          enum: [idle, submitting, queued, processing]
+          description: Authoritative queue/run state, derived from live queue rows rather than the stored status. A pending episode with no queue row reports idle, not queued. The server never returns submitting; that value is a client-only placeholder used right after a request is sent, before the server confirms queued or processing.
         createdAt:
           type: string
           format: date-time

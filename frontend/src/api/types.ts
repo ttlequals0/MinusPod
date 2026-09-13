@@ -184,6 +184,10 @@ export interface Episode {
   published: string;
   duration?: number;
   status: EpisodeStatusKey;
+  // Authoritative queue/run state, derived server-side from live queue rows
+  // (distinct from `status`, which is the stored lifecycle value). Absent on
+  // older cached responses; 'submitting' is a client-only optimistic state.
+  jobState?: 'idle' | 'submitting' | 'queued' | 'processing';
   ad_count?: number;
   hasOriginalAudio?: boolean;
   pendingReviewCount?: number;

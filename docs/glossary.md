@@ -138,6 +138,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## Q
 
+**Queued** - An episode with an actual row in the processing queue, waiting its turn. Not every *pending* episode is queued: pending only means "not yet processed," while queued means work is scheduled to start. The episode API's `jobState` field reports this directly, rather than leaving callers to infer it from `status`. [How It Works > Processing Queue](how-it-works.md#processing-queue)
+
 **Queue priority** - A per-feed High/Normal/Low processing-order preference, with automatic boosts for episodes published in the last 48 hours and for manual reprocesses. [Configuration > Queue priority](configuration.md#queue-priority)
 
 ## R

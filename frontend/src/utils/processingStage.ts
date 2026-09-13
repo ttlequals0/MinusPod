@@ -45,3 +45,15 @@ export function getStageLabel(stage: string): string {
   }
   return stage;
 }
+
+// Shared eligibility check for actions (reprocess, delete, etc.) that must
+// not run while an episode has a job in flight, including the client-only
+// 'submitting' state right after the request fires and before the server
+// reports 'queued'/'processing'.
+export function isActionBlocked(
+  jobState: 'idle' | 'submitting' | 'queued' | 'processing' | undefined,
+  submitting: boolean,
+): boolean {
+  return submitting || jobState === 'submitting' || jobState === 'queued'
+    || jobState === 'processing';
+}
