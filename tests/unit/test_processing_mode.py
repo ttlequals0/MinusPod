@@ -38,6 +38,7 @@ from config import (
 )
 from ad_detector import AdDetector
 import main_app.processing as processing
+import run_context
 from api.feeds import _normalize_processing_mode, _normalize_detection_mode
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
@@ -87,7 +88,8 @@ class TestResolveFeedProcessingMode:
 def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                    enable_ad_review=False, admission=None,
                    download_error=None, detect_error=None,
-                   token_cost=0.123456):
+                   token_cost=0.012, real_token_tracking=False,
+                   approval_recut=False):
     """Drive process_episode with all stages stubbed (mirrors
     test_skip_ad_detection's harness) and return the interesting mocks."""
     with ExitStack() as stack:
@@ -98,10 +100,11 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         audio_processor = p(processing, 'audio_processor')
         p(processing.ad_detector, 'get_model', return_value='test-model')
         p(processing.ad_detector, 'get_verification_model', return_value='test-model')
-        p(processing, 'start_episode_token_tracking')
-        p(processing, 'get_episode_token_totals', return_value={
-            'input_tokens': 1, 'output_tokens': 1, 'cost': token_cost,
-        })
+        if not real_token_tracking:
+            p(processing, 'start_episode_token_tracking')
+            p(processing, 'get_episode_token_totals', return_value={
+                'input_tokens': 1, 'output_tokens': 1, 'cost': token_cost,
+            })
         p(processing, 'get_available_memory_gb', return_value=None)
         p(processing, 'get_min_cut_confidence', return_value=0.8)
         dat = p(processing, '_download_and_transcribe',
@@ -109,7 +112,16 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         p(processing, '_run_differential_fetch', return_value=None)
         analyze = p(processing, '_run_audio_analysis', return_value=None)
         p(processing, 'load_positional_prior', return_value=None)
-        detect = p(processing, '_detect_ads_first_pass', return_value=([], 0, None))
+        if real_token_tracking:
+            def detect_with_usage(*args, **kwargs):
+                run_context.current().tokens.add(120, 30, token_cost)
+                return [], 0, None
+
+            detect = p(processing, '_detect_ads_first_pass',
+                       side_effect=detect_with_usage)
+        else:
+            detect = p(processing, '_detect_ads_first_pass',
+                       return_value=([], 0, None))
         refine = p(processing, '_refine_and_validate', return_value=([], []))
         reviewer = p(processing, '_run_ad_reviewer', return_value=([], []))
         p(processing, '_snap_terminal_starts', return_value=[])
@@ -118,7 +130,17 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         verify = p(processing, '_run_verification_pass',
                    return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
         p(processing, '_generate_assets')
-        finalize = p(processing, '_finalize_episode')
+        if real_token_tracking:
+            finalize = p(processing, '_finalize_episode',
+                         side_effect=lambda *args, **kwargs:
+                         processing.get_episode_token_totals())
+        else:
+            finalize = p(processing, '_finalize_episode')
+        recut = None
+        if approval_recut:
+            p(processing, '_file_corroborated_hold_approvals', return_value=1)
+            recut = p(processing, '_recut_episode', side_effect=lambda *args, **kwargs:
+                      (processing.get_episode_token_totals(), True)[1])
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
         p(processing.os.path, 'exists', return_value=False)
@@ -149,7 +171,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
             'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
     return {'result': result, 'detect': detect, 'verify': verify,
             'analyze': analyze, 'refine': refine, 'finalize': finalize,
-            'dat': dat, 'db': db, 'reviewer': reviewer}
+            'dat': dat, 'db': db, 'reviewer': reviewer, 'recut': recut}
 
 
 def _row(pt=None, skip=None, mode=None):
@@ -220,11 +242,28 @@ class TestProcessEpisodeModePlumbing:
         m['db'].release_provider_spend.assert_not_called()
 
     def test_provider_reservation_reconciles_actual_cost(self):
-        m = _run_pipeline(_row(), token_cost=0.123456)
-        assert m['result'] is True
-        m['db'].reconcile_provider_spend.assert_called_once_with(
-            'provider-run-1', 123456)
-        m['db'].release_provider_spend.assert_not_called()
+        ctx = run_context.begin('mode-feed', 'ep1')
+        try:
+            m = _run_pipeline(_row(), real_token_tracking=True)
+            assert m['result'] is True
+            m['db'].reconcile_provider_spend.assert_called_once_with(
+                'provider-run-1', 12_000)
+            m['db'].release_provider_spend.assert_not_called()
+        finally:
+            run_context.end(ctx)
+
+    def test_approval_recut_reconciles_actual_cost(self):
+        ctx = run_context.begin('mode-feed', 'ep1')
+        try:
+            m = _run_pipeline(
+                _row(), real_token_tracking=True, approval_recut=True)
+            assert m['result'] is True
+            m['recut'].assert_called_once()
+            m['finalize'].assert_not_called()
+            m['db'].reconcile_provider_spend.assert_called_once_with(
+                'provider-run-1', 12_000)
+        finally:
+            run_context.end(ctx)
 
 
 INVERTED = [{'start': 0.0, 'end': 60.0, 'confidence': 0.9,

@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.96.25] - 2026-09-12
+
+### Fixed
+
+- Provider budget reconciliation retains the completed LLM cost after history records it, with a fresh token snapshot for each run.
+
 ## [2.96.24] - 2026-09-12
 
 ### Fixed
