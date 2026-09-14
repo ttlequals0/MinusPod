@@ -35,7 +35,7 @@ release notes.
 - Run totals in processing history and provider budget reconciliation are now derived from the LLM call ledger instead of an in-process counter. This closes a race where a pool worker finishing just after collection could drop its tokens and cost from the recorded run.
 - A failed correction in the review panel now shows the error only on the action that was clicked (Confirm ad, Confirm trimmed, or Not an ad). The other actions on that row stay normal instead of all showing "Error!".
 - Confirm trimmed now accepts a boundary the ad reviewer already proposed, even when it extends past the originally detected span, instead of returning a 400 error. This closes a case where a reviewer-boundary-conflict hold could not be confirmed.
-- Deleting a podcast now cancels any processing episode and finishes the delete in one request, instead of returning 202 and waiting for the client to retry until the job stops. The delete cascades to the run row, so a worker that never checks in no longer leaves the podcast stuck.
+- Deleting a podcast now cancels any processing episode and finishes the delete in one request, instead of returning 202 and waiting for the client to retry until the job stops (#745). The delete cascades to the run row, so a worker that never checks in no longer leaves the podcast stuck. The delete confirmation now says so when a job is active.
 
 ## [2.96.25] - 2026-09-12
 

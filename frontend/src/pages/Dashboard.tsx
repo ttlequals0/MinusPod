@@ -18,6 +18,7 @@ import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useOutsideClick } from '../hooks/useOutsideClick';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
+import { deleteStopsProcessingMessage } from '../utils/feedTitle';
 import { formatDateTime } from '../utils/format';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
@@ -442,8 +443,15 @@ function Dashboard() {
             </div>
           )}
           {deleteConfirm && (
-            <div className="bg-card border border-border rounded-lg p-4 shadow-lg">
+            <div className="bg-card border border-border rounded-lg p-4 shadow-lg max-w-sm">
               <p className="text-sm text-foreground">Click delete again to confirm</p>
+              {(() => {
+                const processingCount = feeds?.find((f) => f.slug === deleteConfirm)?.statusCounts?.processing ?? 0;
+                const message = deleteStopsProcessingMessage(processingCount);
+                return message && (
+                  <p className="text-sm text-warning mt-1">{message}</p>
+                );
+              })()}
             </div>
           )}
         </div>

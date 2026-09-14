@@ -203,6 +203,34 @@ describe('Dashboard search field', () => {
   });
 });
 
+describe('Dashboard delete confirmation', () => {
+  it('warns that deleting stops the job when an episode is processing', async () => {
+    mockFeedsQueryFn.mockResolvedValueOnce({
+      feeds: [{
+        ...FEED,
+        statusCounts: { discovered: 0, pending: 0, processing: 1, completed: 0, failed: 0, permanently_failed: 0, deferred: 0 },
+      }],
+      lastRefreshCompletedAt: null,
+    });
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete feed' }));
+
+    expect(screen.getByText('An episode is processing right now. Deleting this podcast will stop it.')).toBeDefined();
+  });
+
+  it('does not warn about stopping a job when nothing is processing', async () => {
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete feed' }));
+
+    expect(screen.getByText('Click delete again to confirm')).toBeDefined();
+    expect(screen.queryByText(/Deleting this podcast will stop/)).toBeNull();
+  });
+});
+
 describe('Dashboard loading state', () => {
   afterEach(() => localStorage.removeItem('dashboardViewMode'));
 

@@ -18,7 +18,7 @@ import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import FeedTypeBadge from '../components/FeedTypeBadge';
 import PodpingBadge from '../components/PodpingBadge';
-import { feedDisplayTitle, feedHasUpstream } from '../utils/feedTitle';
+import { feedDisplayTitle, feedHasUpstream, deleteStopsProcessingMessage } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
 import LocalFeedPanel from './feeds/LocalFeedPanel';
 import FeedStatsCards from './feeds/FeedStatsCards';
@@ -285,6 +285,7 @@ function FeedDetail() {
   ).length;
   const hasSelection = selectedIds.size > 0;
   const isRecents = feed?.feedType === 'recents';
+  const stopsProcessingMessage = deleteStopsProcessingMessage(feed?.statusCounts?.processing ?? 0);
 
   if (feedLoading) {
     return (
@@ -848,6 +849,9 @@ function FeedDetail() {
           {deleteConfirm && (
             <div className="bg-card border border-border rounded-lg p-4 shadow-lg max-w-sm">
               <p className="text-sm text-foreground">Click delete again to confirm</p>
+              {stopsProcessingMessage && (
+                <p className="text-sm text-warning mt-1">{stopsProcessingMessage}</p>
+              )}
               {feed?.feedType === 'local' && (
                 <p className="text-sm text-warning mt-1">
                   This is a local feed: the imported originals are the only copy and will be deleted.
