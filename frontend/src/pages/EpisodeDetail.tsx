@@ -960,7 +960,9 @@ function EpisodeDetail() {
 
         {(episode.description || episode.chapterNotes) && (
           <RichText
-            html={(episode.description ?? '') + (episode.chapterNotes ?? '')}
+            html={[episode.description, episode.chapterNotes]
+              .filter((s): s is string => !!s && s.trim().length > 0)
+              .join('\n\n')}
             className="mt-4 block text-muted-foreground wrap-break-word"
           />
         )}
