@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from utils.time import utc_now_iso
+from utils.prompt import scrub_description
 
 from . import llm, parsing, pricing
 from .config import BenchmarkConfig
@@ -177,7 +178,7 @@ def _build_user_prompt(
     addressing_mode: str = "timestamps",
     id_segments: list[dict] | None = None,
 ) -> str:
-    description = (episode.metadata.description or "").strip()
+    description = scrub_description(episode.metadata.description, max_length=800)
     description_section = f"\n\nEpisode description: {description}\n" if description else ""
     if addressing_mode == "segment_ids":
         transcript_lines = [f"[{seg['sid']}] {seg['text']}" for seg in (id_segments or [])]

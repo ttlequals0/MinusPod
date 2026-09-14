@@ -33,7 +33,10 @@ from utils.markers import (
     merge_dai_core_spans,
     note_merged_members,
 )
-from utils.prompt import format_sponsor_block, render_prompt, apply_override
+from utils.prompt import (
+    format_sponsor_block, render_prompt, apply_override,
+    scrub_description
+)
 from utils.text import truncate
 from utils.time import overlap_ratio, ranges_overlap
 
@@ -1596,12 +1599,15 @@ class AdDetector:
 
             # Prepare description section (shared across windows)
             description_section = ""
+            podcast_description = scrub_description(podcast_description, max_length=200)
             if podcast_description:
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
-                logger.info(f"[{slug}:{episode_id}] Including podcast description ({len(podcast_description)} chars)")
+                logger.info(f"[{slug}:{episode_id}] Including scrubbed podcast description ({len(podcast_description)} chars)")
+
+            episode_description = scrub_description(episode_description, max_length=800)
             if episode_description:
                 description_section += f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
-                logger.info(f"[{slug}:{episode_id}] Including episode description ({len(episode_description)} chars)")
+                logger.info(f"[{slug}:{episode_id}] Including scrubbed episode description ({len(episode_description)} chars)")
 
             # Add podcast-specific known-pattern hint from ad_patterns
             sponsor_history = self._build_known_pattern_hint(slug)
@@ -3018,8 +3024,11 @@ class AdDetector:
 
             # Prepare description section
             description_section = ""
+            podcast_description = scrub_description(podcast_description, max_length=200)
             if podcast_description:
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
+            
+            episode_description = scrub_description(episode_description, max_length=800)
             if episode_description:
                 description_section += (
                     f"Episode Description (this describes the actual content topics discussed; "

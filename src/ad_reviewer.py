@@ -34,7 +34,10 @@ from llm_client import (
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import dai_core_bounds, invalidate_tail_provenance
-from utils.prompt import format_sponsor_block, render_prompt, apply_override
+from utils.prompt import (
+    format_sponsor_block, render_prompt, apply_override,
+    scrub_description
+)
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S,
     get_timestamped_transcript_for_range,
@@ -1539,8 +1542,8 @@ class AdReviewer:
 
         podcast_name = episode_meta.get("podcast_name", "Unknown")
         episode_title = episode_meta.get("episode_title", "Unknown")
-        episode_description = episode_meta.get("episode_description", "") or ""
-        podcast_description = episode_meta.get("podcast_description", "") or ""
+        episode_description = scrub_description(episode_meta.get("episode_description", ""), max_length=800)
+        podcast_description = scrub_description(episode_meta.get("podcast_description", ""), max_length=200)
 
         if self._sponsor_history_provider:
             try:
