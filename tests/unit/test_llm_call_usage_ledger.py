@@ -187,6 +187,23 @@ class TestFinalizeLlmAttempt:
         summary = temp_db.get_token_usage_summary()
         assert summary['totalCost'] == pytest.approx(0.0042)
 
+    def test_provider_reported_cost_with_unknown_tokens_still_reaches_aggregates(self, temp_db):
+        attempt_id = _begin(temp_db, 'test-model-g')
+
+        cost = temp_db.finalize_llm_attempt(
+            attempt_id, state='success', provider_reported_cost_usd=0.0042)
+
+        assert cost == pytest.approx(0.0042)
+        row = temp_db.get_connection().execute(
+            "SELECT cost_usd FROM llm_call_usage WHERE attempt_id = ?", (attempt_id,)
+        ).fetchone()
+        assert Decimal(row['cost_usd']) == Decimal('0.0042')
+
+        summary = temp_db.get_token_usage_summary()
+        assert summary['totalCost'] == pytest.approx(0.0042)
+        model = next(m for m in summary['models'] if m['modelId'] == 'test-model-g')
+        assert model['totalCost'] == pytest.approx(0.0042)
+
     def test_unknown_attempt_id_is_a_noop(self, temp_db):
         cost = temp_db.finalize_llm_attempt('does-not-exist', state='success',
                                              input_tokens=100, output_tokens=100)

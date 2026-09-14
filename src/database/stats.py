@@ -331,9 +331,10 @@ class StatsMixin:
         ('provider_reported'); else a resolved rate over known tokens
         ('estimated', or 'explicit_zero' when the resolved rate is 0/0);
         else 'unknown' with cost_usd left NULL. Counters (token_usage +
-        global stats) are derived in this same transaction only when
-        state == 'success', or state == 'failure' with tokens known (a
-        billed failure) -- 'cancelled' and unknown-token failures update
+        global stats) are derived in this same transaction only when the
+        attempt is billable: state == 'success', or state == 'failure' with
+        tokens known (a billed failure), and either tokens or cost is
+        nonzero. 'cancelled' and unknown-token, zero-cost failures update
         the ledger row only.
         """
         conn = self.get_connection()
@@ -396,7 +397,7 @@ class StatsMixin:
         billable = state == 'success' or (state == 'failure' and tokens_known)
         counter_input = input_tokens or 0
         counter_output = output_tokens or 0
-        if billable and (counter_input > 0 or counter_output > 0):
+        if billable and (counter_input > 0 or counter_output > 0 or cost != 0):
             self._apply_token_usage_counters(
                 conn, configured_model, counter_input, counter_output, cost)
 
