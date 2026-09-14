@@ -2,11 +2,6 @@
 from utils.prompt import scrub_description
 
 
-def test_scrub_description_returns_empty_for_missing_descriptions():
-    assert scrub_description(None) == ""
-    assert scrub_description("") == ""
-
-
 def test_scrub_description_strips_html_and_normalizes_content():
     description = (
         "\n<p> Welcome &amp; hello at 1:02. </p>   \n\n"
@@ -27,6 +22,7 @@ def test_scrub_description_truncates_at_a_word_boundary():
 
 def test_scrub_description_truncates_long_unbroken_text_at_limit():
     assert scrub_description("abcdefghij", max_length=5) == "abcde..."
+
 
 def test_scrub_description_edge_cases():
     assert scrub_description("") == ""
