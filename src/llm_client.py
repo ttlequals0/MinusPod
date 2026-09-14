@@ -186,6 +186,13 @@ def _log_content(label: str, content: str, max_length: int = 2000):
         )
 
 
+def _numeric_usage_value(value):
+    """Return value if it's a real numeric token count, else None (unknown)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
 # Probe anthropic SDK error importability once; _anthropic_exc() keys off it.
 try:
     from anthropic import APIError as _anthropic_api_error  # noqa: F401
@@ -203,6 +210,7 @@ class LLMResponse:
     finish_reason: str | None = None
     reasoning_present: bool = False
     reasoning_exhausted: bool = False
+    returned_model: str | None = None
 
 
 @dataclass
@@ -856,13 +864,25 @@ class AnthropicClient(LLMClient):
         finish_reason = getattr(response, 'stop_reason', None)
         self._warn_if_truncated(finish_reason, eff_max, model)
 
+        usage = None
+        if response.usage:
+            usage = {
+                'input_tokens': response.usage.input_tokens,
+                'output_tokens': response.usage.output_tokens
+            }
+            cache_write = _numeric_usage_value(
+                getattr(response.usage, 'cache_creation_input_tokens', None))
+            cache_read = _numeric_usage_value(
+                getattr(response.usage, 'cache_read_input_tokens', None))
+            if cache_write is not None:
+                usage['cache_write_tokens'] = cache_write
+            if cache_read is not None:
+                usage['cache_read_tokens'] = cache_read
+
         llm_response = LLMResponse(
             content=content,
             model=model,
-            usage={
-                'input_tokens': response.usage.input_tokens,
-                'output_tokens': response.usage.output_tokens
-            } if response.usage else None,
+            usage=usage,
             finish_reason=finish_reason,
             reasoning_present=reasoning_present,
             reasoning_exhausted=(
@@ -870,6 +890,7 @@ class AnthropicClient(LLMClient):
                 and reasoning_present
                 and finish_reason in ('max_tokens', 'length')
             ),
+            returned_model=getattr(response, 'model', None),
         )
 
         # Log response
@@ -1135,13 +1156,28 @@ class OpenAICompatibleClient(LLMClient):
             and output_tokens >= eff_max
         )
 
+        prompt_details = getattr(usage, 'prompt_tokens_details', None)
+        cache_read_tokens = getattr(prompt_details, 'cached_tokens', None)
+        if isinstance(prompt_details, dict):
+            cache_read_tokens = prompt_details.get('cached_tokens')
+
+        response_usage = None
+        if response.usage:
+            response_usage = {
+                'input_tokens': response.usage.prompt_tokens,
+                'output_tokens': response.usage.completion_tokens
+            }
+            numeric_reasoning = _numeric_usage_value(reasoning_tokens)
+            numeric_cache_read = _numeric_usage_value(cache_read_tokens)
+            if numeric_reasoning is not None:
+                response_usage['reasoning_tokens'] = numeric_reasoning
+            if numeric_cache_read is not None:
+                response_usage['cache_read_tokens'] = numeric_cache_read
+
         llm_response = LLMResponse(
             content=content,
             model=model,
-            usage={
-                'input_tokens': response.usage.prompt_tokens,
-                'output_tokens': response.usage.completion_tokens
-            } if response.usage else None,
+            usage=response_usage,
             finish_reason=finish_reason,
             reasoning_present=reasoning_present,
             reasoning_exhausted=(
@@ -1149,6 +1185,7 @@ class OpenAICompatibleClient(LLMClient):
                 and reasoning_present
                 and (finish_reason in ('max_tokens', 'length') or exhausted_without_reason)
             ),
+            returned_model=getattr(response, 'model', None),
         )
 
         # Log response

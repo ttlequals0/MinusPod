@@ -124,7 +124,7 @@ def test_reasoning_exhaustion_retry_disables_reasoning_and_records_usage(
         if key != reasoning_key
     }
     assert [item.args for item in usage_callback.call_args_list] == [
-        ('test-model', {'input_tokens': 100, 'output_tokens': 8192}),
+        ('test-model', {'input_tokens': 100, 'output_tokens': 8192, 'reasoning_tokens': 8192}),
         ('test-model', {'input_tokens': 100, 'output_tokens': 2}),
     ]
     assert len(no_retry_wait) == 1
@@ -260,7 +260,7 @@ def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
     assert 'private-provider-detail' not in str(notices)
     assert 'private-provider-detail' not in caplog.text
     assert [item.args for item in usage_callback.call_args_list] == [
-        ('test-model', {'input_tokens': 100, 'output_tokens': 8192}),
+        ('test-model', {'input_tokens': 100, 'output_tokens': 8192, 'reasoning_tokens': 8192}),
         ('test-model', {'input_tokens': 100, 'output_tokens': 2}),
     ]
     assert len(no_retry_wait) == 1
