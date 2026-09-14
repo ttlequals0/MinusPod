@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   downloadEpisodeAudio, episodeOriginalUrl, getEpisode, getFeed, reprocessEpisode, regenerateChapters,
-  updateLocalEpisode, uploadLocalEpisodeArtwork,
+  updateLocalEpisode, uploadLocalEpisodeArtwork, setEpisodesPassthrough,
 } from '../api/feeds';
 import type { LocalEpisodePatch } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
@@ -344,6 +344,18 @@ function EpisodeDetail() {
     },
   });
 
+  // Sets or clears this episode's pass-through override (#746).
+  const passthroughMutation = useMutation({
+    mutationFn: (enabled: boolean) => setEpisodesPassthrough(slug!, [episodeId!], enabled),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
+        queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
+      ]);
+    },
+    onError: (error) => setCorrectionError(getErrorMessage(error, 'Could not update pass-through.')),
+  });
+
   // Mutation for submitting ad corrections
   const correctionMutation = useMutation({
     mutationFn: (correction: AdCorrection) => {
@@ -580,6 +592,16 @@ function EpisodeDetail() {
   // status checks.
   const reprocessBlocked = isActionBlocked(episode.jobState, reprocessMutation.isPending);
 
+  // The per-episode toggle is redundant once the whole feed already runs
+  // pass-through (#746); disable it with an explanatory tooltip rather than
+  // hiding it, matching the redetectDisabled pattern above.
+  const feedIsPassthrough = feed?.processingMode === 'passthrough';
+  const passthroughToggleLabel = episode.passthroughEnabled ? 'Clear pass-through' : 'Set pass-through';
+  const passthroughToggleDisabled = feedIsPassthrough || reprocessBlocked || passthroughMutation.isPending;
+  const passthroughToggleTooltip = feedIsPassthrough
+    ? 'This feed already runs in pass-through mode'
+    : 'Serve this episode unmodified, with no ad processing';
+
   // Guards a same-tick double activation (double-click, keyboard repeat)
   // that would otherwise fire two POSTs before the disabled prop re-renders.
   const handleReprocess = (mode: 'reprocess' | 'full' | 'llm' | 'recut') => {
@@ -701,6 +723,14 @@ function EpisodeDetail() {
               >
                 {displayStatusLabel(episode.status, episode.jobState)}
               </span>
+              {episode.passthroughEnabled && (
+                <span
+                  className="px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground cursor-help"
+                  title="Served unmodified; ad processing is skipped for this episode"
+                >
+                  Pass-through
+                </span>
+              )}
               {episode.lowAdYield && (
                 <span
                   className="px-2 py-0.5 rounded text-xs font-medium bg-warning/20 text-warning cursor-help"
@@ -808,6 +838,10 @@ function EpisodeDetail() {
                     disabled: chaptersRegenerating,
                     tooltip: 'Regenerate chapters from existing transcript',
                     onClick: () => regenerateChaptersMutation.mutate() }] : []),
+                  { title: passthroughToggleLabel, subtitle: 'Served unmodified, no ad processing',
+                    disabled: passthroughToggleDisabled,
+                    tooltip: passthroughToggleTooltip,
+                    onClick: () => passthroughMutation.mutate(!episode.passthroughEnabled) },
                 ]}
               />
             </div>

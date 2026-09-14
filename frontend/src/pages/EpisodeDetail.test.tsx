@@ -75,6 +75,7 @@ const mockRegenerateChapters = vi.fn();
 const mockUpdateLocalEpisode = vi.fn();
 const mockDownloadEpisodeAudio = vi.fn();
 const mockUploadLocalEpisodeArtwork = vi.fn();
+const mockSetEpisodesPassthrough = vi.fn();
 
 vi.mock('../api/feeds', () => ({
   getEpisode: vi.fn(),
@@ -88,6 +89,7 @@ vi.mock('../api/feeds', () => ({
   downloadEpisodeAudio: (...args: unknown[]) => mockDownloadEpisodeAudio(...args),
   updateLocalEpisode: (...args: unknown[]) => mockUpdateLocalEpisode(...args),
   uploadLocalEpisodeArtwork: (...args: unknown[]) => mockUploadLocalEpisodeArtwork(...args),
+  setEpisodesPassthrough: (...args: unknown[]) => mockSetEpisodesPassthrough(...args),
 }));
 
 vi.mock('../api/patterns', () => ({
@@ -598,6 +600,73 @@ describe('Held for Review: per-action error isolation', () => {
     });
     expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm ad');
     expect(screen.getByTestId('dismiss-0').textContent).toBe('Not an ad');
+  });
+});
+
+// ---- Pass-through toggle (#746) ----
+
+describe('Pass-through toggle', () => {
+  beforeEach(() => {
+    mockSetEpisodesPassthrough.mockReset();
+    mockSetEpisodesPassthrough.mockResolvedValue({ updated: 1, queued: 1 });
+  });
+
+  it('sets pass-through with enabled=true when not yet enabled', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ passthroughEnabled: false }));
+    await user.click(await screen.findByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Set pass-through'));
+    await waitFor(() => {
+      expect(mockSetEpisodesPassthrough).toHaveBeenCalledWith('test-feed', ['ep-1'], true);
+    });
+  });
+
+  it('clears pass-through with enabled=false when already enabled', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ passthroughEnabled: true }));
+    await user.click(await screen.findByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Clear pass-through'));
+    await waitFor(() => {
+      expect(mockSetEpisodesPassthrough).toHaveBeenCalledWith('test-feed', ['ep-1'], false);
+    });
+  });
+
+  it('disables the whole reprocess menu, pass-through included, while the episode is processing', async () => {
+    renderDetail(makeEpisode({ jobState: 'processing', status: 'processing' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Reprocess' })).toHaveProperty('disabled', true);
+    });
+  });
+
+  it('disables the toggle and explains why when the feed already runs pass-through', async () => {
+    const user = userEvent.setup();
+    const ep = makeEpisode({ passthroughEnabled: false });
+    setupEpisodeMock(ep);
+    (getFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+      slug: 'test-feed', title: 'Feed', artworkUrl: null, processingMode: 'passthrough',
+    });
+    render(<QueryClientProvider client={makeClient()}><EpisodeDetail /></QueryClientProvider>);
+
+    await user.click(await screen.findByRole('button', { name: 'Reprocess' }));
+    const item = screen.getByRole('menuitem', { name: /^Set pass-through/ });
+    expect(item).toHaveProperty('disabled', true);
+    expect(item.getAttribute('title')).toBe('This feed already runs in pass-through mode');
+  });
+
+  it('shows the Pass-through chip on the episode header when set', async () => {
+    renderDetail(makeEpisode({ passthroughEnabled: true, pendingReviewMarkers: [] }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.getByText('Pass-through')).toBeDefined();
+  });
+
+  it('omits the Pass-through chip when not set', async () => {
+    renderDetail(makeEpisode({ passthroughEnabled: false, pendingReviewMarkers: [] }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.queryByText('Pass-through')).toBeNull();
   });
 });
 

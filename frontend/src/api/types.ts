@@ -218,6 +218,10 @@ export interface Episode {
   // presence is the reliable "has this episode ever finished processing"
   // signal. null/absent means never processed.
   processedAt?: string | null;
+  // Per-episode pass-through override (#746): runs download + relay only,
+  // no transcription/detection/LLM, even when the feed itself is not in
+  // pass-through mode.
+  passthroughEnabled?: boolean | null;
 }
 
 export interface EpisodeNeighbor {

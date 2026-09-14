@@ -556,6 +556,26 @@ export async function bulkEpisodeAction(
   });
 }
 
+export interface SetEpisodesPassthroughResult {
+  updated: number;
+  // Episodes also enqueued for a reprocess so the flag applies this run.
+  // Only set (>0) when enabled=true; clearing never forces a reprocess.
+  queued: number;
+}
+
+// Sets or clears the per-episode pass-through override (#746) for one or
+// more episodes (single-episode toggle or bulk selection).
+export async function setEpisodesPassthrough(
+  slug: string,
+  episodeIds: string[],
+  enabled: boolean,
+): Promise<SetEpisodesPassthroughResult> {
+  return apiRequest<SetEpisodesPassthroughResult>(`/feeds/${slug}/episodes/passthrough`, {
+    method: 'POST',
+    body: { episodeIds, enabled },
+  });
+}
+
 // ========== Local feed episode management (#625 Task 13) ==========
 
 export interface LocalEpisodeUploadResult extends Episode {

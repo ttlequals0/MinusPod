@@ -59,4 +59,20 @@ describe('EpisodeList', () => {
     );
     expect(screen.getByLabelText('Select episode')).toBeTruthy();
   });
+
+  it('shows a Pass-through chip when passthroughEnabled is true', () => {
+    const episode = {
+      id: 'ep7', title: 'Relayed', published: '2026-09-10T00:00:00Z', status: 'completed', passthroughEnabled: true,
+    } as Episode;
+    render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(screen.getByText('Pass-through')).toBeTruthy();
+  });
+
+  it('omits the Pass-through chip when passthroughEnabled is falsy', () => {
+    const episode = {
+      id: 'ep8', title: 'Normal', published: '2026-09-10T00:00:00Z', status: 'completed',
+    } as Episode;
+    render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(screen.queryByText('Pass-through')).toBeNull();
+  });
 });

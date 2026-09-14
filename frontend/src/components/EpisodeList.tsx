@@ -140,6 +140,14 @@ function EpisodeRow({
                 {episode.pendingReviewCount} held
               </span>
             )}
+            {episode.passthroughEnabled && (
+              <span
+                className="px-2 py-0.5 text-xs rounded whitespace-nowrap bg-muted text-muted-foreground"
+                title="Served unmodified; ad processing is skipped for this episode"
+              >
+                Pass-through
+              </span>
+            )}
             <span
               className={`px-2 py-0.5 text-xs rounded whitespace-nowrap ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
               title={failureReason}

@@ -33,6 +33,7 @@ const mockGetFeed = vi.fn();
 const mockGetFeedsResponse = vi.fn();
 const mockGetEpisodes = vi.fn();
 const mockBulkEpisodeAction = vi.fn();
+const mockSetEpisodesPassthrough = vi.fn();
 
 vi.mock('../api/feeds', () => ({
   getFeed: (...a: unknown[]) => mockGetFeed(...a),
@@ -45,6 +46,7 @@ vi.mock('../api/feeds', () => ({
   updateFeed: vi.fn(),
   reprocessAllEpisodes: vi.fn(),
   bulkEpisodeAction: (...a: unknown[]) => mockBulkEpisodeAction(...a),
+  setEpisodesPassthrough: (...a: unknown[]) => mockSetEpisodesPassthrough(...a),
 }));
 
 function makeFeed(overrides: Partial<Feed> = {}): Feed {
@@ -263,5 +265,49 @@ describe('FeedDetail: pending bulk processing', () => {
         'test-feed', ['aa11bb22cc33'], 'process');
     });
     expect(await screen.findByText('Episodes already queued or processing were skipped.')).toBeTruthy();
+  });
+});
+
+describe('FeedDetail: bulk pass-through (#746)', () => {
+  it('sets pass-through on the selected episodes and clears selection on success', async () => {
+    const user = userEvent.setup();
+    mockSetEpisodesPassthrough.mockResolvedValue({ updated: 1, queued: 1 });
+    renderFeedDetail(makeFeed(), [{
+      id: 'ep-set-1',
+      title: 'Completed episode',
+      published: '2026-09-11T00:00:00Z',
+      status: 'completed',
+    }]);
+
+    await user.click(await screen.findByRole('button', { name: 'Select episode' }));
+    await user.click(screen.getByRole('button', { name: 'Set pass-through (1)' }));
+
+    await waitFor(() => {
+      expect(mockSetEpisodesPassthrough).toHaveBeenCalledWith('test-feed', ['ep-set-1'], true);
+    });
+    expect(await screen.findByText('Pass-through Set')).toBeTruthy();
+    // Selection clears: the bulk toolbar (and its buttons) disappear.
+    expect(screen.queryByRole('button', { name: /Set pass-through/ })).toBeNull();
+  });
+
+  it('clears pass-through with enabled=false', async () => {
+    const user = userEvent.setup();
+    mockSetEpisodesPassthrough.mockResolvedValue({ updated: 1, queued: 0 });
+    renderFeedDetail(makeFeed(), [{
+      id: 'ep-clear-1',
+      title: 'Completed episode',
+      published: '2026-09-11T00:00:00Z',
+      status: 'completed',
+      passthroughEnabled: true,
+    }]);
+
+    await user.click(await screen.findByRole('button', { name: 'Select episode' }));
+    await user.click(screen.getByRole('button', { name: 'Clear pass-through (1)' }));
+
+    await waitFor(() => {
+      expect(mockSetEpisodesPassthrough).toHaveBeenCalledWith('test-feed', ['ep-clear-1'], false);
+    });
+    expect(await screen.findByText('Pass-through Cleared')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Clear pass-through/ })).toBeNull();
   });
 });

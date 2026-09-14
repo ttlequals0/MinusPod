@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed } from '../api/feeds';
+import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed, setEpisodesPassthrough } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
 import { getErrorMessage } from '../api/client';
 import { PendingRecutsBar } from './patterns/PendingRecutsBar';
@@ -98,6 +98,9 @@ function FeedDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkActionResult | null>(null);
+  const [passthroughResult, setPassthroughResult] = useState<
+    { enabled: boolean; updated: number; queued: number } | null
+  >(null);
 
   // AddFeed's local-feed create flow passes a notice through router state
   // (e.g. an artwork upload failure or size warning) since it can't set
@@ -229,6 +232,18 @@ function FeedDetail() {
       setShowBulkDeleteConfirm(false);
       setActionError(getErrorMessage(err, 'Could not apply that action.'));
     },
+  });
+
+  const passthroughMutation = useMutation({
+    mutationFn: ({ enabled }: { enabled: boolean }) =>
+      setEpisodesPassthrough(slug!, Array.from(selectedIds), enabled),
+    onSuccess: (result, variables) => {
+      setPassthroughResult({ enabled: variables.enabled, updated: result.updated, queued: result.queued });
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
+      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+    },
+    onError: (err) => setActionError(getErrorMessage(err, 'Could not update pass-through.')),
   });
 
   const closeReprocessModal = () => {
@@ -639,6 +654,26 @@ function FeedDetail() {
                 </button>
               </>
             )}
+            {/* Pass-through applies regardless of episode status; only actively
+                processing rows are excluded from selection in the first place. */}
+            <button
+              onClick={() => passthroughMutation.mutate({ enabled: true })}
+              disabled={bulkMutation.isPending || passthroughMutation.isPending}
+              title="Serve these episodes unmodified, with no ad processing"
+              className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+            >
+              {passthroughMutation.isPending && passthroughMutation.variables?.enabled
+                ? 'Setting...' : `Set pass-through (${selectedIds.size})`}
+            </button>
+            <button
+              onClick={() => passthroughMutation.mutate({ enabled: false })}
+              disabled={bulkMutation.isPending || passthroughMutation.isPending}
+              title="Resume normal ad processing for these episodes"
+              className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+            >
+              {passthroughMutation.isPending && passthroughMutation.variables?.enabled === false
+                ? 'Clearing...' : `Clear pass-through (${selectedIds.size})`}
+            </button>
             {discoveredCount === 0 && pendingCount === 0 && processedCount === 0 && (
               <span className="text-xs text-muted-foreground">Selected episodes are already processing.</span>
             )}
@@ -822,6 +857,28 @@ function FeedDetail() {
             )}
             <button
               onClick={() => setBulkResult(null)}
+              className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
+            >
+              Done
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Pass-through Result Modal */}
+      {passthroughResult && (
+        <Modal onClose={() => setPassthroughResult(null)} panelClassName="max-w-md w-full">
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-foreground mb-4">
+              {passthroughResult.enabled ? 'Pass-through Set' : 'Pass-through Cleared'}
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              {passthroughResult.updated} episode{passthroughResult.updated === 1 ? '' : 's'} updated.
+              {passthroughResult.enabled && passthroughResult.queued > 0
+                ? ` ${passthroughResult.queued} queued to run pass-through.` : ''}
+            </p>
+            <button
+              onClick={() => setPassthroughResult(null)}
               className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
             >
               Done

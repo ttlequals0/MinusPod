@@ -42,7 +42,8 @@ The server includes a web-based management UI at `/ui/`:
 - Ad Distribution panel on the feed detail page: a histogram of where ads have historically been cut across the feed, with learned prior zones marked
 - Feed page artwork links to the show's website in a new tab, when the feed declares one
 - Episode discovery: all episodes surface on refresh, process any episode from the feed detail page
-- Bulk actions: select multiple episodes to process, reprocess, run a full analysis, re-detect ads on the existing transcript, or delete (the per-episode Recut Audio mode is not a bulk action)
+- Bulk actions: select multiple episodes to process, reprocess, run a full analysis, re-detect ads on the existing transcript, delete, or set/clear pass-through (the per-episode Recut Audio mode is not a bulk action)
+- Pass-through can also be set or cleared for a single episode from its detail page (in the Reprocess menu). A pass-through episode is served unmodified, with no ad processing; a chip on the episode header and a compact indicator in the episode list show which ones are set. Redundant when the whole feed already runs in pass-through mode, in which case the per-episode control is disabled
 - Sort by publish date, episode number, or creation date; paginated (25/50/100/500 per page)
 - Pattern management: view and manage cross-episode ad patterns with sponsor names; the detail modal edits a pattern's sponsor, text template, active state, and segment category; includes an Ad Review tab for triaging detections across all podcasts
 - Review decisions are recorded as you make them, then applied together. The Ad Review and Detected Ads pages show an Apply recuts button that recuts each waiting episode once, however many decisions it collected. A feed's own page has the same button for just that feed's episodes
