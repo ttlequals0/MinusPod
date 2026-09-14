@@ -20,7 +20,7 @@ from api import (
     _serialize_nullable_bool, _deserialize_nullable_bool,
     _normalize_nullable_finite_float,
 )
-from cancel import request_cancellation, wait_for_cancellation
+from cancel import request_cancellation
 from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
@@ -2045,30 +2045,19 @@ def delete_feed(slug):
 
         status_service = get_status_service()
         queue = ProcessingQueue()
-        active_run_ids = []
+        # Cancellation is requested for a local wakeup only; deletion does
+        # not wait for a run to acknowledge it (#745). The podcast delete
+        # below cascades to processing_runs (ON DELETE CASCADE), so a
+        # running or wedged worker discovers ownership loss on its own
+        # next cooperative check instead of this request blocking on it.
+        cancelled_runs = []
         for current_slug, current_episode_id in queue.get_current():
             if current_slug != slug:
                 continue
             run_id = request_cancellation(slug, current_episode_id)
-            if not run_id:
-                return error_response(
-                    'Could not record cancellation; feed was not deleted', 503)
-            active_run_ids.append(run_id)
+            if run_id:
+                cancelled_runs.append((current_episode_id, run_id))
 
-        deadline = time.monotonic() + 2.0
-        for run_id in active_run_ids:
-            if not wait_for_cancellation(
-                    run_id, timeout=max(0.0, deadline - time.monotonic())):
-                return json_response({
-                    'message': 'Feed deletion is waiting for processing to stop',
-                    'slug': slug,
-                }, 202)
-
-        if any(current_slug == slug for current_slug, _ in queue.get_current()):
-            return json_response({
-                'message': 'Feed deletion is waiting for processing to stop',
-                'slug': slug,
-            }, 202)
         if db.active_upload_reservations(podcast['id']):
             return json_response({
                 'message': 'Feed deletion is waiting for uploads to finish',
@@ -2077,27 +2066,34 @@ def delete_feed(slug):
         status_service.remove_feed_from_queue(slug)      # drop queued display entries for this feed
         status_service.remove_feed_refresh(slug)         # drop any in-progress refresh badge
 
-        # Serialize the last active-run check with acquisition. A later acquire
+        # Serialize the last upload check with acquisition. A later acquire
         # sees no podcast and fails closed.
         conn = db.get_connection()
         conn.execute('BEGIN IMMEDIATE')
-        active = conn.execute(
-            "SELECT 1 FROM processing_runs WHERE podcast_id = ? "
-            "AND state IN ('running', 'cancel_requested') UNION ALL "
+        active_upload = conn.execute(
             "SELECT 1 FROM upload_reservations WHERE podcast_id = ? "
             "AND state IN ('reserved', 'prepared', 'publishing') LIMIT 1",
-            (podcast['id'], podcast['id']),
+            (podcast['id'],),
         ).fetchone()
-        if active:
+        if active_upload:
             conn.rollback()
             return json_response({
-                'message': 'Feed deletion is waiting for processing to stop',
+                'message': 'Feed deletion is waiting for uploads to finish',
                 'slug': slug,
             }, 202)
+        # processing_runs, auto_process_queue, episodes, and
+        # upload_reservations all cascade away with the podcast row; a run
+        # still 'running' at this instant is torn down here, not waited on.
         if not db.delete_podcast(slug, commit=False):
             conn.rollback()
             return error_response('Feed not found', 404)
         conn.commit()
+
+        # Clear the live status display for any run cancelled above: its
+        # worker may never get a chance to observe the cancellation and
+        # clear it itself, since its row and podcast are already gone.
+        for episode_id, run_id in cancelled_runs:
+            status_service.clear_if_matches(slug, episode_id, run_id=run_id)
 
         # Invalidate feed cache since we deleted a feed
         from main_app.feeds import invalidate_feed_cache
@@ -2135,7 +2131,13 @@ def delete_feed(slug):
         from recents_feed import rebuild_recents_feed
         rebuild_recents_feed()
         logger.info(f"Deleted feed: {slug}")
-        return json_response({'message': 'Feed deleted', 'slug': slug})
+        message = ('Feed deleted; in-progress processing was cancelled'
+                   if cancelled_runs else 'Feed deleted')
+        return json_response({
+            'message': message,
+            'slug': slug,
+            'cancelledJobs': len(cancelled_runs),
+        })
 
     except Exception:
         db.rollback_open_transaction()
