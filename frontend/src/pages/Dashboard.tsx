@@ -1,10 +1,16 @@
 import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
-import { feedsQueryOptions, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
+import { feedsQueryOptions, feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import DropdownMenu from '../components/DropdownMenu';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
+import DashboardEpisodeGroups, {
+  DEFAULT_EPISODES_PER_PODCAST,
+  MIN_EPISODES_PER_PODCAST,
+  MAX_EPISODES_PER_PODCAST,
+  clampEpisodesPerPodcast,
+} from '../components/DashboardEpisodeGroups';
 import { Skeleton, SkeletonRows, SkeletonStatCards } from '../components/Skeleton';
 import SearchResults from '../components/SearchResults';
 import type { SearchResultRow } from '../components/SearchResults';
@@ -14,7 +20,11 @@ import { useOutsideClick } from '../hooks/useOutsideClick';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import { formatDateTime } from '../utils/format';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
-import { focusRing, inputBase } from '../components/fieldStyles';
+import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
+
+type DashboardView = 'podcasts' | 'episodes';
+const DASHBOARD_VIEW_KEY = 'dashboardView';
+const DASHBOARD_EPISODES_PER_PODCAST_KEY = 'dashboardEpisodesPerPodcast';
 
 // Boxed keyboard-shortcut badge, matching the mockup's shortcut hints.
 const kbdClass = 'rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground';
@@ -25,12 +35,26 @@ function Dashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useLocalStorageState<'grid' | 'list'>('dashboardViewMode', 'grid');
   const [sortBy, setSortBy] = useLocalStorageState<FeedSortBy>(DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT);
+  const [dashboardView, setDashboardView] = useLocalStorageState<DashboardView>(DASHBOARD_VIEW_KEY, 'podcasts');
+  const [episodesPerPodcastRaw, setEpisodesPerPodcast] = useLocalStorageState<number>(
+    DASHBOARD_EPISODES_PER_PODCAST_KEY, DEFAULT_EPISODES_PER_PODCAST,
+  );
+  // Clamped defensively: a hand-edited or stale localStorage value could sit
+  // outside the 1-10 range the select and the backend projection expect.
+  const episodesPerPodcast = clampEpisodesPerPodcast(episodesPerPodcastRaw);
   const [actionError, setActionError] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isLoading, error } = useQuery(feedsQueryOptions);
   const feeds = data?.feeds;
   const lastRefreshCompletedAt = data?.lastRefreshCompletedAt ?? null;
+
+  // Fetched only for the Episodes view; the base feeds query above stays
+  // unbounded and unprojected for the Podcasts (grid/list) view.
+  const episodesQuery = useQuery({
+    ...feedsQueryOptionsFor({ includeLatestEpisodes: true, episodesPerFeed: episodesPerPodcast }),
+    enabled: dashboardView === 'episodes',
+  });
 
   const refreshMutation = useMutation({
     mutationFn: ({ slug, options }: { slug: string; options?: { force?: boolean } }) =>
@@ -78,6 +102,8 @@ function Dashboard() {
   };
 
   const sortedFeeds = useMemo(() => (feeds ? sortFeeds(feeds, sortBy) : []), [feeds, sortBy]);
+  const groupFeeds = episodesQuery.data?.feeds;
+  const sortedGroupFeeds = useMemo(() => (groupFeeds ? sortFeeds(groupFeeds, sortBy) : []), [groupFeeds, sortBy]);
 
   const navigate = useNavigate();
   const searchRootRef = useRef<HTMLDivElement>(null);
@@ -194,6 +220,53 @@ function Dashboard() {
         </div>
         <div className="flex gap-2 items-center shrink-0">
           <div className="flex gap-2 items-center overflow-x-auto no-scrollbar">
+            <div className="flex border border-border rounded overflow-hidden" role="group" aria-label="Dashboard view">
+              <button
+                onClick={() => setDashboardView('podcasts')}
+                aria-pressed={dashboardView === 'podcasts'}
+                className={`px-3 py-2 text-sm transition-colors ${
+                  dashboardView === 'podcasts'
+                    ? 'bg-primary text-primary-foreground'
+                    : btnSecondary
+                } ${focusRing}`}
+                aria-label="Podcasts view"
+                title="Group by podcast"
+              >
+                Podcasts
+              </button>
+              <button
+                onClick={() => setDashboardView('episodes')}
+                aria-pressed={dashboardView === 'episodes'}
+                className={`px-3 py-2 text-sm transition-colors ${
+                  dashboardView === 'episodes'
+                    ? 'bg-primary text-primary-foreground'
+                    : btnSecondary
+                } ${focusRing}`}
+                aria-label="Episodes view"
+                title="Show latest episodes per podcast"
+              >
+                Episodes
+              </button>
+            </div>
+            {dashboardView === 'episodes' && (
+              <label className="flex items-center gap-1.5 text-sm text-muted-foreground whitespace-nowrap">
+                <span className="hidden sm:inline">Per podcast</span>
+                <select
+                  aria-label="Episodes per podcast"
+                  value={episodesPerPodcast}
+                  onChange={(e) => setEpisodesPerPodcast(clampEpisodesPerPodcast(Number(e.target.value)))}
+                  className={selectBase}
+                >
+                  {Array.from(
+                    { length: MAX_EPISODES_PER_PODCAST - MIN_EPISODES_PER_PODCAST + 1 },
+                    (_, i) => MIN_EPISODES_PER_PODCAST + i,
+                  ).map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {dashboardView === 'podcasts' && (
             <div className="flex border border-border rounded overflow-hidden">
               <button
                 onClick={() => setViewMode('grid')}
@@ -224,6 +297,7 @@ function Dashboard() {
                 </svg>
               </button>
             </div>
+            )}
             <div className="flex border border-border rounded overflow-hidden">
               <button
                 onClick={() => setSortBy('recent')}
@@ -314,6 +388,17 @@ function Dashboard() {
             </a>
           </p>
         </div>
+      ) : dashboardView === 'episodes' ? (
+        episodesQuery.isLoading ? (
+          <SkeletonRows count={4} className="flex flex-col gap-4" />
+        ) : episodesQuery.error ? (
+          <div className="text-center py-12">
+            <p className="text-destructive">Failed to load episodes</p>
+            <p className="text-sm text-muted-foreground mt-2">{(episodesQuery.error as Error).message}</p>
+          </div>
+        ) : (
+          <DashboardEpisodeGroups feeds={sortedGroupFeeds} episodesPerPodcast={episodesPerPodcast} />
+        )
       ) : viewMode === 'grid' ? (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {sortedFeeds.map((feed) => (

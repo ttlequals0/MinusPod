@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Episode } from '../api/types';
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS, isFailedStatus } from '../utils/episodeStatus';
@@ -62,12 +63,16 @@ function EpisodeRow({
   feedArtworkUrl,
   selected,
   onToggle,
+  renderActions,
 }: {
   episode: Episode;
   feedSlug: string;
   feedArtworkUrl?: string;
   selected: boolean;
   onToggle?: (id: string) => void;
+  // Optional per-row control (e.g. a process/reprocess menu) rendered outside
+  // the episode Link so it never nests an interactive element inside an <a>.
+  renderActions?: (episode: Episode) => ReactNode;
 }) {
   // Rows of the recents feed belong to another feed; link there.
   const rowSlug = episode.feedSlug ?? feedSlug;
@@ -86,7 +91,7 @@ function EpisodeRow({
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
   return (
-    <div className="relative bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
+    <div className="relative flex items-stretch bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
       {onToggle && canSelect && (
         // 44x44 tap zone (iOS HIG minimum); visible checkbox centered inside.
         // onClick + onTouchEnd both stopPropagation so the underlying Link
@@ -103,7 +108,7 @@ function EpisodeRow({
       )}
       <Link
         to={`/feeds/${rowSlug}/episodes/${episode.id}`}
-        className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
+        className={`flex-1 min-w-0 flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
       >
         <Artwork
           // A recents row falls back to its source feed's cover, not this feed's.
@@ -144,8 +149,14 @@ function EpisodeRow({
           </div>
         </div>
       </Link>
+      {renderActions && (
+        <div className="flex items-center pr-4 shrink-0">
+          {renderActions(episode)}
+        </div>
+      )}
     </div>
   );
 }
 
+export { EpisodeRow };
 export default EpisodeList;
