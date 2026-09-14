@@ -3,7 +3,7 @@ import { EPISODE_STATUS_KEYS, type EpisodeStatusKey } from '../api/types';
 export const EPISODE_STATUS_COLORS: Record<string, string> = {
   discovered: 'bg-c-blue/20 text-c-blue',
   pending: 'bg-muted text-muted-foreground',
-  queued: 'bg-c-teal/20 text-c-teal',
+  queued: 'bg-c-purple/20 text-c-purple',
   processing: 'bg-warning/20 text-warning',
   completed: 'bg-success/20 text-success',
   failed: 'bg-destructive/20 text-destructive',
@@ -47,7 +47,7 @@ export const EPISODE_STATUS_ORDER: readonly EpisodeStatusKey[] = EPISODE_STATUS_
 export const EPISODE_STATUS_TEXT_COLORS: Record<EpisodeStatusKey | 'queued', string> = {
   discovered: 'text-c-blue',
   pending: 'text-muted-foreground',
-  queued: 'text-c-teal',
+  queued: 'text-c-purple',
   processing: 'text-warning',
   completed: 'text-success',
   failed: 'text-destructive',
