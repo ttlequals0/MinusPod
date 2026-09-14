@@ -237,6 +237,78 @@ class TestFixedProviderConnection:
         assert data['reachable'] is False
 
 
+class TestSecondaryProviderConnection:
+    """/settings/providers/secondary/test-connection (checkpoint 02b): the
+    same staged probe as the primary routes above, but targeting the
+    secondary_provider_* settings and secondary_provider_api_key secret."""
+
+    def _post(self, client, body=None):
+        return client.post('/api/v1/settings/providers/secondary/test-connection',
+                           data=json.dumps(body if body is not None else {}),
+                           content_type='application/json')
+
+    def test_not_configured(self, client, temp_db):
+        temp_db.clear_setting('secondary_provider')
+        r = self._post(client)
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data['ok'] is False
+        assert 'secondary provider type' in data['detail'].lower()
+
+    def test_fixed_endpoint_type_uses_secondary_key(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'anthropic', is_default=False)
+        temp_db.set_secret('secondary_provider_api_key', 'sk-ant-secondary')
+        temp_db.set_secret('anthropic_api_key', 'sk-ant-primary')
+        with patch('api.providers.safe_get', return_value=_response(200, json_body={'data': []})) as sg:
+            r = self._post(client)
+        assert r.status_code == 200
+        assert r.get_json()['ok'] is True
+        assert sg.call_args[0][0] == 'https://api.anthropic.com/v1/models'
+        assert sg.call_args[1]['headers']['x-api-key'] == 'sk-ant-secondary'
+
+    def test_openai_compatible_type_uses_secondary_base_and_key(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        temp_db.set_setting('secondary_provider_base_url', 'http://server:8000/v1')
+        temp_db.set_secret('secondary_provider_api_key', 'sk-secondary-saved')
+        with patch('api.providers._probe_models_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}) as probe:
+            r = self._post(client, {'baseUrl': 'http://server:8000/v1'})
+        assert r.status_code == 200
+        assert probe.call_args[0][0] == 'http://server:8000/v1'
+        assert probe.call_args[0][1] == 'sk-secondary-saved'
+
+    def test_key_withheld_from_other_server(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        temp_db.set_setting('secondary_provider_base_url', 'http://server:8000/v1')
+        temp_db.set_secret('secondary_provider_api_key', 'sk-secondary-saved')
+        with patch('api.providers._probe_models_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}) as probe:
+            self._post(client, {'baseUrl': 'http://evil.example.com/v1'})
+        assert probe.call_args[0][1] == ''
+
+    def test_ollama_type_base_url_normalized_to_v1(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'ollama', is_default=False)
+        temp_db.set_setting('secondary_provider_base_url', 'http://localhost:11434')
+        with patch('api.providers._probe_models_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}) as probe:
+            r = self._post(client, {'baseUrl': 'http://localhost:11434'})
+        assert r.status_code == 200
+        assert probe.call_args[0][0] == 'http://localhost:11434/v1'
+
+    def test_empty_base_url_is_error(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        r = self._post(client, {'baseUrl': ''})
+        assert r.status_code == 200
+        assert 'base URL' in r.get_json()['detail']
+
+    def test_non_string_base_url_rejected(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        assert self._post(client, {'baseUrl': 5}).status_code == 400
+
+
 class TestLegacyKeyTestOllamaNormalization:
     def test_test_route_normalizes_ollama_to_v1(self, client, temp_db):
         temp_db.set_secret('ollama_api_key', 'sk-ollama')

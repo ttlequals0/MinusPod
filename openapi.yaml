@@ -4547,6 +4547,38 @@ paths:
                 $ref: '#/components/schemas/ConnectionTestResult'
         '400': { description: 'Invalid input (non-string baseUrl or model, non-boolean skipFlacCompression)' }
         '404': { description: 'Provider without a testable endpoint' }
+  /settings/providers/secondary/test-connection:
+    post:
+      tags:
+        - Settings
+      summary: Test the secondary provider connection end to end
+      description: |
+        Same staged probe as `/settings/providers/{provider}/test-connection`,
+        but targets the optional secondary provider slot: its type comes
+        from `secondaryProvider`, its key from `secondaryProviderApiKey`,
+        and its endpoint from `secondaryProviderBaseUrl` (or the request body's
+        `baseUrl`, to test an unsaved value). Returns `ok: false` with a
+        `detail` explaining the reason when no secondary provider type is
+        configured yet.
+      operationId: testSecondaryProviderConnection
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                baseUrl:
+                  type: string
+                  description: Base URL to test; when absent the saved secondary value is used
+      responses:
+        '200':
+          description: Probe result (always 200; see `ok` field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionTestResult'
+        '400': { description: 'Invalid input (non-string baseUrl)' }
   /settings/podcast-index/test:
     post:
       tags:
@@ -5213,6 +5245,30 @@ paths:
                 openrouterApiKey:
                   type: string
                   description: API key for OpenRouter (only used when provider is openrouter)
+                secondaryProviderEnabled:
+                  type: boolean
+                  description: |
+                    Turn the optional secondary provider slot on or off. A
+                    per-stage provider override set to secondary while this is
+                    false falls back to primary. Off by default.
+                secondaryProvider:
+                  type: string
+                  nullable: true
+                  description: Secondary provider type. Empty or null clears it.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                  example: openai-compatible
+                secondaryProviderBaseUrl:
+                  type: string
+                  description: |
+                    Base URL for the secondary provider, used when its type has a
+                    configurable endpoint (openai-compatible, ollama). SSRF-validated
+                    like every other operator-configured URL. Empty clears the
+                    override back to the default.
+                  example: http://localhost:11434/v1
+                secondaryProviderApiKey:
+                  type: string
+                  nullable: true
+                  description: API key for the secondary provider. Omit to leave unchanged; null or empty to clear.
                 detectionTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for the first-pass ad detection LLM call.
@@ -12357,6 +12413,40 @@ components:
         openrouterApiKeyConfigured:
           type: boolean
           description: Whether an OpenRouter API key is configured (read-only)
+        secondaryProviderEnabled:
+          type: object
+          description: |
+            Optional second full provider config. Per-stage provider
+            overrides (detectionProvider, verificationProvider,
+            chaptersProvider, reviewProvider) pick a routing slot, primary or
+            secondary, rather than a provider type; a stage routed to
+            secondary while this is false falls back to primary. Off by
+            default, so a single-provider install is unchanged.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        secondaryProvider:
+          type: object
+          properties:
+            value:
+              type: string
+              nullable: true
+              description: Secondary provider type (anthropic, openrouter, openai-compatible, ollama), or null when unset
+            isDefault:
+              type: boolean
+        secondaryProviderBaseUrl:
+          type: object
+          description: Base URL for the secondary provider, when its type uses a configurable endpoint (openai-compatible, ollama).
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        secondaryProviderApiKeyConfigured:
+          type: boolean
+          description: Whether a secondary provider API key is configured (read-only; the key itself is never returned)
         podcastSearchReady:
           type: boolean
           description: >-

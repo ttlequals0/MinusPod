@@ -175,6 +175,21 @@ Two things have to be in place first:
 
 If the passphrase is missing, the key inputs collapse to a "Setup required" note, the API returns `409 provider_crypto_unavailable`, and env-var credentials keep working. GET responses never include key values, only booleans plus a `db`/`env`/`none` source marker.
 
+### Secondary provider
+
+Alongside the primary provider above, you can configure one secondary provider: a separate provider type, base URL, and API key that a stage's provider selector can route to instead of primary. This is useful for splitting cost or capacity across two accounts, or across two different providers, without switching your main configuration back and forth.
+
+The secondary provider is off by default, so an install with only a primary provider configured behaves exactly as before. Configure it via `PUT /api/v1/settings/ad-detection`:
+
+- `secondaryProviderEnabled` (boolean) - turns the slot on or off. A stage set to route to secondary while this is off falls back to primary.
+- `secondaryProvider` - the provider type: `anthropic`, `openrouter`, `openai-compatible`, or `ollama`. An empty value clears it.
+- `secondaryProviderBaseUrl` - base URL, used only when the type is `openai-compatible` or `ollama`. SSRF-validated the same way as the primary provider's base URL. Empty clears it back to the default.
+- `secondaryProviderApiKey` - API key for the secondary provider, encrypted the same way as every other provider key. Omit to leave it unchanged; null or empty clears it.
+
+`GET /api/v1/settings` reports the current configuration as `secondaryProviderEnabled`, `secondaryProvider`, and `secondaryProviderBaseUrl`, plus `secondaryProviderApiKeyConfigured` (a boolean; the key itself is never returned). `POST /api/v1/settings/providers/secondary/test-connection` runs the same staged connection probe used for the primary provider, but against the secondary type, base URL, and key, so you can confirm it works before pointing a stage at it.
+
+Changing any secondary provider field lifts an active rate-limit hold for that account, the same as changing the primary provider's credentials does.
+
 ### JSON schema response format
 
 OpenAI-compatible endpoints only. When on, MinusPod asks the endpoint to enforce a JSON schema on detection, review, category repair, and trim-recovery responses instead of only asking for JSON, which cuts malformed replies. Off by default; the toggle is in **Settings > LLM Provider**.

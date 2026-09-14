@@ -239,7 +239,7 @@ All of these can be changed at runtime from the Settings UI. No container restar
 
 ## Per-Stage Providers
 
-The LLM Provider setting picks a default, but each pipeline stage can run on a different provider if you have more than one configured. Settings > AI & Processing > AI Models shows a provider selector next to each model selector:
+The LLM Provider setting picks a default, but each pipeline stage can run on a different provider if you have more than one configured. Besides the primary LLM Provider, you can configure one secondary provider (its own type, base URL, and API key; see [Secondary provider](configuration.md#secondary-provider)) and point a stage at it. Settings > AI & Processing > AI Models shows a provider selector next to each model selector:
 
 - **Ad Detection Provider** - defaults to the global LLM Provider. Configure API keys and endpoints for other providers under Settings > LLM Provider, then switch this to run detection on one of them instead.
 - **Verification Provider** - defaults to Same as detection. Pointing it at a separate provider is useful for cost control (a cheap pass-2 sanity check) or comparing two providers' output on the same episode.

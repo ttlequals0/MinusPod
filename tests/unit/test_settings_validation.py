@@ -870,6 +870,113 @@ class TestSecondaryProviderSettings:
         finally:
             secrets_crypto.reset_cache()
 
+    def test_put_api_key_is_encrypted_and_never_echoed(self, client, monkeypatch):
+        monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'test-pass-secondary')
+        import secrets_crypto
+        secrets_crypto.reset_cache()
+        try:
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'secondaryProviderApiKey': 'sk-test-secondary-key'}),
+                content_type='application/json',
+            )
+            assert response.status_code == 200, response.data
+            db = database.Database()
+            raw = db.get_setting('secondary_provider_api_key')
+            assert raw.startswith('enc:v1:')
+            assert 'sk-test-secondary-key' not in raw
+            assert db.get_secret('secondary_provider_api_key') == 'sk-test-secondary-key'
+
+            get_body = json.loads(client.get('/api/v1/settings').data)
+            assert 'sk-test-secondary-key' not in json.dumps(get_body)
+        finally:
+            secrets_crypto.reset_cache()
+
+    def test_put_rejects_ssrf_base_url(self, client):
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'secondaryProviderBaseUrl': 'http://169.254.169.254/latest'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 400, response.data
+
+    def test_put_empty_base_url_clears_to_default(self, client):
+        db = database.Database()
+        db.set_setting('secondary_provider_base_url', 'https://openrouter.ai/api/v1',
+                       is_default=False)
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'secondaryProviderBaseUrl': ''}),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('secondary_provider_base_url') is None
+        get_body = json.loads(client.get('/api/v1/settings').data)
+        assert get_body['secondaryProviderBaseUrl']['value'] == 'http://localhost:8000/v1'
+        assert get_body['secondaryProviderBaseUrl']['isDefault'] is True
+
+    def test_put_enabled_toggle_round_trips(self, client):
+        db = database.Database()
+        on = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'secondaryProviderEnabled': True}),
+            content_type='application/json',
+        )
+        assert on.status_code == 200, on.data
+        assert json.loads(client.get('/api/v1/settings').data)['secondaryProviderEnabled']['value'] is True
+
+        off = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'secondaryProviderEnabled': False}),
+            content_type='application/json',
+        )
+        assert off.status_code == 200, off.data
+        assert json.loads(client.get('/api/v1/settings').data)['secondaryProviderEnabled']['value'] is False
+        assert db.get_setting('secondary_provider_enabled') == 'false'
+
+
+class TestSecondaryProviderChangeLiftsRateLimitHold:
+    """A secondary-slot credential/base/type/enabled change lifts an active
+    rate-limit hold the same way a primary provider change does (#696):
+    the pause belongs to the account and endpoint that returned the 429."""
+
+    @pytest.fixture
+    def held(self):
+        db = database.Database()
+        until = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', until, is_default=False)
+        db.set_setting('rate_limit_hold_since', '2026-01-01T00:00:00Z', is_default=False)
+        yield db
+        db.clear_setting('rate_limit_hold_until')
+        db.clear_setting('rate_limit_hold_since')
+        db.clear_setting('secondary_provider_enabled')
+        db.clear_setting('secondary_provider')
+        db.clear_setting('secondary_provider_base_url')
+        db.clear_secret('secondary_provider_api_key')
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_secondary_enabled_toggle_lifts_hold(self, mock_fire, client, held):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'secondaryProviderEnabled': True}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') is None
+        mock_fire.assert_called_once_with(held_since='2026-01-01T00:00:00Z')
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_unrelated_change_leaves_hold(self, mock_fire, client, held):
+        until = held.get_setting('rate_limit_hold_until')
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'reviewMaxBoundaryShift': 45}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        assert held.get_setting('rate_limit_hold_until') == until
+        mock_fire.assert_not_called()
+
 
 class TestAudioBitrateValidation:
     """audioBitrate round-trip + validation.

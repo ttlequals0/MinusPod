@@ -1743,11 +1743,18 @@ def _apply_secondary_provider_fields(db, data):
     """Persist the optional secondary provider (checkpoint 02b): a second
     full provider config that stage settings can route to via the
     'secondary' slot instead of the primary llmProvider config.
+
+    Any change here can affect a request already in flight against the
+    secondary slot, so it invalidates the provider cache and lifts a
+    matching rate-limit hold the same way a primary provider change does.
     """
+    changed = False
+
     if 'secondaryProviderEnabled' in data:
         value = 'true' if bool(data['secondaryProviderEnabled']) else 'false'
         db.set_setting('secondary_provider_enabled', value, is_default=False)
         logger.info(f"Updated secondary_provider_enabled to: {value}")
+        changed = True
 
     if 'secondaryProvider' in data:
         value = data['secondaryProvider']
@@ -1760,16 +1767,25 @@ def _apply_secondary_provider_fields(db, data):
         else:
             return error_response(
                 f'secondaryProvider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400)
+        changed = True
 
     if 'secondaryProviderBaseUrl' in data:
-        try:
-            validate_base_url(data['secondaryProviderBaseUrl'])
-        except SSRFError as e:
-            return error_response(f'Invalid secondary provider base URL: {e}', 400)
-        db.set_setting(
-            'secondary_provider_base_url', data['secondaryProviderBaseUrl'],
-            is_default=False)
-        logger.info("Updated secondary provider base URL")
+        value = data['secondaryProviderBaseUrl']
+        if not isinstance(value, str):
+            return error_response('secondaryProviderBaseUrl must be a string', 400)
+        if not value.strip():
+            # Empty clears the override back to the registry default,
+            # matching the per-phase provider routing fields above.
+            db.clear_setting('secondary_provider_base_url')
+            logger.info("Cleared secondary provider base URL")
+        else:
+            try:
+                validate_base_url(value)
+            except SSRFError as e:
+                return error_response(f'Invalid secondary provider base URL: {e}', 400)
+            db.set_setting('secondary_provider_base_url', value, is_default=False)
+            logger.info("Updated secondary provider base URL")
+        changed = True
 
     if 'secondaryProviderApiKey' in data:
         try:
@@ -1777,6 +1793,13 @@ def _apply_secondary_provider_fields(db, data):
         except SecretWriteRejected:
             return error_response('provider_crypto_unavailable', 409)
         logger.info("Updated secondary provider API key")
+        changed = True
+
+    if changed:
+        invalidate_provider_cache()
+        clear_hold_for_provider_change(
+            db, 'secondary provider settings changed',
+            provider_key=db.get_setting('secondary_provider'))
     return None
 
 

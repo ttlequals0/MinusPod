@@ -13,12 +13,15 @@ from flask import request
 import transcriber
 from api import api, error_response, json_response, limiter
 from config import (
-    HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE,
+    DEFAULT_OPENAI_BASE_URL, HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE,
     PROVIDER_ANTHROPIC, PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OPENROUTER,
 )
 from database import Database
-from llm_client import get_effective_base_url, _normalize_base_url_for_provider, _opencode_headers
+from llm_client import (
+    get_effective_base_url, get_effective_secondary_provider_api_key,
+    _normalize_base_url_for_provider, _opencode_headers,
+)
 from rate_limit_hold import clear_hold_for_provider_change
 from secrets_crypto import is_available as crypto_available
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
@@ -475,4 +478,52 @@ def test_provider_connection(provider):
             PROVIDER_OLLAMA if provider == 'ollama'
             else PROVIDER_OPENAI_COMPATIBLE, base)
         result = _probe_models_endpoint(norm, api_key)
+    return json_response(result, 200)
+
+
+@api.route('/settings/providers/secondary/test-connection', methods=['POST'])
+def test_secondary_provider_connection():
+    """End-to-end probe of the optional secondary provider slot (02b).
+
+    Mirrors /settings/providers/<provider>/test-connection above, but reads
+    its type, base URL, and key from the secondary_provider_* settings and
+    the secondary_provider_api_key secret instead of the primary provider
+    config, so the operator can validate the secondary slot before routing
+    any stage to it. A fixed-endpoint type (anthropic/openrouter) probes its
+    public URL with the secondary key; an OpenAI-compatible type (openai,
+    ollama) probes the same /models route the real client uses, accepting an
+    unsaved baseUrl in the body so it can be tested before saving.
+    """
+    db = Database()
+    provider = db.get_setting('secondary_provider')
+    if not provider:
+        return json_response(
+            {'ok': False, 'reachable': False,
+             'detail': 'Configure a secondary provider type first.'}, 200)
+
+    api_key = get_effective_secondary_provider_api_key() or ''
+
+    if provider in _FIXED_PROVIDER_PROBES:
+        return json_response(_probe_fixed_endpoint(provider, api_key), 200)
+
+    body = request.get_json(silent=True) or {}
+    saved_base = db.get_setting('secondary_provider_base_url') or DEFAULT_OPENAI_BASE_URL
+    base = body['baseUrl'] if 'baseUrl' in body else saved_base
+    if base is not None and not isinstance(base, str):
+        return error_response('baseUrl must be a string', 400)
+    if not base or not base.strip():
+        return json_response(
+            {'ok': False, 'reachable': False,
+             'detail': 'Enter a base URL first.'}, 200)
+    base = base.strip()
+
+    # Same anti-exfiltration gate as the primary test-connection route
+    # (#544): the saved key only goes out when the tested URL matches the
+    # explicitly saved secondary base URL.
+    api_key = api_key if _same_server(base, saved_base) else ''
+
+    norm = _normalize_base_url_for_provider(
+        PROVIDER_OLLAMA if provider == PROVIDER_OLLAMA
+        else PROVIDER_OPENAI_COMPATIBLE, base)
+    result = _probe_models_endpoint(norm, api_key)
     return json_response(result, 200)
