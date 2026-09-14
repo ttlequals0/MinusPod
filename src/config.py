@@ -424,6 +424,16 @@ RSS_REFRESH_INTERVAL = 900      # Seconds between RSS refreshes (15 min)
 FEED_REFRESH_FAILURE_ALERT_THRESHOLD = 3
 FEED_REFRESH_FAILURE_COUNT_INTERVAL = 600  # Seconds between counted failures
 
+# Shared-outage detection for refresh_all_feeds. When most feeds in one
+# batch fail together (a shared network blip, not N unrelated publishers
+# breaking at once), skip per-feed failure counting so healthy feeds are
+# not marked broken, and schedule one bounded retry instead of letting
+# every feed's own retry logic fire in lockstep at the next 15-min tick.
+FEED_REFRESH_OUTAGE_FRACTION = 0.5       # Failed/total ratio that trips outage mode
+FEED_REFRESH_OUTAGE_MIN_FEEDS = 3        # Below this batch size, count failures per-feed as usual
+FEED_REFRESH_OUTAGE_RETRY_BASE_SECONDS = 180   # Base delay before the one retry
+FEED_REFRESH_OUTAGE_RETRY_JITTER_SECONDS = 90  # Random extra delay, avoids thundering-herd retries
+
 # ============================================================
 # Deferred-episode services
 # ============================================================

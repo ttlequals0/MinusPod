@@ -4,6 +4,7 @@ import os
 import shutil
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Literal
 
 import run_log
@@ -12,6 +13,7 @@ from config import (
     title_matches_skip_patterns,
 )
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
+from utils.time import parse_iso_utc
 from whisper_pool import get_pool
 # Singletons are bound in main_app/__init__.py before this submodule
 # is loaded by the explicit `from main_app.background import ...` at
@@ -108,7 +110,7 @@ def background_rss_refresh():
     from db_backup_service import db_backup_tick
     from update_checker import update_check_tick
     while not shutdown_event.is_set():
-        refresh_all_feeds()
+        result = refresh_all_feeds()
         run_cleanup()
         refresh_pricing_if_stale()  # TTL-gated, fetches once per 24h
         # Community pattern sync -- gated by settings.community_sync_enabled
@@ -129,9 +131,22 @@ def background_rss_refresh():
         except (TypeError, ValueError):
             interval_minutes = 15
         interval_minutes = min(max(interval_minutes, 5), 1440)
+        wait_seconds = interval_minutes * 60
+
+        # A detected shared outage schedules one bounded, jittered retry
+        # sooner than the normal cadence instead of waiting a full interval
+        # (or every feed re-hitting the same host in lockstep next tick).
+        outage = result.get('outage') if isinstance(result, dict) else None
+        if outage and outage.get('detected') and outage.get('nextRetryAt'):
+            retry_at = parse_iso_utc(outage['nextRetryAt'])
+            if retry_at:
+                remaining = (retry_at - datetime.now(timezone.utc)).total_seconds()
+                if 0 < remaining < wait_seconds:
+                    wait_seconds = remaining
+
         # Wait, but allow early exit on shutdown. A changed setting applies
         # after the current wait completes.
-        shutdown_event.wait(timeout=interval_minutes * 60)
+        shutdown_event.wait(timeout=wait_seconds)
 
 
 ClaimResult = Literal['started', 'skipped', 'bounced']

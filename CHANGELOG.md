@@ -24,6 +24,7 @@ release notes.
 - Reprocess and bulk episode-action responses now include the authoritative jobState (queued/processing) alongside status, including on a duplicate submission's 409 response, so a client can reconcile action state from one field instead of special-casing errors.
 - The episode detail page's reprocess, redetect, and recut controls now derive their enabled state and label (Submitting, Queued, Processing) from the authoritative jobState, replacing ad-hoc mutation and status checks. A reprocess request also reconciles the episode list and processing queue, not just the episode detail.
 - GET /feeds accepts page/limit to paginate the feed list (the bare call still returns every feed) and an opt-in includeLatestEpisodes flag that adds each feed's newest episodes (episodesPerFeed, default 3), computed in one query for the whole page rather than one request per feed.
+- The 15-minute feed refresh now recognizes a shared network outage: when half or more of a batch of at least 3 feeds fail together, it skips per-feed failure counting instead of marking every healthy feed broken, and schedules one jittered retry sooner than the normal interval. /system/status exposes the aggregate degraded state (affected feed count, last successful refresh, next retry) without naming any feed.
 
 ### Fixed
 
