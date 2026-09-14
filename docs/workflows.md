@@ -73,7 +73,11 @@ gate.
 
 ## Processing modes
 
-One mode per feed. Changing it does not change the published address.
+One mode per feed. Changing it does not change the published address. A single
+episode can also be set to pass-through on its own, which overrides the feed
+mode for that episode only: it is served unmodified and skips detection,
+transcription, and editing. Set it from the episode page's Reprocess menu, or
+select episodes on the feed page and use the bulk pass-through action.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/wf-modes-dark.svg">
