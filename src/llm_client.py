@@ -1599,8 +1599,8 @@ def _record_token_usage(model: str, usage: dict):
 def get_client_for_provider(provider_key: str, base_url: str | None = None,
                             credential_slot: str = 'primary',
                             force_new: bool = False) -> LLMClient:
-    """Cache-per-(provider, base, credential_slot) client with usage callback
-    + its own circuit breaker attached. Concurrent phases on different
+    """Cache-per-(provider, base, credential_slot) client with its own
+    circuit breaker attached. Concurrent phases on different
     providers, or on different slots of the same provider type, each get
     their own client and breaker, so an outage on one does not open another's.
 
