@@ -5534,6 +5534,26 @@ paths:
                   type: string
                   nullable: true
                   description: API key for the secondary provider. Omit to leave unchanged; null or empty to clear.
+                providerRequestsPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Manual requests-per-minute cap for the primary provider account. 0 means unlimited.
+                  example: 5
+                providerRequestsPerDay:
+                  type: integer
+                  minimum: 0
+                  description: Manual requests-per-day cap for the primary provider account. 0 means unlimited.
+                  example: 20
+                secondaryProviderRequestsPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Manual requests-per-minute cap for the secondary provider account. 0 means unlimited.
+                  example: 5
+                secondaryProviderRequestsPerDay:
+                  type: integer
+                  minimum: 0
+                  description: Manual requests-per-day cap for the secondary provider account. 0 means unlimited.
+                  example: 20
                 detectionTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for the first-pass ad detection LLM call.
@@ -12846,6 +12866,42 @@ components:
         secondaryProviderApiKeyConfigured:
           type: boolean
           description: Whether a secondary provider API key is configured (read-only; the key itself is never returned)
+        providerRequestsPerMin:
+          type: object
+          description: Manual requests-per-minute cap for the primary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        providerRequestsPerDay:
+          type: object
+          description: Manual requests-per-day cap for the primary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        secondaryProviderRequestsPerMin:
+          type: object
+          description: Manual requests-per-minute cap for the secondary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        secondaryProviderRequestsPerDay:
+          type: object
+          description: Manual requests-per-day cap for the secondary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
         podcastSearchReady:
           type: boolean
           description: >-
@@ -12952,6 +13008,14 @@ components:
             maxRssBytes:
               type: integer
             maxAudioDownloadMb:
+              type: integer
+            providerRequestsPerMin:
+              type: integer
+            providerRequestsPerDay:
+              type: integer
+            secondaryProviderRequestsPerMin:
+              type: integer
+            secondaryProviderRequestsPerDay:
               type: integer
             autoProcessEnabled:
               type: boolean

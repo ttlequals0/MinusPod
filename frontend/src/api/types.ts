@@ -786,6 +786,11 @@ export interface Settings {
   secondaryProvider: SettingValue;
   secondaryProviderBaseUrl: SettingValue;
   secondaryProviderApiKeyConfigured: boolean;
+  // Manual per-provider request-rate limits (#747); 0 = unlimited.
+  providerRequestsPerMin: SettingValueNumber;
+  providerRequestsPerDay: SettingValueNumber;
+  secondaryProviderRequestsPerMin: SettingValueNumber;
+  secondaryProviderRequestsPerDay: SettingValueNumber;
   pricingSourceMode: SettingValue;
   modelPricingOverrides: { value: ModelPricingOverrides; isDefault: boolean };
   apiKeyConfigured: boolean;
@@ -857,6 +862,10 @@ export interface Settings {
     maxArtworkBytes: number;
     maxRssBytes: number;
     maxAudioDownloadMb: number;
+    providerRequestsPerMin: number;
+    providerRequestsPerDay: number;
+    secondaryProviderRequestsPerMin: number;
+    secondaryProviderRequestsPerDay: number;
     adDetectionParallelWindows: number;
     adReviewerParallelAds: number;
     transcribeMaxChunkSeconds: number;
@@ -1025,6 +1034,10 @@ export interface UpdateSettingsPayload {
   secondaryProvider?: LlmProvider | '';
   secondaryProviderBaseUrl?: string;
   secondaryProviderApiKey?: string;
+  providerRequestsPerMin?: number;
+  providerRequestsPerDay?: number;
+  secondaryProviderRequestsPerMin?: number;
+  secondaryProviderRequestsPerDay?: number;
   pricingSourceMode?: string;
   modelPricingOverrides?: Record<string, ModelPricingOverride | null>;
   whisperBackend?: WhisperBackend;

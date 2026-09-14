@@ -6,6 +6,7 @@ import ConnectionTestButton from './ConnectionTestButton';
 import ProviderKeyField from './ProviderKeyField';
 import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
+import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { selectBase } from '../../components/fieldStyles';
 
@@ -43,6 +44,74 @@ interface LLMProviderSectionProps {
   // `provider` carries the current (possibly unsaved) type selection so the
   // test always probes what's in the form, not the last-saved type.
   onSecondaryConnectionTest: (provider?: LlmProvider | '', baseUrl?: string) => Promise<ConnectionTestResult>;
+  // Manual per-provider request-rate limits (#747); 0 = no limit.
+  providerRequestsPerMin: number;
+  onProviderRequestsPerMinChange: (value: number) => void;
+  providerRequestsPerDay: number;
+  onProviderRequestsPerDayChange: (value: number) => void;
+  secondaryProviderRequestsPerMin: number;
+  onSecondaryProviderRequestsPerMinChange: (value: number) => void;
+  secondaryProviderRequestsPerDay: number;
+  onSecondaryProviderRequestsPerDayChange: (value: number) => void;
+}
+
+const RATE_LIMIT_MAX = 1_000_000;
+const parseIntOrZero = (s: string) => {
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// Requests-per-minute and requests-per-day caps for one provider account.
+// Drafts committed to form state; the page Save button persists them.
+function RateLimitFields({
+  idPrefix, rpm, onRpmChange, rpd, onRpdChange,
+}: {
+  idPrefix: string;
+  rpm: number;
+  onRpmChange: (value: number) => void;
+  rpd: number;
+  onRpdChange: (value: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex flex-wrap gap-6">
+        <div>
+          <label htmlFor={`${idPrefix}Rpm`} className="block text-sm font-medium text-foreground mb-2">
+            Requests per minute
+          </label>
+          <NumberInput
+            id={`${idPrefix}Rpm`}
+            value={rpm}
+            min={0}
+            max={RATE_LIMIT_MAX}
+            fallback={0}
+            step={1}
+            parse={parseIntOrZero}
+            onCommit={onRpmChange}
+          />
+        </div>
+        <div>
+          <label htmlFor={`${idPrefix}Rpd`} className="block text-sm font-medium text-foreground mb-2">
+            Requests per day
+          </label>
+          <NumberInput
+            id={`${idPrefix}Rpd`}
+            value={rpd}
+            min={0}
+            max={RATE_LIMIT_MAX}
+            fallback={0}
+            step={1}
+            parse={parseIntOrZero}
+            onCommit={onRpdChange}
+          />
+        </div>
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        0 means no limit. These throttle MinusPod to stay under this provider
+        account's request limits, useful for free tiers.
+      </p>
+    </div>
+  );
 }
 
 const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
@@ -192,6 +261,14 @@ function LLMProviderSection({
   onSecondaryProviderKeySave,
   onSecondaryProviderKeyClear,
   onSecondaryConnectionTest,
+  providerRequestsPerMin,
+  onProviderRequestsPerMinChange,
+  providerRequestsPerDay,
+  onProviderRequestsPerDayChange,
+  secondaryProviderRequestsPerMin,
+  onSecondaryProviderRequestsPerMinChange,
+  secondaryProviderRequestsPerDay,
+  onSecondaryProviderRequestsPerDayChange,
 }: LLMProviderSectionProps) {
   const keyProvider = keyProviderFor(llmProvider);
   const status = keyProvider && providersState ? providersState[keyProvider] : NONE_STATUS;
@@ -265,6 +342,14 @@ function LLMProviderSection({
           </div>
         )}
 
+        <RateLimitFields
+          idPrefix="provider"
+          rpm={providerRequestsPerMin}
+          onRpmChange={onProviderRequestsPerMinChange}
+          rpd={providerRequestsPerDay}
+          onRpdChange={onProviderRequestsPerDayChange}
+        />
+
         <div className="pt-4 border-t border-border space-y-4">
           <div>
             <label className="flex items-center gap-3 cursor-pointer">
@@ -305,6 +390,16 @@ function LLMProviderSection({
                 return { ok: result.ok, error: result.ok ? undefined : result.detail };
               }}
               onConnectionTest={(baseUrl) => onSecondaryConnectionTest(secondaryProvider, baseUrl)}
+            />
+          )}
+
+          {secondaryProviderEnabled && (
+            <RateLimitFields
+              idPrefix="secondaryProvider"
+              rpm={secondaryProviderRequestsPerMin}
+              onRpmChange={onSecondaryProviderRequestsPerMinChange}
+              rpd={secondaryProviderRequestsPerDay}
+              onRpdChange={onSecondaryProviderRequestsPerDayChange}
             />
           )}
         </div>

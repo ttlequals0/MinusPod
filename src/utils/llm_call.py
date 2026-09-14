@@ -20,8 +20,10 @@ from llm_client import (
     supports_json_schema_for_calls,
 )
 from rate_limit_hold import (
-    MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, is_rate_limit_hold_enabled,
+    MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, enforce_provider_rate_limit,
+    is_rate_limit_hold_enabled,
 )
+from utils.time import parse_iso_utc, utc_now
 # webhook_service, database and cancel are lazy-imported at the call sites
 # below (database pulls in Flask via AuthLockoutMixin; cancel pulls in
 # database transitively). Keeping them out of this module's import-time
@@ -118,7 +120,7 @@ def _invoking_pass_from_name(pass_name: str | None) -> int | None:
 
 
 def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass,
-                      provider_key, slug, episode_id, call_label):
+                      provider_key, credential_slot, slug, episode_id, call_label):
     """One ledger-tracked adapter dispatch.
 
     Begins an attempt before the network call and finalizes it after, so
@@ -139,6 +141,7 @@ def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass
         provider_key=provider_key,
         configured_model=model,
         window_label=call_label,
+        credential_slot=credential_slot,
     )
     try:
         response = _call_once(llm_client, llm_kwargs, model)
@@ -282,6 +285,34 @@ def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None
     return error
 
 
+def _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id):
+    """ProviderRateLimitedError when the manual RPM/RPD cap is hit, else None.
+
+    Records the provider+slot hold as a side effect (via
+    enforce_provider_rate_limit) so admission and the probe tick see it too.
+    """
+    try:
+        from database import Database
+        reset_iso = enforce_provider_rate_limit(
+            Database(), provider_key, credential_slot,
+            slug=slug, episode_id=episode_id)
+    except Exception:
+        logger.exception("Manual rate-limit check failed; allowing the call")
+        return None
+    if reset_iso is None:
+        return None
+    reset_at = parse_iso_utc(reset_iso)
+    retry_after = max(0.0, (reset_at - utc_now()).total_seconds()) if reset_at else 0.0
+    logger.warning(
+        f"[{slug}:{episode_id}] {provider_key} manual rate limit reached; "
+        f"holding queue {retry_after:.0f}s until {reset_iso}"
+    )
+    return ProviderRateLimitedError(
+        f"manual rate limit for {provider_key} resets in {retry_after:.0f}s",
+        retry_after_seconds=retry_after, provider_key=provider_key,
+        credential_slot=credential_slot)
+
+
 def call_llm(
     *,
     llm_client,
@@ -322,6 +353,15 @@ def call_llm(
         Tuple of (response, last_error). response is None if all retries failed.
     """
     provider_key = provider or get_effective_provider()
+
+    # Manual rate-limit backstop (#747): if this (provider, slot) is at its
+    # RPM/RPD cap, record the hold and surface it as a 429 so the caller
+    # defers exactly like a real provider reset. Admission is the primary
+    # gate; this covers a cap crossed mid-run.
+    held = _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id)
+    if held is not None:
+        return None, held
+
     invoking_pass = _invoking_pass_from_name(pass_name)
     llm_kwargs = dict(
         model=model,
@@ -343,6 +383,7 @@ def call_llm(
             response = _ledger_call_once(
                 llm_client, llm_kwargs, model, phase_key=phase_key,
                 invoking_pass=invoking_pass, provider_key=provider_key,
+                credential_slot=credential_slot,
                 slug=slug, episode_id=episode_id, call_label=call_label)
             return response, None
         except Exception as e:

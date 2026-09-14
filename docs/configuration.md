@@ -438,6 +438,21 @@ A hold on one provider is lifted automatically when you update that provider's o
 
 Holds are scoped per credential, not just per provider type. If primary and secondary use the same provider type, for example two Anthropic accounts, a 429 on one does not pause the other. Updating a slot's credentials lifts only that slot's hold.
 
+### Manual request-rate limits
+
+The rate-limit hold above reacts to a 429 after it happens. Manual request-rate limits keep you under a provider account's hard limits in the first place, so a low-tier account never sends the request that would be rejected. Both features share the same queue-hold machinery, so a manual limit pauses the queue exactly like a real 429 and resumes on its own.
+
+Limits are counted per provider account (primary and secondary separately) from the LLM call ledger: requests in the last 60 seconds against the per-minute cap, and requests since the last UTC midnight against the per-day cap. When either cap is reached, that account's queue is paused. The per-minute pause lifts about 60 seconds after the oldest request in the window; the per-day pause lifts at the next UTC midnight.
+
+Both are off by default (0 means unlimited), so existing installs are unaffected. Configure them under **Settings > AI & Processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
+
+- `providerRequestsPerMin`, `providerRequestsPerDay` - caps for the primary provider account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`).
+- `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay` - caps for the secondary provider account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`).
+
+Example: the Gemini free tier allows roughly 5 requests per minute and 20 per day. Set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Pair this with a large detection window size (see [Detection window geometry](#detection-window-geometry)) so each episode spends fewer requests, and a whole episode can fit inside a small daily budget.
+
+A held or limited provider never reroutes to another provider: the episode waits in the queue for that account's reset.
+
 ## Whisper Pool
 
 Off by default. With a remote Whisper backend (`WHISPER_BACKEND=openai-api`)

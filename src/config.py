@@ -2053,6 +2053,14 @@ def _validate_positive_int(value: str) -> bool:
         return False
 
 
+def _validate_non_negative_int(value: str) -> bool:
+    """Manual rate-limit gate: 0 means off, positive is a cap."""
+    try:
+        return int(value) >= 0
+    except (ValueError, TypeError):
+        return False
+
+
 # Size-cap bounds (issue #491). Single owner shared by get_env_backed_int,
 # the settings API validation, and the runtime consumers.
 MAX_ARTWORK_BYTES_MIN = 64 * 1024
@@ -2187,6 +2195,17 @@ ENV_BACKED_SETTINGS = (
      str(EPISODE_LOG_RETENTION_DAYS_DEFAULT), _validate_episode_log_retention_days),
     ('episode_log_level', 'EPISODE_LOG_LEVEL', EPISODE_LOG_LEVEL_DEBUG,
      _validate_episode_log_level),
+    # Manual per-provider request-rate limits (issue #747). 0 = unlimited
+    # (off by default). Counted per provider account (primary/secondary) so
+    # MinusPod self-throttles under a low-tier provider's hard limits.
+    ('provider_requests_per_min', 'PROVIDER_REQUESTS_PER_MIN', '0',
+     _validate_non_negative_int),
+    ('provider_requests_per_day', 'PROVIDER_REQUESTS_PER_DAY', '0',
+     _validate_non_negative_int),
+    ('secondary_provider_requests_per_min', 'SECONDARY_PROVIDER_REQUESTS_PER_MIN',
+     '0', _validate_non_negative_int),
+    ('secondary_provider_requests_per_day', 'SECONDARY_PROVIDER_REQUESTS_PER_DAY',
+     '0', _validate_non_negative_int),
 )
 
 

@@ -461,6 +461,14 @@ def get_settings():
     max_audio_download_mb = get_env_backed_int(
         'max_audio_download_mb', floor=MAX_AUDIO_DOWNLOAD_MB_MIN,
         settings=settings)
+    provider_requests_per_min = get_env_backed_int(
+        'provider_requests_per_min', floor=0, settings=settings)
+    provider_requests_per_day = get_env_backed_int(
+        'provider_requests_per_day', floor=0, settings=settings)
+    secondary_provider_requests_per_min = get_env_backed_int(
+        'secondary_provider_requests_per_min', floor=0, settings=settings)
+    secondary_provider_requests_per_day = get_env_backed_int(
+        'secondary_provider_requests_per_day', floor=0, settings=settings)
 
     def _db_int(key, default):
         try:
@@ -699,6 +707,12 @@ def get_settings():
         'secondaryProvider': _sv('secondary_provider', secondary_provider),
         'secondaryProviderBaseUrl': _sv('secondary_provider_base_url', secondary_provider_base_url),
         'secondaryProviderApiKeyConfigured': secondary_provider_api_key_configured,
+        'providerRequestsPerMin': _sv('provider_requests_per_min', provider_requests_per_min),
+        'providerRequestsPerDay': _sv('provider_requests_per_day', provider_requests_per_day),
+        'secondaryProviderRequestsPerMin': _sv(
+            'secondary_provider_requests_per_min', secondary_provider_requests_per_min),
+        'secondaryProviderRequestsPerDay': _sv(
+            'secondary_provider_requests_per_day', secondary_provider_requests_per_day),
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         # value is resolved, not raw: unset falls back to PodcastIndex when
         # its credentials exist (pre-option installs keep their behavior),
@@ -844,6 +858,7 @@ def update_ad_detection_settings():
         _apply_community_sync_categories,
         _apply_jit_blocked_user_agents,
         _apply_user_agent_fields,
+        _apply_provider_rate_limit_fields,
     )
     for phase in phases:
         err = phase(db, data)
@@ -1055,6 +1070,34 @@ def _apply_size_caps(db, data):
         if n < floor or (ceiling is not None and n > ceiling):
             bound = f'between {floor} and {ceiling}' if ceiling is not None else f'at least {floor}'
             return error_response(f'{payload_key} must be {bound}', 400)
+        writes.append((db_key, n))
+    for db_key, n in writes:
+        db.set_setting(db_key, str(n), is_default=False)
+        logger.info(f"Updated {db_key} to: {n}")
+
+
+def _apply_provider_rate_limit_fields(db, data):
+    """Persist the manual per-provider request-rate caps (#747).
+
+    Validates every field before writing any, so a 400 never leaves part of
+    the payload persisted. 0 means unlimited.
+    """
+    fields = (
+        ('providerRequestsPerMin', 'provider_requests_per_min'),
+        ('providerRequestsPerDay', 'provider_requests_per_day'),
+        ('secondaryProviderRequestsPerMin', 'secondary_provider_requests_per_min'),
+        ('secondaryProviderRequestsPerDay', 'secondary_provider_requests_per_day'),
+    )
+    writes = []
+    for payload_key, db_key in fields:
+        if payload_key not in data:
+            continue
+        try:
+            n = int(data[payload_key])
+        except (TypeError, ValueError):
+            return error_response(f'{payload_key} must be an integer', 400)
+        if n < 0:
+            return error_response(f'{payload_key} must be at least 0', 400)
         writes.append((db_key, n))
     for db_key, n in writes:
         db.set_setting(db_key, str(n), is_default=False)

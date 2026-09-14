@@ -39,6 +39,14 @@ function renderSection(overrides: Partial<Parameters<typeof LLMProviderSection>[
       onSecondaryProviderKeySave={vi.fn().mockResolvedValue(undefined)}
       onSecondaryProviderKeyClear={vi.fn().mockResolvedValue(undefined)}
       onSecondaryConnectionTest={vi.fn().mockResolvedValue({ ok: true, reachable: true, detail: 'OK' })}
+      providerRequestsPerMin={0}
+      onProviderRequestsPerMinChange={vi.fn()}
+      providerRequestsPerDay={0}
+      onProviderRequestsPerDayChange={vi.fn()}
+      secondaryProviderRequestsPerMin={0}
+      onSecondaryProviderRequestsPerMinChange={vi.fn()}
+      secondaryProviderRequestsPerDay={0}
+      onSecondaryProviderRequestsPerDayChange={vi.fn()}
       {...overrides}
     />,
   );
@@ -144,5 +152,28 @@ describe('LLMProviderSection: secondary provider block, once enabled', () => {
     renderSection({ secondaryProviderEnabled: true, secondaryProviderApiKeyConfigured: true });
     const secondaryKeyField = screen.getByLabelText('OpenRouter API key').closest('form') as HTMLElement;
     expect(within(secondaryKeyField).getByText('Stored encrypted')).toBeDefined();
+  });
+});
+
+describe('LLMProviderSection: manual request-rate limits', () => {
+  it('renders primary RPM/RPD inputs and fires the primary change handlers', async () => {
+    const user = userEvent.setup();
+    const onProviderRequestsPerMinChange = vi.fn();
+    renderSection({ onProviderRequestsPerMinChange });
+
+    const rpm = screen.getByLabelText('Requests per minute') as HTMLInputElement;
+    expect(screen.getByLabelText('Requests per day')).toBeDefined();
+    await user.type(rpm, '5');
+    expect(onProviderRequestsPerMinChange).toHaveBeenCalledWith(5);
+  });
+
+  it('shows one RPM input with the secondary provider off', () => {
+    renderSection();
+    expect(screen.getAllByLabelText('Requests per minute').length).toBe(1);
+  });
+
+  it('shows a second RPM input once the secondary provider is on', () => {
+    renderSection({ secondaryProviderEnabled: true });
+    expect(screen.getAllByLabelText('Requests per minute').length).toBe(2);
   });
 });

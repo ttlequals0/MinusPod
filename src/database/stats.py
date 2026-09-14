@@ -354,21 +354,54 @@ class StatsMixin:
 
     def begin_llm_attempt(self, *, run_id, podcast_id, episode_id, phase_key,
                           invoking_pass, provider_key, configured_model,
-                          window_label=None) -> str:
+                          window_label=None, credential_slot='primary') -> str:
         """Insert an in_flight llm_call_usage row; return a new attempt_id."""
         attempt_id = str(uuid.uuid4())
         conn = self.get_connection()
         conn.execute(
             """INSERT INTO llm_call_usage
                    (attempt_id, run_id, podcast_id, episode_id, phase_key,
-                    invoking_pass, window_label, provider_key, configured_model,
-                    state)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight')""",
+                    invoking_pass, window_label, provider_key, credential_slot,
+                    configured_model, state)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight')""",
             (attempt_id, run_id, podcast_id, episode_id, phase_key,
-             invoking_pass, window_label, provider_key, configured_model)
+             invoking_pass, window_label, provider_key, credential_slot,
+             configured_model)
         )
         conn.commit()
         return attempt_id
+
+    def count_recent_llm_attempts(self, provider_key: str, credential_slot: str,
+                                  since_iso: str) -> int:
+        """Ledger attempts for one (provider, slot) with created_at >= since_iso.
+
+        NULL credential_slot (historical rows) reads as 'primary'. Backs the
+        manual per-provider RPM/RPD throttle.
+        """
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT COUNT(*) AS n FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return int(row['n']) if row else 0
+
+    def oldest_recent_llm_attempt(self, provider_key: str, credential_slot: str,
+                                  since_iso: str) -> str | None:
+        """created_at of the oldest (provider, slot) attempt at or after
+        since_iso, or None when the window holds none. NULL slot reads as
+        'primary'."""
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT MIN(created_at) AS oldest FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return row['oldest'] if row and row['oldest'] else None
 
     def finalize_llm_attempt(self, attempt_id: str, *, state: str,
                              returned_model=None, input_tokens=None,

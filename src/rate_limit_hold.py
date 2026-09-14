@@ -35,7 +35,7 @@ active hold, legacy or provider-scoped, as a unit.
 import logging
 from datetime import timedelta
 
-from config import coerce_bool_setting
+from config import coerce_bool_setting, get_env_backed_int
 from database.settings import registry_current_value, registry_default
 from llm_client import (
     extract_retry_after, get_effective_provider, get_llm_client,
@@ -444,6 +444,75 @@ def hold_queue_for_provider_limit(db, error, *, slug: str, episode_id: str,
     if started:
         fire_queue_held_event(hold_until=hold_until, error_message=error, slug=slug,
                               episode_id=episode_id, podcast_name=podcast_name)
+    return hold_until
+
+
+def _rate_limit_setting_keys(credential_slot: str) -> tuple[str, str]:
+    """(rpm_key, rpd_key) for a slot: secondary reads the secondary_* keys."""
+    if credential_slot == 'secondary':
+        return ('secondary_provider_requests_per_min',
+                'secondary_provider_requests_per_day')
+    return ('provider_requests_per_min', 'provider_requests_per_day')
+
+
+def evaluate_provider_rate_limit(db, provider_key: str,
+                                 credential_slot: str = 'primary') -> str | None:
+    """Reset time when (provider_key, credential_slot) is at or over its
+    manual RPM/RPD cap, else None (no side effects).
+
+    RPM: 60s after the oldest attempt in the last 60s. RPD: next UTC
+    midnight. Both configured and tripped returns the later reset. 0 for a
+    limit disables it; both 0 short-circuits to None. Capped at MAX_HOLD.
+    """
+    rpm_key, rpd_key = _rate_limit_setting_keys(credential_slot)
+    rpm = get_env_backed_int(rpm_key, floor=0)
+    rpd = get_env_backed_int(rpd_key, floor=0)
+    if rpm <= 0 and rpd <= 0:
+        return None
+    now = utc_now()
+    reset = None
+    if rpm > 0:
+        since = (now - timedelta(seconds=60)).strftime(ISO_FORMAT)
+        if db.count_recent_llm_attempts(provider_key, credential_slot, since) >= rpm:
+            oldest = db.oldest_recent_llm_attempt(provider_key, credential_slot, since)
+            oldest_dt = parse_iso_utc(oldest) if oldest else now
+            reset = oldest_dt + timedelta(seconds=60)
+    if rpd > 0:
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_since = midnight.strftime(ISO_FORMAT)
+        if db.count_recent_llm_attempts(provider_key, credential_slot, day_since) >= rpd:
+            next_midnight = midnight + timedelta(days=1)
+            reset = max(reset, next_midnight) if reset is not None else next_midnight
+    if reset is None:
+        return None
+    return _capped_reset_iso(reset)
+
+
+def enforce_provider_rate_limit(db, provider_key: str,
+                                credential_slot: str = 'primary', *,
+                                slug: str | None = None,
+                                episode_id: str | None = None,
+                                podcast_name: str | None = None) -> str | None:
+    """Record a provider+slot hold when the manual RPM/RPD cap is reached;
+    returns the effective hold_until, or None when under the cap.
+
+    Uses the same record_hold_until marker a 429 hold uses, so is_queue_paused
+    and the probe tick treat it uniformly. Independent of the 429-hold toggle:
+    the RPM/RPD settings are their own switch.
+    """
+    reset_iso = evaluate_provider_rate_limit(db, provider_key, credential_slot)
+    if reset_iso is None:
+        return None
+    hold_until, started = record_hold_until(
+        db, provider_key, reset_iso, credential_slot=credential_slot)
+    if started:
+        logger.warning(f"Manual rate limit: paused {provider_key}:{credential_slot} "
+                       f"until {hold_until}")
+        if slug and episode_id:
+            fire_queue_held_event(hold_until=hold_until,
+                                  error_message=f"manual rate limit ({provider_key})",
+                                  slug=slug, episode_id=episode_id,
+                                  podcast_name=podcast_name)
     return hold_until
 
 

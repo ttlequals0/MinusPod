@@ -126,7 +126,8 @@ from database.queue import compute_queue_priority
 from llm_route import resolve_route
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
-    hold_message, hold_queue_for_provider_limit, is_queue_paused,
+    enforce_provider_rate_limit, hold_message, hold_queue_for_provider_limit,
+    is_queue_paused,
 )
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -420,8 +421,13 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
     if required_providers is None:
         if is_queue_paused(db):
             return False, "rate_limit_paused"
-    elif any(is_queue_paused(db, provider, slot) for provider, slot in required_providers):
-        return False, "rate_limit_paused"
+    else:
+        # Manual RPM/RPD caps (#747): record a hold for any required account
+        # already at its limit, so the is_queue_paused check below refuses it.
+        for provider, slot in required_providers:
+            enforce_provider_rate_limit(db, provider, slot)
+        if any(is_queue_paused(db, provider, slot) for provider, slot in required_providers):
+            return False, "rate_limit_paused"
 
     # Check if queue is busy with another episode
     run_id = queue.acquire(slug, episode_id, limit=get_pool().max_episodes, timeout=0)

@@ -29,6 +29,7 @@ release notes.
 - Feed artwork refresh now tries the channel's itunes:image and RSS `<image>` URL in order, falling back to the already-cached cover if both fail instead of clearing a working cover when only the preferred URL breaks. A candidate that starts failing is skipped on later refreshes once another candidate resolves. A confirmed-missing (404) cover backs off longer than a transient fetch error, and the backoff survives a restart.
 - Episodes can now be flagged for pass-through individually, overriding a feed's own processing mode for that episode (#746). POST /feeds/{slug}/episodes/passthrough sets or clears the flag for one or more episodes and enqueues a reprocess when enabling; the episode list and detail responses expose the flag as passthroughEnabled.
 - The detection window size tunable now allows up to 10800 seconds (3 hours), up from 1800, so a low-request-rate provider (e.g. a free tier capped at a few requests per minute) can fit a whole transcript into one or two model calls instead of many (#747).
+- Manual per-provider request-rate limits: optional requests-per-minute and requests-per-day caps for each provider account (primary and secondary), so MinusPod self-throttles under a low-tier provider's hard limits (e.g. a free tier of 5 per minute, 20 per day) instead of hitting a 429. Counted from the LLM call ledger and enforced through the existing queue-hold machinery at both queue admission and as a pre-call backstop. Off by default (0 means unlimited); no cross-provider fallback (#747).
 
 ### Fixed
 

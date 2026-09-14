@@ -293,6 +293,11 @@ function Settings() {
   const [secondaryProviderEnabled, setSecondaryProviderEnabled] = useState(false);
   const [secondaryProvider, setSecondaryProvider] = useState<LlmProvider | ''>('');
   const [secondaryProviderBaseUrl, setSecondaryProviderBaseUrl] = useState('');
+  // Manual per-provider request-rate limits (#747); 0 = unlimited.
+  const [providerRequestsPerMin, setProviderRequestsPerMin] = useState(0);
+  const [providerRequestsPerDay, setProviderRequestsPerDay] = useState(0);
+  const [secondaryProviderRequestsPerMin, setSecondaryProviderRequestsPerMin] = useState(0);
+  const [secondaryProviderRequestsPerDay, setSecondaryProviderRequestsPerDay] = useState(0);
   const [pricingSourceMode, setPricingSourceMode] = useState('auto');
   const [whisperBackend, setWhisperBackend] = useState<WhisperBackend>('' as WhisperBackend);
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
@@ -632,6 +637,10 @@ function Settings() {
     { key: 'secondaryProviderEnabled', kind: 'val', literal: false, value: secondaryProviderEnabled, set: setSecondaryProviderEnabled },
     { key: 'secondaryProvider', kind: 'str', value: secondaryProvider, set: (v) => setSecondaryProvider(v as LlmProvider | '') },
     { key: 'secondaryProviderBaseUrl', kind: 'str', value: secondaryProviderBaseUrl, set: setSecondaryProviderBaseUrl },
+    { key: 'providerRequestsPerMin', kind: 'val', useDefault: true, literal: 0, value: providerRequestsPerMin, set: setProviderRequestsPerMin },
+    { key: 'providerRequestsPerDay', kind: 'val', useDefault: true, literal: 0, value: providerRequestsPerDay, set: setProviderRequestsPerDay },
+    { key: 'secondaryProviderRequestsPerMin', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderRequestsPerMin, set: setSecondaryProviderRequestsPerMin },
+    { key: 'secondaryProviderRequestsPerDay', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderRequestsPerDay, set: setSecondaryProviderRequestsPerDay },
     { key: 'pricingSourceMode', kind: 'str', useDefault: true, value: pricingSourceMode, set: setPricingSourceMode },
     // Transcription
     { key: 'whisperBackend', kind: 'str', useDefault: true, value: whisperBackend, set: (v) => setWhisperBackend(v as WhisperBackend) },
@@ -1171,6 +1180,14 @@ function Settings() {
         onSecondaryProviderKeySave={handleSecondaryProviderKeySave}
         onSecondaryProviderKeyClear={handleSecondaryProviderKeyClear}
         onSecondaryConnectionTest={testSecondaryProviderConnection}
+        providerRequestsPerMin={providerRequestsPerMin}
+        onProviderRequestsPerMinChange={setProviderRequestsPerMin}
+        providerRequestsPerDay={providerRequestsPerDay}
+        onProviderRequestsPerDayChange={setProviderRequestsPerDay}
+        secondaryProviderRequestsPerMin={secondaryProviderRequestsPerMin}
+        onSecondaryProviderRequestsPerMinChange={setSecondaryProviderRequestsPerMin}
+        secondaryProviderRequestsPerDay={secondaryProviderRequestsPerDay}
+        onSecondaryProviderRequestsPerDayChange={setSecondaryProviderRequestsPerDay}
       />
 
       <AIModelsSection

@@ -603,6 +603,8 @@ TABLE_DDL['llm_call_usage'] = """CREATE TABLE IF NOT EXISTS llm_call_usage (
     invoking_pass INTEGER,
     window_label TEXT,
     provider_key TEXT NOT NULL,
+    -- Account slot for per-account rate accounting; NULL reads as 'primary'.
+    credential_slot TEXT,
     configured_model TEXT NOT NULL,
     returned_model TEXT,
     input_tokens INTEGER,
@@ -795,6 +797,7 @@ CREATE INDEX IF NOT EXISTS idx_llm_call_usage_episode ON llm_call_usage(podcast_
 CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_model ON llm_call_usage(provider_key, configured_model);
 CREATE INDEX IF NOT EXISTS idx_llm_call_usage_created ON llm_call_usage(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_call_usage_state ON llm_call_usage(state);
+CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_slot_created ON llm_call_usage(provider_key, credential_slot, created_at DESC);
 
 -- addressing_log: per-pass addressing-mode compliance samples (random
 -- addressing mode A/B tracking). Aggregated per effective_mode by

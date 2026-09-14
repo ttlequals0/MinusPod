@@ -681,6 +681,17 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'max_audio_download_mb': SettingSpec(
         env_backed=True, in_ad_reset=True, payload_key='maxAudioDownloadMb',
         payload_factory=_payload_max_audio_download_mb),
+    # Manual per-provider request-rate limits (#747); 0 = unlimited.
+    'provider_requests_per_min': SettingSpec(
+        env_backed=True, payload_key='providerRequestsPerMin', payload_kind='int'),
+    'provider_requests_per_day': SettingSpec(
+        env_backed=True, payload_key='providerRequestsPerDay', payload_kind='int'),
+    'secondary_provider_requests_per_min': SettingSpec(
+        env_backed=True, payload_key='secondaryProviderRequestsPerMin',
+        payload_kind='int'),
+    'secondary_provider_requests_per_day': SettingSpec(
+        env_backed=True, payload_key='secondaryProviderRequestsPerDay',
+        payload_kind='int'),
 
     # -- Audio cue detection (#350) --
     'audio_cue_detection_enabled': SettingSpec(
