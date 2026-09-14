@@ -132,18 +132,50 @@ export interface FeedsResponse {
   // Stamped whenever an all-feeds refresh pass finishes (15-minute
   // scheduler or Refresh All); null until the first pass completes.
   lastRefreshCompletedAt: string | null;
+  // Present only when the request passed page/limit; a bare request stays
+  // unbounded (all feeds, no pagination metadata).
+  total?: number;
+  totalPages?: number;
+  page?: number;
+  limit?: number;
+  offset?: number;
 }
 
-export async function getFeedsResponse(): Promise<FeedsResponse> {
-  return apiRequest<FeedsResponse>('/feeds');
+export interface GetFeedsParams {
+  page?: number;
+  limit?: number;
+  // Adds a bounded per-feed `latestEpisodes` projection via one windowed
+  // query rather than one request per feed.
+  includeLatestEpisodes?: boolean;
+  episodesPerFeed?: number;
+}
+
+export async function getFeedsResponse(params?: GetFeedsParams): Promise<FeedsResponse> {
+  const qs = buildQueryString({
+    page: params?.page,
+    limit: params?.limit,
+    includeLatestEpisodes: params?.includeLatestEpisodes,
+    episodesPerFeed: params?.episodesPerFeed,
+  });
+  return apiRequest<FeedsResponse>(`/feeds${qs}`);
 }
 
 // Shared options so every consumer of the ['feeds'] cache stores the same
-// FeedsResponse shape; spread and add `select` to derive a view.
+// FeedsResponse shape; spread and add `select` to derive a view. No-params
+// shape: unbounded, no latestEpisodes projection.
 export const feedsQueryOptions = {
   queryKey: ['feeds'],
-  queryFn: getFeedsResponse,
+  queryFn: () => getFeedsResponse(),
 } as const;
+
+// Paginated/projected variant (grouped dashboard view). Distinct queryKey
+// per params so it doesn't collide with the unbounded feedsQueryOptions cache.
+export function feedsQueryOptionsFor(params: GetFeedsParams) {
+  return {
+    queryKey: ['feeds', params] as const,
+    queryFn: () => getFeedsResponse(params),
+  };
+}
 
 export async function getFeeds(): Promise<Feed[]> {
   return (await getFeedsResponse()).feeds;

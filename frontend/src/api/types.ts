@@ -154,6 +154,24 @@ export interface Feed {
   ownEpisodeGuids?: boolean | null;
   // Skip the pass-2 verification scan (#599). Null/false run it.
   skipSecondPass?: boolean | null;
+  // Bounded per-feed episode projection (grouped dashboard view), present
+  // only when the /feeds request opted in via includeLatestEpisodes.
+  latestEpisodes?: EpisodeSummary[];
+}
+
+// Bounded per-episode projection returned inline on a Feed by GET /feeds
+// with includeLatestEpisodes=true. Field names/types mirror the same-named
+// fields on Episode.
+export interface EpisodeSummary {
+  id: string;
+  title: string;
+  published: string;
+  createdAt: string;
+  duration?: number;
+  status: EpisodeStatusKey;
+  jobState?: 'idle' | 'submitting' | 'queued' | 'processing';
+  artworkUrl?: string | null;
+  description?: string | null;
 }
 
 export interface AdDistributionZone {
