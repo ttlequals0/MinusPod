@@ -11,6 +11,7 @@ behind each stage, see [How It Works](how-it-works.md).
 
 - [The job](#the-job)
 - [How work arrives](#how-work-arrives)
+- [The Whisper pool](#the-whisper-pool)
 - [The standard pipeline](#the-standard-pipeline)
 - [Five kinds of evidence, five outcomes](#five-kinds-of-evidence-five-outcomes)
 - [Processing modes](#processing-modes)
@@ -36,6 +37,22 @@ behind that address.
   <source media="(prefers-color-scheme: dark)" srcset="images/wf-arrival-dark.svg">
   <img alt="Scheduled poll, publisher announcement and listener playback all feed one queue that processes a single episode at a time" src="images/wf-arrival-light.svg">
 </picture>
+
+---
+
+## The Whisper pool
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/wf-pool-dark.svg">
+  <img alt="A waiting queue of episodes feeding a Whisper pool that transcribes four at once, which then hand off to the pipeline" src="images/wf-pool-light.svg">
+</picture>
+
+By default one episode runs at a time. Turn on the Whisper pool and raise its
+per-episode limit to transcribe several at once (up to 16); the rest wait in
+the queue and start as slots free. Each running episode still flows through the
+same pipeline once its transcript is ready. The pool is off by default and only
+the background leader process runs it, so a single instance never
+double-allocates the transcriber.
 
 ---
 
