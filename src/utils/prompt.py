@@ -110,3 +110,25 @@ def scrub_description(description: str|None, max_length: int = 800) -> str:
             description = description[:last_space]
         description += "..."
     return description
+
+def strip_comments_from_prompt(prompt: str|None) -> str|None:
+    """Remove HTML-style comments from the prompt following markdown
+    conventions.
+
+    Multi-line comments can start at the beginning of a line (up to three
+    leading spaces allowed), and single-line comments can appear anywhere.
+    If a ML comment ends with a line break, the line break is also removed.
+
+    HTML-style comments cannot be nested (the nested comment's end will
+    terminate the outer comment).
+
+    Examples:
+        Fooo <!-- This is a single-line comment -->
+        <!--
+        This is a multi-line comment
+        -->
+    """
+    if not prompt:
+        return prompt
+    pattern = r'^([ ]{0,3})<!--(?:.|\n)*?-->(?:\r?\n)?|<!--.*?-->'
+    return re.sub(pattern, r'\1', prompt, flags=re.MULTILINE)
