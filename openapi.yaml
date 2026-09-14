@@ -4554,12 +4554,12 @@ paths:
       summary: Test the secondary provider connection end to end
       description: |
         Same staged probe as `/settings/providers/{provider}/test-connection`,
-        but targets the optional secondary provider slot: its type comes
-        from `secondaryProvider`, its key from `secondaryProviderApiKey`,
-        and its endpoint from `secondaryProviderBaseUrl` (or the request body's
-        `baseUrl`, to test an unsaved value). Returns `ok: false` with a
-        `detail` explaining the reason when no secondary provider type is
-        configured yet.
+        but targets the optional secondary provider slot: its key comes from
+        `secondaryProviderApiKey`, and its type and endpoint come from
+        `secondaryProvider`/`secondaryProviderBaseUrl` unless the request
+        body's `provider`/`baseUrl` override them, to test an unsaved form
+        value before Save. Returns `ok: false` with a `detail` explaining the
+        reason when no secondary provider type is configured yet.
       operationId: testSecondaryProviderConnection
       requestBody:
         required: false
@@ -4568,6 +4568,10 @@ paths:
             schema:
               type: object
               properties:
+                provider:
+                  type: string
+                  enum: [anthropic, openrouter, openai-compatible, ollama]
+                  description: Provider type to test; when absent the saved secondaryProvider is used
                 baseUrl:
                   type: string
                   description: Base URL to test; when absent the saved secondary value is used
@@ -4578,7 +4582,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConnectionTestResult'
-        '400': { description: 'Invalid input (non-string baseUrl)' }
+        '400': { description: 'Invalid input (non-string baseUrl, non-string provider, or provider not one of the supported types)' }
   /settings/podcast-index/test:
     post:
       tags:
@@ -5577,6 +5581,14 @@ paths:
           schema:
             type: string
             enum: [anthropic, openrouter, openai-compatible, ollama]
+        - name: slot
+          in: query
+          required: false
+          description: Which credential slot to preview `provider` with. `secondary` uses the secondary provider slot's own API key and base URL instead of the primary slot's; only meaningful together with `provider`.
+          schema:
+            type: string
+            enum: [primary, secondary]
+            default: primary
       responses:
         '200':
           description: List of available models
@@ -5590,7 +5602,7 @@ paths:
                     items:
                       $ref: '#/components/schemas/Model'
         '400':
-          description: Invalid provider parameter
+          description: Invalid provider or slot parameter
           content:
             application/json:
               schema:

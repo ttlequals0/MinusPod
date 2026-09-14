@@ -91,8 +91,26 @@ describe('LLMProviderSection: secondary provider block, once enabled', () => {
     const container = baseUrlInput.closest('div') as HTMLElement;
     await user.click(within(container).getByRole('button', { name: 'Test connection' }));
 
-    expect(onSecondaryConnectionTest).toHaveBeenCalledWith('http://localhost:11434/v1');
+    expect(onSecondaryConnectionTest).toHaveBeenCalledWith('ollama', 'http://localhost:11434/v1');
     expect(onConnectionTest).not.toHaveBeenCalled();
+  });
+
+  it('passes the current secondary provider type to the connection test for a fixed-endpoint type', async () => {
+    const user = userEvent.setup();
+    const onSecondaryConnectionTest = vi.fn().mockResolvedValue({ ok: true, reachable: true, detail: 'OK' });
+    renderSection({
+      secondaryProviderEnabled: true,
+      secondaryProvider: 'openrouter',
+      onSecondaryConnectionTest,
+    });
+
+    // Both the primary (default "anthropic") and secondary blocks are
+    // fixed-endpoint types here, so scope to the secondary block's own
+    // container rather than matching either "Test connection" button.
+    const secondaryContainer = screen.getByLabelText('Secondary provider type').closest('.space-y-4') as HTMLElement;
+    await user.click(within(secondaryContainer).getByRole('button', { name: 'Test connection' }));
+
+    expect(onSecondaryConnectionTest).toHaveBeenCalledWith('openrouter', undefined);
   });
 
   it('routes the secondary type select to its own handler, not the primary one', async () => {

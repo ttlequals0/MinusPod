@@ -40,7 +40,9 @@ interface LLMProviderSectionProps {
   // Backs both the key field's inline Test button and the standalone
   // ConnectionTestButton: the secondary slot has one end-to-end probe
   // route, not the separate quick-key-check endpoint the primary keys have.
-  onSecondaryConnectionTest: (baseUrl?: string) => Promise<ConnectionTestResult>;
+  // `provider` carries the current (possibly unsaved) type selection so the
+  // test always probes what's in the form, not the last-saved type.
+  onSecondaryConnectionTest: (provider?: LlmProvider | '', baseUrl?: string) => Promise<ConnectionTestResult>;
 }
 
 const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
@@ -299,10 +301,10 @@ function LLMProviderSection({
               onProviderKeySave={(_provider, apiKey) => onSecondaryProviderKeySave(apiKey)}
               onProviderKeyClear={() => onSecondaryProviderKeyClear()}
               onProviderKeyTest={async () => {
-                const result = await onSecondaryConnectionTest();
+                const result = await onSecondaryConnectionTest(secondaryProvider);
                 return { ok: result.ok, error: result.ok ? undefined : result.detail };
               }}
-              onConnectionTest={onSecondaryConnectionTest}
+              onConnectionTest={(baseUrl) => onSecondaryConnectionTest(secondaryProvider, baseUrl)}
             />
           )}
         </div>

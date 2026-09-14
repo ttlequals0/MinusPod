@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import type { WhisperHealthProbe } from './types';
+import type { LlmProvider, WhisperHealthProbe } from './types';
 
 // 'secondary' has no dedicated /settings/providers/secondary REST surface
 // (unlike the others): its key saves/clears through PUT /settings and its
@@ -87,13 +87,16 @@ export function testLlmConnection(
   });
 }
 
-// Probes the secondary provider slot using its saved type and key; baseUrl
-// overrides the saved value for configurable-endpoint types so an unsaved
-// draft can be tested before Save.
-export function testSecondaryProviderConnection(baseUrl?: string) {
+// Probes the secondary provider slot using its saved key; provider and
+// baseUrl override the saved type/base URL so an unsaved draft (a changed
+// type dropdown, an edited base URL) can be tested before Save.
+export function testSecondaryProviderConnection(provider?: LlmProvider | '', baseUrl?: string) {
+  const body: Record<string, string> = {};
+  if (provider) body.provider = provider;
+  if (baseUrl !== undefined) body.baseUrl = baseUrl;
   return apiRequest<ConnectionTestResult>('/settings/providers/secondary/test-connection', {
     method: 'POST',
-    body: baseUrl === undefined ? {} : { baseUrl },
+    body,
   });
 }
 

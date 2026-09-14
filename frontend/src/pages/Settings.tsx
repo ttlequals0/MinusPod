@@ -59,7 +59,7 @@ import OutboundRequestsSection from './settings/OutboundRequestsSection';
 import { Search, X } from 'lucide-react';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
 import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
-import { formatModelLabel, reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils';
+import { formatModelLabel, reconcileStageSlotsForSecondaryToggle, splitSecondaryProviderPayload } from './settings/settingsUtils';
 import { btnPrimary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
 
@@ -77,12 +77,6 @@ function SettingsGroupHeader({ title }: { title: string }) {
 }
 
 type SettingScalar = string | number | boolean;
-
-// Payload keys that must reach the backend in their own PUT, ahead of
-// everything else. See updateMutation's mutationFn for why.
-const SECONDARY_SETTINGS_KEYS: string[] = [
-  'secondaryProviderEnabled', 'secondaryProvider', 'secondaryProviderBaseUrl',
-];
 
 // One registry row per Save-bar field. Hydration, the changed-field diff,
 // and dirty detection all resolve the server-side value through
@@ -413,6 +407,9 @@ function Settings() {
       // provider, so no separate catalog is fetched. Callers fall back
       // to the detection catalog.
       : null;
+  const reviewSlot = reviewer.provider === SLOT_SECONDARY && secondaryProviderEnabled
+    ? SLOT_SECONDARY
+    : SLOT_PRIMARY;
 
   const handleSecondaryProviderEnabledChange = (enabled: boolean) => {
     setSecondaryProviderEnabled(enabled);
@@ -444,27 +441,27 @@ function Settings() {
   };
 
   const { data: models, isLoading: modelsLoading } = useQuery({
-    queryKey: ['models', effectiveDetectionProvider],
-    queryFn: () => getModels(effectiveDetectionProvider),
+    queryKey: ['models', effectiveDetectionProvider, detectionSlot],
+    queryFn: () => getModels(effectiveDetectionProvider, detectionSlot),
     // Gate on the provider too: it is an empty placeholder until hydration runs.
     enabled: !settingsLoading && !!effectiveDetectionProvider,
   });
 
   const { data: verificationModels } = useQuery({
-    queryKey: ['models', effectiveVerificationProvider],
-    queryFn: () => getModels(effectiveVerificationProvider),
+    queryKey: ['models', effectiveVerificationProvider, verificationSlot],
+    queryFn: () => getModels(effectiveVerificationProvider, verificationSlot),
     enabled: !settingsLoading && !!effectiveVerificationProvider,
   });
 
   const { data: chaptersModels } = useQuery({
-    queryKey: ['models', effectiveChaptersProvider],
-    queryFn: () => getModels(effectiveChaptersProvider),
+    queryKey: ['models', effectiveChaptersProvider, chaptersSlot],
+    queryFn: () => getModels(effectiveChaptersProvider, chaptersSlot),
     enabled: !settingsLoading && !!effectiveChaptersProvider,
   });
 
   const { data: reviewModels } = useQuery({
-    queryKey: ['models', effectiveReviewProvider],
-    queryFn: () => getModels(effectiveReviewProvider as string),
+    queryKey: ['models', effectiveReviewProvider, reviewSlot],
+    queryFn: () => getModels(effectiveReviewProvider as string, reviewSlot),
     enabled: !settingsLoading && !!effectiveReviewProvider,
   });
 
@@ -830,12 +827,7 @@ function Settings() {
       // to it, and changing llmProvider all at once) would have the primary
       // provider's model-pruning check read stale (not-yet-enabled)
       // secondary state.
-      const secondaryPayload: UpdateSettingsPayload = {};
-      const restPayload: UpdateSettingsPayload = {};
-      for (const [key, value] of Object.entries(payload)) {
-        const target = SECONDARY_SETTINGS_KEYS.includes(key) ? secondaryPayload : restPayload;
-        (target as Record<string, SettingScalar>)[key] = value as SettingScalar;
-      }
+      const { secondaryPayload, restPayload } = splitSecondaryProviderPayload(payload);
       if (Object.keys(secondaryPayload).length > 0) {
         await updateSettings(secondaryPayload);
       }

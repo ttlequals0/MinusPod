@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity, ProviderSlot } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -118,9 +118,14 @@ export async function getProviderBudgetRate(
   return apiRequest<ProviderBudgetRate>(`/settings/provider-budget/rate/${encodeURIComponent(currency)}${suffix}`);
 }
 
-export async function getModels(provider?: string): Promise<ClaudeModel[]> {
-  const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
-  const response = await apiRequest<{ models: ClaudeModel[] }>(`/settings/models${params}`);
+// slot='secondary' previews the given provider type's catalog using the
+// secondary slot's own credentials/base URL instead of the primary slot's.
+export async function getModels(provider?: string, slot?: ProviderSlot): Promise<ClaudeModel[]> {
+  const params = new URLSearchParams();
+  if (provider) params.set('provider', provider);
+  if (slot) params.set('slot', slot);
+  const suffix = params.size ? `?${params}` : '';
+  const response = await apiRequest<{ models: ClaudeModel[] }>(`/settings/models${suffix}`);
   return response.models;
 }
 

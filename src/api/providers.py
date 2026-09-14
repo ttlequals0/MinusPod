@@ -481,6 +481,12 @@ def test_provider_connection(provider):
     return json_response(result, 200)
 
 
+# Provider types the secondary slot accepts, matching VALID_LLM_PROVIDERS
+# in api/settings.py (not importable here without a circular import).
+_SECONDARY_PROVIDER_TYPES = (
+    PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA)
+
+
 @api.route('/settings/providers/secondary/test-connection', methods=['POST'])
 def test_secondary_provider_connection():
     """End-to-end probe of the optional secondary provider slot.
@@ -492,22 +498,29 @@ def test_secondary_provider_connection():
     any stage to it. A fixed-endpoint type (anthropic/openrouter) probes its
     public URL with the secondary key; a configurable-endpoint type
     (openai-compatible, ollama) probes the same /models route the real
-    client uses, accepting an unsaved baseUrl in the body so it can be
-    tested before saving.
+    client uses. A `provider` field in the body overrides the saved type
+    (like `baseUrl` already does) so an unsaved dropdown change can be
+    tested before Save, matching the primary test-connection route.
     """
     db = Database()
-    provider = db.get_setting('secondary_provider')
+    body = request.get_json(silent=True) or {}
+
+    provider = body['provider'] if 'provider' in body else db.get_setting('secondary_provider')
+    if provider is not None and not isinstance(provider, str):
+        return error_response('provider must be a string', 400)
     if not provider:
         return json_response(
             {'ok': False, 'reachable': False,
              'detail': 'Configure a secondary provider type first.'}, 200)
+    if provider not in _SECONDARY_PROVIDER_TYPES:
+        return error_response(
+            f'provider must be one of: {", ".join(_SECONDARY_PROVIDER_TYPES)}', 400)
 
     api_key = get_effective_secondary_provider_api_key() or ''
 
     if provider in _FIXED_PROVIDER_PROBES:
         return json_response(_probe_fixed_endpoint(provider, api_key), 200)
 
-    body = request.get_json(silent=True) or {}
     saved_base = db.get_setting('secondary_provider_base_url') or DEFAULT_OPENAI_BASE_URL
     base = body['baseUrl'] if 'baseUrl' in body else saved_base
     if base is not None and not isinstance(base, str):

@@ -22,6 +22,7 @@ from config import (
     WHISPER_COMPUTE_TYPES,
     OPENROUTER_BASE_URL, OPENROUTER_ROUTER_ALIASES,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+    PROVIDERS_NON_ANTHROPIC, DEFAULT_OPENAI_BASE_URL,
     ALLOWED_AUDIO_BITRATES, DEFAULT_AUDIO_BITRATE,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_MIN,
@@ -83,7 +84,7 @@ from llm_client import (
     invalidate_provider_cache, reset_schema_probe_memo,
 )
 from llm_route import (
-    VALID_SLOTS, SAME_AS_DETECTION, SAME_AS_PASS, SLOT_PRIMARY,
+    VALID_SLOTS, SAME_AS_DETECTION, SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY,
     resolved_stage_slot,
 )
 from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
@@ -2636,22 +2637,42 @@ def _current_provider_models():
     return models
 
 
+def _secondary_slot_base_url(db, provider: str) -> str | None:
+    """Non-secret endpoint for a preview client built against the secondary
+    slot. Only configurable-endpoint types have one; anthropic/openrouter
+    use their fixed public URL regardless of slot."""
+    if provider in PROVIDERS_NON_ANTHROPIC:
+        return db.get_setting('secondary_provider_base_url') or DEFAULT_OPENAI_BASE_URL
+    return None
+
+
 @api.route('/settings/models', methods=['GET'])
 @log_request
 def get_available_models():
     """Get list of available models for the current or requested provider.
 
     Accepts optional ?provider= query param to preview models for a different
-    provider before saving settings.
+    provider before saving settings, and ?slot=secondary to preview them
+    using the secondary provider slot's own credentials and base URL instead
+    of the primary slot's (the default).
     """
     provider_override = request.args.get('provider')
+    slot = request.args.get('slot', SLOT_PRIMARY)
+    if slot not in VALID_SLOTS:
+        return error_response(f'slot must be one of: {", ".join(VALID_SLOTS)}', 400)
 
     if provider_override:
         if provider_override not in VALID_LLM_PROVIDERS:
             return error_response(
                 f'provider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400
             )
-        client = create_client_for_provider(provider_override)
+        if slot == SLOT_SECONDARY:
+            db = get_database()
+            client = create_client_for_provider(
+                provider_override, credential_slot=SLOT_SECONDARY,
+                base_url=_secondary_slot_base_url(db, provider_override))
+        else:
+            client = create_client_for_provider(provider_override)
         if client:
             try:
                 raw_models = client.list_models()

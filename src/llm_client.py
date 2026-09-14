@@ -1723,15 +1723,21 @@ def _build_client(provider: str, base_url: str | None = None,
     return None
 
 
-def create_client_for_provider(provider: str) -> LLMClient | None:
+def create_client_for_provider(
+    provider: str, credential_slot: str = 'primary', base_url: str | None = None,
+) -> LLMClient | None:
     """Create a non-cached LLM client for a specific provider.
 
     Used for previewing available models before saving provider settings.
     Unlike get_llm_client(), this does not touch the global cache and does
     not set a usage callback -- only suitable for list_models() calls.
+    credential_slot='secondary' resolves the secondary slot's credential
+    instead of the provider type's own primary secret; base_url overrides
+    the primary slot's endpoint setting, for previewing the secondary
+    slot's own configurable endpoint.
     """
     try:
-        client = _build_client(provider)
+        client = _build_client(provider, base_url=base_url, credential_slot=credential_slot)
         if client is None:
             logger.warning(f"Unknown provider '{provider}' for preview client")
         return client
