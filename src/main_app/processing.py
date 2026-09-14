@@ -5263,11 +5263,23 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             and not _forced_transcription_already_done(
                 slug, episode_id,
                 (episode_data or {}).get('reprocess_requested_at')))
-        audio_path, segments = _download_and_transcribe(
-            slug, episode_id, episode_url,
-            skip_transcription=skip_transcription_active,
-            podcast=podcast_settings,
-            force_transcription=force_transcription)
+        # Reset first: last_transcription_stats is a shared-singleton field
+        # (see transcriber.Transcriber.__init__), so a stale value from an
+        # earlier episode must not be mistaken for this run's outcome when
+        # transcription is skipped or an existing transcript is reused.
+        transcriber.last_transcription_stats = None
+        try:
+            audio_path, segments = _download_and_transcribe(
+                slug, episode_id, episode_url,
+                skip_transcription=skip_transcription_active,
+                podcast=podcast_settings,
+                force_transcription=force_transcription)
+        finally:
+            # Recorded even when _download_and_transcribe raises (OOM
+            # exhaustion): the failure handler's history row still gets the
+            # batch/retry/device context, not just a bare error string.
+            if transcriber.last_transcription_stats is not None:
+                run_stats['transcription'] = transcriber.last_transcription_stats
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).

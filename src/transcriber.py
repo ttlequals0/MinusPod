@@ -104,6 +104,65 @@ BATCH_SIZE_TIERS = [
     (120 * 60, 8),      # 90-120 min: batch_size=8
 ]
 
+# Bounded admission for local (in-process) CUDA transcription. A single GPU
+# holds one Whisper model at a time (WhisperModelSingleton); two concurrent
+# local transcriptions would each allocate batched-inference memory against
+# the same device and OOM each other. This is unrelated to whisper_pool
+# (bounded admission for the remote API backend only) and to LLM provider
+# budgets/holds: it guards local GPU memory specifically. CPU transcription
+# is unaffected (no shared VRAM to protect).
+GPU_TRANSCRIBE_MAX_CONCURRENT = max(1, int(os.getenv('GPU_TRANSCRIBE_MAX_CONCURRENT', '1')))
+_GPU_ADMISSION_SEMAPHORE = threading.Semaphore(GPU_TRANSCRIBE_MAX_CONCURRENT)
+
+
+def _gpu_admission_acquire(device: str) -> bool:
+    """Take a local-GPU admission permit for `device == 'cuda'`; a no-op
+    pass-through otherwise. Returns whether a permit was actually taken, so
+    the caller releases only what it acquired."""
+    if device != "cuda":
+        return False
+    _GPU_ADMISSION_SEMAPHORE.acquire()
+    return True
+
+
+def _gpu_admission_release() -> None:
+    _GPU_ADMISSION_SEMAPHORE.release()
+
+
+# Last local transcription outcome, mirrored at module scope so
+# get_local_transcriber_health() can report it without needing the
+# Transcriber() instance (module functions such as probe_whisper_health
+# follow the same instance-free pattern for the remote backend).
+_local_transcription_state_lock = threading.Lock()
+_last_local_transcription_outcome: dict | None = None
+
+
+def _record_local_transcription_outcome(outcome: dict) -> None:
+    global _last_local_transcription_outcome
+    with _local_transcription_state_lock:
+        _last_local_transcription_outcome = outcome
+
+
+def get_local_transcriber_health() -> dict:
+    """Local-backend transcriber health for /system/status.
+
+    The local backend has no separate endpoint to probe (the model runs
+    in-process), so 'available' instead reflects whether the last local
+    transcription attempt on this process actually completed. A GPU-OOM
+    exhaustion (all batch-size retries used up) is surfaced here as
+    available=False rather than only appearing in logs, so it cannot be
+    mistaken for a healthy transcriber quietly failing episode after
+    episode. No attempt yet on this process reads as available (nothing
+    has failed).
+    """
+    with _local_transcription_state_lock:
+        outcome = dict(_last_local_transcription_outcome) if _last_local_transcription_outcome else None
+    return {
+        'device': resolve_whisper_device(),
+        'available': outcome is None or outcome.get('outcome') != 'failed',
+        'lastOutcome': outcome,
+    }
+
 # Whisper artifacts on silence and music. Matched after trailing punctuation
 # is stripped, so a bare phrase or bare punctuation is an artifact.
 HALLUCINATION_PATTERNS = re.compile(
@@ -1232,7 +1291,9 @@ def _full_span_clips(duration: float | None) -> list[dict] | None:
 class Transcriber:
     def __init__(self):
         # Model is now managed by singleton
-        pass
+        # Last local transcribe() outcome (batch_size/retry_count/device/etc),
+        # read by callers that want it beside the per-phase stats (#519).
+        self.last_transcription_stats = None
 
     def _transcribe_via_api(
         self,
@@ -1926,6 +1987,17 @@ class Transcriber:
         transcribe_language = None if language_setting == 'auto' else (language_setting or 'en')
 
         preprocessed_path = None
+        # Defensive defaults: referenced in the stats recording below even if
+        # an exception hits before the real assignments further down.
+        device = None
+        batch_size = None
+        current_model = None
+        retry_count = 0
+        # Admission guard (module-level, see GPU_TRANSCRIBE_MAX_CONCURRENT):
+        # taken for the whole call so preprocessing and every retry attempt
+        # for this episode hold the device before another local transcription
+        # can start. Released in the finally below on every exit path.
+        gpu_admission_acquired = _gpu_admission_acquire(resolve_whisper_device())
         try:
             # Get audio duration for adaptive batch sizing
             audio_duration = self.get_audio_duration(audio_path)
@@ -2084,6 +2156,17 @@ class Transcriber:
                         # proves the size fits; failures never persist anything.
                         self.record_batch_size_ceiling(batch_size)
 
+                    self.last_transcription_stats = {
+                        'outcome': 'success',
+                        'batch_size': batch_size,
+                        'retry_count': retry_count,
+                        'retry_succeeded': retry_count > 0,
+                        'device': device,
+                        'gpu_device_name': get_gpu_device_name() if device == 'cuda' else None,
+                        'model': current_model,
+                    }
+                    _record_local_transcription_outcome(self.last_transcription_stats)
+
                     return result
 
                 except Exception as inner_e:
@@ -2113,6 +2196,17 @@ class Transcriber:
 
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
+            self.last_transcription_stats = {
+                'outcome': 'failed',
+                'batch_size': batch_size,
+                'retry_count': retry_count,
+                'retry_succeeded': False,
+                'device': device,
+                'gpu_device_name': get_gpu_device_name() if device == 'cuda' else None,
+                'model': current_model,
+                'error': str(e)[:500],
+            }
+            _record_local_transcription_outcome(self.last_transcription_stats)
             # Clean up GPU memory on ANY failure to prevent memory leaks
             # This is critical for OOM recovery - free memory before retry
             try:
@@ -2123,6 +2217,8 @@ class Transcriber:
                 logger.warning(f"Failed to clean up GPU memory: {cleanup_err}")
             return None
         finally:
+            if gpu_admission_acquired:
+                _gpu_admission_release()
             # Clean up preprocessed file
             if preprocessed_path and os.path.exists(preprocessed_path):
                 try:

@@ -15,6 +15,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, _get_version, _start_time,
 )
+import transcriber
 from config import resolve_whisper_device
 from podping_listener import (
     get_node_health_summary, DEGRADED_SETTING, DEGRADED_SINCE_SETTING,
@@ -168,6 +169,10 @@ def get_system_status():
             'degradedSince': db.get_setting(DEGRADED_SINCE_SETTING) or None,
             'nodes': get_node_health_summary(db),
         },
+        # Informational only, never gates readiness (see /health above): a
+        # GPU-OOM exhaustion on the local Whisper backend degrades
+        # transcription, not the process (episodes re-queue as transient).
+        'transcriber': transcriber.get_local_transcriber_health(),
     })
 
 
