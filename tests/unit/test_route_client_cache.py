@@ -102,5 +102,57 @@ class TestGetClientForProviderCache(unittest.TestCase):
         self.assertIs(llm_client._client_cache.get(('anthropic', None)), client)
 
 
+class TestCredentialSlotRouting(unittest.TestCase):
+    """A secondary slot resolves its API key from secondary_provider_api_key,
+    even when it shares a provider type with primary (checkpoint 02b task 2)."""
+
+    def setUp(self):
+        llm_client._client_cache.clear()
+        llm_client._circuit_breakers.clear()
+
+    tearDown = setUp
+
+    @patch('llm_client._record_token_usage')
+    @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary')
+    @patch('llm_client.get_effective_openai_api_key', return_value='sk-primary')
+    def test_secondary_slot_same_type_different_base_gets_secondary_key(self, *_mocks):
+        primary = get_client_for_provider('openai-compatible', base_url='http://primary-host/v1')
+        secondary = get_client_for_provider(
+            'openai-compatible', base_url='http://secondary-host/v1',
+            credential_slot='secondary')
+
+        self.assertIsNot(primary, secondary)
+        self.assertEqual(primary.api_key, 'sk-primary')
+        self.assertEqual(secondary.api_key, 'sk-secondary')
+
+    @patch('llm_client._record_token_usage')
+    @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary')
+    @patch('llm_client.get_effective_openai_api_key', return_value='sk-primary')
+    def test_default_credential_slot_is_primary_and_unchanged(self, *_mocks):
+        client = get_client_for_provider('openai-compatible', base_url='http://a/v1')
+        self.assertEqual(client.api_key, 'sk-primary')
+
+    @patch('llm_client._record_token_usage')
+    @patch('llm_client.get_effective_secondary_provider_api_key', return_value=None)
+    @patch('llm_client.get_effective_anthropic_api_key', return_value='sk-primary-anthropic')
+    def test_secondary_anthropic_with_no_key_does_not_fall_back_to_primary(self, *_mocks):
+        client = get_client_for_provider('anthropic', credential_slot='secondary')
+        self.assertIsNone(client.api_key)
+
+    @patch('llm_client._record_token_usage')
+    @patch('llm_client.get_effective_secondary_provider_api_key', return_value='top-secret-secondary-key')
+    @patch('llm_client.get_effective_openai_api_key', return_value='sk-primary')
+    def test_cache_key_never_contains_secondary_api_key(self, *_mocks):
+        get_client_for_provider('openai-compatible', base_url='http://a/v1')
+        get_client_for_provider('openai-compatible', base_url='http://b/v1',
+                                credential_slot='secondary')
+
+        for key in llm_client._client_cache.keys():
+            for part in key:
+                self.assertNotIn('top-secret-secondary-key', str(part))
+        for key in llm_client._circuit_breakers.keys():
+            self.assertNotIn('top-secret-secondary-key', str(key))
+
+
 if __name__ == '__main__':
     unittest.main()

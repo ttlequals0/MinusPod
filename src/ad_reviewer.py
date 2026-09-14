@@ -751,7 +751,9 @@ class AdReviewer:
             return self._llm_client_override
         if self._active_route is None:
             return None
-        return get_client_for_provider(self._active_route.provider_key)
+        return get_client_for_provider(
+            self._active_route.provider_key, base_url=self._active_route.base_url,
+            credential_slot=self._active_route.credential_slot)
 
     def review(
         self,

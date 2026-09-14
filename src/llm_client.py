@@ -399,6 +399,12 @@ def get_effective_ollama_api_key() -> str | None:
     return os.environ.get('OLLAMA_API_KEY')
 
 
+def get_effective_secondary_provider_api_key() -> str | None:
+    """Return the secondary-slot API key. DB secret only, no env fallback:
+    the secondary slot is not backed by a legacy env var."""
+    return _get_cached_secret('secondary_provider_api_key')
+
+
 def _apply_pass_fallback(
     episode_id: str | None,
     pass_name: str | None,
@@ -1564,6 +1570,7 @@ def _record_token_usage(model: str, usage: dict):
 
 
 def get_client_for_provider(provider_key: str, base_url: str | None = None,
+                            credential_slot: str = 'primary',
                             force_new: bool = False) -> LLMClient:
     """Cache-per-(provider, base) client with usage callback + a per-provider
     circuit breaker attached. Concurrent phases on different providers each
@@ -1573,9 +1580,13 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
     ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
     providers (used by per-phase routing); omit it to use the effective
     setting, which is also what makes the cache auto-invalidate on a
-    cross-worker settings change (see ``_resolve_cache_key``). Credentials
-    are resolved inside ``_build_client`` at build time from provider_key.
-    Never put an API key in the cache key.
+    cross-worker settings change (see ``_resolve_cache_key``). ``credential_slot``
+    is 'primary' (default, the provider type's own secret) or 'secondary'
+    (reads secondary_provider_api_key instead); it is not part of the cache
+    key, since a secondary slot sharing a type with primary is guaranteed by
+    llm_route to have a different base_url, which the key already separates
+    on. Credentials are resolved inside ``_build_client`` at build time from
+    provider_key/credential_slot. Never put an API key in the cache key.
 
     force_new=True also flushes the provider settings cache.
     """
@@ -1592,7 +1603,7 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
         if cached is not None:
             logger.info(f"LLM config changed for provider '{provider_key}', rebuilding client")
 
-        client = _build_client(provider_key, base_url)
+        client = _build_client(provider_key, base_url, credential_slot)
         if client is None:
             logger.error(
                 f"Unknown LLM provider '{provider_key}' (valid values: anthropic, "
@@ -1651,18 +1662,29 @@ def _opencode_headers(base_url: str) -> dict[str, str]:
     return {'x-opencode-session': _OPENCODE_SESSION_ID, 'x-opencode-client': 'minuspod'}
 
 
-def _build_client(provider: str, base_url: str | None = None) -> LLMClient | None:
+def _build_client(provider: str, base_url: str | None = None,
+                   credential_slot: str = 'primary') -> LLMClient | None:
     """Build an LLM client for a given provider without caching.
 
     ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
     providers (used by per-provider routing); when omitted, the effective
-    setting is used as before. Credentials always resolve here, from
-    provider_key, at build time.
+    setting is used as before. ``credential_slot`` picks which secret to
+    resolve: 'primary' (default) reads the provider type's own key;
+    'secondary' reads secondary_provider_api_key instead, so a secondary
+    slot of the same type as primary never reuses primary's credential. An
+    unset secondary key builds with no/empty key (matching the keyless-local
+    path below) rather than falling back to the primary secret; the auth
+    error then surfaces at call time, not here.
     """
+    secondary = credential_slot == 'secondary'
     if provider == PROVIDER_ANTHROPIC:
-        return AnthropicClient()
+        client = AnthropicClient()
+        if secondary:
+            client.api_key = get_effective_secondary_provider_api_key()
+        return client
     elif provider == PROVIDER_OPENROUTER:
-        api_key = get_effective_openrouter_api_key() or 'not-needed'
+        api_key = (get_effective_secondary_provider_api_key() if secondary
+                   else get_effective_openrouter_api_key()) or 'not-needed'
         return OpenAICompatibleClient(
             base_url=base_url or OPENROUTER_BASE_URL,
             api_key=api_key,
@@ -1677,9 +1699,11 @@ def _build_client(provider: str, base_url: str | None = None) -> LLMClient | Non
         if provider == PROVIDER_OLLAMA:
             if normalized_base_url != raw_base_url:
                 logger.info(f"Ollama provider: normalized base_url to {safe_url_for_log(normalized_base_url)}")
-            api_key = get_effective_ollama_api_key() or 'not-needed'
+            api_key = (get_effective_secondary_provider_api_key() if secondary
+                       else get_effective_ollama_api_key()) or 'not-needed'
         else:
-            api_key = get_effective_openai_api_key()
+            api_key = (get_effective_secondary_provider_api_key() if secondary
+                       else get_effective_openai_api_key()) or 'not-needed'
         return OpenAICompatibleClient(base_url=normalized_base_url, api_key=api_key,
                                       extra_headers=_opencode_headers(normalized_base_url))
     return None

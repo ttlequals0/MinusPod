@@ -5029,9 +5029,9 @@ def _required_providers_for_admission(slug: str) -> list[str] | None:
 
 def _resolve_route_snapshot() -> dict | None:
     """Resolve this run's per-phase LLM routes once, non-secret only
-    ({provider_key, configured_model}). None when resolution fails (e.g. no
-    model configured yet): callers then fall back to today's per-call
-    resolution against the live global settings.
+    ({provider_key, configured_model, base_url, credential_slot}). None when
+    resolution fails (e.g. no model configured yet): callers then fall back
+    to today's per-call resolution against the live global settings.
 
     The review entry also freezes the raw review_provider/review_model
     setting VALUES as of run start under 'gate'. AdReviewer resolves its
@@ -5059,7 +5059,10 @@ def _resolve_route_snapshot() -> dict | None:
         audio_logger.warning(f"Could not resolve per-phase LLM routes: {exc}")
         return None
     snapshot = {
-        route.phase: {'provider_key': route.provider_key, 'configured_model': route.model_id}
+        route.phase: {
+            'provider_key': route.provider_key, 'configured_model': route.model_id,
+            'base_url': route.base_url, 'credential_slot': route.credential_slot,
+        }
         for route in (detection, review, verification, chapters)
     }
     snapshot['review']['gate'] = review_gate

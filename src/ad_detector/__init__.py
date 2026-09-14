@@ -794,7 +794,9 @@ class AdDetector:
             return self._llm_client_override
         route = route_for_phase(_phase_for_pass(pass_name))
         if route:
-            return get_client_for_provider(route['provider_key'])
+            return get_client_for_provider(
+                route['provider_key'], base_url=route.get('base_url'),
+                credential_slot=route.get('credential_slot', 'primary'))
         if not self.api_key:
             return None
         return get_llm_client()

@@ -124,13 +124,17 @@ class TestRouteSnapshotResolutionAndPersistence:
         snapshot = processing._resolve_or_load_route_snapshot(run_row['run_id'])
 
         assert snapshot['detection'] == {
-            'provider_key': 'anthropic', 'configured_model': 'claude-detect'}
+            'provider_key': 'anthropic', 'configured_model': 'claude-detect',
+            'base_url': None, 'credential_slot': 'primary'}
         assert snapshot['verification'] == {
-            'provider_key': 'anthropic', 'configured_model': 'claude-detect'}
+            'provider_key': 'anthropic', 'configured_model': 'claude-detect',
+            'base_url': None, 'credential_slot': 'primary'}
         assert snapshot['chapters'] == {
-            'provider_key': 'anthropic', 'configured_model': 'claude-detect'}
+            'provider_key': 'anthropic', 'configured_model': 'claude-detect',
+            'base_url': None, 'credential_slot': 'primary'}
         assert snapshot['review'] == {
             'provider_key': 'openrouter', 'configured_model': 'or-review-model',
+            'base_url': 'https://openrouter.ai/api/v1', 'credential_slot': 'secondary',
             'gate': {'review_provider': 'secondary', 'review_model': 'or-review-model'}}
 
         raw = _persisted_snapshot_raw(db, run_row['run_id'])
@@ -152,7 +156,8 @@ class TestRouteSnapshotResolutionAndPersistence:
         db = run_row['db']
         first = processing._resolve_or_load_route_snapshot(run_row['run_id'])
         assert first['detection'] == {
-            'provider_key': 'anthropic', 'configured_model': 'claude-detect'}
+            'provider_key': 'anthropic', 'configured_model': 'claude-detect',
+            'base_url': None, 'credential_slot': 'primary'}
 
         # A settings change mid-run must not retroactively alter an
         # already-persisted snapshot: recovery re-reads the row instead of
@@ -183,9 +188,11 @@ class TestProcessEpisodeWiresSnapshotAtRunStart:
                 processing.process_episode(
                     slug, episode_id, 'https://example.com/ep.mp3', run_id=run_id)
             assert ctx.route_snapshot['detection'] == {
-                'provider_key': 'anthropic', 'configured_model': 'claude-detect'}
+                'provider_key': 'anthropic', 'configured_model': 'claude-detect',
+                'base_url': None, 'credential_slot': 'primary'}
             assert ctx.route_snapshot['review'] == {
                 'provider_key': 'openrouter', 'configured_model': 'or-review-model',
+                'base_url': 'https://openrouter.ai/api/v1', 'credential_slot': 'secondary',
                 'gate': {'review_provider': 'secondary', 'review_model': 'or-review-model'}}
         finally:
             run_context.end(ctx)
@@ -195,7 +202,8 @@ class TestPhasesUseTheirRoutedClientAndModel:
     def test_detection_and_verification_use_their_routed_client_and_model(self, monkeypatch):
         calls = []
 
-        def fake_get_client_for_provider(provider_key, base_url=None, force_new=False):
+        def fake_get_client_for_provider(provider_key, base_url=None,
+                                         credential_slot='primary', force_new=False):
             calls.append(provider_key)
             return MagicMock()
 
@@ -205,8 +213,10 @@ class TestPhasesUseTheirRoutedClientAndModel:
         ctx = run_context.begin('mixed-provider-feed', 'ep-detect', run_id='r-detect')
         try:
             ctx.set_route_snapshot({
-                'detection': {'provider_key': 'anthropic', 'configured_model': 'claude-detect'},
-                'verification': {'provider_key': 'openrouter', 'configured_model': 'or-verify'},
+                'detection': {'provider_key': 'anthropic', 'configured_model': 'claude-detect',
+                              'base_url': None, 'credential_slot': 'primary'},
+                'verification': {'provider_key': 'openrouter', 'configured_model': 'or-verify',
+                                 'base_url': 'https://openrouter.ai/api/v1', 'credential_slot': 'secondary'},
             })
             detector = AdDetector(api_key='test-key')
 
@@ -228,7 +238,8 @@ class TestPhasesUseTheirRoutedClientAndModel:
         fake_client.messages_create.return_value = MagicMock(
             content='[{"start": 10.0, "end": 20.0, "confidence": 0.9, "reason": "ad"}]')
 
-        def fake_get_client_for_provider(provider_key, base_url=None, force_new=False):
+        def fake_get_client_for_provider(provider_key, base_url=None,
+                                         credential_slot='primary', force_new=False):
             calls.append(provider_key)
             return fake_client
 
@@ -257,7 +268,8 @@ class TestPhasesUseTheirRoutedClientAndModel:
     def test_chapters_generator_uses_its_routed_client_and_model(self, monkeypatch):
         calls = []
 
-        def fake_get_client_for_provider(provider_key, base_url=None, force_new=False):
+        def fake_get_client_for_provider(provider_key, base_url=None,
+                                         credential_slot='primary', force_new=False):
             calls.append(provider_key)
             return MagicMock()
 
@@ -267,7 +279,8 @@ class TestPhasesUseTheirRoutedClientAndModel:
         ctx = run_context.begin('mixed-provider-feed', 'ep-chapters', run_id='r-chapters')
         try:
             ctx.set_route_snapshot({
-                'chapters': {'provider_key': 'ollama', 'configured_model': 'local-chapters'},
+                'chapters': {'provider_key': 'ollama', 'configured_model': 'local-chapters',
+                             'base_url': 'http://localhost:11434/v1', 'credential_slot': 'primary'},
             })
             assert chapters_generator.get_chapters_model() == 'local-chapters'
 
@@ -299,7 +312,8 @@ def _patch_reviewer_client(monkeypatch, calls):
     fake_client.messages_create.return_value = MagicMock(
         content='[{"start": 10.0, "end": 20.0, "confidence": 0.9, "reason": "ad"}]')
 
-    def fake_get_client_for_provider(provider_key, base_url=None, force_new=False):
+    def fake_get_client_for_provider(provider_key, base_url=None,
+                                     credential_slot='primary', force_new=False):
         calls.append(provider_key)
         return fake_client
 
