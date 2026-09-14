@@ -410,17 +410,18 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         return False, "queue_only"
 
     # Rate-limit hold (#696): the one choke point every start goes through,
-    # so a Play or Reprocess waits in the queue like the rest. Provider-scoped
-    # (checkpoint 02 task 4): checked against every provider this run's
-    # phases would use, so a run needing only healthy providers is admitted
-    # even while a different provider is held, and a run needing a held
-    # provider is refused before it can spend a call on a healthy one it
-    # cannot finish with.
+    # so a Play or Reprocess waits in the queue like the rest. Provider- and
+    # slot-scoped: checked against every (provider, credential_slot) this
+    # run's phases would use, so a run needing only healthy accounts is
+    # admitted even while a different provider or a different account on
+    # the same provider is held, and a run needing a held account is
+    # refused before it can spend a call on a healthy one it cannot finish
+    # with.
     required_providers = _required_providers_for_admission(slug)
     if required_providers is None:
         if is_queue_paused(db):
             return False, "rate_limit_paused"
-    elif any(is_queue_paused(db, provider) for provider in required_providers):
+    elif any(is_queue_paused(db, provider, slot) for provider, slot in required_providers):
         return False, "rate_limit_paused"
 
     # Check if queue is busy with another episode
@@ -983,6 +984,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                 f"Ad detection failed: {error_msg}",
                 retry_after_seconds=float(ad_result.get('retry_after_seconds') or 0),
                 provider_key=ad_result.get('provider_key'),
+                credential_slot=ad_result.get('credential_slot', 'primary'),
             )
         elif ad_result.get('connectivity'):
             # Endpoint unreachable rather than a bad response, so the offline
@@ -3183,7 +3185,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     f"Verification failed: {verification_result.get('error')}",
                     retry_after_seconds=float(
                         verification_result.get('retry_after_seconds') or 0),
-                    provider_key=verification_result.get('provider_key'))
+                    provider_key=verification_result.get('provider_key'),
+                    credential_slot=verification_result.get('credential_slot', 'primary'))
             v_error = verification_result.get('error')
             detail = f": {v_error}" if v_error else ""
             audio_logger.warning(
@@ -3874,7 +3877,8 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 try:
                     hold_until = hold_queue_for_provider_limit(
                         db, e, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
-                        provider_key=getattr(e, 'provider_key', None))
+                        provider_key=getattr(e, 'provider_key', None),
+                        credential_slot=getattr(e, 'credential_slot', 'primary'))
                 except Exception:
                     audio_logger.exception(
                         f"[{slug}:{episode_id}] Failed to record the rate-limit hold")
@@ -4805,7 +4809,8 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     if isinstance(error, ProviderRateLimitedError):
         hold_until = hold_queue_for_provider_limit(
             db, error, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
-            provider_key=getattr(error, 'provider_key', None))
+            provider_key=getattr(error, 'provider_key', None),
+            credential_slot=getattr(error, 'credential_slot', 'primary'))
         if hold_until:
             db.upsert_episode(
                 slug, episode_id,
@@ -5000,14 +5005,16 @@ def _chapters_enabled_for_admission(settings_db, slug: str) -> bool:
     return resolve_chapters_mode(podcast_row) != CHAPTERS_MODE_OFF
 
 
-def _required_providers_for_admission(slug: str) -> list[str] | None:
-    """Distinct provider_keys this run's *enabled* phases would resolve to
-    right now, or None when resolution fails (admission then falls back to
-    the legacy unscoped hold check, a safe superset of any real per-provider
-    hold).
+def _required_providers_for_admission(slug: str) -> list[tuple[str, str]] | None:
+    """Distinct (provider_key, credential_slot) pairs this run's *enabled*
+    phases would resolve to right now, or None when resolution fails
+    (admission then falls back to the legacy unscoped hold check, a safe
+    superset of any real per-provider hold).
 
-    A phase whose feature is off for this run is excluded: a held provider
-    that this run will never actually call must not refuse it.
+    A phase whose feature is off for this run is excluded: a held account
+    that this run will never actually call must not refuse it. A phase
+    snapshot with no credential_slot (older callers, tests) defaults to
+    'primary', matching single-provider installs today.
     """
     snapshot = _resolve_route_snapshot()
     if snapshot is None:
@@ -5024,7 +5031,8 @@ def _required_providers_for_admission(slug: str) -> list[str] | None:
         # provider as required is the safe direction, a crash here is not.
         audio_logger.warning(f"Could not resolve phase enablement for admission: {exc}")
         active_phases = dict(snapshot)
-    return list({route['provider_key'] for route in active_phases.values()})
+    return list({(route['provider_key'], route.get('credential_slot', 'primary'))
+                 for route in active_phases.values()})
 
 
 def _resolve_route_snapshot() -> dict | None:

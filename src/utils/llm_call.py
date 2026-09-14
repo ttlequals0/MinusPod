@@ -132,11 +132,14 @@ def _fire_auth_failure_webhook(error, model, provider=None):
         logger.exception("Failed to fire auth-failure webhook")
 
 
-def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None):
+def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None,
+                    credential_slot='primary'):
     """Return a terminal or normalized provider error, else None.
 
     ``provider``, when given, is the call's resolved route provider; omitted,
     error context falls back to the global effective provider.
+    ``credential_slot`` is that route's account ('primary'/'secondary'), so a
+    held 429 pauses only the account that actually hit the limit.
     """
     provider = provider or get_effective_provider()
     daily_quota = classify_daily_quota_exhaustion(error)
@@ -187,7 +190,8 @@ def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None
         if hold_after is not None and hold_after > MIN_HOLD_RESET_SECONDS:
             held = ProviderRateLimitedError(
                 f"provider rate limit resets in {hold_after:.0f}s: {error}",
-                retry_after_seconds=hold_after, provider_key=provider)
+                retry_after_seconds=hold_after, provider_key=provider,
+                credential_slot=credential_slot)
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} rate limit: "
                 f"holding queue {hold_after:.0f}s until provider reset"
@@ -220,6 +224,7 @@ def call_llm(
     pass_name: str | None = None,
     response_format: dict | None = None,
     provider: str | None = None,
+    credential_slot: str = 'primary',
 ) -> tuple[object | None, Exception | None]:
     """Call LLM with primary retry + secondary fallback retry.
 
@@ -229,7 +234,9 @@ def call_llm(
 
     ``provider``, when given, is the resolved route's provider for this
     call; error/webhook context uses it instead of the global effective
-    provider.
+    provider. ``credential_slot`` is that route's account ('primary' or
+    'secondary'), carried onto a held 429 so the queue pauses only that
+    account, not every account on the same provider type.
 
     Returns:
         Tuple of (response, last_error). response is None if all retries failed.
@@ -260,7 +267,8 @@ def call_llm(
                 call_label=call_label)
             terminal = _terminal_error(
                 e, model=model, slug=slug, episode_id=episode_id,
-                call_label=call_label, provider=provider)
+                call_label=call_label, provider=provider,
+                credential_slot=credential_slot)
             if terminal is not None:
                 last_error = terminal
                 break
@@ -309,7 +317,8 @@ def call_llm(
                         call_label=call_label)
                 terminal = _terminal_error(
                     e, model=model, slug=slug, episode_id=episode_id,
-                    call_label=call_label, provider=provider)
+                    call_label=call_label, provider=provider,
+                    credential_slot=credential_slot)
                 if terminal is not None:
                     last_error = terminal
                     break

@@ -248,6 +248,11 @@ class ChaptersGenerator:
         route = route_for_phase('chapters')
         return route['provider_key'] if route else None
 
+    @staticmethod
+    def _chapters_credential_slot() -> str:
+        route = route_for_phase('chapters')
+        return route.get('credential_slot', 'primary') if route else 'primary'
+
     def _initialize_client(self):
         """Surface LLM client init errors before a generation run."""
         if not self.api_key:
@@ -380,6 +385,7 @@ class ChaptersGenerator:
                 call_label="chapter topic detection",
                 pass_name=PASS_CHAPTER_GENERATION,
                 provider=self._chapters_provider(),
+                credential_slot=self._chapters_credential_slot(),
             )
             if response is None:
                 # A rate-limit hold is queue-wide state, not a degraded run.
@@ -564,6 +570,7 @@ class ChaptersGenerator:
             call_label="chapter title generation",
             pass_name=PASS_CHAPTER_GENERATION,
             provider=self._chapters_provider(),
+            credential_slot=self._chapters_credential_slot(),
         )
         if response is None:
             # Caller (generate_chapter_titles) catches this and degrades to

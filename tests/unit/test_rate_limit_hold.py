@@ -804,3 +804,104 @@ class TestProviderScopedHoldStorage:
             db, 'provider-a credentials changed', provider_key='provider-a') is True
         assert is_queue_paused(db, 'provider-a') is False
         assert is_queue_paused(db, 'provider-b') is True
+
+
+class TestCredentialSlotScopedHolds:
+    """A provider can have two independent accounts (primary/secondary); a
+    429 on one must not pause the other same-type account.
+    """
+
+    def test_secondary_hold_does_not_pause_primary(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        assert is_queue_paused(db, 'anthropic', 'secondary') is True
+        assert is_queue_paused(db, 'anthropic', 'primary') is False
+        assert is_queue_paused(db, 'anthropic') is False  # default slot is primary
+
+    def test_primary_hold_does_not_pause_secondary(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='primary')
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+        assert is_queue_paused(db, 'anthropic', 'secondary') is False
+
+    def test_admission_admits_primary_only_run_while_secondary_is_held(
+            self, monkeypatch, seeded_episode):
+        """A hold on (anthropic, secondary) must not block a run whose
+        phases all resolve to (anthropic, primary)."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        snapshot = {
+            phase: {'provider_key': 'anthropic', 'configured_model': 'model-x',
+                    'credential_slot': 'primary'}
+            for phase in ('detection', 'review', 'verification', 'chapters')
+        }
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-primary-only')
+        assert started is False
+        assert reason == 'queue_busy'  # past the hold gate; acquire() is the stub
+
+    def test_admission_refuses_run_needing_the_held_secondary_slot(
+            self, monkeypatch, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        snapshot = {
+            phase: {'provider_key': 'anthropic', 'configured_model': 'model-x',
+                    'credential_slot': 'secondary'}
+            for phase in ('detection', 'review', 'verification', 'chapters')
+        }
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-secondary-held')
+        assert started is False
+        assert reason == 'rate_limit_paused'
+
+    def test_get_active_hold_is_slot_specific(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        hold_until, hold_since = get_active_hold(db, 'anthropic', 'secondary')
+        assert hold_until == future
+        assert hold_since
+        assert get_active_hold(db, 'anthropic', 'primary') == (None, None)
+
+    def test_legacy_type_only_key_falls_back_for_primary_not_secondary(self, seeded_episode):
+        """A hold recorded before slot-scoping (a bare per-provider marker)
+        still blocks primary for one release, but must not bleed onto a
+        secondary account that could not have caused it (secondary did not
+        exist yet)."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)  # pre-slot-scoping call site
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+        assert is_queue_paused(db, 'anthropic', 'secondary') is False
+
+    def test_global_legacy_key_falls_back_for_primary_not_secondary(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)  # fully-unscoped pre-migration write
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+        assert is_queue_paused(db, 'anthropic', 'secondary') is False
+
+    def test_clear_for_secondary_change_does_not_lift_primary_hold(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='primary')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        assert clear_hold_for_provider_change(
+            db, 'secondary provider settings changed',
+            provider_key='anthropic', credential_slot='secondary') is True
+        assert is_queue_paused(db, 'anthropic', 'secondary') is False
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+
+    def test_clear_for_secondary_change_does_not_falsely_report_lifting_a_primary_hold(
+            self, seeded_episode):
+        """Only a legacy (pre-slot) hold is active; a secondary credential
+        change must not report success while leaving that hold (which may
+        genuinely belong to primary) untouched."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)  # pre-slot-scoping marker
+        assert clear_hold_for_provider_change(
+            db, 'secondary provider settings changed',
+            provider_key='anthropic', credential_slot='secondary') is False
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+
+    def test_status_hold_block_reflects_a_slot_scoped_hold(self, seeded_episode):
+        from api.status import _build_hold_block
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        block = _build_hold_block(db)
+        assert block['queuePaused'] is True
+        assert block['holdUntil'] == future

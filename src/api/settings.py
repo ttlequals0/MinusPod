@@ -1799,7 +1799,8 @@ def _apply_secondary_provider_fields(db, data):
         invalidate_provider_cache()
         clear_hold_for_provider_change(
             db, 'secondary provider settings changed',
-            provider_key=db.get_setting('secondary_provider'))
+            provider_key=db.get_setting('secondary_provider'),
+            credential_slot='secondary')
     return None
 
 

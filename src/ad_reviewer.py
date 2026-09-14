@@ -1091,6 +1091,7 @@ class AdReviewer:
         max_tokens, temperature, reasoning = resolve_stage_tunables('reviewer')
 
         provider = self._active_route.provider_key if self._active_route else None
+        credential_slot = self._active_route.credential_slot if self._active_route else 'primary'
         t0 = time.monotonic()
         response, error = call_llm_for_window(
             llm_client=self._llm_client,
@@ -1107,6 +1108,7 @@ class AdReviewer:
             window_label=window_label,
             pass_name=pass_name,
             provider=provider,
+            credential_slot=credential_slot,
             response_format=schema_format_for(
                 model, 'ad_review', AD_REVIEW_JSON_SCHEMA,
                 'Review verdicts for the candidate ad.', provider=provider),
@@ -1434,6 +1436,7 @@ class AdReviewer:
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
         call_label = f"reviewer-pass{pass_num}-trim-recovery"
         provider = self._active_route.provider_key if self._active_route else None
+        credential_slot = self._active_route.credential_slot if self._active_route else 'primary'
         try:
             response, error = call_llm(
                 llm_client=self._llm_client,
@@ -1448,6 +1451,7 @@ class AdReviewer:
                 call_label=call_label,
                 pass_name=pass_name,
                 provider=provider,
+                credential_slot=credential_slot,
                 response_format=schema_format_for(
                     model, 'trim_recovery', TRIM_RECOVERY_JSON_SCHEMA,
                     'Ad sub-span inside the original candidate.', provider=provider),

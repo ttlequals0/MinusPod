@@ -107,7 +107,7 @@ def test_a_provider_scoped_hold_reports_the_queue_as_paused(clean_hold, app_clie
     try:
         hold = _hold(app_client)
     finally:
-        clear_hold(clean_hold, 'anthropic')
+        clear_hold(clean_hold, 'anthropic:primary')
 
     assert hold['queuePaused'] is True
     assert hold['holdUntil'] == reset_at

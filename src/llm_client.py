@@ -2143,10 +2143,12 @@ class ProviderRateLimitedError(Exception):
     """
 
     def __init__(self, message: str, retry_after_seconds: float,
-                 provider_key: str | None = None):
+                 provider_key: str | None = None,
+                 credential_slot: str = 'primary'):
         super().__init__(message)
         self.retry_after_seconds = float(retry_after_seconds)
         self.provider_key = provider_key
+        self.credential_slot = credential_slot
 
 
 def extract_error_body(error: Exception) -> Any:

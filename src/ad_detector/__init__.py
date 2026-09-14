@@ -352,6 +352,7 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
         "rate_limited_hold": rate_limited_hold,
         "retry_after_seconds": getattr(last_error, 'retry_after_seconds', None),
         "provider_key": getattr(last_error, 'provider_key', None),
+        "credential_slot": getattr(last_error, 'credential_slot', 'primary'),
         # Lets the pipeline tell "endpoint down" apart from a bad response so
         # the offline queue (#482) defers only genuine outages. Includes
         # CircuitBreakerOpen, which reaches here as last_error because
@@ -1038,6 +1039,7 @@ class AdDetector:
         max_tokens, temperature, reasoning = resolve_stage_tunables(phase)
         route = route_for_phase(phase)
         provider = route['provider_key'] if route else None
+        credential_slot = route.get('credential_slot', 'primary') if route else 'primary'
 
         return call_llm_for_window(
             llm_client=self._client_for_pass(pass_name),
@@ -1054,6 +1056,7 @@ class AdDetector:
             window_label=window_label,
             pass_name=pass_name,
             provider=provider,
+            credential_slot=credential_slot,
             response_format=schema_format_for(
                 model, 'ad_detection', AD_DETECTION_JSON_SCHEMA,
                 'Ad segments detected in this window.', provider=provider),
@@ -1517,6 +1520,7 @@ class AdDetector:
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
         route = route_for_phase(_phase_for_pass(pass_name))
         provider = route['provider_key'] if route else None
+        credential_slot = route.get('credential_slot', 'primary') if route else 'primary'
 
         response, error = call_llm(
             llm_client=self._client_for_pass(pass_name),
@@ -1530,6 +1534,7 @@ class AdDetector:
             episode_id=episode_id,
             call_label=f"{window_label} category repair",
             provider=provider,
+            credential_slot=credential_slot,
             response_format=schema_format_for(
                 model, 'segment_categories', CATEGORY_REPAIR_JSON_SCHEMA,
                 'Category for each listed segment.',
