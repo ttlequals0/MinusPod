@@ -14,7 +14,6 @@ from llm_client import (
     start_episode_token_tracking,
     get_episode_token_totals,
     _get_accumulator_active,
-    _record_token_usage,
     AnthropicClient,
     OpenAICompatibleClient,
 )
@@ -31,10 +30,7 @@ def test_parallel_workers_aggregate_into_shared_accumulator():
 
         def accumulate(input_tok, output_tok):
             barrier.wait()  # Force both threads to overlap
-            _record_token_usage(
-                "claude-test",
-                {"input_tokens": input_tok, "output_tokens": output_tok},
-            )
+            run_context.current().tokens.add(input_tok, output_tok, 0.0)
 
         with ThreadPoolExecutor(max_workers=2) as exe:
             f1 = exe.submit(run_context.run_in_worker_thread(accumulate), 100, 50)
@@ -43,7 +39,6 @@ def test_parallel_workers_aggregate_into_shared_accumulator():
             f2.result()
 
         totals = get_episode_token_totals()
-        # Cost varies by pricing table availability; only assert tokens.
         assert totals["input_tokens"] == 300
         assert totals["output_tokens"] == 125
     finally:
@@ -101,7 +96,7 @@ def test_accumulator_resets_after_get_totals():
     ctx = run_context.begin('feed', 'ep')
     try:
         start_episode_token_tracking()
-        _record_token_usage("claude-test", {"input_tokens": 500, "output_tokens": 250})
+        run_context.current().tokens.add(500, 250, 0.0)
         first = get_episode_token_totals()
 
         assert first["input_tokens"] == 500
@@ -124,7 +119,7 @@ def test_two_runs_on_two_threads_do_not_share_totals():
         ctx = run_context.begin('feed', name)
         try:
             start_episode_token_tracking()
-            _record_token_usage("claude-test", {"input_tokens": input_tok, "output_tokens": 1})
+            run_context.current().tokens.add(input_tok, 1, 0.0)
             seen[name] = get_episode_token_totals()
         finally:
             run_context.end(ctx)

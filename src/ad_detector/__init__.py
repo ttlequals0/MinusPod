@@ -1055,6 +1055,7 @@ class AdDetector:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            phase_key=phase,
             provider=provider,
             credential_slot=credential_slot,
             response_format=schema_format_for(
@@ -1518,7 +1519,8 @@ class AdDetector:
             return 0
 
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
-        route = route_for_phase(_phase_for_pass(pass_name))
+        phase = _phase_for_pass(pass_name)
+        route = route_for_phase(phase)
         provider = route['provider_key'] if route else None
         credential_slot = route.get('credential_slot', 'primary') if route else 'primary'
 
@@ -1533,6 +1535,7 @@ class AdDetector:
             slug=slug,
             episode_id=episode_id,
             call_label=f"{window_label} category repair",
+            phase_key=phase,
             provider=provider,
             credential_slot=credential_slot,
             response_format=schema_format_for(

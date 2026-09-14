@@ -4,6 +4,7 @@ import random
 import time
 from typing import Union
 
+import run_context
 from llm_capabilities import supports_json_schema
 from llm_client import (
     is_retryable_error,
@@ -21,11 +22,11 @@ from llm_client import (
 from rate_limit_hold import (
     MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, is_rate_limit_hold_enabled,
 )
-# webhook_service is lazy-imported at the call sites below (only entered on
-# the alert paths: auth failure, limit exceeded, structural-429). Keeping it
-# out of this module's import-time graph lets the offline benchmark in
-# benchmarks/llm/ import ad_detector -> utils.llm_call without pulling in
-# jinja2/flask transitively.
+# webhook_service, database and cancel are lazy-imported at the call sites
+# below (database pulls in Flask via AuthLockoutMixin; cancel pulls in
+# database transitively). Keeping them out of this module's import-time
+# graph lets the offline benchmark in benchmarks/llm/ import
+# ad_detector -> utils.llm_call without pulling in jinja2/flask transitively.
 from utils.retry import calculate_backoff
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,80 @@ def _call_once(llm_client, llm_kwargs, model):
                 f"empty completion from {model} after reasoning exhausted the output budget"
             )
         raise EmptyCompletionError(f"empty completion from {model} (no content returned)")
+    return response
+
+
+def _resolve_podcast_id(slug: str | None) -> int | None:
+    """Podcast row id for a slug, or None (chapters calls may have no slug)."""
+    if not slug:
+        return None
+    try:
+        from database import Database
+        podcast = Database().get_podcast_by_slug(slug)
+    except Exception:
+        logger.warning(f"Could not resolve podcast_id for slug '{slug}'")
+        return None
+    return podcast['id'] if podcast else None
+
+
+def _invoking_pass_from_name(pass_name: str | None) -> int | None:
+    """1 or 2 from a '..._pass_1' / '..._pass_2' pass_name, else None."""
+    if pass_name and pass_name.endswith('_1'):
+        return 1
+    if pass_name and pass_name.endswith('_2'):
+        return 2
+    return None
+
+
+def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass,
+                      provider_key, slug, episode_id, call_label):
+    """One ledger-tracked adapter dispatch.
+
+    Begins an attempt before the network call and finalizes it after, so
+    every real dispatch (including each retry) is its own billable ledger
+    row: the single writer of token counters, replacing the retired
+    adapter usage callback.
+    """
+    from cancel import ProcessingCancelled
+    from database import Database
+    db = Database()
+    ctx = run_context.current()
+    attempt_id = db.begin_llm_attempt(
+        run_id=ctx.run_id if ctx else None,
+        podcast_id=_resolve_podcast_id(slug),
+        episode_id=episode_id,
+        phase_key=phase_key,
+        invoking_pass=invoking_pass,
+        provider_key=provider_key,
+        configured_model=model,
+        window_label=call_label,
+    )
+    try:
+        response = _call_once(llm_client, llm_kwargs, model)
+    except ProcessingCancelled:
+        db.finalize_llm_attempt(attempt_id, state='cancelled')
+        raise
+    except Exception:
+        cost = db.finalize_llm_attempt(attempt_id, state='failure')
+        if ctx is not None:
+            ctx.tokens.add(0, 0, cost)
+        raise
+
+    usage = getattr(response, 'usage', None)
+    if not isinstance(usage, dict):
+        usage = {}
+    returned_model = getattr(response, 'returned_model', None)
+    if not isinstance(returned_model, str):
+        returned_model = None
+    cost = db.finalize_llm_attempt(
+        attempt_id, state='success', returned_model=returned_model,
+        input_tokens=usage.get('input_tokens'), output_tokens=usage.get('output_tokens'),
+        cache_read_tokens=usage.get('cache_read_tokens'),
+        cache_write_tokens=usage.get('cache_write_tokens'),
+        reasoning_tokens=usage.get('reasoning_tokens'),
+    )
+    if ctx is not None:
+        ctx.tokens.add(usage.get('input_tokens') or 0, usage.get('output_tokens') or 0, cost)
     return response
 
 
@@ -219,6 +294,7 @@ def call_llm(
     slug: str | None,
     episode_id: str | None,
     call_label: str,
+    phase_key: str,
     temperature: float = 0.0,
     reasoning_effort: Union[int, str] | None = None,
     pass_name: str | None = None,
@@ -238,9 +314,15 @@ def call_llm(
     'secondary'), carried onto a held 429 so the queue pauses only that
     account, not every account on the same provider type.
 
+    ``phase_key`` labels this call in the llm_call_usage ledger ('detection',
+    'verification', 'review', 'chapters'); every real dispatch (including
+    each retry below) is recorded as its own billable ledger row.
+
     Returns:
         Tuple of (response, last_error). response is None if all retries failed.
     """
+    provider_key = provider or get_effective_provider()
+    invoking_pass = _invoking_pass_from_name(pass_name)
     llm_kwargs = dict(
         model=model,
         max_tokens=max_tokens,
@@ -258,7 +340,10 @@ def call_llm(
 
     for attempt in range(max_retries + 1):
         try:
-            response = _call_once(llm_client, llm_kwargs, model)
+            response = _ledger_call_once(
+                llm_client, llm_kwargs, model, phase_key=phase_key,
+                invoking_pass=invoking_pass, provider_key=provider_key,
+                slug=slug, episode_id=episode_id, call_label=call_label)
             return response, None
         except Exception as e:
             last_error = e
@@ -304,7 +389,10 @@ def call_llm(
             )
             time.sleep(delay)
             try:
-                response = _call_once(llm_client, llm_kwargs, model)
+                response = _ledger_call_once(
+                    llm_client, llm_kwargs, model, phase_key=phase_key,
+                    invoking_pass=invoking_pass, provider_key=provider_key,
+                    slug=slug, episode_id=episode_id, call_label=call_label)
                 logger.info(
                     f"[{slug}:{episode_id}] {call_label} succeeded on retry {retry_num}"
                 )

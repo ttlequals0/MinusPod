@@ -1590,31 +1590,10 @@ def get_last_episode_token_totals() -> dict:
 
 
 def _record_token_usage(model: str, usage: dict):
-    """Module-level callback for recording token usage to the database."""
-    input_tokens = usage.get('input_tokens', 0)
-    output_tokens = usage.get('output_tokens', 0)
-    cost = 0.0
-
-    try:
-        from database import Database
-        db = Database()
-        cost = db.record_token_usage(
-            model_id=model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-        )
-    except Exception as e:
-        logger.warning(f"Failed to record token usage to DB: {e}")
-
-    accum_active = _get_accumulator_active()
-    logger.info(
-        f"Token callback: model={model} in={input_tokens} out={output_tokens}"
-        f" cost=${cost:.6f} accum_active={accum_active}"
-        f" (thread={threading.current_thread().name})"
-    )
-    ctx = run_context.current()
-    if ctx is not None:
-        ctx.tokens.add(input_tokens, output_tokens, cost)
+    """Retired: token counters are now written solely by
+    database.stats.finalize_llm_attempt via the utils.llm_call ledger
+    wrapper. No longer wired as a usage callback; kept as a symbol so
+    existing test patches referencing it do not break."""
 
 
 def get_client_for_provider(provider_key: str, base_url: str | None = None,
@@ -1662,7 +1641,9 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
             )
             client = AnthropicClient()
 
-        client.set_usage_callback(_record_token_usage)
+        # No usage callback wired: utils.llm_call records every dispatch
+        # through the llm_call_usage ledger (begin_llm_attempt /
+        # finalize_llm_attempt) instead, so counters have a single writer.
         client.set_circuit_breaker(_get_circuit_breaker_for_provider(provider_key, credential_slot))
         _client_cache[cache_key] = client
         logger.info(f"LLM client initialized for provider '{provider_key}': {client.get_provider_name()}")

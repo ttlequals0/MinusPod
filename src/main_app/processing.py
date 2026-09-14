@@ -3869,6 +3869,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     episode_id=episode_id,
                     replacement_duration=replacement_duration,
                     segment_markers=markers,
+                    slug=slug,
                 )
             except ProviderRateLimitedError as e:
                 # The audio is already cut, so hold the queue and publish ad

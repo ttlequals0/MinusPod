@@ -1107,6 +1107,7 @@ class AdReviewer:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            phase_key='review',
             provider=provider,
             credential_slot=credential_slot,
             response_format=schema_format_for(
@@ -1450,6 +1451,7 @@ class AdReviewer:
                 episode_id=episode_id,
                 call_label=call_label,
                 pass_name=pass_name,
+                phase_key='review',
                 provider=provider,
                 credential_slot=credential_slot,
                 response_format=schema_format_for(

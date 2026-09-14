@@ -199,6 +199,7 @@ class ChaptersGenerator:
         self._api_key_override: str | None = api_key
         self._llm_client_override: LLMClient | None = None
         self._episode_id: str | None = None
+        self._slug: str | None = None
         # (template, override), read once per run rather than per window.
         self._chapter_prompt: tuple[str, str] | None = None
         # Set when topic detection or title generation fails and the run
@@ -380,10 +381,11 @@ class ChaptersGenerator:
                 max_tokens=max_tokens,
                 temperature=temperature,
                 reasoning_effort=reasoning,
-                slug=None,
+                slug=self._slug,
                 episode_id=self._episode_id,
                 call_label="chapter topic detection",
                 pass_name=PASS_CHAPTER_GENERATION,
+                phase_key='chapters',
                 provider=self._chapters_provider(),
                 credential_slot=self._chapters_credential_slot(),
             )
@@ -565,10 +567,11 @@ class ChaptersGenerator:
             max_tokens=max_tokens,
             temperature=temperature,
             reasoning_effort=reasoning,
-            slug=None,
+            slug=self._slug,
             episode_id=self._episode_id,
             call_label="chapter title generation",
             pass_name=PASS_CHAPTER_GENERATION,
+            phase_key='chapters',
             provider=self._chapters_provider(),
             credential_slot=self._chapters_credential_slot(),
         )
@@ -767,6 +770,7 @@ class ChaptersGenerator:
         replacement_duration: float = 0.0,
         segment_markers: list[dict] | None = None,
         marker_cuts: list[dict] | None = None,
+        slug: str | None = None,
     ) -> dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
@@ -795,12 +799,16 @@ class ChaptersGenerator:
                 segments are already on the processed timeline, but hints
                 still need the original applied-cut list to map from marker
                 (original-time) coordinates.
+            slug: Podcast slug, for the llm_call_usage ledger's podcast
+                linkage. Omitted call sites still ledger the attempt, just
+                without a resolved podcast_id.
 
         Returns:
             {'version': '1.2.0', 'chapters': [{'startTime', 'title'}, ...]}
         """
         logger.info(f"Generating chapters for '{episode_title}'")
         self._episode_id = episode_id
+        self._slug = slug
         self._topic_detection_failed = False
         self._title_generation_failed = False
         self._model_not_configured_message = None

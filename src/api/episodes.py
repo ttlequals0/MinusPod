@@ -1245,6 +1245,7 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
             replacement_duration=get_replacement_duration(),
             segment_markers=segment_markers,
             marker_cuts=marker_cuts,
+            slug=slug,
         )
 
         # A reprocess finishing during the LLM call above rewrote the transcript

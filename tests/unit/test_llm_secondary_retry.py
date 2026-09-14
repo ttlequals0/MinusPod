@@ -103,6 +103,7 @@ def test_reasoning_exhaustion_retry_disables_reasoning_and_records_usage(
         slug='t',
         episode_id='e',
         window_label='w',
+        phase_key='test',
         reasoning_effort='high',
     )
 
@@ -160,6 +161,7 @@ def test_anthropic_reasoning_exhaustion_retry_omits_thinking(
         slug='t',
         episode_id='e',
         window_label='w',
+        phase_key='test',
         reasoning_effort=2048,
     )
 
@@ -230,6 +232,7 @@ def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
             slug='t',
             episode_id=episode_id,
             window_label='w',
+            phase_key='test',
             reasoning_effort='high',
             pass_name=PASS_AD_DETECTION_1,
         )
@@ -297,6 +300,7 @@ def test_secondary_reasoning_exhaustion_disables_final_retry(no_retry_wait):
         slug='t',
         episode_id='e',
         window_label='w',
+        phase_key='test',
         reasoning_effort='high',
     )
 
