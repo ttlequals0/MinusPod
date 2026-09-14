@@ -2168,11 +2168,16 @@ class ProviderRateLimitedError(Exception):
 
     def __init__(self, message: str, retry_after_seconds: float,
                  provider_key: str | None = None,
-                 credential_slot: str = 'primary'):
+                 credential_slot: str = 'primary', manual: bool = False):
         super().__init__(message)
         self.retry_after_seconds = float(retry_after_seconds)
         self.provider_key = provider_key
         self.credential_slot = credential_slot
+        # manual=True marks a MinusPod-configured RPM/RPD/TPM cap (not a real
+        # provider 429): the mid-run defer reads the already-recorded hold
+        # marker instead of the toggle-gated 429 path, and the probe never
+        # completion-probes it (that would burn real quota).
+        self.manual = manual
 
 
 def extract_error_body(error: Exception) -> Any:

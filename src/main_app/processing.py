@@ -126,8 +126,8 @@ from database.queue import compute_queue_priority
 from llm_route import resolve_route
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
-    enforce_provider_rate_limit, hold_message, hold_queue_for_provider_limit,
-    is_queue_paused,
+    enforce_provider_rate_limit, get_active_hold, hold_message,
+    hold_queue_for_provider_limit, is_queue_paused,
 )
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -4804,6 +4804,40 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                 pass
 
 
+def _requeue_episode_after_hold(db, slug, episode_id, episode_title,
+                                episode_data, hold_until, error):
+    """Send a rate-limit-held episode back to PENDING, keeping its queue
+    position. Shared by real-429 and manual-cap defers (#696, #747)."""
+    db.upsert_episode(
+        slug, episode_id,
+        status=EpisodeStatus.PENDING.value,
+        error_message=hold_message(hold_until, error),
+    )
+    # Release the claimed queue row in place so the episode keeps its
+    # priority and position. A run started outside the queue processor
+    # has no row, so it gets one at the boost its request would carry.
+    if not db.reopen_claimed_queue_row(slug, episode_id):
+        # episode_data predates the run; a JIT play may have had no row
+        # then, so read the row the run wrote.
+        row = db.get_episode(slug, episode_id) or episode_data or {}
+        podcast = db.get_podcast_by_slug(slug) or {}
+        # Only Play and Reprocess start outside the queue, so this is user
+        # intent: the mark clears the drainer's auto-process gate. Never
+        # over an existing stamp, which would relabel someone's reprocess.
+        if not row.get('reprocess_requested_at'):
+            db.upsert_episode(slug, episode_id,
+                              reprocess_requested_at=utc_now_iso(),
+                              reprocess_source=REPROCESS_SOURCE_JIT)
+        db.upsert_episode_for_processing(
+            slug, episode_id, row.get('original_url'),
+            title=episode_title, published_at=row.get('published_at'),
+            description=row.get('description'),
+            priority=compute_queue_priority(
+                podcast.get('queue_priority'), row.get('published_at'),
+                manual=True),
+        )
+
+
 def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                 episode_data, error, start_time, run_stats=None):
     """Handle processing failure: GPU cleanup, retry logic, error recording."""
@@ -4826,39 +4860,21 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # the queue and pauses new starts until the reset. Runs before the
     # offline-queue branch: throttling is not an outage. retry_count untouched.
     if isinstance(error, ProviderRateLimitedError):
-        hold_until = hold_queue_for_provider_limit(
-            db, error, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
-            provider_key=getattr(error, 'provider_key', None),
-            credential_slot=getattr(error, 'credential_slot', 'primary'))
+        if getattr(error, 'manual', False):
+            # Manual RPM/RPD/TPM cap: the pre-call backstop already recorded
+            # the hold, so read it directly and defer regardless of the #696
+            # toggle (a real 429 still routes through the toggle-gated path).
+            hold_until = get_active_hold(
+                db, getattr(error, 'provider_key', None),
+                getattr(error, 'credential_slot', 'primary'))[0]
+        else:
+            hold_until = hold_queue_for_provider_limit(
+                db, error, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
+                provider_key=getattr(error, 'provider_key', None),
+                credential_slot=getattr(error, 'credential_slot', 'primary'))
         if hold_until:
-            db.upsert_episode(
-                slug, episode_id,
-                status=EpisodeStatus.PENDING.value,
-                error_message=hold_message(hold_until, error),
-            )
-            # Release the claimed queue row in place so the episode keeps its
-            # priority and position. A run started outside the queue processor
-            # has no row, so it gets one at the boost its request would carry.
-            if not db.reopen_claimed_queue_row(slug, episode_id):
-                # episode_data predates the run; a JIT play may have had no row
-                # then, so read the row the run wrote.
-                row = db.get_episode(slug, episode_id) or episode_data or {}
-                podcast = db.get_podcast_by_slug(slug) or {}
-                # Only Play and Reprocess start outside the queue, so this is user
-                # intent: the mark clears the drainer's auto-process gate. Never
-                # over an existing stamp, which would relabel someone's reprocess.
-                if not row.get('reprocess_requested_at'):
-                    db.upsert_episode(slug, episode_id,
-                                      reprocess_requested_at=utc_now_iso(),
-                                      reprocess_source=REPROCESS_SOURCE_JIT)
-                db.upsert_episode_for_processing(
-                    slug, episode_id, row.get('original_url'),
-                    title=episode_title, published_at=row.get('published_at'),
-                    description=row.get('description'),
-                    priority=compute_queue_priority(
-                        podcast.get('queue_priority'), row.get('published_at'),
-                        manual=True),
-                )
+            _requeue_episode_after_hold(
+                db, slug, episode_id, episode_title, episode_data, hold_until, error)
             return
 
     # Offline queue (#482): endpoint-down failures defer instead of failing.

@@ -47,6 +47,10 @@ function renderSection(overrides: Partial<Parameters<typeof LLMProviderSection>[
       onSecondaryProviderRequestsPerMinChange={vi.fn()}
       secondaryProviderRequestsPerDay={0}
       onSecondaryProviderRequestsPerDayChange={vi.fn()}
+      providerTokensPerMin={0}
+      onProviderTokensPerMinChange={vi.fn()}
+      secondaryProviderTokensPerMin={0}
+      onSecondaryProviderTokensPerMinChange={vi.fn()}
       {...overrides}
     />,
   );
@@ -156,15 +160,29 @@ describe('LLMProviderSection: secondary provider block, once enabled', () => {
 });
 
 describe('LLMProviderSection: manual request-rate limits', () => {
-  it('renders primary RPM/RPD inputs and fires the primary change handlers', async () => {
+  it('renders primary RPM/RPD/TPM inputs and fires the primary change handlers', async () => {
     const user = userEvent.setup();
     const onProviderRequestsPerMinChange = vi.fn();
-    renderSection({ onProviderRequestsPerMinChange });
+    const onProviderTokensPerMinChange = vi.fn();
+    renderSection({ onProviderRequestsPerMinChange, onProviderTokensPerMinChange });
 
     const rpm = screen.getByLabelText('Requests per minute') as HTMLInputElement;
     expect(screen.getByLabelText('Requests per day')).toBeDefined();
+    const tpm = screen.getByLabelText('Tokens per minute') as HTMLInputElement;
     await user.type(rpm, '5');
     expect(onProviderRequestsPerMinChange).toHaveBeenCalledWith(5);
+    await user.type(tpm, '250000');
+    expect(onProviderTokensPerMinChange).toHaveBeenCalledWith(250000);
+  });
+
+  it('renders the limit inputs for every primary provider type', () => {
+    for (const provider of ['anthropic', 'openai-compatible', 'ollama', 'openrouter'] as const) {
+      const { unmount } = renderSection({ llmProvider: provider });
+      expect(screen.getByLabelText('Requests per minute')).toBeDefined();
+      expect(screen.getByLabelText('Requests per day')).toBeDefined();
+      expect(screen.getByLabelText('Tokens per minute')).toBeDefined();
+      unmount();
+    }
   });
 
   it('shows one RPM input with the secondary provider off', () => {

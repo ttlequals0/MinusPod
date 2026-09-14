@@ -53,24 +53,32 @@ interface LLMProviderSectionProps {
   onSecondaryProviderRequestsPerMinChange: (value: number) => void;
   secondaryProviderRequestsPerDay: number;
   onSecondaryProviderRequestsPerDayChange: (value: number) => void;
+  providerTokensPerMin: number;
+  onProviderTokensPerMinChange: (value: number) => void;
+  secondaryProviderTokensPerMin: number;
+  onSecondaryProviderTokensPerMinChange: (value: number) => void;
 }
 
 const RATE_LIMIT_MAX = 1_000_000;
+const TOKEN_LIMIT_MAX = 1_000_000_000;
 const parseIntOrZero = (s: string) => {
   const n = parseInt(s, 10);
   return Number.isFinite(n) ? n : 0;
 };
 
-// Requests-per-minute and requests-per-day caps for one provider account.
-// Drafts committed to form state; the page Save button persists them.
+// Requests-per-minute, requests-per-day, and tokens-per-minute caps for one
+// provider account. Shown for every provider type. Drafts committed to form
+// state; the page Save button persists them.
 function RateLimitFields({
-  idPrefix, rpm, onRpmChange, rpd, onRpdChange,
+  idPrefix, rpm, onRpmChange, rpd, onRpdChange, tpm, onTpmChange,
 }: {
   idPrefix: string;
   rpm: number;
   onRpmChange: (value: number) => void;
   rpd: number;
   onRpdChange: (value: number) => void;
+  tpm: number;
+  onTpmChange: (value: number) => void;
 }) {
   return (
     <div>
@@ -105,10 +113,25 @@ function RateLimitFields({
             onCommit={onRpdChange}
           />
         </div>
+        <div>
+          <label htmlFor={`${idPrefix}Tpm`} className="block text-sm font-medium text-foreground mb-2">
+            Tokens per minute
+          </label>
+          <NumberInput
+            id={`${idPrefix}Tpm`}
+            value={tpm}
+            min={0}
+            max={TOKEN_LIMIT_MAX}
+            fallback={0}
+            step={1}
+            parse={parseIntOrZero}
+            onCommit={onTpmChange}
+          />
+        </div>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         0 means no limit. These throttle MinusPod to stay under this provider
-        account's request limits, useful for free tiers.
+        account's request and token limits, useful for free tiers.
       </p>
     </div>
   );
@@ -269,6 +292,10 @@ function LLMProviderSection({
   onSecondaryProviderRequestsPerMinChange,
   secondaryProviderRequestsPerDay,
   onSecondaryProviderRequestsPerDayChange,
+  providerTokensPerMin,
+  onProviderTokensPerMinChange,
+  secondaryProviderTokensPerMin,
+  onSecondaryProviderTokensPerMinChange,
 }: LLMProviderSectionProps) {
   const keyProvider = keyProviderFor(llmProvider);
   const status = keyProvider && providersState ? providersState[keyProvider] : NONE_STATUS;
@@ -348,6 +375,8 @@ function LLMProviderSection({
           onRpmChange={onProviderRequestsPerMinChange}
           rpd={providerRequestsPerDay}
           onRpdChange={onProviderRequestsPerDayChange}
+          tpm={providerTokensPerMin}
+          onTpmChange={onProviderTokensPerMinChange}
         />
 
         <div className="pt-4 border-t border-border space-y-4">
@@ -400,6 +429,8 @@ function LLMProviderSection({
               onRpmChange={onSecondaryProviderRequestsPerMinChange}
               rpd={secondaryProviderRequestsPerDay}
               onRpdChange={onSecondaryProviderRequestsPerDayChange}
+              tpm={secondaryProviderTokensPerMin}
+              onTpmChange={onSecondaryProviderTokensPerMinChange}
             />
           )}
         </div>

@@ -49,6 +49,11 @@ logger = logging.getLogger('podcast.refresh')
 
 HOLD_UNTIL_KEY = 'rate_limit_hold_until'
 HOLD_SINCE_KEY = 'rate_limit_hold_since'
+# Marks a hold as a manual MinusPod cap (#747), not a real provider 429, so
+# the tier-2 completion probe skips it: probing sends a real uncounted request
+# that would clear the cap early and burn the very quota the cap protects. A
+# manual hold clears only by time, via the tick when its reset passes.
+HOLD_MANUAL_KEY = 'rate_limit_hold_manual'
 RATE_LIMIT_PROBE_AT_KEY = 'rate_limit_probe_at'
 
 # A provider reset farther out than this is treated as unusable reset info;
@@ -94,6 +99,10 @@ def _hold_since_key(provider_key: str | None) -> str:
     return HOLD_SINCE_KEY if provider_key is None else f'{HOLD_SINCE_KEY}:{provider_key}'
 
 
+def _hold_manual_key(provider_key: str | None) -> str:
+    return HOLD_MANUAL_KEY if provider_key is None else f'{HOLD_MANUAL_KEY}:{provider_key}'
+
+
 def _slot_key(provider_key: str, credential_slot: str) -> str:
     """Marker suffix for one (provider, credential_slot) pair."""
     return f'{provider_key}:{credential_slot}'
@@ -130,7 +139,7 @@ def get_hold_until(db, provider_key: str | None = None) -> str | None:
 
 def record_hold_until(db, provider_key: str | None, retry_at_iso: str,
                       *, credential_slot: str = 'primary',
-                      force: bool = False) -> tuple[str, bool]:
+                      force: bool = False, manual: bool = False) -> tuple[str, bool]:
     """Stamp (provider_key, credential_slot)'s pause marker, keeping
     whichever reset is later so a second 429 can extend an active pause but
     never cut it short. Returns the effective hold_until and whether this
@@ -158,6 +167,12 @@ def record_hold_until(db, provider_key: str | None, retry_at_iso: str,
     if started:
         db.set_setting(_hold_since_key(key_suffix), utc_now_iso())
     db.set_setting(until_key, retry_at_iso)
+    # A real 429 (manual=False) landing on a manual hold's marker clears the
+    # flag so the probe can resume: it is now genuine provider throttling.
+    if manual:
+        db.set_setting(_hold_manual_key(key_suffix), 'true')
+    else:
+        db.clear_setting(_hold_manual_key(key_suffix))
     return retry_at_iso, started
 
 
@@ -168,6 +183,7 @@ def clear_hold(db, provider_key: str | None = None) -> str | None:
     held_since = db.get_setting(since_key)
     db.clear_setting(_hold_until_key(provider_key))
     db.clear_setting(since_key)
+    db.clear_setting(_hold_manual_key(provider_key))
     db.clear_setting(RATE_LIMIT_PROBE_AT_KEY)
     return held_since
 
@@ -278,6 +294,7 @@ def clear_hold_if_unchanged(db, hold_until: str,
     if not db.clear_setting_if_equal(_hold_until_key(provider_key), hold_until):
         return False, None
     db.clear_setting(since_key)
+    db.clear_setting(_hold_manual_key(provider_key))
     db.clear_setting(RATE_LIMIT_PROBE_AT_KEY)
     return True, held_since
 
@@ -447,36 +464,46 @@ def hold_queue_for_provider_limit(db, error, *, slug: str, episode_id: str,
     return hold_until
 
 
-def _rate_limit_setting_keys(credential_slot: str) -> tuple[str, str]:
-    """(rpm_key, rpd_key) for a slot: secondary reads the secondary_* keys."""
+def _rate_limit_setting_keys(credential_slot: str) -> tuple[str, str, str]:
+    """(rpm_key, rpd_key, tpm_key) for a slot: secondary reads secondary_*."""
     if credential_slot == 'secondary':
         return ('secondary_provider_requests_per_min',
-                'secondary_provider_requests_per_day')
-    return ('provider_requests_per_min', 'provider_requests_per_day')
+                'secondary_provider_requests_per_day',
+                'secondary_provider_tokens_per_min')
+    return ('provider_requests_per_min', 'provider_requests_per_day',
+            'provider_tokens_per_min')
 
 
 def evaluate_provider_rate_limit(db, provider_key: str,
                                  credential_slot: str = 'primary') -> str | None:
     """Reset time when (provider_key, credential_slot) is at or over its
-    manual RPM/RPD cap, else None (no side effects).
+    manual RPM/RPD/TPM cap, else None (no side effects).
 
-    RPM: 60s after the oldest attempt in the last 60s. RPD: next UTC
-    midnight. Both configured and tripped returns the later reset. 0 for a
-    limit disables it; both 0 short-circuits to None. Capped at MAX_HOLD.
+    RPM: 60s after the oldest attempt in the last 60s. TPM: 60s after the
+    oldest token-contributing finalized row in the last 60s. RPD: next UTC
+    midnight. Returns the latest reset of whichever caps trip. 0 for a limit
+    disables it; all 0 short-circuits to None. Capped at MAX_HOLD.
     """
-    rpm_key, rpd_key = _rate_limit_setting_keys(credential_slot)
+    rpm_key, rpd_key, tpm_key = _rate_limit_setting_keys(credential_slot)
     rpm = get_env_backed_int(rpm_key, floor=0)
     rpd = get_env_backed_int(rpd_key, floor=0)
-    if rpm <= 0 and rpd <= 0:
+    tpm = get_env_backed_int(tpm_key, floor=0)
+    if rpm <= 0 and rpd <= 0 and tpm <= 0:
         return None
     now = utc_now()
+    minute_since = (now - timedelta(seconds=60)).strftime(ISO_FORMAT)
     reset = None
     if rpm > 0:
-        since = (now - timedelta(seconds=60)).strftime(ISO_FORMAT)
-        if db.count_recent_llm_attempts(provider_key, credential_slot, since) >= rpm:
-            oldest = db.oldest_recent_llm_attempt(provider_key, credential_slot, since)
+        if db.count_recent_llm_attempts(provider_key, credential_slot, minute_since) >= rpm:
+            oldest = db.oldest_recent_llm_attempt(provider_key, credential_slot, minute_since)
             oldest_dt = parse_iso_utc(oldest) if oldest else now
             reset = oldest_dt + timedelta(seconds=60)
+    if tpm > 0:
+        if db.sum_recent_llm_tokens(provider_key, credential_slot, minute_since) >= tpm:
+            oldest = db.oldest_recent_llm_token_attempt(provider_key, credential_slot, minute_since)
+            oldest_dt = parse_iso_utc(oldest) if oldest else now
+            tpm_reset = oldest_dt + timedelta(seconds=60)
+            reset = max(reset, tpm_reset) if reset is not None else tpm_reset
     if rpd > 0:
         midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
         day_since = midnight.strftime(ISO_FORMAT)
@@ -504,7 +531,7 @@ def enforce_provider_rate_limit(db, provider_key: str,
     if reset_iso is None:
         return None
     hold_until, started = record_hold_until(
-        db, provider_key, reset_iso, credential_slot=credential_slot)
+        db, provider_key, reset_iso, credential_slot=credential_slot, manual=True)
     if started:
         logger.warning(f"Manual rate limit: paused {provider_key}:{credential_slot} "
                        f"until {hold_until}")
@@ -608,8 +635,9 @@ def probe_rate_limit(db) -> bool:
         return False
 
 
-def _active_hold_source(db) -> tuple[str | None, str | None]:
-    """(hold_until, provider_key) for the marker the probe should act on.
+def _active_hold_source(db) -> tuple[str | None, str | None, str | None]:
+    """(hold_until, provider_key, suffix) for the marker the probe should act
+    on; suffix is the literal stored key suffix (for the manual-flag lookup).
 
     The probe only ever tests the primary slot (get_llm_client() resolves
     the primary credentials), so this walks the primary-slot fallback
@@ -623,13 +651,27 @@ def _active_hold_source(db) -> tuple[str | None, str | None]:
     for suffix in _hold_chain(provider, 'primary'):
         hold_until = get_hold_until(db, suffix)
         if hold_is_active(hold_until):
-            return hold_until, (provider if suffix is not None else None)
-    return None, None
+            return hold_until, (provider if suffix is not None else None), suffix
+    return None, None, None
+
+
+def _hold_is_manual(db, suffix: str | None) -> bool:
+    """True when suffix's hold is a manual MinusPod cap (#747)."""
+    try:
+        return bool(db.get_setting(_hold_manual_key(suffix)))
+    except Exception:
+        return False
 
 
 def _probe_rate_limit(db) -> bool:
-    hold_until, provider_key = _active_hold_source(db)
+    hold_until, provider_key, suffix = _active_hold_source(db)
     if not hold_until:
+        return False
+    # A manual cap is our own accounting, not real provider throttling. A
+    # completion probe would send a real uncounted request that clears the
+    # hold early and burns the quota the cap protects, so never probe it: it
+    # clears only by time when the tick sees its reset pass.
+    if _hold_is_manual(db, suffix):
         return False
     minutes = get_rate_limit_probe_minutes(db)
     if minutes <= 0:

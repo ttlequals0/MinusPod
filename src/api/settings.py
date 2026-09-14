@@ -469,6 +469,10 @@ def get_settings():
         'secondary_provider_requests_per_min', floor=0, settings=settings)
     secondary_provider_requests_per_day = get_env_backed_int(
         'secondary_provider_requests_per_day', floor=0, settings=settings)
+    provider_tokens_per_min = get_env_backed_int(
+        'provider_tokens_per_min', floor=0, settings=settings)
+    secondary_provider_tokens_per_min = get_env_backed_int(
+        'secondary_provider_tokens_per_min', floor=0, settings=settings)
 
     def _db_int(key, default):
         try:
@@ -713,6 +717,9 @@ def get_settings():
             'secondary_provider_requests_per_min', secondary_provider_requests_per_min),
         'secondaryProviderRequestsPerDay': _sv(
             'secondary_provider_requests_per_day', secondary_provider_requests_per_day),
+        'providerTokensPerMin': _sv('provider_tokens_per_min', provider_tokens_per_min),
+        'secondaryProviderTokensPerMin': _sv(
+            'secondary_provider_tokens_per_min', secondary_provider_tokens_per_min),
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         # value is resolved, not raw: unset falls back to PodcastIndex when
         # its credentials exist (pre-option installs keep their behavior),
@@ -1087,6 +1094,8 @@ def _apply_provider_rate_limit_fields(db, data):
         ('providerRequestsPerDay', 'provider_requests_per_day'),
         ('secondaryProviderRequestsPerMin', 'secondary_provider_requests_per_min'),
         ('secondaryProviderRequestsPerDay', 'secondary_provider_requests_per_day'),
+        ('providerTokensPerMin', 'provider_tokens_per_min'),
+        ('secondaryProviderTokensPerMin', 'secondary_provider_tokens_per_min'),
     )
     writes = []
     for payload_key, db_key in fields:

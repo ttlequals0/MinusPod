@@ -403,6 +403,43 @@ class StatsMixin:
         ).fetchone()
         return row['oldest'] if row and row['oldest'] else None
 
+    def sum_recent_llm_tokens(self, provider_key: str, credential_slot: str,
+                              since_iso: str) -> int:
+        """Finalized input+output tokens for one (provider, slot) with
+        created_at >= since_iso. Only finalized rows carry token counts;
+        in-flight rows are unknown, the same approximation RPM accepts.
+        Backs the manual per-provider TPM throttle. NULL slot reads as
+        'primary'."""
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT COALESCE(SUM(COALESCE(input_tokens, 0)
+                                   + COALESCE(output_tokens, 0)), 0) AS n
+               FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND finalized_at IS NOT NULL
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return int(row['n']) if row else 0
+
+    def oldest_recent_llm_token_attempt(self, provider_key: str,
+                                        credential_slot: str,
+                                        since_iso: str) -> str | None:
+        """created_at of the oldest token-contributing finalized (provider,
+        slot) row at or after since_iso, or None. Used for the TPM reset."""
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT MIN(created_at) AS oldest FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND finalized_at IS NOT NULL
+                 AND (input_tokens IS NOT NULL OR output_tokens IS NOT NULL)
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return row['oldest'] if row and row['oldest'] else None
+
     def finalize_llm_attempt(self, attempt_id: str, *, state: str,
                              returned_model=None, input_tokens=None,
                              output_tokens=None, cache_read_tokens=None,

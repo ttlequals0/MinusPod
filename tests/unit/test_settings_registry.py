@@ -482,12 +482,13 @@ class TestGetDefaults:
         # matching review_model's default-block presence (117 -> 118).
         # secondaryProviderEnabled + secondaryProvider + secondaryProviderBaseUrl
         # added after that (118 -> 121). Then the four manual provider
-        # request-rate limit keys (#747), primary and secondary (121 -> 125).
+        # request-rate limit keys (#747), primary and secondary (121 -> 125),
+        # then the two tokens-per-minute keys, primary and secondary (125 -> 127).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 125
+        assert len(payload_keys) == 127
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

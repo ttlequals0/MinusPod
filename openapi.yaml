@@ -5554,6 +5554,16 @@ paths:
                   minimum: 0
                   description: Manual requests-per-day cap for the secondary provider account. 0 means unlimited.
                   example: 20
+                providerTokensPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Manual tokens-per-minute cap for the primary provider account. 0 means unlimited.
+                  example: 250000
+                secondaryProviderTokensPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Manual tokens-per-minute cap for the secondary provider account. 0 means unlimited.
+                  example: 250000
                 detectionTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for the first-pass ad detection LLM call.
@@ -12902,6 +12912,24 @@ components:
               minimum: 0
             isDefault:
               type: boolean
+        providerTokensPerMin:
+          type: object
+          description: Manual tokens-per-minute cap for the primary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        secondaryProviderTokensPerMin:
+          type: object
+          description: Manual tokens-per-minute cap for the secondary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
         podcastSearchReady:
           type: boolean
           description: >-
@@ -13016,6 +13044,10 @@ components:
             secondaryProviderRequestsPerMin:
               type: integer
             secondaryProviderRequestsPerDay:
+              type: integer
+            providerTokensPerMin:
+              type: integer
+            secondaryProviderTokensPerMin:
               type: integer
             autoProcessEnabled:
               type: boolean

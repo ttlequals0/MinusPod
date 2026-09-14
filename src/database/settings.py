@@ -692,6 +692,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'secondary_provider_requests_per_day': SettingSpec(
         env_backed=True, payload_key='secondaryProviderRequestsPerDay',
         payload_kind='int'),
+    'provider_tokens_per_min': SettingSpec(
+        env_backed=True, payload_key='providerTokensPerMin', payload_kind='int'),
+    'secondary_provider_tokens_per_min': SettingSpec(
+        env_backed=True, payload_key='secondaryProviderTokensPerMin',
+        payload_kind='int'),
 
     # -- Audio cue detection (#350) --
     'audio_cue_detection_enabled': SettingSpec(

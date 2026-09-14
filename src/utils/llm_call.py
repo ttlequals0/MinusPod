@@ -310,7 +310,7 @@ def _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id):
     return ProviderRateLimitedError(
         f"manual rate limit for {provider_key} resets in {retry_after:.0f}s",
         retry_after_seconds=retry_after, provider_key=provider_key,
-        credential_slot=credential_slot)
+        credential_slot=credential_slot, manual=True)
 
 
 def call_llm(
@@ -433,6 +433,7 @@ def call_llm(
                 response = _ledger_call_once(
                     llm_client, llm_kwargs, model, phase_key=phase_key,
                     invoking_pass=invoking_pass, provider_key=provider_key,
+                    credential_slot=credential_slot,
                     slug=slug, episode_id=episode_id, call_label=call_label)
                 logger.info(
                     f"[{slug}:{episode_id}] {call_label} succeeded on retry {retry_num}"

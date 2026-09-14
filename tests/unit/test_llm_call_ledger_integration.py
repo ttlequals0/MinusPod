@@ -147,3 +147,29 @@ def test_counters_increment_once_not_twice_via_ledger_alone(temp_db):
         assert summary['totalOutputTokens'] == 50
     finally:
         run_context.end(ctx)
+
+
+def test_secondary_slot_fallback_retry_tags_ledger_secondary(temp_db, monkeypatch):
+    """The per-window fallback retry must carry credential_slot, so a
+    secondary-slot call's retries are not mis-tagged primary (#747)."""
+    monkeypatch.setattr('utils.llm_call.time.sleep', lambda s: None)
+    temp_db.create_podcast('show-slot', 'https://example.com/slot.xml', 'Show Slot')
+    ctx = run_context.begin('show-slot', 'ep-slot', run_id='run-slot')
+    try:
+        client = _FakeLLMClient([
+            EmptyCompletionError('empty, retryable'),
+            LLMResponse(content='ok', model='claude-x',
+                        usage={'input_tokens': 3, 'output_tokens': 2}),
+        ])
+        response, error = call_llm(
+            llm_client=client, model='claude-x', system_prompt='s', prompt='p',
+            llm_timeout=30, max_retries=0, max_tokens=100,
+            slug='show-slot', episode_id='ep-slot', call_label='window 1',
+            phase_key='detection', provider='anthropic', credential_slot='secondary',
+        )
+        assert error is None
+        rows = _rows_for_episode(temp_db, 'ep-slot')
+        assert len(rows) == 2
+        assert [r['credential_slot'] for r in rows] == ['secondary', 'secondary']
+    finally:
+        run_context.end(ctx)

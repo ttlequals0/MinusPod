@@ -366,6 +366,23 @@ class TestFailureHandlerHold:
         assert episode['retry_count'] == 1  # 429s never burn retry_count (#238)
         assert not episode.get('deferred_at')
 
+    def test_manual_limit_defers_even_with_hold_disabled(self, seeded_episode):
+        """A manual cap (#747) crossed mid-run defers to PENDING regardless of
+        the #696 toggle: the pre-call backstop already recorded the marker."""
+        from rate_limit_hold import record_hold_until
+        _set_hold_enabled(False)
+        record_hold_until(db, 'anthropic', '2099-01-01T00:00:00Z',
+                          credential_slot='primary', manual=True)
+        err = ProviderRateLimitedError(
+            'manual rate limit reached', retry_after_seconds=60.0,
+            provider_key='anthropic', credential_slot='primary', manual=True)
+        _fail(seeded_episode, err)
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['status'] == 'pending'
+        assert episode['retry_count'] == 1  # untouched
+        assert not episode.get('deferred_at')
+        assert self._queue_row(seeded_episode)['status'] == 'pending'
+
     def test_hold_branch_precedes_offline_queue(self, seeded_episode):
         """Both features enabled: a held 429 is a rate-limit hold, not an
         endpoint outage, so the offline queue must not claim it."""

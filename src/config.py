@@ -2206,6 +2206,10 @@ ENV_BACKED_SETTINGS = (
      '0', _validate_non_negative_int),
     ('secondary_provider_requests_per_day', 'SECONDARY_PROVIDER_REQUESTS_PER_DAY',
      '0', _validate_non_negative_int),
+    ('provider_tokens_per_min', 'PROVIDER_TOKENS_PER_MIN', '0',
+     _validate_non_negative_int),
+    ('secondary_provider_tokens_per_min', 'SECONDARY_PROVIDER_TOKENS_PER_MIN',
+     '0', _validate_non_negative_int),
 )
 
 

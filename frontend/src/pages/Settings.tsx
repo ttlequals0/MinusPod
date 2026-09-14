@@ -298,6 +298,8 @@ function Settings() {
   const [providerRequestsPerDay, setProviderRequestsPerDay] = useState(0);
   const [secondaryProviderRequestsPerMin, setSecondaryProviderRequestsPerMin] = useState(0);
   const [secondaryProviderRequestsPerDay, setSecondaryProviderRequestsPerDay] = useState(0);
+  const [providerTokensPerMin, setProviderTokensPerMin] = useState(0);
+  const [secondaryProviderTokensPerMin, setSecondaryProviderTokensPerMin] = useState(0);
   const [pricingSourceMode, setPricingSourceMode] = useState('auto');
   const [whisperBackend, setWhisperBackend] = useState<WhisperBackend>('' as WhisperBackend);
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
@@ -641,6 +643,8 @@ function Settings() {
     { key: 'providerRequestsPerDay', kind: 'val', useDefault: true, literal: 0, value: providerRequestsPerDay, set: setProviderRequestsPerDay },
     { key: 'secondaryProviderRequestsPerMin', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderRequestsPerMin, set: setSecondaryProviderRequestsPerMin },
     { key: 'secondaryProviderRequestsPerDay', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderRequestsPerDay, set: setSecondaryProviderRequestsPerDay },
+    { key: 'providerTokensPerMin', kind: 'val', useDefault: true, literal: 0, value: providerTokensPerMin, set: setProviderTokensPerMin },
+    { key: 'secondaryProviderTokensPerMin', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderTokensPerMin, set: setSecondaryProviderTokensPerMin },
     { key: 'pricingSourceMode', kind: 'str', useDefault: true, value: pricingSourceMode, set: setPricingSourceMode },
     // Transcription
     { key: 'whisperBackend', kind: 'str', useDefault: true, value: whisperBackend, set: (v) => setWhisperBackend(v as WhisperBackend) },
@@ -1188,6 +1192,10 @@ function Settings() {
         onSecondaryProviderRequestsPerMinChange={setSecondaryProviderRequestsPerMin}
         secondaryProviderRequestsPerDay={secondaryProviderRequestsPerDay}
         onSecondaryProviderRequestsPerDayChange={setSecondaryProviderRequestsPerDay}
+        providerTokensPerMin={providerTokensPerMin}
+        onProviderTokensPerMinChange={setProviderTokensPerMin}
+        secondaryProviderTokensPerMin={secondaryProviderTokensPerMin}
+        onSecondaryProviderTokensPerMinChange={setSecondaryProviderTokensPerMin}
       />
 
       <AIModelsSection

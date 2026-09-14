@@ -795,6 +795,8 @@ export interface Settings {
   providerRequestsPerDay: SettingValueNumber;
   secondaryProviderRequestsPerMin: SettingValueNumber;
   secondaryProviderRequestsPerDay: SettingValueNumber;
+  providerTokensPerMin: SettingValueNumber;
+  secondaryProviderTokensPerMin: SettingValueNumber;
   pricingSourceMode: SettingValue;
   modelPricingOverrides: { value: ModelPricingOverrides; isDefault: boolean };
   apiKeyConfigured: boolean;
@@ -870,6 +872,8 @@ export interface Settings {
     providerRequestsPerDay: number;
     secondaryProviderRequestsPerMin: number;
     secondaryProviderRequestsPerDay: number;
+    providerTokensPerMin: number;
+    secondaryProviderTokensPerMin: number;
     adDetectionParallelWindows: number;
     adReviewerParallelAds: number;
     transcribeMaxChunkSeconds: number;
@@ -1042,6 +1046,8 @@ export interface UpdateSettingsPayload {
   providerRequestsPerDay?: number;
   secondaryProviderRequestsPerMin?: number;
   secondaryProviderRequestsPerDay?: number;
+  providerTokensPerMin?: number;
+  secondaryProviderTokensPerMin?: number;
   pricingSourceMode?: string;
   modelPricingOverrides?: Record<string, ModelPricingOverride | null>;
   whisperBackend?: WhisperBackend;

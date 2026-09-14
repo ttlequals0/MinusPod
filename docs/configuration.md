@@ -440,16 +440,16 @@ Holds are scoped per credential, not just per provider type. If primary and seco
 
 ### Manual request-rate limits
 
-The rate-limit hold above reacts to a 429 after it happens. Manual request-rate limits keep you under a provider account's hard limits in the first place, so a low-tier account never sends the request that would be rejected. Both features share the same queue-hold machinery, so a manual limit pauses the queue exactly like a real 429 and resumes on its own.
+The rate-limit hold above reacts to a 429 after it happens. Manual request-rate limits keep you under a provider account's hard limits in the first place, so a low-tier account never sends the request that would be rejected. Both features share the same queue-hold machinery, so a manual limit pauses the queue exactly like a real 429 and resumes on its own. A manual hold clears only when its reset time passes, and is never cleared early by the usage probe (that probe sends a real request, which would burn the quota the cap protects).
 
-Limits are counted per provider account (primary and secondary separately) from the LLM call ledger: requests in the last 60 seconds against the per-minute cap, and requests since the last UTC midnight against the per-day cap. When either cap is reached, that account's queue is paused. The per-minute pause lifts about 60 seconds after the oldest request in the window; the per-day pause lifts at the next UTC midnight.
+Limits are counted per provider account (primary and secondary separately) from the LLM call ledger: requests in the last 60 seconds against the per-minute cap (RPM), input plus output tokens of finalized calls in the last 60 seconds against the tokens-per-minute cap (TPM), and requests since the last UTC midnight against the per-day cap (RPD). When any cap is reached, that account's queue is paused. A per-minute pause (RPM or TPM) lifts about 60 seconds after the oldest contributing call in the window; the per-day pause lifts at the next UTC midnight. When more than one cap is over, the later reset wins.
 
-Both are off by default (0 means unlimited), so existing installs are unaffected. Configure them under **Settings > AI & Processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
+All are off by default (0 means unlimited), so existing installs are unaffected. Configure them under **Settings > AI & Processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
 
-- `providerRequestsPerMin`, `providerRequestsPerDay` - caps for the primary provider account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`).
-- `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay` - caps for the secondary provider account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`).
+- `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the primary provider account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
+- `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the secondary provider account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`).
 
-Example: the Gemini free tier allows roughly 5 requests per minute and 20 per day. Set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Pair this with a large detection window size (see [Detection window geometry](#detection-window-geometry)) so each episode spends fewer requests, and a whole episode can fit inside a small daily budget.
+Example: the Gemini free tier allows roughly 5 requests per minute and 20 per day. Set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Pair this with a large detection window size (see [Detection window geometry](#detection-window-geometry)) so each episode spends fewer requests, and a whole episode can fit inside a small daily budget. The token-per-minute allowance on that tier is generous (around 250000), so TPM is usually not the binding limit, but you can set `providerTokensPerMin` if your account has a tighter token budget.
 
 A held or limited provider never reroutes to another provider: the episode waits in the queue for that account's reset.
 
