@@ -890,6 +890,7 @@ describe('Held for Review: apply bar guards', () => {
   it('apply button is disabled while the episode is processing', async () => {
     renderDetail(makeEpisode({
       status: 'processing',
+      jobState: 'processing',
       hasOriginalAudio: true,
       pendingReviewMarkers: [{ ...heldMarker, approved: true }, secondHeldMarker],
       corrections: [confirmedHeldCorrection],
@@ -916,7 +917,7 @@ describe('Held for Review: apply bar guards', () => {
     // Hold the refetch open so the window under test stays observable.
     (getEpisode as ReturnType<typeof vi.fn>).mockImplementation(
       () => new Promise((resolve) => {
-        releaseGet = () => resolve({ ...episode, status: 'processing' });
+        releaseGet = () => resolve({ ...episode, status: 'processing', jobState: 'processing' });
       }));
     applyBtn.click();
 
@@ -939,6 +940,89 @@ describe('Held for Review: apply bar guards', () => {
     await screen.findByTestId('held-for-review-section');
     const applyBtn = await screen.findByTestId('apply-approved-recut');
     expect(applyBtn.textContent).toBe('Apply 1 confirmed & recut');
+  });
+});
+
+// ---- Checkpoint 05, Task 2: authoritative jobState eligibility ----
+
+describe('Authoritative jobState eligibility', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+    mockSubmitCorrection.mockResolvedValue(undefined);
+    mockReprocessEpisode.mockResolvedValue(undefined);
+  });
+
+  it('disables the reprocess trigger and the apply-approved-recut button when jobState is queued', async () => {
+    renderDetail(makeEpisode({
+      jobState: 'queued',
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [{ ...heldMarker, approved: true }, secondHeldMarker],
+      corrections: [confirmedHeldCorrection],
+    }));
+    await screen.findByTestId('held-for-review-section');
+    expect(screen.getByRole('button', { name: 'Queued' })).toHaveProperty('disabled', true);
+    expect(screen.getByTestId('apply-approved-recut')).toHaveProperty('disabled', true);
+  });
+
+  it('keeps a jobState=idle pending episode actionable', async () => {
+    renderDetail(makeEpisode({
+      jobState: 'idle',
+      status: 'pending',
+      processedAt: null,
+      pendingReviewMarkers: [],
+    }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    expect(screen.getByRole('button', { name: 'Process' })).toHaveProperty('disabled', false);
+  });
+
+  it('guards the reprocess handler so a double-click fires the mutation once', async () => {
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [{ ...heldMarker, approved: true }, secondHeldMarker],
+      corrections: [confirmedHeldCorrection],
+    }));
+    const applyBtn = await screen.findByTestId('apply-approved-recut');
+    // Two synchronous native clicks, before React commits the disabled prop
+    // from the first mutate() call: the handler's own ref must catch it.
+    applyBtn.click();
+    applyBtn.click();
+    await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalledTimes(1));
+  });
+
+  it('reads "Queued" and stays disabled once the refetch reports jobState=queued', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+
+    mockReprocessEpisode.mockResolvedValue({ message: 'queued', mode: 'full', jobState: 'queued' });
+    setupEpisodeMock(makeEpisode({ pendingReviewMarkers: [], jobState: 'queued' }));
+
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Full Analysis'));
+
+    await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'full'));
+    await waitFor(() => {
+      const trigger = screen.getByRole('button', { name: 'Queued' });
+      expect(trigger).toHaveProperty('disabled', true);
+    });
+  });
+
+  it('invalidates the episodes list query (not just the detail) on reprocess success', async () => {
+    const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Full Analysis'));
+
+    await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalled());
+    await waitFor(() => {
+      const keys = invalidateSpy.mock.calls.map((c) => (c[0] as { queryKey?: unknown[] })?.queryKey);
+      expect(keys.some((k) => Array.isArray(k) && k[0] === 'episodes' && k[1] === 'test-feed')).toBe(true);
+    });
+    invalidateSpy.mockRestore();
   });
 });
 

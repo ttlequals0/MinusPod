@@ -18,6 +18,7 @@ import { EPISODE_STATUS_COLORS, isFailedStatus } from '../utils/episodeStatus';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
+import { isActionBlocked } from '../utils/processingStage';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
 import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi, ThinkingNoticePass } from '../api/types';
@@ -272,6 +273,10 @@ function EpisodeDetail() {
   // When a "Confirm & Recut" action fires, this flag signals the correctionMutation
   // onSuccess to chain a recut immediately after the correction is stored.
   const pendingRecutRef = useRef(false);
+  // Blocks a second reprocess submit fired before React re-renders the
+  // disabled button (double-click, keyboard repeat): state alone lags a
+  // synchronous second click by a render.
+  const reprocessSubmittingRef = useRef(false);
   // Rejecting the last held marker clears the review set; the banner that follows
   // offers a re-detect.
   const [heldReviewCleared, setHeldReviewCleared] = useState(false);
@@ -302,14 +307,25 @@ function EpisodeDetail() {
     onSuccess: async () => {
       // A later run supersedes the cleared-review banner from an earlier one.
       setHeldReviewCleared(false);
-      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
+        queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
+        queryClient.invalidateQueries({ queryKey: ['processing-episodes'] }),
+      ]);
     },
     // Processing is serialized by a lock, so a stale cached status leaves the
     // button enabled and the click is refused; showing the 409 stops it just
     // flickering with nothing to explain it (#707).
     onError: async (error) => {
       setCorrectionError(getErrorMessage(error, 'Could not start reprocessing.'));
-      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
+        queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
+        queryClient.invalidateQueries({ queryKey: ['processing-episodes'] }),
+      ]);
+    },
+    onSettled: () => {
+      reprocessSubmittingRef.current = false;
     },
   });
 
@@ -374,7 +390,7 @@ function EpisodeDetail() {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
       if (pendingRecutRef.current) {
         pendingRecutRef.current = false;
-        reprocessMutation.mutate('recut');
+        handleReprocess('recut');
       }
       // episode here is the pre-refetch row, so a single held marker
       // matching this reject means the review set just emptied.
@@ -549,6 +565,29 @@ function EpisodeDetail() {
   // "has this ever finished processing" signal throughout that window.
   const neverProcessed = !episode.processedAt;
   const reprocessLabel = neverProcessed ? 'Process' : 'Reprocess';
+
+  // Eligibility for every control that enqueues a reprocess/redetect/recut
+  // run, derived from the server-authoritative jobState rather than the ad-hoc
+  // status checks this replaces (checkpoint 05).
+  const reprocessBlocked = isActionBlocked(episode.jobState, reprocessMutation.isPending);
+  // "Submitting..." covers the POST round trip before jobState updates;
+  // once it does, the label reflects the queue/run state, not the client's
+  // own isPending (which lags into the awaited invalidate/refetch above).
+  const reprocessTriggerLabel = episode.jobState === 'processing'
+    ? (neverProcessed ? 'Processing...' : 'Reprocessing...')
+    : episode.jobState === 'queued'
+    ? 'Queued'
+    : reprocessMutation.isPending
+    ? 'Submitting...'
+    : reprocessLabel;
+
+  // Guards a same-tick double activation (double-click, keyboard repeat)
+  // that would otherwise fire two POSTs before the disabled prop re-renders.
+  const handleReprocess = (mode: 'reprocess' | 'full' | 'llm' | 'recut') => {
+    if (reprocessSubmittingRef.current || reprocessBlocked) return;
+    reprocessSubmittingRef.current = true;
+    reprocessMutation.mutate(mode);
+  };
 
   // Fetch-then-save rather than a plain link, so a 401 or a swept file
   // shows an error here instead of replacing the page with the JSON body.
@@ -745,28 +784,26 @@ function EpisodeDetail() {
                 />
               )}
               <DropdownMenu
-                triggerLabel={reprocessMutation.isPending
-                  ? (neverProcessed ? 'Processing...' : 'Reprocessing...')
-                  : reprocessLabel}
+                triggerLabel={reprocessTriggerLabel}
                 triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
                 chevronClassName="w-3 h-3"
-                disabled={reprocessMutation.isPending || episode.status === 'processing'}
+                disabled={reprocessBlocked}
                 items={[
                   { title: reprocessLabel, subtitle: 'Use patterns + AI',
                     tooltip: 'Use learned patterns + AI analysis',
-                    onClick: () => reprocessMutation.mutate('reprocess') },
+                    onClick: () => handleReprocess('reprocess') },
                   { title: 'Full Analysis', subtitle: 'Skip patterns, AI only',
                     tooltip: 'Skip pattern DB, AI analyzes everything fresh',
-                    onClick: () => reprocessMutation.mutate('full') },
+                    onClick: () => handleReprocess('full') },
                   ...(episode.hasOriginalAudio ? [{
                     title: 'Recut Audio', subtitle: 'Apply edits, no AI',
                     tooltip: 'Re-cut the original audio from your current ad edits (no transcription or AI)',
-                    onClick: () => reprocessMutation.mutate('recut') }] : []),
+                    onClick: () => handleReprocess('recut') }] : []),
                   ...(episode.transcriptAvailable ? [{
                     title: 'Re-detect Ads', subtitle: 'Keep transcript, re-cut',
                     disabled: redetectDisabled,
                     tooltip: redetectTooltip,
-                    onClick: () => reprocessMutation.mutate('llm') }] : []),
+                    onClick: () => handleReprocess('llm') }] : []),
                   ...(episode.transcriptVttAvailable ? [{
                     title: 'Regenerate Chapters', subtitle: 'Use existing transcript',
                     disabled: chaptersRegenerating,
@@ -826,8 +863,8 @@ function EpisodeDetail() {
               </span>
               <button
                 type="button"
-                onClick={() => reprocessMutation.mutate('llm')}
-                disabled={reprocessMutation.isPending || episode.status === 'processing'}
+                onClick={() => handleReprocess('llm')}
+                disabled={reprocessBlocked}
                 className={`shrink-0 px-3 py-1.5 text-xs sm:text-sm rounded ${btnSecondary} disabled:opacity-50 disabled:cursor-not-allowed ${focusRing}`}
               >
                 Re-run detection
@@ -1293,8 +1330,8 @@ function EpisodeDetail() {
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
             <button
-              onClick={() => { setHeldReviewCleared(false); reprocessMutation.mutate('llm'); }}
-              disabled={reprocessMutation.isPending || redetectDisabled}
+              onClick={() => { setHeldReviewCleared(false); handleReprocess('llm'); }}
+              disabled={reprocessBlocked || redetectDisabled}
               title={redetectTooltip}
               data-testid="redetect-after-review"
               className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
@@ -1448,7 +1485,7 @@ function EpisodeDetail() {
                           }
                           handleCorrection({ type: 'confirm', originalAd });
                         }}
-                        disabled={correctionMutation.isPending || reprocessMutation.isPending}
+                        disabled={correctionMutation.isPending || reprocessBlocked}
                         data-testid={`approve-recut-${index}`}
                         className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
                       >
@@ -1467,7 +1504,7 @@ function EpisodeDetail() {
                               adjustedEnd: segment.reviewer_proposed_end,
                             });
                           }}
-                          disabled={correctionMutation.isPending || reprocessMutation.isPending}
+                          disabled={correctionMutation.isPending || reprocessBlocked}
                           data-testid={`approve-trimmed-${index}`}
                           title="Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode"
                           className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnSecondary)} ${focusRing}`}
@@ -1498,9 +1535,8 @@ function EpisodeDetail() {
           {episode.hasOriginalAudio && approvedHeldCount > 0 && (
             <div className="mt-4 pt-4 border-t border-warning/20 flex justify-end">
               <button
-                onClick={() => reprocessMutation.mutate('recut')}
-                disabled={correctionMutation.isPending || reprocessMutation.isPending
-                  || episode.status === 'processing'}
+                onClick={() => handleReprocess('recut')}
+                disabled={correctionMutation.isPending || reprocessBlocked}
                 data-testid="apply-approved-recut"
                 className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
               >
