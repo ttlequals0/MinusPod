@@ -173,6 +173,8 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     p20_item_json TEXT,
     tags TEXT NOT NULL DEFAULT '[]',
     deletion_requested_at TEXT,
+    -- Per-episode pass-through override, issue #746.
+    passthrough_enabled INTEGER,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,

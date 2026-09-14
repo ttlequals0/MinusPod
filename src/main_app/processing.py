@@ -80,7 +80,7 @@ from config import (
     normalize_segment_category,
     SEGMENT_CATEGORIES,
     DEFAULT_SEGMENT_ACTION,
-    resolve_feed_processing_mode,
+    resolve_processing_mode,
     resolve_skip_second_pass,
     resolve_skip_transcription,
     resolve_cue_only_safety,
@@ -5159,11 +5159,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     if notes:
         audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(notes)} chars)")
 
-    # Effective per-feed mode, resolved once from the row above. The
-    # precedence (passthrough > skip-detection > keep-content > cue_only > standard)
-    # lives in resolve_feed_processing_mode; the branches below check the
-    # resolved mode, never the raw columns.
-    processing_mode = resolve_feed_processing_mode(podcast_settings)
+    # Effective mode: a per-episode pass-through override (#746) wins over
+    # the feed mode; otherwise the feed mode's own precedence (passthrough >
+    # skip-detection > keep-content > cue_only > standard) applies. The
+    # branches below check the resolved mode, never the raw columns.
+    processing_mode = resolve_processing_mode(podcast_settings, episode_data)
 
     # Pass-through (#521): the feed opted out of processing entirely.
     # Full and AI reprocesses also land here while the toggle is on; the

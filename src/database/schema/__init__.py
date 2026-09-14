@@ -322,6 +322,8 @@ class SchemaMixin:
             # marks it in flight and the error is the last failure.
             ('chapters_regen_started_at', 'TEXT'),
             ('chapters_regen_error', 'TEXT'),
+            # Per-episode pass-through override, issue #746.
+            ('passthrough_enabled', 'INTEGER'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)

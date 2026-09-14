@@ -1432,6 +1432,32 @@ class EpisodeMixin:
         conn.commit()
         return cursor.rowcount
 
+    def set_episodes_passthrough(self, slug: str, episode_ids: list[str],
+                                  enabled: bool) -> int:
+        """Set passthrough_enabled for the given episodes of a feed (#746).
+        Returns count updated."""
+        if not episode_ids:
+            return 0
+        conn = self.get_connection()
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return 0
+        value = 1 if enabled else 0
+        updated = 0
+        for start in range(0, len(episode_ids), DISCOVERY_UPSERT_CHUNK):
+            chunk = episode_ids[start:start + DISCOVERY_UPSERT_CHUNK]
+            placeholders = ','.join('?' for _ in chunk)
+            cursor = conn.execute(
+                f"""UPDATE episodes SET
+                    passthrough_enabled = ?,
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                WHERE podcast_id = ? AND episode_id IN ({placeholders})""",  # noqa: S608
+                [value, podcast['id']] + list(chunk)
+            )
+            updated += cursor.rowcount
+        conn.commit()
+        return updated
+
     def delete_episodes(self, slug: str, episode_ids: list[str], storage,
                          keep_original: bool = False) -> tuple[int, float]:
         """Delete audio files and reset episodes to 'discovered'.

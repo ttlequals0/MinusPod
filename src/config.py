@@ -774,6 +774,14 @@ def resolve_feed_processing_mode(podcast_row):
     return PROCESSING_MODE_STANDARD
 
 
+def resolve_processing_mode(podcast_row, episode_row):
+    """Effective mode for one episode: a per-episode pass-through override
+    (issue #746) wins over the feed mode; otherwise the feed mode applies."""
+    if episode_row and episode_row.get('passthrough_enabled'):
+        return PROCESSING_MODE_PASSTHROUGH
+    return resolve_feed_processing_mode(podcast_row)
+
+
 # Invariant: resolve_feed_processing_mode(updates) == mode for every entry
 # below (guarded by test_round_trip_through_resolver).
 PROCESSING_MODE_COLUMN_UPDATES = {

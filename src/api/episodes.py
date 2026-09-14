@@ -389,6 +389,7 @@ def _episode_base_json(ep, *, slug=None, is_local=False, storage=None):
         'error': ep.get('error_message'),
         'artworkUrl': artwork_url,
         'pendingReviewCount': ep.get('pending_review_count', 0),
+        'passthroughEnabled': bool(ep.get('passthrough_enabled')),
     }
 
 
@@ -1649,6 +1650,76 @@ def bulk_episode_action(slug):
         response['jobState'] = _job_state(EpisodeStatus.PENDING.value, queued > 0)
 
     return json_response(response)
+
+
+@api.route('/feeds/<slug>/episodes/passthrough', methods=['POST'])
+@limiter.limit("5 per minute")
+@log_request
+def set_episodes_passthrough(slug):
+    """Set or clear the per-episode pass-through override (#746) for one or
+    more episodes. An episode flagged this way runs pass-through
+    (download + relay, no transcription/detection/LLM) even when its feed
+    is in a non-passthrough mode.
+
+    Enabling enqueues a normal reprocess for each affected episode so the
+    resolver's now-flagged episode takes the pass-through branch this run;
+    disabling only clears the flag, no reprocess is forced.
+    """
+    db = get_database()
+
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('Feed not found', 404)
+
+    data = request.get_json()
+    if not data:
+        return error_response('Request body required', 400)
+
+    episode_ids = data.get('episodeIds', [])
+    enabled = data.get('enabled')
+
+    if not episode_ids:
+        return error_response('episodeIds is required and must be non-empty', 400)
+    if len(episode_ids) > 500:
+        return error_response('Maximum 500 episodes per bulk action', 400)
+    if not isinstance(enabled, bool):
+        return error_response('enabled is required and must be a boolean', 400)
+
+    episodes_by_id = {ep['episode_id']: ep for ep in db.get_episodes_by_ids(slug, episode_ids)}
+    valid_ids = [eid for eid in episode_ids if eid in episodes_by_id]
+
+    updated = db.set_episodes_passthrough(slug, valid_ids, enabled)
+
+    queued = 0
+    if enabled and valid_ids:
+        # Skip episodes already actively processing; queue admission
+        # (upsert_episode_for_processing is safe to call on an already
+        # queued row) guards the rest, same as the bulk reprocess action.
+        eligible_ids = [eid for eid in valid_ids
+                        if episodes_by_id[eid].get('status') != EpisodeStatus.PROCESSING.value]
+        if eligible_ids:
+            queued = db.batch_set_episodes_pending(
+                slug, eligible_ids, reprocess_mode='reprocess',
+                reprocess_requested_at=utc_now_iso())
+            for episode_id in eligible_ids:
+                try:
+                    ep = episodes_by_id[episode_id]
+                    priority = compute_queue_priority(
+                        podcast.get('queue_priority'), ep.get('published_at'), bulk=True)
+                    db.upsert_episode_for_processing(
+                        slug, episode_id,
+                        ep.get('original_url', ''),
+                        ep.get('title'),
+                        ep.get('published_at'),
+                        ep.get('description'),
+                        priority=priority,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[{slug}:{episode_id}] Could not enqueue for pass-through: {e}")
+
+    logger.info(f"Set passthrough={enabled} on {slug}: {updated} updated, {queued} queued")
+    return json_response({'updated': updated, 'queued': queued})
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/retry-ad-detection', methods=['POST'])

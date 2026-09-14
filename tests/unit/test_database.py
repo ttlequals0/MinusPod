@@ -1620,6 +1620,53 @@ class TestBatchMethods:
         assert temp_db.batch_set_episodes_pending(slug, []) == 0
 
 
+class TestSetEpisodesPassthrough:
+    """set_episodes_passthrough (#746): per-episode pass-through override."""
+
+    def test_updates_only_requested_rows(self, temp_db):
+        slug = 'passthrough-feed'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
+        temp_db.upsert_episode(slug, 'ep-2', original_url='https://example.com/2.mp3')
+
+        count = temp_db.set_episodes_passthrough(slug, ['ep-1'], True)
+        assert count == 1
+        assert temp_db.get_episode(slug, 'ep-1')['passthrough_enabled'] == 1
+        assert temp_db.get_episode(slug, 'ep-2')['passthrough_enabled'] is None
+
+    def test_disable_clears_flag(self, temp_db):
+        slug = 'passthrough-clear'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
+        temp_db.set_episodes_passthrough(slug, ['ep-1'], True)
+
+        count = temp_db.set_episodes_passthrough(slug, ['ep-1'], False)
+        assert count == 1
+        assert temp_db.get_episode(slug, 'ep-1')['passthrough_enabled'] == 0
+
+    def test_does_not_touch_other_feeds(self, temp_db):
+        slug_a = 'passthrough-a'
+        slug_b = 'passthrough-b'
+        temp_db.create_podcast(slug_a, 'https://example.com/a.xml', 'A')
+        temp_db.create_podcast(slug_b, 'https://example.com/b.xml', 'B')
+        # Same episode_id in both feeds, since episode_id is only unique per podcast.
+        temp_db.upsert_episode(slug_a, 'shared-id', original_url='https://example.com/a.mp3')
+        temp_db.upsert_episode(slug_b, 'shared-id', original_url='https://example.com/b.mp3')
+
+        temp_db.set_episodes_passthrough(slug_a, ['shared-id'], True)
+
+        assert temp_db.get_episode(slug_a, 'shared-id')['passthrough_enabled'] == 1
+        assert temp_db.get_episode(slug_b, 'shared-id')['passthrough_enabled'] is None
+
+    def test_empty_ids_is_a_noop(self, temp_db):
+        slug = 'passthrough-empty'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        assert temp_db.set_episodes_passthrough(slug, [], True) == 0
+
+    def test_unknown_feed_is_a_noop(self, temp_db):
+        assert temp_db.set_episodes_passthrough('no-such-feed', ['ep-1'], True) == 0
+
+
 class TestCloseQueueRowsForEpisode:
     """Guards the double-trigger bug where a manual reprocess finished but
     left a pending auto_process_queue row that the background loop then

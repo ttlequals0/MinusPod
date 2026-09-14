@@ -126,6 +126,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Pass-through** - One of the five presets on the per-feed Processing mode select. It turns processing off entirely: episodes are downloaded and served exactly as published, and the feed URL stays the same so switching to another mode resumes processing later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
 
+**Pass-through, per-episode** - A flag on a single episode that runs pass-through for that episode alone, even when its feed is in a different processing mode. Useful for one episode a host serves through dynamic ad insertion that should stay untouched without opting the whole feed out of ad removal.
+
 **Pattern** - Anything MinusPod has learned from confirmed ads and reapplies to new episodes: text patterns from transcripts and audio fingerprints. Patterns catch repeat ads without spending LLM tokens. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
 **Podping** - An opt-in listener that watches the Hive blockchain for publish notifications and refreshes a matching feed immediately instead of waiting for the next scheduled poll. Only some hosts send them; polling continues either way. [Podcasting 2.0 > Podping](podcasting-2.0.md#podping)

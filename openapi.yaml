@@ -7440,6 +7440,57 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /feeds/{slug}/episodes/passthrough:
+    post:
+      tags:
+        - Episodes
+      summary: Set per-episode pass-through override
+      description: >-
+        Set or clear the per-episode pass-through override (issue #746) for
+        one or more episodes. An episode flagged this way is downloaded and
+        served exactly as published, with no transcription, detection, or
+        cutting, even when the feed's own processing mode is not
+        passthrough. Enabling enqueues a normal reprocess for each affected
+        episode so the pass-through branch runs now; disabling only clears
+        the flag. Rate limited to 5/min.
+      operationId: setEpisodesPassthrough
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [episodeIds, enabled]
+              properties:
+                episodeIds:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                  maxItems: 500
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Pass-through override result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+                    description: Number of episodes whose passthroughEnabled flag was set
+                  queued:
+                    type: integer
+                    description: Number of episodes enqueued for reprocessing (0 when disabling)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /feeds/{slug}/import/upload:
     post:
       tags:
@@ -10792,6 +10843,9 @@ components:
         pendingReviewCount:
           type: integer
           description: Number of ads held for human review (not yet approved or dismissed)
+        passthroughEnabled:
+          type: boolean
+          description: Per-episode pass-through override (issue #746). When true, this episode is downloaded and served exactly as published, with no transcription, detection, or cutting, even when the feed's own processing mode is not passthrough. Set via POST /feeds/{slug}/episodes/passthrough.
         artworkUrl:
           type: string
           nullable: true
