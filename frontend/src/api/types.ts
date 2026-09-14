@@ -576,6 +576,15 @@ export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
 // both the provider and model of whichever pass it is reviewing.
 export const SAME_AS_PASS = 'same_as_pass';
 
+// Per-stage provider settings store a SLOT, not a provider type: 'primary'
+// routes through llmProvider, 'secondary' through the optional second
+// provider config. Verification/chapters also accept SAME_AS_DETECTION to
+// inherit detection's resolved slot.
+export const SLOT_PRIMARY = 'primary';
+export const SLOT_SECONDARY = 'secondary';
+export const SAME_AS_DETECTION = 'same_as_detection';
+export type ProviderSlot = typeof SLOT_PRIMARY | typeof SLOT_SECONDARY;
+
 export const WHISPER_BACKENDS = {
   LOCAL: 'local' as const,
   OPENAI_API: 'openai-api' as const,
@@ -709,6 +718,12 @@ export interface Settings {
   omitTemperature: SettingValueBoolean;
   llmJsonSchemaEnabled: SettingValueBoolean;
   openaiBaseUrl: SettingValue;
+  // Optional second provider config; stage/reviewer settings can route to
+  // it via the 'secondary' slot (see ProviderSlot above).
+  secondaryProviderEnabled: SettingValueBoolean;
+  secondaryProvider: SettingValue;
+  secondaryProviderBaseUrl: SettingValue;
+  secondaryProviderApiKeyConfigured: boolean;
   pricingSourceMode: SettingValue;
   modelPricingOverrides: { value: ModelPricingOverrides; isDefault: boolean };
   apiKeyConfigured: boolean;
@@ -944,6 +959,10 @@ export interface UpdateSettingsPayload {
   minCutConfidence?: number;
   llmProvider?: LlmProvider;
   openaiBaseUrl?: string;
+  secondaryProviderEnabled?: boolean;
+  secondaryProvider?: LlmProvider | '';
+  secondaryProviderBaseUrl?: string;
+  secondaryProviderApiKey?: string;
   pricingSourceMode?: string;
   modelPricingOverrides?: Record<string, ModelPricingOverride | null>;
   whisperBackend?: WhisperBackend;

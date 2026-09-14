@@ -32,6 +32,30 @@ export function formatStorage(mb: number): string {
   return `${mb.toFixed(1)} MB`;
 }
 
+export interface StageProviderSlots {
+  detectionProvider: string;
+  verificationProvider: string;
+  chaptersProvider: string;
+  reviewProvider: string;
+}
+
+// Disabling the secondary provider must not leave a stage pointed at an
+// orphaned 'secondary' slot, so any stage on it falls back to 'primary'.
+// Enabling never touches these values. It only unlocks the option.
+export function reconcileStageSlotsForSecondaryToggle(
+  enabled: boolean,
+  slots: StageProviderSlots,
+): StageProviderSlots {
+  if (enabled) return slots;
+  const toPrimary = (slot: string) => (slot === 'secondary' ? 'primary' : slot);
+  return {
+    detectionProvider: toPrimary(slots.detectionProvider),
+    verificationProvider: toPrimary(slots.verificationProvider),
+    chaptersProvider: toPrimary(slots.chaptersProvider),
+    reviewProvider: toPrimary(slots.reviewProvider),
+  };
+}
+
 export function formatModelLabel(model: ClaudeModel): string {
   if (model.inputCostPerMtok != null && model.outputCostPerMtok != null) {
     const fmtIn = model.inputCostPerMtok % 1 === 0

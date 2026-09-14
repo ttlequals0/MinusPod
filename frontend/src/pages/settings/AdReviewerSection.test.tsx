@@ -122,12 +122,19 @@ describe('AdReviewerSection: review model select', () => {
 });
 
 describe('AdReviewerSection: review provider select', () => {
-  it('renders "Same as pass" plus every configured provider', () => {
+  it('renders "Same as pass" plus Primary, with Secondary hidden by default', () => {
     renderSection();
     const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
     expect(select.value).toBe('same_as_pass');
     const labels = Array.from(select.options).map((o) => o.textContent);
-    expect(labels).toEqual(['Same as pass', 'Anthropic', 'OpenRouter', 'OpenAI Compatible', 'Ollama']);
+    expect(labels).toEqual(['Same as pass', 'Primary']);
+  });
+
+  it('adds Secondary once the secondary provider is enabled', () => {
+    renderSection({ secondaryProviderEnabled: true });
+    const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
+    const labels = Array.from(select.options).map((o) => o.textContent);
+    expect(labels).toEqual(['Same as pass', 'Primary', 'Secondary']);
   });
 
   it('disables the review model select while the provider is "Same as pass"', () => {
@@ -142,7 +149,7 @@ describe('AdReviewerSection: review provider select', () => {
     });
     rerender(
       <AdReviewerSection
-        reviewer={{ ...baseReviewer(), provider: 'openrouter' }}
+        reviewer={{ ...baseReviewer(), provider: 'primary' }}
         onChange={vi.fn()}
         onResetPrompts={vi.fn()}
         resetIsPending={false}
@@ -163,9 +170,20 @@ describe('AdReviewerSection: review provider select', () => {
     const reviewer = baseReviewer();
     renderSection({ reviewer, onChange });
 
-    await user.selectOptions(screen.getByLabelText('Review provider'), 'anthropic');
+    await user.selectOptions(screen.getByLabelText('Review provider'), 'primary');
 
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith({ ...reviewer, provider: 'anthropic' });
+    expect(onChange).toHaveBeenCalledWith({ ...reviewer, provider: 'primary' });
+  });
+
+  it('stores the secondary slot value when Secondary is picked', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const reviewer = baseReviewer();
+    renderSection({ reviewer, onChange, secondaryProviderEnabled: true });
+
+    await user.selectOptions(screen.getByLabelText('Review provider'), 'Secondary');
+
+    expect(onChange).toHaveBeenCalledWith({ ...reviewer, provider: 'secondary' });
   });
 });

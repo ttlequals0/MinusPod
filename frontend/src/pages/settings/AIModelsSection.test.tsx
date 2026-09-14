@@ -25,9 +25,9 @@ function renderSection(overrides: Partial<Parameters<typeof AIModelsSection>[0]>
       onSelectedModelChange={() => {}}
       onVerificationModelChange={() => {}}
       onChaptersModelChange={() => {}}
-      detectionProvider=""
-      verificationProvider=""
-      chaptersProvider=""
+      detectionProvider="primary"
+      verificationProvider="same_as_detection"
+      chaptersProvider="same_as_detection"
       onDetectionProviderChange={() => {}}
       onVerificationProviderChange={() => {}}
       onChaptersProviderChange={() => {}}
@@ -142,10 +142,10 @@ describe('AIModelsSection: per-stage provider selects', () => {
     expect(screen.getByLabelText('Chapters Provider')).toBeDefined();
   });
 
-  it('defaults detection to "Default (matches LLM Provider)" and the others to "Same as detection"', () => {
+  it('defaults detection to "Default (Primary)" and the others to "Same as detection"', () => {
     renderSection();
     expect((screen.getByLabelText('Ad Detection Provider') as HTMLSelectElement).selectedOptions[0].textContent)
-      .toBe('Default (matches LLM Provider)');
+      .toBe('Default (Primary)');
     expect((screen.getByLabelText('Verification Provider') as HTMLSelectElement).selectedOptions[0].textContent)
       .toBe('Same as detection');
     expect((screen.getByLabelText('Chapters Provider') as HTMLSelectElement).selectedOptions[0].textContent)
@@ -158,15 +158,15 @@ describe('AIModelsSection: per-stage provider selects', () => {
     const onVerificationProviderChange = vi.fn();
     renderSection({ onDetectionProviderChange, onVerificationProviderChange });
 
-    await user.selectOptions(screen.getByLabelText('Verification Provider'), 'ollama');
+    await user.selectOptions(screen.getByLabelText('Verification Provider'), 'primary');
 
-    expect(onVerificationProviderChange).toHaveBeenCalledWith('ollama');
+    expect(onVerificationProviderChange).toHaveBeenCalledWith('primary');
     expect(onDetectionProviderChange).not.toHaveBeenCalled();
   });
 
   it('lists the verification-specific catalog once its provider diverges from detection', () => {
     renderSection({
-      verificationProvider: 'ollama',
+      verificationProvider: 'secondary',
       verificationModels: [{ id: 'llama3', name: 'Llama 3' }],
       verificationModel: 'llama3',
     });
@@ -181,6 +181,32 @@ describe('AIModelsSection: per-stage provider selects', () => {
     const verifSelect = screen.getByLabelText('Verification Model') as HTMLSelectElement;
     expect(screen.getAllByRole('option', { name: 'GPT-5' })).toHaveLength(3);
     expect(verifSelect.value).toBe('gpt-5');
+  });
+});
+
+describe('AIModelsSection: secondary provider slot', () => {
+  it('hides the Secondary option on every stage select while the secondary provider is off', () => {
+    renderSection();
+    for (const label of ['Ad Detection Provider', 'Verification Provider', 'Chapters Provider']) {
+      expect(within(screen.getByLabelText(label)).queryByRole('option', { name: 'Secondary' })).toBeNull();
+    }
+  });
+
+  it('shows the Secondary option once the secondary provider is enabled', () => {
+    renderSection({ secondaryProviderEnabled: true });
+    for (const label of ['Ad Detection Provider', 'Verification Provider', 'Chapters Provider']) {
+      expect(within(screen.getByLabelText(label)).getByRole('option', { name: 'Secondary' })).toBeDefined();
+    }
+  });
+
+  it('stores the slot value when Secondary is picked', async () => {
+    const user = userEvent.setup();
+    const onDetectionProviderChange = vi.fn();
+    renderSection({ secondaryProviderEnabled: true, onDetectionProviderChange });
+
+    await user.selectOptions(screen.getByLabelText('Ad Detection Provider'), 'Secondary');
+
+    expect(onDetectionProviderChange).toHaveBeenCalledWith('secondary');
   });
 });
 

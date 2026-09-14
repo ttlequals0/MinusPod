@@ -4,7 +4,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import PromptField from './PromptField';
 import NumberInput from '../../components/NumberInput';
 import { selectBase } from '../../components/fieldStyles';
-import { LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS, SAME_AS_PASS } from '../../api/types';
+import { SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 
 export interface ReviewerState {
   enabled: boolean;
@@ -28,6 +28,9 @@ interface AdReviewerSectionProps {
   onResetPrompts: () => void;
   resetIsPending: boolean;
   modelOptions?: Array<{ id: string; label: string }>;
+  // Shows the Secondary option on the review provider select; hidden (and
+  // the select never stores 'secondary') while the secondary provider is off.
+  secondaryProviderEnabled?: boolean;
   // Per-prompt reset (issue #626); the override fields have no button of
   // their own since resetting the base prompt clears its override too.
   reviewPromptIsDefault?: boolean;
@@ -42,6 +45,7 @@ function AdReviewerSection({
   onResetPrompts,
   resetIsPending,
   modelOptions = [],
+  secondaryProviderEnabled = false,
   reviewPromptIsDefault,
   resurrectPromptIsDefault,
   onResetReviewPrompt,
@@ -93,9 +97,10 @@ function AdReviewerSection({
                 className={`w-full ${selectBase}`}
               >
                 <option value={SAME_AS_PASS}>Same as pass</option>
-                {LLM_PROVIDER_OPTIONS.map((p) => (
-                  <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
-                ))}
+                <option value={SLOT_PRIMARY}>Primary</option>
+                {secondaryProviderEnabled && (
+                  <option value={SLOT_SECONDARY}>Secondary</option>
+                )}
               </select>
               <p className="mt-1 text-sm text-muted-foreground">
                 "Same as pass" runs the reviewer on whichever provider and model detected or verified the ad. Pick a provider to run the reviewer somewhere else.

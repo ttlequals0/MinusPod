@@ -118,6 +118,7 @@ vi.mock('../api/providers', () => ({
   testProvider: vi.fn(),
   testWhisperConnection: vi.fn(),
   testLlmConnection: vi.fn(),
+  testSecondaryProviderConnection: vi.fn(),
   testPodcastIndex: vi.fn(),
 }));
 

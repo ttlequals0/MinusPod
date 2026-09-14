@@ -1,7 +1,10 @@
 import { apiRequest } from './client';
 import type { WhisperHealthProbe } from './types';
 
-export type ProviderName = 'anthropic' | 'openai' | 'openrouter' | 'whisper' | 'ollama';
+// 'secondary' has no dedicated /settings/providers/secondary REST surface
+// (unlike the others): its key saves/clears through PUT /settings and its
+// test hits /settings/providers/secondary/test-connection directly.
+export type ProviderName = 'anthropic' | 'openai' | 'openrouter' | 'whisper' | 'ollama' | 'secondary';
 
 export interface ProviderStatus {
   configured: boolean;
@@ -79,6 +82,16 @@ export function testLlmConnection(
   baseUrl?: string,
 ) {
   return apiRequest<ConnectionTestResult>(`/settings/providers/${name}/test-connection`, {
+    method: 'POST',
+    body: baseUrl === undefined ? {} : { baseUrl },
+  });
+}
+
+// Probes the secondary provider slot using its saved type and key; baseUrl
+// overrides the saved value for configurable-endpoint types so an unsaved
+// draft can be tested before Save.
+export function testSecondaryProviderConnection(baseUrl?: string) {
+  return apiRequest<ConnectionTestResult>('/settings/providers/secondary/test-connection', {
     method: 'POST',
     body: baseUrl === undefined ? {} : { baseUrl },
   });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ClaudeModel, ModelPricingOverride, ModelPricingOverrides } from '../../api/types';
-import { LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS } from '../../api/types';
+import { SAME_AS_DETECTION, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { formatModelLabel } from './settingsUtils';
@@ -31,6 +31,10 @@ interface AIModelsSectionProps {
   onDetectionProviderChange: (provider: string) => void;
   onVerificationProviderChange: (provider: string) => void;
   onChaptersProviderChange: (provider: string) => void;
+  // Shows the Secondary option on each stage's provider select; hidden
+  // (and the select never stores 'secondary') while the secondary provider
+  // is off.
+  secondaryProviderEnabled?: boolean;
   onRefresh: () => void;
   refreshIsPending: boolean;
   modelPricingOverrides?: ModelPricingOverrides;
@@ -59,6 +63,7 @@ function AIModelsSection({
   onDetectionProviderChange,
   onVerificationProviderChange,
   onChaptersProviderChange,
+  secondaryProviderEnabled = false,
   onRefresh,
   refreshIsPending,
   modelPricingOverrides = {},
@@ -97,17 +102,30 @@ function AIModelsSection({
     ...Object.keys(modelPricingOverrides),
   ].filter(Boolean)));
 
+  // Detection picks primary or secondary directly; verification/chapters
+  // also inherit detection's resolved slot via "Same as detection". Secondary
+  // is listed only while the secondary provider is configured and enabled.
+  const detectionSlotOptions = [
+    { value: SLOT_PRIMARY, label: 'Default (Primary)' },
+    ...(secondaryProviderEnabled ? [{ value: SLOT_SECONDARY, label: 'Secondary' }] : []),
+  ];
+  const inheritedSlotOptions = [
+    { value: SAME_AS_DETECTION, label: 'Same as detection' },
+    { value: SLOT_PRIMARY, label: 'Default (Primary)' },
+    ...(secondaryProviderEnabled ? [{ value: SLOT_SECONDARY, label: 'Secondary' }] : []),
+  ];
+
   const renderProviderSelect = ({
     id,
     label,
     value,
-    inheritLabel,
+    options,
     onChange,
   }: {
     id: string;
     label: string;
     value: string;
-    inheritLabel: string;
+    options: Array<{ value: string; label: string }>;
     onChange: (provider: string) => void;
   }) => (
     <div>
@@ -120,9 +138,8 @@ function AIModelsSection({
         onChange={(e) => onChange(e.target.value)}
         className={`w-full ${selectBase}`}
       >
-        <option value="">{inheritLabel}</option>
-        {LLM_PROVIDER_OPTIONS.map((p) => (
-          <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
     </div>
@@ -235,7 +252,7 @@ function AIModelsSection({
             id: 'detectionProvider',
             label: 'Ad Detection Provider',
             value: detectionProvider,
-            inheritLabel: 'Default (matches LLM Provider)',
+            options: detectionSlotOptions,
             onChange: onDetectionProviderChange,
           })}
           {renderModelSelect({
@@ -254,7 +271,7 @@ function AIModelsSection({
             id: 'verificationProvider',
             label: 'Verification Provider',
             value: verificationProvider,
-            inheritLabel: 'Same as detection',
+            options: inheritedSlotOptions,
             onChange: onVerificationProviderChange,
           })}
           {renderModelSelect({
@@ -272,7 +289,7 @@ function AIModelsSection({
             id: 'chaptersProvider',
             label: 'Chapters Provider',
             value: chaptersProvider,
-            inheritLabel: 'Same as detection',
+            options: inheritedSlotOptions,
             onChange: onChaptersProviderChange,
           })}
           {renderModelSelect({
