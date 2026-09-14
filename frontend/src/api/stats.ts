@@ -1,5 +1,26 @@
 import { apiRequest, buildQueryString } from './client';
-import { AddressingStats, DashboardStats, DayStats, PodcastStats, ReviewerStats } from './types';
+import {
+  AddressingStats, DashboardStats, DayStats, EpisodeCostResponse, EpisodeCostSortField,
+  ModelUsageResponse, ModelUsageSortField, PodcastStats, ReviewerStats,
+} from './types';
+
+// Shared page/filter params for the ledger list endpoints below. Mirrors
+// their backend contract: sortBy/sortDir/from/to/podcastSlug/provider/model
+// are all sent camelCase, unlike /history's snake_case sort params.
+interface LedgerListParams<SortField extends string> {
+  page?: number;
+  limit?: number;
+  sortBy?: SortField;
+  sortDir?: 'asc' | 'desc';
+  from?: string;
+  to?: string;
+  podcastSlug?: string;
+  provider?: string;
+  model?: string;
+}
+
+export type ModelUsageQueryParams = LedgerListParams<ModelUsageSortField>;
+export type EpisodeCostQueryParams = LedgerListParams<EpisodeCostSortField>;
 
 export async function getDashboardStats(
   podcastSlug?: string
@@ -32,4 +53,18 @@ export async function getAddressingStats(
 ): Promise<AddressingStats> {
   const qs = buildQueryString({ podcast_slug: podcastSlug });
   return apiRequest<AddressingStats>(`/stats/addressing${qs}`);
+}
+
+export async function getModelUsageStats(
+  params: ModelUsageQueryParams = {}
+): Promise<ModelUsageResponse> {
+  const qs = buildQueryString({ ...params });
+  return apiRequest<ModelUsageResponse>(`/stats/model-usage${qs}`);
+}
+
+export async function getEpisodeCostStats(
+  params: EpisodeCostQueryParams = {}
+): Promise<EpisodeCostResponse> {
+  const qs = buildQueryString({ ...params });
+  return apiRequest<EpisodeCostResponse>(`/stats/episode-costs${qs}`);
 }

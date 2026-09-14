@@ -1,18 +1,26 @@
-import { useState, useMemo } from 'react';
+import { Fragment, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts';
-import { getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats } from '../api/stats';
+import {
+  getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats,
+  getModelUsageStats, getEpisodeCostStats, ModelUsageQueryParams, EpisodeCostQueryParams,
+} from '../api/stats';
 import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
-import { formatCost, formatStatsDuration as formatDuration } from '../utils/format';
+import { formatCost, formatDateTime, formatStatsDuration as formatDuration } from '../utils/format';
 import { SkeletonStatCards, SkeletonChart } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
-import { selectBase } from '../components/fieldStyles';
+import { Pagination } from '../components/Pagination';
+import { SortHeader, useSortState } from '../components/SortHeader';
+import { selectBase, inputBase, focusRing } from '../components/fieldStyles';
+import { EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat } from '../api/types';
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
@@ -80,6 +88,241 @@ function generateChartColors(primary: string, count: number): string[] {
     const l = 50 + (i % 4) * 8;
     return `hsl(${h}, ${Math.max(sat, 55)}%, ${l}%)`;
   });
+}
+
+const LEDGER_LIMIT = 20;
+const LEDGER_OPTIONS_LIMIT = 100;
+
+function modelUsageKey(stat: ModelUsageStat): string {
+  return `${stat.provider}::${stat.model}`;
+}
+
+// "3 of 12 unpriced" reads as a coverage gap; a clean row says so plainly
+// rather than implying $0 cost for those calls.
+function formatCoverage(calls: number, unknownCostCount: number): string {
+  if (unknownCostCount === 0) return 'Fully priced';
+  return `${unknownCostCount} of ${calls} unpriced`;
+}
+
+function ExpandToggle({
+  expanded, onToggle, label, showLabel,
+}: { expanded: boolean; onToggle: () => void; label: string; showLabel?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-label={showLabel ? undefined : label}
+      className={`inline-flex items-center gap-1 p-0.5 rounded text-muted-foreground hover:text-foreground ${focusRing}`}
+    >
+      {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      {showLabel && <span className="text-xs">{label}</span>}
+    </button>
+  );
+}
+
+function ModelUsageDetail({ stat }: { stat: ModelUsageStat }) {
+  return (
+    <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+      <div>
+        <dt className="text-muted-foreground">Distinct episodes</dt>
+        <dd className="text-foreground">{stat.distinctEpisodes}</dd>
+      </div>
+      <div>
+        <dt className="text-muted-foreground">Input tokens</dt>
+        <dd className="text-foreground">{formatTokenCount(stat.inputTokens)}</dd>
+      </div>
+      <div>
+        <dt className="text-muted-foreground">Output tokens</dt>
+        <dd className="text-foreground">{formatTokenCount(stat.outputTokens)}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function ModelUsageTable({
+  items, sortField, sortDir, onSort, expanded, onToggle,
+}: {
+  items: ModelUsageStat[];
+  sortField: ModelUsageSortField;
+  sortDir: 'asc' | 'desc';
+  onSort: (field: ModelUsageSortField) => void;
+  expanded: Set<string>;
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <>
+      <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table aria-label="Provider and model usage" className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="w-8 px-2" aria-hidden="true" />
+                <SortHeader field="provider" label="Provider" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="model" label="Model" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="calls" label="Calls" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="knownCostUsd" label="Known Cost" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="unknownCostCount" label="Coverage" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                    No model usage recorded for this filter
+                  </td>
+                </tr>
+              ) : items.map((stat) => {
+                const key = modelUsageKey(stat);
+                const isOpen = expanded.has(key);
+                const label = isOpen
+                  ? `Hide usage detail for ${stat.provider} ${stat.model}`
+                  : `Show usage detail for ${stat.provider} ${stat.model}`;
+                return (
+                  <Fragment key={key}>
+                    <tr className="hover:bg-muted/50">
+                      <td className="pl-4 py-3">
+                        <ExpandToggle expanded={isOpen} onToggle={() => onToggle(key)} label={label} />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-foreground">{stat.provider}</td>
+                      <td className="px-4 py-3 text-sm text-foreground">{stat.model}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">{stat.calls}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatCost(parseFloat(stat.knownCostUsd))}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatCoverage(stat.calls, stat.unknownCostCount)}</td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="bg-muted/20">
+                        <td colSpan={6} className="px-4 py-3">
+                          <ModelUsageDetail stat={stat} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="sm:hidden space-y-3">
+        {items.length === 0 ? (
+          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+            No model usage recorded for this filter
+          </div>
+        ) : items.map((stat) => {
+          const key = modelUsageKey(stat);
+          const isOpen = expanded.has(key);
+          const label = isOpen ? 'Hide usage detail' : 'Show usage detail';
+          return (
+            <div key={key} className="bg-card rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-foreground">{stat.provider} / {stat.model}</p>
+                <p className="text-sm text-muted-foreground">{formatCost(parseFloat(stat.knownCostUsd))}</p>
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{stat.calls} calls</span>
+                <span>{formatCoverage(stat.calls, stat.unknownCostCount)}</span>
+              </div>
+              <div className="mt-2">
+                <ExpandToggle expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
+              </div>
+              {isOpen && (
+                <div className="mt-2">
+                  <ModelUsageDetail stat={stat} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function EpisodeCostTable({
+  items, sortField, sortDir, onSort,
+}: {
+  items: EpisodeCostStat[];
+  sortField: EpisodeCostSortField;
+  sortDir: 'asc' | 'desc';
+  onSort: (field: EpisodeCostSortField) => void;
+}) {
+  return (
+    <>
+      <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table aria-label="Episode costs" className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <SortHeader field="podcastTitle" label="Podcast" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="episodeTitle" label="Episode" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Models Used
+                </th>
+                <SortHeader field="runCount" label="Runs" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="latestRunCostUsd" label="Latest Run" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="cumulativeCostUsd" label="Cumulative" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="lastActivityAt" label="Last Activity" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    No episode costs recorded for this filter
+                  </td>
+                </tr>
+              ) : items.map((stat) => (
+                <tr key={`${stat.podcastSlug}-${stat.episodeId}`} className="hover:bg-muted/50">
+                  <td className="px-4 py-3">
+                    <Link to={`/feeds/${stat.podcastSlug}`} className={`text-primary hover:underline text-sm truncate max-w-[150px] block ${focusRing}`} title={stat.podcastTitle}>
+                      {stat.podcastTitle}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`text-primary hover:underline text-sm truncate max-w-[200px] block ${focusRing}`} title={stat.episodeTitle}>
+                      {stat.episodeTitle}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[160px]" title={stat.modelsUsed.join(', ')}>
+                    {stat.modelsUsed.join(', ')}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground text-right">{stat.runCount}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatCost(parseFloat(stat.latestRunCostUsd))}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatCost(parseFloat(stat.cumulativeCostUsd))}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{formatDateTime(stat.lastActivityAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="sm:hidden space-y-3">
+        {items.length === 0 ? (
+          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+            No episode costs recorded for this filter
+          </div>
+        ) : items.map((stat) => (
+          <div key={`${stat.podcastSlug}-${stat.episodeId}`} className="bg-card rounded-lg border border-border p-4">
+            <Link to={`/feeds/${stat.podcastSlug}`} className={`text-primary hover:underline text-sm font-medium truncate max-w-[200px] block ${focusRing}`} title={stat.podcastTitle}>
+              {stat.podcastTitle}
+            </Link>
+            <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`text-primary hover:underline text-sm block truncate mb-2 ${focusRing}`} title={stat.episodeTitle}>
+              {stat.episodeTitle}
+            </Link>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+              <span>{stat.runCount} runs</span>
+              <span>Latest: {formatCost(parseFloat(stat.latestRunCostUsd))}</span>
+              <span>Cumulative: {formatCost(parseFloat(stat.cumulativeCostUsd))}</span>
+              <span>{formatDateTime(stat.lastActivityAt)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
 }
 
 export default function StatsPage() {
@@ -197,11 +440,101 @@ export default function StatsPage() {
     [theme.primary, topPodcasts.length]
   );
 
+  // Shared ledger filters (date interval, podcast, provider, model) drive both
+  // the model-usage and episode-cost lists below.
+  const [ledgerFrom, setLedgerFrom] = useState('');
+  const [ledgerTo, setLedgerTo] = useState('');
+  const [ledgerPodcast, setLedgerPodcast] = useState('');
+  const [ledgerProvider, setLedgerProvider] = useState('');
+  const [ledgerModel, setLedgerModel] = useState('');
+
+  const [modelUsagePage, setModelUsagePage] = useState(1);
+  const { sortField: modelUsageSort, sortDirection: modelUsageDir, handleSort: handleModelUsageSort } =
+    useSortState<ModelUsageSortField>('knownCostUsd', 'desc', () => setModelUsagePage(1));
+
+  const [episodeCostPage, setEpisodeCostPage] = useState(1);
+  const { sortField: episodeCostSort, sortDirection: episodeCostDir, handleSort: handleEpisodeCostSort } =
+    useSortState<EpisodeCostSortField>('lastActivityAt', 'desc', () => setEpisodeCostPage(1));
+
+  const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+  const toggleExpandedModel = (key: string) => setExpandedModels((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
+  const resetLedgerPages = () => { setModelUsagePage(1); setEpisodeCostPage(1); };
+
+  // Date <input type="date"> gives a bare YYYY-MM-DD; widen "to" to the end
+  // of that day so its whole day is included, not just the exact midnight.
+  const ledgerFromParam = ledgerFrom ? `${ledgerFrom}T00:00:00.000Z` : undefined;
+  const ledgerToParam = ledgerTo ? `${ledgerTo}T23:59:59.999Z` : undefined;
+  const isIntervalSpend = !!ledgerFrom || !!ledgerTo;
+  const spendLabel = !isIntervalSpend
+    ? 'Lifetime spend (all recorded runs)'
+    : ledgerFrom && ledgerTo
+      ? `Interval spend from ${ledgerFrom} to ${ledgerTo}`
+      : ledgerFrom
+        ? `Interval spend from ${ledgerFrom} onward`
+        : `Interval spend through ${ledgerTo}`;
+
+  const ledgerScope = {
+    from: ledgerFromParam,
+    to: ledgerToParam,
+    podcastSlug: ledgerPodcast || undefined,
+  };
+
+  const modelUsageParams: ModelUsageQueryParams = {
+    ...ledgerScope,
+    page: modelUsagePage,
+    limit: LEDGER_LIMIT,
+    sortBy: modelUsageSort,
+    sortDir: modelUsageDir,
+    provider: ledgerProvider || undefined,
+    model: ledgerModel || undefined,
+  };
+  const { data: modelUsageData, isLoading: modelUsageLoading } = useQuery({
+    queryKey: ['stats-model-usage', modelUsageParams],
+    queryFn: () => getModelUsageStats(modelUsageParams),
+  });
+
+  const episodeCostParams: EpisodeCostQueryParams = {
+    ...ledgerScope,
+    page: episodeCostPage,
+    limit: LEDGER_LIMIT,
+    sortBy: episodeCostSort,
+    sortDir: episodeCostDir,
+    provider: ledgerProvider || undefined,
+    model: ledgerModel || undefined,
+  };
+  const { data: episodeCostData, isLoading: episodeCostLoading } = useQuery({
+    queryKey: ['stats-episode-costs', episodeCostParams],
+    queryFn: () => getEpisodeCostStats(episodeCostParams),
+  });
+
+  // Options for the provider/model selects: every (provider, model) pair
+  // actually in the ledger under the current date/podcast scope, unfiltered
+  // by provider/model itself so picking one option doesn't hide the others.
+  const { data: filterOptionsData } = useQuery({
+    queryKey: ['stats-model-usage-options', ledgerScope],
+    queryFn: () => getModelUsageStats({ ...ledgerScope, page: 1, limit: LEDGER_OPTIONS_LIMIT, sortBy: 'calls', sortDir: 'desc' }),
+  });
+  const providerOptions = useMemo(
+    () => [...new Set((filterOptionsData?.items ?? []).map((i) => i.provider))].sort(),
+    [filterOptionsData]
+  );
+  const modelOptions = useMemo(() => {
+    const items = filterOptionsData?.items ?? [];
+    const scoped = ledgerProvider ? items.filter((i) => i.provider === ledgerProvider) : items;
+    return [...new Set(scoped.map((i) => i.model))].sort();
+  }, [filterOptionsData, ledgerProvider]);
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Stats</h1>
         <select
+          aria-label="Filter page by podcast"
           value={podcastFilter}
           onChange={(e) => setPodcastFilter(e.target.value)}
           className={`w-full sm:w-auto ${selectBase}`}
@@ -472,6 +805,109 @@ export default function StatsPage() {
           )}
         </div>
       )}
+
+      {/* LLM cost ledger: provider/model usage and per-episode spend, both
+          paginated and sorted server-side over the llm_call_usage ledger.
+          Includes failed and cancelled runs that incurred cost. */}
+      <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-1">LLM cost ledger</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Spend by provider, model, and episode, including failed or cancelled runs that incurred cost.
+        </p>
+
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-3">
+          <input
+            type="date"
+            aria-label="From date"
+            value={ledgerFrom}
+            onChange={(e) => { setLedgerFrom(e.target.value); resetLedgerPages(); }}
+            className={`w-full sm:w-auto ${inputBase}`}
+          />
+          <input
+            type="date"
+            aria-label="To date"
+            value={ledgerTo}
+            onChange={(e) => { setLedgerTo(e.target.value); resetLedgerPages(); }}
+            className={`w-full sm:w-auto ${inputBase}`}
+          />
+          <select
+            aria-label="Filter ledger by podcast"
+            value={ledgerPodcast}
+            onChange={(e) => { setLedgerPodcast(e.target.value); resetLedgerPages(); }}
+            className={`w-full sm:w-auto ${selectBase}`}
+          >
+            <option value="">All Podcasts</option>
+            {feeds?.map((feed) => (
+              <option key={feed.slug} value={feed.slug}>
+                {feedDisplayTitle(feed)}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filter ledger by provider"
+            value={ledgerProvider}
+            onChange={(e) => { setLedgerProvider(e.target.value); setLedgerModel(''); resetLedgerPages(); }}
+            className={`w-full sm:w-auto ${selectBase}`}
+          >
+            <option value="">All Providers</option>
+            {providerOptions.map((provider) => (
+              <option key={provider} value={provider}>{provider}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Filter ledger by model"
+            value={ledgerModel}
+            onChange={(e) => { setLedgerModel(e.target.value); resetLedgerPages(); }}
+            className={`w-full sm:w-auto ${selectBase}`}
+          >
+            <option value="">All Models</option>
+            {modelOptions.map((model) => (
+              <option key={model} value={model}>{model}</option>
+            ))}
+          </select>
+        </div>
+        <p className="text-sm text-muted-foreground mb-6">{spendLabel}</p>
+
+        <h3 className="text-base font-medium text-foreground mb-3">Provider &amp; model usage</h3>
+        {modelUsageLoading && <SkeletonChart />}
+        {modelUsageData && (
+          <>
+            <ModelUsageTable
+              items={modelUsageData.items}
+              sortField={modelUsageSort}
+              sortDir={modelUsageDir}
+              onSort={handleModelUsageSort}
+              expanded={expandedModels}
+              onToggle={toggleExpandedModel}
+            />
+            <Pagination
+              page={modelUsagePage}
+              totalPages={modelUsageData.totalPages}
+              total={modelUsageData.total}
+              onPage={setModelUsagePage}
+            />
+          </>
+        )}
+
+        <h3 className="text-base font-medium text-foreground mb-3 mt-8">Episode costs</h3>
+        {episodeCostLoading && <SkeletonChart />}
+        {episodeCostData && (
+          <>
+            <EpisodeCostTable
+              items={episodeCostData.items}
+              sortField={episodeCostSort}
+              sortDir={episodeCostDir}
+              onSort={handleEpisodeCostSort}
+            />
+            <Pagination
+              page={episodeCostPage}
+              totalPages={episodeCostData.totalPages}
+              total={episodeCostData.total}
+              onPage={setEpisodeCostPage}
+            />
+          </>
+        )}
+      </div>
 
       {/* Podcast Stats Table */}
       {/* Mobile Card Layout */}

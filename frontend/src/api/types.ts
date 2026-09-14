@@ -1354,6 +1354,58 @@ export interface AddressingStats {
   };
 }
 
+// Paginated spend-by-(provider, model) row from GET /stats/model-usage.
+// knownCostUsd is a decimal string; parse with parseFloat before formatting.
+export interface ModelUsageStat {
+  provider: string;
+  model: string;
+  calls: number;
+  distinctEpisodes: number;
+  inputTokens: number;
+  outputTokens: number;
+  knownCostUsd: string;
+  unknownCostCount: number;
+}
+
+export type ModelUsageSortField =
+  | 'provider' | 'model' | 'calls' | 'distinctEpisodes'
+  | 'inputTokens' | 'outputTokens' | 'knownCostUsd' | 'unknownCostCount';
+
+export interface ModelUsageResponse {
+  items: ModelUsageStat[];
+  total: number;
+  totalPages: number;
+  page: number;
+  limit: number;
+}
+
+// Paginated per-episode cost row from GET /stats/episode-costs. latestRunCostUsd
+// and lastActivityAt always describe the episode's actual latest run, ignoring
+// any provider/model filter; cumulativeCostUsd and runCount honor it.
+export interface EpisodeCostStat {
+  podcastSlug: string;
+  podcastTitle: string;
+  episodeId: string;
+  episodeTitle: string;
+  modelsUsed: string[];
+  runCount: number;
+  latestRunCostUsd: string;
+  cumulativeCostUsd: string;
+  lastActivityAt: string;
+}
+
+export type EpisodeCostSortField =
+  | 'podcastSlug' | 'podcastTitle' | 'episodeTitle'
+  | 'runCount' | 'latestRunCostUsd' | 'cumulativeCostUsd' | 'lastActivityAt';
+
+export interface EpisodeCostResponse {
+  items: EpisodeCostStat[];
+  total: number;
+  totalPages: number;
+  page: number;
+  limit: number;
+}
+
 export interface ReleaseInfo {
   version: string;
   releaseDate: string | null;
