@@ -168,7 +168,7 @@ class TestSetEpisodesPassthroughEndpoint:
         assert body['queued'] == 0
         ep1 = db.get_episode(slug, EP1)
         assert ep1['passthrough_enabled'] == 0
-        # Status untouched -- disabling does not force a reprocess.
+        # Status untouched; disabling does not force a reprocess.
         assert ep1['status'] == 'processed'
 
     def test_missing_episode_ids_400(self, app_client, subscribed_feed):
