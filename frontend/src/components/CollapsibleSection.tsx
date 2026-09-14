@@ -3,6 +3,7 @@ import { useLocalStorageState, readStoredValue } from '../hooks/useLocalStorageS
 import { useSettingsSearch } from '../context/SettingsSearchContext';
 import { useSettingsBulkCollapse } from '../context/SettingsBulkCollapseContext';
 import { focusRing } from './fieldStyles';
+import ChevronCaret from './ChevronCaret';
 
 // Mirror of a CollapsibleSection's persisted open state, for hosts that need
 // to know whether their section is open (e.g. to gate a query on visibility)
@@ -177,17 +178,7 @@ function CollapsibleSection({
               {headerRight}
             </div>
           )}
-          <svg
-            className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${
-              expanded ? 'rotate-180' : ''
-            }`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
+          <ChevronCaret expanded={expanded} className="w-5 h-5" />
         </div>
       </div>
 

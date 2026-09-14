@@ -1,15 +1,16 @@
 import { Fragment, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts';
 import {
   getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats,
-  getModelUsageStats, getEpisodeCostStats, ModelUsageQueryParams, EpisodeCostQueryParams,
+  getModelUsageStats, getEpisodeCostStats, getEpisodeCostRuns, getLedgerFilterOptions,
+  ModelUsageQueryParams, EpisodeCostQueryParams,
 } from '../api/stats';
+import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
@@ -19,7 +20,11 @@ import { SkeletonStatCards, SkeletonChart } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
+import DisclosureButton from '../components/DisclosureButton';
+import CostAmount from '../components/CostAmount';
 import { selectBase, inputBase, focusRing } from '../components/fieldStyles';
+import { btnSecondary } from '../components/buttonStyles';
+import { getErrorMessage } from '../api/client';
 import { EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat } from '../api/types';
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
@@ -91,33 +96,41 @@ function generateChartColors(primary: string, count: number): string[] {
 }
 
 const LEDGER_LIMIT = 20;
-const LEDGER_OPTIONS_LIMIT = 100;
+
+// Option list that always contains the current selection, so a filter whose
+// value has no data in the selected scope is still shown as selected.
+function withSelection(options: string[], selected: string): { value: string; inScope: boolean }[] {
+  const rows = options.map((value) => ({ value, inScope: true }));
+  if (selected && !options.includes(selected)) {
+    rows.unshift({ value: selected, inScope: false });
+  }
+  return rows;
+}
 
 function modelUsageKey(stat: ModelUsageStat): string {
   return `${stat.provider}::${stat.model}`;
 }
 
-// "3 of 12 unpriced" reads as a coverage gap; a clean row says so plainly
-// rather than implying $0 cost for those calls.
+// Counts the calls that were billable but came back without a price, so an
+// unpriced model reads as a coverage gap rather than as $0 spent.
 function formatCoverage(calls: number, unknownCostCount: number): string {
   if (unknownCostCount === 0) return 'Fully priced';
-  return `${unknownCostCount} of ${calls} unpriced`;
+  return `${unknownCostCount} of ${calls} calls unpriced`;
 }
 
-function ExpandToggle({
-  expanded, onToggle, label, showLabel,
-}: { expanded: boolean; onToggle: () => void; label: string; showLabel?: boolean }) {
+// Failed list query: an empty table would otherwise read as "no spend".
+function QueryErrorPanel({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={expanded}
-      aria-label={showLabel ? undefined : label}
-      className={`inline-flex items-center gap-1 p-0.5 rounded text-muted-foreground hover:text-foreground ${focusRing}`}
-    >
-      {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-      {showLabel && <span className="text-xs">{label}</span>}
-    </button>
+    <div role="alert" className="bg-destructive/10 text-destructive rounded-lg p-3 mb-3 flex flex-wrap items-center justify-between gap-3">
+      <span className="text-sm">{message}</span>
+      <button
+        type="button"
+        onClick={onRetry}
+        className={`px-3 py-1.5 text-sm ${btnSecondary} rounded transition-colors ${focusRing}`}
+      >
+        Retry
+      </button>
+    </div>
   );
 }
 
@@ -182,12 +195,14 @@ function ModelUsageTable({
                   <Fragment key={key}>
                     <tr className="hover:bg-muted/50">
                       <td className="pl-4 py-3">
-                        <ExpandToggle expanded={isOpen} onToggle={() => onToggle(key)} label={label} />
+                        <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} />
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground">{stat.provider}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{stat.model}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right">{stat.calls}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatCost(parseFloat(stat.knownCostUsd))}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">
+                        <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
+                      </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatCoverage(stat.calls, stat.unknownCostCount)}</td>
                     </tr>
                     {isOpen && (
@@ -218,14 +233,16 @@ function ModelUsageTable({
             <div key={key} className="bg-card rounded-lg border border-border p-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-foreground">{stat.provider} / {stat.model}</p>
-                <p className="text-sm text-muted-foreground">{formatCost(parseFloat(stat.knownCostUsd))}</p>
+                <p className="text-sm text-muted-foreground">
+                  <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
+                </p>
               </div>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{stat.calls} calls</span>
                 <span>{formatCoverage(stat.calls, stat.unknownCostCount)}</span>
               </div>
               <div className="mt-2">
-                <ExpandToggle expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
+                <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
               </div>
               {isOpen && (
                 <div className="mt-2">
@@ -240,13 +257,63 @@ function ModelUsageTable({
   );
 }
 
+// Collapsed row summary: the most-expensive model first, then a +N count of
+// the rest. Full list stays in the title tooltip.
+function ModelsSummary({ stat }: { stat: EpisodeCostStat }) {
+  if (stat.modelsUsed.length === 0) return <span>None recorded</span>;
+  const top = stat.topModel || stat.modelsUsed[0];
+  const extra = stat.modelsUsed.length - 1;
+  return (
+    <span title={stat.modelsUsed.join(', ')}>
+      {top}{extra > 0 && <span className="text-muted-foreground"> +{extra}</span>}
+    </span>
+  );
+}
+
+// The run/phase breakdown shown when an episode-costs row is expanded. Reuses
+// the episode page's ProcessingRunsTable so both surfaces are identical.
+function EpisodeRunsDetail({ slug, episodeId }: { slug: string; episodeId: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['episode-cost-runs', slug, episodeId],
+    queryFn: () => getEpisodeCostRuns(slug, episodeId),
+  });
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading run breakdown...</p>;
+  }
+  if (isError) {
+    return <QueryErrorPanel message="Could not load the run breakdown." onRetry={() => refetch()} />;
+  }
+  const runs = data?.runs ?? [];
+  if (runs.length === 0) {
+    return <p className="text-sm text-muted-foreground">No recorded runs for this episode.</p>;
+  }
+  return <ProcessingRunsTable runs={runs} />;
+}
+
+// Mobile cards have no column headers, so the same sort fields the desktop
+// table exposes are offered through a select.
+const EPISODE_COST_SORT_OPTIONS: { field: EpisodeCostSortField; label: string }[] = [
+  { field: 'lastActivityAt', label: 'Last activity' },
+  { field: 'podcastTitle', label: 'Podcast' },
+  { field: 'episodeTitle', label: 'Episode' },
+  { field: 'runCount', label: 'Runs' },
+  { field: 'latestRunCostUsd', label: 'Latest run cost' },
+  { field: 'cumulativeCostUsd', label: 'Cumulative cost' },
+];
+
+function episodeCostKey(stat: EpisodeCostStat): string {
+  return `${stat.podcastSlug}-${stat.episodeId}`;
+}
+
 function EpisodeCostTable({
-  items, sortField, sortDir, onSort,
+  items, sortField, sortDir, onSort, expanded, onToggle,
 }: {
   items: EpisodeCostStat[];
   sortField: EpisodeCostSortField;
   sortDir: 'asc' | 'desc';
   onSort: (field: EpisodeCostSortField) => void;
+  expanded: Set<string>;
+  onToggle: (key: string) => void;
 }) {
   return (
     <>
@@ -255,6 +322,7 @@ function EpisodeCostTable({
           <table aria-label="Episode costs" className="w-full">
             <thead className="bg-muted/50">
               <tr>
+                <th className="w-8 px-2" aria-hidden="true" />
                 <SortHeader field="podcastTitle" label="Podcast" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="episodeTitle" label="Episode" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -269,60 +337,130 @@ function EpisodeCostTable({
             <tbody className="divide-y divide-border">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     No episode costs recorded for this filter
                   </td>
                 </tr>
-              ) : items.map((stat) => (
-                <tr key={`${stat.podcastSlug}-${stat.episodeId}`} className="hover:bg-muted/50">
-                  <td className="px-4 py-3">
-                    <Link to={`/feeds/${stat.podcastSlug}`} className={`text-primary hover:underline text-sm truncate max-w-[150px] block ${focusRing}`} title={stat.podcastTitle}>
-                      {stat.podcastTitle}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`text-primary hover:underline text-sm truncate max-w-[200px] block ${focusRing}`} title={stat.episodeTitle}>
-                      {stat.episodeTitle}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[160px]" title={stat.modelsUsed.join(', ')}>
-                    {stat.modelsUsed.join(', ')}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground text-right">{stat.runCount}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatCost(parseFloat(stat.latestRunCostUsd))}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatCost(parseFloat(stat.cumulativeCostUsd))}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{formatDateTime(stat.lastActivityAt)}</td>
-                </tr>
-              ))}
+              ) : items.map((stat) => {
+                const key = episodeCostKey(stat);
+                const isOpen = expanded.has(key);
+                const label = isOpen
+                  ? `Hide run breakdown for ${stat.episodeTitle}`
+                  : `Show run breakdown for ${stat.episodeTitle}`;
+                return (
+                  <Fragment key={key}>
+                    <tr className="hover:bg-muted/50">
+                      <td className="pl-4 py-3">
+                        <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link to={`/feeds/${stat.podcastSlug}`} className={`text-primary hover:underline text-sm truncate max-w-[150px] block ${focusRing}`} title={stat.podcastTitle}>
+                          {stat.podcastTitle}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`text-primary hover:underline text-sm truncate max-w-[200px] block ${focusRing}`} title={stat.episodeTitle}>
+                          {stat.episodeTitle}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[160px]">
+                        <ModelsSummary stat={stat} />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">{stat.runCount}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">
+                        <CostAmount amount={parseFloat(stat.latestRunCostUsd)} unpriced={stat.latestRunUnknownCount > 0} unpricedCount={stat.latestRunUnknownCount} />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">
+                        <CostAmount amount={parseFloat(stat.cumulativeCostUsd)} unpriced={stat.hasUnknownCost} unpricedCount={stat.unknownCostCount} />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{formatDateTime(stat.lastActivityAt)}</td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="bg-muted/20">
+                        <td colSpan={8} className="px-4 py-3">
+                          <EpisodeRunsDetail slug={stat.podcastSlug} episodeId={stat.episodeId} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
       <div className="sm:hidden space-y-3">
+        <div className="flex items-center gap-2">
+          <select
+            aria-label="Sort episode costs by"
+            value={sortField}
+            onChange={(e) => onSort(e.target.value as EpisodeCostSortField)}
+            className={`flex-1 min-h-11 ${selectBase}`}
+          >
+            {EPISODE_COST_SORT_OPTIONS.map((option) => (
+              <option key={option.field} value={option.field}>{option.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => onSort(sortField)}
+            aria-label={sortDir === 'asc' ? 'Sort descending' : 'Sort ascending'}
+            className={`min-h-11 min-w-11 inline-flex items-center justify-center rounded border border-border bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors ${focusRing}`}
+          >
+            <span aria-hidden="true">{sortDir === 'asc' ? '\u2191' : '\u2193'}</span>
+          </button>
+        </div>
         {items.length === 0 ? (
           <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
             No episode costs recorded for this filter
           </div>
-        ) : items.map((stat) => (
-          <div key={`${stat.podcastSlug}-${stat.episodeId}`} className="bg-card rounded-lg border border-border p-4">
+        ) : items.map((stat) => {
+          const key = episodeCostKey(stat);
+          const isOpen = expanded.has(key);
+          const label = isOpen ? 'Hide run breakdown' : 'Show run breakdown';
+          return (
+          <div key={key} className="bg-card rounded-lg border border-border p-4">
             <Link to={`/feeds/${stat.podcastSlug}`} className={`text-primary hover:underline text-sm font-medium truncate max-w-[200px] block ${focusRing}`} title={stat.podcastTitle}>
               {stat.podcastTitle}
             </Link>
             <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`text-primary hover:underline text-sm block truncate mb-2 ${focusRing}`} title={stat.episodeTitle}>
               {stat.episodeTitle}
             </Link>
+            <p className="text-xs text-muted-foreground truncate mb-1">
+              Models: <ModelsSummary stat={stat} />
+            </p>
             <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
               <span>{stat.runCount} runs</span>
-              <span>Latest: {formatCost(parseFloat(stat.latestRunCostUsd))}</span>
-              <span>Cumulative: {formatCost(parseFloat(stat.cumulativeCostUsd))}</span>
+              <span>Latest: <CostAmount amount={parseFloat(stat.latestRunCostUsd)} unpriced={stat.latestRunUnknownCount > 0} unpricedCount={stat.latestRunUnknownCount} /></span>
+              <span>Cumulative: <CostAmount amount={parseFloat(stat.cumulativeCostUsd)} unpriced={stat.hasUnknownCost} unpricedCount={stat.unknownCostCount} /></span>
               <span>{formatDateTime(stat.lastActivityAt)}</span>
             </div>
+            <div className="mt-2">
+              <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
+            </div>
+            {isOpen && (
+              <div className="mt-2">
+                <EpisodeRunsDetail slug={stat.podcastSlug} episodeId={stat.episodeId} />
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
+}
+
+// Expansion state for one table's rows, keyed by row id.
+function useExpandedKeys(): [Set<string>, (key: string) => void] {
+  const [keys, setKeys] = useState<Set<string>>(new Set());
+  const toggle = (key: string) => setKeys((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+  return [keys, toggle];
 }
 
 export default function StatsPage() {
@@ -456,33 +594,27 @@ export default function StatsPage() {
   const { sortField: episodeCostSort, sortDirection: episodeCostDir, handleSort: handleEpisodeCostSort } =
     useSortState<EpisodeCostSortField>('lastActivityAt', 'desc', () => setEpisodeCostPage(1));
 
-  const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
-  const toggleExpandedModel = (key: string) => setExpandedModels((prev) => {
-    const next = new Set(prev);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    return next;
-  });
+  const [expandedModels, toggleExpandedModel] = useExpandedKeys();
+  const [expandedEpisodes, toggleExpandedEpisode] = useExpandedKeys();
 
   const resetLedgerPages = () => { setModelUsagePage(1); setEpisodeCostPage(1); };
 
-  // Date <input type="date"> gives a bare YYYY-MM-DD; widen "to" to the end
-  // of that day so its whole day is included, not just the exact midnight.
-  const ledgerFromParam = ledgerFrom ? `${ledgerFrom}T00:00:00.000Z` : undefined;
-  const ledgerToParam = ledgerTo ? `${ledgerTo}T23:59:59.999Z` : undefined;
+  // The bare YYYY-MM-DD from <input type="date"> goes through as-is: the
+  // backend reads from/to as whole UTC days, both ends included.
   const isIntervalSpend = !!ledgerFrom || !!ledgerTo;
   const spendLabel = !isIntervalSpend
     ? 'Lifetime spend (all recorded runs)'
     : ledgerFrom && ledgerTo
-      ? `Interval spend from ${ledgerFrom} to ${ledgerTo}`
+      ? `Interval spend from ${ledgerFrom} to ${ledgerTo} (UTC days, both included)`
       : ledgerFrom
-        ? `Interval spend from ${ledgerFrom} onward`
-        : `Interval spend through ${ledgerTo}`;
+        ? `Interval spend from ${ledgerFrom} onward (UTC days)`
+        : `Interval spend through ${ledgerTo} (UTC days)`;
 
-  const ledgerScope = {
-    from: ledgerFromParam,
-    to: ledgerToParam,
+  const ledgerScope = useMemo(() => ({
+    from: ledgerFrom || undefined,
+    to: ledgerTo || undefined,
     podcastSlug: ledgerPodcast || undefined,
-  };
+  }), [ledgerFrom, ledgerTo, ledgerPodcast]);
 
   const modelUsageParams: ModelUsageQueryParams = {
     ...ledgerScope,
@@ -493,7 +625,10 @@ export default function StatsPage() {
     provider: ledgerProvider || undefined,
     model: ledgerModel || undefined,
   };
-  const { data: modelUsageData, isLoading: modelUsageLoading } = useQuery({
+  const {
+    data: modelUsageData, isLoading: modelUsageLoading,
+    error: modelUsageError, refetch: refetchModelUsage,
+  } = useQuery({
     queryKey: ['stats-model-usage', modelUsageParams],
     queryFn: () => getModelUsageStats(modelUsageParams),
   });
@@ -507,34 +642,42 @@ export default function StatsPage() {
     provider: ledgerProvider || undefined,
     model: ledgerModel || undefined,
   };
-  const { data: episodeCostData, isLoading: episodeCostLoading } = useQuery({
+  const {
+    data: episodeCostData, isLoading: episodeCostLoading,
+    error: episodeCostError, refetch: refetchEpisodeCosts,
+  } = useQuery({
     queryKey: ['stats-episode-costs', episodeCostParams],
     queryFn: () => getEpisodeCostStats(episodeCostParams),
   });
 
-  // Options for the provider/model selects: every (provider, model) pair
-  // actually in the ledger under the current date/podcast scope, unfiltered
-  // by provider/model itself so picking one option doesn't hide the others.
-  const { data: filterOptionsData } = useQuery({
-    queryKey: ['stats-model-usage-options', ledgerScope],
-    queryFn: () => getModelUsageStats({ ...ledgerScope, page: 1, limit: LEDGER_OPTIONS_LIMIT, sortBy: 'calls', sortDir: 'desc' }),
+  // Complete, unpaginated option lists for the provider/model selects, so a
+  // value past the first list page is still selectable.
+  const {
+    data: filterOptionsData, error: filterOptionsError, refetch: refetchFilterOptions,
+  } = useQuery({
+    queryKey: ['stats-ledger-filter-options', ledgerScope],
+    queryFn: () => getLedgerFilterOptions(ledgerScope),
   });
+
+  // A selection the current scope no longer offers is kept and marked rather
+  // than dropped silently: the lists below still answer for that filter.
   const providerOptions = useMemo(
-    () => [...new Set((filterOptionsData?.items ?? []).map((i) => i.provider))].sort(),
-    [filterOptionsData]
+    () => withSelection(filterOptionsData?.providers ?? [], ledgerProvider),
+    [filterOptionsData, ledgerProvider]
   );
   const modelOptions = useMemo(() => {
-    const items = filterOptionsData?.items ?? [];
-    const scoped = ledgerProvider ? items.filter((i) => i.provider === ledgerProvider) : items;
-    return [...new Set(scoped.map((i) => i.model))].sort();
-  }, [filterOptionsData, ledgerProvider]);
+    const pairs = filterOptionsData?.pairs ?? [];
+    const scoped = ledgerProvider ? pairs.filter((p) => p.provider === ledgerProvider) : pairs;
+    return withSelection([...new Set(scoped.map((p) => p.model))].sort(), ledgerModel);
+  }, [filterOptionsData, ledgerProvider, ledgerModel]);
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Stats</h1>
         <select
-          aria-label="Filter page by podcast"
+          aria-label="Filter summary cards, charts, reviewer and addressing sections by podcast"
+          title="Applies to the summary cards, charts, reviewer and addressing sections. The LLM cost ledger has its own podcast filter."
           value={podcastFilter}
           onChange={(e) => setPodcastFilter(e.target.value)}
           className={`w-full sm:w-auto ${selectBase}`}
@@ -813,6 +956,7 @@ export default function StatsPage() {
         <h2 className="text-lg font-semibold text-foreground mb-1">LLM cost ledger</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Spend by provider, model, and episode, including failed or cancelled runs that incurred cost.
+          The filters below apply to this section only, and dates select whole UTC days.
         </p>
 
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-3">
@@ -850,8 +994,10 @@ export default function StatsPage() {
             className={`w-full sm:w-auto ${selectBase}`}
           >
             <option value="">All Providers</option>
-            {providerOptions.map((provider) => (
-              <option key={provider} value={provider}>{provider}</option>
+            {providerOptions.map(({ value, inScope }) => (
+              <option key={value} value={value}>
+                {inScope ? value : `${value} (no data in range)`}
+              </option>
             ))}
           </select>
           <select
@@ -861,15 +1007,30 @@ export default function StatsPage() {
             className={`w-full sm:w-auto ${selectBase}`}
           >
             <option value="">All Models</option>
-            {modelOptions.map((model) => (
-              <option key={model} value={model}>{model}</option>
+            {modelOptions.map(({ value, inScope }) => (
+              <option key={value} value={value}>
+                {inScope ? value : `${value} (no data in range)`}
+              </option>
             ))}
           </select>
         </div>
         <p className="text-sm text-muted-foreground mb-6">{spendLabel}</p>
 
+        {filterOptionsError && (
+          <QueryErrorPanel
+            message={`Could not load the provider and model filter options: ${getErrorMessage(filterOptionsError)}. The lists below may not offer every value.`}
+            onRetry={() => { void refetchFilterOptions(); }}
+          />
+        )}
+
         <h3 className="text-base font-medium text-foreground mb-3">Provider &amp; model usage</h3>
         {modelUsageLoading && <SkeletonChart />}
+        {modelUsageError && (
+          <QueryErrorPanel
+            message={`Could not load provider and model usage: ${getErrorMessage(modelUsageError)}. This is a failed request, not an absence of spend.`}
+            onRetry={() => { void refetchModelUsage(); }}
+          />
+        )}
         {modelUsageData && (
           <>
             <ModelUsageTable
@@ -891,6 +1052,12 @@ export default function StatsPage() {
 
         <h3 className="text-base font-medium text-foreground mb-3 mt-8">Episode costs</h3>
         {episodeCostLoading && <SkeletonChart />}
+        {episodeCostError && (
+          <QueryErrorPanel
+            message={`Could not load episode costs: ${getErrorMessage(episodeCostError)}. This is a failed request, not an absence of spend.`}
+            onRetry={() => { void refetchEpisodeCosts(); }}
+          />
+        )}
         {episodeCostData && (
           <>
             <EpisodeCostTable
@@ -898,6 +1065,8 @@ export default function StatsPage() {
               sortField={episodeCostSort}
               sortDir={episodeCostDir}
               onSort={handleEpisodeCostSort}
+              expanded={expandedEpisodes}
+              onToggle={toggleExpandedEpisode}
             />
             <Pagination
               page={episodeCostPage}

@@ -311,3 +311,47 @@ describe('FeedDetail: bulk pass-through (#746)', () => {
     expect(screen.queryByRole('button', { name: /Clear pass-through/ })).toBeNull();
   });
 });
+
+describe('FeedDetail: select-all eligibility', () => {
+  const EPISODES: Episode[] = [
+    { id: 'ep-idle', title: 'Idle episode', published: '2026-09-11T00:00:00Z', status: 'completed', jobState: 'idle' },
+    { id: 'ep-queued', title: 'Queued episode', published: '2026-09-10T00:00:00Z', status: 'completed', jobState: 'queued' },
+    { id: 'ep-running', title: 'Running episode', published: '2026-09-09T00:00:00Z', status: 'processing', jobState: 'processing' },
+  ];
+
+  it('selects only the episodes whose own control is available', async () => {
+    const user = userEvent.setup();
+    mockBulkEpisodeAction.mockResolvedValue({ queued: 1, skipped: 0, freedMb: 0, errors: [] });
+    renderFeedDetail(makeFeed(), EPISODES);
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Select all on page' }));
+
+    expect(screen.getByText('1 selected')).toBeTruthy();
+  });
+
+  it('drops a selected episode from the bulk action once the server reports it queued', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    mockGetFeed.mockResolvedValue(makeFeed());
+    mockGetFeedsResponse.mockResolvedValue({ feeds: [makeFeed()], lastRefreshCompletedAt: null });
+    mockGetEpisodes.mockResolvedValue({ episodes: EPISODES, total: EPISODES.length });
+    render(
+      <QueryClientProvider client={client}>
+        <FeedDetail />
+      </QueryClientProvider>,
+    );
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Select all on page' }));
+    expect(screen.getByText('1 selected')).toBeTruthy();
+
+    // The episode gets queued elsewhere and the next fetch says so.
+    client.setQueriesData({ queryKey: ['episodes', 'test-feed'] }, {
+      episodes: EPISODES.map(ep => (ep.id === 'ep-idle' ? { ...ep, jobState: 'queued' as const } : ep)),
+      total: EPISODES.length,
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText('1 selected')).toBeNull();
+    });
+  });
+});

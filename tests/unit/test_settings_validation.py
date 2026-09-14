@@ -792,6 +792,32 @@ class TestPerPhaseProviderSettings:
         assert db.get_setting('review_provider') == 'same_as_pass'
 
 
+class TestOpenaiBaseUrlValidation:
+    def test_put_rejects_userinfo_base_url(self, client):
+        db = database.Database()
+        before = db.get_setting('openai_base_url')
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'openaiBaseUrl': 'https://user:pass@example.com/v1'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 400, response.data
+        assert 'credentials' in json.loads(response.data)['error']
+        assert db.get_setting('openai_base_url') == before
+
+    def test_put_rejects_userinfo_whisper_base_url(self, client):
+        db = database.Database()
+        before = db.get_setting('whisper_api_base_url')
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'whisperApiBaseUrl': 'https://user:pass@whisper.example.com/v1'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 400, response.data
+        assert 'credentials' in json.loads(response.data)['error']
+        assert db.get_setting('whisper_api_base_url') == before
+
+
 class TestSecondaryProviderSettings:
     """GET/PUT surface for the optional secondary provider:
     secondaryProviderEnabled/secondaryProvider/secondaryProviderBaseUrl
@@ -899,6 +925,18 @@ class TestSecondaryProviderSettings:
             content_type='application/json',
         )
         assert response.status_code == 400, response.data
+
+    def test_put_rejects_userinfo_base_url(self, client):
+        db = database.Database()
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'secondaryProviderBaseUrl': 'http://user:pass@server:8000/v1'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 400, response.data
+        assert 'credentials' in json.loads(response.data)['error']
+        assert db.get_setting('secondary_provider_base_url') is None
 
     def test_put_empty_base_url_clears_to_default(self, client):
         db = database.Database()

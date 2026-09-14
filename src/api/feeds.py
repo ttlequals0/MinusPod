@@ -56,7 +56,7 @@ from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
 from utils.paths import RECENTS_ARTWORK_PATH
 from utils.text import truncate
-from api.episodes import _job_state, _local_artwork_fallback_url, _secure_artwork_url
+from api.episodes import _episode_base_json, _job_state
 from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, is_local_feed,
                                is_recents_feed, recents_cutoff)
 from podping_listener import feed_url_domain
@@ -976,26 +976,30 @@ _LATEST_EPISODES_DEFAULT_PER_FEED = 3
 _LATEST_EPISODES_MAX_PER_FEED = 20
 
 
-def _episode_summary_json(ep, *, slug, is_local, storage, pending_queue_keys) -> dict:
+def _episode_summary_json(ep, *, slug, is_local, storage, job_states) -> dict:
     """Bounded per-feed episode projection for the /feeds listing.
 
-    Reuses the episode-list helpers (job state, artwork fallback) so the
-    grouped dashboard view matches /feeds/<slug>/episodes exactly rather than
-    re-deriving the same rules a second way.
+    Reuses the episode-list serializer so the grouped dashboard view matches
+    /feeds/<slug>/episodes exactly rather than re-deriving the same rules a
+    second way. Trimmed to the fields the dashboard card renders, plus the
+    hold, pass-through and error signals a card must not silently drop.
     """
-    artwork_url = _secure_artwork_url(ep.get('artwork_url'))
-    if artwork_url is None:
-        artwork_url = _local_artwork_fallback_url(ep, is_local=is_local, storage=storage, slug=slug)
+    base = _episode_base_json(ep, slug=slug, is_local=is_local, storage=storage)
     description = ep.get('description')
     return {
-        'id': ep['episode_id'],
-        'title': ep['title'],
-        'published': ep.get('published_at') or ep['created_at'],
-        'createdAt': ep['created_at'],
-        'duration': ep['original_duration'],
-        'status': EpisodeStatus.to_api(ep['status']),
-        'jobState': _job_state(ep['status'], (slug, ep['episode_id']) in pending_queue_keys),
-        'artworkUrl': artwork_url,
+        'id': base['id'],
+        'title': base['title'],
+        'published': base['published'],
+        'createdAt': base['createdAt'],
+        'processedAt': base['processedAt'],
+        'duration': base['duration'],
+        'status': base['status'],
+        'jobState': _job_state(ep['status'], job_states.get((slug, ep['episode_id']))),
+        'artworkUrl': base['artworkUrl'],
+        'error': base['error'],
+        'pendingReviewCount': base['pendingReviewCount'],
+        'passthroughEnabled': base['passthroughEnabled'],
+        'hasBeenProcessed': base['hasBeenProcessed'],
         'description': truncate(description, 200) if description else None,
     }
 
@@ -1031,14 +1035,14 @@ def list_feeds():
         max(1, request.args.get('episodesPerFeed', _LATEST_EPISODES_DEFAULT_PER_FEED, type=int)),
         _LATEST_EPISODES_MAX_PER_FEED)
     latest_by_podcast = {}
-    pending_queue_keys = set()
+    job_states = {}
     storage = None
     if include_latest and podcasts:
         storage = get_storage()
         podcast_ids = [p['id'] for p in podcasts]
         latest_by_podcast = db.get_latest_episodes_for_podcasts(podcast_ids, episodes_per_feed)
         all_episode_ids = [ep['episode_id'] for eps in latest_by_podcast.values() for ep in eps]
-        pending_queue_keys = db.get_pending_queue_keys(all_episode_ids)
+        job_states = db.get_episode_job_states(all_episode_ids)
 
     feeds = []
     for podcast in podcasts:
@@ -1053,7 +1057,7 @@ def list_feeds():
             feed_json['latestEpisodes'] = [
                 _episode_summary_json(
                     ep, slug=podcast['slug'], is_local=is_local_feed(podcast),
-                    storage=storage, pending_queue_keys=pending_queue_keys)
+                    storage=storage, job_states=job_states)
                 for ep in latest_by_podcast.get(podcast['id'], [])
             ]
         feeds.append(feed_json)

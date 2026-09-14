@@ -1666,6 +1666,71 @@ class TestSetEpisodesPassthrough:
     def test_unknown_feed_is_a_noop(self, temp_db):
         assert temp_db.set_episodes_passthrough('no-such-feed', ['ep-1'], True) == 0
 
+    def test_reprocess_ids_get_the_obligation_with_the_flag(self, temp_db):
+        slug = 'passthrough-obligation'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3',
+                               status='processed')
+        temp_db.upsert_episode(slug, 'ep-2', original_url='https://example.com/2.mp3',
+                               status='processed')
+
+        updated = temp_db.set_episodes_passthrough(
+            slug, ['ep-1', 'ep-2'], True, reprocess_ids=['ep-1'],
+            reprocess_requested_at='2026-03-01T00:00:00Z')
+
+        assert updated == 2
+        ep1 = temp_db.get_episode(slug, 'ep-1')
+        assert ep1['passthrough_enabled'] == 1
+        assert ep1['status'] == 'pending'
+        assert ep1['reprocess_requested_at'] == '2026-03-01T00:00:00Z'
+        assert ep1['reprocess_mode'] == 'reprocess'
+        # Flagged but not asked to reprocess: status must not move.
+        ep2 = temp_db.get_episode(slug, 'ep-2')
+        assert ep2['passthrough_enabled'] == 1
+        assert ep2['status'] == 'processed'
+
+
+class TestGetEpisodeJobStates:
+    """get_episode_job_states: ownership from the queue and the run registry."""
+
+    def _seed(self, temp_db, slug='job-states-feed'):
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
+        return slug, temp_db.get_podcast_by_slug(slug)
+
+    def test_empty_ids_is_a_noop(self, temp_db):
+        assert temp_db.get_episode_job_states([]) == {}
+
+    def test_pending_queue_row_reports_queued(self, temp_db):
+        slug, _ = self._seed(temp_db)
+        temp_db.queue_episode_for_processing(slug, 'ep-1', 'https://example.com/1.mp3')
+        assert temp_db.get_episode_job_states(['ep-1']) == {(slug, 'ep-1'): 'queued'}
+
+    def test_active_run_reports_processing(self, temp_db):
+        slug, podcast = self._seed(temp_db)
+        temp_db.get_connection().execute(
+            "INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, state) "
+            "VALUES ('run-1', ?, 'ep-1', 1, 'running')", (podcast['id'],))
+        temp_db.get_connection().commit()
+        assert temp_db.get_episode_job_states(['ep-1']) == {(slug, 'ep-1'): 'processing'}
+
+    def test_active_run_outranks_a_pending_queue_row(self, temp_db):
+        slug, podcast = self._seed(temp_db)
+        temp_db.queue_episode_for_processing(slug, 'ep-1', 'https://example.com/1.mp3')
+        temp_db.get_connection().execute(
+            "INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, state) "
+            "VALUES ('run-2', ?, 'ep-1', 1, 'running')", (podcast['id'],))
+        temp_db.get_connection().commit()
+        assert temp_db.get_episode_job_states(['ep-1']) == {(slug, 'ep-1'): 'processing'}
+
+    def test_finished_run_and_no_queue_row_report_nothing(self, temp_db):
+        slug, podcast = self._seed(temp_db)
+        temp_db.get_connection().execute(
+            "INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, state) "
+            "VALUES ('run-3', ?, 'ep-1', 1, 'finished')", (podcast['id'],))
+        temp_db.get_connection().commit()
+        assert temp_db.get_episode_job_states(['ep-1']) == {}
+
 
 class TestCloseQueueRowsForEpisode:
     """Guards the double-trigger bug where a manual reprocess finished but

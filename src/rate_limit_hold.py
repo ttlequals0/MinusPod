@@ -224,6 +224,24 @@ def get_any_active_hold(db) -> tuple[str | None, str | None]:
     return max(candidates, key=lambda pair: parse_iso_utc(pair[0]))
 
 
+def active_held_pairs(db) -> set[tuple[str, str]]:
+    """Active provider-scoped holds as (provider_key, credential_slot) pairs.
+
+    Excludes the legacy unscoped marker (which pauses everything and is
+    handled separately). Lets the dispatcher skip only the queue entries
+    whose required accounts are held, instead of pausing all work.
+    """
+    pairs: set[tuple[str, str]] = set()
+    for suffix in _provider_hold_suffixes(db):
+        if not hold_is_active(get_hold_until(db, suffix)):
+            continue
+        provider, _, slot = suffix.rpartition(':')
+        if slot not in ('primary', 'secondary'):
+            provider, slot = suffix, 'primary'
+        pairs.add((provider, slot))
+    return pairs
+
+
 def any_hold_active(db) -> bool:
     """True while the legacy hold or any provider-scoped hold is active.
 
@@ -595,17 +613,27 @@ def _probe_usage_url(db, usage_url: str, hold_until: str,
 
 
 def _probe_via_completion(db, provider_key: str | None) -> bool:
-    """Tier 2: one minimal completion through the configured LLM client."""
+    """Tier 2: one minimal completion through the configured LLM client.
+
+    The probe is a real, billable request, so it is recorded in the ledger
+    under phase_key 'probe' with no episode/run, the same as any other
+    dispatch. Manual caps are never completion-probed (see _probe_rate_limit).
+    """
     model = db.get_setting('claude_model')
     if not model:
         return False
+    attempt_id = db.begin_llm_attempt(
+        run_id=None, podcast_id=None, episode_id=None, phase_key='probe',
+        invoking_pass=None, provider_key=(provider_key or get_effective_provider()),
+        configured_model=model, window_label='rate_limit_probe')
     try:
-        get_llm_client().messages_create(
+        response = get_llm_client().messages_create(
             model=model, max_tokens=1, system='',
             messages=[{"role": "user", "content": "hi"}],
             timeout=PROBE_TIMEOUT_SECONDS,
         )
     except Exception as e:
+        db.finalize_llm_attempt(attempt_id, state='failure')
         if is_rate_limit_error(e):
             hold_after = extract_retry_after(e, max_seconds=MAX_RESET_SECONDS)
             if hold_after is not None:
@@ -615,6 +643,7 @@ def _probe_via_completion(db, provider_key: str | None) -> bool:
             return False
         logger.debug(f"Rate-limit probe: completion probe failed, leaving hold: {e}")
         return False
+    db.finalize_llm_attempt_from_response(attempt_id, 'success', response)
     held_since = _clear_probed_hold(db, provider_key)
     fire_queue_resumed_event(held_since=held_since)
     logger.info("Rate-limit probe: completion probe succeeded; resuming queue")

@@ -194,14 +194,17 @@ describe('ProcessingRunsTable', () => {
 describe('ProcessingRunsTable: phase breakdown', () => {
   it('is collapsed by default', () => {
     const table = renderTable([phaseRun]);
-    expect(table.queryByText('Detection (pass 1)')).toBeNull();
+    expect(table.queryByText('Detection')).toBeNull();
   });
 
-  it('expands to show a provider/model row per phase', () => {
+  it('expands to show a provider/model row per phase, no pass suffix when unique', () => {
     const table = renderTable([phaseRun]);
     fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #6/i }));
-    expect(table.getByText('Detection (pass 1)')).toBeTruthy();
-    expect(table.getByText('Verification (pass 2)')).toBeTruthy();
+    // Each phase appears once in this run, so the "(pass N)" suffix is omitted.
+    expect(table.getByText('Detection')).toBeTruthy();
+    expect(table.getByText('Verification')).toBeTruthy();
+    expect(table.queryByText('Detection (pass 1)')).toBeNull();
+    expect(table.queryByText('Verification (pass 2)')).toBeNull();
     expect(table.getByText('Anthropic')).toBeTruthy();
     expect(table.getByText('OpenRouter')).toBeTruthy();
     expect(table.getByText('claude-3-5-sonnet')).toBeTruthy();
@@ -223,5 +226,19 @@ describe('ProcessingRunsTable: phase breakdown', () => {
     const table = renderTable([legacyRun]);
     fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #1/i }));
     expect(table.getByText('Breakdown unavailable')).toBeTruthy();
+  });
+});
+
+describe('ProcessingRunsTable: incomplete run cost', () => {
+  it('labels the run total as known spend when a phase has no recorded cost', () => {
+    const table = renderTable([retryPhaseRun]);
+    expect(table.getAllByText(/Known \$/).length).toBeGreaterThan(0);
+    expect(table.getAllByText('Incomplete').length).toBeGreaterThan(0);
+  });
+
+  it('shows a plain amount when every phase is priced', () => {
+    const table = renderTable([phaseRun]);
+    expect(table.queryByText('Incomplete')).toBeNull();
+    expect(table.getAllByText('$0.0500').length).toBeGreaterThan(0);
   });
 });

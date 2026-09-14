@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { storeLoginRedirect } from '../utils/loginRedirect';
 import { getStageLabel } from '../utils/processingStage';
 import { focusRing } from './fieldStyles';
+import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
 
 interface ProcessingJob {
@@ -173,7 +174,11 @@ function GlobalStatusBar() {
       setReceivedAt(Date.now());
       const prev = prevStatusRef.current;
       const nextKeys = jobKeys(data);
-      if ([...jobKeys(prev)].some((key) => !nextKeys.has(key))) {
+      const prevKeys = jobKeys(prev);
+      // A run starting matters as much as one finishing: the episode page
+      // reads its jobState and active-run spend from these queries.
+      if (prev && (prevKeys.size !== nextKeys.size
+          || [...nextKeys].some((key) => !prevKeys.has(key)))) {
         queryClient.invalidateQueries({ queryKey: ['episode'] });
         queryClient.invalidateQueries({ queryKey: ['episodes'] });
         queryClient.invalidateQueries({ queryKey: ['feed'] });
@@ -310,21 +315,7 @@ function GlobalStatusBar() {
         )}
 
         {/* Expand/collapse icon */}
-        <svg
-          className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${
-            isExpanded ? 'rotate-180' : ''
-          }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
+        <ChevronCaret expanded={isExpanded} className="w-4 h-4 shrink-0" />
       </button>
 
       {/* Expanded View */}

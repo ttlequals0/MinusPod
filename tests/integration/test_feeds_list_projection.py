@@ -144,3 +144,29 @@ def test_latest_episodes_projection_uses_one_query_not_per_feed(app_client, feed
     assert len(calls[0]) >= len(feeds['slugs'])
     assert all(f.get('latestEpisodes') for f in body['feeds']
               if f['slug'] in feeds['slugs'])
+
+
+def test_latest_episode_projection_carries_hold_and_passthrough_signals(app_client, feeds):
+    """A held or pass-through episode must not lose that on the dashboard."""
+    db = feeds['db']
+    slug = feeds['slugs'][4]
+    _seed_episode(db, slug, 'ep-held', published_at='2026-02-01T00:00:00Z')
+    podcast = db.get_podcast_by_slug(slug)
+    db.upsert_episode(slug, 'ep-held', error_message='boom',
+                      processed_at='2026-02-01T01:00:00Z')
+    db.save_episode_details(slug, 'ep-held', pending_review_count=2)
+    db.set_episodes_passthrough(slug, ['ep-held'], True)
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Projection',
+        episode_id='ep-held', episode_title='Held', status='completed',
+        ads_detected=1)
+
+    body = app_client.get(
+        '/api/v1/feeds?includeLatestEpisodes=true&episodesPerFeed=3').get_json()
+    match = next(f for f in body['feeds'] if f['slug'] == slug)
+    episode = next(ep for ep in match['latestEpisodes'] if ep['id'] == 'ep-held')
+    assert episode['pendingReviewCount'] == 2
+    assert episode['passthroughEnabled'] is True
+    assert episode['error'] == 'boom'
+    assert episode['processedAt'] == '2026-02-01T01:00:00Z'
+    assert episode['hasBeenProcessed'] is True

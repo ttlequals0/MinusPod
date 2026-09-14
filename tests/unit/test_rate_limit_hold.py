@@ -21,6 +21,7 @@ from main_app.processing import (
     _handle_processing_failure, is_transient_error, start_background_processing,
 )
 from rate_limit_hold import (
+    active_held_pairs,
     clear_hold_for_provider_change,
     get_active_hold,
     get_any_active_hold,
@@ -921,3 +922,18 @@ class TestCredentialSlotScopedHolds:
         block = _build_hold_block(db)
         assert block['queuePaused'] is True
         assert block['holdUntil'] == future
+
+
+class TestActiveHeldPairs:
+    def test_returns_provider_and_slot_for_active_scoped_holds(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)  # primary (pre-slot marker)
+        record_hold_until(db, 'openrouter', future, credential_slot='secondary')
+        pairs = active_held_pairs(db)
+        assert ('anthropic', 'primary') in pairs
+        assert ('openrouter', 'secondary') in pairs
+
+    def test_excludes_expired_holds(self, seeded_episode):
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', past, force=True)
+        assert ('anthropic', 'primary') not in active_held_pairs(db)

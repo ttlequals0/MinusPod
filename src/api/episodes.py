@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import threading
+import uuid
 from decimal import Decimal
 
 from flask import Response, redirect, request, send_file, abort, url_for
@@ -38,6 +39,7 @@ from llm_client import (
 )
 import run_context
 from llm_route import resolve_route
+from processing_queue import ProcessingQueue
 from rate_limit_hold import get_active_hold, hold_message, hold_queue_for_provider_limit
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT, batch_clear_episodes_for_mode,
@@ -276,7 +278,7 @@ def list_episodes(slug):
                                           sort_by=sort_by, sort_dir=sort_dir)
 
     # One batched lookup for the whole page rather than one query per row.
-    pending_queue_keys = db.get_pending_queue_keys([ep['episode_id'] for ep in episodes])
+    job_states = db.get_episode_job_states([ep['episode_id'] for ep in episodes])
 
     episode_list = []
     for ep in episodes:
@@ -289,7 +291,7 @@ def list_episodes(slug):
         item['ad_count'] = ep['ads_removed']
         item['episodeNumber'] = ep.get('episode_number')
         item['jobState'] = _job_state(
-            item['status'], (owner_slug, ep['episode_id']) in pending_queue_keys)
+            item['status'], job_states.get((owner_slug, ep['episode_id'])))
         if source_slug:
             item['feedSlug'] = source_slug
             item['feedTitle'] = ep['source_title']
@@ -337,14 +339,23 @@ def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
     return f"/api/v1/feeds/{slug}/episodes/{ep['episode_id']}/artwork"
 
 
-def _job_state(status, has_queue_row):
-    """Authoritative jobState, derived from live queue state rather than the
-    stored lifecycle status ('submitting' is a client-only transient)."""
-    if status == EpisodeStatus.PROCESSING:
+def _job_state(status, owned_state):
+    """Authoritative jobState for one episode. ``owned_state`` (from
+    get_episode_job_states: 'processing'/'queued'/None) plus the stored status;
+    an owned run outranks a lingering queue row, so a just-claimed run never
+    reads as idle or queued.
+    """
+    if owned_state == 'processing' or status == EpisodeStatus.PROCESSING:
         return 'processing'
-    if has_queue_row:
-        return 'queued'
+    if owned_state:
+        return owned_state
     return 'idle'
+
+
+def _episode_job_state(db, slug, episode_id, status):
+    """Authoritative jobState for a single episode, looked up fresh."""
+    states = db.get_episode_job_states([episode_id])
+    return _job_state(status, states.get((slug, episode_id)))
 
 
 def _episode_base_json(ep, *, slug=None, is_local=False, storage=None):
@@ -390,6 +401,9 @@ def _episode_base_json(ep, *, slug=None, is_local=False, storage=None):
         'artworkUrl': artwork_url,
         'pendingReviewCount': ep.get('pending_review_count', 0),
         'passthroughEnabled': bool(ep.get('passthrough_enabled')),
+        # Stable Process/Reprocess eligibility: a completed episode that is
+        # queued again reverts to 'pending', so status alone flips the label.
+        'hasBeenProcessed': bool(ep.get('has_been_processed')),
     }
 
 
@@ -424,6 +438,18 @@ def _run_stats_to_api(stats):
         'verificationAdsCut': stats.get('verification_ads_cut'),
         'secondsRemoved': stats.get('seconds_removed'),
     }
+    transcription = stats.get('transcription')
+    if transcription:
+        result['transcription'] = {
+            'outcome': transcription.get('outcome'),
+            'batchSize': transcription.get('batch_size'),
+            'retryCount': transcription.get('retry_count'),
+            'retrySucceeded': transcription.get('retry_succeeded'),
+            'device': transcription.get('device'),
+            'gpuDeviceName': transcription.get('gpu_device_name'),
+            'model': transcription.get('model'),
+            'error': transcription.get('error'),
+        }
     notices = stats.get('thinking_notices')
     if notices:
         result['thinkingNotices'] = [{
@@ -442,7 +468,7 @@ def _run_stats_to_api(stats):
     return result
 
 
-def _processing_runs(db, episode):
+def _processing_runs(db, episode, run_totals=None):
     """Per-run history rows for the episode page's Processing stats section
     (#519). ``stats`` is the pipeline's per-run JSON blob; null for runs
     recorded before 2.53.0 and for recuts.
@@ -455,6 +481,8 @@ def _processing_runs(db, episode):
     podcast_id = episode['podcast_id']
     episode_id = episode['episode_id']
     phase_usage = db.get_episode_phase_usage(podcast_id, episode_id)
+    if run_totals is None:
+        run_totals = db.get_episode_run_usage_totals(podcast_id, episode_id)
 
     runs = []
     for row in db.get_episode_processing_runs(podcast_id, episode_id):
@@ -466,6 +494,18 @@ def _processing_runs(db, episode):
                 pass
         run_id = row.get('run_id')
         phases = phase_usage.get(run_id, []) if run_id else []
+        # Run-level totals come from the ledger (the same source as the header
+        # and phase breakdown) when the run has ledger rows, so the run row can
+        # never disagree with them; legacy runs keep their history counters.
+        totals = run_totals.get(run_id) if run_id else None
+        if phases and totals:
+            input_tokens = totals['input_tokens']
+            output_tokens = totals['output_tokens']
+            llm_cost = round(float(totals['cost_usd']), 6)
+        else:
+            input_tokens = row.get('input_tokens') or 0
+            output_tokens = row.get('output_tokens') or 0
+            llm_cost = round(row.get('llm_cost') or 0.0, 6)
         runs.append({
             'runNumber': row.get('reprocess_number'),
             'runId': run_id,
@@ -474,9 +514,9 @@ def _processing_runs(db, episode):
             'adsDetected': row.get('ads_detected'),
             'processingDurationSeconds': row.get('processing_duration_seconds'),
             'errorMessage': row.get('error_message'),
-            'inputTokens': row.get('input_tokens') or 0,
-            'outputTokens': row.get('output_tokens') or 0,
-            'llmCost': round(row.get('llm_cost') or 0.0, 6),
+            'inputTokens': input_tokens,
+            'outputTokens': output_tokens,
+            'llmCost': llm_cost,
             'hasLog': bool(row.get('log_file')),
             'stats': _run_stats_to_api(stats),
             'phases': phases,
@@ -485,26 +525,46 @@ def _processing_runs(db, episode):
     return runs
 
 
-def _run_spend(db, run):
-    """One run's spend as {inputTokens, outputTokens, costUsd,
-    breakdownAvailable}. Uses the ledger subtotal (the same source phase
-    rows reconcile to) when available, else the run's known
-    processing_history total."""
-    if run['breakdownAvailable']:
-        totals = db.get_run_usage_totals(run['runId'])
-        input_tokens = totals['input_tokens']
-        output_tokens = totals['output_tokens']
-        cost_usd = totals['cost_usd']
-    else:
-        input_tokens = run['inputTokens']
-        output_tokens = run['outputTokens']
-        cost_usd = str(Decimal(str(run['llmCost'])))
+def _ledger_spend(run_id, totals):
+    """Ledger subtotal for one run in the shared spend shape."""
     return {
-        'inputTokens': input_tokens,
-        'outputTokens': output_tokens,
-        'costUsd': cost_usd,
-        'breakdownAvailable': run['breakdownAvailable'],
+        'runId': run_id,
+        'inputTokens': totals['input_tokens'],
+        'outputTokens': totals['output_tokens'],
+        'costUsd': totals['cost_usd'],
+        'breakdownAvailable': True,
+        'hasUnknownCost': totals['has_unknown_cost'],
     }
+
+
+def _run_spend(run, totals):
+    """One finished run's spend as {runId, inputTokens, outputTokens, costUsd,
+    breakdownAvailable, hasUnknownCost}. Uses the ledger subtotal (the same
+    source phase rows reconcile to) when available, else the run's known
+    processing_history total. ``totals`` is this run's entry from
+    get_episode_run_usage_totals, so no second per-run query is needed."""
+    if run['breakdownAvailable'] and totals:
+        return _ledger_spend(run['runId'], totals)
+    return {
+        'runId': run['runId'],
+        'inputTokens': run['inputTokens'],
+        'outputTokens': run['outputTokens'],
+        'costUsd': str(Decimal(str(run['llmCost']))),
+        'breakdownAvailable': False,
+        # A pre-ledger run reports only its recorded total; there are no
+        # unknown-cost rows to flag because there are no rows at all.
+        'hasUnknownCost': False,
+    }
+
+
+def _active_run_spend(db, slug, episode_id):
+    """Live ledger spend of the run that currently owns this episode, or None
+    when no run does. Reads the ledger directly: the history row that
+    _run_spend needs is only written when a run finishes."""
+    run_id = ProcessingQueue().active_run_id(slug, episode_id)
+    if not run_id or run_id == '__database_unavailable__':
+        return None
+    return _ledger_spend(run_id, db.get_run_usage_totals(run_id))
 
 
 def _partial_detection(episode, runs):
@@ -606,8 +666,7 @@ def get_episode(slug, episode_id):
     base['chapterNotes'] = (format_chapter_block(episode.get('chapters_json'))
                             if resolve_chapters_in_notes(db, podcast) else '')
     status = base['status']
-    pending_queue_keys = db.get_pending_queue_keys([episode_id])
-    base['jobState'] = _job_state(status, (slug, episode_id) in pending_queue_keys)
+    base['jobState'] = _episode_job_state(db, slug, episode_id, status)
 
     # Get file size and Podcasting 2.0 asset availability if processed
     file_size = None
@@ -630,9 +689,14 @@ def get_episode(slug, episode_id):
     cue_detections = db.list_cue_detections_for_episode(
         episode['podcast_id'], episode_id)
 
-    processing_runs = _processing_runs(db, episode)
-    latest_run = latest_completed_run(processing_runs)
-    current_run_spend = _run_spend(db, latest_run) if latest_run else None
+    run_totals = db.get_episode_run_usage_totals(episode['podcast_id'], episode_id)
+    processing_runs = _processing_runs(db, episode, run_totals)
+    # Latest attempted run, failures and zero-LLM runs included; the completed
+    # run below is a different question (which run produced the served audio).
+    latest_run = processing_runs[-1] if processing_runs else None
+    latest_run_spend = (_run_spend(latest_run, run_totals.get(latest_run['runId']))
+                        if latest_run else None)
+    active_run_spend = _active_run_spend(db, slug, episode_id)
     cumulative_spend = db.get_episode_cumulative_usage(episode['podcast_id'], episode_id)
 
     return json_response({
@@ -680,7 +744,8 @@ def get_episode(slug, episode_id):
         'verificationResponse': episode.get('second_pass_response'),
         'rssDuration': episode.get('rss_duration'),
         'processingRuns': processing_runs,
-        'currentRunSpend': current_run_spend,
+        'activeRunSpend': active_run_spend,
+        'latestRunSpend': latest_run_spend,
         'cumulativeSpend': cumulative_spend,
         'lowAdYield': low_ad_yield(db, episode, processing_runs),
         'navigation': db.get_episode_neighbors(slug, episode_id),
@@ -1271,8 +1336,16 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
     segment_markers = _markers_from_row(episode)
     marker_cuts = storage.get_applied_cuts(slug, episode_id)
 
-    ctx = run_context.begin(slug, episode_id)
+    # Same run setup as a pipeline run: without the frozen route snapshot the
+    # chapters phase falls back to the global client and the primary slot,
+    # ignoring the operator's chapters route, and its ledger rows carry no run.
+    from main_app.processing import _resolve_or_load_route_snapshot
+    run_id = uuid.uuid4().hex
+    ctx = run_context.begin(slug, episode_id, run_id=run_id)
     try:
+        route_snapshot = _resolve_or_load_route_snapshot(run_id)
+        if route_snapshot is not None:
+            ctx.set_route_snapshot(route_snapshot)
         start_episode_token_tracking()
         chapters_gen = ChaptersGenerator()
 
@@ -1647,7 +1720,8 @@ def bulk_episode_action(slug):
     # reprocess endpoint), so the authoritative state is 'queued' whenever
     # anything was queued, else 'idle'. Not applicable to 'delete'.
     if action in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm'):
-        response['jobState'] = _job_state(EpisodeStatus.PENDING.value, queued > 0)
+        response['jobState'] = _job_state(EpisodeStatus.PENDING.value,
+                                          'queued' if queued else None)
 
     return json_response(response)
 
@@ -1663,7 +1737,9 @@ def set_episodes_passthrough(slug):
 
     Enabling enqueues a normal reprocess for each affected episode so the
     resolver's now-flagged episode takes the pass-through branch this run;
-    disabling only clears the flag, no reprocess is forced.
+    disabling only clears the flag and so applies to future processing.
+    An episode a run already owns is rejected when enabling, because that
+    run has already resolved its mode, and accepted when disabling.
     """
     db = get_database()
 
@@ -1671,55 +1747,84 @@ def set_episodes_passthrough(slug):
     if not podcast:
         return error_response('Feed not found', 404)
 
-    data = request.get_json()
-    if not data:
-        return error_response('Request body required', 400)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return error_response('Request body must be a JSON object', 400)
 
-    episode_ids = data.get('episodeIds', [])
+    episode_ids = data.get('episodeIds')
     enabled = data.get('enabled')
 
-    if not episode_ids:
-        return error_response('episodeIds is required and must be non-empty', 400)
+    if not isinstance(episode_ids, list) or not episode_ids:
+        return error_response('episodeIds is required and must be a non-empty array', 400)
+    if not all(isinstance(episode_id, str) and episode_id for episode_id in episode_ids):
+        return error_response('episodeIds must contain only non-empty strings', 400)
     if len(episode_ids) > 500:
         return error_response('Maximum 500 episodes per bulk action', 400)
     if not isinstance(enabled, bool):
         return error_response('enabled is required and must be a boolean', 400)
 
-    episodes_by_id = {ep['episode_id']: ep for ep in db.get_episodes_by_ids(slug, episode_ids)}
-    valid_ids = [eid for eid in episode_ids if eid in episodes_by_id]
+    # Dedup in request order so a repeated id yields one result entry.
+    requested = list(dict.fromkeys(episode_ids))
+    episodes_by_id = {ep['episode_id']: ep for ep in db.get_episodes_by_ids(slug, requested)}
+    job_states = db.get_episode_job_states(requested)
 
-    updated = db.set_episodes_passthrough(slug, valid_ids, enabled)
+    accepted = []
+    rejected = []
+    for episode_id in requested:
+        episode = episodes_by_id.get(episode_id)
+        if not episode:
+            rejected.append({'episodeId': episode_id, 'reason': 'not_found'})
+            continue
+        owned = _job_state(episode['status'], job_states.get((slug, episode_id)))
+        if enabled and owned == 'processing':
+            rejected.append({'episodeId': episode_id, 'reason': 'processing'})
+            continue
+        accepted.append(episode_id)
 
-    queued = 0
-    if enabled and valid_ids:
-        # Skip episodes already actively processing; queue admission
-        # (upsert_episode_for_processing is safe to call on an already
-        # queued row) guards the rest, same as the bulk reprocess action.
-        eligible_ids = [eid for eid in valid_ids
-                        if episodes_by_id[eid].get('status') != EpisodeStatus.PROCESSING.value]
-        if eligible_ids:
-            queued = db.batch_set_episodes_pending(
-                slug, eligible_ids, reprocess_mode='reprocess',
-                reprocess_requested_at=utc_now_iso())
-            for episode_id in eligible_ids:
-                try:
-                    ep = episodes_by_id[episode_id]
-                    priority = compute_queue_priority(
-                        podcast.get('queue_priority'), ep.get('published_at'), bulk=True)
-                    db.upsert_episode_for_processing(
-                        slug, episode_id,
-                        ep.get('original_url', ''),
-                        ep.get('title'),
-                        ep.get('published_at'),
-                        ep.get('description'),
-                        priority=priority,
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"[{slug}:{episode_id}] Could not enqueue for pass-through: {e}")
+    updated = 0
+    queued_ids = []
+    if accepted:
+        # Flag and reprocess obligation land together; a pending episode whose
+        # queue insert below fails is still picked up as stranded pending work.
+        updated = db.set_episodes_passthrough(
+            slug, accepted, enabled,
+            reprocess_ids=accepted if enabled else None,
+            reprocess_requested_at=utc_now_iso() if enabled else None)
+    if enabled and accepted:
+        for episode_id in accepted:
+            try:
+                ep = episodes_by_id[episode_id]
+                priority = compute_queue_priority(
+                    podcast.get('queue_priority'), ep.get('published_at'), bulk=True)
+                db.upsert_episode_for_processing(
+                    slug, episode_id,
+                    ep.get('original_url', ''),
+                    ep.get('title'),
+                    ep.get('published_at'),
+                    ep.get('description'),
+                    priority=priority,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[{slug}:{episode_id}] Could not enqueue for pass-through: {e}")
+        # Counted from the queue itself, so a swallowed insert failure above
+        # cannot be reported as queued work.
+        states_after = db.get_episode_job_states(accepted)
+        queued_ids = [episode_id for episode_id in accepted
+                      if states_after.get((slug, episode_id))]
 
-    logger.info(f"Set passthrough={enabled} on {slug}: {updated} updated, {queued} queued")
-    return json_response({'updated': updated, 'queued': queued})
+    logger.info(f"Set passthrough={enabled} on {slug}: {updated} updated, "
+                f"{len(queued_ids)} queued, {len(rejected)} rejected")
+    response = {
+        'updated': updated,
+        'queued': len(queued_ids),
+        'accepted': accepted,
+        'rejected': rejected,
+    }
+    if enabled:
+        response['jobState'] = _job_state(EpisodeStatus.PENDING.value,
+                                          'queued' if queued_ids else None)
+    return json_response(response)
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/retry-ad-detection', methods=['POST'])
@@ -1904,7 +2009,7 @@ def get_processing_episodes():
 
     # Extras trail the DB backlog at virtual positions pending_total.., so
     # they dedup against the whole backlog, not just this page: `seen` covers
-    # the active job and display-queue repeats, get_pending_queue_keys the rest.
+    # the active job and display-queue repeats, the ownership lookup the rest.
     candidates = []
     for q in status.queued_episodes:
         key = (q['slug'], q['episode_id'])
@@ -1912,10 +2017,10 @@ def get_processing_episodes():
             continue
         seen.add(key)
         candidates.append(q)
-    pending_keys = (db.get_pending_queue_keys([q['episode_id'] for q in candidates])
-                    if candidates else set())
+    owned_keys = (set(db.get_episode_job_states([q['episode_id'] for q in candidates]))
+                  if candidates else set())
     valid_extras = [q for q in candidates
-                    if (q['slug'], q['episode_id']) not in pending_keys]
+                    if (q['slug'], q['episode_id']) not in owned_keys]
     start = max(0, offset - pending_total)
     page_extras = valid_extras[start:start + limit - len(pending_rows)]
     for q in page_extras:
@@ -2242,7 +2347,7 @@ def reprocess_episode_with_mode(slug, episode_id):
         return json_response({
             'error': 'Episode is currently processing',
             'status': 409,
-            'jobState': _job_state(episode['status'], False),
+            'jobState': _episode_job_state(db, slug, episode_id, episode['status']),
         }, 409)
 
     podcast = db.get_podcast_by_slug(slug)
@@ -2287,7 +2392,8 @@ def reprocess_episode_with_mode(slug, episode_id):
                 'message': f'Episode {mode} reprocess started',
                 'mode': mode,
                 'status': 'processing',
-                'jobState': _job_state(EpisodeStatus.PROCESSING.value, False),
+                'jobState': _episode_job_state(db, slug, episode_id,
+                                               EpisodeStatus.PROCESSING.value),
             }, 202)  # 202 Accepted
         else:
             priority = compute_queue_priority(
@@ -2303,7 +2409,8 @@ def reprocess_episode_with_mode(slug, episode_id):
                 'mode': mode,
                 'status': 'queued',
                 'reason': reason,
-                'jobState': _job_state(episode['status'], True),
+                'jobState': _episode_job_state(db, slug, episode_id,
+                                               EpisodeStatus.PENDING.value),
             }, 202)
 
     except Exception:

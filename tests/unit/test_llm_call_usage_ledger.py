@@ -209,6 +209,39 @@ class TestFinalizeLlmAttempt:
                                              input_tokens=100, output_tokens=100)
         assert cost == 0.0
 
+    def test_duplicate_finalize_does_not_double_count(self, temp_db):
+        _seed_price(temp_db, 'test-model-idem', 3.0, 15.0)
+        attempt_id = _begin(temp_db, 'test-model-idem')
+
+        first = temp_db.finalize_llm_attempt(
+            attempt_id, state='success', input_tokens=1_000_000, output_tokens=1_000_000)
+        second = temp_db.finalize_llm_attempt(
+            attempt_id, state='success', input_tokens=1_000_000, output_tokens=1_000_000)
+
+        assert first == pytest.approx(18.0)
+        assert second == pytest.approx(18.0)
+        summary = temp_db.get_token_usage_summary()
+        assert summary['totalInputTokens'] == 1_000_000
+        assert summary['totalOutputTokens'] == 1_000_000
+        assert summary['totalCost'] == pytest.approx(18.0)
+        totals = temp_db.get_run_usage_totals('run-1')
+        assert totals['input_tokens'] == 1_000_000
+        assert Decimal(totals['cost_usd']) == Decimal('18')
+
+    def test_returned_model_resolves_price_when_configured_has_none(self, temp_db):
+        _seed_price(temp_db, 'real-priced-model', 3.0, 15.0)
+        attempt_id = _begin(temp_db, 'alias-only-model')
+
+        cost = temp_db.finalize_llm_attempt(
+            attempt_id, state='success', returned_model='real-priced-model',
+            input_tokens=1_000_000, output_tokens=1_000_000)
+
+        assert cost == pytest.approx(18.0)
+        row = temp_db.get_connection().execute(
+            "SELECT cost_source FROM llm_call_usage WHERE attempt_id = ?", (attempt_id,)
+        ).fetchone()
+        assert row['cost_source'] == 'estimated'
+
 
 class TestGetRunUsageTotals:
     """Run totals derived from the ledger, the single source
@@ -262,7 +295,8 @@ class TestGetRunUsageTotals:
 
     def test_unbegun_run_id_returns_zeros(self, temp_db):
         totals = temp_db.get_run_usage_totals('no-such-run')
-        assert totals == {'input_tokens': 0, 'output_tokens': 0, 'cost_usd': '0'}
+        assert totals == {'input_tokens': 0, 'output_tokens': 0, 'cost_usd': '0',
+                          'has_unknown_cost': False}
 
 
 class TestGetRunProviderSpend:

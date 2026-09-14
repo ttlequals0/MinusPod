@@ -6,11 +6,14 @@ processing_stats_json, (b) release GPU memory between attempts and on
 exhaustion rather than leaking VRAM into the next episode, (c) never surface
 as a completed episode with no audio: exhaustion propagates as a failure
 that is_transient_error requeues, and get_local_transcriber_health() reports
-the transcriber unavailable instead of silently retrying forever, and
+the transcriber unavailable instead of silently retrying forever,
 (d) bound concurrent local CUDA transcriptions so two runs cannot
-double-allocate VRAM on the same device.
+double-allocate VRAM on the same device, and (e) reach /system/status from
+any gunicorn worker, which means the outcome lives in shared state and the
+reading follows the configured backend.
 """
 
+import json
 import threading
 import time
 
@@ -30,7 +33,21 @@ def _db():
 
 def _fresh():
     _db().set_setting(Transcriber.BATCH_CEILING_SETTING, '')
+    _clear_outcome_state()
     return Transcriber()
+
+
+def _clear_outcome_state(monkeypatch=None):
+    """Drop both the in-process mirror and the shared outcome record."""
+    _db().set_setting(transcriber_mod.LOCAL_OUTCOME_SETTING, '')
+    if monkeypatch is not None:
+        monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome', None)
+    else:
+        transcriber_mod._last_local_transcription_outcome = None
+
+
+def _no_network(*args, **kwargs):
+    raise AssertionError('status health reporting must not fire a request')
 
 
 class _FakePipeline:
@@ -174,29 +191,44 @@ def test_admission_guard_is_a_pass_through_on_cpu(monkeypatch):
 
 
 def test_health_reports_available_with_no_prior_attempt(monkeypatch):
-    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome', None)
+    _clear_outcome_state(monkeypatch)
     health = transcriber_mod.get_local_transcriber_health()
     assert health['available'] is True
     assert health['lastOutcome'] is None
 
 
 def test_health_reports_available_after_a_successful_run(monkeypatch):
+    _clear_outcome_state(monkeypatch)
     monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
-                        {'outcome': 'success', 'batch_size': 8, 'retry_count': 1})
+                        {'outcome': 'success', 'batch_size': 8, 'retry_count': 1,
+                         'device': 'cpu'})
     health = transcriber_mod.get_local_transcriber_health()
     assert health['available'] is True
-    assert health['lastOutcome']['outcome'] == 'success'
+    assert health['lastOutcome']['status'] == 'success'
 
 
 def test_health_reports_unavailable_after_gpu_exhaustion(monkeypatch):
     """The single required guarantee: an OOM exhaustion must not read as a
     healthy transcriber quietly failing episode after episode."""
+    _clear_outcome_state(monkeypatch)
     monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
                         {'outcome': 'failed', 'batch_size': 4, 'retry_count': 2,
-                         'retry_succeeded': False})
+                         'retry_succeeded': False, 'device': 'cpu'})
     health = transcriber_mod.get_local_transcriber_health()
     assert health['available'] is False
-    assert health['lastOutcome']['outcome'] == 'failed'
+    assert health['lastOutcome']['status'] == 'failed'
+
+
+def test_health_ignores_an_outcome_from_another_device(monkeypatch):
+    """A record from a device no longer configured says nothing about the
+    device now in use."""
+    _clear_outcome_state(monkeypatch)
+    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+                        {'outcome': 'failed', 'device': 'cuda'})
+    monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
+    health = transcriber_mod.get_local_transcriber_health()
+    assert health['available'] is True
+    assert health['lastOutcome'] is None
 
 
 def test_transcribe_records_outcome_into_module_level_health_state(monkeypatch):
@@ -210,4 +242,102 @@ def test_transcribe_records_outcome_into_module_level_health_state(monkeypatch):
 
     health = transcriber_mod.get_local_transcriber_health()
     assert health['available'] is False
-    assert health['lastOutcome']['outcome'] == 'failed'
+    assert health['lastOutcome']['status'] == 'failed'
+
+
+def test_recorded_outcome_survives_a_worker_without_the_module_global(monkeypatch):
+    """The worker answering /system/status is not necessarily the worker that
+    transcribed, so the outcome has to come back from shared state."""
+    pipeline = _FakePipeline(failures=99)
+    _patch_common(monkeypatch, pipeline)
+
+    t = _fresh()
+    t.transcribe('/nonexistent/audio.mp3')
+
+    # Stand in for a second gunicorn worker: same DB, no in-process mirror.
+    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome', None)
+
+    health = transcriber_mod.get_local_transcriber_health()
+    assert health['available'] is False
+    assert health['lastOutcome']['status'] == 'failed'
+    assert health['lastOutcome']['device'] == 'cuda'
+    assert health['lastOutcome']['backend'] == transcriber_mod.WHISPER_BACKEND_LOCAL
+    assert health['lastOutcome']['observedAt']
+
+
+def test_shared_outcome_wins_over_an_older_in_process_mirror(monkeypatch):
+    """Another worker's newer failure must not be masked by this worker's
+    older success."""
+    _clear_outcome_state(monkeypatch)
+    monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
+    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+                        {'outcome': 'success', 'device': 'cpu',
+                         'observed_at': '2026-01-01T00:00:00Z'})
+    _db().set_setting(transcriber_mod.LOCAL_OUTCOME_SETTING, json.dumps(
+        {'outcome': 'failed', 'device': 'cpu', 'backend': 'local',
+         'observed_at': '2026-01-02T00:00:00Z'}))
+
+    health = transcriber_mod.get_local_transcriber_health()
+    assert health['available'] is False
+    assert health['lastOutcome']['observedAt'] == '2026-01-02T00:00:00Z'
+
+
+def test_unreadable_shared_outcome_falls_back_to_the_in_process_mirror(monkeypatch):
+    _clear_outcome_state(monkeypatch)
+    monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
+    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+                        {'outcome': 'failed', 'device': 'cpu',
+                         'observed_at': '2026-01-01T00:00:00Z'})
+    _db().set_setting(transcriber_mod.LOCAL_OUTCOME_SETTING, 'banana')
+
+    health = transcriber_mod.get_local_transcriber_health()
+    assert health['available'] is False
+
+
+def test_health_follows_the_configured_backend(monkeypatch):
+    """A local OOM exhaustion is not the API backend's health, and must not
+    be reported as it once the backend setting points at an API."""
+    _clear_outcome_state(monkeypatch)
+    monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
+    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+                        {'outcome': 'failed', 'device': 'cpu',
+                         'observed_at': '2026-01-01T00:00:00Z'})
+    db = _db()
+    try:
+        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
+        local_health = transcriber_mod.get_transcriber_health()
+        assert local_health['backend'] == transcriber_mod.WHISPER_BACKEND_LOCAL
+        assert local_health['available'] is False
+
+        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_API)
+        db.set_setting('whisper_api_base_url', 'http://whisper.invalid/v1')
+        api_health = transcriber_mod.get_transcriber_health()
+        assert api_health['backend'] == transcriber_mod.WHISPER_BACKEND_API
+        assert api_health['probed'] is False
+        assert 'lastOutcome' not in api_health
+    finally:
+        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
+        db.set_setting('whisper_api_base_url', '')
+
+
+def test_api_backend_health_uses_a_cached_probe_not_a_fresh_request(monkeypatch):
+    """/system/status is polled, so the API reading comes from the probe
+    cache rather than an outbound request per tick."""
+    monkeypatch.setattr(transcriber_mod, 'safe_get', _no_network)
+    db = _db()
+    try:
+        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_API)
+        db.set_setting('whisper_api_base_url', 'http://whisper.invalid/v1')
+        transcriber_mod._health_cache.set(
+            'http://whisper.invalid/v1',
+            {'available': False, 'instances': []})
+
+        health = transcriber_mod.get_transcriber_health()
+        assert health['available'] is False
+        assert health['probed'] is True
+        assert health['instanceCount'] == 0
+    finally:
+        transcriber_mod._health_cache.delete('http://whisper.invalid/v1')
+        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
+        db.set_setting('whisper_api_base_url', '')
+

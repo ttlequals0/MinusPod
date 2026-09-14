@@ -26,7 +26,7 @@ from config import (
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
-from llm_route import resolve_review_route, resolve_route
+from llm_route import Route, SAME_AS_PASS, SLOT_PRIMARY, resolve_review_route, resolve_route
 from run_context import route_for_phase, run_in_worker_thread
 from llm_client import (
     get_client_for_provider, get_effective_provider,
@@ -822,7 +822,7 @@ class AdReviewer:
             return ReviewResult()
 
         max_shift = self._read_max_boundary_shift()
-        self._active_route = self._resolve_route(pass_provider, pass_model)
+        self._active_route = self._resolve_route(pass_provider, pass_model, pass_num)
         model = self._active_route.model_id
         review_sponsor_block, resurrect_sponsor_block = self._sponsor_blocks()
         review_prompt = self._render_review_prompt(max_shift, review_sponsor_block)
@@ -1706,25 +1706,37 @@ class AdReviewer:
             return pass_model
         return configured
 
-    def _resolve_route(self, pass_provider: str | None, pass_model: str):
-        """Review phase route: same_as_pass inherits BOTH provider and model
-        from the pass that produced ``pass_model``.
-
-        Inside a run, uses the gate (review_provider/review_model setting
-        values) frozen into the snapshot at run start instead of re-reading
-        settings, so a mid-run operator change cannot make pass-2 review use
-        a different provider than pass-1 already used. Outside a run (tests,
-        calibration) falls back to a live resolve_route call; a missing
-        pass_provider there falls back to the global effective provider,
-        matching the single-provider behavior these callers already assume.
+    def _resolve_route(self, pass_provider: str | None, pass_model: str,
+                       pass_num: int = 1):
+        """Review route from the frozen run snapshot: an explicit slot uses the
+        resolved review route as frozen (so a mid-run change cannot re-route),
+        same_as_pass inherits the invoking pass's full route (pass 1 detection,
+        pass 2 verification). Outside a run, falls back to a live resolve_route.
         """
-        route_entry = route_for_phase('review')
-        gate = route_entry.get('gate') if route_entry else None
+        review_entry = route_for_phase('review')
+        gate = review_entry.get('gate') if review_entry else None
         if gate is not None:
+            review_provider_setting = gate.get('review_provider') or SAME_AS_PASS
+            if review_provider_setting != SAME_AS_PASS:
+                slot = review_entry.get('credential_slot', SLOT_PRIMARY)
+                return Route(
+                    phase='review', provider_key=review_entry['provider_key'],
+                    model_id=review_entry['configured_model'],
+                    base_url=review_entry.get('base_url'),
+                    slot=slot, credential_slot=slot)
+            invoking_phase = 'verification' if pass_num == 2 else 'detection'
+            pass_entry = route_for_phase(invoking_phase) or {}
+            pass_base_url = None
+            pass_credential_slot = None
+            if pass_entry.get('provider_key') == pass_provider:
+                pass_base_url = pass_entry.get('base_url')
+                pass_credential_slot = pass_entry.get('credential_slot')
             return resolve_review_route(
-                review_provider_setting=gate.get('review_provider'),
+                review_provider_setting=review_provider_setting,
                 review_model_setting=gate.get('review_model'),
-                pass_provider=pass_provider, pass_model=pass_model)
+                pass_provider=pass_provider, pass_model=pass_model,
+                pass_base_url=pass_base_url,
+                pass_credential_slot=pass_credential_slot)
         return resolve_route(
             'review', pass_provider=pass_provider or get_effective_provider(),
             pass_model=pass_model)

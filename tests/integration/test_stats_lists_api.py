@@ -192,6 +192,45 @@ class TestEpisodeCostStats:
         assert item['cumulativeCostUsd'] == '7.0'
         assert item['lastActivityAt'] == '2024-01-01T00:00:00Z'
 
+    def test_latest_run_unknown_count_is_scoped_to_the_latest_run(self, app_client, temp_db):
+        """An unpriced old run must not flag the fully-priced latest run's
+        column as incomplete (F09 latest-vs-cumulative scoping)."""
+        _authed(app_client)
+        pid = temp_db.create_podcast('pod-scope', 'https://example.com/s.xml', 'Pod Scope')
+        temp_db.upsert_episode('pod-scope', 'ep1', original_url='https://example.com/e.mp3',
+                               title='Episode One', status='processed')
+        _seed_price(temp_db, 'priced-model', 2.0, 0.0)
+        _call(temp_db, run_id='run-old', podcast_id=pid, episode_id='ep1',
+              provider_key='anthropic', configured_model='unpriced-old')
+        _backdate_run(temp_db, 'run-old', '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')
+        _call(temp_db, run_id='run-new', podcast_id=pid, episode_id='ep1',
+              provider_key='anthropic', configured_model='priced-model')
+        _backdate_run(temp_db, 'run-new', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
+
+        resp = app_client.get('/api/v1/stats/episode-costs?podcastSlug=pod-scope')
+        item = resp.get_json()['items'][0]
+        assert item['hasUnknownCost'] is True
+        assert item['unknownCostCount'] == 1
+        assert item['latestRunUnknownCount'] == 0
+        assert item['latestRunCostUsd'] == '2.0'
+
+    def test_episode_cost_row_flags_unknown_cost(self, app_client, temp_db):
+        """An episode with an unpriced call must report hasUnknownCost so its
+        amount is not presented as complete (F09)."""
+        _authed(app_client)
+        podcast_id = temp_db.create_podcast('pod-unk', 'https://example.com/u.xml', 'Pod Unk')
+        temp_db.upsert_episode('pod-unk', 'ep1', original_url='https://example.com/e.mp3',
+                               title='Episode One', status='processed')
+        # No pricing seeded for this model: the call finalizes with unknown cost.
+        _call(temp_db, run_id='run-u', podcast_id=podcast_id, episode_id='ep1',
+              provider_key='anthropic', configured_model='unpriced-model')
+
+        resp = app_client.get('/api/v1/stats/episode-costs?podcastSlug=pod-unk')
+        assert resp.status_code == 200
+        item = resp.get_json()['items'][0]
+        assert item['hasUnknownCost'] is True
+        assert item['unknownCostCount'] == 1
+
     def test_latest_run_is_not_reordered_by_provider_or_model_filter(self, app_client, temp_db):
         """Filtering to an older run's model must not make that run look
         like the episode's latest: latestRunCostUsd/lastActivityAt always
@@ -250,3 +289,154 @@ class TestEpisodeCostStats:
         resp2 = app_client.get('/api/v1/stats/episode-costs?model=model-x&limit=1&page=2')
         page2 = resp2.get_json()
         assert page1['items'][0]['episodeId'] != page2['items'][0]['episodeId']
+
+    def test_top_model_is_the_most_expensive(self, app_client, temp_db):
+        _authed(app_client)
+        pid = temp_db.create_podcast('pod-top', 'https://example.com/t.xml', 'Top')
+        temp_db.upsert_episode('pod-top', 'et1', original_url='https://example.com/e.mp3',
+                               title='ET1', status='processed')
+        _seed_price(temp_db, 'cheap-model', 2.0, 0.0)
+        _seed_price(temp_db, 'pricey-model', 15.0, 0.0)
+        _call(temp_db, run_id='run-top', podcast_id=pid, episode_id='et1',
+              provider_key='anthropic', configured_model='cheap-model', phase_key='detection')
+        _call(temp_db, run_id='run-top', podcast_id=pid, episode_id='et1',
+              provider_key='anthropic', configured_model='pricey-model', phase_key='review')
+
+        item = app_client.get('/api/v1/stats/episode-costs?podcastSlug=pod-top').get_json()['items'][0]
+        assert item['topModel'] == 'pricey-model'
+        assert set(item['modelsUsed']) == {'cheap-model', 'pricey-model'}
+
+    def test_all_unknown_cost_top_model_is_alphabetically_first(self, app_client, temp_db):
+        _authed(app_client)
+        pid = temp_db.create_podcast('pod-unk-top', 'https://example.com/u.xml', 'UnkTop')
+        temp_db.upsert_episode('pod-unk-top', 'eu1', original_url='https://example.com/e.mp3',
+                               title='EU1', status='processed')
+        _call(temp_db, run_id='run-unk', podcast_id=pid, episode_id='eu1',
+              provider_key='openai-compatible', configured_model='zeta-model')
+        _call(temp_db, run_id='run-unk', podcast_id=pid, episode_id='eu1',
+              provider_key='openai-compatible', configured_model='alpha-model')
+
+        item = app_client.get('/api/v1/stats/episode-costs?podcastSlug=pod-unk-top').get_json()['items'][0]
+        assert item['topModel'] == 'alpha-model'
+
+
+class TestEpisodeCostRuns:
+    def test_returns_run_and_phase_breakdown(self, app_client, temp_db):
+        _authed(app_client)
+        pid = temp_db.create_podcast('pod-runs', 'https://example.com/r.xml', 'Runs')
+        temp_db.upsert_episode('pod-runs', 'er1', original_url='https://example.com/e.mp3',
+                               title='ER1', status='processed')
+        _seed_price(temp_db, 'm-det', 3.0, 0.0)
+        _seed_price(temp_db, 'm-rev', 5.0, 0.0)
+        _call(temp_db, run_id='run-r1', podcast_id=pid, episode_id='er1',
+              provider_key='anthropic', configured_model='m-det', phase_key='detection')
+        _call(temp_db, run_id='run-r1', podcast_id=pid, episode_id='er1',
+              provider_key='openai-compatible', configured_model='m-rev', phase_key='review')
+        temp_db.record_processing_history(
+            podcast_id=pid, podcast_slug='pod-runs', podcast_title='Runs',
+            episode_id='er1', episode_title='ER1', status='completed', run_id='run-r1')
+
+        resp = app_client.get('/api/v1/stats/episode-costs/runs?slug=pod-runs&episodeId=er1')
+        assert resp.status_code == 200
+        runs = resp.get_json()['runs']
+        assert len(runs) >= 1
+        phases = runs[-1]['phases']
+        assert {p['phaseKey'] for p in phases} >= {'detection', 'review'}
+        assert {p['configuredModel'] for p in phases} >= {'m-det', 'm-rev'}
+
+    def test_unknown_episode_is_404(self, app_client, temp_db):
+        _authed(app_client)
+        temp_db.create_podcast('pod-404', 'https://example.com/x.xml', 'X')
+        resp = app_client.get('/api/v1/stats/episode-costs/runs?slug=pod-404&episodeId=nope')
+        assert resp.status_code == 404
+
+    def test_missing_params_is_400(self, app_client, temp_db):
+        _authed(app_client)
+        resp = app_client.get('/api/v1/stats/episode-costs/runs?slug=pod-404')
+        assert resp.status_code == 400
+
+
+class TestLedgerDateParams:
+    def test_bare_dates_cover_the_whole_utc_day(self, app_client, temp_db):
+        """A bare from/to date passes through to the db canonicalizer, so a
+        call in the final second of the selected day is still included."""
+        _authed(app_client)
+        podcast_id = temp_db.create_podcast('pod-day', 'https://example.com/feed.xml', 'Pod')
+        temp_db.upsert_episode('pod-day', 'ep1', original_url='https://example.com/e.mp3',
+                               title='Ep1', status='processed')
+        _seed_price(temp_db, 'day-model', 1.0, 0.0)
+        _call(temp_db, run_id='r-late', podcast_id=podcast_id, episode_id='ep1',
+              provider_key='openai', configured_model='day-model')
+        _backdate_run(temp_db, 'r-late', '2025-03-04T23:59:59.500Z',
+                      '2025-03-04T23:59:59.500Z')
+
+        resp = app_client.get(
+            '/api/v1/stats/model-usage?podcastSlug=pod-day&from=2025-03-04&to=2025-03-04')
+        assert resp.status_code == 200
+        assert {r['model'] for r in resp.get_json()['items']} == {'day-model'}
+
+    def test_unparseable_from_date_is_rejected(self, app_client):
+        _authed(app_client)
+        resp = app_client.get('/api/v1/stats/model-usage?from=not-a-date')
+        assert resp.status_code == 400
+        assert 'from' in resp.get_json()['error']
+
+    def test_unparseable_to_date_is_rejected_on_episode_costs(self, app_client):
+        _authed(app_client)
+        resp = app_client.get('/api/v1/stats/episode-costs?to=13/04/2025')
+        assert resp.status_code == 400
+        assert 'to' in resp.get_json()['error']
+
+
+class TestLedgerFilterOptions:
+    def test_returns_values_beyond_the_first_list_page(self, app_client, temp_db):
+        _authed(app_client)
+        podcast_id = temp_db.create_podcast('pod-opts', 'https://example.com/feed.xml', 'Pod')
+        temp_db.upsert_episode('pod-opts', 'ep1', original_url='https://example.com/e.mp3',
+                               title='Ep1', status='processed')
+        for idx, provider in enumerate(('openai', 'anthropic', 'openrouter')):
+            model_id = f'opt-model-{idx}'
+            _seed_price(temp_db, model_id, 1.0, 0.0)
+            _call(temp_db, run_id=f'r-opt-{idx}', podcast_id=podcast_id, episode_id='ep1',
+                  provider_key=provider, configured_model=model_id)
+
+        listed = app_client.get(
+            '/api/v1/stats/model-usage?podcastSlug=pod-opts&limit=1&page=1').get_json()
+        assert len(listed['items']) == 1
+
+        resp = app_client.get('/api/v1/stats/ledger-filter-options?podcastSlug=pod-opts')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['providers'] == ['anthropic', 'openai', 'openrouter']
+        assert sorted(p['model'] for p in data['pairs']) == [
+            'opt-model-0', 'opt-model-1', 'opt-model-2']
+        assert {'provider': 'anthropic', 'model': 'opt-model-1'} in data['pairs']
+
+    def test_scoped_by_podcast_and_date(self, app_client, temp_db):
+        _authed(app_client)
+        pod1 = temp_db.create_podcast('pod-opt-a', 'https://example.com/a.xml', 'A')
+        pod2 = temp_db.create_podcast('pod-opt-b', 'https://example.com/b.xml', 'B')
+        temp_db.upsert_episode('pod-opt-a', 'ea1', original_url='https://example.com/a1.mp3',
+                               title='A1', status='processed')
+        temp_db.upsert_episode('pod-opt-b', 'eb1', original_url='https://example.com/b1.mp3',
+                               title='B1', status='processed')
+        _seed_price(temp_db, 'opt-a-model', 1.0, 0.0)
+        _seed_price(temp_db, 'opt-b-model', 1.0, 0.0)
+        _call(temp_db, run_id='r-opt-a-old', podcast_id=pod1, episode_id='ea1',
+              provider_key='openai', configured_model='opt-a-model')
+        _backdate_run(temp_db, 'r-opt-a-old', '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')
+        _call(temp_db, run_id='r-opt-b', podcast_id=pod2, episode_id='eb1',
+              provider_key='anthropic', configured_model='opt-b-model')
+
+        resp = app_client.get('/api/v1/stats/ledger-filter-options?podcastSlug=pod-opt-a')
+        assert resp.get_json()['pairs'] == [
+            {'provider': 'openai', 'model': 'opt-a-model'}]
+
+        resp = app_client.get(
+            '/api/v1/stats/ledger-filter-options?podcastSlug=pod-opt-a&from=2025-01-01')
+        assert resp.get_json()['pairs'] == []
+
+    def test_unparseable_date_is_rejected(self, app_client):
+        _authed(app_client)
+        resp = app_client.get('/api/v1/stats/ledger-filter-options?from=yesterday')
+        assert resp.status_code == 400

@@ -1909,35 +1909,84 @@ describe('EpisodeDetail loading state', () => {
   });
 });
 
-describe('EpisodeDetail: current-run vs cumulative spend', () => {
+const LATEST_RUN_SPEND = {
+  runId: 'run-1', inputTokens: 5000, outputTokens: 800, costUsd: '0.05',
+  breakdownAvailable: true, hasUnknownCost: false,
+};
+
+describe('EpisodeDetail: run spend vs cumulative spend', () => {
   it('renders the latest run and the lifetime total as distinct figures', async () => {
     renderDetail(makeEpisode({
-      currentRunSpend: { inputTokens: 5000, outputTokens: 800, costUsd: '0.05', breakdownAvailable: true },
+      latestRunSpend: LATEST_RUN_SPEND,
       cumulativeSpend: { inputTokens: 20000, outputTokens: 3000, costUsd: '0.21', hasUnknownCost: false },
     }));
     await screen.findByText('Test Episode');
     expect(screen.getByText(/Latest run:\s*\$0\.0500/)).toBeTruthy();
     expect(screen.getByText(/Total spend:\s*\$0\.2100/)).toBeTruthy();
-    expect(screen.queryByText('+ unknown')).toBeNull();
+    expect(screen.queryByText('Incomplete')).toBeNull();
   });
 
-  it('marks the cumulative total as partial when hasUnknownCost is true', async () => {
+  it('shows the in-flight run separately from the last attempted one', async () => {
     renderDetail(makeEpisode({
-      currentRunSpend: { inputTokens: 5000, outputTokens: 800, costUsd: '0.05', breakdownAvailable: true },
+      status: 'processing',
+      jobState: 'processing',
+      activeRunSpend: {
+        runId: 'run-2', inputTokens: 100, outputTokens: 20, costUsd: '0.01',
+        breakdownAvailable: true, hasUnknownCost: false,
+      },
+      latestRunSpend: LATEST_RUN_SPEND,
+    }));
+    await screen.findByText('Test Episode');
+    expect(screen.getByText(/Active run:\s*\$0\.0100/)).toBeTruthy();
+    expect(screen.getByText(/Latest run:\s*\$0\.0500/)).toBeTruthy();
+  });
+
+  it('labels a run amount as a known floor when part of it is unpriced', async () => {
+    renderDetail(makeEpisode({
+      latestRunSpend: { ...LATEST_RUN_SPEND, hasUnknownCost: true },
       cumulativeSpend: { inputTokens: 20000, outputTokens: 3000, costUsd: '0.21', hasUnknownCost: true },
     }));
     await screen.findByText('Test Episode');
-    expect(screen.getByText('+ unknown')).toBeTruthy();
+    const latest = screen.getByTitle('The last attempted run, a failed one included');
+    expect(latest.textContent).toMatch(/Latest run:\s*Known\s*\$0\.0500/);
+    expect(screen.getAllByText('Incomplete').length).toBe(2);
   });
 
   it('labels the cumulative total "Recorded so far" while the episode is still processing', async () => {
     renderDetail(makeEpisode({
       status: 'processing',
-      currentRunSpend: { inputTokens: 5000, outputTokens: 800, costUsd: '0.05', breakdownAvailable: true },
+      latestRunSpend: LATEST_RUN_SPEND,
       cumulativeSpend: { inputTokens: 20000, outputTokens: 3000, costUsd: '0.21', hasUnknownCost: false },
     }));
     await screen.findByText('Test Episode');
     expect(screen.getByText(/Recorded so far:\s*\$0\.2100/)).toBeTruthy();
     expect(screen.queryByText(/Total spend:/)).toBeNull();
+  });
+});
+
+describe('EpisodeDetail: stable Process vs Reprocess label', () => {
+  it('reads "Reprocess" for a processed episode that is queued again', async () => {
+    renderDetail(makeEpisode({
+      status: 'pending', jobState: 'queued', processedAt: null, hasBeenProcessed: true,
+    }));
+    await screen.findByText('Test Episode');
+    expect(screen.getAllByText('Reprocess').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Process')).toBeNull();
+  });
+
+  it('reads "Reprocess" after a failed reprocess of a processed episode', async () => {
+    renderDetail(makeEpisode({
+      status: 'failed', jobState: 'idle', processedAt: null, hasBeenProcessed: true,
+    }));
+    await screen.findByText('Test Episode');
+    expect(screen.getAllByText('Reprocess').length).toBeGreaterThan(0);
+  });
+
+  it('reads "Process" for an episode that has never been processed', async () => {
+    renderDetail(makeEpisode({
+      status: 'pending', jobState: 'idle', processedAt: null, hasBeenProcessed: false,
+    }));
+    await screen.findByText('Test Episode');
+    expect(screen.getAllByText('Process').length).toBeGreaterThan(0);
   });
 });

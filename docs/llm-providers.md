@@ -251,6 +251,18 @@ Switching a stage's slot only changes that stage. Model discovery re-runs for th
 
 Each slot needs its own API key and, where relevant, base URL configured under Settings > LLM Provider before a stage can use it; an unconfigured slot's model list comes back empty until credentials are saved.
 
+### The slots are routes, not a failover chain
+
+Primary and Secondary are two independent accounts a stage can be pointed at. They are not a chain, and nothing at runtime moves a call from one to the other. When a call fails, it retries against the same slot it was routed to, with the same credentials and endpoint, and then gives up; the episode never spills onto the other provider. A rate-limit pause behaves the same way: the episode waits in the queue for that account's reset instead of rerouting.
+
+The one time a stage changes slot is at configuration time, not on failure. A stage set to Secondary while the secondary provider is disabled or has no type saved resolves to Primary, and logs a warning once. That is a fail-safe for an incomplete configuration, evaluated when the route is resolved, not a response to an error.
+
+A run's routes are frozen when it starts. Each phase's provider, model, and endpoint are snapshotted at run start and reused for the whole run, so editing a provider or a stage's model mid-run does not re-route work already underway. The change applies to the next run. Credentials are the exception: they are read when the client is built, so a rotated key is picked up without a restart. See [Rotating a provider key](configuration.md#rotating-or-clearing-a-provider-key).
+
+### Staying under an account's limits
+
+Each slot has its own optional requests-per-minute, requests-per-day, and tokens-per-minute caps, counted per account rather than per provider type, so two accounts on the same provider throttle independently. The per-day counter resets at UTC midnight regardless of where you or the provider are. They are off by default. See [Manual request-rate limits](configuration.md#manual-request-rate-limits).
+
 ## LLM Pricing
 
 MinusPod tracks token usage and cost for every LLM call. The Settings page and `GET /api/v1/system/token-usage` show per-model breakdowns.

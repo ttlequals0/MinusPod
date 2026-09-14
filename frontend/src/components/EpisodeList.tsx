@@ -37,6 +37,7 @@ function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle
       {onSelectAll && selectedIds && (
         <div className="flex items-center gap-2 pl-3 py-2">
           <Checkbox
+            ariaLabel="Select all on page"
             checked={!!allSelected}
             onChange={(checked) => onSelectAll(checked)}
           />

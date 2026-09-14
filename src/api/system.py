@@ -172,7 +172,9 @@ def get_system_status():
         # Informational only, never gates readiness (see /health above): a
         # GPU-OOM exhaustion on the local Whisper backend degrades
         # transcription, not the process (episodes re-queue as transient).
-        'transcriber': transcriber.get_local_transcriber_health(),
+        # Reports the configured backend, since the local reading says
+        # nothing when transcription runs on a remote API.
+        'transcriber': transcriber.get_transcriber_health(),
     })
 
 

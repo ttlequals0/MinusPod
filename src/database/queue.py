@@ -397,26 +397,7 @@ class QueueMixin:
         ).fetchone()
         return row['n'] if row else 0
 
-    def get_pending_queue_keys(self, episode_ids: list[str]) -> set:
-        """(podcast_slug, episode_id) for pending rows among `episode_ids`.
-
-        Lets GET /episodes/processing dedup StatusService's display extras
-        (a handful of ids) against the pending backlog without a full scan.
-        """
-        if not episode_ids:
-            return set()
-        conn = self.get_connection()
-        placeholders = ','.join('?' * len(episode_ids))
-        cursor = conn.execute(
-            f"""SELECT p.slug as podcast_slug, q.episode_id
-                FROM auto_process_queue q
-                JOIN podcasts p ON q.podcast_id = p.id
-                WHERE q.status = 'pending' AND q.episode_id IN ({placeholders})""",  # noqa: S608
-            episode_ids
-        )
-        return {(r['podcast_slug'], r['episode_id']) for r in cursor.fetchall()}
-
-    def claim_next_queued_episode(self) -> dict | None:
+    def claim_next_queued_episode(self, exclude_slugs=None) -> dict | None:
         """Atomically claim the next pending episode, marking it 'processing'.
 
         Closes the SELECT-then-mark gap in get_next_queued_episode: the
@@ -425,16 +406,26 @@ class QueueMixin:
         the writes), so the dequeue is safe even if a second queue consumer is
         ever added. Returns the claimed row (status='processing'), or None if
         the queue is empty. On the rare lost race it tries the next pending row.
+
+        ``exclude_slugs`` skips entries for feeds whose required LLM account is
+        rate-limit held, so a hold on one account does not starve the queue's
+        eligible work.
         """
         conn = self.get_connection()
+        exclude = list(exclude_slugs or [])
+        exclude_sql = ""
+        if exclude:
+            placeholders = ",".join("?" * len(exclude))
+            exclude_sql = f" AND p.slug NOT IN ({placeholders})"  # noqa: S608
         for _ in range(5):
             row = conn.execute(
-                """SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
+                f"""SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
                    FROM auto_process_queue q
                    JOIN podcasts p ON q.podcast_id = p.id
-                   WHERE q.status = 'pending'
+                   WHERE q.status = 'pending'{exclude_sql}
                    ORDER BY q.priority DESC, q.created_at ASC
-                   LIMIT 1"""
+                   LIMIT 1""",  # noqa: S608
+                exclude,
             ).fetchone()
             if row is None:
                 return None

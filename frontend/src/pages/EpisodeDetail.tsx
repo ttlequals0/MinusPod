@@ -7,7 +7,7 @@ import {
 } from '../api/feeds';
 import type { LocalEpisodePatch } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
-import { getErrorMessage } from '../api/client';
+import { getErrorMessage, jobStateOf } from '../api/client';
 import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBadge';
 import PrevNextLink from '../components/PrevNextLink';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -19,6 +19,7 @@ import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
 import { isActionBlocked } from '../utils/processingStage';
+import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
 import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi, ThinkingNoticePass } from '../api/types';
@@ -32,12 +33,13 @@ import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { formatStorage, formatDuration, formatTokenRange } from './settings/settingsUtils';
-import { formatCost, formatDate, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
+import { formatDate, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
 import { rowActionBtn } from '../components/rowActionStyles';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
+import CostAmount from '../components/CostAmount';
 import EpisodeLogsCard from '../components/EpisodeLogsCard';
 import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
@@ -251,6 +253,21 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
 // Save status type for visual feedback
 type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
 
+// One spend line in the episode header. An amount with unknown-cost rows
+// behind it is labeled as a known-spend floor, never as the full total.
+function SpendSummary({ label, spend, title }: {
+  label: string;
+  spend: { costUsd: string; inputTokens: number; outputTokens: number; hasUnknownCost?: boolean };
+  title?: string;
+}) {
+  return (
+    <span className="text-xs text-muted-foreground" title={title}>
+      {label}: <CostAmount amount={parseFloat(spend.costUsd)} unpriced={spend.hasUnknownCost} />
+      {' '}({formatTokenRange(spend.inputTokens, spend.outputTokens)})
+    </span>
+  );
+}
+
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
   const [showEditor, setShowEditor] = useState(false);
@@ -288,7 +305,14 @@ function EpisodeDetail() {
     queryKey: ['episode', slug, episodeId],
     queryFn: () => getEpisode(slug!, episodeId!),
     enabled: !!slug && !!episodeId,
-    refetchInterval: (query) => (query.state.data?.chaptersRegenerating ? 3000 : false),
+    // Poll only while a run is actually executing: active-run spend moves then
+    // and nothing else pushes it here. A queued episode can sit for hours, and
+    // GlobalStatusBar invalidates ['episode'] when its run starts.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data?.chaptersRegenerating) return 3000;
+      return data?.jobState === 'processing' ? 5000 : false;
+    },
   });
 
   // Fetched only for ``artworkUrl``, the fallback when the episode
@@ -304,9 +328,10 @@ function EpisodeDetail() {
     // Awaited so the mutation stays pending until the refetch lands. The POST
     // only queues the run, so returning early would re-enable the button while
     // the cached status still said the episode was idle.
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       // A later run supersedes the cleared-review banner from an earlier one.
       setHeldReviewCleared(false);
+      applyEpisodeJobState(queryClient, slug!, [episodeId!], jobStateOf(result));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
         queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
@@ -318,6 +343,7 @@ function EpisodeDetail() {
     // flickering with nothing to explain it (#707).
     onError: async (error) => {
       setCorrectionError(getErrorMessage(error, 'Could not start reprocessing.'));
+      applyEpisodeJobState(queryClient, slug!, [episodeId!], jobStateFromError(error));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
         queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
@@ -347,7 +373,13 @@ function EpisodeDetail() {
   // Sets or clears this episode's pass-through override (#746).
   const passthroughMutation = useMutation({
     mutationFn: (enabled: boolean) => setEpisodesPassthrough(slug!, [episodeId!], enabled),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      // Apply the returned jobState only when this episode was actually
+      // accepted; a rejected one (e.g. a running episode) must not be flipped
+      // to idle, which would re-enable reprocess controls mid-run.
+      if ((result.accepted ?? []).includes(episodeId!)) {
+        applyEpisodeJobState(queryClient, slug!, [episodeId!], jobStateOf(result));
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
         queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
@@ -576,15 +608,10 @@ function EpisodeDetail() {
     ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
     : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)';
 
-  // An episode that hasn't gone through the pipeline yet reads "Process",
-  // not "Reprocess". Keyed on processedAt presence, not status: status
-  // cycles back through pending/processing on every reprocess (a
-  // reprocess-queued or currently-reprocessing episode must still read
-  // "Reprocess"), while processedAt is set once on the first completed run
-  // and never cleared by a later reprocess (reset_episode_for_reprocess in
-  // reprocess_modes.py leaves it untouched), so it stays the reliable
-  // "has this ever finished processing" signal throughout that window.
-  const neverProcessed = !episode.processedAt;
+  // "Process" vs "Reprocess" is keyed on hasBeenProcessed (processedAt as a
+  // pre-field fallback), not status: status cycles back to pending/processing
+  // on every reprocess and would flip the label back to "Process".
+  const neverProcessed = !(episode.hasBeenProcessed ?? !!episode.processedAt);
   const reprocessLabel = neverProcessed ? 'Process' : 'Reprocess';
 
   // Eligibility for every control that enqueues a reprocess/redetect/recut
@@ -783,25 +810,26 @@ function EpisodeDetail() {
                     : 'Cross-fetch: failed'}
                 </span>
               )}
-              {episode.currentRunSpend && (
-                <span className="text-xs text-muted-foreground">
-                  Latest run: {formatCost(parseFloat(episode.currentRunSpend.costUsd))} (
-                  {formatTokenRange(episode.currentRunSpend.inputTokens, episode.currentRunSpend.outputTokens)})
-                </span>
+              {episode.activeRunSpend && (
+                <SpendSummary
+                  label="Active run"
+                  spend={episode.activeRunSpend}
+                  title="Spend recorded so far by the run currently in flight"
+                />
+              )}
+              {episode.latestRunSpend && (
+                <SpendSummary
+                  label="Latest run"
+                  spend={episode.latestRunSpend}
+                  title="The last attempted run, a failed one included"
+                />
               )}
               {episode.cumulativeSpend && (
-                <span className="text-xs text-muted-foreground">
-                  {episode.status === 'processing' ? 'Recorded so far' : 'Total spend'}: {formatCost(parseFloat(episode.cumulativeSpend.costUsd))}
-                  {episode.cumulativeSpend.hasUnknownCost && (
-                    <span
-                      className="ml-1 px-1 py-0.5 rounded text-[10px] font-medium bg-warning/20 text-warning"
-                      title="Some usage has no recorded cost, so this total understates the true spend"
-                    >
-                      + unknown
-                    </span>
-                  )}
-                  {' '}({formatTokenRange(episode.cumulativeSpend.inputTokens, episode.cumulativeSpend.outputTokens)})
-                </span>
+                <SpendSummary
+                  label={episode.status === 'processing' ? 'Recorded so far' : 'Total spend'}
+                  spend={episode.cumulativeSpend}
+                  title="Every run this episode has had"
+                />
               )}
               {downloadItems.length > 0 && (
                 <DropdownMenu

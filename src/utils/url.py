@@ -6,7 +6,7 @@ Blocks private/reserved IPs, restricted schemes, and cloud metadata endpoints.
 import ipaddress
 import logging
 import socket
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from utils.constants import ALLOWED_URL_SCHEMES, ALLOWED_URL_PORTS
 
@@ -22,6 +22,25 @@ _CLOUD_METADATA_IPS = frozenset({
 class SSRFError(ValueError):
     """Raised when a URL fails SSRF validation."""
     pass
+
+
+# An operator base URL is copied into the non-secret per-run route snapshot
+# and returned by GET /settings, so credentials embedded in it would leak.
+BASE_URL_USERINFO_ERROR = (
+    'Base URL must not embed credentials (user:pass@host). '
+    'Put the key in the API key field instead.'
+)
+
+
+def url_has_userinfo(url) -> bool:
+    """True when a URL embeds userinfo credentials."""
+    if not isinstance(url, str):
+        return False
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    return bool(parts.username or parts.password)
 
 
 def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:

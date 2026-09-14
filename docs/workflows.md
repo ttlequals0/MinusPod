@@ -47,12 +47,24 @@ behind that address.
   <img alt="A waiting queue of episodes feeding a Whisper pool that transcribes four at once, which then hand off to the pipeline" src="images/wf-pool-light.svg">
 </picture>
 
+The four concurrent episodes in the diagram are an example, not the setting.
+Concurrency is configurable: `WHISPER_POOL_MAX_EPISODES` accepts 1 to 16 and
+defaults to 1, and out-of-range values are clamped rather than rejected. A
+separate cap, `WHISPER_POOL_MAX_REQUESTS` (1 to 64, default 4), limits how
+many transcription requests are in flight at once.
+
 By default one episode runs at a time. Turn on the Whisper pool and raise its
-per-episode limit to transcribe several at once (up to 16); the rest wait in
-the queue and start as slots free. Each running episode still flows through the
-same pipeline once its transcript is ready. The pool is off by default and only
-the background leader process runs it, so a single instance never
-double-allocates the transcriber.
+per-episode limit to transcribe several at once; the rest wait in the queue and
+start as slots free. Each running episode still flows through the same pipeline
+once its transcript is ready. The pool is off by default and only the
+background leader process runs it, so a single instance never double-allocates
+the transcriber.
+
+The pool only activates on the remote Whisper API backend. Turning it on while
+transcription runs locally leaves it inactive, because the local model runs
+in-process and several episodes would contend for the same GPU. An inactive
+pool reports a per-episode limit of 1 whatever the setting says, so the queue
+keeps running one episode at a time.
 
 ---
 
@@ -92,8 +104,9 @@ gate.
 
 One mode per feed. Changing it does not change the published address. A single
 episode can also be set to pass-through on its own, which overrides the feed
-mode for that episode only: it is served unmodified and skips detection,
-transcription, and editing. Set it from the episode page's Reprocess menu, or
+mode for that episode only: it skips transcription, detection, and editing.
+The audio may still be transcoded for serving, so pass-through means no ad
+removal rather than byte-identical audio. Set it from the episode page's Reprocess menu, or
 select episodes on the feed page and use the bulk pass-through action.
 
 <picture>

@@ -4,7 +4,9 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed, setEpisodesPassthrough } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
-import { getErrorMessage } from '../api/client';
+import { getErrorMessage, jobStateOf } from '../api/client';
+import { isActionBlocked } from '../utils/processingStage';
+import { applyEpisodeJobState } from '../utils/jobStateCache';
 import { PendingRecutsBar } from './patterns/PendingRecutsBar';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
@@ -153,6 +155,21 @@ function FeedDetail() {
   const totalEpisodes = episodesData?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalEpisodes / pageSize));
 
+  // Same eligibility rule the row checkboxes use, so select-all can never
+  // pick an episode whose own control is unavailable.
+  const selectableIds = useMemo(
+    () => new Set((episodesData?.episodes ?? [])
+      .filter(ep => !isActionBlocked(ep.jobState, false)).map(ep => ep.id)),
+    [episodesData],
+  );
+
+  // Selection pruned against the current server state: an episode that got
+  // queued elsewhere drops out instead of riding along into a bulk action.
+  const effectiveSelectedIds = useMemo(
+    () => new Set([...selectedIds].filter(id => selectableIds.has(id))),
+    [selectedIds, selectableIds],
+  );
+
   const refreshMutation = useMutation({
     mutationFn: (opts?: { force?: boolean }) => refreshFeed(slug!, opts),
     onSuccess: () => {
@@ -220,14 +237,16 @@ function FeedDetail() {
 
   const bulkMutation = useMutation({
     mutationFn: ({ action }: { action: BulkAction }) =>
-      bulkEpisodeAction(slug!, Array.from(selectedIds), action),
-    onSuccess: (result) => {
+      bulkEpisodeAction(slug!, Array.from(effectiveSelectedIds), action),
+    onSuccess: (result, _variables, context) => {
       setBulkResult(result);
+      applyEpisodeJobState(queryClient, slug!, context.ids, jobStateOf(result));
       setSelectedIds(new Set());
       setShowBulkDeleteConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     },
+    onMutate: () => ({ ids: Array.from(effectiveSelectedIds) }),
     onError: (err) => {
       setShowBulkDeleteConfirm(false);
       setActionError(getErrorMessage(err, 'Could not apply that action.'));
@@ -236,9 +255,15 @@ function FeedDetail() {
 
   const passthroughMutation = useMutation({
     mutationFn: ({ enabled }: { enabled: boolean }) =>
-      setEpisodesPassthrough(slug!, Array.from(selectedIds), enabled),
+      setEpisodesPassthrough(slug!, Array.from(effectiveSelectedIds), enabled),
     onSuccess: (result, variables) => {
       setPassthroughResult({ enabled: variables.enabled, updated: result.updated, queued: result.queued });
+      // The response reports one state for the batch, so it can only be
+      // applied when every accepted episode shares it.
+      const accepted = result.accepted ?? [];
+      if (result.queued === 0 || result.queued === accepted.length) {
+        applyEpisodeJobState(queryClient, slug!, accepted, jobStateOf(result));
+      }
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
@@ -271,12 +296,7 @@ function FeedDetail() {
   };
 
   const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const selectable = episodes.filter(ep => ep.status !== 'processing').map(ep => ep.id);
-      setSelectedIds(new Set(selectable));
-    } else {
-      setSelectedIds(new Set());
-    }
+    setSelectedIds(checked ? new Set(selectableIds) : new Set());
   };
 
   const handlePageSizeChange = (newSize: number) => {
@@ -292,13 +312,13 @@ function FeedDetail() {
 
   // Bulk-action eligibility: count per-action so a mixed selection still
   // surfaces actionable buttons (backend skips ineligible rows).
-  const selectedEpisodes = episodes.filter(ep => selectedIds.has(ep.id));
+  const selectedEpisodes = episodes.filter(ep => effectiveSelectedIds.has(ep.id));
   const discoveredCount = selectedEpisodes.filter(ep => ep.status === 'discovered').length;
   const pendingCount = selectedEpisodes.filter(ep => ep.status === 'pending').length;
   const processedCount = selectedEpisodes.filter(ep =>
     ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;
-  const hasSelection = selectedIds.size > 0;
+  const hasSelection = effectiveSelectedIds.size > 0;
   const isRecents = feed?.feedType === 'recents';
   const stopsProcessingMessage = deleteStopsProcessingMessage(feed?.statusCounts?.processing ?? 0);
 
@@ -610,7 +630,7 @@ function FeedDetail() {
       {/* Bulk action toolbar */}
       {hasSelection && (
         <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+          <span className="text-sm font-medium text-foreground">{effectiveSelectedIds.size} selected</span>
           <div className="flex flex-wrap items-center gap-2 ml-auto">
             {discoveredCount + pendingCount > 0 && (
               <button
@@ -663,7 +683,7 @@ function FeedDetail() {
               className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
             >
               {passthroughMutation.isPending && passthroughMutation.variables?.enabled
-                ? 'Setting...' : `Set pass-through (${selectedIds.size})`}
+                ? 'Setting...' : `Set pass-through (${effectiveSelectedIds.size})`}
             </button>
             <button
               onClick={() => passthroughMutation.mutate({ enabled: false })}
@@ -672,7 +692,7 @@ function FeedDetail() {
               className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
             >
               {passthroughMutation.isPending && passthroughMutation.variables?.enabled === false
-                ? 'Clearing...' : `Clear pass-through (${selectedIds.size})`}
+                ? 'Clearing...' : `Clear pass-through (${effectiveSelectedIds.size})`}
             </button>
             {discoveredCount === 0 && pendingCount === 0 && processedCount === 0 && (
               <span className="text-xs text-muted-foreground">Selected episodes are already processing.</span>
@@ -694,7 +714,7 @@ function FeedDetail() {
           episodes={episodes}
           feedSlug={slug!}
           feedArtworkUrl={feed.artworkUrl}
-          selectedIds={isRecents ? undefined : selectedIds}
+          selectedIds={isRecents ? undefined : effectiveSelectedIds}
           onToggle={isRecents ? undefined : handleToggleSelect}
           onSelectAll={isRecents ? undefined : handleSelectAll}
         />
@@ -810,7 +830,7 @@ function FeedDetail() {
         <Modal onClose={() => setShowBulkDeleteConfirm(false)} panelClassName="max-w-md w-full">
           <div className="p-6">
             <h2 className="text-xl font-semibold text-foreground mb-4">
-              Delete {selectedIds.size} Episode{selectedIds.size > 1 ? 's' : ''}
+              Delete {effectiveSelectedIds.size} Episode{effectiveSelectedIds.size > 1 ? 's' : ''}
             </h2>
             <p className="text-sm text-muted-foreground mb-4">
               This will delete processed audio files and reset selected episodes to discovered status. Episode records and processing history are preserved.

@@ -990,6 +990,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                 retry_after_seconds=float(ad_result.get('retry_after_seconds') or 0),
                 provider_key=ad_result.get('provider_key'),
                 credential_slot=ad_result.get('credential_slot', 'primary'),
+                manual=ad_result.get('manual', False),
             )
         elif ad_result.get('connectivity'):
             # Endpoint unreachable rather than a bad response, so the offline
@@ -3191,7 +3192,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     retry_after_seconds=float(
                         verification_result.get('retry_after_seconds') or 0),
                     provider_key=verification_result.get('provider_key'),
-                    credential_slot=verification_result.get('credential_slot', 'primary'))
+                    credential_slot=verification_result.get('credential_slot', 'primary'),
+                    manual=verification_result.get('manual', False))
             v_error = verification_result.get('error')
             detail = f": {v_error}" if v_error else ""
             audio_logger.warning(
@@ -5050,8 +5052,14 @@ def _required_providers_for_admission(slug: str) -> list[tuple[str, str]] | None
     that this run will never actually call must not refuse it. A phase
     snapshot with no credential_slot (older callers, tests) defaults to
     'primary', matching single-provider installs today.
+
+    Inside a run, uses the run's frozen route snapshot so a settings change
+    during transcription cannot make the reservation cover different
+    providers than the run will actually call; at dispatch admission (no
+    installed snapshot yet) it resolves fresh from live settings.
     """
-    snapshot = _resolve_route_snapshot()
+    ctx = run_context.current()
+    snapshot = (ctx.route_snapshot if ctx else None) or _resolve_route_snapshot()
     if snapshot is None:
         return None
     active_phases = dict(snapshot)
@@ -5252,8 +5260,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     def _reconcile_provider_actuals():
         for provider_key, rid in provider_reservations.items():
-            db.reconcile_provider_spend(
-                rid, db.get_run_provider_spend(run_id, provider_key))
+            # Unknown-cost calls make the known-only subtotal an understatement;
+            # settle at the reservation estimate (None) rather than release the
+            # difference back as if the run spent less than it did.
+            if db.run_provider_spend_is_incomplete(run_id, provider_key):
+                db.reconcile_provider_spend(rid, None)
+            else:
+                db.reconcile_provider_spend(
+                    rid, db.get_run_provider_spend(run_id, provider_key))
 
     def _settle_provider_reservations():
         for rid in provider_reservations.values():

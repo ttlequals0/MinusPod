@@ -69,8 +69,13 @@ class EmptyCompletionError(Exception):
     the call never produced an answer (truncation, refusal, or a flaky
     endpoint). Treated as a retryable failure so it is retried and, if it
     persists, surfaced as a failed window rather than silently recorded as
-    "no ads" (issue #358).
+    "no ads" (issue #358). Carries the raw response when one was returned so
+    the ledger can still record the tokens the provider billed for it.
     """
+
+    def __init__(self, *args, response=None):
+        super().__init__(*args)
+        self.response = response
 
 
 class ReasoningExhaustedError(EmptyCompletionError):
@@ -91,9 +96,11 @@ def _call_once(llm_client, llm_kwargs, model):
                 or (getattr(response, 'reasoning_present', False)
                     and getattr(response, 'finish_reason', None) in ('max_tokens', 'length'))):
             raise ReasoningExhaustedError(
-                f"empty completion from {model} after reasoning exhausted the output budget"
+                f"empty completion from {model} after reasoning exhausted the output budget",
+                response=response,
             )
-        raise EmptyCompletionError(f"empty completion from {model} (no content returned)")
+        raise EmptyCompletionError(
+            f"empty completion from {model} (no content returned)", response=response)
     return response
 
 
@@ -148,28 +155,26 @@ def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass
     except ProcessingCancelled:
         db.finalize_llm_attempt(attempt_id, state='cancelled')
         raise
-    except Exception:
-        cost = db.finalize_llm_attempt(attempt_id, state='failure')
-        if ctx is not None:
-            ctx.tokens.add(0, 0, cost)
+    except Exception as e:
+        # An empty/reasoning-exhausted completion still carries the usage the
+        # provider billed; record it on the failed attempt instead of zero.
+        _finalize_attempt(db, attempt_id, 'failure', getattr(e, 'response', None), ctx)
         raise
 
+    _finalize_attempt(db, attempt_id, 'success', response, ctx)
+    return response
+
+
+def _finalize_attempt(db, attempt_id, state, response, ctx) -> None:
+    """Finalize one ledger attempt with the response's usage (if any) and
+    add the resulting cost to the run accumulator."""
+    cost = db.finalize_llm_attempt_from_response(attempt_id, state, response)
+    if ctx is None:
+        return
     usage = getattr(response, 'usage', None)
     if not isinstance(usage, dict):
         usage = {}
-    returned_model = getattr(response, 'returned_model', None)
-    if not isinstance(returned_model, str):
-        returned_model = None
-    cost = db.finalize_llm_attempt(
-        attempt_id, state='success', returned_model=returned_model,
-        input_tokens=usage.get('input_tokens'), output_tokens=usage.get('output_tokens'),
-        cache_read_tokens=usage.get('cache_read_tokens'),
-        cache_write_tokens=usage.get('cache_write_tokens'),
-        reasoning_tokens=usage.get('reasoning_tokens'),
-    )
-    if ctx is not None:
-        ctx.tokens.add(usage.get('input_tokens') or 0, usage.get('output_tokens') or 0, cost)
-    return response
+    ctx.tokens.add(usage.get('input_tokens') or 0, usage.get('output_tokens') or 0, cost)
 
 
 def _apply_reasoning_fallback(error, llm_kwargs, *, slug, episode_id, call_label):
@@ -333,7 +338,10 @@ def call_llm(
     provider: str | None = None,
     credential_slot: str = 'primary',
 ) -> tuple[object | None, Exception | None]:
-    """Call LLM with primary retry + secondary fallback retry.
+    """Call LLM with an in-loop retry then a per-window fallback retry.
+
+    Both retry loops stay on the same route/slot; this is not a cross-provider
+    failover chain (see ``provider``/``credential_slot`` below).
 
     Generic seam shared by ad detection/review (via ``call_llm_for_window``)
     and chapters generation. Never raises: all failures come back as the
@@ -354,14 +362,6 @@ def call_llm(
     """
     provider_key = provider or get_effective_provider()
 
-    # Manual rate-limit backstop (#747): if this (provider, slot) is at its
-    # RPM/RPD cap, record the hold and surface it as a 429 so the caller
-    # defers exactly like a real provider reset. Admission is the primary
-    # gate; this covers a cap crossed mid-run.
-    held = _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id)
-    if held is not None:
-        return None, held
-
     invoking_pass = _invoking_pass_from_name(pass_name)
     llm_kwargs = dict(
         model=model,
@@ -379,6 +379,12 @@ def call_llm(
     last_error = None
 
     for attempt in range(max_retries + 1):
+        # Manual rate-limit backstop (#747): re-checked before every dispatch,
+        # not once up front, so a cap crossed mid-retry defers instead of
+        # burning more requests. Admission is still the primary gate.
+        held = _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id)
+        if held is not None:
+            return None, held
         try:
             response = _ledger_call_once(
                 llm_client, llm_kwargs, model, phase_key=phase_key,
@@ -424,6 +430,9 @@ def call_llm(
 
     if response is None and last_error is not None and _is_retryable(last_error):
         for retry_num, delay in enumerate([2, 5], 1):
+            held = _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id)
+            if held is not None:
+                return None, held
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} per-window retry "
                 f"{retry_num}/2 after {delay}s backoff"

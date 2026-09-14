@@ -5,15 +5,17 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StatsPage from './StatsPage';
 import type {
-  AddressingStats, DashboardStats, EpisodeCostResponse, Feed, ModelUsageResponse, ReviewerStats,
+  AddressingStats, DashboardStats, EpisodeCostResponse, Feed, LedgerFilterOptions,
+  ModelUsageResponse, ReviewerStats,
 } from '../api/types';
 
 // vi.mock factories are hoisted above module-scope const declarations, so
 // fixture data referenced inside them has to be built via vi.hoisted too.
 const {
-  DASHBOARD, REVIEWER_STATS, FEED, EMPTY_MODEL_USAGE,
+  DASHBOARD, REVIEWER_STATS, FEED, FILTER_OPTIONS,
   mockGetAddressingStats, mockGetDashboardStats, mockGetStatsByDay,
-  mockGetModelUsageStats, mockGetEpisodeCostStats,
+  mockGetModelUsageStats, mockGetEpisodeCostStats, mockGetLedgerFilterOptions,
+  mockGetEpisodeCostRuns,
 } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
@@ -75,17 +77,25 @@ const {
   };
   const emptyModelUsage: ModelUsageResponse = { items: [], total: 0, totalPages: 1, page: 1, limit: 20 };
   const emptyEpisodeCosts: EpisodeCostResponse = { items: [], total: 0, totalPages: 1, page: 1, limit: 20 };
+  const filterOptions: LedgerFilterOptions = {
+    providers: ['anthropic', 'openrouter'],
+    pairs: [
+      { provider: 'anthropic', model: 'claude-sonnet' },
+      { provider: 'openrouter', model: 'llama-3' },
+    ],
+  };
   return {
     DASHBOARD: dashboard,
     REVIEWER_STATS: reviewerStats,
     FEED: feed,
-    EMPTY_MODEL_USAGE: emptyModelUsage,
-    EMPTY_EPISODE_COSTS: emptyEpisodeCosts,
+    FILTER_OPTIONS: filterOptions,
     mockGetAddressingStats: vi.fn().mockResolvedValue(addressingStats),
     mockGetDashboardStats: vi.fn().mockResolvedValue(dashboard),
     mockGetStatsByDay: vi.fn().mockResolvedValue({ days: [] }),
     mockGetModelUsageStats: vi.fn().mockResolvedValue(emptyModelUsage),
     mockGetEpisodeCostStats: vi.fn().mockResolvedValue(emptyEpisodeCosts),
+    mockGetLedgerFilterOptions: vi.fn().mockResolvedValue(filterOptions),
+    mockGetEpisodeCostRuns: vi.fn().mockResolvedValue({ runs: [] }),
   };
 });
 
@@ -97,6 +107,8 @@ vi.mock('../api/stats', () => ({
   getAddressingStats: (...args: unknown[]) => mockGetAddressingStats(...args),
   getModelUsageStats: (...args: unknown[]) => mockGetModelUsageStats(...args),
   getEpisodeCostStats: (...args: unknown[]) => mockGetEpisodeCostStats(...args),
+  getEpisodeCostRuns: (...args: unknown[]) => mockGetEpisodeCostRuns(...args),
+  getLedgerFilterOptions: (...args: unknown[]) => mockGetLedgerFilterOptions(...args),
 }));
 vi.mock('../api/cueDetections', () => ({
   getCueAggregateStats: vi.fn().mockResolvedValue({
@@ -144,7 +156,7 @@ describe('StatsPage addressing modes section', () => {
     // Initial mount: no filter selected yet.
     expect(mockGetAddressingStats).toHaveBeenCalledWith(undefined);
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter page by podcast' }), 'a-show');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Filter summary cards/ }), 'a-show');
 
     await waitFor(() => {
       expect(mockGetAddressingStats).toHaveBeenCalledWith('a-show');
@@ -208,16 +220,16 @@ describe('StatsPage LLM cost ledger', () => {
   const EPISODE_COST_PAGE: EpisodeCostResponse = {
     items: [{
       podcastSlug: 'a-show', podcastTitle: 'A Show', episodeId: 'ep-1', episodeTitle: 'Episode One',
-      modelsUsed: ['claude-sonnet'], runCount: 2, latestRunCostUsd: '0.500000',
+      modelsUsed: ['claude-sonnet'], topModel: 'claude-sonnet', runCount: 2, latestRunCostUsd: '0.500000',
+      latestRunUnknownCount: 0,
       cumulativeCostUsd: '0.900000', lastActivityAt: '2026-09-01T12:00:00Z',
+      unknownCostCount: 0, hasUnknownCost: false,
     }],
     total: 1, totalPages: 1, page: 1, limit: 20,
   };
 
-  // The options query (limit 100) and the main list query (limit 20) both
-  // go through getModelUsageStats; branch on limit to tell them apart.
   function lastMainListParams() {
-    const calls = mockGetModelUsageStats.mock.calls.filter(([params]) => params.limit === 20);
+    const calls = mockGetModelUsageStats.mock.calls;
     return calls[calls.length - 1][0];
   }
 
@@ -230,10 +242,11 @@ describe('StatsPage LLM cost ledger', () => {
     mockGetStatsByDay.mockReset();
     mockGetStatsByDay.mockResolvedValue({ days: [] });
     mockGetModelUsageStats.mockReset();
-    mockGetModelUsageStats.mockImplementation((params: { limit?: number }) =>
-      Promise.resolve(params.limit === 100 ? EMPTY_MODEL_USAGE : MODEL_USAGE_PAGE));
+    mockGetModelUsageStats.mockResolvedValue(MODEL_USAGE_PAGE);
     mockGetEpisodeCostStats.mockReset();
     mockGetEpisodeCostStats.mockResolvedValue(EPISODE_COST_PAGE);
+    mockGetLedgerFilterOptions.mockReset();
+    mockGetLedgerFilterOptions.mockResolvedValue(FILTER_OPTIONS);
   });
 
   it('paginates and sorts the model-usage list server-side, keyed by its params', async () => {
@@ -242,7 +255,7 @@ describe('StatsPage LLM cost ledger', () => {
     const table = await screen.findByRole('table', { name: 'Provider and model usage' });
     await within(table).findByText('claude-sonnet');
 
-    await user.click(within(table).getByRole('columnheader', { name: /Calls/ }));
+    await user.click(within(table).getByRole('button', { name: /Calls/ }));
     await waitFor(() => {
       expect(lastMainListParams()).toMatchObject({ sortBy: 'calls', sortDir: 'desc', page: 1 });
     });
@@ -285,5 +298,216 @@ describe('StatsPage LLM cost ledger', () => {
     await waitFor(() => {
       expect(screen.getByText(/Interval spend from 2026-01-01/)).toBeTruthy();
     });
+  });
+});
+
+describe('StatsPage ledger: incomplete cost display', () => {
+  const UNPRICED_MODEL_USAGE: ModelUsageResponse = {
+    items: [{
+      provider: 'openrouter', model: 'llama-3', calls: 12, distinctEpisodes: 5,
+      inputTokens: 40000, outputTokens: 8000, knownCostUsd: '1.234500', unknownCostCount: 3,
+    }],
+    total: 1, totalPages: 1, page: 1, limit: 20,
+  };
+  const UNPRICED_EPISODE_COSTS: EpisodeCostResponse = {
+    items: [{
+      podcastSlug: 'a-show', podcastTitle: 'A Show', episodeId: 'ep-1', episodeTitle: 'Episode One',
+      modelsUsed: ['llama-3'], topModel: 'llama-3', runCount: 2, latestRunCostUsd: '0.000000',
+      latestRunUnknownCount: 2,
+      cumulativeCostUsd: '0.900000', lastActivityAt: '2026-09-01T12:00:00Z',
+      unknownCostCount: 4, hasUnknownCost: true,
+    }],
+    total: 1, totalPages: 1, page: 1, limit: 20,
+  };
+
+  beforeEach(() => {
+    mockGetDashboardStats.mockReset();
+    mockGetDashboardStats.mockResolvedValue(DASHBOARD);
+    mockGetStatsByDay.mockReset();
+    mockGetStatsByDay.mockResolvedValue({ days: [] });
+    mockGetModelUsageStats.mockReset();
+    mockGetModelUsageStats.mockResolvedValue(UNPRICED_MODEL_USAGE);
+    mockGetEpisodeCostStats.mockReset();
+    mockGetEpisodeCostStats.mockResolvedValue(UNPRICED_EPISODE_COSTS);
+    mockGetLedgerFilterOptions.mockReset();
+    mockGetLedgerFilterOptions.mockResolvedValue(FILTER_OPTIONS);
+  });
+
+  it('labels a partly unpriced model row as known spend, not as the total', async () => {
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Provider and model usage' });
+    expect(within(table).getByText(/Known \$1\.2345/)).toBeTruthy();
+    expect(within(table).getAllByText('Incomplete').length).toBeGreaterThan(0);
+    expect(within(table).getByText('3 of 12 calls unpriced')).toBeTruthy();
+  });
+
+  it('says the breakdown is unavailable when an episode has no priced spend', async () => {
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Episode costs' });
+    expect(within(table).getByText('Breakdown unavailable')).toBeTruthy();
+    expect(within(table).getByText(/Known \$0\.9000/)).toBeTruthy();
+    expect(within(table).getAllByText('Incomplete').length).toBe(1);
+  });
+
+  it('counts the unpriced calls in the badge title', async () => {
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Episode costs' });
+    expect(within(table).getByText('Incomplete').getAttribute('title')).toMatch(/4 unpriced calls/);
+  });
+});
+
+describe('StatsPage ledger: failed queries', () => {
+  beforeEach(() => {
+    mockGetDashboardStats.mockReset();
+    mockGetDashboardStats.mockResolvedValue(DASHBOARD);
+    mockGetStatsByDay.mockReset();
+    mockGetStatsByDay.mockResolvedValue({ days: [] });
+    mockGetModelUsageStats.mockReset();
+    mockGetEpisodeCostStats.mockReset();
+    mockGetEpisodeCostStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+    mockGetLedgerFilterOptions.mockReset();
+    mockGetLedgerFilterOptions.mockResolvedValue(FILTER_OPTIONS);
+  });
+
+  it('tells a failed usage request apart from an absence of spend, and retries', async () => {
+    const user = userEvent.setup();
+    mockGetModelUsageStats.mockRejectedValueOnce(new Error('HTTP 500'));
+    mockGetModelUsageStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+    renderPage();
+
+    const alert = await screen.findByText(/Could not load provider and model usage/);
+    expect(alert.textContent).toMatch(/not an absence of spend/);
+    expect(screen.queryByRole('table', { name: 'Provider and model usage' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('table', { name: 'Provider and model usage' })).toBeTruthy();
+  });
+
+  it('says the filter options are incomplete when their request fails', async () => {
+    mockGetModelUsageStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+    mockGetLedgerFilterOptions.mockRejectedValue(new Error('HTTP 503'));
+    renderPage();
+
+    expect(await screen.findByText(/Could not load the provider and model filter options/)).toBeTruthy();
+  });
+});
+
+describe('StatsPage ledger filters', () => {
+  beforeEach(() => {
+    mockGetDashboardStats.mockReset();
+    mockGetDashboardStats.mockResolvedValue(DASHBOARD);
+    mockGetStatsByDay.mockReset();
+    mockGetStatsByDay.mockResolvedValue({ days: [] });
+    mockGetModelUsageStats.mockReset();
+    mockGetModelUsageStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+    mockGetEpisodeCostStats.mockReset();
+    mockGetEpisodeCostStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+    mockGetLedgerFilterOptions.mockReset();
+    mockGetLedgerFilterOptions.mockResolvedValue(FILTER_OPTIONS);
+  });
+
+  it('fills the filter selects from the dedicated options endpoint', async () => {
+    renderPage();
+    const providers = await screen.findByRole('combobox', { name: 'Filter ledger by provider' });
+    await waitFor(() => {
+      expect(within(providers).getByRole('option', { name: 'openrouter' })).toBeTruthy();
+    });
+    const models = screen.getByRole('combobox', { name: 'Filter ledger by model' });
+    expect(within(models).getByRole('option', { name: 'llama-3' })).toBeTruthy();
+  });
+
+  it('narrows the model list to the selected provider', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const providers = await screen.findByRole('combobox', { name: 'Filter ledger by provider' });
+    await waitFor(() => {
+      expect(within(providers).getByRole('option', { name: 'anthropic' })).toBeTruthy();
+    });
+
+    await user.selectOptions(providers, 'anthropic');
+
+    const models = screen.getByRole('combobox', { name: 'Filter ledger by model' });
+    expect(within(models).getByRole('option', { name: 'claude-sonnet' })).toBeTruthy();
+    expect(within(models).queryByRole('option', { name: 'llama-3' })).toBeNull();
+  });
+
+  it('sends the plain date the backend reads as a whole UTC day', async () => {
+    renderPage();
+    await waitFor(() => expect(mockGetLedgerFilterOptions).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-01-01' } });
+    fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-01-31' } });
+
+    await waitFor(() => {
+      const calls = mockGetEpisodeCostStats.mock.calls;
+      expect(calls[calls.length - 1][0]).toMatchObject({ from: '2026-01-01', to: '2026-01-31' });
+    });
+    expect(screen.getByText(/UTC days, both included/)).toBeTruthy();
+  });
+});
+
+describe('StatsPage episode costs: expandable run/phase breakdown', () => {
+  const MULTI_MODEL_COSTS: EpisodeCostResponse = {
+    items: [{
+      podcastSlug: 'a-show', podcastTitle: 'A Show', episodeId: 'ep-1',
+      episodeTitle: 'Episode One',
+      modelsUsed: ['claude-opus-4', 'claude-sonnet-5', 'gpt-4o'],
+      topModel: 'claude-opus-4', runCount: 1, latestRunCostUsd: '2.980000',
+      latestRunUnknownCount: 0,
+      cumulativeCostUsd: '2.980000', lastActivityAt: '2026-09-01T12:00:00Z',
+      unknownCostCount: 0, hasUnknownCost: false,
+    }],
+    total: 1, totalPages: 1, page: 1, limit: 20,
+  };
+  const RUNS = {
+    runs: [{
+      runNumber: 1, processedAt: '2026-09-01T12:00:00Z', status: 'completed' as const,
+      adsDetected: 4, processingDurationSeconds: 120, errorMessage: null,
+      inputTokens: 530000, outputTokens: 16000, llmCost: 2.98, hasLog: false,
+      stats: null, breakdownAvailable: true,
+      phases: [{
+        phaseKey: 'detection', invokingPass: 1, provider: 'anthropic',
+        configuredModel: 'claude-opus-4', returnedModel: 'claude-opus-4',
+        inputTokens: 125000, outputTokens: 3400, cacheReadTokens: 0,
+        cacheWriteTokens: 0, reasoningTokens: 0, costUsd: '2.130000',
+        costSource: 'estimated' as const,
+      }],
+    }],
+  };
+
+  beforeEach(() => {
+    mockGetDashboardStats.mockReset();
+    mockGetDashboardStats.mockResolvedValue(DASHBOARD);
+    mockGetStatsByDay.mockReset();
+    mockGetStatsByDay.mockResolvedValue({ days: [] });
+    mockGetModelUsageStats.mockReset();
+    mockGetModelUsageStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+    mockGetEpisodeCostStats.mockReset();
+    mockGetEpisodeCostStats.mockResolvedValue(MULTI_MODEL_COSTS);
+    mockGetLedgerFilterOptions.mockReset();
+    mockGetLedgerFilterOptions.mockResolvedValue(FILTER_OPTIONS);
+    mockGetEpisodeCostRuns.mockReset();
+    mockGetEpisodeCostRuns.mockResolvedValue(RUNS);
+  });
+
+  it('shows the most-expensive model first with a +N count', async () => {
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Episode costs' });
+    expect(within(table).getByText('claude-opus-4')).toBeTruthy();
+    expect(within(table).getByText('+2')).toBeTruthy();
+  });
+
+  it('fetches and renders the run/phase breakdown when expanded', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Episode costs' });
+    await user.click(within(table).getByRole('button', { name: /Show run breakdown for Episode One/ }));
+    await waitFor(() => expect(mockGetEpisodeCostRuns).toHaveBeenCalledWith('a-show', 'ep-1'));
+    // The episode row expands to the run table (grouped by run); expanding the
+    // run reveals its per-phase, per-model breakdown.
+    const runToggles = await screen.findAllByRole('button', { name: /Show phase breakdown for run/ });
+    await user.click(runToggles[0]);
+    await waitFor(() => expect(screen.getAllByText(/Detection/).length).toBeGreaterThan(0));
+    expect(screen.getAllByText('claude-opus-4').length).toBeGreaterThan(1);
   });
 });

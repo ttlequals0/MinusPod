@@ -353,6 +353,10 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
         "retry_after_seconds": getattr(last_error, 'retry_after_seconds', None),
         "provider_key": getattr(last_error, 'provider_key', None),
         "credential_slot": getattr(last_error, 'credential_slot', 'primary'),
+        # Manual MinusPod caps (#747) must stay manual across the stage
+        # boundary: a manual hold is never completion-probed, and defers even
+        # when the 429-hold toggle is off.
+        "manual": getattr(last_error, 'manual', False),
         # Lets the pipeline tell "endpoint down" apart from a bad response so
         # the offline queue (#482) defers only genuine outages. Includes
         # CircuitBreakerOpen, which reaches here as last_error because

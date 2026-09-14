@@ -159,6 +159,10 @@ export interface Feed {
   latestEpisodes?: EpisodeSummary[];
 }
 
+// Authoritative queue/run state from the backend; 'submitting' is a
+// client-only optimistic state.
+export type JobState = 'idle' | 'submitting' | 'queued' | 'processing';
+
 // Bounded per-episode projection returned inline on a Feed by GET /feeds
 // with includeLatestEpisodes=true. Field names/types mirror the same-named
 // fields on Episode.
@@ -167,11 +171,16 @@ export interface EpisodeSummary {
   title: string;
   published: string;
   createdAt: string;
+  processedAt?: string | null;
   duration?: number;
   status: EpisodeStatusKey;
-  jobState?: 'idle' | 'submitting' | 'queued' | 'processing';
+  jobState?: JobState;
   artworkUrl?: string | null;
   description?: string | null;
+  error?: string | null;
+  pendingReviewCount?: number;
+  passthroughEnabled?: boolean | null;
+  hasBeenProcessed?: boolean;
 }
 
 export interface AdDistributionZone {
@@ -204,8 +213,11 @@ export interface Episode {
   status: EpisodeStatusKey;
   // Authoritative queue/run state, derived server-side from live queue rows
   // (distinct from `status`, which is the stored lifecycle value). Absent on
-  // older cached responses; 'submitting' is a client-only optimistic state.
-  jobState?: 'idle' | 'submitting' | 'queued' | 'processing';
+  // older cached responses.
+  jobState?: JobState;
+  // True once any run has finished processing this episode. Stable across a
+  // later reprocess, so the Process/Reprocess label does not flip back.
+  hasBeenProcessed?: boolean;
   ad_count?: number;
   hasOriginalAudio?: boolean;
   pendingReviewCount?: number;
@@ -318,8 +330,11 @@ export interface EpisodeDetail extends Episode {
   // Adjacent episodes in the same feed (newest-first order): `previous` is the
   // newer episode, `next` the older one. Either is null at a feed boundary.
   navigation?: { previous: EpisodeNeighbor | null; next: EpisodeNeighbor | null };
-  // Ledger totals for the latest completed run; null when there is none yet.
-  currentRunSpend?: RunSpend | null;
+  // Ledger totals for the run currently in flight; null when none is.
+  activeRunSpend?: RunSpend | null;
+  // Ledger totals for the last ATTEMPTED run, failures and zero-LLM runs
+  // included; null when the episode has no run history.
+  latestRunSpend?: RunSpend | null;
   // Ledger totals across every run (lifetime spend for this episode).
   cumulativeSpend?: CumulativeSpend;
 }
@@ -345,10 +360,14 @@ export interface RunPhaseUsage {
 }
 
 export interface RunSpend {
+  runId: string | null;
   inputTokens: number;
   outputTokens: number;
   costUsd: string;
   breakdownAvailable: boolean;
+  // True when a contributing ledger row has no recorded cost, so costUsd
+  // understates this run's real spend.
+  hasUnknownCost: boolean;
 }
 
 export interface CumulativeSpend {
@@ -1172,6 +1191,38 @@ export interface SystemStatus {
     totalOutputTokens: number;
     totalLlmCost: number;
   };
+  transcriber?: {
+    available: boolean;
+    backend: 'local' | 'openai-api';
+    // Local backend only; the remote one reports probe state instead.
+    device?: string | null;
+    lastOutcome?: {
+      status?: string;
+      backend?: string;
+      device?: string;
+      observedAt?: string;
+    } | null;
+    probed?: boolean;
+    instanceCount?: number;
+  };
+  podping?: {
+    listenerEnabled: boolean;
+    allNodesDown: boolean;
+    degradedSince: string | null;
+    nodes: {
+      node: string;
+      consecutiveFailures: number;
+      lastFailureReason: string | null;
+      lastSuccessAt: string | null;
+      nextRetryAt: string | null;
+    }[];
+  };
+  feedRefresh?: {
+    outageDegraded: boolean;
+    outageAffectedCount: number;
+    lastSuccessfulRefreshAt: string | null;
+    nextRetryAt: string | null;
+  };
   security?: {
     cryptoReady: boolean;
     plaintextSecretsCount: number;
@@ -1263,6 +1314,8 @@ export interface BulkActionResult {
   freedMb: number;
   errors: string[];
   skippedEpisodes?: Array<{ episodeId: string; reason: string }>;
+  // Authoritative state for the enqueued episodes; absent for 'delete'.
+  jobState?: JobState;
 }
 
 export interface RetentionSettings {
@@ -1429,10 +1482,19 @@ export interface EpisodeCostStat {
   episodeId: string;
   episodeTitle: string;
   modelsUsed: string[];
+  // The episode's most-expensive model, shown first in the collapsed row.
+  topModel: string;
   runCount: number;
   latestRunCostUsd: string;
+  // Unpriced calls in the latest run only; scopes the Latest column's
+  // Incomplete flag so an episode-wide unknown does not mislabel it.
+  latestRunUnknownCount: number;
   cumulativeCostUsd: string;
   lastActivityAt: string;
+  // Billable calls across all runs with no recorded price, and the flag
+  // derived from it: the Cumulative amount is a known-spend floor when set.
+  unknownCostCount: number;
+  hasUnknownCost: boolean;
 }
 
 export type EpisodeCostSortField =
@@ -1445,6 +1507,13 @@ export interface EpisodeCostResponse {
   totalPages: number;
   page: number;
   limit: number;
+}
+
+// Complete, unpaginated filter values for the ledger lists from
+// GET /stats/ledger-filter-options, scoped by the same from/to/podcastSlug.
+export interface LedgerFilterOptions {
+  providers: string[];
+  pairs: { provider: string; model: string }[];
 }
 
 export interface ReleaseInfo {

@@ -28,7 +28,9 @@ from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from utils.url import validate_base_url, SSRFError
+from utils.url import (
+    BASE_URL_USERINFO_ERROR, SSRFError, url_has_userinfo, validate_base_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +115,8 @@ def update_provider(provider):
     if cfg['base_url'] and 'baseUrl' in body:
         url = body['baseUrl']
         if url:
+            if provider in _LLM_PROVIDERS and url_has_userinfo(url):
+                return error_response(BASE_URL_USERINFO_ERROR, 400)
             try:
                 validate_base_url(url)
             except SSRFError:
@@ -443,6 +447,8 @@ def test_provider_connection(provider):
             {'ok': False, 'reachable': False,
              'detail': 'Enter a base URL first.'}, 200)
     base = base.strip()
+    if provider != 'whisper' and url_has_userinfo(base):
+        return error_response(BASE_URL_USERINFO_ERROR, 400)
 
     # The saved API key goes out only when the tested URL points at the
     # same server as the explicitly saved base URL. Without this gate, any
@@ -500,7 +506,9 @@ def test_secondary_provider_connection():
     (openai-compatible, ollama) probes the same /models route the real
     client uses. A `provider` field in the body overrides the saved type
     (like `baseUrl` already does) so an unsaved dropdown change can be
-    tested before Save, matching the primary test-connection route.
+    tested before Save, matching the primary test-connection route. The
+    saved key travels only when the requested type still matches the saved
+    type and the tested URL is the explicitly saved one.
     """
     db = Database()
     body = request.get_json(silent=True) or {}
@@ -516,13 +524,20 @@ def test_secondary_provider_connection():
         return error_response(
             f'provider must be one of: {", ".join(_SECONDARY_PROVIDER_TYPES)}', 400)
 
-    api_key = get_effective_secondary_provider_api_key() or ''
+    # The stored key was entered for the saved type, so an unsaved type
+    # override must not borrow it: that would ship the key to a vendor the
+    # operator never designated.
+    saved_key = ''
+    if provider == (db.get_setting('secondary_provider') or ''):
+        saved_key = get_effective_secondary_provider_api_key() or ''
 
     if provider in _FIXED_PROVIDER_PROBES:
-        return json_response(_probe_fixed_endpoint(provider, api_key), 200)
+        return json_response(_probe_fixed_endpoint(provider, saved_key), 200)
 
-    saved_base = db.get_setting('secondary_provider_base_url') or DEFAULT_OPENAI_BASE_URL
-    base = body['baseUrl'] if 'baseUrl' in body else saved_base
+    # Effective default matches llm_route; the key gate below sees only an
+    # explicitly saved URL, never that default.
+    gate_base = db.get_setting('secondary_provider_base_url') or ''
+    base = body['baseUrl'] if 'baseUrl' in body else (gate_base or DEFAULT_OPENAI_BASE_URL)
     if base is not None and not isinstance(base, str):
         return error_response('baseUrl must be a string', 400)
     if not base or not base.strip():
@@ -530,11 +545,13 @@ def test_secondary_provider_connection():
             {'ok': False, 'reachable': False,
              'detail': 'Enter a base URL first.'}, 200)
     base = base.strip()
+    if url_has_userinfo(base):
+        return error_response(BASE_URL_USERINFO_ERROR, 400)
 
     # Same anti-exfiltration gate as the primary test-connection route
     # (#544): the saved key only goes out when the tested URL matches the
     # explicitly saved secondary base URL.
-    api_key = api_key if _same_server(base, saved_base) else ''
+    api_key = saved_key if _same_server(base, gate_base) else ''
 
     norm = _normalize_base_url_for_provider(
         PROVIDER_OLLAMA if provider == PROVIDER_OLLAMA

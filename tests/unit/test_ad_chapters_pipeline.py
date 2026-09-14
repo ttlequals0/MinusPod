@@ -18,6 +18,7 @@ from tests.unit.thread_fakes import SyncThread
 _test_data_dir = bootstrap('ad_chapters_pipeline_test_', reset_storage=True)
 
 import chapters_generator
+import run_context
 from ad_chapters import AdChapterConfig, public_chapters
 from llm_client import ProviderRateLimitedError
 from main_app import processing
@@ -620,3 +621,27 @@ def test_chapter_step_publishes_ad_chapters_when_the_hold_write_fails(monkeypatc
     merged = _saved_chapters(storage_mock)
     assert merged == [AD_ENTRY, RESUME_ENTRY]
     _assert_embedded(embed_mock, merged)
+
+
+def test_regenerate_runs_under_the_chapters_route_and_a_run_id(app_client, seeded):
+    """Standalone regen must resolve the same per-phase route a pipeline run
+    does; without it the chapters phase silently falls back to the global
+    client and the primary slot."""
+    snapshot = {'chapters': {'provider_key': 'ollama', 'configured_model': 'm-chapters',
+                             'credential_slot': 'secondary'}}
+    seen = {}
+
+    def capture(*_args, **_kwargs):
+        ctx = run_context.current()
+        seen['run_id'] = ctx.run_id if ctx else None
+        seen['route'] = run_context.route_for_phase('chapters')
+        return {'version': '1.2.0', 'chapters': [{'startTime': 0, 'title': 'One'}]}
+
+    with patch('main_app.processing._resolve_or_load_route_snapshot',
+               return_value=snapshot) as resolve:
+        resp = _post_regenerate(app_client, capture)
+
+    assert resp.status_code == 202, resp.data
+    assert seen['route'] == snapshot['chapters']
+    assert seen['run_id']
+    assert resolve.call_args.args[0] == seen['run_id']

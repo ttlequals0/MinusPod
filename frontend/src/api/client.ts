@@ -1,8 +1,11 @@
 import { storeLoginRedirect } from '../utils/loginRedirect';
+import type { JobState } from './types';
 
 const API_BASE = '/api/v1';
 
 const RETRY_DELAYS = [1000, 3000]; // 2 retries with 1s and 3s backoff
+
+const JOB_STATES = new Set(['idle', 'submitting', 'queued', 'processing']);
 
 const CSRF_COOKIE_NAME = 'minuspod_csrf';
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
@@ -109,14 +112,32 @@ export function getErrorMessage(err: unknown, fallback = 'Request failed'): stri
 
 // Thrown by apiRequest on a non-ok response, carrying the HTTP status so
 // callers can branch on it (e.g. treat 404 as "not found" vs any other error)
-// without string-matching the message.
+// without string-matching the message, plus the parsed body. A 409 conflict
+// carries the authoritative jobState; dropping the body would leave callers
+// with stale eligibility until a refetch they may never get.
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  body: unknown;
+  constructor(message: string, status: number, body?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.body = body;
   }
+
+  get jobState(): JobState | undefined {
+    return jobStateOf(this.body);
+  }
+}
+
+// Reads a jobState off any response body (success or error), ignoring values
+// the client does not know.
+export function jobStateOf(body: unknown): JobState | undefined {
+  if (!body || typeof body !== 'object') return undefined;
+  const value = (body as { jobState?: unknown }).jobState;
+  return typeof value === 'string' && JOB_STATES.has(value)
+    ? value as JobState
+    : undefined;
 }
 
 // Redirect to login on 401, preserving the current path. Throws so callers stop.
@@ -172,7 +193,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
           continue;
         }
         const error = await response.json().catch(() => ({ error: 'Request failed' }));
-        throw new ApiError(extractErrorMessage(error, response.status), response.status);
+        throw new ApiError(extractErrorMessage(error, response.status), response.status, error);
       }
 
       const contentType = response.headers.get('content-type');

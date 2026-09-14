@@ -17,18 +17,23 @@ export function clampEpisodesPerPodcast(value: number): number {
   return Math.min(MAX_EPISODES_PER_PODCAST, Math.max(MIN_EPISODES_PER_PODCAST, Math.round(value)));
 }
 
-// EpisodeSummary trims fields EpisodeRow doesn't require (feedSlug, ad_count,
-// pendingReviewCount, error); this fills in the rest as undefined.
+// EpisodeSummary carries every field EpisodeRow renders except feedSlug and
+// ad_count, which the projection does not include.
 function toEpisode(summary: EpisodeSummary): Episode {
   return {
     id: summary.id,
     title: summary.title,
     published: summary.published,
+    processedAt: summary.processedAt,
     duration: summary.duration,
     status: summary.status,
     jobState: summary.jobState,
     artworkUrl: summary.artworkUrl ?? undefined,
     description: summary.description ?? undefined,
+    error: summary.error,
+    pendingReviewCount: summary.pendingReviewCount,
+    passthroughEnabled: summary.passthroughEnabled,
+    hasBeenProcessed: summary.hasBeenProcessed,
   };
 }
 
@@ -70,6 +75,7 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
       <div className="flex items-center gap-3 p-4 border-b border-border">
         <Link
           to={`/feeds/${feed.slug}`}
+          aria-label={`${feedDisplayTitle(feed)} cover art`}
           className={`block w-12 h-12 shrink-0 overflow-hidden rounded-md ${focusRing}`}
         >
           <Artwork
@@ -114,6 +120,7 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
                   episodeId={summary.id}
                   status={summary.status}
                   jobState={summary.jobState}
+                  hasBeenProcessed={summary.hasBeenProcessed}
                 />
               )}
             />

@@ -5,7 +5,7 @@ are the single writer of billed LLM calls, replacing the retired adapter
 usage callback (llm_client._record_token_usage).
 """
 import run_context
-from llm_client import LLMResponse
+from llm_client import LLMResponse, ProviderRateLimitedError
 from utils.llm_call import EmptyCompletionError, call_llm
 
 
@@ -84,6 +84,63 @@ def test_failure_after_billable_partial_creates_one_failure_row(temp_db):
         rows = _rows_for_episode(temp_db, 'ep-failure')
         assert len(rows) == 1
         assert rows[0]['state'] == 'failure'
+        assert client.calls == 1
+    finally:
+        run_context.end(ctx)
+
+
+def test_empty_completion_records_the_billed_usage_on_the_failure_row(temp_db, monkeypatch):
+    """A content-less completion still bills tokens; the failed attempt must
+    record them, not zero."""
+    monkeypatch.setattr('utils.llm_call.time.sleep', lambda s: None)
+    temp_db.create_podcast('show-e', 'https://example.com/e.xml', 'Show E')
+    ctx = run_context.begin('show-e', 'ep-empty', run_id='run-empty')
+    try:
+        empty = [LLMResponse(content='', model='claude-x',
+                             usage={'input_tokens': 7, 'output_tokens': 0})
+                 for _ in range(3)]
+        response, error = call_llm(
+            llm_client=_FakeLLMClient(empty), model='claude-x', system_prompt='s',
+            prompt='p', llm_timeout=30, max_retries=0, max_tokens=100,
+            slug='show-e', episode_id='ep-empty', call_label='window 1',
+            phase_key='detection', provider='anthropic',
+        )
+        assert response is None
+        assert isinstance(error, EmptyCompletionError)
+
+        rows = _rows_for_episode(temp_db, 'ep-empty')
+        assert rows
+        assert all(r['state'] == 'failure' for r in rows)
+        assert all(r['input_tokens'] == 7 for r in rows)
+        totals = temp_db.get_run_usage_totals('run-empty')
+        assert totals['input_tokens'] == 7 * len(rows)
+    finally:
+        run_context.end(ctx)
+
+
+def test_manual_cap_crossed_mid_retry_defers(temp_db, monkeypatch):
+    """A per-minute cap reached after the first dispatch must defer the retry
+    with a manual hold, not keep spending requests (#747)."""
+    monkeypatch.setattr('utils.llm_call.time.sleep', lambda s: None)
+    temp_db.set_setting('provider_requests_per_min', '1')
+    temp_db.create_podcast('show-cap', 'https://example.com/cap.xml', 'Show Cap')
+    ctx = run_context.begin('show-cap', 'ep-cap', run_id='run-cap')
+    try:
+        client = _FakeLLMClient([
+            EmptyCompletionError('empty, retryable'),
+            LLMResponse(content='ok', model='claude-x',
+                        usage={'input_tokens': 1, 'output_tokens': 1}),
+        ])
+        response, error = call_llm(
+            llm_client=client, model='claude-x', system_prompt='s', prompt='p',
+            llm_timeout=30, max_retries=1, max_tokens=100,
+            slug='show-cap', episode_id='ep-cap', call_label='window 1',
+            phase_key='detection', provider='anthropic',
+        )
+        assert response is None
+        assert isinstance(error, ProviderRateLimitedError)
+        assert error.manual is True
+        # Only the first dispatch happened; the cap deferred the retry.
         assert client.calls == 1
     finally:
         run_context.end(ctx)

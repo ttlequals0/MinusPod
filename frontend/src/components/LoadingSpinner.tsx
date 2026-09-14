@@ -1,3 +1,5 @@
+const RING = 'border-2 border-muted border-t-primary rounded-full animate-spin';
+
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
@@ -11,20 +13,20 @@ function LoadingSpinner({ size = 'md', className = '', inline = false }: Loading
     lg: 'w-12 h-12',
   };
 
-  const spinner = (
-    <div
-      className={`${inline ? className : sizes[size]} border-2 border-muted border-t-primary rounded-full animate-spin`}
-    />
-  );
-
+  // Inline mode renders a span: it is used inside phrasing content (a <p>),
+  // where a div is invalid nesting.
   if (inline) {
-    return spinner;
+    return (
+      <span
+        className={`inline-block ${className || sizes[size]} ${RING}`}
+      />
+    );
   }
 
   return (
     <div className={`flex justify-center items-center ${className}`}>
       <div
-        className={`${sizes[size]} border-2 border-muted border-t-primary rounded-full animate-spin`}
+        className={`${sizes[size]} ${RING}`}
       />
     </div>
   );

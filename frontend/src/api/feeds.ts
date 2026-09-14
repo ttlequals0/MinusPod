@@ -1,5 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
 export const CUE_SCORE_MIN = 0.30;
@@ -375,12 +375,18 @@ export async function getEpisode(slug: string, episodeId: string): Promise<Episo
   return apiRequest<EpisodeDetail>(`/feeds/${slug}/episodes/${episodeId}`);
 }
 
+export interface ReprocessEpisodeResult {
+  message: string;
+  mode: string;
+  jobState?: JobState;
+}
+
 export async function reprocessEpisode(
   slug: string,
   episodeId: string,
   mode: 'reprocess' | 'full' | 'llm' | 'recut' = 'reprocess'
-): Promise<{ message: string; mode: string; jobState?: 'idle' | 'submitting' | 'queued' | 'processing' }> {
-  return apiRequest<{ message: string; mode: string; jobState?: 'idle' | 'submitting' | 'queued' | 'processing' }>(
+): Promise<ReprocessEpisodeResult> {
+  return apiRequest<ReprocessEpisodeResult>(
     `/episodes/${slug}/${episodeId}/reprocess`,
     { method: 'POST', body: { mode } },
   );
@@ -561,6 +567,11 @@ export interface SetEpisodesPassthroughResult {
   // Episodes also enqueued for a reprocess so the flag applies this run.
   // Only set (>0) when enabled=true; clearing never forces a reprocess.
   queued: number;
+  // Episodes the change applied to, and the ones it did not with a reason.
+  accepted?: string[];
+  rejected?: { episodeId: string; reason: 'not_found' | 'processing' }[];
+  // Authoritative state for the accepted episodes; sent only when enabling.
+  jobState?: JobState;
 }
 
 // Sets or clears the per-episode pass-through override (#746) for one or

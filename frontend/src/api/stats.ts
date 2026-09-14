@@ -1,7 +1,8 @@
 import { apiRequest, buildQueryString } from './client';
 import {
   AddressingStats, DashboardStats, DayStats, EpisodeCostResponse, EpisodeCostSortField,
-  ModelUsageResponse, ModelUsageSortField, PodcastStats, ReviewerStats,
+  EpisodeProcessingRun, LedgerFilterOptions, ModelUsageResponse, ModelUsageSortField,
+  PodcastStats, ReviewerStats,
 } from './types';
 
 // Shared page/filter params for the ledger list endpoints below. Mirrors
@@ -67,4 +68,27 @@ export async function getEpisodeCostStats(
 ): Promise<EpisodeCostResponse> {
   const qs = buildQueryString({ ...params });
   return apiRequest<EpisodeCostResponse>(`/stats/episode-costs${qs}`);
+}
+
+// Per-run, per-phase breakdown for one episode-costs row when expanded.
+export async function getEpisodeCostRuns(
+  slug: string, episodeId: string
+): Promise<{ runs: EpisodeProcessingRun[] }> {
+  const qs = buildQueryString({ slug, episodeId });
+  return apiRequest<{ runs: EpisodeProcessingRun[] }>(`/stats/episode-costs/runs${qs}`);
+}
+
+export interface LedgerFilterScope {
+  from?: string;
+  to?: string;
+  podcastSlug?: string;
+}
+
+// Complete provider/model options for the ledger filters: unpaginated, so a
+// value that sits past the first list page stays selectable.
+export async function getLedgerFilterOptions(
+  scope: LedgerFilterScope = {}
+): Promise<LedgerFilterOptions> {
+  const qs = buildQueryString({ ...scope });
+  return apiRequest<LedgerFilterOptions>(`/stats/ledger-filter-options${qs}`);
 }

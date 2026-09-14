@@ -51,10 +51,9 @@ from config import (
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
 )
-# Safe despite api/__init__ importing settings before podcast_search:
-# podcast_search only pulls names api/__init__ defines before its submodule
-# imports. A reorder that gives podcast_search a top-level dependency on
-# settings would break boot -- keep this the only cross-submodule import.
+# Only cross-submodule import; safe because podcast_search does not import
+# settings back. Keep it that way: a top-level dependency the other way would
+# break boot (api/__init__ imports settings before podcast_search).
 from api.podcast_search import resolve_search_provider, search_provider_ready
 from ad_detector import AdDetector
 from artwork_watermark import BADGE_POSITIONS
@@ -90,7 +89,10 @@ from llm_route import (
 from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import modified_feed_url
-from utils.url import validate_base_url, validate_outbound_host, SSRFError
+from utils.url import (
+    BASE_URL_USERINFO_ERROR, SSRFError, url_has_userinfo, validate_base_url,
+    validate_outbound_host,
+)
 from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from webhook_service import (
@@ -1686,6 +1688,8 @@ def _apply_provider_fields(db, data):
         credentials_changed = True
 
     if 'openaiBaseUrl' in data:
+        if url_has_userinfo(data['openaiBaseUrl']):
+            return json_response({'error': BASE_URL_USERINFO_ERROR}, 400)
         try:
             validate_base_url(data['openaiBaseUrl'])
         except SSRFError as e:
@@ -1831,6 +1835,8 @@ def _apply_secondary_provider_fields(db, data):
             # matching the per-phase provider routing fields above.
             db.clear_setting('secondary_provider_base_url')
             logger.info("Cleared secondary provider base URL")
+        elif url_has_userinfo(value):
+            return error_response(BASE_URL_USERINFO_ERROR, 400)
         else:
             try:
                 validate_base_url(value)
@@ -1871,6 +1877,9 @@ def _apply_whisper_fields(db, data):
 
     if 'whisperApiBaseUrl' in data:
         if data['whisperApiBaseUrl']:
+            # GET /settings echoes this URL back, so userinfo in it would leak.
+            if url_has_userinfo(data['whisperApiBaseUrl']):
+                return json_response({'error': BASE_URL_USERINFO_ERROR}, 400)
             try:
                 validate_base_url(data['whisperApiBaseUrl'])
             except SSRFError as e:

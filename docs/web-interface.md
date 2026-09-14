@@ -7,6 +7,8 @@
 ## Contents
 
 - [Overview](#overview)
+- [Dashboard views](#dashboard-views)
+- [Episode actions and job state](#episode-actions-and-job-state)
 - [Feed Display Title](#feed-display-title)
 - [Sponsors and Normalizations](#sponsors-and-normalizations)
 - [Ad Review Modes](#ad-review-modes)
@@ -17,6 +19,7 @@
 - [Held for Review](#held-for-review)
 - [Partial Detection](#partial-detection)
 - [Processing stats](#processing-stats)
+- [LLM cost ledger](#llm-cost-ledger)
 - [Screenshots](#screenshots)
 
 ## Overview
@@ -30,7 +33,7 @@ The server includes a web-based management UI at `/ui/`:
 - Source feed URL shown in Feed Settings with a copy button, and editable for when a publisher moves feeds or a CDN-wrapped URL keeps failing. The server fetches and parses the new URL before saving, so a typo cannot break the feed; existing episodes are kept (matched by GUID). The refresh log also prints which URL each feed pulls from
 - Per-feed max ad duration cap: ads longer than the cap are held for review instead of cut (empty = no cap; applies on the next reprocess)
 - Per-feed cue-gated approval: only ads with audio-cue evidence auto-cut; others are held for review (requires cue templates)
-- Per-feed processing mode: one select with five presets: standard (detect and cut ads, the default), keep content only (experimental; marks show content and removes everything else, see [How It Works](how-it-works.md)), skip ad detection (still transcribes and builds chapters, but nothing is scanned or cut; for ad-free shows), pass-through (serves episodes exactly as published, with no transcription, detection, or cutting), or cue-only (experimental; cuts from cue pairs and previously learned ad patterns, no LLM call; needs one enabled ad-break-start and one enabled ad-break-end template, and exposes a per-feed safety policy and a skip-transcription toggle, see [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset))
+- Per-feed processing mode: one select with five presets: standard (detect and cut ads, the default), keep content only (experimental; marks show content and removes everything else, see [How It Works](how-it-works.md)), skip ad detection (still transcribes and builds chapters, but nothing is scanned or cut; for ad-free shows), pass-through (relays episodes with no transcription or ad removal, though audio may be transcoded for serving), or cue-only (experimental; cuts from cue pairs and previously learned ad patterns, no LLM call; needs one enabled ad-break-start and one enabled ad-break-end template, and exposes a per-feed safety policy and a skip-transcription toggle, see [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset))
 - Feed detail page groups its controls into collapsible sections so the page stays scannable. Inside Feed Settings, everyday controls (network, source feed, auto-process, title blacklist, processing mode, queue priority, retention, original audio, language, hide unprocessed, tags) sit at the top; Segment actions, Cue tuning, and the rarely-changed Advanced controls each fold into their own card
 - Per-feed episode title blacklist: glob patterns that skip queuing and just-in-time processing for matching titles. See [Configuration > Title blacklist](configuration.md#title-blacklist)
 - Per-feed queue priority (High / Normal / Low) with automatic boosts. See [Configuration > Queue priority](configuration.md#queue-priority)
@@ -43,7 +46,7 @@ The server includes a web-based management UI at `/ui/`:
 - Feed page artwork links to the show's website in a new tab, when the feed declares one
 - Episode discovery: all episodes surface on refresh, process any episode from the feed detail page
 - Bulk actions: select multiple episodes to process, reprocess, run a full analysis, re-detect ads on the existing transcript, delete, or set/clear pass-through (the per-episode Recut Audio mode is not a bulk action)
-- Pass-through can also be set or cleared for a single episode from its detail page (in the Reprocess menu). A pass-through episode is served unmodified, with no ad processing; a chip on the episode header and a compact indicator in the episode list show which ones are set. Redundant when the whole feed already runs in pass-through mode, in which case the per-episode control is disabled
+- Pass-through can also be set or cleared for a single episode from its detail page (in the Reprocess menu). A pass-through episode skips transcription and ad removal, and its audio may be transcoded for serving; a chip on the episode header and a compact indicator in the episode list show which ones are set. Redundant when the whole feed already runs in pass-through mode, in which case the per-episode control is disabled
 - Sort by publish date, episode number, or creation date; paginated (25/50/100/500 per page)
 - Pattern management: view and manage cross-episode ad patterns with sponsor names; the detail modal edits a pattern's sponsor, text template, active state, and segment category; includes an Ad Review tab for triaging detections across all podcasts
 - Review decisions are recorded as you make them, then applied together. The Ad Review and Detected Ads pages show an Apply recuts button that recuts each waiting episode once, however many decisions it collected. A feed's own page has the same button for just that feed's episodes
@@ -68,6 +71,26 @@ The server includes a web-based management UI at `/ui/`:
 - Search: start typing on any page, or press `/` or Ctrl+K, to open a keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
 - Installable as Progressive Web App (PWA)
+
+### Dashboard views
+
+The dashboard toolbar has a Podcasts / Episodes switch. Podcasts is the original view, one card or row per show, and it keeps the grid and list layouts and the sort control. Episodes reorganizes the same dashboard around recent work instead: one section per podcast, each with its cover, its title, its total episode count, a "View all episodes" link, and that show's newest episodes underneath.
+
+A "Per podcast" select next to the switch sets how many episodes each section shows, from 1 to 10, defaulting to 3. Both the chosen view and the chosen count are remembered in the browser, so the dashboard opens the way you left it.
+
+Episode rows in this view are the same rows the feed page renders, with the same status badge, hold chip, pass-through indicator, and per-row action button, so nothing is lost by staying on the dashboard. The Recents feed is left out of the grouped view: its episodes belong to the shows they came from, so it would always render empty.
+
+The whole view is filled by one request per page of feeds rather than one request per show, so adding shows does not multiply the round trips. Feeds themselves are paginated; the projection travels with that page.
+
+### Episode actions and job state
+
+Process, Reprocess, Re-detect Ads, and Recut all read their enabled state from the server's authoritative view of whether a job is queued or running, rather than guessing from the episode's stored status. In the UI that means:
+
+- The action button keeps one label per episode. An episode that has been processed before always reads Reprocess, even while it is queued again and its status has reverted to pending. Buttons share a fixed minimum width, so a column of them lines up instead of shifting as labels change.
+- While a run owns the episode, the controls are disabled rather than merely slow. Submitting the same episode twice is not possible from the UI, and the API answers a duplicate submission with the same job state rather than a bare error, so the page reconciles instead of showing a failure.
+- An episode waiting in the run queue shows a purple "queued" badge, not "pending". Pending means the episode is eligible for work; queued means work has actually been scheduled.
+
+Error states are scoped to the action that produced them. A failed correction in the review panel marks only the button that was clicked, so Confirm ad, Confirm trimmed, and Not an ad no longer all read "Error!" when one of them fails. A rejected reprocess shows the server's own message. A failed run shows its reason under the episode title on the history page and in the header on the episode page, with the full text on hover.
 
 ### Feed Display Title
 
@@ -209,6 +232,26 @@ Every processing run records what it actually worked with, and the episode page 
 Two things make this table earn its place. First, feeds with dynamic ad insertion serve a different copy per download: the Downloaded column shows it directly, and a note calls out when the copy differs from the duration the feed declares. Second, when a run removes far less ad time than the feed's recent average, the episode header shows an amber "Low ad yield" badge with the numbers, so a lightly-filled download does not read as a detection failure.
 
 Completed episodes also state the verification result under the header: whether the second scan of the output audio found anything left to cut.
+
+Expanding a run shows its per-phase cost breakdown: one row per pipeline phase with the provider it routed to, the model that answered, input and output tokens, and cost. Cache and reasoning token columns appear only when a run has them. A phase that retried onto a different model contributes more than one row, which is how a fallback becomes visible rather than being averaged away. Detection and verification are listed even when they did not run, labelled Skipped, Not applicable, or Unavailable, so a missing row is never ambiguous. A run recorded before the cost ledger existed, or a recut, shows "Breakdown unavailable" and keeps only its recorded total.
+
+The episode header carries up to three spend readouts: **Active run** while a run is in flight, updated from the ledger as it spends; **Latest run** for the most recent attempt, a failed one included; and **Total spend**, everything this episode has ever cost, which reads "Recorded so far" while processing. When some calls in a figure have no resolved price, the readout says "known spend" and an amber **Incomplete** chip marks it, because the amount is a floor rather than the real total. Setting a price for the model in question (Settings > AI & Processing > AI Models) clears it.
+
+### LLM cost ledger
+
+The Stats page has an **LLM cost ledger** card holding two paginated tables over the same underlying record of every LLM call, including calls made by runs that later failed or were cancelled.
+
+One filter bar drives both tables, plus the summary line above them:
+
+- **From** and **To** dates. These select whole UTC days, inclusive at both ends, so picking the same date twice gives you that entire UTC day. They are UTC days, not local ones, and not a timestamp range.
+- **Podcast**, narrowing to one show.
+- **Provider** and **Model**. Their options come from the ledger itself, scoped by the date and podcast filters already set. The list is complete rather than paginated, so a model that only appears on the fifth page of results is still selectable. Choosing a provider clears the model selection, since the model list belongs to the provider.
+
+Above the tables, a line states what the figures cover: "Lifetime spend (all recorded runs)" with no date filter set, or an interval description naming the bounds when one is. Changing any filter returns both tables to page one.
+
+**Provider and model usage** lists one row per provider and model combination, so a model id served by two providers stays two rows. Each row carries call count, distinct episodes, input and output tokens, cost, and a **Coverage** column. Coverage reads "Fully priced" when every call in the row had a resolvable price, and "3 of 12 unpriced" when some did not, which is the same condition the episode page marks as Incomplete. Expanding a row shows its detail. Every column is sortable, server-side, so sorting spans the whole result rather than the current page.
+
+**Episode costs** lists one row per episode with its podcast, the models used, how many runs it took, the latest run's cost, its cumulative cost, and when it last spent anything. The two cost figures answer different questions and diverge once an episode has been reprocessed: the latest-run figure always describes that episode's actual latest run and is not narrowed by the provider or model filter, while the cumulative figure sums only the runs matching every filter. Each row links to its episode.
 
 ### Screenshots
 

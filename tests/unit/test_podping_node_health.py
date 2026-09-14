@@ -1,5 +1,6 @@
 """Tests for durable per-node Podping health and the all-nodes-down signal."""
 import json
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -13,6 +14,7 @@ from podping_listener import (
     PODPING_NODES,
     DEGRADED_SETTING,
     NODE_HEALTH_SETTING,
+    NODE_SUCCESS_PERSIST_SECONDS,
     get_node_health_summary,
 )
 
@@ -30,9 +32,33 @@ class FakeDb:
         self.setting_writes.append((key, value))
 
 
+class FakeClock:
+    """Controllable UTC clock so backoff deadlines need no real waiting."""
+
+    def __init__(self):
+        self.value = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    def __call__(self):
+        return self.value
+
+    def advance(self, seconds):
+        self.value += timedelta(seconds=seconds)
+
+
 def _health(fake_db, node):
     raw = fake_db.settings.get(NODE_HEALTH_SETTING)
     return json.loads(raw)[node] if raw else None
+
+
+def _health_setting(clock, node, retry_in_seconds, failures=3):
+    """A persisted health blob putting one node inside its backoff window."""
+    retry_at = (clock.value + timedelta(seconds=retry_in_seconds)).isoformat()
+    return {NODE_HEALTH_SETTING: json.dumps({node: {
+        'consecutive_failures': failures,
+        'last_success_at': None,
+        'next_retry_at': retry_at,
+        'last_failure_reason': 'boom',
+    }})}
 
 
 class TestOneNodeFailure:
@@ -121,14 +147,17 @@ class TestStreakResetsOnSuccess:
                 raise value
             return value
 
+        clock = FakeClock()
         listener = PodpingListener(rpc=rpc, db=db, sleep=lambda s: None,
-                                   rand=lambda lo, hi: 0)
+                                   rand=lambda lo, hi: 0, now=clock)
 
         listener._call_rpc('fails', [])
+        clock.advance(60)  # past node 0's backoff deadline
         listener.node_index = 0  # walk back to the node that just failed
         listener._call_rpc('fails', [])
         assert _health(db, PODPING_NODES[0])['consecutive_failures'] == 2
 
+        clock.advance(60)
         listener.node_index = 0
         listener._call_rpc('succeeds', [])
         assert _health(db, PODPING_NODES[0])['consecutive_failures'] == 0
@@ -189,11 +218,13 @@ class TestBackoffGrowsWithJitter:
 class TestDurableStateSurvivesRestart:
     def test_reloading_from_the_same_settings_resumes_the_streak(self):
         db = FakeDb()
+        clock = FakeClock()
         listener1 = PodpingListener(
             rpc=lambda *a, **k: (_ for _ in ()).throw(
                 requests.RequestException('boom')),
-            db=db, sleep=lambda s: None, rand=lambda lo, hi: 0)
+            db=db, sleep=lambda s: None, rand=lambda lo, hi: 0, now=clock)
         listener1._call_rpc('some_method', [])
+        clock.advance(60)  # past node 0's backoff deadline
         listener1.node_index = 0  # walk back to the node that just failed
         listener1._call_rpc('some_method', [])
 
@@ -243,3 +274,103 @@ class TestNodeHealthSummary:
         reason = summary[0]['lastFailureReason']
         assert 'SECRET123' not in reason
         assert '<redacted>' in reason
+
+
+class TestPersistedBackoffIsEnforced:
+    def test_restart_skips_a_node_inside_its_persisted_backoff(self):
+        clock = FakeClock()
+        db = FakeDb(settings=_health_setting(clock, PODPING_NODES[0], 120))
+        listener = PodpingListener(rpc=lambda *a, **k: {'ok': True}, db=db,
+                                   sleep=lambda s: None, rand=lambda lo, hi: 0,
+                                   now=clock)
+
+        assert listener.node_index == 0
+        listener._call_rpc('some_method', [])
+
+        assert listener.node_index == 1
+        assert _health(db, PODPING_NODES[0])['consecutive_failures'] == 3
+
+    def test_node_is_eligible_again_once_its_deadline_passes(self):
+        clock = FakeClock()
+        db = FakeDb(settings=_health_setting(clock, PODPING_NODES[0], 120))
+        listener = PodpingListener(rpc=lambda *a, **k: {'ok': True}, db=db,
+                                   sleep=lambda s: None, rand=lambda lo, hi: 0,
+                                   now=clock)
+
+        clock.advance(121)
+        listener._call_rpc('some_method', [])
+
+        assert listener.node_index == 0
+        assert _health(db, PODPING_NODES[0])['consecutive_failures'] == 0
+
+    def test_selection_prefers_the_eligible_node(self):
+        clock = FakeClock()
+        retry_at = (clock.value + timedelta(seconds=90)).isoformat()
+        db = FakeDb(settings={NODE_HEALTH_SETTING: json.dumps({
+            PODPING_NODES[0]: {'consecutive_failures': 2, 'last_success_at': None,
+                               'next_retry_at': retry_at, 'last_failure_reason': 'boom'},
+            PODPING_NODES[1]: {'consecutive_failures': 1, 'last_success_at': None,
+                               'next_retry_at': retry_at, 'last_failure_reason': 'boom'},
+        })})
+        listener = PodpingListener(rpc=lambda *a, **k: {'ok': True}, db=db,
+                                   sleep=lambda s: None, rand=lambda lo, hi: 0,
+                                   now=clock)
+
+        listener._call_rpc('some_method', [])
+
+        assert listener.node_index == 2
+
+    def test_all_nodes_backed_off_resumes_from_the_earliest_deadline(self):
+        clock = FakeClock()
+        health = {}
+        for offset, node in enumerate(PODPING_NODES):
+            health[node] = {
+                'consecutive_failures': 1,
+                'last_success_at': None,
+                'next_retry_at': (clock.value + timedelta(
+                    seconds=300 - offset * 10)).isoformat(),
+                'last_failure_reason': 'boom',
+            }
+        db = FakeDb(settings={NODE_HEALTH_SETTING: json.dumps(health)})
+        listener = PodpingListener(rpc=lambda *a, **k: {'ok': True}, db=db,
+                                   sleep=lambda s: None, rand=lambda lo, hi: 0,
+                                   now=clock)
+
+        listener._call_rpc('some_method', [])
+
+        assert listener.node_index == len(PODPING_NODES) - 1
+
+
+class TestSuccessPersistCadence:
+    def test_last_success_at_advances_on_the_persist_cadence(self):
+        clock = FakeClock()
+        db = FakeDb()
+        listener = PodpingListener(rpc=lambda *a, **k: {'ok': True}, db=db,
+                                   sleep=lambda s: None, rand=lambda lo, hi: 0,
+                                   now=clock)
+
+        listener._call_rpc('some_method', [])
+        first = get_node_health_summary(db)[0]['lastSuccessAt']
+        assert first
+
+        clock.advance(NODE_SUCCESS_PERSIST_SECONDS // 2)
+        listener._call_rpc('some_method', [])
+        assert get_node_health_summary(db)[0]['lastSuccessAt'] == first
+
+        clock.advance(NODE_SUCCESS_PERSIST_SECONDS)
+        listener._call_rpc('some_method', [])
+        assert get_node_health_summary(db)[0]['lastSuccessAt'] > first
+
+    def test_healthy_calls_do_not_write_health_on_every_rpc(self):
+        clock = FakeClock()
+        db = FakeDb()
+        listener = PodpingListener(rpc=lambda *a, **k: {'ok': True}, db=db,
+                                   sleep=lambda s: None, rand=lambda lo, hi: 0,
+                                   now=clock)
+
+        for _ in range(40):  # 40 ticks at 3s spans two cadence windows
+            listener._call_rpc('some_method', [])
+            clock.advance(3)
+
+        writes = [key for key, _ in db.setting_writes if key == NODE_HEALTH_SETTING]
+        assert len(writes) == 2  # the first success, then one cadence window

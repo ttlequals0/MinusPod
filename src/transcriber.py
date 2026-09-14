@@ -136,32 +136,114 @@ def _gpu_admission_release() -> None:
 _local_transcription_state_lock = threading.Lock()
 _last_local_transcription_outcome: dict | None = None
 
+# Same outcome persisted as JSON in settings, so the worker answering
+# /system/status reports the exhaustion another gunicorn worker recorded.
+# Mirrors the batch-ceiling setting's shape (device identity plus a stamp).
+LOCAL_OUTCOME_SETTING = 'transcribe_last_local_outcome'
+
 
 def _record_local_transcription_outcome(outcome: dict) -> None:
+    """Keep the last local outcome in-process and in cross-worker state."""
     global _last_local_transcription_outcome
+    record = dict(outcome)
+    record['backend'] = WHISPER_BACKEND_LOCAL
+    if not record.get('device'):
+        record['device'] = resolve_whisper_device()
+    record['observed_at'] = utc_now_iso()
     with _local_transcription_state_lock:
-        _last_local_transcription_outcome = outcome
+        _last_local_transcription_outcome = record
+    # Inline import: database imports modules that import transcriber.
+    from database import Database
+    try:
+        Database().set_setting(LOCAL_OUTCOME_SETTING, json.dumps(record))
+    except Exception as e:
+        logger.debug(f"Could not persist local transcription outcome: {e}")
+
+
+def _read_persisted_local_outcome() -> dict | None:
+    """Last local outcome any worker persisted, or None if unreadable."""
+    from database import Database
+    try:
+        raw = Database().get_setting(LOCAL_OUTCOME_SETTING)
+    except Exception as e:
+        logger.debug(f"Could not read local transcription outcome: {e}")
+        return None
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _latest_local_outcome(device: str) -> dict | None:
+    """Newest outcome for `device` across this process and shared state.
+
+    A record from another device (the setting changed since) says nothing
+    about the device now configured, so it is ignored rather than reported.
+    """
+    with _local_transcription_state_lock:
+        in_process = dict(_last_local_transcription_outcome) if _last_local_transcription_outcome else None
+    candidates = [c for c in (in_process, _read_persisted_local_outcome())
+                  if c and c.get('device') == device]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda c: c.get('observed_at') or '')
 
 
 def get_local_transcriber_health() -> dict:
     """Local-backend transcriber health for /system/status.
 
-    The local backend has no separate endpoint to probe (the model runs
-    in-process), so 'available' instead reflects whether the last local
-    transcription attempt on this process actually completed. A GPU-OOM
-    exhaustion (all batch-size retries used up) is surfaced here as
-    available=False rather than only appearing in logs, so it cannot be
-    mistaken for a healthy transcriber quietly failing episode after
-    episode. No attempt yet on this process reads as available (nothing
-    has failed).
+    The local model runs in-process with no endpoint to probe, so 'available'
+    reflects the last transcription outcome (a GPU-OOM exhaustion reads as
+    available=False). The outcome is read from shared state so any worker
+    reports the latest one; no attempt yet reads as available.
     """
-    with _local_transcription_state_lock:
-        outcome = dict(_last_local_transcription_outcome) if _last_local_transcription_outcome else None
+    device = resolve_whisper_device()
+    outcome = _latest_local_outcome(device)
+    last_outcome = None
+    if outcome is not None:
+        last_outcome = {
+            'status': outcome.get('outcome'),
+            'device': outcome.get('device'),
+            'backend': outcome.get('backend'),
+            'observedAt': outcome.get('observed_at'),
+        }
     return {
-        'device': resolve_whisper_device(),
+        'backend': WHISPER_BACKEND_LOCAL,
+        'device': device,
         'available': outcome is None or outcome.get('outcome') != 'failed',
-        'lastOutcome': outcome,
+        'lastOutcome': last_outcome,
     }
+
+
+def get_remote_transcriber_health() -> dict:
+    """API-backend transcriber health for /system/status, from cached probes
+    only: a polled status endpoint must not fire an outbound request per
+    tick. Unconfigured reads as unavailable; never probed reads as available
+    (nothing has failed)."""
+    settings = _get_whisper_settings()
+    base_url = (settings.get('api_base_url') or '').rstrip('/')
+    if not base_url:
+        return {'backend': WHISPER_BACKEND_API, 'available': False, 'probed': False}
+    probe = _health_cache.get(base_url) or _last_good_health(base_url)
+    if probe is None:
+        return {'backend': WHISPER_BACKEND_API, 'available': True, 'probed': False}
+    return {
+        'backend': WHISPER_BACKEND_API,
+        'available': bool(probe.get('available')),
+        'probed': True,
+        'instanceCount': len(probe.get('instances') or []),
+    }
+
+
+def get_transcriber_health() -> dict:
+    """Health of the configured backend. The local reading (last in-process
+    outcome) means nothing when transcription runs on a remote API."""
+    if _get_whisper_settings()['backend'] == WHISPER_BACKEND_API:
+        return get_remote_transcriber_health()
+    return get_local_transcriber_health()
 
 # Whisper artifacts on silence and music. Matched after trailing punctuation
 # is stripped, so a bare phrase or bare punctuation is an artifact.

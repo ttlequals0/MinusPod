@@ -74,6 +74,18 @@ def test_put_rejects_bad_base_url(app_client, temp_db, _auth):
     assert r.status_code == 400
 
 
+def test_put_rejects_userinfo_in_llm_base_url(app_client, temp_db, _auth):
+    # An LLM base URL is echoed back by GET and copied into the run's route
+    # snapshot, so an embedded credential would leak.
+    r = app_client.put(
+        '/api/v1/settings/providers/openai',
+        json={'baseUrl': 'http://user:pass@server:8000/v1'},
+    )
+    assert r.status_code == 400
+    assert 'credentials' in r.get_json()['error']
+    assert temp_db.get_setting('openai_base_url') != 'http://user:pass@server:8000/v1'
+
+
 def test_locked_when_crypto_unavailable(app_client, temp_db, monkeypatch, _auth):
     monkeypatch.delenv('MINUSPOD_MASTER_PASSPHRASE', raising=False)
     secrets_crypto.reset_cache()

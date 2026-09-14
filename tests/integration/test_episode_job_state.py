@@ -82,3 +82,74 @@ def test_list_endpoint_reports_job_state_per_episode(app_client, seeded):
     episodes = {e['episodeId']: e['jobState'] for e in resp.get_json()['episodes']}
     assert episodes['eee000000001'] == 'queued'
     assert episodes['fff000000001'] == 'idle'
+
+
+def _start_run(db, podcast_id, episode_id, run_id):
+    conn = db.get_connection()
+    conn.execute(
+        "INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, state) "
+        "VALUES (?, ?, ?, ?, 'running')",
+        (run_id, podcast_id, episode_id, os.getpid()),
+    )
+    conn.commit()
+
+
+def test_claimed_run_reports_processing_before_the_status_flips(app_client, seeded):
+    """A worker owns the run but has not written status='processing' yet."""
+    slug, ep = seeded['seed']('a11000000001', status='pending', queued=False)
+    _start_run(seeded['db'], seeded['podcast']['id'], ep, 'run-job-state-1')
+    try:
+        _authed(app_client)
+        resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/{ep}')
+        assert resp.get_json()['jobState'] == 'processing'
+
+        listed = app_client.get(f'/api/v1/feeds/{slug}/episodes').get_json()['episodes']
+        states = {e['episodeId']: e['jobState'] for e in listed}
+        assert states[ep] == 'processing'
+    finally:
+        conn = seeded['db'].get_connection()
+        conn.execute("DELETE FROM processing_runs WHERE run_id = 'run-job-state-1'")
+        conn.commit()
+
+
+def test_claimed_queue_row_reports_processing_not_queued(app_client, seeded):
+    slug, ep = seeded['seed']('a22000000001', status='pending', queued=True)
+    db = seeded['db']
+    conn = db.get_connection()
+    conn.execute(
+        "UPDATE auto_process_queue SET status = 'processing' WHERE episode_id = ?", (ep,))
+    conn.commit()
+
+    _authed(app_client)
+    resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/{ep}')
+    assert resp.get_json()['jobState'] == 'processing'
+
+
+def test_has_been_processed_survives_requeue(app_client, seeded):
+    """A completed episode queued again reverts to 'pending'; the Process vs
+    Reprocess label must not flip with it."""
+    db, podcast = seeded['db'], seeded['podcast']
+    slug, ep = seeded['seed']('a33000000001', status='processed', queued=False)
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Job State',
+        episode_id=ep, episode_title=ep, status='completed', ads_detected=1)
+
+    _authed(app_client)
+    assert app_client.get(
+        f'/api/v1/feeds/{slug}/episodes/{ep}').get_json()['hasBeenProcessed'] is True
+
+    db.upsert_episode(slug, ep, status='pending')
+    detail = app_client.get(f'/api/v1/feeds/{slug}/episodes/{ep}').get_json()
+    assert detail['status'] == 'pending'
+    assert detail['hasBeenProcessed'] is True
+
+    listed = app_client.get(f'/api/v1/feeds/{slug}/episodes').get_json()['episodes']
+    flags = {e['episodeId']: e['hasBeenProcessed'] for e in listed}
+    assert flags[ep] is True
+
+
+def test_never_processed_episode_reports_has_been_processed_false(app_client, seeded):
+    slug, ep = seeded['seed']('a44000000001', status='discovered', queued=False)
+    _authed(app_client)
+    assert app_client.get(
+        f'/api/v1/feeds/{slug}/episodes/{ep}').get_json()['hasBeenProcessed'] is False

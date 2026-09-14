@@ -125,3 +125,38 @@ describe('clampEpisodesPerPodcast', () => {
     expect(clampEpisodesPerPodcast(NaN)).toBe(3);
   });
 });
+
+describe('DashboardEpisodeGroups: projection fields', () => {
+  const feed: Feed = {
+    slug: 'show-c', title: 'Show C', sourceUrl: 'https://example.com/c.xml',
+    feedUrl: 'https://example.com/c.xml', episodeCount: 2,
+    latestEpisodes: [
+      episodeSummary({
+        id: 'held', status: 'completed', pendingReviewCount: 2,
+        passthroughEnabled: true, processedAt: '2026-09-02T00:00:00Z', hasBeenProcessed: true,
+      }),
+      episodeSummary({
+        id: 'broken', status: 'failed', error: 'Transcription timed out',
+        hasBeenProcessed: false,
+      }),
+    ],
+  };
+
+  it('keeps the hold, pass-through and failure signals on the card', () => {
+    renderGroups([feed]);
+    expect(screen.getByText('2 held')).toBeTruthy();
+    expect(screen.getByText('Pass-through')).toBeTruthy();
+    expect(screen.getByTitle('Transcription timed out')).toBeTruthy();
+  });
+
+  it('labels the row action from hasBeenProcessed', () => {
+    renderGroups([feed]);
+    expect(screen.getByText('Reprocess')).toBeTruthy();
+    expect(screen.getByText('Process')).toBeTruthy();
+  });
+
+  it('gives the artwork link an accessible name', () => {
+    renderGroups([feed]);
+    expect(screen.getByRole('link', { name: 'Show C cover art' })).toBeTruthy();
+  });
+});

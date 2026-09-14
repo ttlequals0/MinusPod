@@ -28,6 +28,26 @@ IDLE_WAIT_SECONDS = 5.0
 MAINTENANCE_INTERVAL_SECONDS = 300.0
 
 
+def _blocked_slugs(db, held_pairs: set) -> set:
+    """Pending feeds whose required LLM account is currently held, so the
+    dispatcher skips them instead of pausing the whole queue. A feed whose
+    routes cannot be resolved is left eligible; the per-run admission check
+    still refuses it at start if its account turns out to be held.
+    """
+    from main_app.processing import _required_providers_for_admission
+    blocked: set = set()
+    try:
+        pending = db.get_pending_queued_episodes()
+    except Exception as e:
+        refresh_logger.warning(f"Could not list pending episodes for hold gating: {e}")
+        return set()
+    for slug in {row['podcast_slug'] for row in pending}:
+        required = _required_providers_for_admission(slug)
+        if required and held_pairs & set(required):
+            blocked.add(slug)
+    return blocked
+
+
 def _run_tick(tick_fn, name):
     """Run one scheduled tick, logging (never raising) on failure.
 
@@ -372,9 +392,9 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
 def background_queue_processor():
     """Dispatcher: keep up to the pool's max_episodes claimed rows running."""
     from offline_queue import offline_queue_tick
-    from processing_queue import ProcessingQueue
+    from processing_queue import ProcessingQueue, is_processing_paused
     from rate_limit_hold import (
-        get_any_active_hold, probe_rate_limit, rate_limit_hold_tick,
+        active_held_pairs, get_active_hold, probe_rate_limit, rate_limit_hold_tick,
     )
     refresh_logger.info("Auto-process queue processor started")
     registry = ProcessingQueue()
@@ -383,6 +403,7 @@ def background_queue_processor():
     last_maintenance = time.monotonic() - MAINTENANCE_INTERVAL_SECONDS
     backoff = 30  # Initial backoff for a bounced claim
     rate_limit_pause_logged = False
+    processing_pause_logged = False
     while not shutdown_event.is_set():
         # Guard point for issue #566 (see Database.rollback_open_transaction).
         db.clear_leaked_transaction(refresh_logger, 'queue processor')
@@ -417,25 +438,43 @@ def background_queue_processor():
                 if not waiter.is_alive():
                     running.discard(waiter)
 
-            # Rate-limit pause gate (#696): every claim waits for the
-            # provider's reset, then the tick drops the stale marker. Any
-            # active hold pauses the dispatcher as a unit, legacy or
-            # provider-scoped; the per-run admission check in
-            # start_background_processing is what keeps a run on a
-            # different, healthy provider from being blocked by this.
-            hold_until, _ = get_any_active_hold(db)
-            if hold_until:
-                if not rate_limit_pause_logged:
-                    refresh_logger.info(
-                        "Queue paused: LLM provider rate limit; waiting for reset")
-                    rate_limit_pause_logged = True
-                if _run_tick(probe_rate_limit, 'rate_limit_probe'):
-                    rate_limit_pause_logged = False
-                    continue
-                shutdown_event.wait(timeout=30)
-                continue
-            rate_limit_pause_logged = False
+            # Runs every pass, not only while held: the tick reaps expired
+            # markers and fires the resume event, so the last hold to expire
+            # still gets cleaned up (#696).
             _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
+            # A legacy/unscoped hold pauses the whole queue; provider-scoped
+            # holds only defer entries whose required account is held, so
+            # healthy and pass-through work keeps dispatching.
+            legacy_until, _ = get_active_hold(db)
+            held_pairs = active_held_pairs(db)
+            blocked_slugs: set = set()
+            if legacy_until or held_pairs:
+                probed = _run_tick(probe_rate_limit, 'rate_limit_probe')
+                if legacy_until:
+                    if not rate_limit_pause_logged:
+                        refresh_logger.info(
+                            "Queue paused: LLM provider rate limit; waiting for reset")
+                        rate_limit_pause_logged = True
+                    if probed:
+                        rate_limit_pause_logged = False
+                        continue
+                    shutdown_event.wait(timeout=30)
+                    continue
+                held_pairs = active_held_pairs(db)  # re-read: the probe may have cleared one
+                blocked_slugs = _blocked_slugs(db, held_pairs) if held_pairs else set()
+            rate_limit_pause_logged = False
+
+            # Idle-wait while paused instead of claiming and bouncing, which
+            # would ramp the backoff to its 5-minute ceiling and stall resume;
+            # this bounds resume latency to one IDLE_WAIT_SECONDS pass.
+            if is_processing_paused(db):
+                if not processing_pause_logged:
+                    refresh_logger.info(
+                        "New processing paused by operator; queue holds until resumed")
+                    processing_pause_logged = True
+                shutdown_event.wait(timeout=IDLE_WAIT_SECONDS)
+                continue
+            processing_pause_logged = False
 
             # Refreshed every pass (cheap: the settings reader has its own
             # TTL) so an operator raising max_episodes takes effect without
@@ -448,7 +487,7 @@ def background_queue_processor():
             # The registry, not `running`: it also sees runs a Play or
             # Reprocess started on this leader outside the dispatcher.
             while registry.slot_count() < limit and not shutdown_event.is_set():
-                queued = db.claim_next_queued_episode()
+                queued = db.claim_next_queued_episode(exclude_slugs=blocked_slugs)
                 if not queued:
                     break
                 claimed_any = True

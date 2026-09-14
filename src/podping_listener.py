@@ -13,12 +13,12 @@ import re
 
 from database.podcasts import has_upstream
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from urllib.parse import urlparse, urlunparse
 
 import requests
 
-from utils.time import parse_iso_utc, utc_now_iso
+from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.podping')
 
@@ -50,6 +50,10 @@ NODE_BACKOFF_BASE_SECONDS = 5
 NODE_BACKOFF_MAX_SECONDS = 300
 NODE_BACKOFF_JITTER_FRACTION = 0.2
 NODE_BACKOFF_MAX_STEP = 6  # 5 * 2**6 = 320s, already past the 300s cap
+
+# A healthy node succeeds every tick; persist its last-success time no more
+# often than this so the status API stays current without writing per RPC.
+NODE_SUCCESS_PERSIST_SECONDS = 60
 
 _QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
 
@@ -255,7 +259,8 @@ class PodpingListener:
     injectable so tests never touch the network or a real clock sleep.
     """
 
-    def __init__(self, rpc=None, db=None, refresh=None, sleep=None, rand=None):
+    def __init__(self, rpc=None, db=None, refresh=None, sleep=None, rand=None,
+                 now=None):
         self.rpc = rpc or self._default_rpc
         self.db = db
         self.refresh = refresh
@@ -263,6 +268,8 @@ class PodpingListener:
         # Injectable so backoff-jitter tests can assert exact values instead
         # of a range; defaults to real jitter in production.
         self.rand = rand or random.uniform
+        # Injectable clock so backoff-deadline tests need no real sleeping.
+        self.now = now or utc_now
 
         self.node_index = 0
         self._backoff_step = 0
@@ -272,6 +279,8 @@ class PodpingListener:
         # Durable per-node health, loaded once at start so a restart resumes
         # each node's failure streak instead of re-escalating from zero.
         self._node_health = self._load_node_health()
+        # Node -> time its last success was written, for the persist cadence.
+        self._success_persisted_at = {}
 
         self.feed_map = {}
         self.feed_rules = {}
@@ -352,25 +361,30 @@ class PodpingListener:
         entry['consecutive_failures'] = entry.get('consecutive_failures', 0) + 1
         entry['last_failure_reason'] = _sanitize_failure_reason(message)
         node_step = min(entry['consecutive_failures'] - 1, NODE_BACKOFF_MAX_STEP)
-        retry_at = datetime.now(timezone.utc) + timedelta(
+        retry_at = self.now() + timedelta(
             seconds=self._backoff_seconds(node_step))
         entry['next_retry_at'] = retry_at.isoformat()
         self._persist_node_health()
 
     def _record_node_success(self, node):
-        """Update in-memory health every time, but persist only on a real
-        transition (first record, or recovery from failures); a healthy node
-        succeeds every tick and would otherwise write the setting that often."""
+        """Update in-memory health every time; persist on a transition (first
+        record, or recovery) and otherwise at most once per cadence window, so
+        the status API's last-success time advances without a write per RPC."""
         entry = self._node_health.get(node)
         is_transition = entry is None or bool(entry.get('consecutive_failures'))
         if entry is None:
             entry = _new_node_health_entry()
             self._node_health[node] = entry
+        now = self.now()
         entry['consecutive_failures'] = 0
-        entry['last_success_at'] = utc_now_iso()
+        entry['last_success_at'] = now.strftime(ISO_FORMAT)
         entry['next_retry_at'] = None
-        if is_transition:
+        written_at = self._success_persisted_at.get(node)
+        due = (written_at is None
+               or (now - written_at).total_seconds() >= NODE_SUCCESS_PERSIST_SECONDS)
+        if is_transition or due:
             self._persist_node_health()
+            self._success_persisted_at[node] = now
 
     def _log_outage_recovery(self, node):
         """Correlate a recovery with how long every node was down, so an
@@ -384,7 +398,7 @@ class PodpingListener:
                 since_raw = None
             since_dt = parse_iso_utc(since_raw) if since_raw else None
             if since_dt is not None:
-                duration_s = (datetime.now(timezone.utc) - since_dt).total_seconds()
+                duration_s = (self.now() - since_dt).total_seconds()
         logger.info(
             "Podping recovered via %s after all nodes were unavailable "
             "(outage_duration_s=%s); missed pings are not redelivered, "
@@ -421,10 +435,34 @@ class PodpingListener:
         self._backoff_step = min(self._backoff_step + 1, NODE_BACKOFF_MAX_STEP)
         self.sleep(self._backoff_seconds(step))
 
+    def _node_retry_at(self, node):
+        """Persisted backoff deadline for a node, or None when it has none."""
+        entry = self._node_health.get(node) or {}
+        return parse_iso_utc(entry.get('next_retry_at'))
+
+    def _select_node(self) -> int:
+        """Index of the node to call next: the first from the current position
+        whose persisted backoff deadline has passed, else the one due soonest.
+        Reading the stored deadline is what keeps backoff across a restart,
+        where the in-memory rotation starts over at node 0."""
+        now = self.now()
+        soonest_index = self.node_index
+        soonest_at = None
+        for offset in range(len(PODPING_NODES)):
+            index = (self.node_index + offset) % len(PODPING_NODES)
+            retry_at = self._node_retry_at(PODPING_NODES[index])
+            if retry_at is None or retry_at <= now:
+                return index
+            if soonest_at is None or retry_at < soonest_at:
+                soonest_at = retry_at
+                soonest_index = index
+        return soonest_index
+
     def _call_rpc(self, method, params, expected_type=dict):
         """Call self.rpc, validating the response shape. Any exception,
         timeout, or shape mismatch is treated as a node failure (logged,
         node rotated, backoff applied) and returns None."""
+        self.node_index = self._select_node()
         node = PODPING_NODES[self.node_index]
         try:
             result = self.rpc(method, params)

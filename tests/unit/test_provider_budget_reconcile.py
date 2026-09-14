@@ -170,7 +170,7 @@ def _admissions_for(provider_keys, deny=None):
     return admissions
 
 
-def _run_pipeline(required_providers, admissions, spends=None):
+def _run_pipeline(required_providers, admissions, spends=None, incomplete_spend=False):
     """Drives process_episode through a full non-skip-detection run with
     every ad-detection/verification stage stubbed to a no-op, isolating the
     provider-reservation lifecycle at Stage 3 and finalize. Mirrors
@@ -220,6 +220,7 @@ def _run_pipeline(required_providers, admissions, spends=None):
         db.get_all_settings.return_value = {}
         db.reserve_provider_spend.side_effect = (
             lambda provider_key, cost, run_id=None: admissions[provider_key])
+        db.run_provider_spend_is_incomplete.return_value = incomplete_spend
         if spends is not None:
             db.get_run_provider_spend.side_effect = (
                 lambda run_id, provider_key: spends[provider_key])
@@ -268,6 +269,19 @@ class TestProviderScopedReservations:
         assert db.reserve_provider_spend.call_count == 1
         assert db.reserve_provider_spend.call_args.args[0] == 'anthropic'
         db.reconcile_provider_spend.assert_called_once_with('resv-anthropic', 750_000)
+
+    def test_incomplete_cost_reconciles_conservatively_at_the_estimate(self):
+        # A run with an unknown-cost call must not settle on the known-only
+        # subtotal; reconcile with None keeps the reservation estimate.
+        required = [('anthropic', 'primary')]
+        admissions = _admissions_for(['anthropic'])
+        spends = {'anthropic': 750_000}
+
+        outcome = _run_pipeline(required, admissions, spends, incomplete_spend=True)
+        db = outcome['db']
+
+        assert outcome['result'] is True
+        db.reconcile_provider_spend.assert_called_once_with('resv-anthropic', None)
 
     def test_second_provider_denial_releases_the_first_reservation(self):
         # anthropic admits, openrouter's budget is exhausted: the whole run

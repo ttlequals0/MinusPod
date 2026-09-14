@@ -230,11 +230,18 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
       <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(234,179,8,.2);color:var(--c-yellow)">processing</span>
       <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success))">completed</span>
       <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:hsl(var(--destructive) / 0.2);color:hsl(var(--destructive))">failed</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(168,85,247,.2);color:var(--c-purple)">queued</span>
       <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(168,85,247,.2);color:var(--c-purple)">queued (offline)</span>
     </div>
+    <div style="font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty"><strong style="color:hsl(var(--foreground))">queued is purple on purpose.</strong> It is not a terminal state, so it must not borrow completed&rsquo;s green: an episode waiting its turn and an episode that finished have to be distinguishable at a glance in a long list. It shares the offline hue because both mean waiting, and it overrides the displayed status while a job is in the run queue. <span style="font-family:ui-monospace,monospace;font-size:12px">pending</span> means eligible for work; <span style="font-family:ui-monospace,monospace;font-size:12px">queued</span> means work is scheduled.</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
       <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(20,184,166,.15);color:var(--c-teal)">community v3 &middot; a1b2c3</span>
       <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:rgba(245,158,11,.2);color:hsl(var(--warning))">Experimental</span>
+      <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:rgba(245,158,11,.2);color:hsl(var(--warning))">Incomplete</span>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">&larr; cost coverage reuses the warning badge, no new hue</span>
+    </div>
+    <div style="font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty"><strong style="color:hsl(var(--foreground))">Unknown cost.</strong> A spend figure whose calls were not all priced is a floor, not a total. Mark it with the existing warning badge and prefix the amount with &ldquo;known spend&rdquo;; the title attribute carries the why. Never style it as an error: nothing failed. In a table the same condition is a plain text column instead (&ldquo;Fully priced&rdquo; / &ldquo;3 of 12 unpriced&rdquo;), because a badge per row would be noise.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
       <span style="font-size:12px;color:hsl(var(--warning))">Refresh failing</span>
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">&larr; inline warnings are plain text-warning, no fill</span>
     </div>

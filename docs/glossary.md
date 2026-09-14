@@ -124,9 +124,9 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Partial detection** - An episode published from pattern and cross-fetch cuts alone after the AI detection pass failed. Shows an amber badge and a Re-run detection banner on the episode page; one automatic low-priority re-detect is also queued. [How It Works > Partial Detection](how-it-works.md#partial-detection)
 
-**Pass-through** - One of the five presets on the per-feed Processing mode select. It turns processing off entirely: episodes are downloaded and served exactly as published, and the feed URL stays the same so switching to another mode resumes processing later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
+**Pass-through** - One of the five presets on the per-feed Processing mode select. It turns processing off entirely: episodes are downloaded and relayed with no transcription or ad removal, though the audio may be transcoded for serving. The feed URL stays the same, so switching to another mode resumes processing later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
 
-**Pass-through, per-episode** - A flag on a single episode that runs pass-through for that episode alone, even when its feed is in a different processing mode. Useful for one episode a host serves through dynamic ad insertion that should stay untouched without opting the whole feed out of ad removal.
+**Pass-through, per-episode** - A flag on a single episode that runs pass-through for that episode alone, even when its feed is in a different processing mode. Useful for one episode a host serves through dynamic ad insertion that should skip ad removal without opting the whole feed out of it.
 
 **Pattern** - Anything MinusPod has learned from confirmed ads and reapplies to new episodes: text patterns from transcripts and audio fingerprints. Patterns catch repeat ads without spending LLM tokens. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 

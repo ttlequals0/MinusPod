@@ -203,7 +203,8 @@ class SchemaMixin:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_model ON llm_call_usage(provider_key, configured_model)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_created ON llm_call_usage(created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_state ON llm_call_usage(state)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_slot_created ON llm_call_usage(provider_key, credential_slot, created_at DESC)")
+        # The provider/credential_slot index is created in _run_schema_migrations,
+        # after the ALTER that adds credential_slot to pre-existing tables.
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_addressing_log_episode "
             "ON addressing_log(episode_id)"
@@ -569,12 +570,13 @@ class SchemaMixin:
         # credential_slot: per-account rate accounting; NULL on historical
         # rows reads as 'primary'.
         llm_usage_cols = self._get_table_columns(conn, 'llm_call_usage')
-        self._add_column_if_missing(
+        slot_added = self._add_column_if_missing(
             conn, 'llm_call_usage', 'credential_slot', 'TEXT', llm_usage_cols)
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_slot_created "
-            "ON llm_call_usage(provider_key, credential_slot, created_at DESC)"
-        )
+        if slot_added or 'credential_slot' in llm_usage_cols:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_slot_created "
+                "ON llm_call_usage(provider_key, credential_slot, created_at DESC)"
+            )
         conn.commit()
         marker = 'scope_pattern_corrections_podcast_once'
         if (self._table_exists(conn, 'episodes')

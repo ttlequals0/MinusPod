@@ -7,6 +7,8 @@ state (token totals, run log) is looked up by thread, not by process.
 import copy
 import threading
 
+from utils.url import url_has_userinfo
+
 _lock = threading.Lock()
 _by_thread: dict[int, 'RunContext'] = {}
 
@@ -75,10 +77,16 @@ class RunContext:
         self._thinking_notice_lock = threading.Lock()
 
     def set_route_snapshot(self, snapshot: dict) -> None:
-        """Store the non-secret per-phase route for this run. Rejects credential keys."""
+        """Store the non-secret per-phase route for this run. Rejects credential
+        keys and any base_url that embeds userinfo credentials."""
         for phase in snapshot.values():
-            if isinstance(phase, dict) and _FORBIDDEN_ROUTE_KEYS & {k.lower() for k in phase}:
+            if not isinstance(phase, dict):
+                continue
+            if _FORBIDDEN_ROUTE_KEYS & {k.lower() for k in phase}:
                 raise ValueError("route snapshot must not contain credentials")
+            base_url = phase.get('base_url')
+            if url_has_userinfo(base_url):
+                raise ValueError("route snapshot base_url must not embed credentials")
         self.route_snapshot = copy.deepcopy(snapshot)
 
     def add_thinking_notice(self, run_id: str, notice: dict) -> bool:

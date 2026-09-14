@@ -2,10 +2,12 @@
 import json
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from config import normalize_model_key
 from utils.app_version import APP_VERSION as __version__
+from utils.time import parse_iso_utc
 
 logger = logging.getLogger(__name__)
 
@@ -50,19 +52,49 @@ _LEDGER_BILLABLE_SQL = (
 )
 
 
+def _utc_day_start(value: str) -> str | None:
+    """Start-of-UTC-day ISO (YYYY-MM-DDT00:00:00Z) for a date or datetime
+    string, or None if it cannot be parsed. Ledger timestamps are UTC, so a
+    day-granular Stats filter is compared on whole UTC days."""
+    if not value:
+        return None
+    text = value.strip()
+    dt = parse_iso_utc(text)
+    if dt is None:
+        try:
+            dt = datetime.strptime(text[:10], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return dt.astimezone(timezone.utc).strftime('%Y-%m-%dT00:00:00Z')
+
+
 def _build_ledger_filters(from_date=None, to_date=None, podcast_slug=None,
                           provider=None, model=None) -> tuple[str, list]:
     """WHERE-clause fragment (leading ' AND ...') and params for the
     model-usage/episode-cost list queries. Shared so both endpoints filter
-    identically on created_at range, podcast, provider, and model."""
+    identically on created_at range, podcast, provider, and model.
+
+    Dates are treated as whole UTC days with a half-open range
+    (created_at >= day-start AND created_at < next-day-start), so the final
+    second of the selected day is included regardless of whether the caller
+    sends a bare date, a whole-second, or a fractional-second timestamp
+    (textual comparison otherwise dropped 'T23:59:59Z' under 'T23:59:59.999Z')."""
     clauses = []
     params: list = []
     if from_date:
+        start = _utc_day_start(from_date)
         clauses.append("created_at >= ?")
-        params.append(from_date)
+        params.append(start if start is not None else from_date)
     if to_date:
-        clauses.append("created_at <= ?")
-        params.append(to_date)
+        start = _utc_day_start(to_date)
+        if start is not None:
+            next_day = (datetime.strptime(start, '%Y-%m-%dT00:00:00Z')
+                        + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00Z')
+            clauses.append("created_at < ?")
+            params.append(next_day)
+        else:
+            clauses.append("created_at <= ?")
+            params.append(to_date)
     if podcast_slug:
         clauses.append("podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)")
         params.append(podcast_slug)
@@ -75,6 +107,27 @@ def _build_ledger_filters(from_date=None, to_date=None, podcast_slug=None,
     if not clauses:
         return "", params
     return " AND " + " AND ".join(clauses), params
+
+
+def _sum_billable_rows(rows) -> tuple[int, int, Decimal, bool]:
+    """(input tokens, output tokens, known-cost sum, has_unknown_cost) over
+    the billable rows of a finalized-ledger result set."""
+    total_input = 0
+    total_output = 0
+    total_cost = Decimal('0')
+    has_unknown_cost = False
+    for row in rows:
+        cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
+        if not _ledger_row_is_billable(
+                row['state'], row['input_tokens'], row['output_tokens'], cost):
+            continue
+        total_input += row['input_tokens'] or 0
+        total_output += row['output_tokens'] or 0
+        if row['cost_usd'] is not None:
+            total_cost += Decimal(row['cost_usd'])
+        else:
+            has_unknown_cost = True
+    return total_input, total_output, total_cost, has_unknown_cost
 
 
 class StatsMixin:
@@ -481,6 +534,9 @@ class StatsMixin:
             cost = float(cost_dec)
         elif tokens_known:
             resolved = self._resolve_model_rate(conn, configured_model)
+            # An endpoint alias may resolve to a differently-named priced model.
+            if resolved is None and returned_model and returned_model != configured_model:
+                resolved = self._resolve_model_rate(conn, returned_model)
             if resolved is not None:
                 input_per_mtok, output_per_mtok, revision = resolved
                 if input_per_mtok == 0 and output_per_mtok == 0:
@@ -501,18 +557,30 @@ class StatsMixin:
                 cost_usd = str(cost_dec)
                 cost = float(cost_dec)
 
-        conn.execute(
+        # Guard on finalized_at IS NULL so a duplicate finalize is a no-op:
+        # counters must not double-count when an attempt is finalized twice
+        # (recovery, retry). A repeat returns the already-recorded cost.
+        cursor = conn.execute(
             """UPDATE llm_call_usage SET
                    finalized_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
                    state = ?, returned_model = ?, input_tokens = ?,
                    output_tokens = ?, cache_read_tokens = ?,
                    cache_write_tokens = ?, reasoning_tokens = ?, cost_usd = ?,
                    cost_source = ?, rate_snapshot = ?, pricing_revision = ?
-               WHERE attempt_id = ?""",
+               WHERE attempt_id = ? AND finalized_at IS NULL""",
             (state, returned_model, input_tokens, output_tokens,
              cache_read_tokens, cache_write_tokens, reasoning_tokens,
              cost_usd, cost_source, rate_snapshot, pricing_revision, attempt_id)
         )
+        if cursor.rowcount == 0:
+            conn.commit()
+            existing = conn.execute(
+                "SELECT cost_usd FROM llm_call_usage WHERE attempt_id = ?",
+                (attempt_id,)
+            ).fetchone()
+            if existing is not None and existing['cost_usd'] is not None:
+                return float(existing['cost_usd'])
+            return 0.0
 
         counter_input = input_tokens or 0
         counter_output = output_tokens or 0
@@ -522,6 +590,33 @@ class StatsMixin:
 
         conn.commit()
         return cost
+
+    def finalize_llm_attempt_from_response(self, attempt_id: str, state: str,
+                                           response) -> float:
+        """finalize_llm_attempt fed from a provider response object.
+
+        Guards every field a client may leave unset or set to the wrong type,
+        so the dispatch path and the rate-limit probe extract usage, returned
+        model, and provider-reported cost identically. Returns the cost.
+        """
+        usage = getattr(response, 'usage', None)
+        if not isinstance(usage, dict):
+            usage = {}
+        returned_model = getattr(response, 'returned_model', None)
+        if not isinstance(returned_model, str):
+            returned_model = None
+        provider_cost = getattr(response, 'provider_reported_cost_usd', None)
+        if isinstance(provider_cost, bool) or not isinstance(provider_cost, (int, float)):
+            provider_cost = None
+        return self.finalize_llm_attempt(
+            attempt_id, state=state, returned_model=returned_model,
+            input_tokens=usage.get('input_tokens'),
+            output_tokens=usage.get('output_tokens'),
+            cache_read_tokens=usage.get('cache_read_tokens'),
+            cache_write_tokens=usage.get('cache_write_tokens'),
+            reasoning_tokens=usage.get('reasoning_tokens'),
+            provider_reported_cost_usd=provider_cost,
+        )
 
     def get_run_usage_totals(self, run_id: str) -> dict:
         """Sum one run's finalized billable ledger rows.
@@ -538,23 +633,38 @@ class StatsMixin:
                WHERE run_id IS ? AND finalized_at IS NOT NULL""",
             (run_id,)
         ).fetchall()
-        total_input = 0
-        total_output = 0
-        total_cost = Decimal('0')
-        for row in rows:
-            cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
-            if not _ledger_row_is_billable(
-                    row['state'], row['input_tokens'], row['output_tokens'], cost):
-                continue
-            total_input += row['input_tokens'] or 0
-            total_output += row['output_tokens'] or 0
-            if row['cost_usd'] is not None:
-                total_cost += Decimal(row['cost_usd'])
+        total_input, total_output, total_cost, has_unknown_cost = _sum_billable_rows(rows)
         return {
             'input_tokens': total_input,
             'output_tokens': total_output,
             'cost_usd': str(total_cost),
+            'has_unknown_cost': has_unknown_cost,
         }
+
+    def get_episode_run_usage_totals(self, podcast_id: int, episode_id: str) -> dict:
+        """get_run_usage_totals for every run of one episode, keyed by run_id,
+        in a single scan so a page rendering N runs does not issue N queries.
+        Runs with no billable rows are still present with zeroed totals."""
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT run_id, state, input_tokens, output_tokens, cost_usd
+               FROM llm_call_usage
+               WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL""",
+            (podcast_id, episode_id)
+        ).fetchall()
+        by_run: dict = {}
+        for row in rows:
+            by_run.setdefault(row['run_id'], []).append(row)
+        totals = {}
+        for run_id, run_rows in by_run.items():
+            total_input, total_output, total_cost, has_unknown = _sum_billable_rows(run_rows)
+            totals[run_id] = {
+                'input_tokens': total_input,
+                'output_tokens': total_output,
+                'cost_usd': str(total_cost),
+                'has_unknown_cost': has_unknown,
+            }
+        return totals
 
     def get_run_provider_spend(self, run_id: str, provider_key: str) -> int:
         """MicroUSD spend of one run's finalized billable ledger rows for one
@@ -578,6 +688,42 @@ class StatsMixin:
             if row['cost_usd'] is not None:
                 total_cost += Decimal(row['cost_usd'])
         return round(total_cost * 1_000_000)
+
+    def get_ledger_filter_options(self, *, from_date: str = None, to_date: str = None,
+                                  podcast_slug: str = None) -> list[dict]:
+        """Distinct (provider, model) pairs in the billable ledger for the
+        Stats filter dropdowns, ordered by provider then model, dropping rows
+        with a null provider or model. Same finalized/billable/date scope as
+        the list endpoints so a value past the first list page stays
+        selectable."""
+        conn = self.get_connection()
+        filter_sql, filter_params = _build_ledger_filters(
+            from_date, to_date, podcast_slug)
+        rows = conn.execute(
+            f"""SELECT DISTINCT provider_key, configured_model
+                FROM llm_call_usage
+                WHERE finalized_at IS NOT NULL AND {_LEDGER_BILLABLE_SQL}{filter_sql}
+                ORDER BY provider_key, configured_model""",  # noqa: S608
+            filter_params
+        ).fetchall()
+        return [{'provider': r['provider_key'], 'model': r['configured_model']}
+                for r in rows if r['provider_key'] and r['configured_model']]
+
+    def run_provider_spend_is_incomplete(self, run_id: str, provider_key: str) -> bool:
+        """True when this run has a billable call for the provider whose cost
+        is unknown (cost_usd IS NULL). Budget reconcile keeps a conservative
+        reservation in that case instead of settling on a known-only subtotal
+        that understates spend. Same billable predicate as
+        get_run_provider_spend, so an all-zero row never counts as missing."""
+        conn = self.get_connection()
+        row = conn.execute(
+            f"""SELECT 1 FROM llm_call_usage
+                WHERE run_id IS ? AND provider_key = ? AND finalized_at IS NOT NULL
+                  AND {_LEDGER_BILLABLE_SQL} AND cost_usd IS NULL
+                LIMIT 1""",  # noqa: S608
+            (run_id, provider_key)
+        ).fetchone()
+        return row is not None
 
     def get_episode_phase_usage(self, podcast_id: int, episode_id: str) -> dict:
         """Per-run phase/provider/model usage breakdown from the ledger.
@@ -673,21 +819,7 @@ class StatsMixin:
                WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL""",
             (podcast_id, episode_id)
         ).fetchall()
-        total_input = 0
-        total_output = 0
-        total_cost = Decimal('0')
-        has_unknown_cost = False
-        for row in rows:
-            cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
-            if not _ledger_row_is_billable(
-                    row['state'], row['input_tokens'], row['output_tokens'], cost):
-                continue
-            total_input += row['input_tokens'] or 0
-            total_output += row['output_tokens'] or 0
-            if row['cost_usd'] is not None:
-                total_cost += Decimal(row['cost_usd'])
-            else:
-                has_unknown_cost = True
+        total_input, total_output, total_cost, has_unknown_cost = _sum_billable_rows(rows)
         return {
             'inputTokens': total_input,
             'outputTokens': total_output,
@@ -835,7 +967,8 @@ class StatsMixin:
             ),
             episode_models AS (
                 SELECT podcast_id, episode_id,
-                       GROUP_CONCAT(DISTINCT configured_model) AS models_used
+                       GROUP_CONCAT(DISTINCT configured_model) AS models_used,
+                       SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_cost_count
                 FROM llm_call_usage
                 WHERE {where_sql}
                 GROUP BY podcast_id, episode_id
@@ -848,11 +981,29 @@ class StatsMixin:
                 FROM run_costs
                 GROUP BY podcast_id, episode_id
             ),
+            episode_top_model AS (
+                SELECT podcast_id, episode_id, configured_model AS top_model FROM (
+                    SELECT podcast_id, episode_id, configured_model,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY podcast_id, episode_id
+                               ORDER BY model_cost DESC, configured_model ASC
+                           ) AS rn
+                    FROM (
+                        SELECT podcast_id, episode_id, configured_model,
+                               SUM(CASE WHEN cost_usd IS NOT NULL
+                                        THEN CAST(cost_usd AS REAL) ELSE 0 END) AS model_cost
+                        FROM llm_call_usage
+                        WHERE {where_sql}
+                        GROUP BY podcast_id, episode_id, configured_model
+                    )
+                ) WHERE rn = 1
+            ),
             latest_run_source AS (
                 SELECT
                     podcast_id, episode_id, run_id,
                     SUM(CASE WHEN cost_usd IS NOT NULL
                              THEN CAST(cost_usd AS REAL) ELSE 0 END) AS run_cost_usd,
+                    SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS run_unknown_count,
                     MAX(COALESCE(finalized_at, created_at)) AS run_activity_at
                 FROM llm_call_usage
                 WHERE {latest_where_sql}
@@ -860,9 +1011,11 @@ class StatsMixin:
             ),
             latest_run AS (
                 SELECT podcast_id, episode_id, run_cost_usd AS latest_run_cost_usd,
+                       run_unknown_count AS latest_run_unknown_count,
                        run_activity_at AS last_activity_at
                 FROM (
-                    SELECT podcast_id, episode_id, run_cost_usd, run_activity_at,
+                    SELECT podcast_id, episode_id, run_cost_usd, run_unknown_count,
+                           run_activity_at,
                            ROW_NUMBER() OVER (
                                PARTITION BY podcast_id, episode_id
                                ORDER BY run_activity_at DESC, run_id DESC
@@ -877,8 +1030,11 @@ class StatsMixin:
                 ea.episode_id AS episode_id,
                 e.title AS episode_title,
                 em.models_used AS models_used,
+                em.unknown_cost_count AS unknown_cost_count,
+                etm.top_model AS top_model,
                 ea.run_count AS run_count,
                 lr.latest_run_cost_usd AS latest_run_cost_usd,
+                lr.latest_run_unknown_count AS latest_run_unknown_count,
                 ea.cumulative_cost_usd AS cumulative_cost_usd,
                 lr.last_activity_at AS last_activity_at
             FROM episode_agg ea
@@ -886,15 +1042,16 @@ class StatsMixin:
             LEFT JOIN episodes e ON e.podcast_id = ea.podcast_id AND e.episode_id = ea.episode_id
             JOIN latest_run lr ON lr.podcast_id = ea.podcast_id AND lr.episode_id = ea.episode_id
             JOIN episode_models em ON em.podcast_id = ea.podcast_id AND em.episode_id = ea.episode_id
+            JOIN episode_top_model etm ON etm.podcast_id = ea.podcast_id AND etm.episode_id = ea.episode_id
             ORDER BY {sort_col} {sort_dir_sql}
             LIMIT ? OFFSET ?
         """  # noqa: S608
-        # where_sql is inlined twice above (run_costs, episode_models), and
-        # latest_where_sql once (latest_run_source); each repeat needs its
-        # own copy of that clause's params, in the order they appear.
+        # where_sql is inlined three times above (run_costs, episode_models,
+        # episode_top_model) and latest_where_sql once (latest_run_source);
+        # each repeat needs its own copy of that clause's params, in order.
         rows = conn.execute(
             items_sql,
-            filter_params + filter_params + latest_filter_params + [limit, offset]
+            filter_params + filter_params + filter_params + latest_filter_params + [limit, offset]
         ).fetchall()
 
         items = [{
@@ -903,9 +1060,13 @@ class StatsMixin:
             'episodeId': row['episode_id'],
             'episodeTitle': row['episode_title'],
             'modelsUsed': row['models_used'].split(',') if row['models_used'] else [],
+            'topModel': row['top_model'] or '',
             'runCount': row['run_count'],
             'latestRunCostUsd': str(Decimal(str(round(row['latest_run_cost_usd'] or 0, 6)))),
+            'latestRunUnknownCount': row['latest_run_unknown_count'] or 0,
             'cumulativeCostUsd': str(Decimal(str(round(row['cumulative_cost_usd'] or 0, 6)))),
+            'unknownCostCount': row['unknown_cost_count'] or 0,
+            'hasUnknownCost': (row['unknown_cost_count'] or 0) > 0,
             'lastActivityAt': row['last_activity_at'],
         } for row in rows]
         return items, total

@@ -280,3 +280,52 @@ def test_graceful_shutdown_stops_admission_and_drains(monkeypatch):
     terminate_all.assert_called_once_with(timeout=5.0)
     main_app.shutdown_event.clear()
     main_app._shutdown_started = False
+
+
+def test_claim_excludes_slugs_whose_account_is_held(feed):
+    """A held feed's queued rows are skipped so the dispatcher claims eligible
+    work from another feed instead of stalling on the held head (#F03)."""
+    db.create_podcast('healthy-feed', 'https://example.com/healthy.xml', title='Healthy')
+    try:
+        _queue(2)  # SLUG episodes (the "held" feed)
+        db.upsert_episode('healthy-feed', 'h0', title='H0', original_url='https://example.com/h.mp3')
+        db.upsert_episode_for_processing('healthy-feed', 'h0', 'https://example.com/h.mp3', title='H0')
+
+        claimed = db.claim_next_queued_episode(exclude_slugs={SLUG})
+        assert claimed is not None
+        assert claimed['podcast_slug'] == 'healthy-feed'
+
+        # With the healthy feed also excluded, nothing eligible remains.
+        assert db.claim_next_queued_episode(exclude_slugs={SLUG, 'healthy-feed'}) is None
+    finally:
+        db.get_connection().execute("DELETE FROM auto_process_queue")
+        db.get_connection().commit()
+        db.delete_podcast('healthy-feed')
+
+
+def test_paused_dispatcher_holds_without_claiming(feed, monkeypatch):
+    """While new-work is paused the dispatcher must idle-wait, not claim and
+    bounce (which would ramp the backoff and delay resume)."""
+    set_processing_paused(True, db)
+    _queue(2)
+    try:
+        peak = _run_dispatcher(monkeypatch, lambda: _pool(False, 1), timeout=1)
+        assert peak == 0
+        assert db.count_pending_queued_episodes() == 2
+    finally:
+        set_processing_paused(False, db)
+
+
+def test_resume_lets_the_dispatcher_claim_promptly(feed, monkeypatch):
+    """After resume the dispatcher claims on its next short idle pass, not
+    after a ramped bounce backoff."""
+    set_processing_paused(True, db)
+    _queue(1)
+    resumer = threading.Timer(0.2, lambda: set_processing_paused(False, db))
+    resumer.start()
+    try:
+        _run_dispatcher(monkeypatch, lambda: _pool(False, 1), timeout=3)
+        assert db.count_pending_queued_episodes() == 0
+    finally:
+        resumer.cancel()
+        set_processing_paused(False, db)

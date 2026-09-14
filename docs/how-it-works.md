@@ -259,7 +259,7 @@ The mode is experimental: spot-check the first few episodes after enabling it.
 
 For shows that run no ads, detection is wasted LLM spend. Setting the per-feed **Processing mode** to Skip ad detection (Feed page > Feed Settings) keeps transcription, transcripts, and chapters but skips every detection stage: no first-pass detection, no verification pass, no audio-cue analysis, no cross-fetch second download. Nothing is cut, so the served audio matches the original. Chapters still make their own LLM call.
 
-This differs from the Pass-through option on the same select, which serves episodes untouched and skips processing entirely: no transcript, no chapters.
+This differs from the Pass-through option on the same select, which skips processing entirely: no transcription or ad removal, so no transcript and no chapters. Pass-through still serves through MinusPod, and audio may be transcoded for serving (see [Configuration > Pass-through mode](configuration.md#pass-through-mode)).
 
 ### Cue-Only Mode
 

@@ -129,7 +129,7 @@ class TestSetEpisodesPassthroughEndpoint:
         )}
         assert queued_ids == {EP1, EP2}
 
-    def test_enable_skips_actively_processing_episode(self, app_client, subscribed_feed):
+    def test_enable_rejects_actively_processing_episode(self, app_client, subscribed_feed):
         slug = subscribed_feed['slug']
         db = subscribed_feed['db']
         _seed_episode(db, slug, EP_ACTIVE, status='processing')
@@ -143,11 +143,76 @@ class TestSetEpisodesPassthroughEndpoint:
 
         assert response.status_code == 200
         body = response.get_json()
-        # Flag still set (it takes effect on the next run), but nothing enqueued.
-        assert body['updated'] == 1
+        # The run that owns the episode already resolved its mode, so the flag
+        # is not written either: it would claim a pass-through that never ran.
+        assert body['updated'] == 0
         assert body['queued'] == 0
-        assert db.get_episode(slug, EP_ACTIVE)['passthrough_enabled'] == 1
-        assert db.get_episode(slug, EP_ACTIVE)['status'] == 'processing'
+        assert body['accepted'] == []
+        assert body['rejected'] == [{'episodeId': EP_ACTIVE, 'reason': 'processing'}]
+        assert not db.get_episode(slug, EP_ACTIVE)['passthrough_enabled']
+
+    def test_enable_rejects_episode_owned_by_an_active_run(self, app_client, subscribed_feed):
+        slug = subscribed_feed['slug']
+        db = subscribed_feed['db']
+        # Claimed run, episode status not yet flipped: the ownership registry
+        # is what makes this visible.
+        _seed_episode(db, slug, EP_ACTIVE, status='pending')
+        podcast = db.get_podcast_by_slug(slug)
+        conn = db.get_connection()
+        conn.execute(
+            "INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, state) "
+            "VALUES ('run-passthrough-1', ?, ?, ?, 'running')",
+            (podcast['id'], EP_ACTIVE, os.getpid()),
+        )
+        conn.commit()
+        try:
+            _authed(app_client)
+            response = app_client.post(
+                f'/api/v1/feeds/{slug}/episodes/passthrough',
+                json={'episodeIds': [EP_ACTIVE], 'enabled': True},
+                headers=_csrf_headers(app_client),
+            )
+            body = response.get_json()
+            assert body['rejected'] == [{'episodeId': EP_ACTIVE, 'reason': 'processing'}]
+            assert body['updated'] == 0
+        finally:
+            conn.execute("DELETE FROM processing_runs WHERE run_id = 'run-passthrough-1'")
+            conn.commit()
+
+    def test_unknown_ids_are_rejected_per_item(self, app_client, subscribed_feed):
+        slug = subscribed_feed['slug']
+        db = subscribed_feed['db']
+        _seed_episode(db, slug, EP1, status='processed')
+
+        _authed(app_client)
+        response = app_client.post(
+            f'/api/v1/feeds/{slug}/episodes/passthrough',
+            json={'episodeIds': [EP1, 'ffffffffffff'], 'enabled': True},
+            headers=_csrf_headers(app_client),
+        )
+
+        body = response.get_json()
+        assert body['accepted'] == [EP1]
+        assert body['rejected'] == [{'episodeId': 'ffffffffffff', 'reason': 'not_found'}]
+        assert body['queued'] == 1
+        assert body['jobState'] == 'queued'
+
+    def test_duplicate_ids_are_counted_once(self, app_client, subscribed_feed):
+        slug = subscribed_feed['slug']
+        db = subscribed_feed['db']
+        _seed_episode(db, slug, EP1, status='processed')
+
+        _authed(app_client)
+        response = app_client.post(
+            f'/api/v1/feeds/{slug}/episodes/passthrough',
+            json={'episodeIds': [EP1, EP1, EP1], 'enabled': True},
+            headers=_csrf_headers(app_client),
+        )
+
+        body = response.get_json()
+        assert body['accepted'] == [EP1]
+        assert body['updated'] == 1
+        assert body['queued'] == 1
 
     def test_disable_clears_flag_without_enqueueing(self, app_client, subscribed_feed):
         slug = subscribed_feed['slug']
@@ -177,6 +242,22 @@ class TestSetEpisodesPassthroughEndpoint:
         response = app_client.post(
             f'/api/v1/feeds/{slug}/episodes/passthrough',
             json={'episodeIds': [], 'enabled': True},
+            headers=_csrf_headers(app_client),
+        )
+        assert response.status_code == 400
+
+    @pytest.mark.parametrize('payload', [
+        [EP1],
+        {'episodeIds': EP1, 'enabled': True},
+        {'episodeIds': [EP1, 7], 'enabled': True},
+        {'episodeIds': [''], 'enabled': True},
+    ])
+    def test_malformed_body_400(self, app_client, subscribed_feed, payload):
+        slug = subscribed_feed['slug']
+        _authed(app_client)
+        response = app_client.post(
+            f'/api/v1/feeds/{slug}/episodes/passthrough',
+            json=payload,
             headers=_csrf_headers(app_client),
         )
         assert response.status_code == 400

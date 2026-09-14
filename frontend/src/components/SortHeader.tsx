@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { focusRing } from './fieldStyles';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -20,17 +21,23 @@ export function SortHeader<T extends string>({
   sortDirection: SortDirection;
   onSort: (field: T) => void;
 }) {
+  const active = sortField === field;
   return (
     <th
-      className={`py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className}`}
-      onClick={() => onSort(field)}
+      scope="col"
+      aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={`py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hover:bg-accent/50 ${className}`}
     >
-      <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        className={`flex w-full items-center gap-1 py-1 -my-1 uppercase tracking-wider text-left ${focusRing}`}
+      >
         {label}
-        {sortField === field && (
-          <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+        {active && (
+          <span aria-hidden="true">{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
         )}
-      </div>
+      </button>
     </th>
   );
 }

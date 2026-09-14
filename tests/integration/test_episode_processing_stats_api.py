@@ -396,10 +396,114 @@ def test_processing_runs_expose_phase_breakdown_and_episode_spend(app_client, se
     phase_cost_sum = sum((Decimal(p['costUsd']) for p in phases.values()), Decimal('0'))
     assert phase_cost_sum == Decimal(run_subtotal['cost_usd'])
 
-    assert data['currentRunSpend']['breakdownAvailable'] is True
-    assert data['currentRunSpend']['inputTokens'] == 1500
-    assert Decimal(data['currentRunSpend']['costUsd']) == Decimal(run_subtotal['cost_usd'])
+    assert data['activeRunSpend'] is None
+    assert data['latestRunSpend']['breakdownAvailable'] is True
+    assert data['latestRunSpend']['runId'] == runs[1]['runId']
+    assert data['latestRunSpend']['inputTokens'] == 1500
+    assert data['latestRunSpend']['hasUnknownCost'] is False
+    assert Decimal(data['latestRunSpend']['costUsd']) == Decimal(run_subtotal['cost_usd'])
 
     assert data['cumulativeSpend']['inputTokens'] == 1500
     assert Decimal(data['cumulativeSpend']['costUsd']) == Decimal(run_subtotal['cost_usd'])
     assert data['cumulativeSpend']['hasUnknownCost'] is False
+
+
+TRANSCRIPTION_DB = {
+    'outcome': 'success',
+    'batch_size': 8,
+    'retry_count': 1,
+    'retry_succeeded': True,
+    'device': 'cuda',
+    'gpu_device_name': 'Test GPU',
+    'model': 'large-v3',
+    'error': None,
+}
+
+
+def test_run_stats_expose_the_transcription_block(app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('ab12cd34ef56')
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='ab12cd34ef56', episode_title='One', status='completed',
+        ads_detected=1,
+        processing_stats={**STATS_DB, 'transcription': TRANSCRIPTION_DB})
+
+    _authed(app_client)
+    data = app_client.get(f'/api/v1/feeds/{slug}/episodes/ab12cd34ef56').get_json()
+    assert data['processingRuns'][0]['stats']['transcription'] == {
+        'outcome': 'success',
+        'batchSize': 8,
+        'retryCount': 1,
+        'retrySucceeded': True,
+        'device': 'cuda',
+        'gpuDeviceName': 'Test GPU',
+        'model': 'large-v3',
+        'error': None,
+    }
+
+
+def test_run_without_transcription_stats_omits_the_block(app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('ba21dc43fe65')
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='ba21dc43fe65', episode_title='One', status='completed',
+        ads_detected=1, processing_stats=STATS_DB)
+
+    _authed(app_client)
+    data = app_client.get(f'/api/v1/feeds/{slug}/episodes/ba21dc43fe65').get_json()
+    assert 'transcription' not in data['processingRuns'][0]['stats']
+
+
+def test_latest_run_spend_uses_the_latest_attempt_not_the_latest_success(
+        app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('cd12ef34ab56')
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='cd12ef34ab56', episode_title='Ok', status='completed',
+        ads_detected=1, input_tokens=100, output_tokens=50, llm_cost=0.01)
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='cd12ef34ab56', episode_title='Failed', status='failed',
+        ads_detected=0)
+
+    _authed(app_client)
+    data = app_client.get(f'/api/v1/feeds/{slug}/episodes/cd12ef34ab56').get_json()
+    # The failed run spent nothing; reporting the earlier success as the
+    # latest run overstated what the last attempt cost.
+    assert data['latestRunSpend']['inputTokens'] == 0
+    assert Decimal(data['latestRunSpend']['costUsd']) == Decimal('0')
+    assert data['activeRunSpend'] is None
+
+
+def test_active_run_spend_reads_the_live_ledger(app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('de12fa34bc56', status='processing')
+    conn = db.get_connection()
+    conn.execute(
+        "INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, state) "
+        "VALUES ('run-active-1', ?, ?, ?, 'running')",
+        (podcast['id'], 'de12fa34bc56', os.getpid()),
+    )
+    conn.commit()
+    attempt = db.begin_llm_attempt(
+        run_id='run-active-1', podcast_id=podcast['id'], episode_id='de12fa34bc56',
+        phase_key='detect', invoking_pass=1, provider_key='anthropic',
+        configured_model='claude-active')
+    db.finalize_llm_attempt(attempt, state='success', returned_model='claude-active',
+                            input_tokens=700, output_tokens=100)
+    try:
+        _authed(app_client)
+        data = app_client.get(f'/api/v1/feeds/{slug}/episodes/de12fa34bc56').get_json()
+        assert data['jobState'] == 'processing'
+        assert data['activeRunSpend']['runId'] == 'run-active-1'
+        assert data['activeRunSpend']['inputTokens'] == 700
+        assert data['activeRunSpend']['outputTokens'] == 100
+        assert data['activeRunSpend']['hasUnknownCost'] is True
+        # No history row yet: the finished-run field must not borrow from it.
+        assert data['latestRunSpend'] is None
+    finally:
+        conn.execute("DELETE FROM processing_runs WHERE run_id = 'run-active-1'")
+        conn.commit()

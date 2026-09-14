@@ -388,8 +388,12 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             # guard; otherwise the durable per-URL backoff throttles retries
             # of a still-broken candidate while a working one stays served.
             if artwork_candidates:
+                # Automatic refresh: bypass the cached-guard for a changed
+                # source, but keep the per-URL backoff so a persistently broken
+                # replacement is not refetched on every refresh.
                 storage.download_artwork(slug, artwork_candidates,
-                                         force=artwork_source_changed)
+                                         force=artwork_source_changed,
+                                         bypass_backoff=False)
 
         # Discover all episodes from the feed (upsert as 'discovered').
         # Pass parsed_feed so extract_episodes does not re-parse the same
