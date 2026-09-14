@@ -111,6 +111,8 @@ SEED_SNAPSHOT = {
     'review_max_boundary_shift': '60',
     'review_model': 'same_as_pass',
     'review_provider': 'same_as_pass',
+    'secondary_provider_enabled': 'false',
+    'secondary_provider_base_url': 'http://localhost:8000/v1',
     'review_prompt': ('sha256', '0a30979273b7dd4f7447c40536383d0bb3a3e3c649b2ec07c4772ea47880035e'),  # Updated for the #695 example format
     'rss_refresh_interval_minutes': '15',
     'queue_manual_boost': '20',
@@ -155,6 +157,7 @@ EXPECTED_AD_RESET_KEYS = {
     'ad_reviewer_parallel_ads', 'max_artwork_bytes', 'max_rss_bytes',
     'max_audio_download_mb',
     'llm_provider', 'openai_base_url', 'pricing_source_mode',
+    'secondary_provider', 'secondary_provider_base_url',
     'openrouter_api_key',
     'whisper_backend', 'whisper_api_base_url', 'whisper_api_key',
     'whisper_api_model', 'whisper_compute_type', 'whisper_language',
@@ -205,7 +208,7 @@ NON_RESETTABLE_KEYS = (
     'podping_enabled', 'positional_prior_enabled',
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
-    'review_provider',
+    'review_provider', 'secondary_provider_enabled',
     'rss_refresh_interval_minutes', 'segment_category_actions',
     'queue_manual_boost', 'queue_fresh_boost', 'queue_bulk_boost',
     'community_sync_categories',
@@ -477,11 +480,13 @@ class TestGetDefaults:
         # then daiDifferentialOverridesKeep (109 -> 110),
         # then the seven adChapter* keys (110 -> 117), then reviewProvider,
         # matching review_model's default-block presence (117 -> 118).
+        # secondaryProviderEnabled + secondaryProvider + secondaryProviderBaseUrl
+        # added after that (118 -> 121).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 118
+        assert len(payload_keys) == 121
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

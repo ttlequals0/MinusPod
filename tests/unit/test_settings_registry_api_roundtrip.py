@@ -62,12 +62,12 @@ def test_review_provider_round_trips(client):
 
     try:
         r = client.put(f'{BASE}/ad-detection',
-                       data=json.dumps({'reviewProvider': 'openrouter'}),
+                       data=json.dumps({'reviewProvider': 'primary'}),
                        content_type='application/json')
         assert r.status_code == 200, r.get_data(as_text=True)
 
         after = client.get(BASE).get_json()['reviewProvider']
-        assert after['value'] == 'openrouter'
+        assert after['value'] == 'primary'
         assert after['isDefault'] is False
     finally:
         # This module shares one DB singleton with other settings test

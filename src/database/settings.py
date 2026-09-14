@@ -13,6 +13,8 @@ from config import (
     coerce_bool_setting, get_env_backed_int,
     STAGE_TUNABLE_DEFAULTS,
     DEFAULT_OPENAI_BASE_URL,
+    PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE,
+    PROVIDER_OLLAMA,
     WHISPER_COMPUTE_TYPE_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
@@ -280,12 +282,30 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         factory=_seed_env_openai_model, seeded=True, in_ad_reset=True,
         payload_key='chaptersModel', payload_kind='str', default=None),
 
-    # -- Per-phase LLM provider routing (see llm_route.py): unset resolves to
-    # the global llm_provider (verification/chapters resolve to detection's
-    # provider instead when also unset).
+    # -- Per-phase LLM provider routing (see llm_route.py): each stage picks
+    # a SLOT (primary/secondary), not a provider type. Unset resolves to
+    # primary (verification/chapters resolve to detection's slot instead
+    # when also unset, via the same_as_detection sentinel).
     'detection_provider': SettingSpec(default=None, seeded=True),
     'verification_provider': SettingSpec(default=None, seeded=True),
     'chapters_provider': SettingSpec(default=None, seeded=True),
+
+    # -- Secondary provider (checkpoint 02b): an optional second full
+    # provider config. Disabled by default; a stage referencing the
+    # 'secondary' slot while this is false falls back to primary (see
+    # llm_route.py). secondary_provider_api_key lives in SECRET_SETTING_KEYS
+    # (registered below with the other provider secrets).
+    'secondary_provider_enabled': SettingSpec(
+        default='false', seeded=True, resettable=False,
+        payload_key='secondaryProviderEnabled', payload_kind='bool'),
+    'secondary_provider': SettingSpec(
+        default=None, seeded=True, in_ad_reset=True,
+        payload_key='secondaryProvider',
+        validator=_one_of(PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
+                           PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA)),
+    'secondary_provider_base_url': SettingSpec(
+        default=DEFAULT_OPENAI_BASE_URL, seeded=True, in_ad_reset=True,
+        payload_key='secondaryProviderBaseUrl'),
 
     # -- Ad reviewer (seeded; only the prompts are resettable) --
     'enable_ad_review': SettingSpec(

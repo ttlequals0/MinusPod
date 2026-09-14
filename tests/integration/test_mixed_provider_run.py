@@ -40,28 +40,34 @@ ROUTE_SETTING_KEYS = (
     'verification_provider', 'verification_model',
     'chapters_provider', 'chapters_model',
     'review_provider', 'review_model',
+    'secondary_provider_enabled', 'secondary_provider',
 )
 
 
 @pytest.fixture
 def mixed_provider_settings():
-    """detection/verification/chapters=anthropic, review=openrouter, on the
-    same real Database singleton main_app.processing already holds. These
-    settings are read directly (not through the cached effective-provider
-    fallback), so no cache invalidation race with other tests."""
+    """detection/verification/chapters=primary (anthropic), review=secondary
+    (openrouter), on the same real Database singleton main_app.processing
+    already holds. Stage settings are SLOT values (checkpoint 02b task 1),
+    resolved against llm_provider=anthropic (primary) and
+    secondary_provider=openrouter. These settings are read directly (not
+    through the cached effective-provider fallback), so no cache
+    invalidation race with other tests."""
     from api import get_database
     db = get_database()
     saved = {key: db.get_setting(key) for key in ROUTE_SETTING_KEYS}
-    db.set_setting('detection_provider', 'anthropic', is_default=False)
+    db.set_setting('detection_provider', 'primary', is_default=False)
     db.set_setting('claude_model', 'claude-detect', is_default=False)
     # Pinned explicitly (not left to fall back to claude_model) so this test
     # is immune to other test modules leaving a stale value on the shared
     # real Database singleton this fixture does not otherwise touch.
     db.set_setting('verification_model', 'claude-detect', is_default=False)
     db.set_setting('chapters_model', 'claude-detect', is_default=False)
-    db.set_setting('verification_provider', 'anthropic', is_default=False)
-    db.set_setting('chapters_provider', 'anthropic', is_default=False)
-    db.set_setting('review_provider', 'openrouter', is_default=False)
+    db.set_setting('verification_provider', 'primary', is_default=False)
+    db.set_setting('chapters_provider', 'primary', is_default=False)
+    db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+    db.set_setting('secondary_provider', 'openrouter', is_default=False)
+    db.set_setting('review_provider', 'secondary', is_default=False)
     db.set_setting('review_model', 'or-review-model', is_default=False)
     invalidate_provider_cache()
     yield db
@@ -125,7 +131,7 @@ class TestRouteSnapshotResolutionAndPersistence:
             'provider_key': 'anthropic', 'configured_model': 'claude-detect'}
         assert snapshot['review'] == {
             'provider_key': 'openrouter', 'configured_model': 'or-review-model',
-            'gate': {'review_provider': 'openrouter', 'review_model': 'or-review-model'}}
+            'gate': {'review_provider': 'secondary', 'review_model': 'or-review-model'}}
 
         raw = _persisted_snapshot_raw(db, run_row['run_id'])
         assert raw is not None
@@ -151,7 +157,7 @@ class TestRouteSnapshotResolutionAndPersistence:
         # A settings change mid-run must not retroactively alter an
         # already-persisted snapshot: recovery re-reads the row instead of
         # re-resolving from the (now different) live settings.
-        db.set_setting('detection_provider', 'openrouter', is_default=False)
+        db.set_setting('detection_provider', 'secondary', is_default=False)
         db.set_setting('claude_model', 'or-detect-model', is_default=False)
         invalidate_provider_cache()
 
@@ -180,7 +186,7 @@ class TestProcessEpisodeWiresSnapshotAtRunStart:
                 'provider_key': 'anthropic', 'configured_model': 'claude-detect'}
             assert ctx.route_snapshot['review'] == {
                 'provider_key': 'openrouter', 'configured_model': 'or-review-model',
-                'gate': {'review_provider': 'openrouter', 'review_model': 'or-review-model'}}
+                'gate': {'review_provider': 'secondary', 'review_model': 'or-review-model'}}
         finally:
             run_context.end(ctx)
 
@@ -242,7 +248,7 @@ class TestPhasesUseTheirRoutedClientAndModel:
             pass_num=1, pass_model='claude-detect', pass_provider='anthropic',
         )
 
-        # review_provider=openrouter (mixed_provider_settings): the reviewer's
+        # review_provider=secondary (mixed_provider_settings): the reviewer's
         # route diverges from the pass-1 provider it was handed.
         assert calls == ['openrouter']
         assert result.verdicts
@@ -312,18 +318,18 @@ class TestReviewerGateFrozenAtRunStart:
         db = run_row['db']
         run_id = run_row['run_id']
 
-        # Snapshot resolved once at run start: review_provider=openrouter,
+        # Snapshot resolved once at run start: review_provider=secondary,
         # review_model=or-review-model (mixed_provider_settings).
         snapshot = processing._resolve_or_load_route_snapshot(run_id)
         assert snapshot['review']['gate'] == {
-            'review_provider': 'openrouter', 'review_model': 'or-review-model'}
+            'review_provider': 'secondary', 'review_model': 'or-review-model'}
 
         ctx = run_context.begin(run_row['slug'], run_row['episode_id'], run_id=run_id)
         ctx.set_route_snapshot(snapshot)
         try:
             # Operator changes review_provider well after pass-1 review
             # would already have run on openrouter.
-            db.set_setting('review_provider', 'ollama', is_default=False)
+            db.set_setting('review_provider', 'primary', is_default=False)
             db.set_setting('review_model', 'local-review-model', is_default=False)
 
             calls = []

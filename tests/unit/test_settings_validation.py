@@ -608,15 +608,17 @@ class TestProviderChangeModelPruning:
         assert db.get_setting('review_model') == 'claude-opus-5'
 
     def test_stage_with_explicit_provider_override_is_not_pruned_by_global_change(self, client):
-        """verification_provider='ollama' routes verification away from the
-        global provider, so its saved model must survive a global llmProvider
-        change even though it is not in the new global provider's catalog.
-        An un-overridden stage (claude_model, still following global) prunes
-        as before."""
+        """verification_provider='secondary' routes verification away from
+        the global (primary) provider, so its saved model must survive a
+        global llmProvider change even though it is not in the new global
+        provider's catalog. An un-overridden stage (claude_model, still
+        following global) prunes as before."""
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('claude_model', 'openai/gpt-stale', is_default=False)
-        db.set_setting('verification_provider', 'ollama', is_default=False)
+        db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+        db.set_setting('secondary_provider', 'ollama', is_default=False)
+        db.set_setting('verification_provider', 'secondary', is_default=False)
         db.set_setting('verification_model', 'llama3', is_default=False)
 
         fake_model = MagicMock(id='claude-haiku-4-5-20251001')
@@ -629,11 +631,16 @@ class TestProviderChangeModelPruning:
                 data=json.dumps({'llmProvider': 'openai-compatible'}),
                 content_type='application/json',
             )
-        assert response.status_code == 200, response.data
-        # Routed to ollama, never checked against the new global catalog.
-        assert db.get_setting('verification_model') == 'llama3'
-        # Still following the global provider: pruned as before.
-        assert db.get_setting('claude_model') is None
+        try:
+            assert response.status_code == 200, response.data
+            # Routed to ollama, never checked against the new global catalog.
+            assert db.get_setting('verification_model') == 'llama3'
+            # Still following the global provider: pruned as before.
+            assert db.get_setting('claude_model') is None
+        finally:
+            db.clear_setting('secondary_provider_enabled')
+            db.clear_setting('secondary_provider')
+            db.clear_setting('verification_provider')
 
     def test_same_as_pass_sentinel_is_not_pruned(self, client):
         db = database.Database()
@@ -684,18 +691,18 @@ class TestPerPhaseProviderSettings:
 
     def test_get_reflects_persisted_overrides(self, client):
         db = database.Database()
-        db.set_setting('detection_provider', 'anthropic', is_default=False)
-        db.set_setting('verification_provider', 'ollama', is_default=False)
-        db.set_setting('chapters_provider', 'openrouter', is_default=False)
-        db.set_setting('review_provider', 'anthropic', is_default=False)
+        db.set_setting('detection_provider', 'primary', is_default=False)
+        db.set_setting('verification_provider', 'secondary', is_default=False)
+        db.set_setting('chapters_provider', 'same_as_detection', is_default=False)
+        db.set_setting('review_provider', 'primary', is_default=False)
 
         response = client.get('/api/v1/settings')
         assert response.status_code == 200, response.data
         body = json.loads(response.data)
-        assert body['detectionProvider']['value'] == 'anthropic'
-        assert body['verificationProvider']['value'] == 'ollama'
-        assert body['chaptersProvider']['value'] == 'openrouter'
-        assert body['reviewProvider']['value'] == 'anthropic'
+        assert body['detectionProvider']['value'] == 'primary'
+        assert body['verificationProvider']['value'] == 'secondary'
+        assert body['chaptersProvider']['value'] == 'same_as_detection'
+        assert body['reviewProvider']['value'] == 'primary'
 
     @pytest.mark.parametrize('payload_key', [
         'detectionProvider', 'verificationProvider', 'chaptersProvider', 'reviewProvider',
@@ -717,11 +724,35 @@ class TestPerPhaseProviderSettings:
         db = database.Database()
         response = client.put(
             '/api/v1/settings/ad-detection',
-            data=json.dumps({payload_key: 'ollama'}),
+            data=json.dumps({payload_key: 'secondary'}),
             content_type='application/json',
         )
         assert response.status_code == 200, response.data
-        assert db.get_setting(setting_key) == 'ollama'
+        assert db.get_setting(setting_key) == 'secondary'
+
+    @pytest.mark.parametrize('setting_key,payload_key', [
+        ('verification_provider', 'verificationProvider'),
+        ('chapters_provider', 'chaptersProvider'),
+    ])
+    def test_put_same_as_detection_persists(self, client, setting_key, payload_key):
+        db = database.Database()
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({payload_key: 'same_as_detection'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+        assert db.get_setting(setting_key) == 'same_as_detection'
+
+    def test_put_detection_provider_rejects_same_as_detection(self, client):
+        # same_as_detection is only meaningful for verification/chapters,
+        # which inherit detection's own slot.
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'detectionProvider': 'same_as_detection'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 400, response.data
 
     @pytest.mark.parametrize('setting_key,payload_key', [
         ('detection_provider', 'detectionProvider'),
@@ -730,7 +761,7 @@ class TestPerPhaseProviderSettings:
     ])
     def test_put_empty_string_clears_provider_override(self, client, setting_key, payload_key):
         db = database.Database()
-        db.set_setting(setting_key, 'ollama', is_default=False)
+        db.set_setting(setting_key, 'secondary', is_default=False)
         response = client.put(
             '/api/v1/settings/ad-detection',
             data=json.dumps({payload_key: ''}),
@@ -743,15 +774,15 @@ class TestPerPhaseProviderSettings:
         db = database.Database()
         response = client.put(
             '/api/v1/settings/ad-detection',
-            data=json.dumps({'reviewProvider': 'openrouter'}),
+            data=json.dumps({'reviewProvider': 'secondary'}),
             content_type='application/json',
         )
         assert response.status_code == 200, response.data
-        assert db.get_setting('review_provider') == 'openrouter'
+        assert db.get_setting('review_provider') == 'secondary'
 
     def test_put_review_provider_accepts_same_as_pass(self, client):
         db = database.Database()
-        db.set_setting('review_provider', 'openrouter', is_default=False)
+        db.set_setting('review_provider', 'secondary', is_default=False)
         response = client.put(
             '/api/v1/settings/ad-detection',
             data=json.dumps({'reviewProvider': 'same_as_pass'}),
@@ -759,6 +790,85 @@ class TestPerPhaseProviderSettings:
         )
         assert response.status_code == 200, response.data
         assert db.get_setting('review_provider') == 'same_as_pass'
+
+
+class TestSecondaryProviderSettings:
+    """GET/PUT surface for the optional secondary provider (checkpoint
+    02b): secondaryProviderEnabled/secondaryProvider/secondaryProviderBaseUrl
+    plus the secondaryProviderApiKey secret."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_secondary_provider(self):
+        db = database.Database()
+        for key in ('secondary_provider_enabled', 'secondary_provider',
+                    'secondary_provider_base_url'):
+            db.clear_setting(key)
+        db.clear_secret('secondary_provider_api_key')
+        yield
+        for key in ('secondary_provider_enabled', 'secondary_provider',
+                    'secondary_provider_base_url'):
+            db.clear_setting(key)
+        db.clear_secret('secondary_provider_api_key')
+
+    def test_get_defaults(self, client):
+        response = client.get('/api/v1/settings')
+        assert response.status_code == 200, response.data
+        body = json.loads(response.data)
+        assert body['secondaryProviderEnabled']['value'] is False
+        assert body['secondaryProvider']['value'] is None
+        assert body['secondaryProviderBaseUrl']['value'] == 'http://localhost:8000/v1'
+        assert body['secondaryProviderApiKeyConfigured'] is False
+
+    def test_put_enabled_and_type_persist(self, client):
+        db = database.Database()
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'secondaryProviderEnabled': True,
+                'secondaryProvider': 'openrouter',
+                'secondaryProviderBaseUrl': 'https://openrouter.ai/api/v1',
+            }),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('secondary_provider_enabled') == 'true'
+        assert db.get_setting('secondary_provider') == 'openrouter'
+        assert db.get_setting('secondary_provider_base_url') == 'https://openrouter.ai/api/v1'
+
+    def test_put_invalid_secondary_provider_type_rejected(self, client):
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'secondaryProvider': 'not-a-real-provider'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 400, response.data
+
+    def test_put_empty_secondary_provider_clears_override(self, client):
+        db = database.Database()
+        db.set_setting('secondary_provider', 'openrouter', is_default=False)
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'secondaryProvider': ''}),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('secondary_provider') is None
+
+    def test_put_api_key_reports_configured(self, client, monkeypatch):
+        monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'test-pass-secondary')
+        import secrets_crypto
+        secrets_crypto.reset_cache()
+        try:
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'secondaryProviderApiKey': 'sk-test-secondary-key'}),
+                content_type='application/json',
+            )
+            assert response.status_code == 200, response.data
+            body = json.loads(client.get('/api/v1/settings').data)
+            assert body['secondaryProviderApiKeyConfigured'] is True
+        finally:
+            secrets_crypto.reset_cache()
 
 
 class TestAudioBitrateValidation:

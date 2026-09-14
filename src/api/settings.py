@@ -82,6 +82,10 @@ from llm_client import (
     _JSON_FORMAT_SETTING_KEY, _JSON_SCHEMA_SETTING_KEY,
     invalidate_provider_cache, reset_schema_probe_memo,
 )
+from llm_route import (
+    VALID_SLOTS, SAME_AS_DETECTION, SAME_AS_PASS, SLOT_PRIMARY,
+    resolved_stage_slot,
+)
 from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import modified_feed_url
@@ -208,9 +212,10 @@ def get_settings():
     verification_model = _setting_value(settings, 'verification_model')
     chapters_model = _setting_value(settings, 'chapters_model')
 
-    # Per-phase provider routing overrides (see llm_route.py). Unset (None)
-    # means "inherit": verification/chapters fall back to detection's
-    # provider, detection falls back to the global llmProvider.
+    # Per-phase provider routing overrides: a SLOT (primary/secondary), not
+    # a provider type (see llm_route.py). Unset (None) means "inherit":
+    # verification/chapters fall back to detection's slot, detection falls
+    # back to primary.
     detection_provider = _setting_value(settings, 'detection_provider')
     verification_provider = _setting_value(settings, 'verification_provider')
     chapters_provider = _setting_value(settings, 'chapters_provider')
@@ -354,6 +359,17 @@ def get_settings():
     api_key_configured = bool(api_key and api_key != 'not-needed')
     openrouter_api_key = get_effective_openrouter_api_key()
     openrouter_api_key_configured = bool(openrouter_api_key)
+
+    # Optional secondary provider (checkpoint 02b): a second full provider
+    # config that stage settings can route to via the 'secondary' slot.
+    secondary_provider_enabled = coerce_bool_setting(_setting_value(
+        settings, 'secondary_provider_enabled',
+        registry_default('secondary_provider_enabled')))
+    secondary_provider = _setting_value(settings, 'secondary_provider')
+    secondary_provider_base_url = _setting_value(
+        settings, 'secondary_provider_base_url',
+        registry_default('secondary_provider_base_url'))
+    secondary_provider_api_key_configured = bool(db.get_secret('secondary_provider_api_key'))
 
     podcast_index_api_key = _setting_value(settings, 'podcast_index_api_key', '') or os.environ.get('PODCAST_INDEX_API_KEY', '')
 
@@ -678,6 +694,10 @@ def get_settings():
         'modelPricingOverrides': _sv(
             'model_pricing_overrides', model_pricing_overrides),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
+        'secondaryProviderEnabled': _sv('secondary_provider_enabled', secondary_provider_enabled),
+        'secondaryProvider': _sv('secondary_provider', secondary_provider),
+        'secondaryProviderBaseUrl': _sv('secondary_provider_base_url', secondary_provider_base_url),
+        'secondaryProviderApiKeyConfigured': secondary_provider_api_key_configured,
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         # value is resolved, not raw: unset falls back to PodcastIndex when
         # its credentials exist (pre-option installs keep their behavior),
@@ -807,6 +827,7 @@ def update_ad_detection_settings():
         _apply_audio_fields,
         _apply_size_caps,
         _apply_provider_fields,
+        _apply_secondary_provider_fields,
         _apply_whisper_fields,
         _apply_vad_gap_fields,
         _apply_audio_cue_fields,
@@ -884,7 +905,7 @@ def _apply_review_fields(db, data):
 
     if 'reviewProvider' in data:
         value = data['reviewProvider']
-        valid = VALID_LLM_PROVIDERS + ('same_as_pass',)
+        valid = VALID_SLOTS + (SAME_AS_PASS,)
         if value not in valid:
             return error_response(f'reviewProvider must be one of: {", ".join(valid)}', 400)
         db.set_setting('review_provider', value, is_default=False)
@@ -933,16 +954,19 @@ def _apply_model_fields(db, data):
 
 
 def _apply_provider_routing_fields(db, data):
-    """Persist per-phase LLM provider overrides (see llm_route.py).
+    """Persist per-phase LLM provider slot overrides (see llm_route.py).
 
-    An empty value clears the override so the phase falls back to its
-    default routing: detection falls back to the global llmProvider,
-    verification/chapters fall back to detection's resolved provider.
+    Each stage picks a SLOT (primary/secondary), not a provider type. An
+    empty value clears the override so the phase falls back to its default
+    routing: detection falls back to primary, verification/chapters fall
+    back to detection's resolved slot (same_as_detection is also accepted
+    explicitly, for symmetry with reviewProvider's same_as_pass).
     """
-    for payload_key, db_key in (
-        ('detectionProvider', 'detection_provider'),
-        ('verificationProvider', 'verification_provider'),
-        ('chaptersProvider', 'chapters_provider'),
+    for payload_key, db_key, valid in (
+        ('detectionProvider', 'detection_provider', VALID_SLOTS),
+        ('verificationProvider', 'verification_provider',
+         VALID_SLOTS + (SAME_AS_DETECTION,)),
+        ('chaptersProvider', 'chapters_provider', VALID_SLOTS + (SAME_AS_DETECTION,)),
     ):
         if payload_key not in data:
             continue
@@ -950,12 +974,12 @@ def _apply_provider_routing_fields(db, data):
         if not value:
             db.clear_setting(db_key)
             logger.info(f"Cleared {db_key} (falls back to default routing)")
-        elif value in VALID_LLM_PROVIDERS:
+        elif value in valid:
             db.set_setting(db_key, value, is_default=False)
             logger.info(f"Updated {db_key} to: {value}")
         else:
             return error_response(
-                f'{payload_key} must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400)
+                f'{payload_key} must be one of: {", ".join(valid)}', 400)
     return None
 
 
@@ -1577,20 +1601,11 @@ def _apply_transcribe_chunk_fields(db, data):
 
 
 def _stage_follows_global_provider(db, stage: str) -> bool:
-    """True when `stage` has no explicit provider override anywhere in its
-    fallback chain, so it always tracks the global llmProvider (mirrors the
-    resolution order in llm_route.py: verification/chapters fall back to
-    detection, review falls back to detection when same_as_pass/unset)."""
-    if stage == 'detection':
-        return not db.get_setting('detection_provider')
-    if stage in ('verification', 'chapters'):
-        return not db.get_setting(f'{stage}_provider') and _stage_follows_global_provider(db, 'detection')
-    if stage == 'review':
-        review_provider = db.get_setting('review_provider')
-        if review_provider and review_provider != 'same_as_pass':
-            return False
-        return _stage_follows_global_provider(db, 'detection')
-    return True
+    """True when `stage` resolves to the primary slot, so it always tracks
+    the global llmProvider (mirrors llm_route.py's resolution order:
+    verification/chapters inherit detection's slot, review inherits
+    detection's slot when same_as_pass/unset)."""
+    return resolved_stage_slot(db, stage) == SLOT_PRIMARY
 
 
 def _apply_provider_fields(db, data):
@@ -1721,6 +1736,47 @@ def _apply_provider_fields(db, data):
     # false, and the Save Changes button vanishes -- see issue #234.
     from llm_client import invalidate_provider_cache
     invalidate_provider_cache()
+    return None
+
+
+def _apply_secondary_provider_fields(db, data):
+    """Persist the optional secondary provider (checkpoint 02b): a second
+    full provider config that stage settings can route to via the
+    'secondary' slot instead of the primary llmProvider config.
+    """
+    if 'secondaryProviderEnabled' in data:
+        value = 'true' if bool(data['secondaryProviderEnabled']) else 'false'
+        db.set_setting('secondary_provider_enabled', value, is_default=False)
+        logger.info(f"Updated secondary_provider_enabled to: {value}")
+
+    if 'secondaryProvider' in data:
+        value = data['secondaryProvider']
+        if not value:
+            db.clear_setting('secondary_provider')
+            logger.info("Cleared secondary_provider")
+        elif value in VALID_LLM_PROVIDERS:
+            db.set_setting('secondary_provider', value, is_default=False)
+            logger.info(f"Updated secondary_provider to: {value}")
+        else:
+            return error_response(
+                f'secondaryProvider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400)
+
+    if 'secondaryProviderBaseUrl' in data:
+        try:
+            validate_base_url(data['secondaryProviderBaseUrl'])
+        except SSRFError as e:
+            return error_response(f'Invalid secondary provider base URL: {e}', 400)
+        db.set_setting(
+            'secondary_provider_base_url', data['secondaryProviderBaseUrl'],
+            is_default=False)
+        logger.info("Updated secondary provider base URL")
+
+    if 'secondaryProviderApiKey' in data:
+        try:
+            set_or_clear_secret(db, 'secondary_provider_api_key', data['secondaryProviderApiKey'])
+        except SecretWriteRejected:
+            return error_response('provider_crypto_unavailable', 409)
+        logger.info("Updated secondary provider API key")
     return None
 
 
