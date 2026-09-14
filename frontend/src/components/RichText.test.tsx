@@ -122,7 +122,7 @@ describe('RichText block handling', () => {
   });
 
   it('treats nbsp-only lines as blank when collapsing', () => {
-    const { container } = render(<RichText html={'A\n \n \nB'} />);
+    const { container } = render(<RichText html={'A\n\u00A0\n\u00A0\nB'} />);
     expect(container.textContent).toBe('A\n\nB');
   });
 
