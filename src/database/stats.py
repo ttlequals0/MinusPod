@@ -27,6 +27,19 @@ _PROCESSED_EPISODE_EXISTS_SQL = (
 )
 
 
+def _ledger_row_is_billable(state: str, input_tokens, output_tokens, cost: float) -> bool:
+    """Whether a finalized llm_call_usage row counts toward totals.
+
+    Single source of truth for finalize_llm_attempt's counter gate and the
+    run-scoped readers below: success, or a failure with tokens known (a
+    billed failure); excludes an all-zero row (unknown cost, no tokens).
+    """
+    tokens_known = input_tokens is not None and output_tokens is not None
+    if not (state == 'success' or (state == 'failure' and tokens_known)):
+        return False
+    return (input_tokens or 0) > 0 or (output_tokens or 0) > 0 or cost != 0
+
+
 class StatsMixin:
     """Statistics, token usage, and processing history methods."""
 
@@ -394,15 +407,70 @@ class StatsMixin:
              cost_usd, cost_source, rate_snapshot, pricing_revision, attempt_id)
         )
 
-        billable = state == 'success' or (state == 'failure' and tokens_known)
         counter_input = input_tokens or 0
         counter_output = output_tokens or 0
-        if billable and (counter_input > 0 or counter_output > 0 or cost != 0):
+        if _ledger_row_is_billable(state, input_tokens, output_tokens, cost):
             self._apply_token_usage_counters(
                 conn, configured_model, counter_input, counter_output, cost)
 
         conn.commit()
         return cost
+
+    def get_run_usage_totals(self, run_id: str) -> dict:
+        """Sum one run's finalized billable ledger rows.
+
+        The single source for run totals: processing_history and provider
+        reconcile both read this instead of separately re-deriving from a
+        live in-process accumulator, so a late-finishing pool worker can
+        never diverge from what was actually billed.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT state, input_tokens, output_tokens, cost_usd
+               FROM llm_call_usage
+               WHERE run_id IS ? AND finalized_at IS NOT NULL""",
+            (run_id,)
+        ).fetchall()
+        total_input = 0
+        total_output = 0
+        total_cost = Decimal('0')
+        for row in rows:
+            cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
+            if not _ledger_row_is_billable(
+                    row['state'], row['input_tokens'], row['output_tokens'], cost):
+                continue
+            total_input += row['input_tokens'] or 0
+            total_output += row['output_tokens'] or 0
+            if row['cost_usd'] is not None:
+                total_cost += Decimal(row['cost_usd'])
+        return {
+            'input_tokens': total_input,
+            'output_tokens': total_output,
+            'cost_usd': str(total_cost),
+        }
+
+    def get_run_provider_spend(self, run_id: str, provider_key: str) -> int:
+        """MicroUSD spend of one run's finalized billable ledger rows for one
+        provider. Backs provider budget reconcile so it reads the same
+        ledger sum as get_run_usage_totals, not a second independent
+        re-derivation.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT state, input_tokens, output_tokens, cost_usd
+               FROM llm_call_usage
+               WHERE run_id IS ? AND provider_key = ? AND finalized_at IS NOT NULL""",
+            (run_id, provider_key)
+        ).fetchall()
+        total_cost = Decimal('0')
+        for row in rows:
+            cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
+            if not _ledger_row_is_billable(
+                    row['state'], row['input_tokens'], row['output_tokens'], cost):
+                continue
+            if row['cost_usd'] is not None:
+                total_cost += Decimal(row['cost_usd'])
+        return round(total_cost * 1_000_000)
 
     def get_token_usage_summary(self) -> dict:
         """Get global totals and per-model breakdown of token usage."""

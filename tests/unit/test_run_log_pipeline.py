@@ -184,6 +184,42 @@ class TestThinkingNoticeHistory:
         assert stats == {'mode': 'auto', 'thinking_notices': [notice]}
 
 
+class TestRecordHistoryRowUsesLedgerTotals:
+    """Persisted totals equal the run's ledger sum, not a passed-in
+    in-process accumulator snapshot."""
+
+    def test_persisted_totals_equal_ledger_sum_for_two_attempts(self, db):
+        ctx = run_context.begin(SLUG, EPISODE_ID, run_id='run-ledger-1')
+        podcast_id = db.get_podcast_by_slug(SLUG)['id']
+        try:
+            a1 = db.begin_llm_attempt(
+                run_id='run-ledger-1', podcast_id=podcast_id, episode_id=EPISODE_ID,
+                phase_key='detect', invoking_pass=1, provider_key='anthropic',
+                configured_model='test-ledger-model')
+            a2 = db.begin_llm_attempt(
+                run_id='run-ledger-1', podcast_id=podcast_id, episode_id=EPISODE_ID,
+                phase_key='review', invoking_pass=1, provider_key='anthropic',
+                configured_model='test-ledger-model')
+            db.finalize_llm_attempt(a1, state='success', input_tokens=1000, output_tokens=200)
+            db.finalize_llm_attempt(a2, state='success', input_tokens=300, output_tokens=50)
+            expected = db.get_run_usage_totals('run-ledger-1')
+
+            # A stale accumulator snapshot passed as token_totals must be
+            # ignored once a run_id is bound: the ledger sum wins.
+            processing._record_history_row(
+                db, SLUG, EPISODE_ID, 'One', 'Run Log Feed', 'completed',
+                1.0, 0,
+                {'input_tokens': 999999, 'output_tokens': 999999, 'cost': 999.0},
+                run_stats={'mode': 'auto'})
+        finally:
+            run_context.end(ctx)
+
+        row = _history_row(db)
+        assert row['input_tokens'] == expected['input_tokens'] == 1300
+        assert row['output_tokens'] == expected['output_tokens'] == 250
+        assert row['llm_cost'] == pytest.approx(float(expected['cost_usd']))
+
+
 class TestSlotGuard:
     def test_a_slot_holding_another_run_is_not_finalized(self, db, tmp_path):
         ctx = run_context.begin(SLUG, EPISODE_ID)

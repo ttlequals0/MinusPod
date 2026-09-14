@@ -149,6 +149,9 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         db.get_podcast_by_slug.return_value = podcast_row
         db.reserve_provider_spend.return_value = (
             admission or {'allowed': True, 'reservation_id': 'provider-run-1'})
+        # Reconcile now reads the ledger sum, not the in-process accumulator
+        # this harness fakes via ctx.tokens.add above.
+        db.get_run_provider_spend.return_value = round(token_cost * 1_000_000)
         if download_error is not None:
             dat.side_effect = download_error
         if detect_error is not None:

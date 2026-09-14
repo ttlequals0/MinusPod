@@ -17,6 +17,10 @@ release notes.
 - Each stage's provider control now picks a routing slot, Primary or Secondary, instead of a raw provider type; the reviewer also offers Same as pass. Model discovery and the model dropdown follow whichever slot a stage selects.
 - Rate-limit holds, cached clients, and circuit breakers are now scoped per credential slot, not just per provider type. Primary and secondary accounts of the same type no longer share a pause, a cached connection, or an open breaker.
 
+### Fixed
+
+- Run totals in processing history and provider budget reconciliation are now derived from the LLM call ledger instead of an in-process counter. This closes a race where a pool worker finishing just after collection could drop its tokens and cost from the recorded run.
+
 ## [2.96.25] - 2026-09-12
 
 ### Fixed

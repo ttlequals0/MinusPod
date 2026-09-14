@@ -120,7 +120,6 @@ from llm_client import (
     is_limit_exceeded_error, is_auth_error, LimitExceededError,
     ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
-    get_last_episode_token_totals,
     get_effective_provider,
 )
 from database.queue import compute_queue_priority
@@ -4191,20 +4190,30 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
         return False
     stats = dict(run_stats or {})
     ctx = run_context.current()
+    run_totals = token_totals
     if (ctx is not None and ctx.slug == slug
             and ctx.episode_id == str(episode_id) and ctx.run_id):
         notices = ctx.thinking_notices(ctx.run_id)
         if notices:
             stats['thinking_notices'] = notices
+        # Persisted totals come from the ledger, not the in-process
+        # accumulator: a pool worker that finishes after collection would
+        # otherwise silently drop its tokens/cost from this run's row.
+        ledger_totals = db.get_run_usage_totals(ctx.run_id)
+        run_totals = {
+            'input_tokens': ledger_totals['input_tokens'],
+            'output_tokens': ledger_totals['output_tokens'],
+            'cost': float(ledger_totals['cost_usd']),
+        }
     history_id = db.record_processing_history(
         podcast_id=podcast_data['id'], podcast_slug=slug,
         podcast_title=podcast_data.get('title') or podcast_name,
         episode_id=episode_id, episode_title=episode_title,
         status=status, processing_duration_seconds=processing_time,
         ads_detected=ads_detected, error_message=error_message,
-        input_tokens=token_totals['input_tokens'],
-        output_tokens=token_totals['output_tokens'],
-        llm_cost=token_totals['cost'],
+        input_tokens=run_totals['input_tokens'],
+        output_tokens=run_totals['output_tokens'],
+        llm_cost=run_totals['cost'],
         audio_cues_detected=audio_cues_detected,
         processing_stats=stats or None,
     )
@@ -5814,10 +5823,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    progress=recut_progress,
                                    podcast_row=podcast_settings):
                     if provider_reservation_id:
-                        totals = get_last_episode_token_totals()
+                        actual_microusd = db.get_run_provider_spend(
+                            run_id, get_effective_provider())
                         db.reconcile_provider_spend(
-                            provider_reservation_id,
-                            round(totals['cost'] * 1_000_000))
+                            provider_reservation_id, actual_microusd)
                     _fire_degraded_redetect()
                     return True
                 if recut_progress.get('mutated'):
@@ -5856,10 +5865,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             _publish_status('complete_job', slug, episode_id)
             if provider_reservation_id:
-                totals = get_last_episode_token_totals()
+                actual_microusd = db.get_run_provider_spend(
+                    run_id, get_effective_provider())
                 db.reconcile_provider_spend(
-                    provider_reservation_id,
-                    round(totals['cost'] * 1_000_000))
+                    provider_reservation_id, actual_microusd)
             return True
 
         finally:

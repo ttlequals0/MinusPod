@@ -1,4 +1,4 @@
-"""Tests for the llm_call_usage ledger begin/finalize API (checkpoint 03).
+"""Tests for the llm_call_usage ledger begin/finalize API.
 
 Covers single-transaction counter derivation: finalize_llm_attempt must be
 the only writer of token_usage/stats counters for ledgered calls.
@@ -208,3 +208,88 @@ class TestFinalizeLlmAttempt:
         cost = temp_db.finalize_llm_attempt('does-not-exist', state='success',
                                              input_tokens=100, output_tokens=100)
         assert cost == 0.0
+
+
+class TestGetRunUsageTotals:
+    """Run totals derived from the ledger, the single source
+    processing_history and provider reconcile both read."""
+
+    def test_sums_two_finalized_attempts_for_the_run(self, temp_db):
+        _seed_price(temp_db, 'test-model-h', 2.0, 4.0)
+        a1 = temp_db.begin_llm_attempt(
+            run_id='run-x', podcast_id=1, episode_id='ep1', phase_key='detect',
+            invoking_pass=1, provider_key='anthropic', configured_model='test-model-h')
+        a2 = temp_db.begin_llm_attempt(
+            run_id='run-x', podcast_id=1, episode_id='ep1', phase_key='review',
+            invoking_pass=1, provider_key='anthropic', configured_model='test-model-h')
+        temp_db.finalize_llm_attempt(
+            a1, state='success', input_tokens=1_000_000, output_tokens=0)
+        temp_db.finalize_llm_attempt(
+            a2, state='success', input_tokens=500_000, output_tokens=0)
+
+        totals = temp_db.get_run_usage_totals('run-x')
+        assert totals['input_tokens'] == 1_500_000
+        assert totals['output_tokens'] == 0
+        assert Decimal(totals['cost_usd']) == Decimal('3')
+
+    def test_excludes_other_runs(self, temp_db):
+        _seed_price(temp_db, 'test-model-i', 1.0, 1.0)
+        mine = _begin(temp_db, 'test-model-i')
+        temp_db.finalize_llm_attempt(mine, state='success', input_tokens=1000, output_tokens=0)
+        other = temp_db.begin_llm_attempt(
+            run_id='other-run', podcast_id=1, episode_id='ep1', phase_key='detect',
+            invoking_pass=1, provider_key='anthropic', configured_model='test-model-i')
+        temp_db.finalize_llm_attempt(other, state='success', input_tokens=9000, output_tokens=0)
+
+        totals = temp_db.get_run_usage_totals('run-1')
+        assert totals['input_tokens'] == 1000
+
+    def test_excludes_in_flight_and_cancelled_rows(self, temp_db):
+        _seed_price(temp_db, 'test-model-j', 1.0, 1.0)
+        finished = _begin(temp_db, 'test-model-j')
+        temp_db.finalize_llm_attempt(finished, state='success', input_tokens=100, output_tokens=0)
+        temp_db.begin_llm_attempt(
+            run_id='run-1', podcast_id=1, episode_id='ep1', phase_key='detect',
+            invoking_pass=1, provider_key='anthropic', configured_model='test-model-j')
+        cancelled = temp_db.begin_llm_attempt(
+            run_id='run-1', podcast_id=1, episode_id='ep1', phase_key='detect',
+            invoking_pass=1, provider_key='anthropic', configured_model='test-model-j')
+        temp_db.finalize_llm_attempt(cancelled, state='cancelled')
+
+        totals = temp_db.get_run_usage_totals('run-1')
+        assert totals['input_tokens'] == 100
+        assert Decimal(totals['cost_usd']) == Decimal('0.0001')
+
+    def test_unbegun_run_id_returns_zeros(self, temp_db):
+        totals = temp_db.get_run_usage_totals('no-such-run')
+        assert totals == {'input_tokens': 0, 'output_tokens': 0, 'cost_usd': '0'}
+
+
+class TestGetRunProviderSpend:
+    """Provider reconcile must read the same ledger sum, scoped to one
+    provider, so it never diverges from get_run_usage_totals."""
+
+    def test_returns_microusd_for_the_run_and_provider(self, temp_db):
+        _seed_price(temp_db, 'test-model-k', 2.0, 4.0)
+        a1 = temp_db.begin_llm_attempt(
+            run_id='run-y', podcast_id=1, episode_id='ep1', phase_key='detect',
+            invoking_pass=1, provider_key='anthropic', configured_model='test-model-k')
+        temp_db.finalize_llm_attempt(a1, state='success', input_tokens=1_000_000, output_tokens=0)
+
+        assert temp_db.get_run_provider_spend('run-y', 'anthropic') == 2_000_000
+
+    def test_excludes_other_providers(self, temp_db):
+        _seed_price(temp_db, 'test-model-l', 1.0, 1.0)
+        a1 = temp_db.begin_llm_attempt(
+            run_id='run-z', podcast_id=1, episode_id='ep1', phase_key='detect',
+            invoking_pass=1, provider_key='anthropic', configured_model='test-model-l')
+        a2 = temp_db.begin_llm_attempt(
+            run_id='run-z', podcast_id=1, episode_id='ep1', phase_key='detect',
+            invoking_pass=1, provider_key='openai', configured_model='test-model-l')
+        temp_db.finalize_llm_attempt(a1, state='success', input_tokens=1_000_000, output_tokens=0)
+        temp_db.finalize_llm_attempt(a2, state='success', input_tokens=1_000_000, output_tokens=0)
+
+        assert temp_db.get_run_provider_spend('run-z', 'anthropic') == 1_000_000
+
+    def test_no_attempts_returns_zero(self, temp_db):
+        assert temp_db.get_run_provider_spend('run-none', 'anthropic') == 0
