@@ -2275,20 +2275,20 @@ def regenerate_feeds():
         return error_response('Failed to regenerate feeds', 500)
 
 
-def _extract_artwork_url_from_feed(source_url: str) -> str | None:
-    """Extract artwork URL from a podcast's RSS feed."""
+def _extract_artwork_candidates_from_feed(source_url: str) -> list[str]:
+    """Ordered artwork candidate URLs from a podcast's RSS feed."""
     try:
         from rss_parser import RSSParser
         rss_parser = RSSParser()
         feed_content = rss_parser.fetch_feed(source_url)
         if not feed_content:
-            return None
+            return []
         # Pass raw XML; see extract_podcast_artwork_url docstring on why
         # the feedparser path is unreliable for the channel image.
         return rss_parser.extract_podcast_artwork_url(feed_content)
     except Exception as e:
-        logger.warning(f"Failed to extract artwork URL from feed: {e}")
-    return None
+        logger.warning(f"Failed to extract artwork candidates from feed: {e}")
+    return []
 
 
 @api.route('/feeds/<slug>/artwork', methods=['GET'])
@@ -2309,13 +2309,14 @@ def get_artwork(slug):
         podcast = db.get_podcast_by_slug(slug)
         if podcast and podcast.get('artwork_cached'):
             db.update_podcast(slug, artwork_cached=0)
+            candidates = []
+            if podcast.get('source_url'):
+                candidates = _extract_artwork_candidates_from_feed(podcast['source_url'])
             artwork_url = podcast.get('artwork_url')
-            if not artwork_url and podcast.get('source_url'):
-                artwork_url = _extract_artwork_url_from_feed(podcast['source_url'])
-                if artwork_url:
-                    db.update_podcast(slug, artwork_url=artwork_url)
-            if artwork_url:
-                storage.download_artwork(slug, artwork_url)
+            if artwork_url and artwork_url not in candidates:
+                candidates.append(artwork_url)
+            if candidates:
+                storage.download_artwork(slug, candidates)
                 artwork = storage.get_artwork(slug)
 
     if not artwork:

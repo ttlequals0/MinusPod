@@ -318,6 +318,7 @@ class PodcastMixin:
                 'low_ad_yield_action', 'episode_logs',
                 'retention_days_override', 'keep_original_audio_override',
                 'p20_channel_json', 'author', 'explicit', 'categories',
+                'artwork_failure_state',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)

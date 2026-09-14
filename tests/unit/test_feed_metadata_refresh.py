@@ -57,11 +57,13 @@ def test_an_unchanged_cover_url_is_not_refetched():
     assert not get.called
 
 
-def test_refresh_forces_the_download_and_clears_the_cache_flag():
-    """The call site is where the bug lived: it must pass force and drop
-    artwork_cached, so a download that fails is retried next refresh."""
+def test_refresh_retains_cached_artwork_when_the_new_cover_fails_to_download():
+    """A changed cover must reach download_artwork with force=True, but a
+    failed download must not clear or overwrite the still-valid cached
+    cover: storage.download_artwork is the sole writer of artwork_url/
+    artwork_cached, and this refresh never wrote a speculative guess."""
     slug = 'art-refresh'
-    _seed(slug)
+    _seed(slug)  # seeds https://example.com/old.png, cached
     feed = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel>
   <title>New title</title><link>https://example.com</link>
@@ -77,11 +79,11 @@ def test_refresh_forces_the_download_and_clears_the_cache_flag():
 
     assert dl.called, "a changed cover must reach download_artwork"
     args, kwargs = dl.call_args
-    assert args[1] == 'https://example.com/new.png'
+    assert args[1] == ['https://example.com/new.png']
     assert kwargs.get('force') is True
     row = mf.db.get_podcast_by_slug(slug)
-    assert row['artwork_url'] == 'https://example.com/new.png'
-    assert not row['artwork_cached'], "a failed download must not look cached"
+    assert row['artwork_url'] == 'https://example.com/old.png'
+    assert row['artwork_cached'], "a failed download must retain the old cover"
     assert row['description'] == 'New description'
     assert row['title'] == 'New title'
 

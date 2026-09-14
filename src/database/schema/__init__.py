@@ -488,6 +488,11 @@ class SchemaMixin:
             ('categories', 'TEXT'),
             # Operator hints appended to the LLM prompt for this feed (#709).
             ('detection_notes', 'TEXT'),
+            # Durable, status-aware artwork negative cache: JSON map of
+            # attempted candidate URL -> {status, at}, so a broken preferred
+            # cover is not retried until its backoff window elapses even
+            # after a process restart.
+            ('artwork_failure_state', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

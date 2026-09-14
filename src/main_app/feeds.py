@@ -299,9 +299,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             # stopped line-clamping).
             description = fields['description'][:10000]
 
-            # Extract artwork URL from RAW xml (feedparser corrupts the
-            # channel image with the last per-episode itunes:image it sees).
-            artwork_url = rss_parser.extract_podcast_artwork_url(
+            # Extract ordered artwork candidates from RAW xml (feedparser
+            # corrupts the channel image with the last per-episode
+            # itunes:image it sees): itunes:image first, then <image><url>.
+            artwork_candidates = rss_parser.extract_podcast_artwork_url(
                 feed_content, channel=channel_elem)
 
             # Channel-level <link> is the show's website (#521); only keep
@@ -315,38 +316,42 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             podping = rss_parser.extract_podping_declaration(
                 feed_content, channel=channel_elem)
 
-            # Captured before the write below: download_artwork re-reads the
-            # row, so once the new URL is stored it compares it against itself.
             prev = podcast or {}
-            artwork_changed = bool(artwork_url) and artwork_url != prev.get('artwork_url')
+            # "Changed" means the resolved cover has dropped out of the
+            # feed's current candidate set entirely, not just that the
+            # preferred candidate differs from it -- otherwise a
+            # persistently-broken itunes:image (while the RSS <image> keeps
+            # resolving fine) would look "changed" on every single refresh
+            # and force a redownload attempt of the known-bad URL each time.
+            artwork_source_changed = (bool(artwork_candidates)
+                                      and prev.get('artwork_url') not in artwork_candidates)
             changed = [
                 name for name, before, after in (
                     ('title', prev.get('title'), title),
                     ('description', prev.get('description'), description),
-                    ('artwork', prev.get('artwork_url'), artwork_url),
                     ('website', prev.get('website_url'), website_url),
                 )
                 if after and before != after
             ]
+            if artwork_source_changed:
+                changed.append('artwork')
             if changed:
                 refresh_logger.info(
                     f"[{slug}] Feed metadata changed upstream: {', '.join(changed)}")
 
-            # Update podcast metadata (and ETag if available) in a single DB call
+            # Update podcast metadata (and ETag if available) in a single DB
+            # call. artwork_url/artwork_cached are deliberately NOT written
+            # here: storage.download_artwork is the sole writer of those two
+            # fields (via save_artwork), so a failed candidate never clears
+            # or overwrites a still-valid cached cover.
             update_kwargs = dict(
                 title=title,
                 description=description,
-                artwork_url=artwork_url,
                 website_url=website_url,
                 **podping_declaration_columns(
                     podping.get('uses_podping'), podping.get('hive_accounts')),
                 channel_metadata_at=utc_now_iso(),
             )
-            if artwork_changed:
-                # Clear the cache flag with the URL: a download that then
-                # fails would otherwise leave the row claiming the new cover
-                # is cached, and no later refresh would retry it.
-                update_kwargs['artwork_cached'] = 0
             db.update_podcast(slug, **update_kwargs)
 
             # Map iTunes categories to MinusPod vocabulary tags, then refresh the
@@ -379,10 +384,12 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                     f"network={network_info.get('network_id')}"
                 )
 
-            # A changed URL forces the fetch: the row already carries it.
-            if artwork_url:
-                storage.download_artwork(slug, artwork_url,
-                                         force=artwork_changed)
+            # A changed source forces the fetch past the "already cached"
+            # guard; otherwise the durable per-URL backoff throttles retries
+            # of a still-broken candidate while a working one stays served.
+            if artwork_candidates:
+                storage.download_artwork(slug, artwork_candidates,
+                                         force=artwork_source_changed)
 
         # Discover all episodes from the feed (upsert as 'discovered').
         # Pass parsed_feed so extract_episodes does not re-parse the same
@@ -680,12 +687,25 @@ def refresh_feed_artwork(slug, podcast=None):
         # Local artwork is uploaded by the operator, never fetched upstream.
         return False
     try:
+        # Re-derive candidates from the live feed so a manual refresh can
+        # recover from a preferred candidate that has started 404ing, not
+        # just re-fetch the URL already on the row. Falls back to the
+        # stored URL if the feed can't be fetched.
+        candidates = []
+        try:
+            feed_content = rss_parser.fetch_feed(podcast['source_url'])
+            if feed_content:
+                candidates = rss_parser.extract_podcast_artwork_url(feed_content)
+        except Exception as e:
+            refresh_logger.warning(f"[{slug}] artwork candidate fetch failed: {e}")
+        if not candidates and podcast.get('artwork_url'):
+            candidates = [podcast['artwork_url']]
         # force, because the guard reads the same URL back off the row and
         # would always match; without it this only cleared the badge variant.
         # Then drop the cached badge so it recomposites with the current
         # badge rendering even when the cover itself has not changed.
-        if podcast.get('artwork_url'):
-            storage.download_artwork(slug, podcast['artwork_url'], force=True)
+        if candidates:
+            storage.download_artwork(slug, candidates, force=True)
         storage.clear_watermark_cache(slug)
     except Exception as e:
         refresh_logger.warning(f"[{slug}] artwork refresh failed: {e}")
