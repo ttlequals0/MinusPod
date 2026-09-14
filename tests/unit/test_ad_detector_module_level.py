@@ -13,7 +13,9 @@ from ad_detector import (
     parse_ads_from_response,
     format_window_prompt,
     get_static_system_prompt,
+    _phase_for_pass,
 )
+from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 
 
 # ===== Item 1: extract_json_ads_array, parse_ads_from_response =====
@@ -132,6 +134,17 @@ def test_parse_ads_from_response_keeps_normal_sponsor_names(good_sponsor):
     ads = parse_ads_from_response(response)
     assert len(ads) == 1
     assert ads[0].get('sponsor') == good_sponsor
+
+
+# ===== _phase_for_pass =====
+
+def test_phase_for_pass_maps_known_passes():
+    assert _phase_for_pass(PASS_AD_DETECTION_1) == 'detection'
+    assert _phase_for_pass(PASS_AD_DETECTION_2) == 'verification'
+
+
+def test_phase_for_pass_defaults_on_unknown_pass_instead_of_raising():
+    assert _phase_for_pass('some_bogus_pass_name') == 'detection'
 
 
 # ===== Item 2: format_window_prompt =====

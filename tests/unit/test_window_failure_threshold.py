@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import ad_detector
 from ad_detector import AdDetector, WindowResult
+from llm_capabilities import PASS_AD_DETECTION_1
 from llm_client import ProviderRateLimitedError
 
 
@@ -57,7 +58,7 @@ def _run_pass(detector, num_windows, failed_idxs, **extra):
             progress_range=100,
             slug='s',
             episode_id='1',
-            pass_name='ad_detection_1',
+            pass_name=PASS_AD_DETECTION_1,
             window_label_prefix='Window',
             validate_timestamps=False,
             **extra,

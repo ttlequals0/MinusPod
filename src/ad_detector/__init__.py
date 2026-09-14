@@ -584,7 +584,8 @@ def _phase_for_pass(pass_name: str) -> str:
         return 'detection'
     if pass_name == PASS_AD_DETECTION_2:
         return 'verification'
-    raise ValueError(f"Unknown pass_name for ad_detector: {pass_name!r}")
+    logger.debug("Unknown pass_name for ad_detector: %r, defaulting to 'detection'", pass_name)
+    return 'detection'
 
 
 class AdDetector:
