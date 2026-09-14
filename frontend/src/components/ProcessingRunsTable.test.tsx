@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ProcessingRunsTable from './ProcessingRunsTable';
 import type { EpisodeProcessingRun } from '../api/types';
@@ -85,6 +85,53 @@ const cueOnlyRun: EpisodeProcessingRun = {
   },
 };
 
+const phaseRun: EpisodeProcessingRun = {
+  runNumber: 6,
+  processedAt: '2026-08-01T00:00:00Z',
+  status: 'completed',
+  adsDetected: 2,
+  processingDurationSeconds: 300,
+  errorMessage: null,
+  inputTokens: 5000,
+  outputTokens: 800,
+  llmCost: 0.05,
+  stats: null,
+  breakdownAvailable: true,
+  phases: [
+    {
+      phaseKey: 'detection', invokingPass: 1, provider: 'anthropic',
+      configuredModel: 'claude-3-5-sonnet', returnedModel: 'claude-3-5-sonnet',
+      inputTokens: 3000, outputTokens: 500, cacheReadTokens: 0, cacheWriteTokens: 0,
+      reasoningTokens: 0, costUsd: '0.03', costSource: 'provider_reported',
+    },
+    {
+      phaseKey: 'verification', invokingPass: 2, provider: 'openrouter',
+      configuredModel: 'gpt-4o-mini', returnedModel: null,
+      inputTokens: 2000, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0,
+      reasoningTokens: 0, costUsd: '0.02', costSource: 'estimated',
+    },
+  ],
+};
+
+const retryPhaseRun: EpisodeProcessingRun = {
+  ...phaseRun,
+  runNumber: 7,
+  phases: [
+    {
+      phaseKey: 'detection', invokingPass: 1, provider: 'anthropic',
+      configuredModel: 'claude-3-5-sonnet', returnedModel: null,
+      inputTokens: 1000, outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0,
+      reasoningTokens: 0, costUsd: null, costSource: 'unknown',
+    },
+    {
+      phaseKey: 'detection', invokingPass: 1, provider: 'anthropic',
+      configuredModel: 'claude-3-haiku', returnedModel: 'claude-3-haiku-20240307',
+      inputTokens: 900, outputTokens: 90, cacheReadTokens: 0, cacheWriteTokens: 0,
+      reasoningTokens: 0, costUsd: '0.01', costSource: 'provider_reported',
+    },
+  ],
+};
+
 // Every run renders twice: the desktop table and the mobile card stack.
 // Scope assertions to the table so a match is unambiguous.
 function renderTable(runs: EpisodeProcessingRun[], rssDuration?: number) {
@@ -141,5 +188,40 @@ describe('ProcessingRunsTable', () => {
   it('omits the note when durations agree', () => {
     render(<ProcessingRunsTable runs={[statsRun]} rssDuration={3300} />);
     expect(screen.queryByText(/the duration the feed declares/)).toBeNull();
+  });
+});
+
+describe('ProcessingRunsTable: phase breakdown', () => {
+  it('is collapsed by default', () => {
+    const table = renderTable([phaseRun]);
+    expect(table.queryByText('Detection (pass 1)')).toBeNull();
+  });
+
+  it('expands to show a provider/model row per phase', () => {
+    const table = renderTable([phaseRun]);
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #6/i }));
+    expect(table.getByText('Detection (pass 1)')).toBeTruthy();
+    expect(table.getByText('Verification (pass 2)')).toBeTruthy();
+    expect(table.getByText('Anthropic')).toBeTruthy();
+    expect(table.getByText('OpenRouter')).toBeTruthy();
+    expect(table.getByText('claude-3-5-sonnet')).toBeTruthy();
+    expect(table.getByText('gpt-4o-mini')).toBeTruthy();
+  });
+
+  it('shows every model row for a phase retried with a fallback model', () => {
+    const table = renderTable([retryPhaseRun]);
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #7/i }));
+    expect(table.getAllByText('Detection (pass 1)')).toHaveLength(2);
+    expect(table.getByText('claude-3-5-sonnet')).toBeTruthy();
+    expect(table.getByText('claude-3-haiku-20240307')).toBeTruthy();
+    // First model row's cost is unknown; the fallback's is known.
+    expect(table.getByText('Unknown')).toBeTruthy();
+    expect(table.getByText('$0.0100')).toBeTruthy();
+  });
+
+  it('shows "Breakdown unavailable" for a legacy run with no ledger data', () => {
+    const table = renderTable([legacyRun]);
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #1/i }));
+    expect(table.getByText('Breakdown unavailable')).toBeTruthy();
   });
 });

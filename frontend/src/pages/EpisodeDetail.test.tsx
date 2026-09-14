@@ -1679,3 +1679,36 @@ describe('EpisodeDetail loading state', () => {
     expect(container.querySelector('.animate-spin')).toBeNull();
   });
 });
+
+describe('EpisodeDetail: current-run vs cumulative spend', () => {
+  it('renders the latest run and the lifetime total as distinct figures', async () => {
+    renderDetail(makeEpisode({
+      currentRunSpend: { inputTokens: 5000, outputTokens: 800, costUsd: '0.05', breakdownAvailable: true },
+      cumulativeSpend: { inputTokens: 20000, outputTokens: 3000, costUsd: '0.21', hasUnknownCost: false },
+    }));
+    await screen.findByText('Test Episode');
+    expect(screen.getByText(/Latest run:\s*\$0\.0500/)).toBeTruthy();
+    expect(screen.getByText(/Total spend:\s*\$0\.2100/)).toBeTruthy();
+    expect(screen.queryByText('+ unknown')).toBeNull();
+  });
+
+  it('marks the cumulative total as partial when hasUnknownCost is true', async () => {
+    renderDetail(makeEpisode({
+      currentRunSpend: { inputTokens: 5000, outputTokens: 800, costUsd: '0.05', breakdownAvailable: true },
+      cumulativeSpend: { inputTokens: 20000, outputTokens: 3000, costUsd: '0.21', hasUnknownCost: true },
+    }));
+    await screen.findByText('Test Episode');
+    expect(screen.getByText('+ unknown')).toBeTruthy();
+  });
+
+  it('labels the cumulative total "Recorded so far" while the episode is still processing', async () => {
+    renderDetail(makeEpisode({
+      status: 'processing',
+      currentRunSpend: { inputTokens: 5000, outputTokens: 800, costUsd: '0.05', breakdownAvailable: true },
+      cumulativeSpend: { inputTokens: 20000, outputTokens: 3000, costUsd: '0.21', hasUnknownCost: false },
+    }));
+    await screen.findByText('Test Episode');
+    expect(screen.getByText(/Recorded so far:\s*\$0\.2100/)).toBeTruthy();
+    expect(screen.queryByText(/Total spend:/)).toBeNull();
+  });
+});

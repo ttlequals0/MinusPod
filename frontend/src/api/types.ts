@@ -296,6 +296,46 @@ export interface EpisodeDetail extends Episode {
   // Adjacent episodes in the same feed (newest-first order): `previous` is the
   // newer episode, `next` the older one. Either is null at a feed boundary.
   navigation?: { previous: EpisodeNeighbor | null; next: EpisodeNeighbor | null };
+  // Ledger totals for the latest completed run; null when there is none yet.
+  currentRunSpend?: RunSpend | null;
+  // Ledger totals across every run (lifetime spend for this episode).
+  cumulativeSpend?: CumulativeSpend;
+}
+
+// One (phase, invoking pass, provider, configured model) group from the
+// llm_call_usage ledger. Several rows can share a phase+pass when a retry
+// or fallback changed the configured model mid-run.
+export interface RunPhaseUsage {
+  phaseKey: string;
+  invokingPass: number | null;
+  provider: string;
+  configuredModel: string;
+  returnedModel: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  reasoningTokens: number;
+  // String (from the backend's Decimal) so precision survives JSON; null
+  // when any contributing ledger row has an unknown cost.
+  costUsd: string | null;
+  costSource: 'provider_reported' | 'estimated' | 'explicit_zero' | 'unknown' | 'mixed';
+}
+
+export interface RunSpend {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: string;
+  breakdownAvailable: boolean;
+}
+
+export interface CumulativeSpend {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: string;
+  // True when at least one contributing ledger row has an unknown cost,
+  // so costUsd understates the true total.
+  hasUnknownCost: boolean;
 }
 
 // Per-run pipeline stats blob (#519). Null-heavy by design: runs recorded
@@ -365,6 +405,10 @@ export interface EpisodeProcessingRun {
   // True when this run stored a pipeline log the run-log endpoint can serve.
   hasLog?: boolean;
   stats: ProcessingRunStats | null;
+  // Per-phase/provider/model ledger breakdown; empty when breakdownAvailable is false.
+  phases?: RunPhaseUsage[];
+  // False for a run with no ledger rows (legacy, pre-ledger, or unbound run context).
+  breakdownAvailable?: boolean;
 }
 
 // One captured pipeline log line (#660).

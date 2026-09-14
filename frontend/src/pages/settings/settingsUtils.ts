@@ -25,6 +25,12 @@ export function formatTokenCount(tokens: number): string {
   return String(tokens);
 }
 
+// "12.3K in / 456 out": shared by every place that reports an input/output
+// token pair (run rows, phase rows, episode-level spend summaries).
+export function formatTokenRange(inputTokens: number, outputTokens: number): string {
+  return `${formatTokenCount(inputTokens)} in / ${formatTokenCount(outputTokens)} out`;
+}
+
 export function formatCost(cost: number): string {
   return `$${cost.toFixed(2)}`;
 }

@@ -30,8 +30,8 @@ import CueDetectionsSection from '../components/CueDetectionsSection';
 import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
-import { formatStorage, formatDuration } from './settings/settingsUtils';
-import { formatDate, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
+import { formatStorage, formatDuration, formatTokenRange } from './settings/settingsUtils';
+import { formatCost, formatDate, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
 import { rowActionBtn } from '../components/rowActionStyles';
@@ -715,9 +715,24 @@ function EpisodeDetail() {
                     : 'Cross-fetch: failed'}
                 </span>
               )}
-              {episode.llmCost != null && (
+              {episode.currentRunSpend && (
                 <span className="text-xs text-muted-foreground">
-                  LLM: ${episode.llmCost.toFixed(2)} ({episode.inputTokens != null && episode.inputTokens >= 1000 ? `${(episode.inputTokens / 1000).toFixed(1)}K` : episode.inputTokens ?? 0} in / {episode.outputTokens != null && episode.outputTokens >= 1000 ? `${(episode.outputTokens / 1000).toFixed(1)}K` : episode.outputTokens ?? 0} out)
+                  Latest run: {formatCost(parseFloat(episode.currentRunSpend.costUsd))} (
+                  {formatTokenRange(episode.currentRunSpend.inputTokens, episode.currentRunSpend.outputTokens)})
+                </span>
+              )}
+              {episode.cumulativeSpend && (
+                <span className="text-xs text-muted-foreground">
+                  {episode.status === 'processing' ? 'Recorded so far' : 'Total spend'}: {formatCost(parseFloat(episode.cumulativeSpend.costUsd))}
+                  {episode.cumulativeSpend.hasUnknownCost && (
+                    <span
+                      className="ml-1 px-1 py-0.5 rounded text-[10px] font-medium bg-warning/20 text-warning"
+                      title="Some usage has no recorded cost, so this total understates the true spend"
+                    >
+                      + unknown
+                    </span>
+                  )}
+                  {' '}({formatTokenRange(episode.cumulativeSpend.inputTokens, episode.cumulativeSpend.outputTokens)})
                 </span>
               )}
               {downloadItems.length > 0 && (
