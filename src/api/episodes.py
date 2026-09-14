@@ -1635,13 +1635,20 @@ def bulk_episode_action(slug):
 
     logger.info(f"Bulk {action} on {slug}: {queued} queued, {skipped} skipped, {freed_mb:.1f} MB freed")
 
-    return json_response({
+    response = {
         'queued': queued,
         'skipped': skipped,
         'freedMb': round(freed_mb, 2),
         'errors': errors,
         'skippedEpisodes': skipped_episodes,
-    })
+    }
+    # Bulk enqueues never start processing synchronously (unlike the single
+    # reprocess endpoint), so the authoritative state is 'queued' whenever
+    # anything was queued, else 'idle'. Not applicable to 'delete'.
+    if action in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm'):
+        response['jobState'] = _job_state(EpisodeStatus.PENDING.value, queued > 0)
+
+    return json_response(response)
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/retry-ad-detection', methods=['POST'])
@@ -2159,7 +2166,13 @@ def reprocess_episode_with_mode(slug, episode_id):
         return error_response('Episode not found', 404)
 
     if episode['status'] == EpisodeStatus.PROCESSING:
-        return error_response('Episode is currently processing', 409)
+        # Duplicate submission: report the current job state rather than a
+        # bare error, so the client reconciles from jobState alone.
+        return json_response({
+            'error': 'Episode is currently processing',
+            'status': 409,
+            'jobState': _job_state(episode['status'], False),
+        }, 409)
 
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
@@ -2202,7 +2215,8 @@ def reprocess_episode_with_mode(slug, episode_id):
             return json_response({
                 'message': f'Episode {mode} reprocess started',
                 'mode': mode,
-                'status': 'processing'
+                'status': 'processing',
+                'jobState': _job_state(EpisodeStatus.PROCESSING.value, False),
             }, 202)  # 202 Accepted
         else:
             priority = compute_queue_priority(
@@ -2217,7 +2231,8 @@ def reprocess_episode_with_mode(slug, episode_id):
                 'message': f'Episode queued for {mode} reprocess',
                 'mode': mode,
                 'status': 'queued',
-                'reason': reason
+                'reason': reason,
+                'jobState': _job_state(episode['status'], True),
             }, 202)
 
     except Exception:

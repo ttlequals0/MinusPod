@@ -2006,8 +2006,8 @@ paths:
                       transcript; no transcription or AI. Requires the retained
                       original audio, saved segments, and existing ad markers
       responses:
-        '200':
-          description: Episode reprocessing started
+        '202':
+          description: Reprocessing started, or queued behind the active run
           content:
             application/json:
               schema:
@@ -2015,13 +2015,34 @@ paths:
                 properties:
                   message:
                     type: string
+                  mode:
+                    type: string
                   status:
                     type: string
-                    enum: [completed, processing]
+                    enum: [processing, queued]
+                  reason:
+                    type: string
+                    description: Present when status is queued; why it could not start immediately.
+                  jobState:
+                    type: string
+                    enum: [queued, processing]
+                    description: Authoritative queue/run state, derived the same way as the episode's jobState field, so the client reconciles from one field.
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Episode is already processing
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Error'
+                  - type: object
+                    properties:
+                      jobState:
+                        type: string
+                        enum: [processing]
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -7366,6 +7387,10 @@ paths:
                           type: string
                         reason:
                           type: string
+                  jobState:
+                    type: string
+                    enum: [idle, queued]
+                    description: Present for process/reprocess/reprocess_full/reprocess_llm actions. Bulk enqueues never start processing synchronously, so this is queued whenever anything was queued, else idle. Not present for delete.
         '404':
           $ref: '#/components/responses/NotFound'
 

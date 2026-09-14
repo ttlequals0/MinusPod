@@ -21,6 +21,7 @@ release notes.
 
 - Episode processing runs now report a phase-by-phase LLM cost breakdown (provider, model, tokens, cost). The episode detail response also carries the current run's spend and the episode's cumulative spend across every processing attempt.
 - The Stats page has a new LLM cost ledger: a paginated, sortable provider/model usage list with expandable per-row detail, and a paginated episode-cost list linking to each episode. Both filter by date range, podcast, provider, and model, and label spend as lifetime or interval depending on whether a date filter is set.
+- Reprocess and bulk episode-action responses now include the authoritative jobState (queued/processing) alongside status, including on a duplicate submission's 409 response, so a client can reconcile action state from one field instead of special-casing errors.
 
 ### Fixed
 
