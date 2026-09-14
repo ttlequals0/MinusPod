@@ -715,23 +715,27 @@ class StatsMixin:
                                model: str = None) -> tuple[list[dict], int]:
         """Paginated per-episode cost breakdown over the ledger.
 
-        latestRunCostUsd is the most recent run_id's own billable cost;
-        cumulativeCostUsd sums every run for that episode, so the two
-        diverge once an episode has been reprocessed. provider/model
-        filters narrow which raw ledger rows contribute to both figures
-        and to modelsUsed, the same way they narrow model-usage rows.
+        The provider/model filter never reorders which run is latest.
+        latestRunCostUsd and lastActivityAt always describe the episode's
+        actual latest run, honoring the from/to date window. cumulativeCostUsd,
+        runCount, and modelsUsed do respect provider/model, the same way
+        they narrow model-usage rows; so does which episodes are listed.
         """
         conn = self.get_connection()
         offset = max(0, (max(1, page) - 1) * limit)
         filter_sql, filter_params = _build_ledger_filters(
             from_date, to_date, podcast_slug, provider, model)
-        # filter_sql/where_sql hold '?' placeholders only; params are bound
-        # positionally where each is interpolated into the final query below.
-        where_sql = (
+        # Latest-run determination drops provider/model so it can't reorder
+        # runs by content; it still respects the date window and podcast scope.
+        latest_filter_sql, latest_filter_params = _build_ledger_filters(
+            from_date, to_date, podcast_slug, None, None)
+        base_sql = (
             f"finalized_at IS NOT NULL AND {_LEDGER_BILLABLE_SQL} "  # noqa: S608
             f"AND podcast_id IS NOT NULL AND episode_id IS NOT NULL "
-            f"AND podcast_id IN (SELECT id FROM podcasts){filter_sql}"
+            f"AND podcast_id IN (SELECT id FROM podcasts)"
         )
+        where_sql = base_sql + filter_sql
+        latest_where_sql = base_sql + latest_filter_sql
         sort_col = self._EPISODE_COST_SORT_COLUMNS.get(sort_by, 'last_activity_at')
         sort_dir_sql = 'ASC' if sort_dir.lower() == 'asc' else 'DESC'
 
@@ -754,8 +758,7 @@ class StatsMixin:
                 SELECT
                     podcast_id, episode_id, run_id,
                     SUM(CASE WHEN cost_usd IS NOT NULL
-                             THEN CAST(cost_usd AS REAL) ELSE 0 END) AS run_cost_usd,
-                    MAX(COALESCE(finalized_at, created_at)) AS run_activity_at
+                             THEN CAST(cost_usd AS REAL) ELSE 0 END) AS run_cost_usd
                 FROM llm_call_usage
                 WHERE {where_sql}
                 GROUP BY podcast_id, episode_id, run_id
@@ -771,20 +774,30 @@ class StatsMixin:
                 SELECT
                     podcast_id, episode_id,
                     COUNT(DISTINCT run_id) AS run_count,
-                    SUM(run_cost_usd) AS cumulative_cost_usd,
-                    MAX(run_activity_at) AS last_activity_at
+                    SUM(run_cost_usd) AS cumulative_cost_usd
                 FROM run_costs
                 GROUP BY podcast_id, episode_id
             ),
+            latest_run_source AS (
+                SELECT
+                    podcast_id, episode_id, run_id,
+                    SUM(CASE WHEN cost_usd IS NOT NULL
+                             THEN CAST(cost_usd AS REAL) ELSE 0 END) AS run_cost_usd,
+                    MAX(COALESCE(finalized_at, created_at)) AS run_activity_at
+                FROM llm_call_usage
+                WHERE {latest_where_sql}
+                GROUP BY podcast_id, episode_id, run_id
+            ),
             latest_run AS (
-                SELECT podcast_id, episode_id, run_cost_usd AS latest_run_cost_usd
+                SELECT podcast_id, episode_id, run_cost_usd AS latest_run_cost_usd,
+                       run_activity_at AS last_activity_at
                 FROM (
-                    SELECT podcast_id, episode_id, run_cost_usd,
+                    SELECT podcast_id, episode_id, run_cost_usd, run_activity_at,
                            ROW_NUMBER() OVER (
                                PARTITION BY podcast_id, episode_id
                                ORDER BY run_activity_at DESC, run_id DESC
                            ) AS rn
-                    FROM run_costs
+                    FROM latest_run_source
                 )
                 WHERE rn = 1
             )
@@ -797,7 +810,7 @@ class StatsMixin:
                 ea.run_count AS run_count,
                 lr.latest_run_cost_usd AS latest_run_cost_usd,
                 ea.cumulative_cost_usd AS cumulative_cost_usd,
-                ea.last_activity_at AS last_activity_at
+                lr.last_activity_at AS last_activity_at
             FROM episode_agg ea
             JOIN podcasts p ON p.id = ea.podcast_id
             LEFT JOIN episodes e ON e.podcast_id = ea.podcast_id AND e.episode_id = ea.episode_id
@@ -806,10 +819,12 @@ class StatsMixin:
             ORDER BY {sort_col} {sort_dir_sql}
             LIMIT ? OFFSET ?
         """  # noqa: S608
-        # where_sql is inlined twice above (run_costs, episode_models), so
-        # filter_params repeats once per literal appearance of its '?' marks.
+        # where_sql is inlined twice above (run_costs, episode_models), and
+        # latest_where_sql once (latest_run_source); each repeat needs its
+        # own copy of that clause's params, in the order they appear.
         rows = conn.execute(
-            items_sql, filter_params + filter_params + [limit, offset]
+            items_sql,
+            filter_params + filter_params + latest_filter_params + [limit, offset]
         ).fetchall()
 
         items = [{

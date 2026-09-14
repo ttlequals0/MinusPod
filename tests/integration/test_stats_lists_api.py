@@ -192,6 +192,37 @@ class TestEpisodeCostStats:
         assert item['cumulativeCostUsd'] == '7.0'
         assert item['lastActivityAt'] == '2024-01-01T00:00:00Z'
 
+    def test_latest_run_is_not_reordered_by_provider_or_model_filter(self, app_client, temp_db):
+        """Filtering to an older run's model must not make that run look
+        like the episode's latest: latestRunCostUsd/lastActivityAt always
+        come from the true latest run, while cumulativeCostUsd and
+        modelsUsed still narrow to the filtered model only."""
+        _authed(app_client)
+        podcast_id = temp_db.create_podcast('pod-reorder', 'https://example.com/feed.xml', 'Pod')
+        temp_db.upsert_episode('pod-reorder', 'ep1', original_url='https://example.com/e.mp3',
+                               title='Ep1', status='processed')
+        _seed_price(temp_db, 'model-a', 2.0, 0.0)
+        _seed_price(temp_db, 'model-b', 5.0, 0.0)
+        _call(temp_db, run_id='run-old-a', podcast_id=podcast_id, episode_id='ep1',
+              provider_key='anthropic', configured_model='model-a')
+        _backdate_run(temp_db, 'run-old-a', '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')
+        _call(temp_db, run_id='run-new-b', podcast_id=podcast_id, episode_id='ep1',
+              provider_key='anthropic', configured_model='model-b')
+        _backdate_run(temp_db, 'run-new-b', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
+
+        resp = app_client.get('/api/v1/stats/episode-costs?podcastSlug=pod-reorder&model=model-a')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['total'] == 1
+        item = data['items'][0]
+        # True latest run is run-new-b (model-b), even though the model
+        # filter only matches run-old-a.
+        assert item['latestRunCostUsd'] == '5.0'
+        assert item['lastActivityAt'] == '2024-01-01T00:00:00Z'
+        # Cumulative cost and modelsUsed stay scoped to the filtered model.
+        assert item['cumulativeCostUsd'] == '2.0'
+        assert item['modelsUsed'] == ['model-a']
+
     def test_pagination_and_filters(self, app_client, temp_db):
         _authed(app_client)
         pod1 = temp_db.create_podcast('pod-ep-a', 'https://example.com/a.xml', 'A')

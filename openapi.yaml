@@ -2907,9 +2907,12 @@ paths:
       summary: Get paginated per-episode LLM cost
       description: |
         Paginated, sortable, filterable per-episode breakdown of the
-        llm_call_usage ledger. latestRunCostUsd is the most recent run's
-        own cost; cumulativeCostUsd sums every run recorded for that
-        episode, so the two diverge once an episode has been reprocessed.
+        llm_call_usage ledger. The provider/model filter never reorders
+        which run counts as latest: latestRunCostUsd and lastActivityAt
+        always reflect the episode's actual latest run, honoring the
+        from/to window if set. cumulativeCostUsd sums only the runs that
+        match every filter, including provider/model, so the two cost
+        figures diverge once an episode has been reprocessed.
       parameters:
         - name: page
           in: query
@@ -2982,10 +2985,14 @@ paths:
                         runCount: { type: integer }
                         latestRunCostUsd:
                           type: string
-                          description: Decimal string; cost of the most recent run.
+                          description: >-
+                            Decimal string; cost of the episode's actual latest run.
+                            Not narrowed by the provider/model filter.
                         cumulativeCostUsd:
                           type: string
-                          description: Decimal string; cost summed across every run.
+                          description: >-
+                            Decimal string; cost summed across every run matching
+                            all filters, including provider/model.
                         lastActivityAt: { type: string }
                   total: { type: integer }
                   totalPages: { type: integer }
