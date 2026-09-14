@@ -5205,19 +5205,40 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     if skip_transcription_active:
         run_stats['transcription_skipped'] = True
 
-    provider_reservation_id = None
+    provider_reservations: dict[str, str] = {}
     provider_attempted = False
 
     def _reserve_provider():
-        nonlocal provider_reservation_id
-        if provider_reservation_id is not None:
+        if provider_reservations:
             return
-        admission = db.reserve_provider_spend(
-            get_effective_provider(), None, run_id=run_id)
-        if not admission['allowed']:
-            raise RuntimeError(
-                f"Provider admission denied: {admission['reason']}")
-        provider_reservation_id = admission['reservation_id']
+        pairs = _required_providers_for_admission(slug)
+        provider_keys = (sorted({pk for pk, _slot in pairs}) if pairs
+                         else [get_effective_provider()])
+        acquired: dict[str, str] = {}
+        for provider_key in provider_keys:
+            admission = db.reserve_provider_spend(
+                provider_key, None, run_id=run_id)
+            if not admission['allowed']:
+                for rid in acquired.values():
+                    db.release_provider_spend(rid)
+                raise RuntimeError(
+                    f"Provider admission denied for {provider_key}: "
+                    f"{admission['reason']}")
+            if admission['reservation_id'] is not None:
+                acquired[provider_key] = admission['reservation_id']
+        provider_reservations.update(acquired)
+
+    def _reconcile_provider_actuals():
+        for provider_key, rid in provider_reservations.items():
+            db.reconcile_provider_spend(
+                rid, db.get_run_provider_spend(run_id, provider_key))
+
+    def _settle_provider_reservations():
+        for rid in provider_reservations.values():
+            if provider_attempted:
+                db.reconcile_provider_spend(rid, None)
+            else:
+                db.release_provider_spend(rid)
 
     def _fire_degraded_redetect():
         # Closes over this run's fixed identifiers; episode_data is the
@@ -5837,11 +5858,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    owns_failure=False,
                                    progress=recut_progress,
                                    podcast_row=podcast_settings):
-                    if provider_reservation_id:
-                        actual_microusd = db.get_run_provider_spend(
-                            run_id, get_effective_provider())
-                        db.reconcile_provider_spend(
-                            provider_reservation_id, actual_microusd)
+                    _reconcile_provider_actuals()
                     _fire_degraded_redetect()
                     return True
                 if recut_progress.get('mutated'):
@@ -5852,8 +5869,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         db.get_episode(slug, episode_id),
                         RuntimeError('Approval recut failed after rewriting the '
                                      'episode'), start_time, run_stats=run_stats)
-                    if provider_reservation_id:
-                        db.reconcile_provider_spend(provider_reservation_id, None)
+                    _settle_provider_reservations()
                     return False
                 # Nothing was overwritten: finalize this run's render and leave
                 # the filed confirms for the next run to apply.
@@ -5879,11 +5895,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 podcast_row=podcast_settings)
 
             _publish_status('complete_job', slug, episode_id)
-            if provider_reservation_id:
-                actual_microusd = db.get_run_provider_spend(
-                    run_id, get_effective_provider())
-                db.reconcile_provider_spend(
-                    provider_reservation_id, actual_microusd)
+            _reconcile_provider_actuals()
             return True
 
         finally:
@@ -5894,18 +5906,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 os.unlink(audio_path)
 
     except ProcessingCancelled:
-        if provider_reservation_id:
-            if provider_attempted:
-                db.reconcile_provider_spend(provider_reservation_id, None)
-            else:
-                db.release_provider_spend(provider_reservation_id)
+        _settle_provider_reservations()
         raise
     except Exception as e:
-        if provider_reservation_id:
-            if provider_attempted:
-                db.reconcile_provider_spend(provider_reservation_id, None)
-            else:
-                db.release_provider_spend(provider_reservation_id)
+        _settle_provider_reservations()
         _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                     episode_data, e, start_time,
                                     run_stats=run_stats)
