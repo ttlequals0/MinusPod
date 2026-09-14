@@ -1002,7 +1002,7 @@ describe('Held for Review: apply bar guards', () => {
   });
 });
 
-// ---- Checkpoint 05, Task 2: authoritative jobState eligibility ----
+// ---- authoritative jobState eligibility ----
 
 describe('Authoritative jobState eligibility', () => {
   beforeEach(() => {

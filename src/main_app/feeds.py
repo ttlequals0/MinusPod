@@ -319,7 +319,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             prev = podcast or {}
             # "Changed" means the resolved cover has dropped out of the
             # feed's current candidate set entirely, not just that the
-            # preferred candidate differs from it -- otherwise a
+            # preferred candidate differs from it: otherwise a
             # persistently-broken itunes:image (while the RSS <image> keeps
             # resolving fine) would look "changed" on every single refresh
             # and force a redownload attempt of the known-bad URL each time.

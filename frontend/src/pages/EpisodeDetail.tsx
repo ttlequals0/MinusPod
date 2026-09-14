@@ -576,8 +576,8 @@ function EpisodeDetail() {
   const reprocessLabel = neverProcessed ? 'Process' : 'Reprocess';
 
   // Eligibility for every control that enqueues a reprocess/redetect/recut
-  // run, derived from the server-authoritative jobState rather than the ad-hoc
-  // status checks this replaces (checkpoint 05).
+  // run, derived from the server-authoritative jobState rather than ad-hoc
+  // status checks.
   const reprocessBlocked = isActionBlocked(episode.jobState, reprocessMutation.isPending);
   // "Submitting..." covers the POST round trip before jobState updates;
   // once it does, the label reflects the queue/run state, not the client's

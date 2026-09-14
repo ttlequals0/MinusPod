@@ -1,6 +1,6 @@
 """Integration tests: every utils.llm_call dispatch is one ledger attempt.
 
-Covers the checkpoint-03 Task 3 contract: begin_llm_attempt/finalize_llm_attempt
+Covers the contract that begin_llm_attempt/finalize_llm_attempt
 are the single writer of billed LLM calls, replacing the retired adapter
 usage callback (llm_client._record_token_usage).
 """

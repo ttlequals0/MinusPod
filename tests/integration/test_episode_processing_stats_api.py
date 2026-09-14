@@ -335,7 +335,7 @@ def test_processing_runs_expose_phase_breakdown_and_episode_spend(app_client, se
     db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
     seeded['seed']('e1e2e3e4e5e6', original=1000, new=900)
 
-    # Run 1: legacy, no run_id/ledger rows -- keeps its own recorded total.
+    # Run 1: legacy, no run_id/ledger rows, keeps its own recorded total.
     db.record_processing_history(
         podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
         episode_id='e1e2e3e4e5e6', episode_title='Legacy', status='completed',

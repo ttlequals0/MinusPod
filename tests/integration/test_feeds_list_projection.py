@@ -1,5 +1,5 @@
 """Integration tests for feed-list pagination and the opt-in latest-episode
-projection (checkpoint 06 Task 1): GET /feeds?page=&limit= and
+projection: GET /feeds?page=&limit= and
 GET /feeds?includeLatestEpisodes=true&episodesPerFeed=N.
 """
 import os
@@ -78,7 +78,7 @@ def test_latest_episodes_ordered_bounded_and_includes_unprocessed(app_client, fe
     ids = [ep['id'] for ep in latest]
     # ep-2 (Jan 3) newest, then ep-3 (Jan 2), then ep-1 (Jan 1); ep-4 (no
     # published_at, falls back to created_at ~now) sorts ahead of all three
-    # but the bound keeps only 3 -- so ep-4 must be present and ep-1 dropped.
+    # but the bound keeps only 3, so ep-4 must be present and ep-1 dropped.
     assert 'ep-4' in ids
     assert 'ep-1' not in ids
     statuses = {ep['id']: ep['status'] for ep in latest}

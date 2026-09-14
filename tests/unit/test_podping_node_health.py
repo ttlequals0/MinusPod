@@ -175,7 +175,7 @@ class TestBackoffGrowsWithJitter:
 
     def test_jitter_varies_the_exact_value(self):
         """With real jitter, repeated single-step backoffs are not all
-        identical -- distinguishing this from the old fixed schedule."""
+        identical, distinguishing this from the old fixed schedule."""
         values = set()
         for _ in range(20):
             listener = PodpingListener(

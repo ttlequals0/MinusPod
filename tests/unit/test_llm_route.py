@@ -252,7 +252,7 @@ def test_review_explicit_slot_with_same_as_pass_model_uses_pass_model():
 def test_two_slots_same_type_different_base_yield_distinct_credential_slots():
     """Both primary and secondary configured as openai-compatible, but with
     different base URLs: routes must carry the same provider_key with
-    distinct base_url + credential_slot so Task 2 reads the right secret."""
+    distinct base_url + credential_slot so each resolves its own secret."""
     settings = {
         'claude_model': 'shared-model',
         'detection_provider': 'primary',

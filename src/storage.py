@@ -193,7 +193,7 @@ class Storage:
         # Artwork URLs that failed validation, so a broken one is not refetched
         # on every feed refresh. Keyed by slug and URL, so a changed URL retries
         # at once. Two caches so a 404 backs off longer than a transient error;
-        # both are an in-process fast path only -- the podcasts.artwork_failure_state
+        # both are an in-process fast path only: the podcasts.artwork_failure_state
         # column is the durable record consulted when a cache is cold (restart).
         self._artwork_failure_cache = TTLCache(ARTWORK_FAILURE_TTL_SECONDS)
         self._artwork_404_cache = TTLCache(ARTWORK_FAILURE_TTL_NOT_FOUND_SECONDS)

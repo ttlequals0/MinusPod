@@ -1,4 +1,4 @@
-"""Shared-outage-aware refresh_all_feeds (checkpoint 08, ops-hardening task 1).
+"""Shared-outage-aware refresh_all_feeds.
 
 When most feeds in one refresh batch fail together, that is a shared network
 outage, not N publishers independently breaking. refresh_all_feeds must not
@@ -11,7 +11,7 @@ against each broken feed's refresh_failure_count as before.
 get_feed_map() is patched per test to the feeds this module creates: the
 suite runs many test modules against one shared app/db singleton (see
 tests/app_bootstrap.py), and refresh_all_feeds iterates every configured
-feed, so leaving it unpatched would pull in -- and mutate -- unrelated
+feed, so leaving it unpatched would pull in, and mutate, unrelated
 feeds left behind by other test modules.
 """
 import os

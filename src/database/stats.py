@@ -516,7 +516,7 @@ class StatsMixin:
         returnedModel, inputTokens, outputTokens, cacheReadTokens,
         cacheWriteTokens, reasoningTokens, costUsd, costSource}, ...]}, one
         row per distinct (phase_key, invoking_pass, provider_key,
-        configured_model) -- a retried/fallback phase naturally yields
+        configured_model): a retried/fallback phase naturally yields
         several rows since a fallback changes configured_model. Only
         finalized billable rows count (the same predicate get_run_usage_totals
         uses), so a run's phase costs always sum to that run's subtotal.
@@ -589,7 +589,7 @@ class StatsMixin:
 
     def get_episode_cumulative_usage(self, podcast_id: int, episode_id: str) -> dict:
         """Sum ALL finalized billable ledger rows for this episode across
-        every attempt/run -- lifetime spend, not just the latest run.
+        every attempt/run: lifetime spend, not just the latest run.
         Mirrors get_run_usage_totals's convention: cost_usd sums only rows
         with a known cost; unknown-cost rows still count toward tokens.
         ``hasUnknownCost`` is true when any contributing row's cost is
