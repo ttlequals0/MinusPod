@@ -20,7 +20,7 @@ Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CS
 Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
 - `GET /api/v1/health/live` - Liveness probe (process up); always 200, safe for frequent polling
-- `GET /api/v1/feeds` - List all feeds
+- `GET /api/v1/feeds` - List feeds. With no `page`/`limit`, returns every feed (unchanged default). Passing `page`/`limit` paginates the list; `includeLatestEpisodes=true` (with optional `episodesPerFeed`, default 3, max 20) adds each feed's newest episodes without a separate request per feed
 - `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap, `onlyExposeProcessedEpisodes` to hide unprocessed episodes from the served feed, `retentionDaysOverride` for a per-feed retention window or archive, `keepOriginalAudioOverride` for the pre-cut original audio)
 - `PATCH /api/v1/feeds/{slug}` - Update a feed's settings: `queuePriority` (`high`/`normal`/`low`, restamps the feed's already-queued pending episodes immediately), `retentionDaysOverride`, `keepOriginalAudioOverride`, `maxEpisodes`, `onlyExposeProcessedEpisodes`, `processingMode`, `chaptersMode`, title blacklist, and the other per-feed overrides listed in the OpenAPI spec
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file

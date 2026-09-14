@@ -128,6 +128,39 @@ class EpisodeMixin:
         episodes = [dict(row) for row in cursor.fetchall()]
         return episodes, total
 
+    def get_latest_episodes_for_podcasts(self, podcast_ids: list[int],
+                                         per_feed_limit: int) -> dict[int, list[dict]]:
+        """Latest `per_feed_limit` episodes for each of `podcast_ids`, newest first.
+
+        One windowed query (ROW_NUMBER partitioned by podcast_id) ranks every
+        feed at once instead of a query per feed. Ordering matches
+        get_episodes: COALESCE(published_at, created_at) DESC, id DESC as a
+        tie-breaker.
+        """
+        result: dict[int, list[dict]] = {pid: [] for pid in podcast_ids}
+        if not podcast_ids:
+            return result
+        conn = self.get_connection()
+        placeholders = ','.join('?' * len(podcast_ids))
+        cursor = conn.execute(
+            f"""SELECT * FROM (
+                    SELECT e.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY e.podcast_id
+                               ORDER BY COALESCE(e.published_at, e.created_at) DESC, e.id DESC
+                           ) AS rn
+                    FROM episodes e
+                    WHERE e.podcast_id IN ({placeholders})
+                )
+                WHERE rn <= ?
+                ORDER BY podcast_id, rn""",  # noqa: S608
+            [*podcast_ids, per_feed_limit]
+        )
+        for row in cursor.fetchall():
+            row_dict = dict(row)
+            result[row_dict['podcast_id']].append(row_dict)
+        return result
+
     def get_episode(self, slug: str, episode_id: str) -> dict | None:
         """Get episode by slug and episode_id."""
         conn = self.get_connection()

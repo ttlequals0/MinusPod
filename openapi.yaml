@@ -248,8 +248,43 @@ paths:
       tags:
         - Feeds
       summary: List all feeds
-      description: Returns a list of all configured podcast feeds with metadata
+      description: >-
+        Returns configured podcast feeds with metadata. Omitting page and
+        limit still returns every feed, with pagination fields describing
+        that unbounded page; passing either one switches to a paginated
+        page. Set includeLatestEpisodes=true to add a bounded
+        latestEpisodes projection to each feed, computed in one query for
+        the whole page rather than one request per feed.
       operationId: listFeeds
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based). Only takes effect when page or limit is set; otherwise every feed is returned.
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          description: Feeds per page. Only takes effect when page or limit is set.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: includeLatestEpisodes
+          in: query
+          description: When true, add a latestEpisodes projection to each feed.
+          schema:
+            type: boolean
+            default: false
+        - name: episodesPerFeed
+          in: query
+          description: Maximum episodes per feed in latestEpisodes. Clamped to 1-20.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 3
       responses:
         '200':
           description: List of feeds
@@ -262,6 +297,17 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Feed'
+                  total:
+                    type: integer
+                    description: Total feed count.
+                  totalPages:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
                   lastRefreshCompletedAt:
                     type:
                       - string
@@ -10632,6 +10678,53 @@ components:
             - boolean
             - 'null'
           description: Whether the pass-2 verification scan of the cut audio is skipped for this feed, which roughly halves the ad-detection LLM spend on feeds whose first pass is already reliable. Held differential detections that pass 2 would have confirmed then wait for a human. Null and false both mean the second pass runs.
+        latestEpisodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeedLatestEpisode'
+          description: Present only when the request set includeLatestEpisodes=true. Up to episodesPerFeed episodes for this feed, newest first.
+
+    FeedLatestEpisode:
+      type: object
+      description: >-
+        Bounded per-feed episode projection returned by GET /feeds when
+        includeLatestEpisodes=true, for rendering a grouped episodes view
+        without a separate request per feed.
+      properties:
+        id:
+          type: string
+          description: Episode id.
+        title:
+          type: string
+        published:
+          type: string
+          format: date-time
+          description: publishedAt if the feed declared one, else the episode's createdAt.
+        createdAt:
+          type: string
+          format: date-time
+        duration:
+          type:
+            - number
+            - 'null'
+          description: Original duration in seconds.
+        status:
+          type: string
+          enum: [discovered, pending, processing, completed, failed, permanently_failed, deferred]
+        jobState:
+          type: string
+          enum: [idle, queued, processing]
+          description: Authoritative queue/run state, derived from live queue rows rather than the stored status.
+        artworkUrl:
+          type:
+            - string
+            - 'null'
+          description: Same fallback rules as EpisodeSummary.artworkUrl.
+        description:
+          type:
+            - string
+            - 'null'
+          description: Episode description, truncated to 200 characters.
 
     EpisodeSummary:
       type: object

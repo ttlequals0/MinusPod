@@ -1,5 +1,6 @@
 """Feed routes: /feeds/* endpoints."""
 import json
+import math
 import sqlite3
 import logging
 import os
@@ -54,6 +55,8 @@ from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
 from utils.paths import RECENTS_ARTWORK_PATH
+from utils.text import truncate
+from api.episodes import _job_state, _local_artwork_fallback_url, _secure_artwork_url
 from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, is_local_feed,
                                is_recents_feed, recents_cutoff)
 from podping_listener import feed_url_domain
@@ -967,28 +970,102 @@ def _podcast_listing_fields(podcast, podping) -> dict:
     }
 
 
+_FEEDS_DEFAULT_LIMIT = 50
+_FEEDS_MAX_LIMIT = 200
+_LATEST_EPISODES_DEFAULT_PER_FEED = 3
+_LATEST_EPISODES_MAX_PER_FEED = 20
+
+
+def _episode_summary_json(ep, *, slug, is_local, storage, pending_queue_keys) -> dict:
+    """Bounded per-feed episode projection for the /feeds listing.
+
+    Reuses the episode-list helpers (job state, artwork fallback) so the
+    grouped dashboard view matches /feeds/<slug>/episodes exactly rather than
+    re-deriving the same rules a second way.
+    """
+    artwork_url = _secure_artwork_url(ep.get('artwork_url'))
+    if artwork_url is None:
+        artwork_url = _local_artwork_fallback_url(ep, is_local=is_local, storage=storage, slug=slug)
+    description = ep.get('description')
+    return {
+        'id': ep['episode_id'],
+        'title': ep['title'],
+        'published': ep.get('published_at') or ep['created_at'],
+        'createdAt': ep['created_at'],
+        'duration': ep['original_duration'],
+        'status': EpisodeStatus.to_api(ep['status']),
+        'jobState': _job_state(ep['status'], (slug, ep['episode_id']) in pending_queue_keys),
+        'artworkUrl': artwork_url,
+        'description': truncate(description, 200) if description else None,
+    }
+
+
 @api.route('/feeds', methods=['GET'])
 @log_request
 def list_feeds():
-    """List all podcast feeds with metadata."""
+    """List all podcast feeds with metadata.
+
+    Bare (no page/limit) stays unbounded for existing all-feeds consumers.
+    includeLatestEpisodes adds a per-feed episode projection via one
+    windowed query, not one request per feed.
+    """
     db = get_database()
 
-    podcasts = db.get_all_podcasts()
-    feed_auth_key = get_feed_auth_key(db)
+    limit_param = request.args.get('limit', type=int)
+    page_param = request.args.get('page', type=int)
+    if limit_param is None and page_param is None:
+        podcasts = db.get_all_podcasts()
+        total = len(podcasts)
+        limit = total
+        page = 1
+    else:
+        limit = min(max(1, limit_param or _FEEDS_DEFAULT_LIMIT), _FEEDS_MAX_LIMIT)
+        page = max(1, page_param or 1)
+        podcasts, total = db.get_podcasts_page(limit, (page - 1) * limit)
 
+    feed_auth_key = get_feed_auth_key(db)
     podping = _podping_context(db)
+
+    include_latest = request.args.get('includeLatestEpisodes', '').lower() == 'true'
+    episodes_per_feed = min(
+        max(1, request.args.get('episodesPerFeed', _LATEST_EPISODES_DEFAULT_PER_FEED, type=int)),
+        _LATEST_EPISODES_MAX_PER_FEED)
+    latest_by_podcast = {}
+    pending_queue_keys = set()
+    storage = None
+    if include_latest and podcasts:
+        storage = get_storage()
+        podcast_ids = [p['id'] for p in podcasts]
+        latest_by_podcast = db.get_latest_episodes_for_podcasts(podcast_ids, episodes_per_feed)
+        all_episode_ids = [ep['episode_id'] for eps in latest_by_podcast.values() for ep in eps]
+        pending_queue_keys = db.get_pending_queue_keys(all_episode_ids)
+
     feeds = []
     for podcast in podcasts:
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
 
-        feeds.append({
+        feed_json = {
             **_podcast_base_json(podcast, feed_url),
             **_podcast_listing_fields(podcast, podping),
             'lastEpisodeDate': podcast.get('last_episode_date'),
-        })
+        }
+        if include_latest:
+            feed_json['latestEpisodes'] = [
+                _episode_summary_json(
+                    ep, slug=podcast['slug'], is_local=is_local_feed(podcast),
+                    storage=storage, pending_queue_keys=pending_queue_keys)
+                for ep in latest_by_podcast.get(podcast['id'], [])
+            ]
+        feeds.append(feed_json)
 
+    total_pages = math.ceil(total / limit) if total and limit else 1
     return json_response({
         'feeds': feeds,
+        'total': total,
+        'totalPages': total_pages,
+        'page': page,
+        'limit': limit,
+        'offset': (page - 1) * limit,
         # Stamped whenever an all-feeds refresh pass finishes (15-minute
         # scheduler or the manual Refresh All action); null until the
         # first pass completes.
