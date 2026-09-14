@@ -220,11 +220,11 @@ function Dashboard() {
         </div>
         <div className="flex gap-2 items-center shrink-0">
           <div className="flex gap-2 items-center overflow-x-auto no-scrollbar">
-            <div className="flex border border-border rounded overflow-hidden" role="group" aria-label="Dashboard view">
+            <div className="flex h-11 border border-border rounded overflow-hidden" role="group" aria-label="Dashboard view">
               <button
                 onClick={() => setDashboardView('podcasts')}
                 aria-pressed={dashboardView === 'podcasts'}
-                className={`px-3 py-2 text-sm transition-colors ${
+                className={`inline-flex items-center justify-center px-3 text-sm transition-colors ${
                   dashboardView === 'podcasts'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
@@ -237,7 +237,7 @@ function Dashboard() {
               <button
                 onClick={() => setDashboardView('episodes')}
                 aria-pressed={dashboardView === 'episodes'}
-                className={`px-3 py-2 text-sm transition-colors ${
+                className={`inline-flex items-center justify-center px-3 text-sm transition-colors ${
                   dashboardView === 'episodes'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
@@ -255,7 +255,7 @@ function Dashboard() {
                   aria-label="Episodes per podcast"
                   value={episodesPerPodcast}
                   onChange={(e) => setEpisodesPerPodcast(clampEpisodesPerPodcast(Number(e.target.value)))}
-                  className={selectBase}
+                  className={`${selectBase} h-11`}
                 >
                   {Array.from(
                     { length: MAX_EPISODES_PER_PODCAST - MIN_EPISODES_PER_PODCAST + 1 },
@@ -267,10 +267,10 @@ function Dashboard() {
               </label>
             )}
             {dashboardView === 'podcasts' && (
-            <div className="flex border border-border rounded overflow-hidden">
+            <div className="flex h-11 border border-border rounded overflow-hidden">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 transition-colors ${
+                className={`inline-flex items-center justify-center min-w-11 transition-colors ${
                   viewMode === 'grid'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
@@ -284,7 +284,7 @@ function Dashboard() {
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 transition-colors ${
+                className={`inline-flex items-center justify-center min-w-11 transition-colors ${
                   viewMode === 'list'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
@@ -298,10 +298,10 @@ function Dashboard() {
               </button>
             </div>
             )}
-            <div className="flex border border-border rounded overflow-hidden">
+            <div className="flex h-11 border border-border rounded overflow-hidden">
               <button
                 onClick={() => setSortBy('recent')}
-                className={`p-2 transition-colors ${
+                className={`inline-flex items-center justify-center min-w-11 transition-colors ${
                   sortBy === 'recent'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
@@ -315,7 +315,7 @@ function Dashboard() {
               </button>
               <button
                 onClick={() => setSortBy('title')}
-                className={`p-2 transition-colors ${
+                className={`inline-flex items-center justify-center min-w-11 transition-colors ${
                   sortBy === 'title'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
@@ -338,7 +338,7 @@ function Dashboard() {
                 <span className="hidden sm:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}</span>
               </>
             }
-            triggerClassName={`p-2 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
+            triggerClassName={`h-11 min-w-11 sm:px-4 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap`}
             disabled={refreshAllMutation.isPending}
             title="Refresh all feeds"
             items={[
@@ -356,7 +356,7 @@ function Dashboard() {
           />
           <Link
             to="/add"
-            className={`p-2 sm:px-4 sm:py-2 rounded ${btnPrimary} transition-colors ${focusRing}`}
+            className={`h-11 min-w-11 sm:px-4 inline-flex items-center justify-center rounded ${btnPrimary} transition-colors ${focusRing}`}
             title="Add Feed"
           >
             <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">

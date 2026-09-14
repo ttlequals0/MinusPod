@@ -283,3 +283,57 @@ describe('Dashboard Episodes view', () => {
     expect(JSON.parse(localStorage.getItem('dashboardSortBy') ?? '""')).toBe('title');
   });
 });
+
+describe('Dashboard toolbar heights', () => {
+  afterEach(() => {
+    localStorage.removeItem('dashboardView');
+    localStorage.removeItem('dashboardEpisodesPerPodcast');
+  });
+
+  it('gives the Podcasts/Episodes switch a 44px outer height', async () => {
+    renderDashboard();
+    const group = await screen.findByRole('group', { name: 'Dashboard view' });
+    expect(group.className).toContain('h-11');
+    const podcastsButton = screen.getByRole('button', { name: 'Podcasts view' });
+    expect(podcastsButton.className).toContain('inline-flex');
+    expect(podcastsButton.className).toContain('items-center');
+    expect(podcastsButton.className).toContain('justify-center');
+  });
+
+  it('gives the grid/list icon buttons a 44px wrapper height and matching min-width', async () => {
+    renderDashboard();
+    const gridButton = await screen.findByRole('button', { name: 'Grid view' });
+    const wrapper = gridButton.closest('div');
+    expect(wrapper?.className).toContain('h-11');
+    expect(gridButton.className).toContain('min-w-11');
+    expect(gridButton.className).toContain('inline-flex');
+    expect(gridButton.className).toContain('items-center');
+    expect(gridButton.className).toContain('justify-center');
+  });
+
+  it('gives the sort icon buttons a 44px wrapper height and matching min-width', async () => {
+    renderDashboard();
+    const sortButton = await screen.findByRole('button', { name: 'Sort by recent' });
+    const wrapper = sortButton.closest('div');
+    expect(wrapper?.className).toContain('h-11');
+    expect(sortButton.className).toContain('min-w-11');
+  });
+
+  it('gives Refresh All and Add Feed a 44px height and matching min-width', async () => {
+    renderDashboard();
+    const refreshAll = await screen.findByRole('button', { name: 'Refresh all feeds' });
+    expect(refreshAll.className).toContain('h-11');
+    expect(refreshAll.className).toContain('min-w-11');
+
+    const addFeed = screen.getByRole('link', { name: 'Add Feed' });
+    expect(addFeed.className).toContain('h-11');
+    expect(addFeed.className).toContain('min-w-11');
+  });
+
+  it('gives the episodes-per-podcast select a matching 44px height', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes view' }));
+    const select = await screen.findByRole('combobox', { name: 'Episodes per podcast' });
+    expect(select.className).toContain('h-11');
+  });
+});
