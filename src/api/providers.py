@@ -483,16 +483,17 @@ def test_provider_connection(provider):
 
 @api.route('/settings/providers/secondary/test-connection', methods=['POST'])
 def test_secondary_provider_connection():
-    """End-to-end probe of the optional secondary provider slot (02b).
+    """End-to-end probe of the optional secondary provider slot.
 
     Mirrors /settings/providers/<provider>/test-connection above, but reads
     its type, base URL, and key from the secondary_provider_* settings and
     the secondary_provider_api_key secret instead of the primary provider
     config, so the operator can validate the secondary slot before routing
     any stage to it. A fixed-endpoint type (anthropic/openrouter) probes its
-    public URL with the secondary key; an OpenAI-compatible type (openai,
-    ollama) probes the same /models route the real client uses, accepting an
-    unsaved baseUrl in the body so it can be tested before saving.
+    public URL with the secondary key; a configurable-endpoint type
+    (openai-compatible, ollama) probes the same /models route the real
+    client uses, accepting an unsaved baseUrl in the body so it can be
+    tested before saving.
     """
     db = Database()
     provider = db.get_setting('secondary_provider')

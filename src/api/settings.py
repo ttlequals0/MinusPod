@@ -1740,9 +1740,9 @@ def _apply_provider_fields(db, data):
 
 
 def _apply_secondary_provider_fields(db, data):
-    """Persist the optional secondary provider (checkpoint 02b): a second
-    full provider config that stage settings can route to via the
-    'secondary' slot instead of the primary llmProvider config.
+    """Persist the optional secondary provider: a second full provider
+    config that stage settings can route to via the 'secondary' slot
+    instead of the primary llmProvider config.
 
     Any change here can affect a request already in flight against the
     secondary slot, so it invalidates the provider cache and lifts a

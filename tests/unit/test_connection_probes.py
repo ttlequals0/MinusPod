@@ -238,8 +238,8 @@ class TestFixedProviderConnection:
 
 
 class TestSecondaryProviderConnection:
-    """/settings/providers/secondary/test-connection (checkpoint 02b): the
-    same staged probe as the primary routes above, but targeting the
+    """/settings/providers/secondary/test-connection: the same staged
+    probe as the primary routes above, but targeting the
     secondary_provider_* settings and secondary_provider_api_key secret."""
 
     def _post(self, client, body=None):
