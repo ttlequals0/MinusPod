@@ -264,3 +264,59 @@ class TestTrimmedConfirmValidation:
                             {'start': 100.0, 'end': 200.0},
                             {'adjusted_start': 50.0, 'adjusted_end': 200.0})
         assert _status(resp) == 400
+
+    def test_manual_trim_without_reviewer_proposal_still_narrowing_only(self, temp_db):
+        # No reviewer_proposed_start/end on the held marker: this is a manual
+        # trim, which may only narrow the detected span, not extend it.
+        markers = [_held(100.0, 140.0)]
+        slug, eid = _seed(temp_db, markers)
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 100.0, 'end': 140.0},
+                            {'adjusted_start': 88.0, 'adjusted_end': 131.0})
+        assert _status(resp) == 400
+        saved, _ = _markers(temp_db, slug, eid)
+        assert 'approved' not in saved[0]
+
+    def test_reviewer_proposed_span_extending_start_is_accepted(self, temp_db):
+        # Held marker carries a reviewer-proposed span whose start is earlier
+        # than the detected start. Confirming with the reviewer's own span
+        # must be accepted (200) even though it extends past detected_start.
+        marker = _held(100.0, 140.0)
+        marker['hold_reason'] = 'reviewer_boundary_conflict'
+        marker['reviewer_proposed_start'] = 88.0
+        marker['reviewer_proposed_end'] = 131.0
+        slug, eid = _seed(temp_db, [marker])
+
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 100.0, 'end': 140.0},
+                            {'adjusted_start': 88.0, 'adjusted_end': 131.0})
+
+        assert _status(resp) == 200
+        saved, _ = _markers(temp_db, slug, eid)
+        m = saved[0]
+        assert m['approved'] is True
+        assert m['start'] == 88.0 and m['end'] == 131.0
+
+        row = temp_db.get_connection().execute(
+            "SELECT corrected_bounds FROM pattern_corrections WHERE episode_id = ?",
+            (eid,),
+        ).fetchone()
+        assert json.loads(row['corrected_bounds']) == {'start': 88.0, 'end': 131.0}
+
+    def test_bounds_outside_reviewer_envelope_are_rejected(self, temp_db):
+        # Detected 100-140, reviewer proposal 88-131: the envelope is
+        # 88-140. A trim reaching further than that, on either side, is
+        # still rejected.
+        marker = _held(100.0, 140.0)
+        marker['hold_reason'] = 'reviewer_boundary_conflict'
+        marker['reviewer_proposed_start'] = 88.0
+        marker['reviewer_proposed_end'] = 131.0
+        slug, eid = _seed(temp_db, [marker])
+
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 100.0, 'end': 140.0},
+                            {'adjusted_start': 50.0, 'adjusted_end': 131.0})
+
+        assert _status(resp) == 400
+        saved, _ = _markers(temp_db, slug, eid)
+        assert 'approved' not in saved[0]

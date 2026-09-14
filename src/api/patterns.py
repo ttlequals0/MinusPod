@@ -1099,9 +1099,23 @@ def _handle_confirm_correction(
             return error_response('adjusted_start and adjusted_end must be numbers', 400)
         if adjusted_end <= adjusted_start:
             return error_response('adjusted_end must be greater than adjusted_start', 400)
-        # A trim narrows the reviewed span; bounds outside it are not a trim.
-        if adjusted_start < original_start - 0.5 or adjusted_end > original_end + 0.5:
-            return error_response('Adjusted bounds must lie within the original span', 400)
+        # A trim narrows the reviewed span: the detected span alone, or the
+        # envelope of detected and reviewer-proposed bounds when the held
+        # marker carries a reviewer proposal (e.g. reviewer_boundary_conflict).
+        env_start, env_end = original_start, original_end
+        held_marker = None
+        for m in _load_markers(db, slug, episode_id) or []:
+            if _matches_held_marker(m, original_start, original_end, 0.5):
+                held_marker = m
+                break
+        if held_marker is not None:
+            reviewer_start = held_marker.get('reviewer_proposed_start')
+            reviewer_end = held_marker.get('reviewer_proposed_end')
+            if reviewer_start is not None and reviewer_end is not None:
+                env_start = min(original_start, reviewer_start)
+                env_end = max(original_end, reviewer_end)
+        if adjusted_start < env_start - 0.5 or adjusted_end > env_end + 0.5:
+            return error_response('Adjusted bounds must lie within the reviewed span', 400)
     # The span actually confirmed as ad content.
     eff_start = adjusted_start if has_trim else original_start
     eff_end = adjusted_end if has_trim else original_end
