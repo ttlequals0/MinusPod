@@ -7,6 +7,7 @@ import Artwork from './Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
+import { isActionBlocked } from '../utils/processingStage';
 
 interface EpisodeListProps {
   episodes: Episode[];
@@ -26,7 +27,7 @@ function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle
     );
   }
 
-  const selectableEpisodes = episodes.filter(ep => ep.status !== 'processing');
+  const selectableEpisodes = episodes.filter(ep => !isActionBlocked(ep.jobState, false));
   const allSelected = selectedIds && selectableEpisodes.length > 0 &&
     selectableEpisodes.every(ep => selectedIds.has(ep.id));
 
@@ -80,7 +81,7 @@ function EpisodeRow({
     return `${minutes}m`;
   };
 
-  const canSelect = episode.status !== 'processing';
+  const canSelect = !isActionBlocked(episode.jobState, false);
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
