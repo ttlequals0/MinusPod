@@ -49,10 +49,9 @@ logger = logging.getLogger('podcast.refresh')
 
 HOLD_UNTIL_KEY = 'rate_limit_hold_until'
 HOLD_SINCE_KEY = 'rate_limit_hold_since'
-# Marks a hold as a manual MinusPod cap (#747), not a real provider 429, so
-# the tier-2 completion probe skips it: probing sends a real uncounted request
-# that would clear the cap early and burn the very quota the cap protects. A
-# manual hold clears only by time, via the tick when its reset passes.
+# Marks a hold as a manual MinusPod cap (#747), not a real provider 429.
+# Manual caps clear only by time; completion-probing them would burn the
+# very quota they protect (see _probe_rate_limit).
 HOLD_MANUAL_KEY = 'rate_limit_hold_manual'
 RATE_LIMIT_PROBE_AT_KEY = 'rate_limit_probe_at'
 
@@ -667,10 +666,7 @@ def _probe_rate_limit(db) -> bool:
     hold_until, provider_key, suffix = _active_hold_source(db)
     if not hold_until:
         return False
-    # A manual cap is our own accounting, not real provider throttling. A
-    # completion probe would send a real uncounted request that clears the
-    # hold early and burns the quota the cap protects, so never probe it: it
-    # clears only by time when the tick sees its reset pass.
+    # Never completion-probe a manual cap; it clears by time (see HOLD_MANUAL_KEY).
     if _hold_is_manual(db, suffix):
         return False
     minutes = get_rate_limit_probe_minutes(db)

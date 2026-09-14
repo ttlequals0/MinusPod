@@ -2174,9 +2174,8 @@ class ProviderRateLimitedError(Exception):
         self.provider_key = provider_key
         self.credential_slot = credential_slot
         # manual=True marks a MinusPod-configured RPM/RPD/TPM cap (not a real
-        # provider 429): the mid-run defer reads the already-recorded hold
-        # marker instead of the toggle-gated 429 path, and the probe never
-        # completion-probes it (that would burn real quota).
+        # 429): the mid-run defer reads the recorded hold marker, not the
+        # toggle-gated 429 path.
         self.manual = manual
 
 
