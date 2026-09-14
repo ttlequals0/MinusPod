@@ -111,6 +111,17 @@ function stageCard(label: string) {
   return screen.getByRole('heading', { name: label, level: 4 }).closest('.border') as HTMLElement;
 }
 
+describe('StageTunablesSection: detection window', () => {
+  it('accepts a window size of 10800 seconds', () => {
+    render(<Harness />);
+    const card = stageCard('Detection Window');
+    const [sizeInput] = Array.from(
+      card.querySelectorAll('input[type="number"]'),
+    ) as HTMLInputElement[];
+    expect(sizeInput.max).toBe('10800');
+  });
+});
+
 describe('StageTunablesSection: per-stage effective provider', () => {
   it('shows the Anthropic control for a stage on the global provider and the generic control for one routed elsewhere', () => {
     render(<Harness llmProvider="anthropic" verificationProvider="ollama" />);

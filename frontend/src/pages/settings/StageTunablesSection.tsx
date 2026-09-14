@@ -442,11 +442,15 @@ function WindowConfigBlock({
           value={sizeDraft}
           fallback={defaults.windowSizeSeconds as number | null}
           min={120}
-          max={1800}
+          max={10800}
           step={30}
           parse={parseIntField}
           onChange={(parsed) => setField('windowSizeSeconds', parsed)}
-          help={sizeEnv ? `Default from ${sizeEnv}.` : '120 to 1800. Default 600 (10 min).'}
+          help={
+            sizeEnv
+              ? `Default from ${sizeEnv}.`
+              : '120 to 10800. Default 600 (10 min). A larger window fits more of the transcript into each model call, which helps low-request-rate providers (e.g. free tiers capped at a few requests per minute) stay under their limits.'
+          }
         />
 
         <NumberFieldRow

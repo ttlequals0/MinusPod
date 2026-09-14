@@ -1723,7 +1723,7 @@ STAGE_TUNABLE_RANGES = {
     # detection window geometry. Cross-field constraint (overlap < size) is
     # enforced at the API layer; the per-field bounds here are the static
     # envelope the resolver checks against.
-    'window_size_seconds': (120, 1800),
+    'window_size_seconds': (120, 10800),
     'window_overlap_seconds': (0, 1770),
 }
 
