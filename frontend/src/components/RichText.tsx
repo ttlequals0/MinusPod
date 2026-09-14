@@ -110,12 +110,26 @@ function walk(node: Node, keyPrefix: string): ReactNode[] {
 }
 
 /**
+ * Cap a run of 2+ newlines within one text node to a single blank line,
+ * treating whitespace-only or nbsp-only lines as blank.
+ */
+function normalizeRuns(s: string): string {
+  return s
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[ \t]*\n(?:[ \t]*\n)+[ \t]*/g, '\n\n');
+}
+
+/**
  * Collapse the blank-line runs that adjacent block tags produce, so nested
  * markup does not open a description with a gap or double-space its paragraphs.
+ * Each string node is normalized on its own first (long blank runs capped at
+ * one blank line), then adjacent nodes are joined at a single line break.
  */
 function tidy(nodes: ReactNode[]): ReactNode[] {
+  const normalized = nodes.map(n => (typeof n === 'string' ? normalizeRuns(n) : n));
   const out: ReactNode[] = [];
-  for (const node of nodes) {
+  for (const node of normalized) {
     if (typeof node !== 'string') {
       out.push(node);
       continue;

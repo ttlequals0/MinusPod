@@ -110,6 +110,26 @@ describe('RichText block handling', () => {
     const { container } = render(<RichText html="<div><p>One</p></div><div><p>Two</p></div>" />);
     expect(container.textContent).not.toMatch(/\n\s*\n/);
   });
+
+  it('collapses a long plain-text blank run to one blank line', () => {
+    const { container } = render(<RichText html={'Line one\n\n\n\n\nLine two'} />);
+    expect(container.textContent).toBe('Line one\n\nLine two');
+  });
+
+  it('collapses repeated <br> to at most one blank line', () => {
+    const { container } = render(<RichText html={'A<br><br><br><br>B'} />);
+    expect(container.textContent).not.toMatch(/\n\s*\n\s*\n/);
+  });
+
+  it('treats nbsp-only lines as blank when collapsing', () => {
+    const { container } = render(<RichText html={'A\n \n \nB'} />);
+    expect(container.textContent).toBe('A\n\nB');
+  });
+
+  it('preserves a single line break', () => {
+    const { container } = render(<RichText html={'A\nB'} />);
+    expect(container.textContent).toBe('A\nB');
+  });
 });
 
 describe('RichText: table cells and relative links', () => {
