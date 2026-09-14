@@ -1,14 +1,14 @@
 """Transcription OOM stats, GPU admission guard, and no-false-success health.
 
-Checkpoint 08 task 3: a GPU-OOM retry must (a) record the outcome (final
-batch size, retry count, device, retry-success) so it can ride beside the
-per-phase LLM breakdown in processing_stats_json, (b) release GPU memory
-between attempts and on exhaustion rather than leaking VRAM into the next
-episode, (c) never surface as a completed episode with no audio -- exhaustion
-propagates as a failure that is_transient_error requeues, and
-get_local_transcriber_health() reports the transcriber unavailable instead
-of silently retrying forever, and (d) bound concurrent local CUDA
-transcriptions so two runs cannot double-allocate VRAM on the same device.
+A GPU-OOM retry must (a) record the outcome (final batch size, retry count,
+device, retry-success) so it can ride beside the per-phase LLM breakdown in
+processing_stats_json, (b) release GPU memory between attempts and on
+exhaustion rather than leaking VRAM into the next episode, (c) never surface
+as a completed episode with no audio: exhaustion propagates as a failure
+that is_transient_error requeues, and get_local_transcriber_health() reports
+the transcriber unavailable instead of silently retrying forever, and
+(d) bound concurrent local CUDA transcriptions so two runs cannot
+double-allocate VRAM on the same device.
 """
 
 import threading
@@ -107,14 +107,14 @@ def test_exhaustion_records_failed_outcome_and_releases_gpu_memory(monkeypatch):
 def test_exhausted_transcription_failure_is_transient_and_requeues():
     """_download_and_transcribe raises "Failed to transcribe audio" when
     transcribe_chunked exhausts; that message hits no permanent pattern in
-    is_transient_error, so it defaults to transient -- the episode is
+    is_transient_error, so it defaults to transient. The episode is
     requeued, not marked permanently failed or left dangling."""
     assert is_transient_error(Exception("Failed to transcribe audio")) is True
 
 
 def test_admission_guard_serializes_concurrent_cuda_transcriptions(monkeypatch):
     """Two local CUDA transcriptions must never run inside the pipeline at
-    the same time -- they would double-allocate VRAM on the same device."""
+    the same time: they would double-allocate VRAM on the same device."""
     monkeypatch.setattr(transcriber_mod, '_GPU_ADMISSION_SEMAPHORE', threading.Semaphore(1))
     monkeypatch.setenv('WHISPER_DEVICE', 'cuda')
     monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
