@@ -35,7 +35,7 @@ from utils.markers import (
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
-    scrub_description
+    scrub_description, strip_comments_from_prompt
 )
 from utils.text import truncate
 from utils.time import overlap_ratio, ranges_overlap
@@ -767,7 +767,7 @@ class AdDetector:
     def _apply_pass_override(self, rendered: str, setting_key: str) -> str:
         """Append the user's per-pass override (empty by default -> no change)."""
         try:
-            override = self.db.get_setting(setting_key)
+            override = strip_comments_from_prompt(self.db.get_setting(setting_key))
         except Exception:
             override = None
         return apply_override(rendered, override)
@@ -783,6 +783,7 @@ class AdDetector:
         if not prompt:
             from utils.constants import DEFAULT_SYSTEM_PROMPT
             prompt = DEFAULT_SYSTEM_PROMPT
+        prompt = strip_comments_from_prompt(prompt)
         return self._apply_pass_override(
             self._render_with_sponsors(prompt, 'seed_sponsors_detection'), 'system_prompt_override')
 
@@ -797,6 +798,7 @@ class AdDetector:
         if not prompt:
             from database import DEFAULT_VERIFICATION_PROMPT
             prompt = DEFAULT_VERIFICATION_PROMPT
+        prompt = strip_comments_from_prompt(prompt)
         return self._apply_pass_override(
             self._render_with_sponsors(prompt, 'seed_sponsors_verification'), 'verification_prompt_override')
 

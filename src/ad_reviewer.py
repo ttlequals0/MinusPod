@@ -36,7 +36,7 @@ from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import dai_core_bounds, invalidate_tail_provenance
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
-    scrub_description
+    scrub_description, strip_comments_from_prompt
 )
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S,
@@ -1603,6 +1603,7 @@ class AdReviewer:
 
     def _render_review_prompt(self, max_shift: int, sponsor_block: str) -> str:
         prompt = self._read_setting("review_prompt") or DEFAULT_REVIEW_PROMPT
+        prompt = strip_comments_from_prompt(prompt)
         rendered = render_prompt(
             prompt,
             sponsor_database=sponsor_block,
@@ -1618,12 +1619,14 @@ class AdReviewer:
 
     def _render_resurrect_prompt(self, sponsor_block: str) -> str:
         prompt = self._read_setting("resurrect_prompt") or DEFAULT_RESURRECT_PROMPT
+        prompt = strip_comments_from_prompt(prompt)
         rendered = render_prompt(prompt, sponsor_database=sponsor_block)
         return self._apply_pass_override(rendered, "resurrect_prompt_override")
 
     def _apply_pass_override(self, rendered: str, setting_key: str) -> str:
         """Append the user's per-pass override (empty by default -> no change)."""
-        return apply_override(rendered, self._read_setting(setting_key))
+        override = strip_comments_from_prompt(self._read_setting(setting_key))
+        return apply_override(rendered, override)
 
     def _sponsor_list_or_empty(self) -> str:
         if not self.sponsor_service:

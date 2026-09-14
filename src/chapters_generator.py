@@ -10,7 +10,7 @@ from config import (
 )
 from database import Database, DEFAULT_CHAPTER_PROMPT
 from utils.prompt import (
-    render_prompt_once, apply_override, strip_html,
+    render_prompt_once, apply_override, strip_html, strip_comments_from_prompt
 )
 from utils.time import parse_timestamp, adjust_timestamp, span_inside_any_cut
 from utils.text import extract_text_from_segments
@@ -261,7 +261,10 @@ class ChaptersGenerator:
             except Exception as e:
                 logger.warning(f"Could not load chapter prompt from DB: {e}")
                 template, override = DEFAULT_CHAPTER_PROMPT, ''
-            self._chapter_prompt = (template, override)
+            self._chapter_prompt = (
+                strip_comments_from_prompt(template),
+                strip_comments_from_prompt(override)
+            )
         return self._chapter_prompt
 
     def _detect_topic_boundaries(
