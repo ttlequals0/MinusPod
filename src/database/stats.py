@@ -555,6 +555,9 @@ class StatsMixin:
         every attempt/run -- lifetime spend, not just the latest run.
         Mirrors get_run_usage_totals's convention: cost_usd sums only rows
         with a known cost; unknown-cost rows still count toward tokens.
+        ``hasUnknownCost`` is true when any contributing row's cost is
+        unknown, so callers know costUsd may understate the true total
+        instead of silently trusting a partial sum.
         """
         conn = self.get_connection()
         rows = conn.execute(
@@ -566,6 +569,7 @@ class StatsMixin:
         total_input = 0
         total_output = 0
         total_cost = Decimal('0')
+        has_unknown_cost = False
         for row in rows:
             cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
             if not _ledger_row_is_billable(
@@ -575,10 +579,13 @@ class StatsMixin:
             total_output += row['output_tokens'] or 0
             if row['cost_usd'] is not None:
                 total_cost += Decimal(row['cost_usd'])
+            else:
+                has_unknown_cost = True
         return {
             'inputTokens': total_input,
             'outputTokens': total_output,
             'costUsd': str(total_cost),
+            'hasUnknownCost': has_unknown_cost,
         }
 
     def get_token_usage_summary(self) -> dict:

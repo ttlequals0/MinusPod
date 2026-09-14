@@ -381,6 +381,7 @@ class TestGetEpisodeCumulativeUsage:
         assert cumulative['inputTokens'] == 2_000_000
         assert Decimal(cumulative['costUsd']) == Decimal('4')
         assert Decimal(cumulative['costUsd']) > Decimal(latest_run['cost_usd'])
+        assert cumulative['hasUnknownCost'] is False
 
     def test_excludes_other_episodes(self, temp_db):
         _seed_price(temp_db, 'other-ep-model', 2.0, 4.0)
@@ -390,8 +391,27 @@ class TestGetEpisodeCumulativeUsage:
         temp_db.finalize_llm_attempt(a1, state='success', input_tokens=1_000_000, output_tokens=0)
 
         assert temp_db.get_episode_cumulative_usage(7, 'epUnrelated') == {
-            'inputTokens': 0, 'outputTokens': 0, 'costUsd': '0'}
+            'inputTokens': 0, 'outputTokens': 0, 'costUsd': '0', 'hasUnknownCost': False}
 
     def test_no_rows_returns_zeros(self, temp_db):
         assert temp_db.get_episode_cumulative_usage(7, 'no-such-episode') == {
-            'inputTokens': 0, 'outputTokens': 0, 'costUsd': '0'}
+            'inputTokens': 0, 'outputTokens': 0, 'costUsd': '0', 'hasUnknownCost': False}
+
+    def test_unknown_cost_attempt_flags_has_unknown_cost_but_keeps_known_sum(self, temp_db):
+        _seed_price(temp_db, 'cume-known-model', 2.0, 4.0)
+        known = temp_db.begin_llm_attempt(
+            run_id='run-cume-known', podcast_id=7, episode_id='epCumeUnknown',
+            phase_key='detect', invoking_pass=1, provider_key='anthropic',
+            configured_model='cume-known-model')
+        temp_db.finalize_llm_attempt(known, state='success',
+                                     input_tokens=1_000_000, output_tokens=0)
+        unknown = temp_db.begin_llm_attempt(
+            run_id='run-cume-unknown', podcast_id=7, episode_id='epCumeUnknown',
+            phase_key='detect', invoking_pass=1, provider_key='anthropic',
+            configured_model='cume-unpriced-model')
+        temp_db.finalize_llm_attempt(unknown, state='success',
+                                     input_tokens=500, output_tokens=100)
+
+        cumulative = temp_db.get_episode_cumulative_usage(7, 'epCumeUnknown')
+        assert cumulative['hasUnknownCost'] is True
+        assert Decimal(cumulative['costUsd']) == Decimal('2')

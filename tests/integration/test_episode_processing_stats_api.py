@@ -402,3 +402,4 @@ def test_processing_runs_expose_phase_breakdown_and_episode_spend(app_client, se
 
     assert data['cumulativeSpend']['inputTokens'] == 1500
     assert Decimal(data['cumulativeSpend']['costUsd']) == Decimal(run_subtotal['cost_usd'])
+    assert data['cumulativeSpend']['hasUnknownCost'] is False
