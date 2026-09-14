@@ -9,7 +9,9 @@ from config import (
     resolve_stage_tunables,
 )
 from database import Database, DEFAULT_CHAPTER_PROMPT
-from utils.prompt import render_prompt_once, apply_override
+from utils.prompt import (
+    render_prompt_once, apply_override, strip_html,
+)
 from utils.time import parse_timestamp, adjust_timestamp, span_inside_any_cut
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
@@ -39,26 +41,6 @@ _TIMESTAMP_PATTERNS = (
 )
 
 
-def _strip_html(text: str) -> str:
-    """Convert simple HTML to plain text for show-note timestamp parsing.
-
-    Block-level tags must be turned into newlines (not just stripped) so the
-    downstream `_TIMESTAMP_PATTERNS` regex sees each timestamp on its own line.
-    A bare tag-stripper like nh3 would collapse `<p>00:00 A</p><p>05:30 B</p>`
-    into `00:00 A05:30 B` and miss every anchor after the first.
-    """
-    if not text:
-        return ""
-    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
-    text = re.sub(r'</(p|li|div)>', '\n', text, flags=re.IGNORECASE)
-    text = re.sub(r'<[^>]+>', '', text)
-    for entity, char in (('&amp;', '&'), ('&lt;', '<'), ('&gt;', '>'),
-                         ('&quot;', '"'), ('&#39;', "'"), ('&nbsp;', ' ')):
-        text = text.replace(entity, char)
-    text = re.sub(r'[ \t]+', ' ', text)
-    return text.strip()
-
-
 def _parse_description_anchors(description: str) -> list[tuple[str, str]]:
     """Extract (timestamp, title) pairs from an episode description.
 
@@ -67,7 +49,7 @@ def _parse_description_anchors(description: str) -> list[tuple[str, str]]:
     """
     if not description:
         return []
-    text = _strip_html(description)
+    text = strip_html(description)
     seen: dict[str, str] = {}
     for pattern in _TIMESTAMP_PATTERNS:
         for ts, title in pattern.findall(text):
