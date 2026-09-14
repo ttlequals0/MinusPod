@@ -1601,12 +1601,12 @@ class AdDetector:
 
             # Prepare description section (shared across windows)
             description_section = ""
-            podcast_description = scrub_description(podcast_description, max_length=200)
+            podcast_description = scrub_description(podcast_description, max_length=800)
             if podcast_description:
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
                 logger.info(f"[{slug}:{episode_id}] Including scrubbed podcast description ({len(podcast_description)} chars)")
 
-            episode_description = scrub_description(episode_description, max_length=800)
+            episode_description = scrub_description(episode_description, max_length=4000)
             if episode_description:
                 description_section += f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
                 logger.info(f"[{slug}:{episode_id}] Including scrubbed episode description ({len(episode_description)} chars)")
@@ -3026,11 +3026,11 @@ class AdDetector:
 
             # Prepare description section
             description_section = ""
-            podcast_description = scrub_description(podcast_description, max_length=200)
+            podcast_description = scrub_description(podcast_description, max_length=800)
             if podcast_description:
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
             
-            episode_description = scrub_description(episode_description, max_length=800)
+            episode_description = scrub_description(episode_description, max_length=4000)
             if episode_description:
                 description_section += (
                     f"Episode Description (this describes the actual content topics discussed; "

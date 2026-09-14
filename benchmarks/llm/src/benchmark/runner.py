@@ -178,7 +178,7 @@ def _build_user_prompt(
     addressing_mode: str = "timestamps",
     id_segments: list[dict] | None = None,
 ) -> str:
-    description = scrub_description(episode.metadata.description, max_length=800)
+    description = scrub_description(episode.metadata.description, max_length=4000)
     description_section = f"\n\nEpisode description: {description}\n" if description else ""
     if addressing_mode == "segment_ids":
         transcript_lines = [f"[{seg['sid']}] {seg['text']}" for seg in (id_segments or [])]
