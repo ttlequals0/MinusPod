@@ -40,6 +40,43 @@ def _ledger_row_is_billable(state: str, input_tokens, output_tokens, cost: float
     return (input_tokens or 0) > 0 or (output_tokens or 0) > 0 or cost != 0
 
 
+# SQL mirror of _ledger_row_is_billable, for GROUP BY aggregates that must
+# filter in SQL rather than materialising every ledger row in Python.
+_LEDGER_BILLABLE_SQL = (
+    "(state = 'success' OR (state = 'failure' AND input_tokens IS NOT NULL "
+    "AND output_tokens IS NOT NULL)) "
+    "AND (COALESCE(input_tokens, 0) > 0 OR COALESCE(output_tokens, 0) > 0 "
+    "OR (cost_usd IS NOT NULL AND CAST(cost_usd AS REAL) != 0))"
+)
+
+
+def _build_ledger_filters(from_date=None, to_date=None, podcast_slug=None,
+                          provider=None, model=None) -> tuple[str, list]:
+    """WHERE-clause fragment (leading ' AND ...') and params for the
+    model-usage/episode-cost list queries. Shared so both endpoints filter
+    identically on created_at range, podcast, provider, and model."""
+    clauses = []
+    params: list = []
+    if from_date:
+        clauses.append("created_at >= ?")
+        params.append(from_date)
+    if to_date:
+        clauses.append("created_at <= ?")
+        params.append(to_date)
+    if podcast_slug:
+        clauses.append("podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)")
+        params.append(podcast_slug)
+    if provider:
+        clauses.append("provider_key = ?")
+        params.append(provider)
+    if model:
+        clauses.append("configured_model = ?")
+        params.append(model)
+    if not clauses:
+        return "", params
+    return " AND " + " AND ".join(clauses), params
+
+
 class StatsMixin:
     """Statistics, token usage, and processing history methods."""
 
@@ -587,6 +624,206 @@ class StatsMixin:
             'costUsd': str(total_cost),
             'hasUnknownCost': has_unknown_cost,
         }
+
+    _MODEL_USAGE_SORT_COLUMNS = {
+        'provider': 'provider_key',
+        'model': 'configured_model',
+        'calls': 'calls',
+        'distinctEpisodes': 'distinct_episodes',
+        'inputTokens': 'input_tokens',
+        'outputTokens': 'output_tokens',
+        'knownCostUsd': 'known_cost_usd',
+        'unknownCostCount': 'unknown_cost_count',
+    }
+
+    def get_model_usage_stats(self, *, page: int = 1, limit: int = 50,
+                              sort_by: str = 'knownCostUsd', sort_dir: str = 'desc',
+                              from_date: str = None, to_date: str = None,
+                              podcast_slug: str = None, provider: str = None,
+                              model: str = None) -> tuple[list[dict], int]:
+        """Paginated spend-by-(provider, model) breakdown over the ledger.
+
+        Same provider+model grouped across every episode; an identical
+        model id under two providers stays two separate rows because
+        provider_key is part of the GROUP BY. unknownCostCount counts
+        billable rows whose cost could not be resolved (cost_usd NULL),
+        so an unpriced model's spend is visibly incomplete rather than $0.
+        """
+        conn = self.get_connection()
+        offset = max(0, (max(1, page) - 1) * limit)
+        filter_sql, filter_params = _build_ledger_filters(
+            from_date, to_date, podcast_slug, provider, model)
+        where_sql = f"finalized_at IS NOT NULL AND {_LEDGER_BILLABLE_SQL}{filter_sql}"
+        sort_col = self._MODEL_USAGE_SORT_COLUMNS.get(sort_by, 'known_cost_usd')
+        sort_dir_sql = 'ASC' if sort_dir.lower() == 'asc' else 'DESC'
+
+        total = conn.execute(
+            f"""SELECT COUNT(*) FROM (
+                    SELECT 1 FROM llm_call_usage
+                    WHERE {where_sql}
+                    GROUP BY provider_key, configured_model
+                )""",  # noqa: S608
+            filter_params
+        ).fetchone()[0]
+
+        rows = conn.execute(
+            f"""SELECT
+                    provider_key,
+                    configured_model,
+                    COUNT(*) AS calls,
+                    COUNT(DISTINCT CASE WHEN podcast_id IS NOT NULL AND episode_id IS NOT NULL
+                                         THEN podcast_id || ':' || episode_id END) AS distinct_episodes,
+                    COALESCE(SUM(COALESCE(input_tokens, 0)), 0) AS input_tokens,
+                    COALESCE(SUM(COALESCE(output_tokens, 0)), 0) AS output_tokens,
+                    COALESCE(SUM(CASE WHEN cost_usd IS NOT NULL
+                                      THEN CAST(cost_usd AS REAL) ELSE 0 END), 0) AS known_cost_usd,
+                    SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_cost_count
+                FROM llm_call_usage
+                WHERE {where_sql}
+                GROUP BY provider_key, configured_model
+                ORDER BY {sort_col} {sort_dir_sql}
+                LIMIT ? OFFSET ?""",  # noqa: S608
+            filter_params + [limit, offset]
+        ).fetchall()
+
+        items = [{
+            'provider': row['provider_key'],
+            'model': row['configured_model'],
+            'calls': row['calls'],
+            'distinctEpisodes': row['distinct_episodes'],
+            'inputTokens': row['input_tokens'],
+            'outputTokens': row['output_tokens'],
+            'knownCostUsd': str(Decimal(str(round(row['known_cost_usd'], 6)))),
+            'unknownCostCount': row['unknown_cost_count'],
+        } for row in rows]
+        return items, total
+
+    _EPISODE_COST_SORT_COLUMNS = {
+        'podcastSlug': 'podcast_slug',
+        'podcastTitle': 'podcast_title',
+        'episodeTitle': 'episode_title',
+        'runCount': 'run_count',
+        'latestRunCostUsd': 'latest_run_cost_usd',
+        'cumulativeCostUsd': 'cumulative_cost_usd',
+        'lastActivityAt': 'last_activity_at',
+    }
+
+    def get_episode_cost_stats(self, *, page: int = 1, limit: int = 50,
+                               sort_by: str = 'lastActivityAt', sort_dir: str = 'desc',
+                               from_date: str = None, to_date: str = None,
+                               podcast_slug: str = None, provider: str = None,
+                               model: str = None) -> tuple[list[dict], int]:
+        """Paginated per-episode cost breakdown over the ledger.
+
+        latestRunCostUsd is the most recent run_id's own billable cost;
+        cumulativeCostUsd sums every run for that episode, so the two
+        diverge once an episode has been reprocessed. provider/model
+        filters narrow which raw ledger rows contribute to both figures
+        and to modelsUsed, the same way they narrow model-usage rows.
+        """
+        conn = self.get_connection()
+        offset = max(0, (max(1, page) - 1) * limit)
+        filter_sql, filter_params = _build_ledger_filters(
+            from_date, to_date, podcast_slug, provider, model)
+        # filter_sql/where_sql hold '?' placeholders only; params are bound
+        # positionally where each is interpolated into the final query below.
+        where_sql = (
+            f"finalized_at IS NOT NULL AND {_LEDGER_BILLABLE_SQL} "  # noqa: S608
+            f"AND podcast_id IS NOT NULL AND episode_id IS NOT NULL "
+            f"AND podcast_id IN (SELECT id FROM podcasts){filter_sql}"
+        )
+        sort_col = self._EPISODE_COST_SORT_COLUMNS.get(sort_by, 'last_activity_at')
+        sort_dir_sql = 'ASC' if sort_dir.lower() == 'asc' else 'DESC'
+
+        count_cte = f"""
+            WITH run_costs AS (
+                SELECT podcast_id, episode_id, run_id
+                FROM llm_call_usage
+                WHERE {where_sql}
+                GROUP BY podcast_id, episode_id, run_id
+            )
+            SELECT COUNT(*) FROM (
+                SELECT podcast_id, episode_id FROM run_costs
+                GROUP BY podcast_id, episode_id
+            )
+        """  # noqa: S608
+        total = conn.execute(count_cte, filter_params).fetchone()[0]
+
+        items_sql = f"""
+            WITH run_costs AS (
+                SELECT
+                    podcast_id, episode_id, run_id,
+                    SUM(CASE WHEN cost_usd IS NOT NULL
+                             THEN CAST(cost_usd AS REAL) ELSE 0 END) AS run_cost_usd,
+                    MAX(COALESCE(finalized_at, created_at)) AS run_activity_at
+                FROM llm_call_usage
+                WHERE {where_sql}
+                GROUP BY podcast_id, episode_id, run_id
+            ),
+            episode_models AS (
+                SELECT podcast_id, episode_id,
+                       GROUP_CONCAT(DISTINCT configured_model) AS models_used
+                FROM llm_call_usage
+                WHERE {where_sql}
+                GROUP BY podcast_id, episode_id
+            ),
+            episode_agg AS (
+                SELECT
+                    podcast_id, episode_id,
+                    COUNT(DISTINCT run_id) AS run_count,
+                    SUM(run_cost_usd) AS cumulative_cost_usd,
+                    MAX(run_activity_at) AS last_activity_at
+                FROM run_costs
+                GROUP BY podcast_id, episode_id
+            ),
+            latest_run AS (
+                SELECT podcast_id, episode_id, run_cost_usd AS latest_run_cost_usd
+                FROM (
+                    SELECT podcast_id, episode_id, run_cost_usd,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY podcast_id, episode_id
+                               ORDER BY run_activity_at DESC, run_id DESC
+                           ) AS rn
+                    FROM run_costs
+                )
+                WHERE rn = 1
+            )
+            SELECT
+                p.slug AS podcast_slug,
+                p.title AS podcast_title,
+                ea.episode_id AS episode_id,
+                e.title AS episode_title,
+                em.models_used AS models_used,
+                ea.run_count AS run_count,
+                lr.latest_run_cost_usd AS latest_run_cost_usd,
+                ea.cumulative_cost_usd AS cumulative_cost_usd,
+                ea.last_activity_at AS last_activity_at
+            FROM episode_agg ea
+            JOIN podcasts p ON p.id = ea.podcast_id
+            LEFT JOIN episodes e ON e.podcast_id = ea.podcast_id AND e.episode_id = ea.episode_id
+            JOIN latest_run lr ON lr.podcast_id = ea.podcast_id AND lr.episode_id = ea.episode_id
+            JOIN episode_models em ON em.podcast_id = ea.podcast_id AND em.episode_id = ea.episode_id
+            ORDER BY {sort_col} {sort_dir_sql}
+            LIMIT ? OFFSET ?
+        """  # noqa: S608
+        # where_sql is inlined twice above (run_costs, episode_models), so
+        # filter_params repeats once per literal appearance of its '?' marks.
+        rows = conn.execute(
+            items_sql, filter_params + filter_params + [limit, offset]
+        ).fetchall()
+
+        items = [{
+            'podcastSlug': row['podcast_slug'],
+            'podcastTitle': row['podcast_title'],
+            'episodeId': row['episode_id'],
+            'episodeTitle': row['episode_title'],
+            'modelsUsed': row['models_used'].split(',') if row['models_used'] else [],
+            'runCount': row['run_count'],
+            'latestRunCostUsd': str(Decimal(str(round(row['latest_run_cost_usd'] or 0, 6)))),
+            'cumulativeCostUsd': str(Decimal(str(round(row['cumulative_cost_usd'] or 0, 6)))),
+            'lastActivityAt': row['last_activity_at'],
+        } for row in rows]
+        return items, total
 
     def get_token_usage_summary(self) -> dict:
         """Get global totals and per-model breakdown of token usage."""

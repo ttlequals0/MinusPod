@@ -2809,6 +2809,189 @@ paths:
                       segment_ids:
                         $ref: '#/components/schemas/AddressingModeStats'
 
+  /stats/model-usage:
+    get:
+      tags:
+        - Stats
+      summary: Get paginated spend by provider and model
+      description: |
+        Paginated, sortable, filterable breakdown of the llm_call_usage
+        ledger grouped by (provider, model). A model id shared by two
+        providers is reported as two separate rows. Spend includes billed
+        failures, not only successes; unknownCostCount counts billable
+        rows whose cost could not be resolved so an unpriced model's spend
+        stays visibly incomplete instead of reading as $0.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: sortBy
+          in: query
+          description: Unrecognized values fall back to knownCostUsd.
+          schema:
+            type: string
+            enum: [provider, model, calls, distinctEpisodes, inputTokens, outputTokens, knownCostUsd, unknownCostCount]
+            default: knownCostUsd
+        - name: sortDir
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: from
+          in: query
+          description: Inclusive lower bound on created_at (ISO 8601).
+          schema:
+            type: string
+        - name: to
+          in: query
+          description: Inclusive upper bound on created_at (ISO 8601).
+          schema:
+            type: string
+        - name: podcastSlug
+          in: query
+          schema:
+            type: string
+        - name: provider
+          in: query
+          schema:
+            type: string
+        - name: model
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated provider/model spend
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        provider: { type: string }
+                        model: { type: string }
+                        calls: { type: integer }
+                        distinctEpisodes: { type: integer }
+                        inputTokens: { type: integer }
+                        outputTokens: { type: integer }
+                        knownCostUsd:
+                          type: string
+                          description: Decimal string; sum of rows with a resolved cost.
+                        unknownCostCount:
+                          type: integer
+                          description: Billable rows whose cost could not be resolved.
+                  total: { type: integer }
+                  totalPages: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+
+  /stats/episode-costs:
+    get:
+      tags:
+        - Stats
+      summary: Get paginated per-episode LLM cost
+      description: |
+        Paginated, sortable, filterable per-episode breakdown of the
+        llm_call_usage ledger. latestRunCostUsd is the most recent run's
+        own cost; cumulativeCostUsd sums every run recorded for that
+        episode, so the two diverge once an episode has been reprocessed.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: sortBy
+          in: query
+          description: Unrecognized values fall back to lastActivityAt.
+          schema:
+            type: string
+            enum: [podcastSlug, podcastTitle, episodeTitle, runCount, latestRunCostUsd, cumulativeCostUsd, lastActivityAt]
+            default: lastActivityAt
+        - name: sortDir
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: from
+          in: query
+          description: Inclusive lower bound on created_at (ISO 8601).
+          schema:
+            type: string
+        - name: to
+          in: query
+          description: Inclusive upper bound on created_at (ISO 8601).
+          schema:
+            type: string
+        - name: podcastSlug
+          in: query
+          schema:
+            type: string
+        - name: provider
+          in: query
+          schema:
+            type: string
+        - name: model
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated per-episode cost
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        podcastSlug: { type: string }
+                        podcastTitle: { type: string }
+                        episodeId: { type: string }
+                        episodeTitle: { type: string }
+                        modelsUsed:
+                          type: array
+                          items: { type: string }
+                        runCount: { type: integer }
+                        latestRunCostUsd:
+                          type: string
+                          description: Decimal string; cost of the most recent run.
+                        cumulativeCostUsd:
+                          type: string
+                          description: Decimal string; cost summed across every run.
+                        lastActivityAt: { type: string }
+                  total: { type: integer }
+                  totalPages: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+
   /patterns:
     get:
       tags:

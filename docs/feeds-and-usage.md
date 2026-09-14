@@ -47,6 +47,14 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 
 MinusPod validates feed source URLs and blocks private/loopback/LAN addresses by default (SSRF protection). If a feed source is on a private address (a LAN Audiobookshelf server or a self-hosted feed), set `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true`.
 
+## LLM Cost and Model-Usage Stats API
+
+Two read-only endpoints expose the LLM call ledger for cost tracking: `GET /api/v1/stats/model-usage` breaks down spend by provider and model, and `GET /api/v1/stats/episode-costs` breaks it down by episode instead. Both are paginated (`page`, `limit`), sortable (`sortBy`, `sortDir`), and filterable by date range (`from`, `to`), `podcastSlug`, `provider`, and `model`.
+
+Spend includes failed calls that were still billed by the provider, not just successful ones. A model's cost can be `unknown` if MinusPod has no pricing data for it; `model-usage` reports these separately as `unknownCostCount` rather than folding them into the total as zero. `episode-costs` distinguishes an episode's most recent processing run (`latestRunCostUsd`) from its lifetime total across every run (`cumulativeCostUsd`), which differ once an episode has been reprocessed.
+
+See `openapi.yaml` for full parameter and response details.
+
 ---
 
 [< Docs index](README.md) | [Project README](../README.md)
