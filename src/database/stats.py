@@ -1,6 +1,8 @@
 """Statistics and token usage mixin for MinusPod database."""
 import json
 import logging
+import uuid
+from decimal import Decimal
 
 from config import normalize_model_key
 from utils.app_version import APP_VERSION as __version__
@@ -155,30 +157,25 @@ class StatsMixin:
 
     # ========== Token Usage Methods ==========
 
-    def _calculate_token_cost(self, conn, model_id: str,
-                              input_tokens: int, output_tokens: int,
-                              match_key: str = '') -> float:
-        """Calculate cost using normalized match_key lookup.
+    def _resolve_model_rate(self, conn, model_id: str, match_key: str = ''):
+        """Resolve current per-mtok input/output rates for a model.
 
-        Resolution: operator override -> exact catalog match -> prefix match -> $0.
+        Returns (input_per_mtok, output_per_mtok, revision) or None when no
+        operator override, exact catalog match, or prefix match resolves a
+        rate. Resolution: operator override -> exact match_key -> prefix match.
+        `revision` identifies the resolved rate's provenance ('override' or
+        '<source>:<updated_at>') so callers can snapshot what priced a call.
         """
         if not match_key:
             match_key = normalize_model_key(model_id)
 
-        logger.debug(f"Cost lookup: model_id='{model_id}' -> match_key='{match_key}'")
-
         override = self.get_model_pricing_override(model_id)
         if override is not None:
-            input_per_mtok = override['inputCostPerMtok']
-            output_per_mtok = override['outputCostPerMtok']
-            return (
-                (input_tokens / 1_000_000) * input_per_mtok
-                + (output_tokens / 1_000_000) * output_per_mtok
-            )
+            return override['inputCostPerMtok'], override['outputCostPerMtok'], 'override'
 
         # Exact match on match_key
         cursor = conn.execute(
-            "SELECT input_cost_per_mtok, output_cost_per_mtok "
+            "SELECT input_cost_per_mtok, output_cost_per_mtok, source, updated_at "
             "FROM model_pricing WHERE match_key = ?",
             (match_key,)
         )
@@ -193,7 +190,8 @@ class StatsMixin:
         # still matches row 'claude37sonnet' because the next char is a letter.
         if not row:
             cursor = conn.execute(
-                """SELECT match_key, input_cost_per_mtok, output_cost_per_mtok
+                """SELECT match_key, input_cost_per_mtok, output_cost_per_mtok,
+                          source, updated_at
                    FROM model_pricing
                    WHERE ? LIKE match_key || '%'
                      AND length(match_key) >= length(?) * 0.8
@@ -218,11 +216,7 @@ class StatsMixin:
                 break
 
         if not row:
-            logger.warning(
-                f"No pricing found for model '{model_id}' "
-                f"(match_key='{match_key}'), cost recorded as $0"
-            )
-            return 0.0
+            return None
 
         input_per_mtok = row['input_cost_per_mtok']
         output_per_mtok = row['output_cost_per_mtok']
@@ -235,22 +229,42 @@ class StatsMixin:
             input_per_mtok = max(0.0, input_per_mtok)
             output_per_mtok = max(0.0, output_per_mtok)
 
+        return input_per_mtok, output_per_mtok, f"{row['source']}:{row['updated_at']}"
+
+    def _calculate_token_cost(self, conn, model_id: str,
+                              input_tokens: int, output_tokens: int,
+                              match_key: str = '') -> float:
+        """Calculate cost using normalized match_key lookup.
+
+        Resolution: operator override -> exact catalog match -> prefix match -> $0.
+        """
+        if not match_key:
+            match_key = normalize_model_key(model_id)
+
+        logger.debug(f"Cost lookup: model_id='{model_id}' -> match_key='{match_key}'")
+
+        resolved = self._resolve_model_rate(conn, model_id, match_key)
+        if resolved is None:
+            logger.warning(
+                f"No pricing found for model '{model_id}' "
+                f"(match_key='{match_key}'), cost recorded as $0"
+            )
+            return 0.0
+
+        input_per_mtok, output_per_mtok, _revision = resolved
         input_cost = (input_tokens / 1_000_000) * input_per_mtok
         output_cost = (output_tokens / 1_000_000) * output_per_mtok
         return input_cost + output_cost
 
-    def record_token_usage(self, model_id: str, input_tokens: int, output_tokens: int) -> float:
-        """Record token usage for an LLM call. Atomic upsert to per-model and global stats.
-        Returns the calculated cost for this call."""
-        if not model_id or (input_tokens <= 0 and output_tokens <= 0):
-            return 0.0
+    def _apply_token_usage_counters(self, conn, model_id: str,
+                                    input_tokens: int, output_tokens: int,
+                                    cost: float) -> None:
+        """Upsert the per-model token_usage row and bump global stats.
 
-        conn = self.get_connection()
+        Conn-taking so callers (record_token_usage, finalize_llm_attempt)
+        share one implementation under one transaction. Caller commits.
+        """
         match_key = normalize_model_key(model_id)
-        cost = self._calculate_token_cost(conn, model_id, input_tokens, output_tokens,
-                                          match_key=match_key)
-
-        # Upsert per-model token_usage row
         conn.execute(
             """INSERT INTO token_usage
                    (model_id, match_key, total_input_tokens, total_output_tokens,
@@ -272,11 +286,121 @@ class StatsMixin:
             ('total_llm_cost', cost),
         ])
 
+    def record_token_usage(self, model_id: str, input_tokens: int, output_tokens: int) -> float:
+        """Record token usage for an LLM call. Atomic upsert to per-model and global stats.
+        Returns the calculated cost for this call."""
+        if not model_id or (input_tokens <= 0 and output_tokens <= 0):
+            return 0.0
+
+        conn = self.get_connection()
+        cost = self._calculate_token_cost(conn, model_id, input_tokens, output_tokens)
+        self._apply_token_usage_counters(conn, model_id, input_tokens, output_tokens, cost)
         conn.commit()
         logger.debug(
-            f"Token usage: model={model_id} match_key={match_key} "
+            f"Token usage: model={model_id} "
             f"in={input_tokens} out={output_tokens} cost=${cost:.6f}"
         )
+        return cost
+
+    def begin_llm_attempt(self, *, run_id, podcast_id, episode_id, phase_key,
+                          invoking_pass, provider_key, configured_model,
+                          window_label=None) -> str:
+        """Insert an in_flight llm_call_usage row; return a new attempt_id."""
+        attempt_id = str(uuid.uuid4())
+        conn = self.get_connection()
+        conn.execute(
+            """INSERT INTO llm_call_usage
+                   (attempt_id, run_id, podcast_id, episode_id, phase_key,
+                    invoking_pass, window_label, provider_key, configured_model,
+                    state)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight')""",
+            (attempt_id, run_id, podcast_id, episode_id, phase_key,
+             invoking_pass, window_label, provider_key, configured_model)
+        )
+        conn.commit()
+        return attempt_id
+
+    def finalize_llm_attempt(self, attempt_id: str, *, state: str,
+                             returned_model=None, input_tokens=None,
+                             output_tokens=None, cache_read_tokens=None,
+                             cache_write_tokens=None, reasoning_tokens=None,
+                             provider_reported_cost_usd=None) -> float:
+        """Finalize one ledger attempt and derive counters when billable.
+
+        Cost/cost_source: provider_reported_cost_usd wins when given
+        ('provider_reported'); else a resolved rate over known tokens
+        ('estimated', or 'explicit_zero' when the resolved rate is 0/0);
+        else 'unknown' with cost_usd left NULL. Counters (token_usage +
+        global stats) are derived in this same transaction only when
+        state == 'success', or state == 'failure' with tokens known (a
+        billed failure) -- 'cancelled' and unknown-token failures update
+        the ledger row only.
+        """
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT configured_model FROM llm_call_usage WHERE attempt_id = ?",
+            (attempt_id,)
+        ).fetchone()
+        if row is None:
+            logger.warning(f"finalize_llm_attempt: unknown attempt_id '{attempt_id}'")
+            return 0.0
+        configured_model = row['configured_model']
+
+        tokens_known = input_tokens is not None and output_tokens is not None
+        cost_usd = None
+        cost_source = 'unknown'
+        rate_snapshot = None
+        pricing_revision = None
+        cost = 0.0
+
+        if provider_reported_cost_usd is not None:
+            cost_source = 'provider_reported'
+            cost_dec = Decimal(str(provider_reported_cost_usd))
+            cost_usd = str(cost_dec)
+            cost = float(cost_dec)
+        elif tokens_known:
+            resolved = self._resolve_model_rate(conn, configured_model)
+            if resolved is not None:
+                input_per_mtok, output_per_mtok, revision = resolved
+                if input_per_mtok == 0 and output_per_mtok == 0:
+                    cost_source = 'explicit_zero'
+                    cost_dec = Decimal('0')
+                else:
+                    cost_source = 'estimated'
+                    mtok = Decimal(1_000_000)
+                    cost_dec = (
+                        Decimal(input_tokens) / mtok * Decimal(str(input_per_mtok))
+                        + Decimal(output_tokens) / mtok * Decimal(str(output_per_mtok))
+                    )
+                    rate_snapshot = json.dumps({
+                        'inputCostPerMtok': input_per_mtok,
+                        'outputCostPerMtok': output_per_mtok,
+                    })
+                    pricing_revision = revision
+                cost_usd = str(cost_dec)
+                cost = float(cost_dec)
+
+        conn.execute(
+            """UPDATE llm_call_usage SET
+                   finalized_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+                   state = ?, returned_model = ?, input_tokens = ?,
+                   output_tokens = ?, cache_read_tokens = ?,
+                   cache_write_tokens = ?, reasoning_tokens = ?, cost_usd = ?,
+                   cost_source = ?, rate_snapshot = ?, pricing_revision = ?
+               WHERE attempt_id = ?""",
+            (state, returned_model, input_tokens, output_tokens,
+             cache_read_tokens, cache_write_tokens, reasoning_tokens,
+             cost_usd, cost_source, rate_snapshot, pricing_revision, attempt_id)
+        )
+
+        billable = state == 'success' or (state == 'failure' and tokens_known)
+        counter_input = input_tokens or 0
+        counter_output = output_tokens or 0
+        if billable and (counter_input > 0 or counter_output > 0):
+            self._apply_token_usage_counters(
+                conn, configured_model, counter_input, counter_output, cost)
+
+        conn.commit()
         return cost
 
     def get_token_usage_summary(self) -> dict:
