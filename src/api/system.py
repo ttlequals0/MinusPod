@@ -16,6 +16,9 @@ from api import (
     get_database, get_storage, _get_version, _start_time,
 )
 from config import resolve_whisper_device
+from podping_listener import (
+    get_node_health_summary, DEGRADED_SETTING, DEGRADED_SINCE_SETTING,
+)
 from pricing_fetcher import force_refresh_pricing
 from secrets_crypto import (
     count_plaintext_secrets,
@@ -154,6 +157,16 @@ def get_system_status():
             'outageDegraded': db.get_setting('feeds_refresh_outage_active') == '1',
             'outageAffectedCount': int(db.get_setting('feeds_refresh_outage_affected_count') or 0),
             'nextRetryAt': db.get_setting('feeds_next_refresh_retry_at') or None,
+        },
+        # Informational only, never gates readiness (see /health above): the
+        # RPC listener is one input path among several (RSS polling remains
+        # the fallback), so an all-nodes-down Podping outage degrades ping
+        # timeliness, not the process.
+        'podping': {
+            'listenerEnabled': db.get_setting_bool('podping_enabled', False),
+            'allNodesDown': db.get_setting(DEGRADED_SETTING) == '1',
+            'degradedSince': db.get_setting(DEGRADED_SINCE_SETTING) or None,
+            'nodes': get_node_health_summary(db),
         },
     })
 

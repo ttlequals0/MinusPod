@@ -8029,6 +8029,27 @@ paths:
                   activeDomains:    { type: integer }
                   activeWindowDays: { type: integer, example: 30 }
                   listenerEnabled:  { type: boolean }
+                  allNodesDown:
+                    type: boolean
+                    description: >-
+                      Non-fatal: every configured Hive RPC node is currently
+                      failing. RSS polling remains the fallback, so this never
+                      gates /health or feed refresh.
+                  degradedSince:
+                    type: [string, 'null']
+                    format: date-time
+                    description: When allNodesDown last became true, or null.
+                  nodes:
+                    type: array
+                    description: Durable per-node health, one entry per configured RPC node.
+                    items:
+                      type: object
+                      properties:
+                        node:                { type: string, example: https://api.hive.blog }
+                        consecutiveFailures: { type: integer }
+                        lastSuccessAt:       { type: [string, 'null'], format: date-time }
+                        nextRetryAt:         { type: [string, 'null'], format: date-time }
+                        lastFailureReason:   { type: [string, 'null'] }
 
   /feeds/{slug}/tags:
     get:
