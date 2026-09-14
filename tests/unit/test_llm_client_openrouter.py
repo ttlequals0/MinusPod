@@ -387,7 +387,7 @@ class TestGetLlmClientConfigInvalidation(unittest.TestCase):
         with patch('llm_client.get_effective_provider', return_value='anthropic'):
             second = get_llm_client()
         self.assertIsNot(first, second)
-        self.assertIs(llm_client._client_cache[('anthropic', None)], second)
+        self.assertIs(llm_client._client_cache[('anthropic', None, 'primary')], second)
 
     @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
@@ -403,7 +403,7 @@ class TestGetLlmClientConfigInvalidation(unittest.TestCase):
             second = get_llm_client()
         self.assertIsNot(first, second)
         self.assertEqual(second.base_url, 'http://b/v1')
-        self.assertIs(llm_client._client_cache[('openai-compatible', 'http://b/v1')], second)
+        self.assertIs(llm_client._client_cache[('openai-compatible', 'http://b/v1', 'primary')], second)
 
 
 if __name__ == '__main__':

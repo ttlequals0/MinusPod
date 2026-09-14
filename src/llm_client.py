@@ -1436,17 +1436,20 @@ def get_llm_max_retries() -> int:
 
 _client_lock = threading.Lock()
 
-# Cache of built clients keyed by (provider_key, normalized_base). Multiple
-# providers can be active concurrently (per-phase routing), so this is no
-# longer a single global slot: each (provider, base) pair gets its own
-# entry and rebuilds independently when its own config changes.
-_client_cache: dict[tuple[str, str | None], LLMClient] = {}
+# Cache of built clients keyed by (provider_key, normalized_base,
+# credential_slot). Multiple providers can be active concurrently (per-phase
+# routing), so this is no longer a single global slot: each (provider, base,
+# slot) triple gets its own entry and rebuilds independently when its own
+# config changes. credential_slot is required in the key (not just base_url):
+# anthropic and openrouter have no configurable per-slot endpoint, so a
+# same-type primary/secondary pair would otherwise resolve to the identical
+# (provider_key, base) pair and silently share one client and credential.
+_client_cache: dict[tuple[str, str | None, str], LLMClient] = {}
 
-# Per-provider circuit breakers, keyed by provider_key only (a provider's
-# breaker state should not depend on which base_url built the client). An
-# outage on one provider must not open another's breaker, so this replaces
-# the old single process-wide breaker.
-_circuit_breakers: dict[str, CircuitBreaker] = {}
+# Per-(provider, credential_slot) circuit breakers. An outage on one provider,
+# or on one slot of a provider shared by two accounts of the same type, must
+# not open another's breaker.
+_circuit_breakers: dict[tuple[str, str], CircuitBreaker] = {}
 _circuit_breaker_lock = threading.Lock()
 
 
@@ -1463,40 +1466,48 @@ def _normalize_base_url_for_provider(provider: str, base_url: str) -> str:
     return base_url
 
 
-def _resolve_cache_key(provider_key: str, base_url: str | None = None) -> tuple[str, str | None]:
-    """Client cache key for a provider: (provider_key, normalized_base).
+def _resolve_cache_key(provider_key: str, base_url: str | None = None,
+                       credential_slot: str = 'primary') -> tuple[str, str | None, str]:
+    """Client cache key for a provider: (provider_key, normalized_base, credential_slot).
 
     When base_url is omitted, falls back to the effective DB/env setting for
     that provider: this is what makes get_llm_client's global-provider path
     pick up cross-worker settings changes without an explicit force_new.
     Never includes a credential: callers resolve API keys separately inside
-    _build_client at build time.
+    _build_client at build time. credential_slot IS included (it is a label,
+    not a secret): anthropic and openrouter resolve the same base for both
+    slots, so without the slot in the key a same-type secondary account would
+    collide with primary's entry and silently reuse its client and credential.
     """
     if provider_key == PROVIDER_ANTHROPIC:
-        return (provider_key, None)
+        return (provider_key, None, credential_slot)
     if provider_key == PROVIDER_OPENROUTER:
-        return (provider_key, base_url or OPENROUTER_BASE_URL)
+        return (provider_key, base_url or OPENROUTER_BASE_URL, credential_slot)
     if provider_key in PROVIDERS_NON_ANTHROPIC:
         raw = base_url or get_effective_base_url()
-        return (provider_key, _normalize_base_url_for_provider(provider_key, raw))
-    return (provider_key, base_url)
+        return (provider_key, _normalize_base_url_for_provider(provider_key, raw), credential_slot)
+    return (provider_key, base_url, credential_slot)
 
 
-def _get_circuit_breaker_for_provider(provider_key: str) -> CircuitBreaker:
-    """Return (creating if needed) the per-provider circuit breaker.
+def _get_circuit_breaker_for_provider(provider_key: str,
+                                      credential_slot: str = 'primary') -> CircuitBreaker:
+    """Return (creating if needed) the per-(provider, slot) circuit breaker.
 
-    Isolated per provider so an outage on one does not open another's:
-    concurrent phases routed to different providers must fail independently.
+    Isolated per provider AND credential_slot so an outage on one does not
+    open another's: concurrent phases routed to different providers, or to a
+    same-type secondary account, must fail independently.
     cause_classifier is a lazy lambda (not `is_auth_error` directly) because
     that function is defined further down this module.
     """
+    key = (provider_key, credential_slot)
+    label = provider_key if credential_slot == 'primary' else f'{provider_key}:{credential_slot}'
     with _circuit_breaker_lock:
-        cb = _circuit_breakers.get(provider_key)
+        cb = _circuit_breakers.get(key)
         if cb is None:
             cb = CircuitBreaker(
-                f"llm-api:{provider_key}", failure_threshold=5, recovery_timeout=60,
+                f"llm-api:{label}", failure_threshold=5, recovery_timeout=60,
                 cause_classifier=lambda error: is_auth_error(error))
-            _circuit_breakers[provider_key] = cb
+            _circuit_breakers[key] = cb
         return cb
 
 # Per-run token accumulator, keyed by run_context (one per thread's run):
@@ -1572,21 +1583,24 @@ def _record_token_usage(model: str, usage: dict):
 def get_client_for_provider(provider_key: str, base_url: str | None = None,
                             credential_slot: str = 'primary',
                             force_new: bool = False) -> LLMClient:
-    """Cache-per-(provider, base) client with usage callback + a per-provider
-    circuit breaker attached. Concurrent phases on different providers each
-    get their own client and breaker, so an outage on one provider does not
-    open another's breaker.
+    """Cache-per-(provider, base, credential_slot) client with usage callback
+    + its own circuit breaker attached. Concurrent phases on different
+    providers, or on different slots of the same provider type, each get
+    their own client and breaker, so an outage on one does not open another's.
 
     ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
     providers (used by per-phase routing); omit it to use the effective
     setting, which is also what makes the cache auto-invalidate on a
     cross-worker settings change (see ``_resolve_cache_key``). ``credential_slot``
     is 'primary' (default, the provider type's own secret) or 'secondary'
-    (reads secondary_provider_api_key instead); it is not part of the cache
-    key, since a secondary slot sharing a type with primary is guaranteed by
-    llm_route to have a different base_url, which the key already separates
-    on. Credentials are resolved inside ``_build_client`` at build time from
-    provider_key/credential_slot. Never put an API key in the cache key.
+    (reads secondary_provider_api_key instead). It IS part of both the cache
+    key and the circuit breaker key: anthropic/openrouter have no per-slot
+    endpoint, so a same-type secondary account would otherwise resolve to the
+    same (provider_key, base) pair as primary and silently reuse its client,
+    credential, and breaker. Credentials are resolved inside ``_build_client``
+    at build time from provider_key/credential_slot. Never put an API key in
+    the cache key -- credential_slot is a label ('primary'/'secondary'), not
+    a secret.
 
     force_new=True also flushes the provider settings cache.
     """
@@ -1595,7 +1609,7 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
         _clear_model_list_cache()
 
     with _client_lock:
-        cache_key = _resolve_cache_key(provider_key, base_url)
+        cache_key = _resolve_cache_key(provider_key, base_url, credential_slot)
         cached = _client_cache.get(cache_key)
         if cached is not None and not force_new:
             return cached
@@ -1612,7 +1626,7 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
             client = AnthropicClient()
 
         client.set_usage_callback(_record_token_usage)
-        client.set_circuit_breaker(_get_circuit_breaker_for_provider(provider_key))
+        client.set_circuit_breaker(_get_circuit_breaker_for_provider(provider_key, credential_slot))
         _client_cache[cache_key] = client
         logger.info(f"LLM client initialized for provider '{provider_key}': {client.get_provider_name()}")
         return client

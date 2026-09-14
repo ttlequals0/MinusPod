@@ -99,7 +99,7 @@ class TestGetClientForProviderCache(unittest.TestCase):
     @patch('llm_client.get_effective_provider', return_value='anthropic')
     def test_get_llm_client_delegates_to_per_provider_cache(self, *_mocks):
         client = get_llm_client()
-        self.assertIs(llm_client._client_cache.get(('anthropic', None)), client)
+        self.assertIs(llm_client._client_cache.get(('anthropic', None, 'primary')), client)
 
 
 class TestCredentialSlotRouting(unittest.TestCase):
@@ -124,6 +124,37 @@ class TestCredentialSlotRouting(unittest.TestCase):
         self.assertIsNot(primary, secondary)
         self.assertEqual(primary.api_key, 'sk-primary')
         self.assertEqual(secondary.api_key, 'sk-secondary')
+        self.assertIsNot(primary._circuit_breaker, secondary._circuit_breaker)
+
+    @patch('llm_client._record_token_usage')
+    @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary-ant')
+    @patch('llm_client.get_effective_anthropic_api_key', return_value='sk-primary-ant')
+    def test_anthropic_primary_and_secondary_are_distinct_clients_and_breakers(self, *_mocks):
+        """Regression: anthropic has no per-slot base_url, so without
+        credential_slot in the cache key/breaker key, a secondary anthropic
+        account would silently collide with primary's cached client."""
+        primary = get_client_for_provider('anthropic')
+        secondary = get_client_for_provider('anthropic', credential_slot='secondary')
+
+        self.assertIsNot(primary, secondary)
+        self.assertEqual(primary.api_key, 'sk-primary-ant')
+        self.assertEqual(secondary.api_key, 'sk-secondary-ant')
+        self.assertIsNot(primary._circuit_breaker, secondary._circuit_breaker)
+
+    @patch('llm_client._record_token_usage')
+    @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary-or')
+    @patch('llm_client.get_effective_openrouter_api_key', return_value='sk-primary-or')
+    def test_openrouter_primary_and_secondary_are_distinct_clients_and_breakers(self, *_mocks):
+        """Regression: openrouter resolves the same base_url for both slots,
+        so without credential_slot in the cache key/breaker key, a secondary
+        openrouter account would silently collide with primary's."""
+        primary = get_client_for_provider('openrouter')
+        secondary = get_client_for_provider('openrouter', credential_slot='secondary')
+
+        self.assertIsNot(primary, secondary)
+        self.assertEqual(primary.api_key, 'sk-primary-or')
+        self.assertEqual(secondary.api_key, 'sk-secondary-or')
+        self.assertIsNot(primary._circuit_breaker, secondary._circuit_breaker)
 
     @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary')
@@ -152,6 +183,21 @@ class TestCredentialSlotRouting(unittest.TestCase):
                 self.assertNotIn('top-secret-secondary-key', str(part))
         for key in llm_client._circuit_breakers.keys():
             self.assertNotIn('top-secret-secondary-key', str(key))
+
+    @patch('llm_client._record_token_usage')
+    @patch('llm_client.get_effective_secondary_provider_api_key', return_value='top-secret-anthropic-secondary')
+    @patch('llm_client.get_effective_anthropic_api_key', return_value='top-secret-anthropic-primary')
+    def test_anthropic_cache_and_breaker_keys_never_contain_api_keys(self, *_mocks):
+        get_client_for_provider('anthropic')
+        get_client_for_provider('anthropic', credential_slot='secondary')
+
+        for key in llm_client._client_cache.keys():
+            for part in key:
+                self.assertNotIn('top-secret-anthropic-primary', str(part))
+                self.assertNotIn('top-secret-anthropic-secondary', str(part))
+        for key in llm_client._circuit_breakers.keys():
+            self.assertNotIn('top-secret-anthropic-primary', str(key))
+            self.assertNotIn('top-secret-anthropic-secondary', str(key))
 
 
 if __name__ == '__main__':
