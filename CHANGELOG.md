@@ -27,6 +27,7 @@ release notes.
 ### Fixed
 
 - Run totals in processing history and provider budget reconciliation are now derived from the LLM call ledger instead of an in-process counter. This closes a race where a pool worker finishing just after collection could drop its tokens and cost from the recorded run.
+- A failed correction in the review panel now shows the error only on the action that was clicked (Confirm ad, Confirm trimmed, or Not an ad). The other actions on that row stay normal instead of all showing "Error!".
 
 ## [2.96.25] - 2026-09-12
 

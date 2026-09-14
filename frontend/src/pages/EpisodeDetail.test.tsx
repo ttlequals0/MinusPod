@@ -542,6 +542,65 @@ describe('Held for Review: failed Approve & Recut does not arm pendingRecutRef',
   });
 });
 
+describe('Held for Review: per-action error isolation', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+  });
+
+  it('shows the error on only the invoked action when confirm-trimmed fails', async () => {
+    const user = userEvent.setup();
+    const trimmedMarker = {
+      ...heldMarker,
+      reviewer_proposed_start: 130,
+      reviewer_proposed_end: 350,
+    };
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [trimmedMarker, secondHeldMarker],
+    }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-trimmed-0')).toBeDefined();
+    });
+
+    mockSubmitCorrection.mockRejectedValueOnce(new Error('network error'));
+    await user.click(screen.getByTestId('approve-trimmed-0'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-trimmed-0').textContent).toBe('Error!');
+    });
+    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm ad');
+    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not an ad');
+  });
+
+  it('a success on one action does not error the others', async () => {
+    const user = userEvent.setup();
+    const trimmedMarker = {
+      ...heldMarker,
+      reviewer_proposed_start: 130,
+      reviewer_proposed_end: 350,
+    };
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [trimmedMarker, secondHeldMarker],
+    }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-trimmed-0')).toBeDefined();
+    });
+
+    mockSubmitCorrection.mockResolvedValueOnce({});
+    await user.click(screen.getByTestId('approve-trimmed-0'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-trimmed-0').textContent).toBe('Saved!');
+    });
+    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm ad');
+    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not an ad');
+  });
+});
+
 // ---- EpisodeList chip tests ----
 
 describe('EpisodeList: pending chip', () => {

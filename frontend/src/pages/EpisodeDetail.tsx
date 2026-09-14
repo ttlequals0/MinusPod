@@ -417,19 +417,28 @@ function EpisodeDetail() {
     correctionMutation.mutate(correction);
   };
 
-  // Per-row save status for the Held-for-Review and Detections-Not-Cut rows.
-  // Match on the full identity, not just start/end, so two markers that
-  // happen to share boundaries don't both light up when only one is saving.
-  const rowSaveStatus = (segment: {
-    start: number; end: number; confidence: number; reason?: string;
-  }): SaveStatus => {
-    const mutAd = correctionMutation.variables?.originalAd;
-    return mutAd?.start === segment.start &&
+  // Per-row, per-action save status for the Held-for-Review and
+  // Detections-Not-Cut rows. Match on the full row identity plus which
+  // action (confirm / confirm-trimmed / reject) submitted the in-flight
+  // mutation, so a failure on one action doesn't render "Error!" on the
+  // other actions sharing the same row.
+  const rowSaveStatus = (
+    segment: { start: number; end: number; confidence: number; reason?: string },
+    kind: 'confirm' | 'confirm-trimmed' | 'reject',
+  ): SaveStatus => {
+    const vars = correctionMutation.variables;
+    const mutAd = vars?.originalAd;
+    const sameRow = mutAd?.start === segment.start &&
       mutAd?.end === segment.end &&
       mutAd?.confidence === segment.confidence &&
-      mutAd?.reason === (segment.reason || '')
-      ? saveStatus
-      : 'idle';
+      mutAd?.reason === (segment.reason || '');
+    if (!sameRow) return 'idle';
+    const sameAction = kind === 'reject'
+      ? vars?.type === 'reject'
+      : kind === 'confirm-trimmed'
+      ? vars?.type === 'confirm' && vars?.adjustedStart != null && vars?.adjustedEnd != null
+      : vars?.type === 'confirm' && vars?.adjustedStart == null && vars?.adjustedEnd == null;
+    return sameAction ? saveStatus : 'idle';
   };
 
   // Open (or toggle) the editor from a fresh entry point. Reopening must land
@@ -1395,7 +1404,9 @@ function EpisodeDetail() {
                 : segment.hold_reason === 'cue_low_confidence'
                 ? 'Low-confidence cue'
                 : 'Held';
-              const rowStatus = rowSaveStatus(segment);
+              const confirmStatus = rowSaveStatus(segment, 'confirm');
+              const trimmedStatus = rowSaveStatus(segment, 'confirm-trimmed');
+              const rejectStatus = rowSaveStatus(segment, 'reject');
               const heldKey = `held-${segment.start}-${segment.end}`;
               const heldPlaying = markerAudition.playingKey === heldKey;
               const originalAd = toOriginalAd(segment);
@@ -1487,9 +1498,9 @@ function EpisodeDetail() {
                         }}
                         disabled={correctionMutation.isPending || reprocessBlocked}
                         data-testid={`approve-recut-${index}`}
-                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
+                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(confirmStatus, btnPrimary)} ${focusRing}`}
                       >
-                        {btnLabel(rowStatus, oneTapRecut ? 'Confirm & Recut' : 'Confirm ad')}
+                        {btnLabel(confirmStatus, oneTapRecut ? 'Confirm & Recut' : 'Confirm ad')}
                       </button>
                       {segment.reviewer_proposed_start != null && segment.reviewer_proposed_end != null && (
                         <button
@@ -1507,13 +1518,14 @@ function EpisodeDetail() {
                           disabled={correctionMutation.isPending || reprocessBlocked}
                           data-testid={`approve-trimmed-${index}`}
                           title="Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode"
-                          className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnSecondary)} ${focusRing}`}
+                          className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(trimmedStatus, btnSecondary)} ${focusRing}`}
                         >
-                          {btnLabel(rowStatus,
+                          {btnLabel(trimmedStatus,
                             `Confirm trimmed (${formatTimestamp(segment.reviewer_proposed_start)} - ${formatTimestamp(segment.reviewer_proposed_end)})`)}
                         </button>
                       )}
-                      {!episode.hasOriginalAudio && rowStatus === 'success' && (
+                      {!episode.hasOriginalAudio
+                        && (confirmStatus === 'success' || trimmedStatus === 'success' || rejectStatus === 'success') && (
                         <span className="text-xs text-muted-foreground italic self-center">
                           Saved - applies on next reprocess
                         </span>
@@ -1522,9 +1534,9 @@ function EpisodeDetail() {
                         onClick={() => handleCorrection({ type: 'reject', originalAd })}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`dismiss-${index}`}
-                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
+                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                       >
-                        {btnLabel(rowStatus, 'Not an ad')}
+                        {btnLabel(rejectStatus, 'Not an ad')}
                       </button>
                     </div>
                   )}
@@ -1608,7 +1620,8 @@ function EpisodeDetail() {
               >
                 {(() => {
                   const correction = getAdCorrection(segment.start, segment.end);
-                  const rowStatus = rowSaveStatus(segment);
+                  const confirmStatus = rowSaveStatus(segment, 'confirm');
+                  const rejectStatus = rowSaveStatus(segment, 'reject');
                   const rejectedKey = `rejected-${segment.start}-${segment.end}`;
                   const originalAd = toOriginalAd(segment);
                   const rejectedPlaying = markerAudition.playingKey === rejectedKey;
@@ -1679,16 +1692,16 @@ function EpisodeDetail() {
                           <button
                             onClick={() => handleCorrection({ type: 'confirm', originalAd })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
+                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(confirmStatus, btnPrimary)} ${focusRing}`}
                           >
-                            {btnLabel(rowStatus, 'Confirm ad')}
+                            {btnLabel(confirmStatus, 'Confirm ad')}
                           </button>
                           <button
                             onClick={() => handleCorrection({ type: 'reject', originalAd })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
+                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                           >
-                            {btnLabel(rowStatus, 'Not an ad')}
+                            {btnLabel(rejectStatus, 'Not an ad')}
                           </button>
                         </div>
                       )}
