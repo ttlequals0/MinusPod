@@ -1020,7 +1020,7 @@ describe('Authoritative jobState eligibility', () => {
       corrections: [confirmedHeldCorrection],
     }));
     await screen.findByTestId('held-for-review-section');
-    expect(screen.getByRole('button', { name: 'Queued' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Reprocess' })).toHaveProperty('disabled', true);
     expect(screen.getByTestId('apply-approved-recut')).toHaveProperty('disabled', true);
   });
 
@@ -1049,7 +1049,7 @@ describe('Authoritative jobState eligibility', () => {
     await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalledTimes(1));
   });
 
-  it('reads "Queued" and stays disabled once the refetch reports jobState=queued', async () => {
+  it('keeps the trigger labeled "Reprocess" and stays disabled once the refetch reports jobState=queued', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ pendingReviewMarkers: [] }));
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
@@ -1062,9 +1062,26 @@ describe('Authoritative jobState eligibility', () => {
 
     await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'full'));
     await waitFor(() => {
-      const trigger = screen.getByRole('button', { name: 'Queued' });
+      const trigger = screen.getByRole('button', { name: 'Reprocess' });
       expect(trigger).toHaveProperty('disabled', true);
     });
+  });
+
+  it('shows a "queued" status badge once the refetch reports jobState=queued', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ status: 'pending', processedAt: null, pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+
+    mockReprocessEpisode.mockResolvedValue({ message: 'queued', mode: 'full', jobState: 'queued' });
+    setupEpisodeMock(makeEpisode({
+      status: 'pending', processedAt: null, pendingReviewMarkers: [], jobState: 'queued',
+    }));
+
+    await user.click(screen.getByRole('button', { name: 'Process' }));
+    await user.click(screen.getByText('Full Analysis'));
+
+    await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'full'));
+    await waitFor(() => expect(screen.getByText('queued')).toBeDefined());
   });
 
   it('invalidates the episodes list query (not just the detail) on reprocess success', async () => {

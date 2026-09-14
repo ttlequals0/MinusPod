@@ -3,6 +3,7 @@ import { EPISODE_STATUS_KEYS, type EpisodeStatusKey } from '../api/types';
 export const EPISODE_STATUS_COLORS: Record<string, string> = {
   discovered: 'bg-c-blue/20 text-c-blue',
   pending: 'bg-muted text-muted-foreground',
+  queued: 'bg-c-teal/20 text-c-teal',
   processing: 'bg-warning/20 text-warning',
   completed: 'bg-success/20 text-success',
   failed: 'bg-destructive/20 text-destructive',
@@ -13,6 +14,7 @@ export const EPISODE_STATUS_COLORS: Record<string, string> = {
 export const EPISODE_STATUS_LABELS: Record<string, string> = {
   discovered: 'discovered',
   pending: 'pending',
+  queued: 'queued',
   processing: 'processing',
   completed: 'completed',
   failed: 'failed',
@@ -24,13 +26,28 @@ export function isFailedStatus(status: string): boolean {
   return status === 'failed' || status === 'permanently_failed';
 }
 
+// 'queued' isn't a real episode status; it overrides display while the
+// episode's real status (still 'pending', etc.) waits in the run queue.
+export function displayStatusKey(status: string, jobState?: string): string {
+  return jobState === 'queued' ? 'queued' : status;
+}
+
+export function displayStatusLabel(status: string, jobState?: string): string {
+  return EPISODE_STATUS_LABELS[displayStatusKey(status, jobState)] ?? status;
+}
+
+export function displayStatusColor(status: string, jobState?: string): string {
+  return EPISODE_STATUS_COLORS[displayStatusKey(status, jobState)] ?? 'bg-muted text-muted-foreground';
+}
+
 // Single source of iteration order for status summaries and stat cards.
 export const EPISODE_STATUS_ORDER: readonly EpisodeStatusKey[] = EPISODE_STATUS_KEYS;
 
 // Text-only variants of the badge palette for big stat-card numbers.
-export const EPISODE_STATUS_TEXT_COLORS: Record<EpisodeStatusKey, string> = {
+export const EPISODE_STATUS_TEXT_COLORS: Record<EpisodeStatusKey | 'queued', string> = {
   discovered: 'text-c-blue',
   pending: 'text-muted-foreground',
+  queued: 'text-c-teal',
   processing: 'text-warning',
   completed: 'text-success',
   failed: 'text-destructive',

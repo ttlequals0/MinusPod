@@ -88,7 +88,7 @@ describe('DashboardEpisodeGroups', () => {
     expect(screen.getByRole('link', { name: 'View all episodes' }).getAttribute('href')).toBe('/feeds/show-d');
   });
 
-  it('disables a queued row action while a sibling row stays actionable', () => {
+  it('disables a queued row action while a sibling row stays actionable, keeping both action labels stable', () => {
     const feed: Feed = {
       slug: 'show-e', title: 'Show E', sourceUrl: 'https://example.com/e.xml', feedUrl: 'https://example.com/e.xml',
       episodeCount: 2,
@@ -98,10 +98,22 @@ describe('DashboardEpisodeGroups', () => {
       ],
     };
     renderGroups([feed]);
-    const queuedButton = screen.getByText('Queued').closest('button') as HTMLButtonElement;
+    // status !== 'completed' for e1, so its action label stays "Process",
+    // not a state word, while it is disabled for being queued.
+    const queuedButton = screen.getByText('Process').closest('button') as HTMLButtonElement;
     expect(queuedButton.disabled).toBe(true);
     const idleButton = screen.getByText('Reprocess').closest('button') as HTMLButtonElement;
     expect(idleButton.disabled).toBe(false);
+  });
+
+  it('shows a "queued" status badge for a row whose jobState is queued', () => {
+    const feed: Feed = {
+      slug: 'show-f', title: 'Show F', sourceUrl: 'https://example.com/f.xml', feedUrl: 'https://example.com/f.xml',
+      episodeCount: 1,
+      latestEpisodes: [episodeSummary({ id: 'e1', jobState: 'queued', status: 'pending' })],
+    };
+    renderGroups([feed]);
+    expect(screen.getByText('queued')).toBeTruthy();
   });
 });
 

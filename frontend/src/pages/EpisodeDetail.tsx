@@ -14,7 +14,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import Artwork from '../components/Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
-import { EPISODE_STATUS_COLORS, isFailedStatus } from '../utils/episodeStatus';
+import { displayStatusColor, displayStatusLabel, isFailedStatus } from '../utils/episodeStatus';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
@@ -579,16 +579,6 @@ function EpisodeDetail() {
   // run, derived from the server-authoritative jobState rather than ad-hoc
   // status checks.
   const reprocessBlocked = isActionBlocked(episode.jobState, reprocessMutation.isPending);
-  // "Submitting..." covers the POST round trip before jobState updates;
-  // once it does, the label reflects the queue/run state, not the client's
-  // own isPending (which lags into the awaited invalidate/refetch above).
-  const reprocessTriggerLabel = episode.jobState === 'processing'
-    ? (neverProcessed ? 'Processing...' : 'Reprocessing...')
-    : episode.jobState === 'queued'
-    ? 'Queued'
-    : reprocessMutation.isPending
-    ? 'Submitting...'
-    : reprocessLabel;
 
   // Guards a same-tick double activation (double-click, keyboard repeat)
   // that would otherwise fire two POSTs before the disabled prop re-renders.
@@ -706,10 +696,10 @@ function EpisodeDetail() {
                 <span>{formatFileSize(episode.fileSize)}</span>
               )}
               <span
-                className={`px-2 py-0.5 rounded text-xs font-medium ${EPISODE_STATUS_COLORS[episode.status]}${failureReason ? ' cursor-help' : ''}`}
+                className={`px-2 py-0.5 rounded text-xs font-medium ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
                 title={failureReason}
               >
-                {episode.status}
+                {displayStatusLabel(episode.status, episode.jobState)}
               </span>
               {episode.lowAdYield && (
                 <span
@@ -793,7 +783,7 @@ function EpisodeDetail() {
                 />
               )}
               <DropdownMenu
-                triggerLabel={reprocessTriggerLabel}
+                triggerLabel={reprocessLabel}
                 triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
                 chevronClassName="w-3 h-3"
                 disabled={reprocessBlocked}

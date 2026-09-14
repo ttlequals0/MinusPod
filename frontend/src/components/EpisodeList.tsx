@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Episode } from '../api/types';
-import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS, isFailedStatus } from '../utils/episodeStatus';
+import { displayStatusColor, displayStatusLabel, isFailedStatus } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';
 import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
@@ -141,10 +141,10 @@ function EpisodeRow({
               </span>
             )}
             <span
-              className={`px-2 py-0.5 text-xs rounded whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}${failureReason ? ' cursor-help' : ''}`}
+              className={`px-2 py-0.5 text-xs rounded whitespace-nowrap ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
               title={failureReason}
             >
-              {EPISODE_STATUS_LABELS[episode.status] || episode.status}
+              {displayStatusLabel(episode.status, episode.jobState)}
             </span>
           </div>
         </div>

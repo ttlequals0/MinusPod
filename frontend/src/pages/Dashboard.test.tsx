@@ -286,7 +286,9 @@ describe('Dashboard Episodes view', () => {
     renderDashboard();
     await userEvent.click(await screen.findByRole('button', { name: 'Episodes view' }));
     await screen.findByText('Episode z1');
-    const queuedButton = screen.getByText('Queued').closest('button') as HTMLButtonElement;
+    // z1's status is 'processing' (never completed), so its action label
+    // stays "Process" even while disabled for being queued.
+    const queuedButton = screen.getByText('Process').closest('button') as HTMLButtonElement;
     expect(queuedButton.disabled).toBe(true);
     const idleButton = screen.getAllByText('Reprocess')[0].closest('button') as HTMLButtonElement;
     expect(idleButton.disabled).toBe(false);
