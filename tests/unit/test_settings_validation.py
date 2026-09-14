@@ -793,8 +793,8 @@ class TestPerPhaseProviderSettings:
 
 
 class TestSecondaryProviderSettings:
-    """GET/PUT surface for the optional secondary provider (checkpoint
-    02b): secondaryProviderEnabled/secondaryProvider/secondaryProviderBaseUrl
+    """GET/PUT surface for the optional secondary provider:
+    secondaryProviderEnabled/secondaryProvider/secondaryProviderBaseUrl
     plus the secondaryProviderApiKey secret."""
 
     @pytest.fixture(autouse=True)

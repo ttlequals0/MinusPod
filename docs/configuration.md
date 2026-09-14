@@ -62,7 +62,7 @@ Cost is one extra LLM call per detected ad (and one extra call per rejected dete
 Settings live under AI & Processing -> Ad Reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
-- **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick a specific provider to run the reviewer somewhere else, such as detection on Anthropic with review on a cheaper OpenRouter model
+- **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick `Primary` or `Secondary` to run the reviewer on that slot instead, such as detection on primary with review on a cheaper secondary account
 - **Review model** - only used when Review provider is not `Same as pass`. `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
 - **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
 - **Review prompt** - system prompt for the confirm/adjust/reject reviewer
@@ -435,6 +435,8 @@ Only a reset further out than five minutes triggers a hold. Shorter ones keep th
 While a hold is active, a probe re-checks it instead of waiting out the provider's stated reset. With a usage endpoint configured it is checked first and can clear the hold early or push it out to a fresher reset; without one, a single minimal completion call does the same check.
 
 A hold on one provider is lifted automatically when you update that provider's own credentials in Settings > Providers, or when you turn this toggle off. Changing several provider settings together in one save does not clear a hold that belongs to just one of them.
+
+Holds are scoped per credential, not just per provider type. If primary and secondary use the same provider type, for example two Anthropic accounts, a 429 on one does not pause the other. Updating a slot's credentials lifts only that slot's hold.
 
 ## Whisper Pool
 

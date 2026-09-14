@@ -411,10 +411,9 @@ def _phase_snapshot(**routes):
 
 
 class TestProviderScopedAdmission:
-    """Checkpoint 02 task 4: a hold on one provider must not pause a run
-    whose phases all use a different, healthy provider, and a run needing a
-    held provider must be refused before it can spend a call on any other
-    provider it needs.
+    """A hold on one provider must not pause a run whose phases all use a
+    different, healthy provider, and a run needing a held provider must be
+    refused before it can spend a call on any other provider it needs.
     """
 
     def test_hold_on_one_provider_leaves_other_provider_run_admissible(

@@ -361,8 +361,8 @@ def get_settings():
     openrouter_api_key = get_effective_openrouter_api_key()
     openrouter_api_key_configured = bool(openrouter_api_key)
 
-    # Optional secondary provider (checkpoint 02b): a second full provider
-    # config that stage settings can route to via the 'secondary' slot.
+    # Optional secondary provider: a second full provider config that stage
+    # settings can route to via the 'secondary' slot.
     secondary_provider_enabled = coerce_bool_setting(_setting_value(
         settings, 'secondary_provider_enabled',
         registry_default('secondary_provider_enabled')))

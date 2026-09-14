@@ -104,7 +104,7 @@ class TestGetClientForProviderCache(unittest.TestCase):
 
 class TestCredentialSlotRouting(unittest.TestCase):
     """A secondary slot resolves its API key from secondary_provider_api_key,
-    even when it shares a provider type with primary (checkpoint 02b task 2)."""
+    even when it shares a provider type with primary."""
 
     def setUp(self):
         llm_client._client_cache.clear()

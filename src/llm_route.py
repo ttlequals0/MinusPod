@@ -180,9 +180,8 @@ def _resolve_review_route_parts(
     review_provider_setting is a SLOT (primary/secondary/same_as_pass).
     same_as_pass inherits the calling pass's provider/model/base_url/
     credential_slot verbatim, ignoring review_model entirely. Shared by
-    resolve_route's live read and AdReviewer's frozen run-start gate
-    (checkpoint 02 task 3 / 02b task 1), so the rule never drifts between
-    the two call paths.
+    resolve_route's live read and AdReviewer's frozen run-start gate, so the
+    rule never drifts between the two call paths.
     """
     configured_slot = review_provider_setting or SAME_AS_PASS
     if configured_slot == SAME_AS_PASS:

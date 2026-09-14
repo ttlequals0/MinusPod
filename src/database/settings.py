@@ -290,8 +290,8 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'verification_provider': SettingSpec(default=None, seeded=True),
     'chapters_provider': SettingSpec(default=None, seeded=True),
 
-    # -- Secondary provider (checkpoint 02b): an optional second full
-    # provider config. Disabled by default; a stage referencing the
+    # -- Secondary provider: an optional second full provider config.
+    # Disabled by default; a stage referencing the
     # 'secondary' slot while this is false falls back to primary (see
     # llm_route.py). secondary_provider_api_key lives in SECRET_SETTING_KEYS
     # (registered below with the other provider secrets).

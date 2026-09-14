@@ -96,9 +96,9 @@ def test_a_future_reset_time_reports_the_queue_as_paused(clean_hold, app_client)
 
 
 def test_a_provider_scoped_hold_reports_the_queue_as_paused(clean_hold, app_client):
-    """A single-provider install's real 429s land on a provider-scoped key
-    (checkpoint 02 task 4), not the legacy one; /status must still report
-    it as a pause instead of reading False/null against an unused key."""
+    """A single-provider install's real 429s land on a provider-scoped key,
+    not the legacy one; /status must still report it as a pause instead of
+    reading False/null against an unused key."""
     from rate_limit_hold import clear_hold, record_hold_until
     from utils.time import utc_now
 

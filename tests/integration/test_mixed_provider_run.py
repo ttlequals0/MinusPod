@@ -1,8 +1,8 @@
 """Per-run route snapshot resolution/persistence and per-phase provider
-routing (checkpoint 02, task 3): a run resolves one immutable, non-secret
-route per phase at start, persists it to processing_runs, reuses it on
-recovery instead of re-resolving from live settings, and each phase's LLM
-call goes through its own route's client and model.
+routing: a run resolves one immutable, non-secret route per phase at start,
+persists it to processing_runs, reuses it on recovery instead of
+re-resolving from live settings, and each phase's LLM call goes through its
+own route's client and model.
 """
 import json
 import os
@@ -48,9 +48,9 @@ ROUTE_SETTING_KEYS = (
 def mixed_provider_settings():
     """detection/verification/chapters=primary (anthropic), review=secondary
     (openrouter), on the same real Database singleton main_app.processing
-    already holds. Stage settings are SLOT values (checkpoint 02b task 1),
-    resolved against llm_provider=anthropic (primary) and
-    secondary_provider=openrouter. These settings are read directly (not
+    already holds. Stage settings are SLOT values, resolved against
+    llm_provider=anthropic (primary) and secondary_provider=openrouter.
+    These settings are read directly (not
     through the cached effective-provider fallback), so no cache
     invalidation race with other tests."""
     from api import get_database
@@ -144,9 +144,9 @@ class TestRouteSnapshotResolutionAndPersistence:
         assert 'sk-or-should-not-appear' not in raw
 
     def test_review_route_follows_openrouter_when_review_provider_explicit(self, run_row):
-        # Same fixture, spelled out for the checkpoint's "repeat with
-        # review=openrouter" case: review already targets openrouter here
-        # (mixed_provider_settings), distinct from detection's anthropic.
+        # Same fixture, spelled out for the "review=openrouter" case: review
+        # already targets openrouter here (mixed_provider_settings),
+        # distinct from detection's anthropic.
         snapshot = processing._resolve_or_load_route_snapshot(run_row['run_id'])
         assert snapshot['detection']['provider_key'] == 'anthropic'
         assert snapshot['review']['provider_key'] == 'openrouter'

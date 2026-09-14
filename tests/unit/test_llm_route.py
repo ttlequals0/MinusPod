@@ -2,7 +2,7 @@
 
 Stage settings (detection_provider, verification_provider,
 chapters_provider, review_provider) store a SLOT (primary/secondary), not a
-provider type (checkpoint 02b task 1).
+provider type.
 """
 from unittest.mock import MagicMock, patch
 
@@ -12,7 +12,8 @@ from tests.app_bootstrap import bootstrap
 bootstrap('llm_route_test_')
 
 import llm_route
-from config import ModelNotConfiguredError
+from config import ModelNotConfiguredError, coerce_bool_setting
+from database import Database
 from llm_route import Route, resolve_route
 
 
@@ -187,7 +188,7 @@ def test_review_same_as_pass_inherits_pass_base_url_and_credential_slot():
 
 def test_review_same_as_pass_ignores_review_model_setting():
     # review_provider defaults to same_as_pass, which pins the model to the
-    # pass model too -- a leftover review_model override is not consulted.
+    # pass model too: a leftover review_model override is not consulted.
     settings = {'review_model': 'claude-opus-4-8'}
     with patch.object(llm_route, 'Database', return_value=_db(settings)), \
             patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
@@ -329,3 +330,82 @@ class TestMigrationDefaults:
             assert route.slot == 'primary'
             assert route.credential_slot == 'primary'
             assert route.model_id == 'claude-sonnet-5'
+
+
+class TestPopulatedDatabaseUpgrade:
+    """A real, populated pre-secondary-provider database: existing settings
+    and other data, no secondary config, no stage-provider slot settings.
+    Reopening it (as an app restart on the new code would) must not lose
+    data or rebuild any table, and every stage must resolve to primary,
+    reproducing the single-provider routes the install already had."""
+
+    def test_populated_db_upgrades_cleanly(self, temp_dir, monkeypatch):
+        monkeypatch.delenv('LLM_PROVIDER', raising=False)
+
+        previous_instance = Database._instance
+        Database._instance = None
+        db = Database(data_dir=temp_dir)
+        try:
+            # Settings a pre-existing single-provider install would have.
+            db.set_setting('llm_provider', 'openai-compatible', is_default=False)
+            db.set_setting('openai_base_url', 'https://llm.example.internal/v1',
+                            is_default=False)
+            db.set_setting('claude_model', 'gpt-4o-mini', is_default=False)
+            conn = db.get_connection()
+            conn.execute(
+                "INSERT INTO podcasts (slug, source_url, title) VALUES (?, ?, ?)",
+                ('example-podcast', 'https://example.com/feed.xml', 'Example Show'))
+            conn.commit()
+            podcast_count_before = conn.execute(
+                "SELECT COUNT(*) AS c FROM podcasts").fetchone()['c']
+
+            # Reopen the same database file: the existing-DB migration path
+            # (_create_new_tables_only + _run_schema_migrations), not a
+            # fresh-DB rebuild.
+            Database._instance = None
+            db2 = Database(data_dir=temp_dir)
+
+            # No data loss, no destructive rebuild.
+            assert db2.get_setting('llm_provider') == 'openai-compatible'
+            assert db2.get_setting('openai_base_url') == 'https://llm.example.internal/v1'
+            assert db2.get_setting('claude_model') == 'gpt-4o-mini'
+            conn2 = db2.get_connection()
+            assert conn2.execute(
+                "SELECT COUNT(*) AS c FROM podcasts").fetchone()['c'] == podcast_count_before
+            row = conn2.execute(
+                "SELECT title FROM podcasts WHERE slug = ?", ('example-podcast',)).fetchone()
+            assert row['title'] == 'Example Show'
+
+            # No stage-provider slot settings and no secondary config exist.
+            for key in ('detection_provider', 'verification_provider',
+                        'chapters_provider', 'review_provider',
+                        'secondary_provider', 'secondary_provider_base_url'):
+                assert db2.get_setting(key) is None
+            assert not coerce_bool_setting(db2.get_setting('secondary_provider_enabled'))
+
+            # Every stage resolves to primary, matching the pre-existing
+            # single-provider behavior.
+            for stage in ('detection', 'verification', 'chapters', 'review'):
+                assert llm_route.resolved_stage_slot(db2, stage) == 'primary'
+
+            with patch.object(llm_route, 'Database', return_value=db2), \
+                    patch.object(llm_route, 'get_effective_provider',
+                                 return_value='openai-compatible'), \
+                    patch.object(llm_route, 'get_effective_base_url',
+                                 return_value='https://llm.example.internal/v1'):
+                detection = resolve_route('detection')
+                verification = resolve_route('verification')
+                chapters = resolve_route('chapters')
+                review = resolve_route(
+                    'review', pass_provider=detection.provider_key,
+                    pass_model=detection.model_id, pass_base_url=detection.base_url,
+                    pass_credential_slot=detection.credential_slot)
+
+            for route in (detection, verification, chapters, review):
+                assert route.provider_key == 'openai-compatible'
+                assert route.slot == 'primary'
+                assert route.credential_slot == 'primary'
+                assert route.base_url == 'https://llm.example.internal/v1'
+            assert detection.model_id == 'gpt-4o-mini'
+        finally:
+            Database._instance = previous_instance

@@ -1599,8 +1599,8 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
     same (provider_key, base) pair as primary and silently reuse its client,
     credential, and breaker. Credentials are resolved inside ``_build_client``
     at build time from provider_key/credential_slot. Never put an API key in
-    the cache key -- credential_slot is a label ('primary'/'secondary'), not
-    a secret.
+    the cache key: credential_slot is a label ('primary'/'secondary'), not a
+    secret.
 
     force_new=True also flushes the provider settings cache.
     """

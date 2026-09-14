@@ -4676,25 +4676,27 @@ paths:
                 detectionProvider:
                   type: string
                   description: |
-                    Provider override for first-pass ad detection. Empty string clears the
-                    override, which falls back to llmProvider.
-                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                    Routing slot for first-pass ad detection: `primary` runs it on the
+                    global llmProvider, `secondary` on the optional secondary provider
+                    (falls back to primary if secondary is disabled or unconfigured).
+                    Empty string clears the override back to primary.
+                  enum: [primary, secondary, '']
                   example: ''
                 verificationProvider:
                   type: string
                   description: |
-                    Provider override for the verification pass. Empty string clears the
-                    override, which falls back to detectionProvider (or llmProvider if that
-                    is also unset).
-                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                    Routing slot for the verification pass: `primary`, `secondary`, or
+                    `same_as_detection` to inherit detectionProvider's resolved slot.
+                    Empty string clears the override back to same_as_detection.
+                  enum: [primary, secondary, same_as_detection, '']
                   example: ''
                 chaptersProvider:
                   type: string
                   description: |
-                    Provider override for chapter title generation. Empty string clears the
-                    override, which falls back to detectionProvider (or llmProvider if that
-                    is also unset).
-                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                    Routing slot for chapter title generation: `primary`, `secondary`, or
+                    `same_as_detection` to inherit detectionProvider's resolved slot.
+                    Empty string clears the override back to same_as_detection.
+                  enum: [primary, secondary, same_as_detection, '']
                   example: ''
                 whisperModel:
                   type: string
@@ -5183,10 +5185,12 @@ paths:
                 reviewProvider:
                   type: string
                   description: |
-                    Provider for the reviewer pass. `same_as_pass` runs the reviewer on
-                    whichever provider and model resolved the pass it is reviewing (both
-                    detection and verification); an explicit provider always overrides it.
-                  enum: [anthropic, openai-compatible, ollama, openrouter, same_as_pass]
+                    Routing slot for the reviewer pass. `same_as_pass` (default) inherits
+                    both the provider and model of whichever pass is being reviewed.
+                    `primary` or `secondary` runs the reviewer on that slot instead and
+                    enables reviewModel; secondary falls back to primary when it is
+                    disabled or unconfigured.
+                  enum: [primary, secondary, same_as_pass]
                   example: same_as_pass
                 maxArtworkBytes:
                   type: integer
@@ -11381,10 +11385,10 @@ components:
         reviewProvider:
           type: object
           description: |
-            Provider used for the reviewer pass. Sentinel `same_as_pass`
-            (the default) inherits both the provider and model of the pass
-            being reviewed, ignoring reviewModel. An explicit provider
-            enables reviewModel.
+            Routing slot used for the reviewer pass: `primary`, `secondary`,
+            or the sentinel `same_as_pass` (the default), which inherits
+            both the provider and model of the pass being reviewed and
+            ignores reviewModel. `primary`/`secondary` enable reviewModel.
           properties:
             value:
               type: string
@@ -11482,8 +11486,8 @@ components:
         detectionProvider:
           type: object
           description: |
-            Provider override for first-pass ad detection. Empty when unset,
-            which falls back to llmProvider.
+            Routing slot for first-pass ad detection: `primary` or
+            `secondary`. Empty when unset, which resolves to primary.
           properties:
             value:
               type: string
@@ -11492,9 +11496,9 @@ components:
         verificationProvider:
           type: object
           description: |
-            Provider override for the verification pass. Empty when unset,
-            which falls back to detectionProvider (or llmProvider if that is
-            also unset).
+            Routing slot for the verification pass: `primary`, `secondary`,
+            or `same_as_detection`. Empty when unset, which resolves to
+            same_as_detection.
           properties:
             value:
               type: string
@@ -11511,9 +11515,9 @@ components:
         chaptersProvider:
           type: object
           description: |
-            Provider override for chapter title generation. Empty when
-            unset, which falls back to detectionProvider (or llmProvider if
-            that is also unset).
+            Routing slot for chapter title generation: `primary`,
+            `secondary`, or `same_as_detection`. Empty when unset, which
+            resolves to same_as_detection.
           properties:
             value:
               type: string

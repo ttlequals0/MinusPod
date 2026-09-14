@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- Ad detection, verification, chapters, and the reviewer can each route to an independent secondary LLM provider, with its own type, endpoint, API key, and connection test. It stays off by default. Every stage keeps routing through primary until secondary is configured and turned on.
+- Each stage's provider control now picks a routing slot, Primary or Secondary, instead of a raw provider type; the reviewer also offers Same as pass. Model discovery and the model dropdown follow whichever slot a stage selects.
+- Rate-limit holds, cached clients, and circuit breakers are now scoped per credential slot, not just per provider type. Primary and secondary accounts of the same type no longer share a pause, a cached connection, or an open breaker.
+
 ## [2.96.25] - 2026-09-12
 
 ### Fixed
