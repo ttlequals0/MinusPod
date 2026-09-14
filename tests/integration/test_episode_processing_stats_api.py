@@ -7,11 +7,14 @@ carry downloadedDuration pulled from the blob.
 import os
 import sys
 import tempfile
+from decimal import Decimal
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='proc-stats-test-'))
+
+from config import normalize_model_key  # noqa: E402
 
 # Stored (pipeline) form: snake_case, renamed to API casing by the endpoint.
 STATS_DB = {
@@ -326,3 +329,76 @@ def test_history_rows_carry_app_version(app_client, seeded):
     versions = {e['reprocessNumber']: e['appVersion'] for e in entries}
     assert versions[1] is None
     assert versions[2] == __version__
+
+
+def test_processing_runs_expose_phase_breakdown_and_episode_spend(app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('e1e2e3e4e5e6', original=1000, new=900)
+
+    # Run 1: legacy, no run_id/ledger rows -- keeps its own recorded total.
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='e1e2e3e4e5e6', episode_title='Legacy', status='completed',
+        ads_detected=1, input_tokens=100, output_tokens=50, llm_cost=0.01)
+
+    # Run 2: ledger-backed detection(anthropic) + review(ollama).
+    for model_id, in_cost, out_cost in (
+            ('claude-detect-e2e', 3.0, 15.0), ('ollama-review-e2e', 1.0, 2.0)):
+        db.upsert_fetched_pricing([{
+            'match_key': normalize_model_key(model_id),
+            'raw_model_id': model_id,
+            'display_name': model_id,
+            'input_cost_per_mtok': in_cost,
+            'output_cost_per_mtok': out_cost,
+        }], source='litellm')
+
+    a1 = db.begin_llm_attempt(
+        run_id='run-e2e-1', podcast_id=podcast['id'], episode_id='e1e2e3e4e5e6',
+        phase_key='detect', invoking_pass=1, provider_key='anthropic',
+        configured_model='claude-detect-e2e')
+    db.finalize_llm_attempt(a1, state='success', returned_model='claude-detect-e2e',
+                            input_tokens=1000, output_tokens=200)
+    a2 = db.begin_llm_attempt(
+        run_id='run-e2e-1', podcast_id=podcast['id'], episode_id='e1e2e3e4e5e6',
+        phase_key='review', invoking_pass=1, provider_key='ollama',
+        configured_model='ollama-review-e2e')
+    db.finalize_llm_attempt(a2, state='success', returned_model='ollama-review-e2e',
+                            input_tokens=500, output_tokens=100)
+
+    run_subtotal = db.get_run_usage_totals('run-e2e-1')
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='e1e2e3e4e5e6', episode_title='Ledgered', status='completed',
+        ads_detected=2, input_tokens=run_subtotal['input_tokens'],
+        output_tokens=run_subtotal['output_tokens'],
+        llm_cost=float(run_subtotal['cost_usd']), run_id='run-e2e-1')
+
+    _authed(app_client)
+    resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/e1e2e3e4e5e6')
+    assert resp.status_code == 200
+    data = resp.get_json()
+
+    runs = data['processingRuns']
+    assert runs[0]['breakdownAvailable'] is False
+    assert runs[0]['phases'] == []
+    assert runs[0]['inputTokens'] == 100
+    assert runs[0]['llmCost'] == 0.01
+
+    assert runs[1]['breakdownAvailable'] is True
+    phases = {p['phaseKey']: p for p in runs[1]['phases']}
+    assert len(phases) == 2
+    assert phases['detect']['provider'] == 'anthropic'
+    assert phases['detect']['configuredModel'] == 'claude-detect-e2e'
+    assert phases['detect']['inputTokens'] == 1000
+    assert phases['detect']['outputTokens'] == 200
+    assert phases['review']['provider'] == 'ollama'
+    assert phases['review']['configuredModel'] == 'ollama-review-e2e'
+    phase_cost_sum = sum((Decimal(p['costUsd']) for p in phases.values()), Decimal('0'))
+    assert phase_cost_sum == Decimal(run_subtotal['cost_usd'])
+
+    assert data['currentRunSpend']['breakdownAvailable'] is True
+    assert data['currentRunSpend']['inputTokens'] == 1500
+    assert Decimal(data['currentRunSpend']['costUsd']) == Decimal(run_subtotal['cost_usd'])
+
+    assert data['cumulativeSpend']['inputTokens'] == 1500
+    assert Decimal(data['cumulativeSpend']['costUsd']) == Decimal(run_subtotal['cost_usd'])

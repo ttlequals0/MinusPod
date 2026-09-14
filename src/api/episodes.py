@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import threading
+from decimal import Decimal
 
 from flask import Response, redirect, request, send_file, abort, url_for
 from werkzeug.utils import secure_filename
@@ -443,18 +444,30 @@ def _run_stats_to_api(stats):
 def _processing_runs(db, episode):
     """Per-run history rows for the episode page's Processing stats section
     (#519). ``stats`` is the pipeline's per-run JSON blob; null for runs
-    recorded before 2.53.0 and for recuts."""
+    recorded before 2.53.0 and for recuts.
+
+    ``phases`` is the ledger's per-run phase/provider/model breakdown;
+    ``breakdownAvailable`` is false for a run with no ledger rows (legacy,
+    pre-ledger, or outside a bound run context), which keeps only its
+    known processing_history total.
+    """
+    podcast_id = episode['podcast_id']
+    episode_id = episode['episode_id']
+    phase_usage = db.get_episode_phase_usage(podcast_id, episode_id)
+
     runs = []
-    for row in db.get_episode_processing_runs(episode['podcast_id'],
-                                              episode['episode_id']):
+    for row in db.get_episode_processing_runs(podcast_id, episode_id):
         stats = None
         if row.get('processing_stats_json'):
             try:
                 stats = json.loads(row['processing_stats_json'])
             except (json.JSONDecodeError, TypeError):
                 pass
+        run_id = row.get('run_id')
+        phases = phase_usage.get(run_id, []) if run_id else []
         runs.append({
             'runNumber': row.get('reprocess_number'),
+            'runId': run_id,
             'processedAt': row.get('processed_at'),
             'status': row.get('status'),
             'adsDetected': row.get('ads_detected'),
@@ -465,8 +478,32 @@ def _processing_runs(db, episode):
             'llmCost': round(row.get('llm_cost') or 0.0, 6),
             'hasLog': bool(row.get('log_file')),
             'stats': _run_stats_to_api(stats),
+            'phases': phases,
+            'breakdownAvailable': bool(phases),
         })
     return runs
+
+
+def _run_spend(db, run):
+    """One run's spend as {inputTokens, outputTokens, costUsd,
+    breakdownAvailable}. Uses the ledger subtotal (the same source phase
+    rows reconcile to) when available, else the run's known
+    processing_history total."""
+    if run['breakdownAvailable']:
+        totals = db.get_run_usage_totals(run['runId'])
+        input_tokens = totals['input_tokens']
+        output_tokens = totals['output_tokens']
+        cost_usd = totals['cost_usd']
+    else:
+        input_tokens = run['inputTokens']
+        output_tokens = run['outputTokens']
+        cost_usd = str(Decimal(str(run['llmCost'])))
+    return {
+        'inputTokens': input_tokens,
+        'outputTokens': output_tokens,
+        'costUsd': cost_usd,
+        'breakdownAvailable': run['breakdownAvailable'],
+    }
 
 
 def _partial_detection(episode, runs):
@@ -593,6 +630,9 @@ def get_episode(slug, episode_id):
         episode['podcast_id'], episode_id)
 
     processing_runs = _processing_runs(db, episode)
+    latest_run = latest_completed_run(processing_runs)
+    current_run_spend = _run_spend(db, latest_run) if latest_run else None
+    cumulative_spend = db.get_episode_cumulative_usage(episode['podcast_id'], episode_id)
 
     return json_response({
         **base,
@@ -639,6 +679,8 @@ def get_episode(slug, episode_id):
         'verificationResponse': episode.get('second_pass_response'),
         'rssDuration': episode.get('rss_duration'),
         'processingRuns': processing_runs,
+        'currentRunSpend': current_run_spend,
+        'cumulativeSpend': cumulative_spend,
         'lowAdYield': low_ad_yield(db, episode, processing_runs),
         'navigation': db.get_episode_neighbors(slug, episode_id),
         **_episode_token_fields(processing_runs),

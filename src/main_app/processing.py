@@ -4191,6 +4191,7 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
     stats = dict(run_stats or {})
     ctx = run_context.current()
     run_totals = token_totals
+    run_id_for_history = None
     if (ctx is not None and ctx.slug == slug
             and ctx.episode_id == str(episode_id) and ctx.run_id):
         notices = ctx.thinking_notices(ctx.run_id)
@@ -4205,6 +4206,7 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
             'output_tokens': ledger_totals['output_tokens'],
             'cost': float(ledger_totals['cost_usd']),
         }
+        run_id_for_history = ctx.run_id
     history_id = db.record_processing_history(
         podcast_id=podcast_data['id'], podcast_slug=slug,
         podcast_title=podcast_data.get('title') or podcast_name,
@@ -4216,6 +4218,7 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
         llm_cost=run_totals['cost'],
         audio_cues_detected=audio_cues_detected,
         processing_stats=stats or None,
+        run_id=run_id_for_history,
     )
     _finalize_run_log(db, history_id, slug, episode_id)
     return True

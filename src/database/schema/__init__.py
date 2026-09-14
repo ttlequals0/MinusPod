@@ -1406,6 +1406,8 @@ class SchemaMixin:
             ('app_version', 'TEXT'),
             # Run log pointer (#660): data-dir-relative path
             ('log_file', 'TEXT'),
+            # Ledger correlation key: links to llm_call_usage.run_id
+            ('run_id', 'TEXT'),
         ]:
             self._add_column_if_missing(conn, 'processing_history', col, definition, hist_cols)
 

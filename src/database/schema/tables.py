@@ -382,6 +382,10 @@ TABLE_DDL['processing_history'] = """CREATE TABLE IF NOT EXISTS processing_histo
     -- Run log pointer (#660): path relative to the data dir. NULL when the
     -- run stored no log or the sweep pruned it.
     log_file TEXT,
+    -- Ledger correlation key: links to llm_call_usage.run_id for this run's
+    -- phase-cost breakdown. NULL for runs recorded before this column
+    -- existed and for runs outside a bound run context (recuts).
+    run_id TEXT,
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 )"""
 

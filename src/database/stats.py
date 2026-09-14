@@ -472,6 +472,115 @@ class StatsMixin:
                 total_cost += Decimal(row['cost_usd'])
         return round(total_cost * 1_000_000)
 
+    def get_episode_phase_usage(self, podcast_id: int, episode_id: str) -> dict:
+        """Per-run phase/provider/model usage breakdown from the ledger.
+
+        Returns {run_id: [{phaseKey, invokingPass, provider, configuredModel,
+        returnedModel, inputTokens, outputTokens, cacheReadTokens,
+        cacheWriteTokens, reasoningTokens, costUsd, costSource}, ...]}, one
+        row per distinct (phase_key, invoking_pass, provider_key,
+        configured_model) -- a retried/fallback phase naturally yields
+        several rows since a fallback changes configured_model. Only
+        finalized billable rows count (the same predicate get_run_usage_totals
+        uses), so a run's phase costs always sum to that run's subtotal.
+        A group containing an 'unknown' cost_source row reports costUsd=None
+        and costSource='unknown' rather than silently understating the total.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT run_id, phase_key, invoking_pass, provider_key,
+                      configured_model, returned_model, state, input_tokens,
+                      output_tokens, cache_read_tokens, cache_write_tokens,
+                      reasoning_tokens, cost_usd, cost_source
+               FROM llm_call_usage
+               WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL
+               ORDER BY run_id, created_at""",
+            (podcast_id, episode_id)
+        ).fetchall()
+
+        groups: dict = {}
+        for row in rows:
+            cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
+            if not _ledger_row_is_billable(
+                    row['state'], row['input_tokens'], row['output_tokens'], cost):
+                continue
+            key = (row['run_id'], row['phase_key'], row['invoking_pass'],
+                   row['provider_key'], row['configured_model'])
+            group = groups.get(key)
+            if group is None:
+                group = {
+                    'phaseKey': row['phase_key'],
+                    'invokingPass': row['invoking_pass'],
+                    'provider': row['provider_key'],
+                    'configuredModel': row['configured_model'],
+                    'returnedModel': row['returned_model'],
+                    'inputTokens': 0,
+                    'outputTokens': 0,
+                    'cacheReadTokens': 0,
+                    'cacheWriteTokens': 0,
+                    'reasoningTokens': 0,
+                    'costUsd': Decimal('0'),
+                    'costKnown': True,
+                    'costSources': set(),
+                }
+                groups[key] = group
+            group['inputTokens'] += row['input_tokens'] or 0
+            group['outputTokens'] += row['output_tokens'] or 0
+            group['cacheReadTokens'] += row['cache_read_tokens'] or 0
+            group['cacheWriteTokens'] += row['cache_write_tokens'] or 0
+            group['reasoningTokens'] += row['reasoning_tokens'] or 0
+            if row['returned_model']:
+                group['returnedModel'] = row['returned_model']
+            if row['cost_usd'] is None:
+                group['costKnown'] = False
+            else:
+                group['costUsd'] += Decimal(row['cost_usd'])
+            group['costSources'].add(row['cost_source'])
+
+        result: dict = {}
+        for (run_id, *_rest), group in groups.items():
+            sources = group.pop('costSources')
+            cost_known = group.pop('costKnown')
+            if cost_known and 'unknown' not in sources:
+                group['costUsd'] = str(group['costUsd'])
+                group['costSource'] = sources.pop() if len(sources) == 1 else 'mixed'
+            else:
+                group['costUsd'] = None
+                group['costSource'] = 'unknown'
+            result.setdefault(run_id, []).append(group)
+        return result
+
+    def get_episode_cumulative_usage(self, podcast_id: int, episode_id: str) -> dict:
+        """Sum ALL finalized billable ledger rows for this episode across
+        every attempt/run -- lifetime spend, not just the latest run.
+        Mirrors get_run_usage_totals's convention: cost_usd sums only rows
+        with a known cost; unknown-cost rows still count toward tokens.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT state, input_tokens, output_tokens, cost_usd
+               FROM llm_call_usage
+               WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL""",
+            (podcast_id, episode_id)
+        ).fetchall()
+        total_input = 0
+        total_output = 0
+        total_cost = Decimal('0')
+        for row in rows:
+            cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
+            if not _ledger_row_is_billable(
+                    row['state'], row['input_tokens'], row['output_tokens'], cost):
+                continue
+            total_input += row['input_tokens'] or 0
+            total_output += row['output_tokens'] or 0
+            if row['cost_usd'] is not None:
+                total_cost += Decimal(row['cost_usd'])
+        return {
+            'inputTokens': total_input,
+            'outputTokens': total_output,
+            'costUsd': str(total_cost),
+        }
+
     def get_token_usage_summary(self) -> dict:
         """Get global totals and per-model breakdown of token usage."""
         conn = self.get_connection()
@@ -528,11 +637,15 @@ class StatsMixin:
                                    output_tokens: int = 0,
                                    llm_cost: float = 0.0,
                                    audio_cues_detected: int = 0,
-                                   processing_stats: dict = None) -> int:
+                                   processing_stats: dict = None,
+                                   run_id: str = None) -> int:
         """Record a processing attempt in history. Returns history entry ID.
 
         ``processing_stats`` is the pipeline's per-run stats dict (#519),
-        serialized here so callers never handle the JSON encoding."""
+        serialized here so callers never handle the JSON encoding.
+        ``run_id`` links this row to its llm_call_usage attempts for the
+        phase-cost breakdown; None for call sites outside a bound run
+        (recuts, offline-queue expiry) or before this column existed."""
         conn = self.get_connection()
 
         # Calculate reprocess number (count existing entries + 1)
@@ -549,14 +662,14 @@ class StatsMixin:
                (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
                 processed_at, processing_duration_seconds, status, ads_detected,
                 error_message, reprocess_number, input_tokens, output_tokens, llm_cost,
-                audio_cues_detected, processing_stats_json, app_version)
-               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                audio_cues_detected, processing_stats_json, app_version, run_id)
+               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
              processing_duration_seconds, status, ads_detected, error_message,
              reprocess_number, input_tokens, output_tokens, llm_cost,
              audio_cues_detected,
              json.dumps(processing_stats) if processing_stats else None,
-             __version__)
+             __version__, run_id)
         )
         conn.commit()
         # Logger errors must not propagate: callers (e.g. _record_history_and_event)
