@@ -1,14 +1,20 @@
-export function stripHtml(input: string | null | undefined): string {
+export function stripHtml(
+  input: string | null | undefined,
+  { collapse = false }: { collapse?: boolean } = {}
+): string {
   if (!input) return '';
+  let text: string;
   if (typeof DOMParser !== 'undefined') {
     const doc = new DOMParser().parseFromString(input, 'text/html');
-    return doc.body.textContent || '';
+    text = doc.body.textContent || '';
+  } else {
+    let prev: string;
+    let curr = input;
+    do {
+      prev = curr;
+      curr = curr.replace(/<[^>]*>/g, '');
+    } while (curr !== prev);
+    text = curr;
   }
-  let prev: string;
-  let curr = input;
-  do {
-    prev = curr;
-    curr = curr.replace(/<[^>]*>/g, '');
-  } while (curr !== prev);
-  return curr;
+  return collapse ? text.replace(/\s+/g, ' ').trim() : text;
 }

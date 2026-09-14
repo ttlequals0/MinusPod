@@ -125,7 +125,7 @@ function EpisodeRow({
           {/* Fixed slots (two description lines, one meta line, one badge
               line) so every row in the list is the same height. */}
           <p className="text-sm text-muted-foreground mt-1 line-clamp-2 min-h-10">
-            {episode.description ? stripHtml(episode.description) : ''}
+            {episode.description ? stripHtml(episode.description, { collapse: true }) : ''}
           </p>
           <div className="flex gap-x-3 mt-2 text-sm text-muted-foreground truncate">
             <span className="whitespace-nowrap">{formatDate(episode.published)}</span>
