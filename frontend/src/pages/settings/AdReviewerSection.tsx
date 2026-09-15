@@ -3,7 +3,7 @@ import ConfirmResetButton from './ConfirmResetButton';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import PromptField from './PromptField';
 import NumberInput from '../../components/NumberInput';
-import { selectBase } from '../../components/fieldStyles';
+import { selectBase, focusRing } from '../../components/fieldStyles';
 import { SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 
 export interface ReviewerState {
@@ -28,6 +28,10 @@ interface AdReviewerSectionProps {
   onResetPrompts: () => void;
   resetIsPending: boolean;
   modelOptions?: Array<{ id: string; label: string }>;
+  // Re-fetches the review provider's model catalog (e.g. after changing the
+  // secondary provider or its key), so the dropdown is not stuck on a cache.
+  onRefreshModels?: () => void;
+  refreshModelsIsPending?: boolean;
   // Shows the Secondary option on the review provider select; hidden (and
   // the select never stores 'secondary') while the secondary provider is off.
   secondaryProviderEnabled?: boolean;
@@ -45,6 +49,8 @@ function AdReviewerSection({
   onResetPrompts,
   resetIsPending,
   modelOptions = [],
+  onRefreshModels,
+  refreshModelsIsPending = false,
   secondaryProviderEnabled = false,
   reviewPromptIsDefault,
   resurrectPromptIsDefault,
@@ -108,9 +114,21 @@ function AdReviewerSection({
             </div>
 
             <div>
-              <label htmlFor="reviewModel" className="block text-sm font-medium text-foreground mb-2">
-                Review model
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="reviewModel" className="block text-sm font-medium text-foreground">
+                  Review model
+                </label>
+                {onRefreshModels && reviewer.provider !== SAME_AS_PASS && (
+                  <button
+                    type="button"
+                    onClick={onRefreshModels}
+                    disabled={refreshModelsIsPending}
+                    className={`text-sm text-primary hover:underline disabled:opacity-50 ${focusRing}`}
+                  >
+                    {refreshModelsIsPending ? 'Refreshing...' : 'Refresh models'}
+                  </button>
+                )}
+              </div>
               <select
                 id="reviewModel"
                 value={reviewer.model}

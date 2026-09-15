@@ -15,7 +15,7 @@ interface EpisodeListProps {
   feedSlug: string;
   feedArtworkUrl?: string;
   selectedIds?: Set<string>;
-  onToggle?: (id: string) => void;
+  onToggle?: (id: string, shiftKey: boolean) => void;
   onSelectAll?: (checked: boolean) => void;
 }
 
@@ -70,7 +70,7 @@ function EpisodeRow({
   feedSlug: string;
   feedArtworkUrl?: string;
   selected: boolean;
-  onToggle?: (id: string) => void;
+  onToggle?: (id: string, shiftKey: boolean) => void;
   // Optional per-row control (e.g. a process/reprocess menu) rendered outside
   // the episode Link so it never nests an interactive element inside an <a>.
   renderActions?: (episode: Episode) => ReactNode;
@@ -100,7 +100,7 @@ function EpisodeRow({
         <button
           type="button"
           aria-label={selected ? 'Deselect episode' : 'Select episode'}
-          onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggle(episode.id); }}
+          onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggle(episode.id, e.shiftKey); }}
           onTouchEnd={(e) => { e.stopPropagation(); }}
           className={`absolute top-0 left-0 z-10 h-11 w-11 flex items-center justify-center ${focusRing}`}
         >

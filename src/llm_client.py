@@ -26,6 +26,7 @@ import os
 import re
 import socket
 import threading
+import time
 import uuid
 from urllib.parse import urlparse
 from types import SimpleNamespace
@@ -289,15 +290,40 @@ def _get_cached_model_list(provider_key: str) -> list['LLMModel'] | None:
 
 
 def _set_cached_model_list(provider_key: str, models: list['LLMModel']):
-    """Store a model list in the cache."""
+    """Store a model list; remember non-empty lists as last-good."""
     with _model_list_cache_lock:
         _model_list_cache.set(provider_key, models)
+        if models:
+            _model_list_last_good[provider_key] = models
+
+
+# Last successful non-empty catalog per key, kept beyond the TTL so a transient
+# upstream failure (e.g. OpenRouter's /models 408) serves the previous catalog
+# instead of collapsing the dropdown.
+_model_list_last_good: dict[str, list['LLMModel']] = {}
+# 2 attempts: OpenRouter's /models 408s while cold (~10s each), then succeeds warm.
+_MODEL_LIST_MAX_ATTEMPTS = 2
+_MODEL_LIST_RETRY_BACKOFF = 0.75
+
+
+def _get_last_good_model_list(provider_key: str) -> list['LLMModel'] | None:
+    with _model_list_cache_lock:
+        return _model_list_last_good.get(provider_key)
+
+
+def _is_transient_list_error(error: Exception) -> bool:
+    """Connection/timeout/5xx (via the shared classifier) plus request-timeout
+    408/425. Never 429: a rate limit must honor its hold, not a fixed retry."""
+    return is_connectivity_error(error) or _provider_status_code(error) in (408, 425)
 
 
 def _clear_model_list_cache():
-    """Flush the model list cache (called on provider change or manual refresh)."""
+    """Flush the model list cache and last-good fallback (called on provider
+    change or manual refresh), so a manual refresh can surface a truthful empty
+    catalog instead of resurrecting a stale one."""
     with _model_list_cache_lock:
         _model_list_cache.clear()
+        _model_list_last_good.clear()
 
 
 def get_effective_provider() -> str:
@@ -1271,25 +1297,43 @@ class OpenAICompatibleClient(LLMClient):
 
         self._ensure_client()
 
-        try:
-            response = self._client.models.list()
-            models = []
-            for model in response.data:
-                model_id = model.id if hasattr(model, 'id') else str(model)
-                models.append(LLMModel(
-                    id=model_id,
-                    name=model_id,
-                    created=str(model.created) if hasattr(model, 'created') else None
-                ))
-            _set_cached_model_list(cache_key, models)
-            return models
-        except Exception as e:
-            logger.error(f"Could not fetch models from OpenAI-compatible API: {e}")
-            native = self._try_ollama_native_list()
-            if native:
-                _set_cached_model_list(cache_key, native)
-                return native
-            return []
+        last_error: Exception | None = None
+        for attempt in range(_MODEL_LIST_MAX_ATTEMPTS):
+            try:
+                response = self._client.models.list()
+                models = []
+                for model in response.data:
+                    model_id = model.id if hasattr(model, 'id') else str(model)
+                    models.append(LLMModel(
+                        id=model_id,
+                        name=model_id,
+                        created=str(model.created) if hasattr(model, 'created') else None
+                    ))
+                _set_cached_model_list(cache_key, models)
+                return models
+            except Exception as e:
+                last_error = e
+                if attempt == _MODEL_LIST_MAX_ATTEMPTS - 1 or not _is_transient_list_error(e):
+                    break
+                time.sleep(_MODEL_LIST_RETRY_BACKOFF)
+
+        logger.error(f"Could not fetch models from OpenAI-compatible API: {last_error}")
+        native = self._try_ollama_native_list()
+        if native:
+            _set_cached_model_list(cache_key, native)
+            return native
+        # Only a transient failure serves the last good catalog; a hard failure
+        # (revoked key, 404) must surface the empty list rather than resurrect a
+        # prior key's or provider's models. Cache the served list under the TTL
+        # so repeat loads skip the slow failure path.
+        stale = _get_last_good_model_list(cache_key)
+        if stale and _is_transient_list_error(last_error):
+            _set_cached_model_list(cache_key, stale)
+            logger.warning(
+                f"Serving {len(stale)} models from the last successful fetch "
+                f"after a transient catalog refresh failure")
+            return stale
+        return []
 
     def get_provider_name(self) -> str:
         return f"openai-compatible ({safe_url_for_log(self.base_url, keep_path=True)})"

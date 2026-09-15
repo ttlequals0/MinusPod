@@ -169,7 +169,10 @@ function missingStages(run: EpisodeProcessingRun): { phaseKey: string; reason: s
 
 // Compact per-phase/model breakdown for one run's expanded row. A phase with
 // a retry or fallback yields several model rows, one per configured model.
-function PhaseBreakdown({ run }: { run: EpisodeProcessingRun }) {
+// layout picks the surface: 'table' for the desktop row, 'cards' for the
+// mobile stacked view (which wraps instead of scrolling horizontally). Both
+// callers stay mounted (CSS-gated); each renders only its own layout.
+function PhaseBreakdown({ run, layout }: { run: EpisodeProcessingRun; layout: 'table' | 'cards' }) {
   if (!run.breakdownAvailable) {
     return <p className="text-xs text-muted-foreground py-1">Breakdown unavailable</p>;
   }
@@ -182,65 +185,88 @@ function PhaseBreakdown({ run }: { run: EpisodeProcessingRun }) {
   const hasReasoning = phases.some((p) => p.reasoningTokens);
   const gaps = missingStages(run);
   const cellClass = 'py-1 pr-3';
-  // Drives both the header and the gap row's colSpan, so the two can't drift.
-  const headers = [
-    'Phase', 'Provider', 'Model', 'Input', 'Output',
-    ...(hasCache ? ['Cache'] : []),
-    ...(hasReasoning ? ['Reasoning'] : []),
-    'Cost',
+  const modelTitle = (p: RunPhaseUsage) =>
+    (p.returnedModel && p.returnedModel !== p.configuredModel ? `Configured as ${p.configuredModel}` : undefined);
+  // Metrics after the Phase column, shared by the desktop table and the mobile
+  // stacked cards so the two layouts can't drift. left = identity, right = numeric.
+  const metrics: { label: string; align: 'left' | 'right'; render: (p: RunPhaseUsage) => ReactNode;
+    title?: (p: RunPhaseUsage) => string | undefined }[] = [
+    { label: 'Provider', align: 'left', render: (p) => providerLabel(p.provider) },
+    { label: 'Model', align: 'left', render: (p) => p.returnedModel ?? p.configuredModel, title: modelTitle },
+    { label: 'Input', align: 'right', render: (p) => formatTokenCount(p.inputTokens) },
+    { label: 'Output', align: 'right', render: (p) => formatTokenCount(p.outputTokens) },
+    ...(hasCache ? [{ label: 'Cache', align: 'right' as const, render: (p: RunPhaseUsage) => (
+      p.cacheReadTokens || p.cacheWriteTokens
+        ? `${formatTokenCount(p.cacheReadTokens)} r / ${formatTokenCount(p.cacheWriteTokens)} w` : '-') }] : []),
+    ...(hasReasoning ? [{ label: 'Reasoning', align: 'right' as const,
+      render: (p: RunPhaseUsage) => (p.reasoningTokens ? formatTokenCount(p.reasoningTokens) : '-') }] : []),
+    { label: 'Cost', align: 'right', render: (p) => (p.costUsd == null ? 'Unknown' : formatCost(parseFloat(p.costUsd))) },
   ];
+  const rowKey = (p: RunPhaseUsage, i: number) => `${p.phaseKey}-${p.invokingPass}-${p.configuredModel}-${i}`;
+  const colClass = (m: typeof metrics[number], i: number) =>
+    `${m.align === 'right' ? 'text-right' : 'text-left'} ${i === metrics.length - 1 ? 'py-1' : cellClass}`;
+
+  if (layout === 'table') {
+    return (
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-muted-foreground">
+            <th className={`font-medium text-left ${cellClass}`}>Phase</th>
+            {metrics.map((m, i) => (
+              <th key={m.label} className={`font-medium ${colClass(m, i)}`}>
+                {m.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {phases.map((p, i) => (
+            <tr key={rowKey(p, i)} className="border-t border-border/40">
+              <td className={cellClass}>{phaseLabel(p, phaseKeyCounts[p.phaseKey] > 1)}</td>
+              {metrics.map((m, j) => (
+                <td
+                  key={m.label}
+                  title={m.title?.(p)}
+                  className={colClass(m, j)}
+                >
+                  {m.render(p)}
+                </td>
+              ))}
+            </tr>
+          ))}
+          {gaps.map((g) => (
+            <tr key={g.phaseKey} className="border-t border-border/40 text-muted-foreground">
+              <td className={cellClass}>{capitalize(g.phaseKey)}</td>
+              <td className="py-1" colSpan={metrics.length}>{g.reason}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
 
   return (
-    <table className="w-full text-xs">
-      <thead>
-        <tr className="text-muted-foreground">
-          {headers.map((label, i) => (
-            <th
-              key={label}
-              className={`font-medium ${i < 3 ? 'text-left' : 'text-right'} ${i === headers.length - 1 ? 'py-1' : cellClass}`}
-            >
-              {label}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {phases.map((p, i) => (
-          <tr key={`${p.phaseKey}-${p.invokingPass}-${p.configuredModel}-${i}`} className="border-t border-border/40">
-            <td className={cellClass}>{phaseLabel(p, phaseKeyCounts[p.phaseKey] > 1)}</td>
-            <td className={cellClass}>{providerLabel(p.provider)}</td>
-            <td
-              className={cellClass}
-              title={p.returnedModel && p.returnedModel !== p.configuredModel
-                ? `Configured as ${p.configuredModel}` : undefined}
-            >
-              {p.returnedModel ?? p.configuredModel}
-            </td>
-            <td className={`${cellClass} text-right`}>{formatTokenCount(p.inputTokens)}</td>
-            <td className={`${cellClass} text-right`}>{formatTokenCount(p.outputTokens)}</td>
-            {hasCache && (
-              <td className={`${cellClass} text-right`}>
-                {p.cacheReadTokens || p.cacheWriteTokens
-                  ? `${formatTokenCount(p.cacheReadTokens)} r / ${formatTokenCount(p.cacheWriteTokens)} w`
-                  : '-'}
-              </td>
-            )}
-            {hasReasoning && (
-              <td className={`${cellClass} text-right`}>
-                {p.reasoningTokens ? formatTokenCount(p.reasoningTokens) : '-'}
-              </td>
-            )}
-            <td className="py-1 text-right">{p.costUsd == null ? 'Unknown' : formatCost(parseFloat(p.costUsd))}</td>
-          </tr>
+    <div className="space-y-2">
+      {phases.map((p, i) => (
+          <div key={rowKey(p, i)} className="rounded border border-border/40 p-2 text-xs">
+            <div className="font-medium mb-1">{phaseLabel(p, phaseKeyCounts[p.phaseKey] > 1)}</div>
+            <dl className="space-y-0.5">
+              {metrics.map((m) => (
+                <div key={m.label} className="flex justify-between gap-2">
+                  <dt className="text-muted-foreground shrink-0">{m.label}</dt>
+                  <dd className="text-right break-all" title={m.title?.(p)}>{m.render(p)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
         ))}
         {gaps.map((g) => (
-          <tr key={g.phaseKey} className="border-t border-border/40 text-muted-foreground">
-            <td className={cellClass}>{capitalize(g.phaseKey)}</td>
-            <td className="py-1" colSpan={headers.length - 1}>{g.reason}</td>
-          </tr>
+          <div key={g.phaseKey} className="rounded border border-border/40 p-2 text-xs flex justify-between gap-2 text-muted-foreground">
+            <span className="font-medium">{capitalize(g.phaseKey)}</span>
+            <span>{g.reason}</span>
+          </div>
         ))}
-      </tbody>
-    </table>
+    </div>
   );
 }
 
@@ -316,7 +342,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
                   <tr className="border-b border-border/50 last:border-b-0 bg-muted/20">
                     <td colSpan={COLUMNS.length + 1} className="py-2 px-3">
                       <div className="overflow-x-auto">
-                        <PhaseBreakdown run={run} />
+                        <PhaseBreakdown run={run} layout="table" />
                       </div>
                     </td>
                   </tr>
@@ -349,8 +375,8 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
                 <PhaseDisclosureButton run={run} expanded={expanded} onToggle={() => toggleExpanded(key)} showLabel />
               </div>
               {expanded && (
-                <div className="mt-2 overflow-x-auto">
-                  <PhaseBreakdown run={run} />
+                <div className="mt-2">
+                  <PhaseBreakdown run={run} layout="cards" />
                 </div>
               )}
             </div>

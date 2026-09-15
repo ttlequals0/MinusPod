@@ -9,6 +9,26 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.1] - 2026-09-14
+
+### Added
+
+- Dashboard episode groups collapse per podcast, and the choice persists per feed.
+- The Ad Reviewer settings gained a Refresh models control for the review slot's catalog.
+
+### Changed
+
+- The dashboard toolbar stays a single row on a phone. Layout, sort, and episodes-per-podcast moved into a View menu, leaving the Podcasts/Episodes toggle, Refresh, and Add always visible.
+- Processing run phase breakdowns stack into cards on narrow screens instead of scrolling sideways, both on the episode page and in the Stats run-cost expansion.
+- The bulk Delete button moved to the end of the feed toolbar, and the episode list supports shift-click range selection.
+- Saving a secondary provider API key inline now stores that slot's provider type and base URL with the key and refreshes its model list, so the connection test targets the right endpoint.
+- Appended chapter lists are separated from the episode description by one blank line.
+
+### Fixed
+
+- Reviewer calibration now routes through the resolved review slot's provider, endpoint, and model, not the primary client. A review model on a secondary or OpenRouter slot no longer 404s and trips that endpoint's breaker.
+- The OpenAI-compatible model catalog fetch (OpenRouter, openai-compatible, Ollama) retries transient upstream failures like an OpenRouter 408, and serves the last good catalog on a transient failure, so valid model ids no longer show as not in catalog.
+
 ## [2.97.0] - 2026-09-14
 
 ### Added

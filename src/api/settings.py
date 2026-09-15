@@ -915,34 +915,46 @@ def _apply_prompt_fields(db, data):
 
 def _apply_review_fields(db, data):
     """Persist the LLM-reviewer toggle, model, and boundary-shift clamp."""
+    # Validate everything before any write, so a bad sibling field cannot leave
+    # review_model persisted with the calibration self-test skipped.
+    review_provider = None
+    if 'reviewProvider' in data:
+        review_provider = data['reviewProvider']
+        valid = VALID_SLOTS + (SAME_AS_PASS,)
+        if review_provider not in valid:
+            return error_response(f'reviewProvider must be one of: {", ".join(valid)}', 400)
+    boundary_shift = None
+    if 'reviewMaxBoundaryShift' in data:
+        try:
+            boundary_shift = max(1, min(600, int(data['reviewMaxBoundaryShift'])))
+        except (TypeError, ValueError):
+            return error_response('reviewMaxBoundaryShift must be an integer', 400)
+
     if 'enableAdReview' in data:
         value = 'true' if bool(data['enableAdReview']) else 'false'
         db.set_setting('enable_ad_review', value, is_default=False)
         logger.info(f"Updated enable_ad_review to: {value}")
 
+    calibration_change = None
     if 'reviewModel' in data:
         old_model = db.get_setting('review_model')
         new_model = data['reviewModel']
         db.set_setting('review_model', new_model, is_default=False)
         logger.info(f"Updated review_model to: {new_model}")
-        # Fire-and-forget calibration self-test; never blocks this write.
-        maybe_trigger_reviewer_calibration(db, old_model, new_model)
+        calibration_change = (old_model, new_model)
 
-    if 'reviewProvider' in data:
-        value = data['reviewProvider']
-        valid = VALID_SLOTS + (SAME_AS_PASS,)
-        if value not in valid:
-            return error_response(f'reviewProvider must be one of: {", ".join(valid)}', 400)
-        db.set_setting('review_provider', value, is_default=False)
-        logger.info(f"Updated review_provider to: {value}")
+    if review_provider is not None:
+        db.set_setting('review_provider', review_provider, is_default=False)
+        logger.info(f"Updated review_provider to: {review_provider}")
 
-    if 'reviewMaxBoundaryShift' in data:
-        try:
-            value = max(1, min(600, int(data['reviewMaxBoundaryShift'])))
-        except (TypeError, ValueError):
-            return error_response('reviewMaxBoundaryShift must be an integer', 400)
-        db.set_setting('review_max_boundary_shift', str(value), is_default=False)
-        logger.info(f"Updated review_max_boundary_shift to: {value}")
+    if boundary_shift is not None:
+        db.set_setting('review_max_boundary_shift', str(boundary_shift), is_default=False)
+        logger.info(f"Updated review_max_boundary_shift to: {boundary_shift}")
+
+    # Fire-and-forget after all review settings are persisted, so the
+    # background self-test reads the new provider slot, not a stale one.
+    if calibration_change is not None:
+        maybe_trigger_reviewer_calibration(db, *calibration_change)
     return None
 
 

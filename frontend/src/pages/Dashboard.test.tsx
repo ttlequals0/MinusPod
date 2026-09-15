@@ -303,6 +303,7 @@ describe('Dashboard Episodes view', () => {
 
   it('preserves sort when switching between Podcasts and Episodes views', async () => {
     renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Layout and sort' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Sort by title' }));
     await userEvent.click(screen.getByRole('button', { name: 'Episodes view' }));
 
@@ -332,6 +333,7 @@ describe('Dashboard toolbar heights', () => {
 
   it('gives the grid/list icon buttons a 44px wrapper height and matching min-width', async () => {
     renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Layout and sort' }));
     const gridButton = await screen.findByRole('button', { name: 'Grid view' });
     const wrapper = gridButton.closest('div');
     expect(wrapper?.className).toContain('h-11');
@@ -343,6 +345,7 @@ describe('Dashboard toolbar heights', () => {
 
   it('gives the sort icon buttons a 44px wrapper height and matching min-width', async () => {
     renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Layout and sort' }));
     const sortButton = await screen.findByRole('button', { name: 'Sort by recent' });
     const wrapper = sortButton.closest('div');
     expect(wrapper?.className).toContain('h-11');
@@ -363,6 +366,7 @@ describe('Dashboard toolbar heights', () => {
   it('gives the episodes-per-podcast select a matching 44px height', async () => {
     renderDashboard();
     await userEvent.click(await screen.findByRole('button', { name: 'Episodes view' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Layout and sort' }));
     const select = await screen.findByRole('combobox', { name: 'Episodes per podcast' });
     expect(select.className).toContain('h-11');
   });

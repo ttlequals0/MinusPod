@@ -255,3 +255,35 @@ def test_settings_api_claude_model_change_skips_calibration_with_explicit_review
     )
     _apply_model_fields(db, {'claudeModel': 'new-model'})
     assert calls == []
+
+
+def test_calibration_routes_to_the_review_slot_not_the_global_client():
+    """Regression: calibration must build the review slot's client and use
+    its model, not send the review model to the global/primary endpoint."""
+    from unittest.mock import patch
+    from config import OPENROUTER_BASE_URL
+    db = _build_db()
+    keys = {
+        'secondary_provider_enabled': 'true', 'secondary_provider': 'openrouter',
+        'review_provider': 'secondary', 'review_model': 'anthropic/claude-opus-5',
+    }
+    for k, v in keys.items():
+        db.set_setting(k, v, is_default=False)
+    client = _build_calibrated_client()
+    captured = {}
+
+    def fake_get_client(provider_key, base_url=None, credential_slot='primary', **kw):
+        captured.update(provider_key=provider_key, base_url=base_url,
+                        credential_slot=credential_slot)
+        return client
+
+    try:
+        with patch('llm_client.get_client_for_provider', side_effect=fake_get_client):
+            result = run_calibration()
+        assert captured['provider_key'] == 'openrouter'
+        assert captured['credential_slot'] == 'secondary'
+        assert captured['base_url'] == OPENROUTER_BASE_URL
+        assert result['model'] == 'anthropic/claude-opus-5'
+    finally:
+        for k in keys:
+            db.clear_setting(k)

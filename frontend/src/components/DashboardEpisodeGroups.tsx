@@ -2,7 +2,9 @@ import { Link } from 'react-router';
 import { Feed, Episode, EpisodeSummary } from '../api/types';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { feedArtworkSrc } from '../utils/artworkUrl';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import Artwork from './Artwork';
+import ChevronCaret from './ChevronCaret';
 import FeedTypeBadge from './FeedTypeBadge';
 import { EpisodeRow } from './EpisodeList';
 import EpisodeRowActions from './EpisodeRowActions';
@@ -69,10 +71,12 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
   const episodes = (feed.latestEpisodes ?? []).slice(0, limit);
   const artworkUrl = feedArtworkSrc(feed.slug, feed.artworkUrl);
   const headingId = `episode-group-heading-${feed.slug}`;
+  const [collapsed, setCollapsed] = useLocalStorageState<boolean>(
+    `dashboard-group-collapsed:${feed.slug}`, false);
 
   return (
     <section aria-labelledby={headingId} className="bg-card rounded-lg border border-border overflow-hidden">
-      <div className="flex items-center gap-3 p-4 border-b border-border">
+      <div className={`flex items-center gap-3 p-4${collapsed ? '' : ' border-b border-border'}`}>
         <Link
           to={`/feeds/${feed.slug}`}
           aria-label={`${feedDisplayTitle(feed)} cover art`}
@@ -102,29 +106,42 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
         >
           View all episodes
         </Link>
+        <button
+          type="button"
+          onClick={() => setCollapsed(!collapsed)}
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${feedDisplayTitle(feed)}`}
+          className={`shrink-0 p-3 rounded-md hover:bg-muted ${focusRing}`}
+        >
+          <ChevronCaret expanded={!collapsed} className="w-5 h-5" />
+        </button>
       </div>
-      {episodes.length === 0 ? (
-        <p className="p-4 text-sm text-muted-foreground">No episodes yet</p>
-      ) : (
-        <div className="p-3 flex flex-col gap-2">
-          {episodes.map((summary) => (
-            <EpisodeRow
-              key={summary.id}
-              episode={toEpisode(summary)}
-              feedSlug={feed.slug}
-              feedArtworkUrl={feed.artworkUrl}
-              selected={false}
-              renderActions={() => (
-                <EpisodeRowActions
-                  feedSlug={feed.slug}
-                  episodeId={summary.id}
-                  status={summary.status}
-                  jobState={summary.jobState}
-                  hasBeenProcessed={summary.hasBeenProcessed}
-                />
-              )}
-            />
-          ))}
+      {!collapsed && (
+        <div>
+        {episodes.length === 0 ? (
+          <p className="p-4 text-sm text-muted-foreground">No episodes yet</p>
+        ) : (
+          <div className="p-3 flex flex-col gap-2">
+            {episodes.map((summary) => (
+              <EpisodeRow
+                key={summary.id}
+                episode={toEpisode(summary)}
+                feedSlug={feed.slug}
+                feedArtworkUrl={feed.artworkUrl}
+                selected={false}
+                renderActions={() => (
+                  <EpisodeRowActions
+                    feedSlug={feed.slug}
+                    episodeId={summary.id}
+                    status={summary.status}
+                    jobState={summary.jobState}
+                    hasBeenProcessed={summary.hasBeenProcessed}
+                  />
+                )}
+              />
+            ))}
+          </div>
+        )}
         </div>
       )}
     </section>

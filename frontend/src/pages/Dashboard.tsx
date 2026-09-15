@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
+import DashboardControlsMenu from '../components/DashboardControlsMenu';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
 import { feedsQueryOptions, feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
@@ -21,7 +22,7 @@ import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '..
 import { deleteStopsProcessingMessage } from '../utils/feedTitle';
 import { formatDateTime } from '../utils/format';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
-import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
+import { focusRing, inputBase } from '../components/fieldStyles';
 
 type DashboardView = 'podcasts' | 'episodes';
 const DASHBOARD_VIEW_KEY = 'dashboardView';
@@ -219,117 +220,46 @@ function Dashboard() {
             </span>
           )}
         </div>
-        <div className="flex gap-2 items-center shrink-0">
-          <div className="flex gap-2 items-center overflow-x-auto no-scrollbar">
-            <div className="flex h-11 border border-border rounded overflow-hidden" role="group" aria-label="Dashboard view">
-              <button
-                onClick={() => setDashboardView('podcasts')}
-                aria-pressed={dashboardView === 'podcasts'}
-                className={`inline-flex items-center justify-center px-3 text-sm transition-colors ${
-                  dashboardView === 'podcasts'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="Podcasts view"
-                title="Group by podcast"
-              >
-                Podcasts
-              </button>
-              <button
-                onClick={() => setDashboardView('episodes')}
-                aria-pressed={dashboardView === 'episodes'}
-                className={`inline-flex items-center justify-center px-3 text-sm transition-colors ${
-                  dashboardView === 'episodes'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="Episodes view"
-                title="Show latest episodes per podcast"
-              >
-                Episodes
-              </button>
-            </div>
-            {dashboardView === 'episodes' && (
-              <label className="flex items-center gap-1.5 text-sm text-muted-foreground whitespace-nowrap">
-                <span className="hidden sm:inline">Per podcast</span>
-                <select
-                  aria-label="Episodes per podcast"
-                  value={episodesPerPodcast}
-                  onChange={(e) => setEpisodesPerPodcast(clampEpisodesPerPodcast(Number(e.target.value)))}
-                  className={`${selectBase} h-11`}
-                >
-                  {Array.from(
-                    { length: MAX_EPISODES_PER_PODCAST - MIN_EPISODES_PER_PODCAST + 1 },
-                    (_, i) => MIN_EPISODES_PER_PODCAST + i,
-                  ).map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {dashboardView === 'podcasts' && (
-            <div className="flex h-11 border border-border rounded overflow-hidden">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`inline-flex items-center justify-center min-w-11 transition-colors ${
-                  viewMode === 'grid'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="Grid view"
-                title="Grid view"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`inline-flex items-center justify-center min-w-11 transition-colors ${
-                  viewMode === 'list'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="List view"
-                title="List view"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-            </div>
-            )}
-            <div className="flex h-11 border border-border rounded overflow-hidden">
-              <button
-                onClick={() => setSortBy('recent')}
-                className={`inline-flex items-center justify-center min-w-11 transition-colors ${
-                  sortBy === 'recent'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="Sort by recent"
-                title="Sort by most recent episode"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setSortBy('title')}
-                className={`inline-flex items-center justify-center min-w-11 transition-colors ${
-                  sortBy === 'title'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="Sort by title"
-                title="Sort alphabetically"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                </svg>
-              </button>
-            </div>
+        <div className="w-full sm:w-auto flex gap-2 items-center overflow-x-auto no-scrollbar sm:overflow-visible">
+          <div className="flex h-11 border border-border rounded overflow-hidden shrink-0" role="group" aria-label="Dashboard view">
+            <button
+              onClick={() => setDashboardView('podcasts')}
+              aria-pressed={dashboardView === 'podcasts'}
+              className={`inline-flex items-center justify-center px-2.5 sm:px-3 text-sm transition-colors ${
+                dashboardView === 'podcasts'
+                  ? 'bg-primary text-primary-foreground'
+                  : btnSecondary
+              } ${focusRing}`}
+              aria-label="Podcasts view"
+              title="Group by podcast"
+            >
+              Podcasts
+            </button>
+            <button
+              onClick={() => setDashboardView('episodes')}
+              aria-pressed={dashboardView === 'episodes'}
+              className={`inline-flex items-center justify-center px-2.5 sm:px-3 text-sm transition-colors ${
+                dashboardView === 'episodes'
+                  ? 'bg-primary text-primary-foreground'
+                  : btnSecondary
+              } ${focusRing}`}
+              aria-label="Episodes view"
+              title="Show latest episodes per podcast"
+            >
+              Episodes
+            </button>
           </div>
+          <DashboardControlsMenu
+            dashboardView={dashboardView}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            episodesPerPodcast={episodesPerPodcast}
+            onEpisodesPerPodcastChange={(n) => setEpisodesPerPodcast(clampEpisodesPerPodcast(n))}
+            perPodcastMin={MIN_EPISODES_PER_PODCAST}
+            perPodcastMax={MAX_EPISODES_PER_PODCAST}
+          />
           <DropdownMenu
             triggerLabel={
               <>
@@ -339,7 +269,7 @@ function Dashboard() {
                 <span className="hidden sm:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}</span>
               </>
             }
-            triggerClassName={`h-11 min-w-11 sm:px-4 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap`}
+            triggerClassName={`h-11 min-w-11 px-2.5 sm:px-4 text-sm rounded shrink-0 ${btnSecondary} disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap`}
             disabled={refreshAllMutation.isPending}
             title="Refresh all feeds"
             items={[
@@ -357,7 +287,7 @@ function Dashboard() {
           />
           <Link
             to="/add"
-            className={`h-11 min-w-11 sm:px-4 inline-flex items-center justify-center rounded ${btnPrimary} transition-colors ${focusRing}`}
+            className={`h-11 min-w-11 sm:px-4 inline-flex items-center justify-center rounded shrink-0 ${btnPrimary} transition-colors ${focusRing}`}
             title="Add Feed"
           >
             <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">

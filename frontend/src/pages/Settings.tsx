@@ -293,6 +293,9 @@ function Settings() {
   const [secondaryProviderEnabled, setSecondaryProviderEnabled] = useState(false);
   const [secondaryProvider, setSecondaryProvider] = useState<LlmProvider | ''>('');
   const [secondaryProviderBaseUrl, setSecondaryProviderBaseUrl] = useState('');
+  // True once the user edits or clears the secondary base URL, so an inline key
+  // save can send an intentional clear ('') while a pre-hydration '' is skipped.
+  const [secondaryBaseUrlDirty, setSecondaryBaseUrlDirty] = useState(false);
   // Manual per-provider request-rate limits (#747); 0 = unlimited.
   const [providerRequestsPerMin, setProviderRequestsPerMin] = useState(0);
   const [providerRequestsPerDay, setProviderRequestsPerDay] = useState(0);
@@ -346,7 +349,19 @@ function Settings() {
   // REST surface (unlike the primary keys): it saves/clears through the
   // main settings PUT and its only test is the end-to-end connection probe.
   const handleSecondaryProviderKeySave = async (apiKey: string) => {
-    await updateSettings({ secondaryProviderApiKey: apiKey });
+    // Co-persist the slot's type and base URL with the key (#234) so the
+    // connection probe tests the right destination. The base URL is sent only
+    // once touched, so a deliberate clear ('') commits but a pre-hydration ''
+    // does not (#235).
+    const body: {
+      secondaryProviderApiKey: string;
+      secondaryProvider?: LlmProvider;
+      secondaryProviderBaseUrl?: string;
+    } = { secondaryProviderApiKey: apiKey };
+    if (secondaryProvider) body.secondaryProvider = secondaryProvider;
+    if (secondaryBaseUrlDirty) body.secondaryProviderBaseUrl = secondaryProviderBaseUrl;
+    await updateSettings(body);
+    setSecondaryBaseUrlDirty(false);
     await reloadSettingsAfterSecondaryKeyChange();
   };
   const handleSecondaryProviderKeyClear = async () => {
@@ -355,6 +370,12 @@ function Settings() {
   };
   const reloadSettingsAfterSecondaryKeyChange = () => {
     queryClient.invalidateQueries({ queryKey: ['settings'] });
+    // A secondary-key change only alters the secondary slot's catalog; refetch
+    // just those model queries, not all four slots.
+    queryClient.invalidateQueries({
+      queryKey: ['models'],
+      predicate: (q) => q.queryKey[2] === SLOT_SECONDARY,
+    });
     return queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
   };
   const [podcastSearchProvider, setPodcastSearchProvider] = useState('');
@@ -445,6 +466,10 @@ function Settings() {
     if (detectionSlot === SLOT_SECONDARY) setSelectedModel('');
     if (verificationSlot === SLOT_SECONDARY) setVerificationModel('');
     if (chaptersSlot === SLOT_SECONDARY) setChaptersModel('');
+    // The base URL belongs to the old endpoint; clear it (and mark it touched)
+    // so an inline key save commits the clear, not a stale URL (#235).
+    setSecondaryProviderBaseUrl('');
+    setSecondaryBaseUrlDirty(true);
   };
 
   const { data: models, isLoading: modelsLoading } = useQuery({
@@ -1179,7 +1204,7 @@ function Settings() {
         secondaryProvider={(secondaryProvider || LLM_PROVIDERS.ANTHROPIC) as LlmProvider}
         onSecondaryProviderChange={handleSecondaryProviderChange}
         secondaryProviderBaseUrl={secondaryProviderBaseUrl}
-        onSecondaryProviderBaseUrlChange={setSecondaryProviderBaseUrl}
+        onSecondaryProviderBaseUrlChange={(v) => { setSecondaryProviderBaseUrl(v); setSecondaryBaseUrlDirty(true); }}
         secondaryProviderApiKeyConfigured={settings?.secondaryProviderApiKeyConfigured ?? false}
         onSecondaryProviderKeySave={handleSecondaryProviderKeySave}
         onSecondaryProviderKeyClear={handleSecondaryProviderKeyClear}
@@ -1341,6 +1366,8 @@ function Settings() {
         secondaryProviderEnabled={secondaryProviderEnabled}
         modelOptions={(effectiveReviewProvider ? reviewModels : models)
           ?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
+        onRefreshModels={() => refreshModelsMutation.mutate()}
+        refreshModelsIsPending={refreshModelsMutation.isPending}
         reviewPromptIsDefault={settings?.reviewPrompt.isDefault}
         resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
         onResetReviewPrompt={() => resetPromptMutation.mutate('review')}

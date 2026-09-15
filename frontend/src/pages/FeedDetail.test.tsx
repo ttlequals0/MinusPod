@@ -355,3 +355,43 @@ describe('FeedDetail: select-all eligibility', () => {
     });
   });
 });
+
+describe('FeedDetail: shift-click range selection', () => {
+  const rows: Episode[] = [
+    { id: 'a1', title: 'Ep 1', published: '2026-09-04T00:00:00Z', status: 'completed' },
+    { id: 'a2', title: 'Ep 2', published: '2026-09-03T00:00:00Z', status: 'processing', jobState: 'processing' },
+    { id: 'a3', title: 'Ep 3', published: '2026-09-02T00:00:00Z', status: 'completed' },
+    { id: 'a4', title: 'Ep 4', published: '2026-09-01T00:00:00Z', status: 'completed' },
+  ];
+
+  it('selects the range between the anchor and a shift-click, skipping blocked rows', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), rows);
+    // Blocked row (a2) renders no checkbox, so only a1, a3, a4 are selectable.
+    const boxes = await screen.findAllByRole('button', { name: 'Select episode' });
+    expect(boxes).toHaveLength(3);
+    await user.click(boxes[0]); // anchor a1
+    expect(screen.getByText('1 selected')).toBeTruthy();
+    await user.keyboard('{Shift>}');
+    await user.click(boxes[1]); // shift-click a3
+    await user.keyboard('{/Shift}');
+    // a1 and a3 selected; a2 (blocked) skipped.
+    expect(screen.getByText('2 selected')).toBeTruthy();
+  });
+
+  it('deselects a range when the clicked row is turned off', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), rows);
+    await user.click(await screen.findByRole('checkbox', { name: 'Select all on page' }));
+    expect(screen.getByText('3 selected')).toBeTruthy();
+    const boxes = screen.getAllByRole('button', { name: 'Deselect episode' });
+    await user.click(boxes[0]); // plain click a1 off -> anchor a1
+    expect(screen.getByText('2 selected')).toBeTruthy();
+    await user.keyboard('{Shift>}');
+    await user.click(screen.getAllByRole('button', { name: /select episode/i })[1]); // shift-click a3 (now a deselect target)
+    await user.keyboard('{/Shift}');
+    // Range a1..a3 turned off (a2 blocked/absent); a4, outside the range,
+    // stays selected.
+    expect(screen.getByText('1 selected')).toBeTruthy();
+  });
+});

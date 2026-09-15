@@ -94,6 +94,8 @@ function FeedDetail() {
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Anchor row for shift-click range selection; reset wherever selection is.
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   // Delete confirms by a second click within 3s, matching the dashboard.
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -242,6 +244,7 @@ function FeedDetail() {
       setBulkResult(result);
       applyEpisodeJobState(queryClient, slug!, context.ids, jobStateOf(result));
       setSelectedIds(new Set());
+      setSelectionAnchor(null);
       setShowBulkDeleteConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
@@ -265,6 +268,7 @@ function FeedDetail() {
         applyEpisodeJobState(queryClient, slug!, accepted, jobStateOf(result));
       }
       setSelectedIds(new Set());
+      setSelectionAnchor(null);
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     },
@@ -286,28 +290,56 @@ function FeedDetail() {
     updateMutation.mutate({ titleOverride: editTitle.trim() || null });
   };
 
-  const handleToggleSelect = (id: string) => {
+  const handleToggleSelect = (id: string, shiftKey: boolean) => {
+    // Shift+click applies the anchor row's current state to every selectable
+    // row between the anchor and it (inclusive), in current page order, skipping
+    // blocked rows (standard range-select). A plain click toggles one row and
+    // becomes the new anchor.
+    if (shiftKey && selectionAnchor && selectionAnchor !== id) {
+      const order = episodes.map(ep => ep.id);
+      const a = order.indexOf(selectionAnchor);
+      const b = order.indexOf(id);
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        const select = selectedIds.has(selectionAnchor);
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          for (let i = lo; i <= hi; i++) {
+            const rid = order[i];
+            if (!selectableIds.has(rid)) continue;
+            if (select) next.add(rid); else next.delete(rid);
+          }
+          return next;
+        });
+        setSelectionAnchor(id);
+        return;
+      }
+    }
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+    setSelectionAnchor(id);
   };
 
   const handleSelectAll = (checked: boolean) => {
     setSelectedIds(checked ? new Set(selectableIds) : new Set());
+    setSelectionAnchor(null);
   };
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
     setPage(1);
     setSelectedIds(new Set());
+    setSelectionAnchor(null);
   };
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     setSelectedIds(new Set());
+    setSelectionAnchor(null);
   };
 
   // Bulk-action eligibility: count per-action so a mixed selection still
@@ -595,7 +627,7 @@ function FeedDetail() {
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
           <select
             value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); }}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); setSelectionAnchor(null); }}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
           >
             <option value="all">All statuses</option>
@@ -615,6 +647,7 @@ function FeedDetail() {
               setSortDir(newDir);
               setPage(1);
               setSelectedIds(new Set());
+              setSelectionAnchor(null);
             }}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
           >
@@ -665,13 +698,6 @@ function FeedDetail() {
                 >
                   Re-detect Ads ({processedCount})
                 </button>
-                <button
-                  onClick={() => setShowBulkDeleteConfirm(true)}
-                  disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnDestructive} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
-                >
-                  Delete ({processedCount})
-                </button>
               </>
             )}
             {/* Pass-through applies regardless of episode status; only actively
@@ -694,11 +720,20 @@ function FeedDetail() {
               {passthroughMutation.isPending && passthroughMutation.variables?.enabled === false
                 ? 'Clearing...' : `Clear pass-through (${effectiveSelectedIds.size})`}
             </button>
+            {processedCount > 0 && (
+              <button
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                disabled={bulkMutation.isPending}
+                className={`px-3 py-1.5 text-sm rounded ${btnDestructive} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+              >
+                Delete ({processedCount})
+              </button>
+            )}
             {discoveredCount === 0 && pendingCount === 0 && processedCount === 0 && (
               <span className="text-xs text-muted-foreground">Selected episodes are already processing.</span>
             )}
             <button
-              onClick={() => setSelectedIds(new Set())}
+              onClick={() => { setSelectedIds(new Set()); setSelectionAnchor(null); }}
               className={`px-2 py-1 text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
             >
               Clear

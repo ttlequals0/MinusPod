@@ -75,7 +75,7 @@ def test_chapter_block_follows_the_global_setting(recents):
     assert 'Chapters</p>' not in build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
     mf.db.set_setting('chapters_in_notes', 'true', is_default=False)
     xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
-    assert '<p>a2</p><p>Chapters</p><p>00:00 Intro</p>' in xml
+    assert '<p>a2</p>\n\n<p>Chapters</p><p>00:00 Intro</p>' in xml
 
 
 def test_chapter_block_honours_the_source_feed_override(recents):

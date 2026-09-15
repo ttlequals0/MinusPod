@@ -106,6 +106,28 @@ describe('DashboardEpisodeGroups', () => {
     expect(idleButton.disabled).toBe(false);
   });
 
+  it('collapses a podcast section, hiding its episodes, and persists the choice', async () => {
+    const userEvent = (await import('@testing-library/user-event')).default;
+    const user = userEvent.setup();
+    localStorage.clear();
+    const feed: Feed = {
+      slug: 'show-a', title: 'Show A', sourceUrl: 'https://example.com/a.xml',
+      feedUrl: 'https://example.com/a.xml', episodeCount: 1,
+      latestEpisodes: [episodeSummary({ id: 'e1' })],
+    };
+    const { unmount } = renderGroups([feed], 3);
+    expect(screen.queryByText('Episode e1')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Collapse Show A' }));
+    // Collapsing unmounts the body (so it stops fetching episode images).
+    expect(screen.queryByText('Episode e1')).toBeNull();
+    // The header (and its links) stay visible while collapsed.
+    expect(screen.getByRole('heading', { name: 'Show A' })).toBeTruthy();
+    unmount();
+    renderGroups([feed], 3);
+    expect(screen.queryByText('Episode e1')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Expand Show A' })).toBeTruthy();
+  });
+
   it('shows a "queued" status badge for a row whose jobState is queued', () => {
     const feed: Feed = {
       slug: 'show-f', title: 'Show F', sourceUrl: 'https://example.com/f.xml', feedUrl: 'https://example.com/f.xml',
