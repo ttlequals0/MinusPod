@@ -270,6 +270,7 @@ function Dashboard() {
               </>
             }
             triggerClassName={`h-11 min-w-11 px-2.5 sm:px-4 text-sm rounded shrink-0 ${btnSecondary} disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap`}
+            chevronClassName="w-4 h-4 hidden sm:block"
             disabled={refreshAllMutation.isPending}
             title="Refresh all feeds"
             items={[

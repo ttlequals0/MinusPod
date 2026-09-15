@@ -70,7 +70,7 @@ function DashboardControlsMenu({
       >
         <SlidersHorizontal className="w-5 h-5 sm:hidden" />
         <span className="hidden sm:inline">View</span>
-        <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 hidden sm:block transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div

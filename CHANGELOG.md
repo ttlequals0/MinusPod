@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.2] - 2026-09-14
+
+### Fixed
+
+- The dashboard toolbar no longer clips the Add button on narrow phones. The View and Refresh controls drop their dropdown chevron below the small breakpoint so the row fits. On very narrow screens the row scrolls within itself, not the page.
+
 ## [2.97.1] - 2026-09-14
 
 ### Added
