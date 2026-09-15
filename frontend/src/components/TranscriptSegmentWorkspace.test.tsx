@@ -109,4 +109,120 @@ describe('TranscriptSegmentWorkspace', () => {
     await screen.findByText(/Enter a sponsor name/i);
     expect(onSubmitCorrection).not.toHaveBeenCalled();
   });
+
+  it('creates one missed-ad correction per contiguous span', async () => {
+    const user = userEvent.setup();
+    mockGetOriginalSegments.mockResolvedValue({
+      episodeId: 'ep-1',
+      segments: [
+        {
+          start: 0,
+          end: 5,
+          text: 'First missed ad read with enough words to pass the template minimum.',
+        },
+        {
+          start: 5,
+          end: 10,
+          text: 'First span continues with more promotional copy for the listeners.',
+        },
+        {
+          start: 12.5,
+          end: 18,
+          text: 'Second missed ad read with enough words to pass the template minimum.',
+        },
+      ],
+    });
+    const { onSubmitCorrection } = renderWorkspace({
+      episode: {
+        id: 'ep-1',
+        title: 'Test episode',
+        status: 'completed',
+        published: '2026-01-01T00:00:00Z',
+        hasOriginalAudio: true,
+        originalTranscriptAvailable: true,
+        adMarkers: [],
+        pendingReviewMarkers: [],
+        rejectedAdMarkers: [],
+        keptMarkers: [],
+        corrections: [],
+        appliedCuts: [],
+      },
+    });
+
+    await screen.findByText(/First missed ad/i);
+    await user.click(screen.getByRole('checkbox', { name: /Select segment 1/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Select segment 2/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Select segment 3/i }));
+    await screen.findByText(/2 spans · 3 segments selected/i);
+
+    await user.type(screen.getByPlaceholderText(/e\.g\. Squarespace/i), 'Acme');
+    await user.click(screen.getByRole('button', { name: /Mark ad/i }));
+
+    await waitFor(() => {
+      expect(onSubmitCorrection).toHaveBeenCalledTimes(2);
+    });
+    expect(onSubmitCorrection).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        type: 'create',
+        start: 0,
+        end: 10,
+        sponsor: 'Acme',
+      }),
+    );
+    expect(onSubmitCorrection).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        type: 'create',
+        start: 12.5,
+        end: 18,
+        sponsor: 'Acme',
+      }),
+    );
+    await screen.findByText(/Saved 2 missed ads/i);
+  });
+
+  it('rejects multi-span mark ad when any span text is too short', async () => {
+    const user = userEvent.setup();
+    mockGetOriginalSegments.mockResolvedValue({
+      episodeId: 'ep-1',
+      segments: [
+        {
+          start: 0,
+          end: 5,
+          text: 'Long enough first span text that clearly exceeds fifty characters easily.',
+        },
+        {
+          start: 8,
+          end: 9,
+          text: 'Hi.',
+        },
+      ],
+    });
+    const { onSubmitCorrection } = renderWorkspace({
+      episode: {
+        id: 'ep-1',
+        title: 'Test episode',
+        status: 'completed',
+        published: '2026-01-01T00:00:00Z',
+        hasOriginalAudio: true,
+        originalTranscriptAvailable: true,
+        adMarkers: [],
+        pendingReviewMarkers: [],
+        rejectedAdMarkers: [],
+        keptMarkers: [],
+        corrections: [],
+        appliedCuts: [],
+      },
+    });
+
+    await screen.findByText(/Long enough first span/i);
+    await user.click(screen.getByRole('checkbox', { name: /Select segment 1/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Select segment 2/i }));
+    await user.type(screen.getByPlaceholderText(/e\.g\. Squarespace/i), 'Acme');
+    await user.click(screen.getByRole('button', { name: /Mark ad/i }));
+
+    await screen.findByText(/Selected text is too short/i);
+    expect(onSubmitCorrection).not.toHaveBeenCalled();
+  });
 });

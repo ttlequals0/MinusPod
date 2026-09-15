@@ -74,6 +74,16 @@ describe('segmentReviewModel', () => {
     expect(groups).toEqual([[0, 1], [3]]);
   });
 
+  it('contiguousIndexGroups splits consecutive indexes across large time gaps', () => {
+    const gapped: OriginalSegment[] = [
+      { start: 0, end: 5, text: 'One' },
+      { start: 5, end: 10, text: 'Two' },
+      { start: 12.5, end: 18, text: 'Three' },
+    ];
+    const groups = contiguousIndexGroups(new Set([0, 1, 2]), gapped);
+    expect(groups).toEqual([[0, 1], [2]]);
+  });
+
   it('rangeIndexes builds inclusive range', () => {
     expect([...rangeIndexes(2, 4)]).toEqual([2, 3, 4]);
   });

@@ -213,27 +213,32 @@ function TranscriptSegmentWorkspace({
       setLocalError('Select segment rows or enter start and end times.');
       return;
     }
-    if (boundsList.length > 1) {
-      setLocalError('Mark one contiguous span at a time when creating a new ad.');
-      return;
-    }
-    const bounds = boundsList[0];
-    const textTemplate = ensureMinTextTemplate(bounds.text, segments, bounds.start, bounds.end);
-    if (textTemplate.length < MIN_TEXT_TEMPLATE_CHARS) {
-      setLocalError(`Selected text is too short (${textTemplate.length} chars). Select more segments.`);
+    const templates = boundsList.map((bounds) =>
+      ensureMinTextTemplate(bounds.text, segments, bounds.start, bounds.end),
+    );
+    const shortIdx = templates.findIndex((t) => t.length < MIN_TEXT_TEMPLATE_CHARS);
+    if (shortIdx >= 0) {
+      setLocalError(
+        `Selected text is too short (${templates[shortIdx].length} chars). Select more segments.`,
+      );
       return;
     }
     try {
-      await onSubmitCorrection({
-        type: 'create',
-        start: bounds.start,
-        end: bounds.end,
-        sponsor: sponsorText,
-        text_template: textTemplate,
-        scope: 'podcast',
-        reason: `${sponsorText}: manually marked from transcript`,
-      });
-      setStatusMessage('Missed ad saved.');
+      for (let i = 0; i < boundsList.length; i += 1) {
+        const bounds = boundsList[i];
+        await onSubmitCorrection({
+          type: 'create',
+          start: bounds.start,
+          end: bounds.end,
+          sponsor: sponsorText,
+          text_template: templates[i],
+          scope: 'podcast',
+          reason: `${sponsorText}: manually marked from transcript`,
+        });
+      }
+      setStatusMessage(
+        `Saved ${boundsList.length} missed ad${boundsList.length === 1 ? '' : 's'}.`,
+      );
     } catch {
       setLocalError('Failed to save correction.');
     }
