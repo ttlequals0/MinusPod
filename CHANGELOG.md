@@ -15,6 +15,8 @@ release notes.
 
 - Dashboard episode groups collapse per podcast, and the choice persists per feed.
 - The Ad Reviewer settings gained a Refresh models control for the review slot's catalog.
+- Remove HTML-style comments from LLM prompts before sending.
+- Scrub podcast and episode descriptions of HTML, timestamps, URLs, and excessive whitespace and length before injecting into LLM prompts.
 
 ### Changed
 

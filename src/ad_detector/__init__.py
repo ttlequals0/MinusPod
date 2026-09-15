@@ -33,7 +33,10 @@ from utils.markers import (
     merge_dai_core_spans,
     note_merged_members,
 )
-from utils.prompt import format_sponsor_block, render_prompt, apply_override
+from utils.prompt import (
+    format_sponsor_block, render_prompt, apply_override,
+    scrub_description, strip_comments_from_prompt
+)
 from utils.text import truncate
 from utils.time import overlap_ratio, ranges_overlap
 
@@ -810,7 +813,7 @@ class AdDetector:
     def _apply_pass_override(self, rendered: str, setting_key: str) -> str:
         """Append the user's per-pass override (empty by default -> no change)."""
         try:
-            override = self.db.get_setting(setting_key)
+            override = strip_comments_from_prompt(self.db.get_setting(setting_key))
         except Exception:
             override = None
         return apply_override(rendered, override)
@@ -826,6 +829,7 @@ class AdDetector:
         if not prompt:
             from utils.constants import DEFAULT_SYSTEM_PROMPT
             prompt = DEFAULT_SYSTEM_PROMPT
+        prompt = strip_comments_from_prompt(prompt)
         return self._apply_pass_override(
             self._render_with_sponsors(prompt, 'seed_sponsors_detection'), 'system_prompt_override')
 
@@ -840,6 +844,7 @@ class AdDetector:
         if not prompt:
             from database import DEFAULT_VERIFICATION_PROMPT
             prompt = DEFAULT_VERIFICATION_PROMPT
+        prompt = strip_comments_from_prompt(prompt)
         return self._apply_pass_override(
             self._render_with_sponsors(prompt, 'seed_sponsors_verification'), 'verification_prompt_override')
 
@@ -1650,12 +1655,15 @@ class AdDetector:
 
             # Prepare description section (shared across windows)
             description_section = ""
+            podcast_description = scrub_description(podcast_description, max_length=800)
             if podcast_description:
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
-                logger.info(f"[{slug}:{episode_id}] Including podcast description ({len(podcast_description)} chars)")
+                logger.info(f"[{slug}:{episode_id}] Including scrubbed podcast description ({len(podcast_description)} chars)")
+
+            episode_description = scrub_description(episode_description, max_length=4000)
             if episode_description:
                 description_section += f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
-                logger.info(f"[{slug}:{episode_id}] Including episode description ({len(episode_description)} chars)")
+                logger.info(f"[{slug}:{episode_id}] Including scrubbed episode description ({len(episode_description)} chars)")
 
             # Add podcast-specific known-pattern hint from ad_patterns
             sponsor_history = self._build_known_pattern_hint(slug)
@@ -3072,8 +3080,11 @@ class AdDetector:
 
             # Prepare description section
             description_section = ""
+            podcast_description = scrub_description(podcast_description, max_length=800)
             if podcast_description:
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
+            
+            episode_description = scrub_description(episode_description, max_length=4000)
             if episode_description:
                 description_section += (
                     f"Episode Description (this describes the actual content topics discussed; "

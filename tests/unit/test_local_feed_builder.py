@@ -419,5 +419,5 @@ def test_chapter_list_in_description_follows_the_feed_override():
     mf.db.update_podcast(slug, chapters_in_notes='on')
     podcast = mf.db.get_podcast_by_slug(slug)
     xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
-    assert 'Second episode<p>Chapters</p><p>00:00 Intro<br>01:15 Topic</p>' in xml
+    assert 'Second episode\n\n<p>Chapters</p><p>00:00 Intro<br>01:15 Topic</p>' in xml
     assert 'First episode<p>' not in xml

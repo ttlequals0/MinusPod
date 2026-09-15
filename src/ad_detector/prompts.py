@@ -9,7 +9,9 @@ import json
 import re
 
 from sponsor_service import SponsorService
-from utils.prompt import format_sponsor_block, render_prompt
+from utils.prompt import (
+    format_sponsor_block, render_prompt, strip_comments_from_prompt
+)
 from utils.text import truncate
 from utils.time import parse_timestamp
 from utils.llm_response import extract_json_ads_array
@@ -163,7 +165,7 @@ def format_window_prompt(
             f"\n- If an ad extends past this window, use {window_end:.1f} with note \"continues in next\"\n"
         )
     window_context = header + rules
-    return USER_PROMPT_TEMPLATE.format(
+    return strip_comments_from_prompt(USER_PROMPT_TEMPLATE).format(
         podcast_name=podcast_name,
         episode_title=episode_title,
         description_section=description_section,
@@ -209,7 +211,7 @@ def get_static_system_prompt() -> str:
     from utils.constants import SEED_SPONSORS
     sponsor_list = ', '.join(s['name'] for s in SEED_SPONSORS)
     return render_prompt(
-        DEFAULT_SYSTEM_PROMPT,
+        strip_comments_from_prompt(DEFAULT_SYSTEM_PROMPT),
         sponsor_database=format_sponsor_block(sponsor_list),
     )
 
