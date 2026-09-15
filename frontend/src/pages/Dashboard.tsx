@@ -220,7 +220,7 @@ function Dashboard() {
             </span>
           )}
         </div>
-        <div className="w-full sm:w-auto flex gap-2 items-center overflow-x-auto no-scrollbar sm:overflow-visible">
+        <div className="w-full sm:w-auto flex gap-2 items-center justify-between sm:justify-start overflow-x-auto no-scrollbar sm:overflow-visible">
           <div className="flex h-11 border border-border rounded overflow-hidden shrink-0" role="group" aria-label="Dashboard view">
             <button
               onClick={() => setDashboardView('podcasts')}
@@ -249,6 +249,7 @@ function Dashboard() {
               Episodes
             </button>
           </div>
+          <div className="flex gap-2 items-center shrink-0">
           <DashboardControlsMenu
             dashboardView={dashboardView}
             viewMode={viewMode}
@@ -296,6 +297,7 @@ function Dashboard() {
             </svg>
             <span className="hidden sm:inline">Add Feed</span>
           </Link>
+          </div>
         </div>
       </div>
 

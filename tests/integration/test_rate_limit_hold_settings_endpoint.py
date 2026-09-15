@@ -146,3 +146,22 @@ def test_put_enabled_false_without_a_pause_stays_quiet(app_client, _clean_settin
                            json={'enabled': False}, headers=hdr)
     assert r.status_code == 200
     fire.assert_not_called()
+
+
+def test_reset_clears_active_hold_and_keeps_feature_enabled(app_client, _clean_settings):
+    from rate_limit_hold import record_hold_until, any_hold_active
+    from utils.time import utc_now
+    from datetime import timedelta
+    hdr = _csrf(app_client)
+    db = _clean_settings
+    db.set_setting('rate_limit_hold_enabled', 'true')
+    future = (utc_now() + timedelta(hours=6)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    record_hold_until(db, None, future)
+    assert any_hold_active(db)
+
+    r = app_client.post('/api/v1/settings/rate-limit-hold/reset', headers=hdr)
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body['enabled'] is True
+    assert body['holdUntil'] is None
+    assert not any_hold_active(db)

@@ -869,10 +869,26 @@ def update_ad_detection_settings():
         _apply_user_agent_fields,
         _apply_provider_rate_limit_fields,
     )
+    # A stage-model change makes any active cooldown meaningless: the new
+    # model can carry entirely different limits (issue #747). Detect before
+    # the phases persist the new values, lift the hold after they succeed.
+    model_changed = any(
+        key in data and str(data[key] or '') != (db.get_setting(db_key) or '')
+        for key, db_key in (
+            ('claudeModel', 'claude_model'),
+            ('reviewModel', 'review_model'),
+            ('verificationModel', 'verification_model'),
+            ('chaptersModel', 'chapters_model'),
+        )
+    )
+
     for phase in phases:
         err = phase(db, data)
         if err is not None:
             return err
+
+    if model_changed and any_hold_active(db):
+        fire_queue_resumed_event(held_since=clear_all_holds(db))
 
     return json_response({'message': 'Settings updated'})
 
@@ -3061,6 +3077,22 @@ def update_rate_limit_hold_settings():
     view = _rate_limit_hold_view(db)
     logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
     return json_response(view)
+
+
+@api.route('/settings/rate-limit-hold/reset', methods=['POST'])
+@log_request
+def reset_rate_limit_hold():
+    """Lift every active rate-limit hold while leaving the feature enabled.
+
+    Distinct from disabling the feature: a hold is keyed to the endpoint that
+    returned the 429, so after switching models or waiting out an unrelated
+    cooldown the user needs to clear the pause without turning holds off.
+    """
+    db = get_database()
+    if any_hold_active(db):
+        fire_queue_resumed_event(held_since=clear_all_holds(db))
+        logger.info("Manually reset rate-limit holds")
+    return json_response(_rate_limit_hold_view(db))
 
 
 @api.route('/settings/whisper/capacity', methods=['GET'])

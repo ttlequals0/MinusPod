@@ -130,3 +130,21 @@ def test_distinct_names_create_distinct_rows(temp_db):
     assert a != b
     assert temp_db.get_known_sponsor_by_id(a)['name'] == 'BetterHelp'
     assert temp_db.get_known_sponsor_by_id(b)['name'] == 'Squarespace'
+
+
+# --- Common-word / non-brand rejection -----------------------------------
+
+@pytest.mark.parametrize('junk', [
+    'All', 'Anyway', 'Out', 'Live', 'Couch', 'Comment', 'Fuck',
+    'Show', 'Episode', 'no', 'yes', 'well',
+])
+def test_common_words_rejected(temp_db, junk):
+    assert get_or_create_known_sponsor(temp_db, junk) is None
+
+
+@pytest.mark.parametrize('brand', [
+    'Granola', 'Wise', 'Rinse', 'Kohler', 'DeleteMe', 'Morning Brew',
+    'Full Circle', 'Zscaler',
+])
+def test_real_single_and_multi_word_brands_accepted(temp_db, brand):
+    assert get_or_create_known_sponsor(temp_db, brand) is not None

@@ -420,6 +420,13 @@ export async function updateRateLimitHoldSettings(
   });
 }
 
+// Lift active holds without turning the feature off (e.g. after a model swap).
+export async function resetRateLimitHold(): Promise<RateLimitHoldSettings> {
+  return apiRequest<RateLimitHoldSettings>('/settings/rate-limit-hold/reset', {
+    method: 'POST',
+  });
+}
+
 export async function runDatabaseBackupNow(): Promise<DatabaseBackupRunSummary> {
   return apiRequest<DatabaseBackupRunSummary>('/system/db-backup/run', {
     method: 'POST',

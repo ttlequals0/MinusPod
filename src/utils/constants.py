@@ -538,6 +538,28 @@ SEGMENT_STRUCTURE_WORDS = frozenset({
     'show', 'episode', 'podcast', 'segment', 'section', 'chapter',
 })
 
+# Single common English words sometimes emitted as a standalone "sponsor";
+# learned as a one-word brand they match normal speech and force-confirm a
+# false positive. Only whole single-token names are checked (see below).
+COMMON_SPEECH_WORDS = frozenset({
+    'all', 'anyway', 'out', 'live', 'couch', 'comment', 'fuck', 'well',
+    'okay', 'yeah', 'right', 'now', 'here', 'there', 'then', 'also', 'just',
+    'only', 'about', 'anything', 'everything', 'nothing', 'someone',
+    'anyone', 'everyone', 'actually', 'really', 'maybe', 'today', 'stuff',
+})
+
+
+def is_non_brand_name(name: str) -> bool:
+    """A sanitized name that is never a real advertiser: a known junk value,
+    or a single common/structure word. Multi-word names pass."""
+    if not name:
+        return True
+    key = ' '.join(str(name).split()).lower()
+    if key in INVALID_SPONSOR_VALUES:
+        return True
+    return (' ' not in key
+            and key in (COMMON_SPEECH_WORDS | SEGMENT_STRUCTURE_WORDS))
+
 # Vocabulary the model reaches for when describing an ad's shape or evidence,
 # plus the pronouns it quotes ("We'll be right back"). Read only by the
 # sponsor labeler. Kept out of NON_BRAND_WORDS because that set also filters

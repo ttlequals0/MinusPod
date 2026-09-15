@@ -16,7 +16,8 @@ from api import (
     get_database, get_storage, _get_version, _start_time,
 )
 import transcriber
-from config import resolve_whisper_device
+from config import WHISPER_BACKEND_API, resolve_whisper_device
+from database.settings import registry_default
 from podping_listener import (
     get_node_health_summary, DEGRADED_SETTING, DEGRADED_SINCE_SETTING,
 )
@@ -27,6 +28,7 @@ from secrets_crypto import (
     encrypt_backup_file,
 )
 from db_backup_service import backup_now, BackupInProgressError
+from utils.http import safe_url_for_log
 
 logger = logging.getLogger('podcast.api')
 
@@ -45,6 +47,32 @@ def _server_start_time() -> float:
 # resolves /app from /app/src/api/system.py on the shipped image, and
 # the equivalent checkout root in dev.
 _ROOT_DIR = Path(__file__).resolve().parents[2]
+
+
+def _effective_whisper_config(db):
+    """Transcription config actually in use: DB settings win over env, as in GET /settings."""
+    def setting(key):
+        return db.get_setting(key) or registry_default(key)
+
+    backend = setting('whisper_backend')
+    if backend == WHISPER_BACKEND_API:
+        base_url = setting('whisper_api_base_url')
+        return {
+            'whisperBackend': backend,
+            'whisperModel': setting('whisper_api_model'),
+            # No local device is involved; reporting cuda here would imply GPU work that never runs.
+            'whisperDevice': 'remote',
+            # scheme://host only: the configured URL can carry credentials or a token.
+            'whisperApiHost': safe_url_for_log(base_url) if base_url else None,
+        }
+    return {
+        'whisperBackend': backend,
+        'whisperModel': setting('whisper_model'),
+        # Effective device, not the raw env value: an unrecognized setting
+        # transcribes on CPU, and the UI should say so (#605).
+        'whisperDevice': resolve_whisper_device(),
+        'whisperApiHost': None,
+    }
 
 
 # ========== System Endpoints ==========
@@ -134,10 +162,7 @@ def get_system_status():
         },
         'settings': {
             'retentionDays': retention_days,
-            'whisperModel': os.environ.get('WHISPER_MODEL', 'small'),
-            # Effective device, not the raw env value: an unrecognized setting
-            # transcribes on CPU, and the UI should say so (#605).
-            'whisperDevice': resolve_whisper_device(),
+            **_effective_whisper_config(db),
             'baseUrl': os.environ.get('BASE_URL', 'http://localhost:8000')
         },
         'stats': {

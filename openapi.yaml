@@ -6916,6 +6916,36 @@ paths:
                   rateLimitProbeMinutes:
                     type: integer
 
+  /settings/rate-limit-hold/reset:
+    post:
+      tags:
+        - Settings
+      summary: Clear active rate-limit holds without disabling the feature
+      description: >-
+        Lifts every active provider rate-limit hold while leaving the feature
+        enabled. Use after switching models or providers, whose limits differ
+        from the endpoint that produced the hold (#747).
+      operationId: resetRateLimitHold
+      responses:
+        '200':
+          description: Holds cleared; current rate-limit hold settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  holdUntil:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
+                  llmUsageUrl:
+                    type: string
+                  rateLimitProbeMinutes:
+                    type: integer
+
   /settings/whisper/capacity:
     get:
       tags:
@@ -13567,8 +13597,17 @@ components:
               type: integer
             whisperModel:
               type: string
+              description: Effective transcription model from settings (local model, or the remote API model when the backend is openai-api)
             whisperDevice:
               type: string
+              description: Local compute device, or "remote" when transcription runs on a remote whisper API
+            whisperBackend:
+              type: string
+              description: Transcription backend in use (local or openai-api)
+            whisperApiHost:
+              type: string
+              nullable: true
+              description: scheme://host of the remote whisper endpoint, or null when transcription is local
             baseUrl:
               type: string
         stats:

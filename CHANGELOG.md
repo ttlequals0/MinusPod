@@ -9,6 +9,21 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.3] - 2026-09-15
+
+### Added
+
+- Rate-limit holds now reset when a stage model changes, because a new model can carry different limits. A "Reset holds now" control (API and UI) also clears active holds without turning the hold feature off.
+
+### Fixed
+
+- The sponsor registry no longer learns common English words such as "all", "out", or "show" as brand names. Such a one-word entry matched ordinary speech. Two matches in a span then granted the ad the confirmed-sponsor duration ceiling, so an over-long false positive could be cut without the length check firing. The learner and the registry matcher both reject single common or structural words now, and any such entry already stored is ignored at match time.
+- The sponsor-name parser drops a hyphenated descriptor prefix such as "Host-read" from a model's reason text, so a real brand is no longer stored as a descriptor-plus-brand duplicate.
+- The per-window retry fallback honors the provider's Retry-After. It previously used a fixed 2s then 5s backoff, so a rate-limit response asking for a longer wait failed both attempts and the review call was skipped, cutting unreviewed boundaries.
+- The system status endpoint reports the transcription backend, model, and host in use from settings, rather than environment defaults that showed a local GPU model while a remote API was configured.
+- The dashboard toolbar on narrow phones spreads the view toggle and action buttons to the card width.
+- Episode marker rows share one play-button and jump-button height across every section.
+
 ## [2.97.2] - 2026-09-14
 
 ### Fixed

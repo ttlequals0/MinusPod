@@ -393,6 +393,39 @@ def test_secondary_retry_applies_provider_hold(monkeypatch, no_retry_wait):
     assert no_retry_wait == [2]
 
 
+def test_secondary_retry_waits_for_provider_retry_after(monkeypatch, no_retry_wait):
+    """A 429 under the hold threshold must wait its reset, not the 2s/5s floor."""
+    monkeypatch.setattr(llm_call, 'is_rate_limit_hold_enabled', lambda: True)
+    rate_limit = FakeProviderError(
+        '429 rate limit', status_code=429,
+        response=FakeResponse(headers={'Retry-After': '60'}),
+    )
+    client = _SequenceClient(rate_limit)
+
+    response, error = _secondary_result(client)
+
+    assert response is None
+    assert error is rate_limit
+    assert client.calls == 3
+    assert len(no_retry_wait) == 2
+    assert all(60.0 <= delay <= 62.0 for delay in no_retry_wait)
+
+
+def test_secondary_retry_without_retry_after_keeps_fixed_backoff(
+        monkeypatch, no_retry_wait):
+    """No provider-reported reset: the 2s/5s per-window backoff still applies."""
+    monkeypatch.setattr(llm_call, 'is_rate_limit_hold_enabled', lambda: True)
+    rate_limit = FakeProviderError('429 rate limit hit', status_code=429)
+    client = _SequenceClient(rate_limit)
+
+    response, error = _secondary_result(client)
+
+    assert response is None
+    assert error is rate_limit
+    assert client.calls == 3
+    assert no_retry_wait == [2, 5]
+
+
 def test_secondary_retry_applies_structural_limit(monkeypatch, no_retry_wait):
     fired = MagicMock()
     monkeypatch.setattr('webhook_service.fire_structural_rate_limit_event', fired)

@@ -7,6 +7,8 @@ All sponsor writes from the rest of the codebase flow through
 import re
 import string
 
+from utils.constants import is_non_brand_name
+
 
 _STRIP_CHARS = string.whitespace + '\'"`.,;:!?-'
 _MAX_LENGTH = 100
@@ -56,6 +58,8 @@ def get_or_create_known_sponsor(db, name):
     if not s:
         return None
     if len(s) > _MAX_LENGTH:
+        return None
+    if is_non_brand_name(s):
         return None
     existing = db.get_known_sponsor_by_name(s)
     if existing:

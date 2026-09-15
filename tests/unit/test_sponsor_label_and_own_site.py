@@ -287,6 +287,15 @@ class TestBrandFurtherFromTheReadPhrase:
     def test_a_plain_leading_brand_is_unchanged(self):
         assert self._extract('Acme sponsor read') == 'Acme'
 
+    def test_a_hyphenated_descriptor_prefix_is_dropped(self):
+        assert self._extract(
+            'Host-read DeleteMe sponsor segment about removing personal data'
+        ) == 'DeleteMe'
+        assert self._extract('Host-read BigID ad read') == 'BigID'
+
+    def test_a_hyphenated_real_brand_prefix_is_kept(self):
+        assert self._extract('Full-Circle sponsor read') == 'Full-Circle'
+
 
 class TestAdvertisersListedAfterAColon:
     """A break that names its advertisers after a colon matched nothing, so

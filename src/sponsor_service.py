@@ -8,6 +8,7 @@ from utils.constants import (
     INVALID_SPONSOR_VALUES,
     INVALID_SPONSOR_CAPTURE_WORDS,
     NON_BRAND_WORDS,
+    is_non_brand_name,
     REASON_DESCRIPTION_WORDS,
     REASON_DESCRIPTION_MAX,
     SPONSOR_DOMAIN_TLDS,
@@ -37,6 +38,9 @@ _DOMAIN_RE = re.compile(
     re.IGNORECASE)
 _RUN_SPLIT_RE = re.compile(r"[\s'\u2019-]+")
 _LABELER_STOPWORDS = NON_BRAND_WORDS | REASON_DESCRIPTION_WORDS
+# Parts allowed inside a leading hyphenated descriptor ("Host-read") that is
+# dropped whole; a single non-descriptor part (Full-Circle) keeps the token.
+_HYPHEN_DESCRIPTOR_WORDS = INVALID_SPONSOR_CAPTURE_WORDS | NON_BRAND_WORDS
 
 
 def _brand_run_words(run: str) -> list[str] | None:
@@ -46,8 +50,15 @@ def _brand_run_words(run: str) -> list[str] | None:
     vocabulary here cost the first word of real names ("Full Circle").
     """
     words = run.split()
-    while words and words[0].lower() in INVALID_SPONSOR_CAPTURE_WORDS:
-        words.pop(0)
+    while words:
+        head = words[0].lower()
+        parts = [p for p in head.split('-') if p]
+        if head in INVALID_SPONSOR_CAPTURE_WORDS:
+            words.pop(0)
+        elif len(parts) > 1 and all(p in _HYPHEN_DESCRIPTOR_WORDS for p in parts):
+            words.pop(0)
+        else:
+            break
     if not words:
         return None
     run = ' '.join(words)
@@ -137,6 +148,10 @@ class SponsorService:
             for sponsor in cache_sponsors:
                 name = sponsor['name']
                 if len(name) < 3:
+                    continue
+                # A junk row that predates the create-time gate must not match
+                # normal speech and force-confirm a false positive.
+                if is_non_brand_name(name):
                     continue
                 # Build pattern matching canonical name + all aliases
                 alternatives = [re.escape(name)]

@@ -1155,6 +1155,7 @@ function EpisodeDetail() {
                 <div className="flex flex-wrap items-center gap-2">
                   {episode.hasOriginalAudio && (
                     <AuditionPlayButton
+                      size="row"
                       playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
                       onClick={() => {
                         // Play the same timeframe the row displays: for
@@ -1242,7 +1243,7 @@ function EpisodeDetail() {
                   {episode.transcript && (
                     <button
                       onClick={() => handleJumpToAd(index)}
-                      className={`px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs bg-primary/10 text-primary rounded hover:bg-primary/20 active:bg-primary/30 transition-colors touch-manipulation min-h-[36px] sm:min-h-0 ${focusRing}`}
+                      className={`${rowActionBtn} bg-primary/10 text-primary hover:bg-primary/20 active:bg-primary/30 ${focusRing}`}
                       title="Jump to this ad in editor"
                     >
                       Jump
@@ -1630,6 +1631,7 @@ function EpisodeDetail() {
                   <div className="flex flex-wrap items-center gap-2">
                     {episode.hasOriginalAudio && (
                       <AuditionPlayButton
+                        size="row"
                         label="this segment"
                         playing={markerAudition.playingKey === `kept-${segment.start}-${segment.end}`}
                         onClick={() => markerAudition.toggle(

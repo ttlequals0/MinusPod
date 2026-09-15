@@ -386,6 +386,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
               {pieces.map((p, i) => (
                 <div key={i} className="flex items-center gap-2 flex-wrap">
                   <AuditionPlayButton
+                    size="sm"
                     playing={audition.playingKey === `piece-${i}`}
                     onClick={() => audition.toggle(
                       `piece-${i}`, episodeOriginalUrl(podcastSlug, episodeId),

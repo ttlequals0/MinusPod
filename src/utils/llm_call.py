@@ -193,6 +193,15 @@ def _is_retryable(error) -> bool:
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
 
 
+def _fallback_delay(error, base_delay: float) -> float:
+    """Per-window retry wait: a rate limit's own reset beats the fixed backoff."""
+    if is_rate_limit_error(error):
+        retry_after = extract_retry_after(error)
+        if retry_after is not None:
+            return retry_after + random.uniform(0.0, 2.0)
+    return base_delay
+
+
 def _fire_limit_exceeded_webhook(error, model, provider=None):
     try:
         from webhook_service import fire_limit_exceeded_event
@@ -429,13 +438,14 @@ def call_llm(
             break
 
     if response is None and last_error is not None and _is_retryable(last_error):
-        for retry_num, delay in enumerate([2, 5], 1):
+        for retry_num, base_delay in enumerate([2, 5], 1):
             held = _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id)
             if held is not None:
                 return None, held
+            delay = _fallback_delay(last_error, base_delay)
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} per-window retry "
-                f"{retry_num}/2 after {delay}s backoff"
+                f"{retry_num}/2 after {delay:.1f}s backoff"
             )
             time.sleep(delay)
             try:
