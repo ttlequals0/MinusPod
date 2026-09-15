@@ -333,14 +333,22 @@ class QueueMixin:
         carries total_pending (the uncapped count, via a window function
         evaluated before the LIMIT) so a caller can say how much of the
         backlog it is showing.
+
+        The feed and episode processing-mode columns ride along so the hold
+        gating scan can score a row without a per-row lookup.
         """
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT q.episode_id, q.title, q.priority, q.created_at,
                       p.slug as podcast_slug, p.title as podcast_title,
+                      p.passthrough_enabled as feed_passthrough_enabled,
+                      p.skip_ad_detection, p.detection_mode, p.chapters_mode,
+                      e.passthrough_enabled as episode_passthrough_enabled,
                       COUNT(*) OVER () as total_pending
                FROM auto_process_queue q
                JOIN podcasts p ON q.podcast_id = p.id
+               LEFT JOIN episodes e
+                      ON e.podcast_id = q.podcast_id AND e.episode_id = q.episode_id
                WHERE q.status = 'pending'
                ORDER BY q.priority DESC, q.created_at ASC
                LIMIT ? OFFSET ?""",
@@ -397,7 +405,7 @@ class QueueMixin:
         ).fetchone()
         return row['n'] if row else 0
 
-    def claim_next_queued_episode(self, exclude_slugs=None) -> dict | None:
+    def claim_next_queued_episode(self, exclude_episodes=None) -> dict | None:
         """Atomically claim the next pending episode, marking it 'processing'.
 
         Closes the SELECT-then-mark gap in get_next_queued_episode: the
@@ -407,16 +415,22 @@ class QueueMixin:
         ever added. Returns the claimed row (status='processing'), or None if
         the queue is empty. On the rare lost race it tries the next pending row.
 
-        ``exclude_slugs`` skips entries for feeds whose required LLM account is
-        rate-limit held, so a hold on one account does not starve the queue's
-        eligible work.
+        ``exclude_episodes`` skips individual (slug, episode_id) pairs whose
+        required LLM account is rate-limit held. It is per episode rather than
+        per feed because a pass-through override is: one feed can hold blocked
+        and eligible rows at once, and skipping the feed starves the eligible
+        ones.
         """
         conn = self.get_connection()
-        exclude = list(exclude_slugs or [])
+        params: list = []
         exclude_sql = ""
-        if exclude:
-            placeholders = ",".join("?" * len(exclude))
-            exclude_sql = f" AND p.slug NOT IN ({placeholders})"  # noqa: S608
+        pairs = list(exclude_episodes or [])
+        if pairs:
+            rows_sql = ",".join("(?,?)" for _ in pairs)
+            exclude_sql = (
+                f" AND (p.slug, q.episode_id) NOT IN (VALUES {rows_sql})")  # noqa: S608
+            for slug, episode_id in pairs:
+                params.extend((slug, episode_id))
         for _ in range(5):
             row = conn.execute(
                 f"""SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
@@ -425,7 +439,7 @@ class QueueMixin:
                    WHERE q.status = 'pending'{exclude_sql}
                    ORDER BY q.priority DESC, q.created_at ASC
                    LIMIT 1""",  # noqa: S608
-                exclude,
+                params,
             ).fetchone()
             if row is None:
                 return None

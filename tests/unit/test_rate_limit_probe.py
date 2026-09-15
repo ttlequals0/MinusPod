@@ -145,7 +145,7 @@ class TestUsageUrlProbe:
                 return object()
 
         with patch('rate_limit_hold.read_usage_status', return_value=None), \
-                patch('rate_limit_hold.get_llm_client', return_value=_Client()):
+                patch('rate_limit_hold.get_client_for_provider', return_value=_Client()):
             assert probe_rate_limit(db) is True
         assert db.get_setting('rate_limit_hold_until') is None
         mock_fire.assert_called_once()
@@ -167,7 +167,7 @@ class TestCompletionProbe:
             def messages_create(self, **kw):
                 return object()
 
-        with patch('rate_limit_hold.get_llm_client', return_value=_Client()):
+        with patch('rate_limit_hold.get_client_for_provider', return_value=_Client()):
             assert probe_rate_limit(db) is True
         assert db.get_setting('rate_limit_hold_until') is None
         mock_fire.assert_called_once()
@@ -180,7 +180,7 @@ class TestCompletionProbe:
             def messages_create(self, **kw):
                 raise err
 
-        with patch('rate_limit_hold.get_llm_client', return_value=_Client()):
+        with patch('rate_limit_hold.get_client_for_provider', return_value=_Client()):
             assert probe_rate_limit(db) is False
         assert 850 < _hold_delta_seconds() < 950
 
@@ -191,7 +191,7 @@ class TestCompletionProbe:
             def messages_create(self, **kw):
                 raise ValueError('boom')
 
-        with patch('rate_limit_hold.get_llm_client', return_value=_Client()):
+        with patch('rate_limit_hold.get_client_for_provider', return_value=_Client()):
             assert probe_rate_limit(db) is False
         assert db.get_setting('rate_limit_hold_until') == original
 
@@ -208,7 +208,7 @@ class TestCadence:
         db.set_setting('llm_usage_url', USAGE_URL)
         db.set_setting('rate_limit_probe_minutes', '0')
         with patch('rate_limit_hold.read_usage_status') as mock_read, \
-                patch('rate_limit_hold.get_llm_client') as mock_client:
+                patch('rate_limit_hold.get_client_for_provider') as mock_client:
             assert probe_rate_limit(db) is False
         mock_read.assert_not_called()
         mock_client.assert_not_called()

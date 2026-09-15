@@ -403,6 +403,20 @@ describe('QueueControlSection loading placeholder', () => {
     await waitFor(() => expect(mocked.resetRateLimitHold).toHaveBeenCalledTimes(1));
   });
 
+  it('surfaces the error when resetting the hold fails', async () => {
+    mocked.getOfflineQueueSettings.mockResolvedValue({
+      enabled: false, ttlHours: 48, deferredCount: 0,
+    });
+    mocked.getRateLimitHoldSettings.mockResolvedValue({
+      enabled: true, holdUntil: '2099-01-01T00:00:00Z', llmUsageUrl: '', rateLimitProbeMinutes: 5,
+    });
+    mocked.resetRateLimitHold.mockRejectedValue(new Error('provider still limited'));
+    renderSection();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Reset holds now' }));
+    expect(await screen.findByText('provider still limited')).toBeTruthy();
+  });
+
   it('shows no reset button when no hold is active', async () => {
     mocked.getOfflineQueueSettings.mockResolvedValue({
       enabled: false, ttlHours: 48, deferredCount: 0,

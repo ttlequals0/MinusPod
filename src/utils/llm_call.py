@@ -23,6 +23,7 @@ from rate_limit_hold import (
     MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, enforce_provider_rate_limit,
     is_rate_limit_hold_enabled,
 )
+from utils.shutdown import shutdown_event
 from utils.time import parse_iso_utc, utc_now
 # webhook_service, database and cancel are lazy-imported at the call sites
 # below (database pulls in Flask via AuthLockoutMixin; cancel pulls in
@@ -32,6 +33,13 @@ from utils.time import parse_iso_utc, utc_now
 from utils.retry import calculate_backoff
 
 logger = logging.getLogger(__name__)
+
+# Longest in-process wait: a reset past MIN_HOLD_RESET_SECONDS becomes a
+# queue-level hold instead, so sleeping longer than that here skips the review
+# that hold exists to trigger.
+FALLBACK_RETRY_AFTER_CAP_SECONDS = float(MIN_HOLD_RESET_SECONDS)
+# Slice that wait so a container stop is not sat out.
+RETRY_SLEEP_SLICE_SECONDS = 5.0
 
 
 def json_schema_format(name: str, schema: dict, description: str | None = None) -> dict:
@@ -193,10 +201,32 @@ def _is_retryable(error) -> bool:
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
 
 
-def _fallback_delay(error, base_delay: float) -> float:
-    """Per-window retry wait: a rate limit's own reset beats the fixed backoff."""
-    if is_rate_limit_error(error):
-        retry_after = extract_retry_after(error)
+def _shutdown_requested() -> bool:
+    """True once the process has been asked to shut down."""
+    return shutdown_event.is_set()
+
+
+def _sleep_before_retry(delay: float) -> bool:
+    """Wait `delay` in slices, ending early on shutdown; False when interrupted."""
+    remaining = delay
+    while remaining > 0:
+        if _shutdown_requested():
+            return False
+        slice_seconds = min(RETRY_SLEEP_SLICE_SECONDS, remaining)
+        time.sleep(slice_seconds)
+        remaining -= slice_seconds
+    return not _shutdown_requested()
+
+
+def _fallback_delay(error, base_delay: float, honor_retry_after: bool) -> float:
+    """Per-window retry wait: a rate limit's own reset beats the fixed backoff.
+
+    Only the first retry honors the reset, capped, so a long hint cannot park
+    a worker for the sum of both iterations.
+    """
+    if honor_retry_after and is_rate_limit_error(error):
+        retry_after = extract_retry_after(
+            error, max_seconds=FALLBACK_RETRY_AFTER_CAP_SECONDS)
         if retry_after is not None:
             return retry_after + random.uniform(0.0, 2.0)
     return base_delay
@@ -225,13 +255,14 @@ def _fire_auth_failure_webhook(error, model, provider=None):
 
 
 def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None,
-                    credential_slot='primary'):
+                    credential_slot='primary', phase=None):
     """Return a terminal or normalized provider error, else None.
 
     ``provider``, when given, is the call's resolved route provider; omitted,
     error context falls back to the global effective provider.
     ``credential_slot`` is that route's account ('primary'/'secondary'), so a
-    held 429 pauses only the account that actually hit the limit.
+    held 429 pauses only the account that actually hit the limit. ``phase``
+    labels the call so a hold can fall back to the run's route for it.
     """
     provider = provider or get_effective_provider()
     daily_quota = classify_daily_quota_exhaustion(error)
@@ -283,7 +314,7 @@ def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None
             held = ProviderRateLimitedError(
                 f"provider rate limit resets in {hold_after:.0f}s: {error}",
                 retry_after_seconds=hold_after, provider_key=provider,
-                credential_slot=credential_slot)
+                credential_slot=credential_slot, phase=phase)
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} rate limit: "
                 f"holding queue {hold_after:.0f}s until provider reset"
@@ -299,7 +330,8 @@ def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None
     return error
 
 
-def _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id):
+def _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id,
+                             phase=None):
     """ProviderRateLimitedError when the manual RPM/RPD cap is hit, else None.
 
     Records the provider+slot hold as a side effect (via
@@ -324,7 +356,7 @@ def _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id):
     return ProviderRateLimitedError(
         f"manual rate limit for {provider_key} resets in {retry_after:.0f}s",
         retry_after_seconds=retry_after, provider_key=provider_key,
-        credential_slot=credential_slot, manual=True)
+        credential_slot=credential_slot, manual=True, phase=phase)
 
 
 def call_llm(
@@ -391,7 +423,8 @@ def call_llm(
         # Manual rate-limit backstop (#747): re-checked before every dispatch,
         # not once up front, so a cap crossed mid-retry defers instead of
         # burning more requests. Admission is still the primary gate.
-        held = _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id)
+        held = _manual_rate_limit_error(provider_key, credential_slot, slug,
+                                        episode_id, phase=phase_key)
         if held is not None:
             return None, held
         try:
@@ -409,7 +442,7 @@ def call_llm(
             terminal = _terminal_error(
                 e, model=model, slug=slug, episode_id=episode_id,
                 call_label=call_label, provider=provider,
-                credential_slot=credential_slot)
+                credential_slot=credential_slot, phase=phase_key)
             if terminal is not None:
                 last_error = terminal
                 break
@@ -439,15 +472,17 @@ def call_llm(
 
     if response is None and last_error is not None and _is_retryable(last_error):
         for retry_num, base_delay in enumerate([2, 5], 1):
-            held = _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id)
+            held = _manual_rate_limit_error(provider_key, credential_slot, slug,
+                                            episode_id, phase=phase_key)
             if held is not None:
                 return None, held
-            delay = _fallback_delay(last_error, base_delay)
+            delay = _fallback_delay(last_error, base_delay, retry_num == 1)
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} per-window retry "
                 f"{retry_num}/2 after {delay:.1f}s backoff"
             )
-            time.sleep(delay)
+            if not _sleep_before_retry(delay):
+                break
             try:
                 response = _ledger_call_once(
                     llm_client, llm_kwargs, model, phase_key=phase_key,
@@ -467,7 +502,7 @@ def call_llm(
                 terminal = _terminal_error(
                     e, model=model, slug=slug, episode_id=episode_id,
                     call_label=call_label, provider=provider,
-                    credential_slot=credential_slot)
+                    credential_slot=credential_slot, phase=phase_key)
                 if terminal is not None:
                     last_error = terminal
                     break

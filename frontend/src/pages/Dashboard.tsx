@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import DashboardControlsMenu from '../components/DashboardControlsMenu';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
 import { feedsQueryOptions, feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import DropdownMenu from '../components/DropdownMenu';
@@ -56,6 +56,9 @@ function Dashboard() {
   const episodesQuery = useQuery({
     ...feedsQueryOptionsFor({ includeLatestEpisodes: true, episodesPerFeed: episodesPerPodcast }),
     enabled: dashboardView === 'episodes',
+    // Changing the per-podcast count keeps the current groups until the new
+    // ones land, instead of blanking the list under an open menu.
+    placeholderData: keepPreviousData,
   });
 
   const refreshMutation = useMutation({
@@ -230,7 +233,6 @@ function Dashboard() {
                   ? 'bg-primary text-primary-foreground'
                   : btnSecondary
               } ${focusRing}`}
-              aria-label="Podcasts view"
               title="Group by podcast"
             >
               Podcasts
@@ -243,7 +245,6 @@ function Dashboard() {
                   ? 'bg-primary text-primary-foreground'
                   : btnSecondary
               } ${focusRing}`}
-              aria-label="Episodes view"
               title="Show latest episodes per podcast"
             >
               Episodes
@@ -274,6 +275,7 @@ function Dashboard() {
             chevronClassName="w-4 h-4 hidden sm:block"
             disabled={refreshAllMutation.isPending}
             title="Refresh all feeds"
+            ariaLabel="Refresh all feeds"
             items={[
               {
                 title: 'Refresh All',

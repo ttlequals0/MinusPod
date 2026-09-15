@@ -400,7 +400,7 @@ class EpisodeMixin:
         """Just the fields a caller needs to decide whether to act on an episode."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT e.status, e.processed_version,
+            """SELECT e.status, e.processed_version, e.passthrough_enabled,
                       (ed.transcript_vtt IS NOT NULL) AS has_transcript_vtt
                FROM episodes e
                JOIN podcasts p ON e.podcast_id = p.id

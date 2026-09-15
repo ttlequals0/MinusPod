@@ -312,6 +312,34 @@ def test_base_url_for_openai_compatible_provider_uses_effective_base_url():
     assert 'key' not in route.base_url and '@' not in route.base_url
 
 
+def test_resolved_same_as_pass_review_slot_follows_detection():
+    """same_as_pass review runs on detection's slot, whatever verification uses."""
+    settings = {
+        'claude_model': 'claude-sonnet-5',
+        'review_provider': 'same_as_pass',
+        'verification_provider': 'secondary',
+        'secondary_provider_enabled': 'true',
+        'secondary_provider': 'openrouter',
+    }
+
+    assert llm_route.resolved_stage_slot(_db(settings), 'review') == 'primary'
+
+    settings['detection_provider'] = 'secondary'
+    assert llm_route.resolved_stage_slot(_db(settings), 'review') == 'secondary'
+
+
+def test_resolved_explicit_review_slot_is_honored():
+    settings = {
+        'claude_model': 'claude-sonnet-5',
+        'review_provider': 'primary',
+        'verification_provider': 'secondary',
+        'secondary_provider_enabled': 'true',
+        'secondary_provider': 'openrouter',
+    }
+
+    assert llm_route.resolved_stage_slot(_db(settings), 'review') == 'primary'
+
+
 class TestMigrationDefaults:
     """No stage-provider settings and no secondary config at all: every
     stage must resolve exactly like today's single-provider routes."""

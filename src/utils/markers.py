@@ -17,37 +17,40 @@ def invalidate_tail_provenance(marker: dict, new_end: float) -> None:
         marker.pop('tail_splice_snap', None)
 
 
-def _valid_dai_core_spans(marker: dict) -> list[dict[str, float]]:
-    """Return normalized measured DAI spans from a marker.
+def _valid_spans(marker: dict, key: str, extra_field: str | None = None) -> list[dict]:
+    """Normalized {start, end} spans stored under `key`, dropping malformed
+    entries; `extra_field` is carried through when the caller names one.
 
     Invalid persisted values are ignored. Keeping this parser defensive lets
     old markers and hand-edited JSON pass through unchanged.
     """
-    raw_spans = marker.get(DAI_CORE_SPANS)
+    raw_spans = marker.get(key)
     if not isinstance(raw_spans, list):
         return []
     spans = []
     for raw in raw_spans:
         if not isinstance(raw, dict):
             continue
-        try:
-            raw_start = raw['start']
-            raw_end = raw['end']
-        except (KeyError, OverflowError, TypeError, ValueError):
-            continue
-        # bool is a subclass of int, and float(True) silently becomes 1.0.
-        # Optional evidence with boolean endpoints is malformed, not a
-        # measured one-second span at the beginning of the episode.
+        raw_start, raw_end = raw.get('start'), raw.get('end')
+        # bool is a subclass of int, and float(True) silently becomes 1.0, so
+        # boolean endpoints are malformed, not a span at the episode start.
         if isinstance(raw_start, bool) or isinstance(raw_end, bool):
             continue
         try:
-            start = float(raw_start)
-            end = float(raw_end)
+            start, end = float(raw_start), float(raw_end)
         except (OverflowError, TypeError, ValueError):
             continue
         if math.isfinite(start) and math.isfinite(end) and end > start:
-            spans.append({'start': start, 'end': end})
+            span = {'start': start, 'end': end}
+            if extra_field is not None:
+                span[extra_field] = raw.get(extra_field)
+            spans.append(span)
     return spans
+
+
+def _valid_dai_core_spans(marker: dict) -> list[dict[str, float]]:
+    """Normalized measured DAI spans from a marker."""
+    return _valid_spans(marker, DAI_CORE_SPANS)
 
 
 def merge_dai_core_spans(target: dict, other: dict) -> None:
@@ -93,6 +96,21 @@ def dai_core_bounds(marker: dict) -> tuple[float | None, float | None]:
 # name fails conservative: unknown stages are protected.
 UNPROTECTED_MEMBER_STAGES = frozenset({'dai_differential', 'vad_gap'})
 
+# LLM- or heuristic-derived edges carry padding the reviewer may trim, so a
+# proposal only has to keep overlapping such a member. Every other stage is
+# measured (fingerprint, cue_pair, text_pattern, manual) and must stay covered.
+COARSE_MEMBER_STAGES = frozenset({
+    'claude', 'first_pass', 'verification', 'verification_miss',
+    'heuristic_preroll', 'heuristic_postroll', 'language',
+})
+
+MERGED_MEMBER_SPANS = 'merged_member_spans'
+
+# Merge bookkeeping a split fragment must drop: it describes the merged
+# span, not the narrower piece the split just carved out.
+MERGE_BOOKKEEPING_KEYS = ('merged_distinct_ads', 'merged_protected_start',
+                         'merged_protected_end', MERGED_MEMBER_SPANS)
+
 
 def _protected_bounds(marker: dict) -> tuple[float | None, float | None]:
     """Protected span one merge member contributes: its own recorded union
@@ -106,18 +124,77 @@ def _protected_bounds(marker: dict) -> tuple[float | None, float | None]:
     return None, None
 
 
+def recorded_member_spans(marker: dict) -> list[dict]:
+    """Normalized member spans recorded on a merged marker."""
+    return _valid_spans(marker, MERGED_MEMBER_SPANS, 'stage')
+
+
+def protected_member_spans(marker: dict, fallback_start=None,
+                           fallback_end=None) -> list[dict]:
+    """Member-shaped spans a merged marker protects, legacy markers included.
+
+    A marker persisted before member tracking knows only its recorded union,
+    or the caller's original bounds; that becomes one stage-less member, and
+    an unknown stage counts as measured, so it stays expand-only.
+    """
+    members = recorded_member_spans(marker)
+    if members:
+        return members
+    if 'merged_protected_start' in marker:
+        start = marker.get('merged_protected_start')
+        end = marker.get('merged_protected_end')
+    else:
+        start, end = fallback_start, fallback_end
+    if start is None or end is None:
+        return []
+    return [{'start': start, 'end': end, 'stage': None}]
+
+
+def clip_member_spans(marker: dict, start: float, end: float) -> None:
+    """Clip recorded member spans to a range, dropping collapsed members."""
+    if MERGED_MEMBER_SPANS not in marker:
+        return
+    clipped = []
+    for span in recorded_member_spans(marker):
+        lo = max(start, span['start'])
+        hi = min(end, span['end'])
+        if hi > lo:
+            clipped.append({'start': lo, 'end': hi, 'stage': span['stage']})
+    marker[MERGED_MEMBER_SPANS] = clipped
+
+
+def _member_spans(marker: dict) -> list[dict]:
+    """Member spans one merge member contributes to the target's list."""
+    if 'merged_protected_start' in marker:
+        if isinstance(marker.get(MERGED_MEMBER_SPANS), list):
+            return recorded_member_spans(marker)
+        # Tracked by a release that recorded only the union: all it knows is
+        # one span, and an unknown stage stays measured.
+        lo = marker['merged_protected_start']
+        hi = marker.get('merged_protected_end')
+        if lo is None or hi is None:
+            return []
+        return [{'start': lo, 'end': hi, 'stage': None}]
+    lo, hi = _protected_bounds(marker)
+    if lo is None or hi is None:
+        return []
+    return [{'start': lo, 'end': hi, 'stage': marker.get('detection_stage')}]
+
+
 def note_merged_members(target: dict, other: dict) -> None:
-    """Record the protected-member union on a distinct-ad merge.
+    """Record the protected members on a distinct-ad merge.
 
     Call BEFORE the merge mutates target's span or stage. Always writes
-    merged_protected_start/end on target (None/None when no member is
-    anchored) so the reviewer can tell a tracked merge from a legacy
-    marker persisted by a pre-tracking release.
+    merged_protected_start/end and merged_member_spans on target (None/None
+    and [] when no member is anchored) so the reviewer can tell a tracked
+    merge from a legacy marker persisted by a pre-tracking release.
     """
     merge_dai_core_spans(target, other)
+    spans = _member_spans(target) + _member_spans(other)
     if 'merged_protected_start' not in target:
         target['merged_protected_start'], target['merged_protected_end'] = (
             _protected_bounds(target))
+    target[MERGED_MEMBER_SPANS] = spans
     o_lo, o_hi = _protected_bounds(other)
     if o_lo is not None:
         lo = target['merged_protected_start']

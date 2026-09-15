@@ -2,13 +2,11 @@ import { ReactNode, useEffect, useRef, useState, type KeyboardEvent as ReactKeyb
 import { ChevronDown } from 'lucide-react';
 import { focusRing } from './fieldStyles';
 import { useOutsideClick } from '../hooks/useOutsideClick';
+import { usePhonePlacement } from '../hooks/usePhonePlacement';
 
 // w-56 menu; keep it at least this far inside the viewport edge.
 const MENU_WIDTH_PX = 224;
 const VIEWPORT_MARGIN_PX = 8;
-// Below Tailwind's sm breakpoint the menu is centered on the screen under
-// the trigger's row: a row that wraps on a phone leaves no side with room.
-const PHONE_MAX_WIDTH_PX = 640;
 
 export interface DropdownMenuItem {
   title: string;
@@ -24,7 +22,10 @@ interface DropdownMenuProps {
   triggerClassName: string;
   items: DropdownMenuItem[];
   disabled?: boolean;
+  /** Native tooltip on the trigger. */
   title?: string;
+  /** Accessible name; only for a trigger with no visible text at some breakpoint. */
+  ariaLabel?: string;
   chevronClassName?: string;
   /** Which edge of the menu aligns to the trigger. `auto` (default)
    *  opens leftward when the trigger has room on its left, otherwise
@@ -39,12 +40,12 @@ function DropdownMenu({
   items,
   disabled,
   title,
+  ariaLabel,
   chevronClassName = 'w-4 h-4',
   align = 'auto',
 }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<'left' | 'right'>('right');
-  const [phoneTop, setPhoneTop] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -84,6 +85,7 @@ function DropdownMenu({
   if (disabled && open) setOpen(false);
   const isOpen = open && !disabled;
   useOutsideClick(rootRef, isOpen, () => setOpen(false));
+  const { phoneTop, placeFor } = usePhonePlacement(isOpen, () => setOpen(false));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -97,7 +99,7 @@ function DropdownMenu({
   const toggle = () => {
     if (!open) {
       const rect = rootRef.current?.getBoundingClientRect();
-      setPhoneTop(rect && window.innerWidth < PHONE_MAX_WIDTH_PX ? rect.bottom + 4 : null);
+      placeFor(rect);
       if (align === 'auto') {
         setSide(rect && rect.right - MENU_WIDTH_PX < VIEWPORT_MARGIN_PX ? 'left' : 'right');
       }
@@ -118,7 +120,7 @@ function DropdownMenu({
         disabled={disabled}
         className={`${triggerClassName} ${focusRing}`}
         title={title}
-        aria-label={title}
+        aria-label={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={isOpen}
       >

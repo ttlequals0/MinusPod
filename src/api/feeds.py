@@ -20,7 +20,7 @@ from api import (
     _serialize_nullable_bool, _deserialize_nullable_bool,
     _normalize_nullable_finite_float,
 )
-from cancel import request_cancellation
+from cancel import request_cancellation, wait_for_cancellation
 from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
@@ -2024,6 +2024,25 @@ def _best_effort_rmtree(slug: str, path) -> None:
         logger.warning(f"[{slug}] could not remove {path}: left {remaining}")
 
 
+def _clear_deletion_fence(db, podcast_id) -> None:
+    """Drop the delete marker after an aborted delete; it fences the feed out
+    of acquisition, so leaving it set makes the feed unprocessable forever."""
+    try:
+        conn = db.get_connection()
+        conn.execute('UPDATE podcasts SET deletion_requested_at = NULL WHERE id = ?',
+                     (podcast_id,))
+        conn.commit()
+    except Exception:
+        logger.exception(f"Could not clear the deletion marker for podcast {podcast_id}")
+
+
+# How long a delete waits for a cancelled run to stop before deleting anyway.
+_DELETE_CANCEL_WAIT_SECONDS = 2.0
+# Coarser than the default poll: this wait runs for seconds, and each poll
+# queries processing_runs.
+_DELETE_CANCEL_POLL_SECONDS = 0.2
+
+
 @api.route('/feeds/<slug>', methods=['DELETE'])
 @log_request
 def delete_feed(slug):
@@ -2049,18 +2068,33 @@ def delete_feed(slug):
 
         status_service = get_status_service()
         queue = ProcessingQueue()
-        # Cancellation is requested for a local wakeup only; deletion does
-        # not wait for a run to acknowledge it (#745). The podcast delete
-        # below cascades to processing_runs (ON DELETE CASCADE), so a
-        # running or wedged worker discovers ownership loss on its own
-        # next cooperative check instead of this request blocking on it.
         cancelled_runs = []
         for current_slug, current_episode_id in queue.get_current():
             if current_slug != slug:
                 continue
             run_id = request_cancellation(slug, current_episode_id)
-            if run_id:
-                cancelled_runs.append((current_episode_id, run_id))
+            if not run_id:
+                # None also means the run ended between the listing above and
+                # this call; only a run still active is a real failure.
+                if not queue.active_run_id(slug, current_episode_id):
+                    continue
+                _clear_deletion_fence(db, podcast['id'])
+                return error_response(
+                    'Could not record cancellation; feed was not deleted', 503)
+            cancelled_runs.append((current_episode_id, run_id))
+
+        # Bounded window for the owner to stop before its rows and files are
+        # torn down (#745); a wedged run is deleted anyway, since the podcast
+        # delete cascades and the processing-side fence blocks recreation.
+        deadline = time.monotonic() + _DELETE_CANCEL_WAIT_SECONDS
+        for episode_id, run_id in cancelled_runs:
+            if not wait_for_cancellation(
+                    run_id, timeout=max(0.0, deadline - time.monotonic()),
+                    poll_interval=_DELETE_CANCEL_POLL_SECONDS):
+                logger.warning(
+                    f"[{slug}:{episode_id}] run {run_id} did not acknowledge "
+                    f"cancellation in {_DELETE_CANCEL_WAIT_SECONDS:.0f}s; "
+                    f"deleting anyway")
 
         if db.active_upload_reservations(podcast['id']):
             return json_response({
@@ -2145,6 +2179,7 @@ def delete_feed(slug):
 
     except Exception:
         db.rollback_open_transaction()
+        _clear_deletion_fence(db, podcast['id'])
         logger.exception(f"Failed to delete feed {slug}")
         return error_response('Failed to delete feed', 500)
 

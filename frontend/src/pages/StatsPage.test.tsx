@@ -15,7 +15,7 @@ const {
   DASHBOARD, REVIEWER_STATS, FEED, FILTER_OPTIONS,
   mockGetAddressingStats, mockGetDashboardStats, mockGetStatsByDay,
   mockGetModelUsageStats, mockGetEpisodeCostStats, mockGetLedgerFilterOptions,
-  mockGetEpisodeCostRuns,
+  mockGetEpisodeCostRuns, mockGetStatsByPodcast,
 } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
@@ -96,13 +96,14 @@ const {
     mockGetEpisodeCostStats: vi.fn().mockResolvedValue(emptyEpisodeCosts),
     mockGetLedgerFilterOptions: vi.fn().mockResolvedValue(filterOptions),
     mockGetEpisodeCostRuns: vi.fn().mockResolvedValue({ runs: [] }),
+    mockGetStatsByPodcast: vi.fn().mockResolvedValue({ podcasts: [] }),
   };
 });
 
 vi.mock('../api/stats', () => ({
   getDashboardStats: (...args: unknown[]) => mockGetDashboardStats(...args),
   getStatsByDay: (...args: unknown[]) => mockGetStatsByDay(...args),
-  getStatsByPodcast: vi.fn().mockResolvedValue({ podcasts: [] }),
+  getStatsByPodcast: (...args: unknown[]) => mockGetStatsByPodcast(...args),
   getReviewerStats: vi.fn().mockResolvedValue(REVIEWER_STATS),
   getAddressingStats: (...args: unknown[]) => mockGetAddressingStats(...args),
   getModelUsageStats: (...args: unknown[]) => mockGetModelUsageStats(...args),
@@ -277,7 +278,7 @@ describe('StatsPage LLM cost ledger', () => {
       expect(lastMainListParams()).toMatchObject({ page: 2 });
     });
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter ledger by podcast' }), 'a-show');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter spend by podcast' }), 'a-show');
     await waitFor(() => {
       expect(lastMainListParams()).toMatchObject({ page: 1, podcastSlug: 'a-show' });
     });
@@ -294,7 +295,7 @@ describe('StatsPage LLM cost ledger', () => {
     renderPage();
     expect(await screen.findByText('Lifetime spend (all recorded runs)')).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-01-01' } });
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
     await waitFor(() => {
       expect(screen.getByText(/Interval spend from 2026-01-01/)).toBeTruthy();
     });
@@ -408,25 +409,25 @@ describe('StatsPage ledger filters', () => {
 
   it('fills the filter selects from the dedicated options endpoint', async () => {
     renderPage();
-    const providers = await screen.findByRole('combobox', { name: 'Filter ledger by provider' });
+    const providers = await screen.findByRole('combobox', { name: 'Filter spend by provider' });
     await waitFor(() => {
       expect(within(providers).getByRole('option', { name: 'openrouter' })).toBeTruthy();
     });
-    const models = screen.getByRole('combobox', { name: 'Filter ledger by model' });
+    const models = screen.getByRole('combobox', { name: 'Filter spend by model' });
     expect(within(models).getByRole('option', { name: 'llama-3' })).toBeTruthy();
   });
 
   it('narrows the model list to the selected provider', async () => {
     const user = userEvent.setup();
     renderPage();
-    const providers = await screen.findByRole('combobox', { name: 'Filter ledger by provider' });
+    const providers = await screen.findByRole('combobox', { name: 'Filter spend by provider' });
     await waitFor(() => {
       expect(within(providers).getByRole('option', { name: 'anthropic' })).toBeTruthy();
     });
 
     await user.selectOptions(providers, 'anthropic');
 
-    const models = screen.getByRole('combobox', { name: 'Filter ledger by model' });
+    const models = screen.getByRole('combobox', { name: 'Filter spend by model' });
     expect(within(models).getByRole('option', { name: 'claude-sonnet' })).toBeTruthy();
     expect(within(models).queryByRole('option', { name: 'llama-3' })).toBeNull();
   });
@@ -435,8 +436,8 @@ describe('StatsPage ledger filters', () => {
     renderPage();
     await waitFor(() => expect(mockGetLedgerFilterOptions).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-01-01' } });
-    fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-01-31' } });
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-01-31' } });
 
     await waitFor(() => {
       const calls = mockGetEpisodeCostStats.mock.calls;
@@ -509,5 +510,81 @@ describe('StatsPage episode costs: expandable run/phase breakdown', () => {
     await user.click(runToggles[0]);
     await waitFor(() => expect(screen.getAllByText(/Detection/).length).toBeGreaterThan(0));
     expect(screen.getAllByText('claude-opus-4').length).toBeGreaterThan(1);
+  });
+});
+
+describe('StatsPage spend section: copy, labels and table chrome', () => {
+  const PODCASTS = {
+    podcasts: [{
+      podcastSlug: 'a-show', podcastTitle: 'A Show', episodeCount: 3, runCount: 4,
+      totalAds: 9, avgAds: 3, avgEpisodeLengthSeconds: 1800, avgTimeSavedSeconds: 120,
+      totalCost: 1.5, totalInputTokens: 1000, totalOutputTokens: 200, avgTokensPerEpisode: 400,
+    }],
+  };
+
+  beforeEach(() => {
+    mockGetDashboardStats.mockReset();
+    mockGetDashboardStats.mockResolvedValue(DASHBOARD);
+    mockGetStatsByDay.mockReset();
+    mockGetStatsByDay.mockResolvedValue({ days: [] });
+    mockGetModelUsageStats.mockReset();
+    mockGetModelUsageStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+    mockGetEpisodeCostStats.mockReset();
+    mockGetEpisodeCostStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+    mockGetStatsByPodcast.mockReset();
+    mockGetStatsByPodcast.mockResolvedValue({ podcasts: [] });
+  });
+
+  it('names the section for spend rather than for the table it is stored in', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'LLM spend' })).toBeTruthy();
+    expect(screen.queryByText(/ledger/i)).toBeNull();
+  });
+
+  it('gives the two date fields visible labels', async () => {
+    renderPage();
+    const from = await screen.findByLabelText('From');
+    expect(from.getAttribute('type')).toBe('date');
+    expect(screen.getByLabelText('To').getAttribute('type')).toBe('date');
+    expect(from.id).toBeTruthy();
+    expect(document.querySelector(`label[for="${from.id}"]`)?.textContent).toBe('From');
+  });
+
+  it('sizes the spend-table placeholders to rows, not to a chart', async () => {
+    mockGetModelUsageStats.mockReturnValue(new Promise(() => {}));
+    mockGetEpisodeCostStats.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await waitFor(() => expect(screen.getAllByTestId('skeleton-rows').length).toBe(2));
+  });
+
+  it('keeps the previous page on screen while the next one loads', async () => {
+    const user = userEvent.setup();
+    mockGetModelUsageStats.mockResolvedValue({
+      items: [{
+        provider: 'anthropic', model: 'claude-sonnet', calls: 12, distinctEpisodes: 5,
+        inputTokens: 40000, outputTokens: 8000, knownCostUsd: '1.234500', unknownCostCount: 0,
+      }],
+      total: 40, totalPages: 2, page: 1, limit: 20,
+    });
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Provider and model usage' });
+    await within(table).findByText('claude-sonnet');
+
+    mockGetModelUsageStats.mockReturnValue(new Promise(() => {}));
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[0]);
+
+    await waitFor(() => expect(mockGetModelUsageStats).toHaveBeenCalledTimes(2));
+    const live = screen.getByRole('table', { name: 'Provider and model usage' });
+    expect(within(live).getByText('claude-sonnet')).toBeTruthy();
+    expect(screen.queryAllByTestId('skeleton-rows')).toHaveLength(0);
+  });
+
+  it('gives the by-podcast table the same accessible sort headers as the spend tables', async () => {
+    mockGetStatsByPodcast.mockResolvedValue(PODCASTS);
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Podcast totals' });
+    const header = within(table).getByRole('columnheader', { name: 'Episodes' });
+    expect(header.getAttribute('aria-sort')).toBe('none');
+    expect(within(header).getByRole('button', { name: 'Episodes' })).toBeTruthy();
   });
 });

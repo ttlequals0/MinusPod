@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity, ProviderSlot } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity, ProviderSlot, SLOT_PRIMARY } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -129,6 +129,15 @@ export async function getModels(provider?: string, slot?: ProviderSlot): Promise
   return response.models;
 }
 
+// One query key shape for a stage's catalog, so a refresh can invalidate the
+// slot it rebuilt instead of the whole ['models'] prefix.
+export function modelsQueryOptionsFor(provider: string, slot: ProviderSlot) {
+  return {
+    queryKey: ['models', provider, slot] as const,
+    queryFn: () => getModels(provider, slot),
+  };
+}
+
 export async function getWhisperCapacity(): Promise<WhisperCapacity> {
   return apiRequest<WhisperCapacity>('/settings/whisper/capacity');
 }
@@ -138,9 +147,13 @@ export async function getWhisperModels(): Promise<WhisperModel[]> {
   return response.models;
 }
 
-export async function refreshModels(): Promise<{ models: ClaudeModel[]; count: number }> {
+/** Rebuilds the client for one slot and returns that slot's catalog. */
+export async function refreshModels(
+  slot?: ProviderSlot,
+): Promise<{ models: ClaudeModel[]; count: number }> {
   return apiRequest<{ models: ClaudeModel[]; count: number }>('/settings/models/refresh', {
     method: 'POST',
+    body: { slot: slot ?? SLOT_PRIMARY },
   });
 }
 

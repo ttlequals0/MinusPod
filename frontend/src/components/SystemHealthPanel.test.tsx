@@ -100,3 +100,19 @@ describe('SystemHealthPanel', () => {
     expect(screen.getByText('Critical')).toBeDefined();
   });
 });
+
+describe('SystemHealthPanel: house recipes', () => {
+  it('uses the shared badge shape and tint on the rollup pill', () => {
+    render(<SystemHealthPanel status={status({})} />);
+    const pill = screen.getByText('Healthy');
+    expect(pill.className).toContain('px-2 py-0.5 text-xs rounded');
+    expect(pill.className).toContain('bg-success/20');
+  });
+
+  it('gives the panel a card radius and the header a 44px tap target', () => {
+    render(<SystemHealthPanel status={status({})} />);
+    const trigger = screen.getByRole('button', { name: /system health/i });
+    expect(trigger.className).toContain('min-h-[44px]');
+    expect(trigger.parentElement?.className).toContain('rounded-lg');
+  });
+});

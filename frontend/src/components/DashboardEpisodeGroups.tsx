@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { ListMusic } from 'lucide-react';
 import { Feed, Episode, EpisodeSummary } from '../api/types';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { feedArtworkSrc } from '../utils/artworkUrl';
@@ -102,9 +103,12 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
         </div>
         <Link
           to={`/feeds/${feed.slug}`}
-          className={`shrink-0 text-sm text-primary hover:underline ${focusRing}`}
+          aria-label={`View all episodes of ${feedDisplayTitle(feed)}`}
+          title="View all episodes"
+          className={`shrink-0 inline-flex items-center justify-center rounded-md text-sm text-primary p-3 hover:bg-muted sm:p-0 sm:hover:bg-transparent sm:hover:underline ${focusRing}`}
         >
-          View all episodes
+          <ListMusic aria-hidden="true" className="w-5 h-5 sm:hidden" />
+          <span className="hidden sm:inline">View all episodes</span>
         </Link>
         <button
           type="button"

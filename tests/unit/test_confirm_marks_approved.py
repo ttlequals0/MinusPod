@@ -320,3 +320,59 @@ class TestTrimmedConfirmValidation:
         assert _status(resp) == 400
         saved, _ = _markers(temp_db, slug, eid)
         assert 'approved' not in saved[0]
+
+    def test_unclamped_reviewer_proposal_does_not_widen_envelope(self, temp_db):
+        # A hold stamps the reviewer's raw proposal without passing the
+        # clamp. One that does not overlap the detected span is not a trim
+        # the reviewer could have applied, so it cannot widen the envelope.
+        marker = _held(1000.0, 1100.0)
+        marker['hold_reason'] = 'reviewer_boundary_conflict'
+        marker['reviewer_proposed_start'] = 0.0
+        marker['reviewer_proposed_end'] = 12.0
+        slug, eid = _seed(temp_db, [marker])
+
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 1000.0, 'end': 1100.0},
+                            {'adjusted_start': 0.0, 'adjusted_end': 12.0})
+
+        assert _status(resp) == 400
+        saved, _ = _markers(temp_db, slug, eid)
+        assert 'approved' not in saved[0]
+
+    def test_proposal_past_the_reviewer_shift_cap_does_not_widen_envelope(self, temp_db):
+        # Overlapping but 200s off the detected start: further than the
+        # reviewer's own per-edge cap, so it is not a reviewed span.
+        marker = _held(1000.0, 1100.0)
+        marker['hold_reason'] = 'reviewer_boundary_conflict'
+        marker['reviewer_proposed_start'] = 800.0
+        marker['reviewer_proposed_end'] = 1100.0
+        slug, eid = _seed(temp_db, [marker])
+
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 1000.0, 'end': 1100.0},
+                            {'adjusted_start': 800.0, 'adjusted_end': 1100.0})
+
+        assert _status(resp) == 400
+
+    def test_confirm_over_the_confirmed_duration_cap_is_rejected(self, temp_db):
+        markers = [_held(100.0, 1200.0)]
+        slug, eid = _seed(temp_db, markers)
+
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 100.0, 'end': 1200.0}, {})
+
+        assert _status(resp) == 400
+        saved, _ = _markers(temp_db, slug, eid)
+        assert 'approved' not in saved[0]
+
+    def test_trim_under_the_confirmed_duration_cap_is_accepted(self, temp_db):
+        markers = [_held(100.0, 1200.0)]
+        slug, eid = _seed(temp_db, markers)
+
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 100.0, 'end': 1200.0},
+                            {'adjusted_start': 400.0, 'adjusted_end': 1200.0})
+
+        assert _status(resp) == 200
+        saved, _ = _markers(temp_db, slug, eid)
+        assert saved[0]['approved'] is True

@@ -224,6 +224,56 @@ def test_negative_cache_is_scoped_to_the_specific_url(temp_db, tmp_path):
     assert mock_get.called
 
 
+def test_expired_entries_are_dropped_on_the_next_write(temp_db, tmp_path):
+    """The durable map is pruned as it is written, not only on read."""
+    storage = Storage(data_dir=str(tmp_path))
+    slug = 'prune-expired'
+    storage.db.create_podcast(slug, 'https://example.com/feed.xml')
+    stale_error = 'https://cdn.example.com/stale-error.png'
+    stale_404 = 'https://cdn.example.com/stale-404.png'
+    live_404 = 'https://cdn.example.com/live-404.png'
+    fresh = (utc_now() - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    long_ago = (utc_now() - timedelta(hours=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    storage.db.update_podcast(slug, artwork_failure_state=json.dumps({
+        stale_error: {'status': 'error', 'at': long_ago},
+        stale_404: {'status': 'not_found', 'at': long_ago},
+        live_404: {'status': 'not_found', 'at': fresh},
+        'https://cdn.example.com/unparseable.png': {'status': 'error', 'at': 'nonsense'},
+    }))
+
+    with patch('storage.safe_get', return_value=_mock_response(status_code=500)):
+        assert storage.download_artwork(
+            slug, 'https://cdn.example.com/new.png') is False
+
+    state = json.loads(storage.db.get_podcast_by_slug(slug)['artwork_failure_state'])
+    assert set(state) == {live_404, 'https://cdn.example.com/new.png'}
+
+
+def test_failure_state_is_capped(temp_db, tmp_path):
+    """A feed that churns through candidate URLs cannot grow the row forever."""
+    storage = Storage(data_dir=str(tmp_path))
+    slug = 'cap-failures'
+    storage.db.create_podcast(slug, 'https://example.com/feed.xml')
+    now = utc_now()
+    crowd = {
+        f'https://cdn.example.com/old-{idx}.png': {
+            'status': 'not_found',
+            'at': (now - timedelta(minutes=idx + 1)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        }
+        for idx in range(storage_mod.ARTWORK_FAILURE_STATE_MAX_ENTRIES + 10)
+    }
+    storage.db.update_podcast(slug, artwork_failure_state=json.dumps(crowd))
+
+    with patch('storage.safe_get', return_value=_mock_response(status_code=500)):
+        assert storage.download_artwork(
+            slug, 'https://cdn.example.com/newest.png') is False
+
+    state = json.loads(storage.db.get_podcast_by_slug(slug)['artwork_failure_state'])
+    assert len(state) == storage_mod.ARTWORK_FAILURE_STATE_MAX_ENTRIES
+    assert 'https://cdn.example.com/newest.png' in state
+    assert 'https://cdn.example.com/old-0.png' in state, "newest survivors are kept"
+    assert 'https://cdn.example.com/old-59.png' not in state
+
 # --- main_app.feeds: candidate fallback in the scheduled refresh path -------
 
 def _feed_with_dead_preferred_and_working_alt():

@@ -260,7 +260,7 @@ describe('Dashboard Episodes view', () => {
 
   it('groups by podcast at the default cap and excludes the Recents pseudo-feed', async () => {
     renderDashboard();
-    await userEvent.click(await screen.findByRole('button', { name: 'Episodes view' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
 
     await screen.findByRole('heading', { name: 'Zulu Show' });
     screen.getByRole('heading', { name: 'Alpha Show' });
@@ -276,7 +276,7 @@ describe('Dashboard Episodes view', () => {
 
   it('group header links to the podcast', async () => {
     renderDashboard();
-    await userEvent.click(await screen.findByRole('button', { name: 'Episodes view' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
     const heading = await screen.findByRole('heading', { name: 'Zulu Show' });
     const link = heading.querySelector('a');
     expect(link?.getAttribute('href')).toBe('/feeds/zulu-show');
@@ -284,7 +284,7 @@ describe('Dashboard Episodes view', () => {
 
   it('disables a queued row action while a sibling row stays actionable', async () => {
     renderDashboard();
-    await userEvent.click(await screen.findByRole('button', { name: 'Episodes view' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
     await screen.findByText('Episode z1');
     // z1's status is 'processing' (never completed), so its action label
     // stays "Process" even while disabled for being queued.
@@ -296,22 +296,52 @@ describe('Dashboard Episodes view', () => {
 
   it('renders a feed with no episodes cleanly instead of a broken card', async () => {
     renderDashboard();
-    await userEvent.click(await screen.findByRole('button', { name: 'Episodes view' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
     await screen.findByRole('heading', { name: 'Alpha Show' });
     expect(screen.getByText('No episodes yet')).toBeTruthy();
   });
 
   it('preserves sort when switching between Podcasts and Episodes views', async () => {
     renderDashboard();
-    await userEvent.click(await screen.findByRole('button', { name: 'Layout and sort' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Sort by title' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Episodes view' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Episodes' }));
 
     const headings = await screen.findAllByRole('heading', { level: 2 });
     expect(headings.map((h) => h.textContent)).toEqual(['Alpha Show', 'Zulu Show']);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Podcasts view' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Podcasts' }));
     expect(JSON.parse(localStorage.getItem('dashboardSortBy') ?? '""')).toBe('title');
+  });
+});
+
+describe('Dashboard episodes view: list continuity', () => {
+  const episodesResponse = {
+    feeds: [ZULU_FEED, ALPHA_FEED, RECENTS_FEED], lastRefreshCompletedAt: null,
+  };
+
+  afterEach(() => {
+    localStorage.removeItem('dashboardView');
+    localStorage.removeItem('dashboardEpisodesPerPodcast');
+    mockEpisodesQueryFn.mockImplementation(async () => episodesResponse);
+  });
+
+  it('keeps the current groups on screen while a new episode count loads', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
+    await screen.findByRole('heading', { name: 'Zulu Show' });
+
+    const before = mockEpisodesQueryFn.mock.calls.length;
+    mockEpisodesQueryFn.mockReturnValue(new Promise(() => {}) as never);
+    await userEvent.click(screen.getByRole('button', { name: 'View options' }));
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Episodes per podcast' }), '5');
+
+    await waitFor(() => {
+      expect(mockEpisodesQueryFn.mock.calls.length).toBeGreaterThan(before);
+    });
+    expect(screen.getByRole('heading', { name: 'Zulu Show' })).toBeTruthy();
+    expect(screen.queryAllByTestId('skeleton-rows')).toHaveLength(0);
   });
 });
 
@@ -325,7 +355,7 @@ describe('Dashboard toolbar heights', () => {
     renderDashboard();
     const group = await screen.findByRole('group', { name: 'Dashboard view' });
     expect(group.className).toContain('h-11');
-    const podcastsButton = screen.getByRole('button', { name: 'Podcasts view' });
+    const podcastsButton = screen.getByRole('button', { name: 'Podcasts' });
     expect(podcastsButton.className).toContain('inline-flex');
     expect(podcastsButton.className).toContain('items-center');
     expect(podcastsButton.className).toContain('justify-center');
@@ -333,8 +363,8 @@ describe('Dashboard toolbar heights', () => {
 
   it('gives the grid/list icon buttons a 44px wrapper height and matching min-width', async () => {
     renderDashboard();
-    await userEvent.click(await screen.findByRole('button', { name: 'Layout and sort' }));
-    const gridButton = await screen.findByRole('button', { name: 'Grid view' });
+    await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
+    const gridButton = await screen.findByRole('button', { name: 'Grid' });
     const wrapper = gridButton.closest('div');
     expect(wrapper?.className).toContain('h-11');
     expect(gridButton.className).toContain('min-w-11');
@@ -345,7 +375,7 @@ describe('Dashboard toolbar heights', () => {
 
   it('gives the sort icon buttons a 44px wrapper height and matching min-width', async () => {
     renderDashboard();
-    await userEvent.click(await screen.findByRole('button', { name: 'Layout and sort' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
     const sortButton = await screen.findByRole('button', { name: 'Sort by recent' });
     const wrapper = sortButton.closest('div');
     expect(wrapper?.className).toContain('h-11');
@@ -365,8 +395,8 @@ describe('Dashboard toolbar heights', () => {
 
   it('gives the episodes-per-podcast select a matching 44px height', async () => {
     renderDashboard();
-    await userEvent.click(await screen.findByRole('button', { name: 'Episodes view' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Layout and sort' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
     const select = await screen.findByRole('combobox', { name: 'Episodes per podcast' });
     expect(select.className).toContain('h-11');
   });

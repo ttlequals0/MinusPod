@@ -8,7 +8,7 @@ import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestRe
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import { selectBase } from '../../components/fieldStyles';
+import { inputBase, selectBase } from '../../components/fieldStyles';
 
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
@@ -31,7 +31,7 @@ interface LLMProviderSectionProps {
   // of the primary provider above. Off by default.
   secondaryProviderEnabled: boolean;
   onSecondaryProviderEnabledChange: (enabled: boolean) => void;
-  secondaryProvider: LlmProvider;
+  secondaryProvider: LlmProvider | '';
   onSecondaryProviderChange: (provider: LlmProvider) => void;
   secondaryProviderBaseUrl: string;
   onSecondaryProviderBaseUrlChange: (url: string) => void;
@@ -70,9 +70,10 @@ const parseIntOrZero = (s: string) => {
 // provider account. Shown for every provider type. Drafts committed to form
 // state; the page Save button persists them.
 function RateLimitFields({
-  idPrefix, rpm, onRpmChange, rpd, onRpdChange, tpm, onTpmChange,
+  idPrefix, legend, rpm, onRpmChange, rpd, onRpdChange, tpm, onTpmChange,
 }: {
   idPrefix: string;
+  legend: string;
   rpm: number;
   onRpmChange: (value: number) => void;
   rpd: number;
@@ -81,7 +82,10 @@ function RateLimitFields({
   onTpmChange: (value: number) => void;
 }) {
   return (
-    <div>
+    <fieldset>
+      {/* Both blocks repeat the same three labels, so the legend is what tells
+          a screen reader which provider they belong to. */}
+      <legend className="text-sm font-medium text-foreground mb-2">{legend}</legend>
       <div className="flex flex-wrap gap-6">
         <div>
           <label htmlFor={`${idPrefix}Rpm`} className="block text-sm font-medium text-foreground mb-2">
@@ -133,13 +137,13 @@ function RateLimitFields({
         0 means no limit. These throttle MinusPod to stay under this provider
         account's request and token limits, useful for free tiers.
       </p>
-    </div>
+    </fieldset>
   );
 }
 
 const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
 
-function keyProviderFor(p: LlmProvider): Exclude<ProviderName, 'secondary'> | null {
+function keyProviderFor(p: LlmProvider | ''): Exclude<ProviderName, 'secondary'> | null {
   if (p === LLM_PROVIDERS.ANTHROPIC) return 'anthropic';
   if (p === LLM_PROVIDERS.OPENROUTER) return 'openrouter';
   if (p === LLM_PROVIDERS.OPENAI_COMPATIBLE) return 'openai';
@@ -166,7 +170,7 @@ const KEY_META: Record<ProviderName, { placeholder: string; label: string; helpe
 interface ProviderFieldsProps {
   providerSelectId: string;
   providerLabel: string;
-  provider: LlmProvider;
+  provider: LlmProvider | '';
   onProviderChange: (provider: LlmProvider) => void;
   baseUrlInputId: string;
   baseUrlLabel: string;
@@ -205,6 +209,9 @@ function ProviderFields({
           onChange={(e) => onProviderChange(e.target.value as LlmProvider)}
           className={`w-full ${selectBase}`}
         >
+          {/* No type saved yet: without an option of its own the select would
+              render blank, reading as the first provider in the list. */}
+          {!provider && <option value="">Choose a provider</option>}
           {LLM_PROVIDER_OPTIONS.map((p) => (
             <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
           ))}
@@ -222,7 +229,7 @@ function ProviderFields({
             value={baseUrl}
             onChange={(e) => onBaseUrlChange(e.target.value)}
             placeholder="http://localhost:11434/v1"
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+            className={`w-full ${inputBase} placeholder:text-muted-foreground font-mono`}
           />
           <p className="mt-1 text-sm text-muted-foreground">
             {provider === LLM_PROVIDERS.OLLAMA
@@ -371,6 +378,7 @@ function LLMProviderSection({
 
         <RateLimitFields
           idPrefix="provider"
+          legend="Primary provider rate limits"
           rpm={providerRequestsPerMin}
           onRpmChange={onProviderRequestsPerMinChange}
           rpd={providerRequestsPerDay}
@@ -425,6 +433,7 @@ function LLMProviderSection({
           {secondaryProviderEnabled && (
             <RateLimitFields
               idPrefix="secondaryProvider"
+              legend="Secondary provider rate limits"
               rpm={secondaryProviderRequestsPerMin}
               onRpmChange={onSecondaryProviderRequestsPerMinChange}
               rpd={secondaryProviderRequestsPerDay}

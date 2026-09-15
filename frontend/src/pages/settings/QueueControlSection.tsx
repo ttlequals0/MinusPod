@@ -190,6 +190,7 @@ function QueueHoldBlock<
     llmUsageUrl?: string; rateLimitProbeMinutes?: number;
   }>({});
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
   const enabled = draft.enabled ?? data?.enabled ?? false;
   const ttlHours = draft.ttlHours ?? data?.ttlHours ?? 48;
   const llmUsageUrl = draft.llmUsageUrl ?? data?.llmUsageUrl ?? '';
@@ -211,7 +212,11 @@ function QueueHoldBlock<
 
   const reset = useMutation({
     mutationFn: () => config.resetAction!(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: config.queryKey }),
+    onSuccess: () => {
+      setResetError(null);
+      qc.invalidateQueries({ queryKey: config.queryKey });
+    },
+    onError: (e: unknown) => setResetError(getErrorMessage(e, 'Reset failed')),
   });
 
   if (isLoading || !active) {
@@ -334,6 +339,7 @@ function QueueHoldBlock<
                 {reset.isPending ? 'Resetting...' : 'Reset holds now'}
               </button>
             )}
+            {resetError && <p className="text-sm text-destructive">{resetError}</p>}
           </div>
         );
       })()}

@@ -1,5 +1,5 @@
 import { Fragment, useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -16,7 +16,7 @@ import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
 import { formatCost, formatDateTime, formatStatsDuration as formatDuration } from '../utils/format';
-import { SkeletonStatCards, SkeletonChart } from '../components/Skeleton';
+import { SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
@@ -28,39 +28,6 @@ import { getErrorMessage } from '../api/client';
 import { EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat } from '../api/types';
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
-
-interface SortThProps {
-  field: PodcastSortField;
-  label: string;
-  align?: 'left' | 'right';
-  className?: string;
-  sortField: PodcastSortField;
-  sortDir: 'asc' | 'desc';
-  onSort: (f: PodcastSortField) => void;
-}
-
-/**
- * Stable component declared at module scope so React's compiler / eslint
- * `react-hooks/static-components` doesn't flag a per-render component
- * factory. The cost is that callers thread sortField/sortDir/onSort
- * through every instance; the win is no per-render component identity
- * churn (each row would otherwise remount on every sort change).
- */
-function SortTh({ field, label, align = 'right', className = '', sortField, sortDir, onSort }: SortThProps) {
-  return (
-    <th
-      className={`px-4 py-3 text-${align} text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className}`}
-      onClick={() => onSort(field)}
-    >
-      <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
-        {label}
-        {sortField === field && (
-          <span className="text-foreground">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
-        )}
-      </div>
-    </th>
-  );
-}
 
 function ReviewerStatCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -546,17 +513,8 @@ export default function StatsPage() {
       .sort((a, b) => b.count - a.count);
   }, [cueStats]);
 
-  const [sortField, setSortField] = useState<PodcastSortField>('totalAds');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-
-  const handleSort = (field: PodcastSortField) => {
-    if (sortField === field) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDir('desc');
-    }
-  };
+  const { sortField, sortDirection: sortDir, handleSort } =
+    useSortState<PodcastSortField>('totalAds', 'desc');
 
   const sortedPodcasts = useMemo(() => {
     if (!byPodcast?.podcasts) return [];
@@ -631,6 +589,8 @@ export default function StatsPage() {
   } = useQuery({
     queryKey: ['stats-model-usage', modelUsageParams],
     queryFn: () => getModelUsageStats(modelUsageParams),
+    // A page or sort change keeps the current rows until the next ones land.
+    placeholderData: keepPreviousData,
   });
 
   const episodeCostParams: EpisodeCostQueryParams = {
@@ -648,6 +608,7 @@ export default function StatsPage() {
   } = useQuery({
     queryKey: ['stats-episode-costs', episodeCostParams],
     queryFn: () => getEpisodeCostStats(episodeCostParams),
+    placeholderData: keepPreviousData,
   });
 
   // Complete, unpaginated option lists for the provider/model selects, so a
@@ -677,7 +638,7 @@ export default function StatsPage() {
         <h1 className="text-2xl font-bold text-foreground">Stats</h1>
         <select
           aria-label="Filter summary cards, charts, reviewer and addressing sections by podcast"
-          title="Applies to the summary cards, charts, reviewer and addressing sections. The LLM cost ledger has its own podcast filter."
+          title="Applies to the summary cards, charts, reviewer and addressing sections. The LLM spend section has its own podcast filter."
           value={podcastFilter}
           onChange={(e) => setPodcastFilter(e.target.value)}
           className={`w-full sm:w-auto ${selectBase}`}
@@ -953,29 +914,35 @@ export default function StatsPage() {
           paginated and sorted server-side over the llm_call_usage ledger.
           Includes failed and cancelled runs that incurred cost. */}
       <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-1">LLM cost ledger</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-1">LLM spend</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Spend by provider, model, and episode, including failed or cancelled runs that incurred cost.
           The filters below apply to this section only, and dates select whole UTC days.
         </p>
 
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-3">
-          <input
-            type="date"
-            aria-label="From date"
-            value={ledgerFrom}
-            onChange={(e) => { setLedgerFrom(e.target.value); resetLedgerPages(); }}
-            className={`w-full sm:w-auto ${inputBase}`}
-          />
-          <input
-            type="date"
-            aria-label="To date"
-            value={ledgerTo}
-            onChange={(e) => { setLedgerTo(e.target.value); resetLedgerPages(); }}
-            className={`w-full sm:w-auto ${inputBase}`}
-          />
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 mb-3">
+          <div className="w-full sm:w-auto">
+            <label htmlFor="spendFrom" className="block text-xs font-medium text-muted-foreground mb-1">From</label>
+            <input
+              type="date"
+              id="spendFrom"
+              value={ledgerFrom}
+              onChange={(e) => { setLedgerFrom(e.target.value); resetLedgerPages(); }}
+              className={`w-full sm:w-auto ${inputBase}`}
+            />
+          </div>
+          <div className="w-full sm:w-auto">
+            <label htmlFor="spendTo" className="block text-xs font-medium text-muted-foreground mb-1">To</label>
+            <input
+              type="date"
+              id="spendTo"
+              value={ledgerTo}
+              onChange={(e) => { setLedgerTo(e.target.value); resetLedgerPages(); }}
+              className={`w-full sm:w-auto ${inputBase}`}
+            />
+          </div>
           <select
-            aria-label="Filter ledger by podcast"
+            aria-label="Filter spend by podcast"
             value={ledgerPodcast}
             onChange={(e) => { setLedgerPodcast(e.target.value); resetLedgerPages(); }}
             className={`w-full sm:w-auto ${selectBase}`}
@@ -988,7 +955,7 @@ export default function StatsPage() {
             ))}
           </select>
           <select
-            aria-label="Filter ledger by provider"
+            aria-label="Filter spend by provider"
             value={ledgerProvider}
             onChange={(e) => { setLedgerProvider(e.target.value); setLedgerModel(''); resetLedgerPages(); }}
             className={`w-full sm:w-auto ${selectBase}`}
@@ -1001,7 +968,7 @@ export default function StatsPage() {
             ))}
           </select>
           <select
-            aria-label="Filter ledger by model"
+            aria-label="Filter spend by model"
             value={ledgerModel}
             onChange={(e) => { setLedgerModel(e.target.value); resetLedgerPages(); }}
             className={`w-full sm:w-auto ${selectBase}`}
@@ -1024,7 +991,7 @@ export default function StatsPage() {
         )}
 
         <h3 className="text-base font-medium text-foreground mb-3">Provider &amp; model usage</h3>
-        {modelUsageLoading && <SkeletonChart />}
+        {modelUsageLoading && <SkeletonRows count={5} />}
         {modelUsageError && (
           <QueryErrorPanel
             message={`Could not load provider and model usage: ${getErrorMessage(modelUsageError)}. This is a failed request, not an absence of spend.`}
@@ -1051,7 +1018,7 @@ export default function StatsPage() {
         )}
 
         <h3 className="text-base font-medium text-foreground mb-3 mt-8">Episode costs</h3>
-        {episodeCostLoading && <SkeletonChart />}
+        {episodeCostLoading && <SkeletonRows count={5} />}
         {episodeCostError && (
           <QueryErrorPanel
             message={`Could not load episode costs: ${getErrorMessage(episodeCostError)}. This is a failed request, not an absence of spend.`}
@@ -1114,18 +1081,18 @@ export default function StatsPage() {
         <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
           <h2 className="text-lg font-semibold text-foreground p-4 pb-2">All Podcasts</h2>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table aria-label="Podcast totals" className="w-full">
               <thead className="bg-muted/50">
                 <tr>
-                  <SortTh field="podcastTitle" label="Podcast" align="left" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="episodeCount" label="Episodes" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="runCount" label="Runs" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="totalAds" label="Total Ads" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="avgAds" label="Avg Ads" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="avgTimeSavedSeconds" label="Avg Time Saved" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="avgEpisodeLengthSeconds" label="Avg Length" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="totalCost" label="Total Cost" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                  <SortTh field="avgTokensPerEpisode" label="Avg Tokens/Run" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader field="podcastTitle" label="Podcast" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="episodeCount" label="Episodes" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="runCount" label="Runs" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="totalAds" label="Total Ads" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="avgAds" label="Avg Ads" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="avgTimeSavedSeconds" label="Avg Time Saved" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="avgEpisodeLengthSeconds" label="Avg Length" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="totalCost" label="Total Cost" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="avgTokensPerEpisode" label="Avg Tokens/Run" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

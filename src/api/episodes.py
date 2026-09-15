@@ -17,7 +17,7 @@ from api import (
 )
 from config import (
     is_pending_review, normalize_segment_category, resolve_chapters_in_notes,
-    resolve_feed_processing_mode, DEFAULT_SEGMENT_ACTION,
+    resolve_processing_mode, DEFAULT_SEGMENT_ACTION,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
 from ad_chapters import (
@@ -40,7 +40,10 @@ from llm_client import (
 import run_context
 from llm_route import resolve_route
 from processing_queue import ProcessingQueue
-from rate_limit_hold import get_active_hold, hold_message, hold_queue_for_provider_limit
+from rate_limit_hold import (
+    get_active_hold, hold_message, hold_queue_for_provider_limit,
+    resolve_hold_scope,
+)
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT, batch_clear_episodes_for_mode,
     clear_episode_for_mode, reset_episode_for_reprocess,
@@ -1294,9 +1297,8 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
         error = truncate(str(exc), 500) or 'Chapter regeneration failed'
         try:
             hold_until = hold_queue_for_provider_limit(
-                db, exc, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
-                provider_key=getattr(exc, 'provider_key', None),
-                credential_slot=getattr(exc, 'credential_slot', 'primary'))
+                db, exc, slug=slug, episode_id=episode_id,
+                podcast_name=podcast_name, phase='chapters')
             error = hold_message(hold_until, exc)
         except Exception:
             logger.exception(f"Failed to record the rate-limit hold for {slug}:{episode_id}")
@@ -1410,6 +1412,11 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
         # list the chapters, #720) picks up the new set.
         from main_app.processing import _refresh_rss_for_slug
         _refresh_rss_for_slug(slug, episode_id)
+    except ProviderRateLimitedError as exc:
+        # Scope the hold here: the caller records it after this run's route
+        # snapshot has already been torn down.
+        exc.provider_key, exc.credential_slot = resolve_hold_scope(exc, 'chapters')
+        raise
     finally:
         token_totals = get_episode_token_totals()
         run_context.end(ctx)
@@ -1838,14 +1845,16 @@ def retry_ad_detection(slug, episode_id):
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return error_response('Feed not found', 404)
-    mode = resolve_feed_processing_mode(podcast)
+    # Per-episode override included (#746): an episode marked pass-through
+    # makes no LLM call even when its feed is on the standard mode.
+    episode = db.get_episode(slug, episode_id)
+    mode = resolve_processing_mode(podcast, episode)
     if mode in (PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION,
                 PROCESSING_MODE_CUE_ONLY):
         return error_response(
-            f'Feed processing mode is {mode}; LLM ad detection is disabled '
-            f'for this feed', 409)
+            f'Processing mode is {mode}; LLM ad detection is disabled '
+            f'for this episode', 409)
 
-    episode = db.get_episode(slug, episode_id)
     if not episode:
         return error_response('Episode not found', 404)
 

@@ -79,6 +79,22 @@ describe('EpisodeRowActions: equal-width trigger', () => {
   });
 });
 
+describe('EpisodeRowActions: accessible name', () => {
+  it('names the trigger with its visible label and keeps the tooltip separate', () => {
+    renderTrigger({ status: 'completed' });
+    const trigger = screen.getByRole('button', { name: 'Reprocess' });
+    expect(trigger.getAttribute('title')).toBe('Reprocess episode');
+    expect(trigger.getAttribute('aria-label')).toBeNull();
+  });
+});
+
+describe('EpisodeRowActions: touch target', () => {
+  it('takes the shared 44px row-action recipe', () => {
+    renderTrigger({ status: 'completed' });
+    expect(triggerButton('Reprocess').className).toContain('min-h-[44px]');
+  });
+});
+
 describe('EpisodeRowActions: label follows hasBeenProcessed, not status', () => {
   it('stays "Reprocess" for a completed episode that is queued again', () => {
     renderTrigger({ status: 'pending', jobState: 'queued', hasBeenProcessed: true });

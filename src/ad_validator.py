@@ -1,4 +1,5 @@
 """Post-detection validation for ad markers."""
+import math
 import re
 import logging
 from typing import ClassVar
@@ -27,6 +28,7 @@ from config import (
 )
 from utils.markers import (
     clip_dai_core_spans,
+    clip_member_spans,
     dai_core_bounds,
     invalidate_tail_provenance,
     mark_distinct_merge,
@@ -1165,6 +1167,10 @@ class AdValidator:
                     and ad.get('merged_protected_end') is not None
                     and ad['merged_protected_end'] > self.episode_duration):
                 ad['merged_protected_end'] = self.episode_duration
+            # The reviewer reads the member list, so it needs the same clamp.
+            clip_member_spans(
+                ad, 0.0,
+                self.episode_duration if self.episode_duration > 0 else math.inf)
             # Only the physical episode bounds may truncate measured evidence.
             clip_dai_core_spans(ad, ad['start'], ad['end'])
         return ads

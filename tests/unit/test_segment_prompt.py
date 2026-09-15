@@ -407,9 +407,8 @@ class TestCategoryRepairPromptAndParsing:
 
 
 class _FakeCategoryRepairClient(LLMClient):
-    """Real LLMClient subclass (not a bare MagicMock), so the same
-    set_usage_callback / _notify_usage cost-tracking path every other
-    LLM call uses actually runs here too."""
+    """Real LLMClient subclass, not a bare MagicMock, so the repair path
+    runs against the same client contract every other LLM call uses."""
 
     def __init__(self, content):
         super().__init__()
@@ -423,7 +422,6 @@ class _FakeCategoryRepairClient(LLMClient):
             model=kwargs.get('model', 'fake-model'),
             usage={'input_tokens': 42, 'output_tokens': 7},
         )
-        self._notify_usage(response)
         return response
 
     def list_models(self, bypass_cache=False):
@@ -499,8 +497,6 @@ class TestCategoryRepairEndToEnd:
             {"index": 2, "category": "interaction"},
         ])
         fake = _FakeCategoryRepairClient(content=response_json)
-        usage_seen = {}
-        fake.set_usage_callback(lambda model, usage: usage_seen.update(usage))
 
         _detect_ads_with_fake_client(
             detect_show_segments=False, segment_actions=action_map,
@@ -510,9 +506,6 @@ class TestCategoryRepairEndToEnd:
         assert ads[0]['category'] == 'self_promo'
         assert ads[1]['category'] == 'sponsor'
         assert ads[2]['category'] == 'interaction'
-        # Repair goes through the same messages_create -> _notify_usage ->
-        # usage_callback chain as every other LLM call.
-        assert usage_seen == {'input_tokens': 42, 'output_tokens': 7}
 
     def test_malformed_response_leaves_sponsor_default_and_does_not_raise(self):
         action_map = dict(_all_remove_map(), self_promo='keep')

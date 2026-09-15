@@ -128,6 +128,9 @@ def resolved_stage_slot(db, stage: str) -> str:
     settings API to decide whether a stage still tracks the global
     (primary) provider config, independent of resolve_route's per-call
     Database() instance.
+
+    A same_as_pass review reports detection's slot, the pass it runs on
+    first.
     """
     if stage == 'detection':
         slot = _detection_slot(db)

@@ -17,6 +17,10 @@ def _db(app_client):
     yield db
     db.set_setting('rate_limit_hold_enabled', 'false')
     db.set_setting('rate_limit_hold_until', '')
+    for key in ('detection_provider', 'chapters_provider', 'secondary_provider',
+                'secondary_provider_enabled',
+                'rate_limit_hold_until:openai-compatible:secondary'):
+        db.clear_setting(key)
 
 
 def _csrf(app_client, db):
@@ -61,3 +65,28 @@ def test_settings_change_without_model_leaves_hold(app_client, _db):
                        json={'claudeModel': 'same-model'}, headers=hdr)
     assert r.status_code == 200
     assert any_hold_active(_db)
+
+
+def test_changing_a_primary_stage_model_leaves_a_secondary_hold(app_client, _db):
+    """A hold belongs to one (provider, slot); a model change on a stage routed
+    elsewhere must not lift it."""
+    from datetime import timedelta
+    from rate_limit_hold import get_active_hold, record_hold_until
+    from utils.time import utc_now
+
+    hdr = _csrf(app_client, _db)
+    _db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+    _db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+    _db.set_setting('detection_provider', 'secondary', is_default=False)
+    _db.set_setting('chapters_provider', 'primary', is_default=False)
+    _db.set_setting('chapters_model', 'old-model', is_default=False)
+    _db.set_setting('rate_limit_hold_enabled', 'true')
+    future = (utc_now() + timedelta(hours=6)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    record_hold_until(_db, 'openai-compatible', future, credential_slot='secondary')
+
+    r = app_client.put('/api/v1/settings/ad-detection',
+                       json={'chaptersModel': 'new-model'}, headers=hdr)
+
+    assert r.status_code == 200
+    assert get_active_hold(
+        _db, 'openai-compatible', credential_slot='secondary')[0] == future

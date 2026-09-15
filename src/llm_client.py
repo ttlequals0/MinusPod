@@ -608,7 +608,6 @@ class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
     def __init__(self):
-        self._usage_callback = None
         self._circuit_breaker: CircuitBreaker | None = None
         # Which account this client authenticates as; part of the model-list
         # cache identity so two accounts on one endpoint never share a list.
@@ -631,10 +630,6 @@ class LLMClient(ABC):
             except Exception:
                 pass
 
-    def set_usage_callback(self, callback):
-        """Set a callback to be invoked with (model, usage_dict) after each LLM call."""
-        self._usage_callback = callback
-
     def _check_circuit_breaker(self):
         """Check circuit breaker before API call. Raises CircuitBreakerOpen if open."""
         if self._circuit_breaker:
@@ -652,14 +647,6 @@ class LLMClient(ABC):
         """Log a warning if the LLM response was truncated due to max_tokens."""
         if stop_indicator in ('max_tokens', 'length'):
             logger.warning(f"LLM response truncated (hit max_tokens={max_tokens}, model={model})")
-
-    def _notify_usage(self, response: 'LLMResponse'):
-        """Notify the usage callback if set. Errors are logged but never propagated."""
-        if self._usage_callback and response.usage:
-            try:
-                self._usage_callback(response.model, response.usage)
-            except Exception as e:
-                logger.warning(f"Token usage recording failed: {e}")
 
     def _log_messages(self, provider_label: str, system: str, messages: list[dict],
                        model: str, temperature: float | None, max_tokens: int):
@@ -976,7 +963,6 @@ class AnthropicClient(LLMClient):
                 f" len={len(content)}"
             )
 
-        self._notify_usage(llm_response)
         return llm_response
 
     def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
@@ -1280,7 +1266,6 @@ class OpenAICompatibleClient(LLMClient):
                 f" len={len(content)}"
             )
 
-        self._notify_usage(llm_response)
         return llm_response
 
     def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
@@ -1688,13 +1673,6 @@ def get_last_episode_token_totals() -> dict:
     if ctx is None:
         return {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
     return ctx.tokens.last_totals()
-
-
-def _record_token_usage(model: str, usage: dict):
-    """Retired: token counters are now written solely by
-    database.stats.finalize_llm_attempt via the utils.llm_call ledger
-    wrapper. No longer wired as a usage callback; kept as a symbol so
-    existing test patches referencing it do not break."""
 
 
 def get_client_for_provider(provider_key: str, base_url: str | None = None,
@@ -2277,11 +2255,15 @@ class ProviderRateLimitedError(Exception):
 
     def __init__(self, message: str, retry_after_seconds: float,
                  provider_key: str | None = None,
-                 credential_slot: str = 'primary', manual: bool = False):
+                 credential_slot: str = 'primary', manual: bool = False,
+                 phase: str | None = None):
         super().__init__(message)
         self.retry_after_seconds = float(retry_after_seconds)
         self.provider_key = provider_key
         self.credential_slot = credential_slot
+        # Pipeline phase the call belonged to, so a hold can be scoped from
+        # the run's route when the error carries no provider.
+        self.phase = phase
         # manual=True marks a MinusPod-configured RPM/RPD/TPM cap (not a real
         # 429): the mid-run defer reads the recorded hold marker, not the
         # toggle-gated 429 path.

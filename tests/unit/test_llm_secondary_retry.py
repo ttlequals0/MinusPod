@@ -1,4 +1,7 @@
 """Provider error classification after the primary LLM retry loop."""
+import os
+import subprocess
+import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -40,6 +43,12 @@ class _SequenceClient:
 def no_retry_wait(monkeypatch):
     sleeps = []
     monkeypatch.setattr(llm_call.time, 'sleep', sleeps.append)
+
+    def _record(delay):
+        sleeps.append(delay)
+        return True
+
+    monkeypatch.setattr(llm_call, '_sleep_before_retry', _record)
     return sleeps
 
 
@@ -60,7 +69,7 @@ def test_persistent_empty_completion_keeps_six_attempts(no_retry_wait):
 
 
 @pytest.mark.parametrize('provider', ['openai-compatible', 'openrouter', 'ollama'])
-def test_reasoning_exhaustion_retry_disables_reasoning_and_records_usage(
+def test_reasoning_exhaustion_retry_disables_reasoning(
         provider, monkeypatch, no_retry_wait):
     exhausted = SimpleNamespace(
         choices=[SimpleNamespace(
@@ -88,8 +97,6 @@ def test_reasoning_exhaustion_retry_disables_reasoning_and_records_usage(
     client = OpenAICompatibleClient(api_key='test-key')
     client._client = sdk
     client._token_param_cache['test-model'] = 'max_completion_tokens'
-    usage_callback = MagicMock()
-    client.set_usage_callback(usage_callback)
     monkeypatch.setattr('llm_client.get_effective_provider', lambda: provider)
 
     response, error = llm_call.call_llm_for_window(
@@ -124,10 +131,6 @@ def test_reasoning_exhaustion_retry_disables_reasoning_and_records_usage(
         key: value for key, value in second.kwargs.items()
         if key != reasoning_key
     }
-    assert [item.args for item in usage_callback.call_args_list] == [
-        ('test-model', {'input_tokens': 100, 'output_tokens': 8192, 'reasoning_tokens': 8192}),
-        ('test-model', {'input_tokens': 100, 'output_tokens': 2}),
-    ]
     assert len(no_retry_wait) == 1
 
 
@@ -147,8 +150,6 @@ def test_anthropic_reasoning_exhaustion_retry_omits_thinking(
     sdk.messages.create.side_effect = [exhausted, answered]
     client = AnthropicClient(api_key='test-key')
     client._client = sdk
-    usage_callback = MagicMock()
-    client.set_usage_callback(usage_callback)
 
     response, error = llm_call.call_llm_for_window(
         llm_client=client,
@@ -172,10 +173,6 @@ def test_anthropic_reasoning_exhaustion_retry_omits_thinking(
         'type': 'enabled', 'budget_tokens': 2048,
     }
     assert 'thinking' not in second.kwargs
-    assert [item.args for item in usage_callback.call_args_list] == [
-        ('claude-test', {'input_tokens': 100, 'output_tokens': 4096}),
-        ('claude-test', {'input_tokens': 100, 'output_tokens': 2}),
-    ]
     assert len(no_retry_wait) == 1
 
 
@@ -214,8 +211,6 @@ def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
     client = OpenAICompatibleClient(api_key='test-key')
     client._client = sdk
     client._token_param_cache['test-model'] = 'max_tokens'
-    usage_callback = MagicMock()
-    client.set_usage_callback(usage_callback)
     monkeypatch.setattr('llm_client.get_effective_provider',
                         lambda: 'openai-compatible')
 
@@ -262,10 +257,6 @@ def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
     }]
     assert 'private-provider-detail' not in str(notices)
     assert 'private-provider-detail' not in caplog.text
-    assert [item.args for item in usage_callback.call_args_list] == [
-        ('test-model', {'input_tokens': 100, 'output_tokens': 8192, 'reasoning_tokens': 8192}),
-        ('test-model', {'input_tokens': 100, 'output_tokens': 2}),
-    ]
     assert len(no_retry_wait) == 1
 
 
@@ -408,7 +399,86 @@ def test_secondary_retry_waits_for_provider_retry_after(monkeypatch, no_retry_wa
     assert error is rate_limit
     assert client.calls == 3
     assert len(no_retry_wait) == 2
-    assert all(60.0 <= delay <= 62.0 for delay in no_retry_wait)
+    assert 60.0 <= no_retry_wait[0] <= 62.0
+    assert no_retry_wait[1] == 5
+
+
+def test_secondary_retry_honors_a_reset_under_the_hold_threshold(
+        monkeypatch, no_retry_wait):
+    """A reset below MIN_HOLD_RESET_SECONDS never becomes a queue hold, so the
+    worker waits it out once rather than cutting it short and skipping review."""
+    monkeypatch.setattr(llm_call, 'is_rate_limit_hold_enabled', lambda: False)
+    rate_limit = FakeProviderError(
+        '429 rate limit', status_code=429,
+        response=FakeResponse(headers={'Retry-After': '240'}),
+    )
+    client = _SequenceClient(rate_limit)
+
+    response, error = _secondary_result(client)
+
+    assert response is None
+    assert error is rate_limit
+    assert len(no_retry_wait) == 2
+    assert 240.0 <= no_retry_wait[0] <= 242.0
+    assert no_retry_wait[1] == 5
+
+
+def test_secondary_retry_stops_waiting_on_shutdown(monkeypatch):
+    """A container stop must not sit out a long provider reset."""
+    slept = []
+    monkeypatch.setattr(llm_call.time, 'sleep', slept.append)
+    monkeypatch.setattr(llm_call, '_shutdown_requested', lambda: True)
+    monkeypatch.setattr(llm_call, 'is_rate_limit_hold_enabled', lambda: False)
+    rate_limit = FakeProviderError(
+        '429 rate limit', status_code=429,
+        response=FakeResponse(headers={'Retry-After': '240'}),
+    )
+    client = _SequenceClient(rate_limit)
+
+    response, error = _secondary_result(client)
+
+    assert response is None
+    assert error is rate_limit
+    assert slept == []
+    assert client.calls == 1
+
+
+def test_the_retry_wait_never_imports_the_app():
+    """main_app constructs singletons, takes the runtime lock, and starts the
+    background threads at import time, so the wait must not pull it in."""
+    script = (
+        "import sys; sys.path.insert(0, 'src');"
+        "from utils import llm_call;"
+        "llm_call._sleep_before_retry(0);"
+        "loaded = [m for m in sys.modules if m == 'main_app' or m.startswith('main_app.')];"
+        "assert not loaded, loaded"
+    )
+    repo_root = os.path.join(os.path.dirname(__file__), '..', '..')
+    result = subprocess.run([sys.executable, '-c', script], cwd=repo_root,
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_retry_wait_is_sliced_so_a_shutdown_lands_quickly(monkeypatch):
+    """The wait polls the shutdown signal instead of sleeping straight through."""
+    slept = []
+    monkeypatch.setattr(llm_call.time, 'sleep', slept.append)
+    monkeypatch.setattr(llm_call, '_shutdown_requested', lambda: False)
+
+    assert llm_call._sleep_before_retry(240) is True
+    assert sum(slept) == 240
+    assert max(slept) <= llm_call.RETRY_SLEEP_SLICE_SECONDS
+
+    checks = {'n': 0}
+
+    def _requested():
+        checks['n'] += 1
+        return checks['n'] > 2
+
+    slept.clear()
+    monkeypatch.setattr(llm_call, '_shutdown_requested', _requested)
+    assert llm_call._sleep_before_retry(240) is False
+    assert sum(slept) < 240
 
 
 def test_secondary_retry_without_retry_after_keeps_fixed_backoff(
@@ -524,7 +594,9 @@ def test_secondary_auth_webhook_failure_does_not_escape(monkeypatch, no_retry_wa
     assert no_retry_wait == [2]
 
 
-def test_empty_completion_records_usage_before_rejection(monkeypatch):
+def test_empty_completion_carries_usage_for_the_ledger(monkeypatch):
+    """The provider still billed the empty call, so the raised error must
+    carry its usage for the ledger to finalize the attempt with."""
     provider_response = SimpleNamespace(
         choices=[SimpleNamespace(
             message=SimpleNamespace(
@@ -540,8 +612,6 @@ def test_empty_completion_records_usage_before_rejection(monkeypatch):
     sdk.chat.completions.create.return_value = provider_response
     client = OpenAICompatibleClient(api_key='test-key')
     client._client = sdk
-    usage_callback = MagicMock()
-    client.set_usage_callback(usage_callback)
     monkeypatch.setattr('llm_client.get_effective_provider', lambda: 'openrouter')
 
     kwargs = {
@@ -555,8 +625,7 @@ def test_empty_completion_records_usage_before_rejection(monkeypatch):
         'episode_id': None,
         'pass_name': None,
     }
-    with pytest.raises(llm_call.EmptyCompletionError):
+    with pytest.raises(llm_call.EmptyCompletionError) as excinfo:
         llm_call._call_once(client, kwargs, 'test-model')
 
-    usage_callback.assert_called_once_with(
-        'test-model', {'input_tokens': 10, 'output_tokens': 4})
+    assert excinfo.value.response.usage == {'input_tokens': 10, 'output_tokens': 4}

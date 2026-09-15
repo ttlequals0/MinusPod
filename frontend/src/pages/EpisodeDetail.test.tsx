@@ -1866,7 +1866,7 @@ describe('Download menu', () => {
 
   it('offers cut and original audio and downloads the chosen one', async () => {
     renderDetail(makeEpisode());
-    await userEvent.click(await screen.findByRole('button', { name: /download audio/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Download' }));
     expect(screen.getByText('Cut audio')).toBeTruthy();
     await userEvent.click(screen.getByText('Original audio'));
     await waitFor(() => expect(mockDownloadEpisodeAudio).toHaveBeenCalledWith('test-feed', 'ep-1', 'original'));
@@ -1874,14 +1874,14 @@ describe('Download menu', () => {
 
   it('keeps the last cut available while a reprocess is in flight', async () => {
     renderDetail(makeEpisode({ status: 'processing' }));
-    await userEvent.click(await screen.findByRole('button', { name: /download audio/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Download' }));
     expect(screen.getByText('Cut audio')).toBeTruthy();
   });
 
   it('shows the API error instead of leaving the page', async () => {
     mockDownloadEpisodeAudio.mockRejectedValueOnce(new Error('Original audio not retained for this episode'));
     renderDetail(makeEpisode());
-    await userEvent.click(await screen.findByRole('button', { name: /download audio/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Download' }));
     await userEvent.click(screen.getByText('Original audio'));
     expect(await screen.findByText('Original audio not retained for this episode')).toBeTruthy();
   });
@@ -1889,7 +1889,7 @@ describe('Download menu', () => {
   it('hides the button when nothing is downloadable', async () => {
     renderDetail(makeEpisode({ hasOriginalAudio: false, processedAt: null, status: 'pending' }));
     await screen.findByText('Test Episode');
-    expect(screen.queryByRole('button', { name: /download audio/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
   });
 });
 
@@ -1955,6 +1955,7 @@ describe('EpisodeDetail: run spend vs cumulative spend', () => {
   it('labels the cumulative total "Recorded so far" while the episode is still processing', async () => {
     renderDetail(makeEpisode({
       status: 'processing',
+      jobState: 'processing',
       latestRunSpend: LATEST_RUN_SPEND,
       cumulativeSpend: { inputTokens: 20000, outputTokens: 3000, costUsd: '0.21', hasUnknownCost: false },
     }));
@@ -1988,5 +1989,129 @@ describe('EpisodeDetail: stable Process vs Reprocess label', () => {
     }));
     await screen.findByText('Test Episode');
     expect(screen.getAllByText('Process').length).toBeGreaterThan(0);
+  });
+});
+
+describe('Held for Review: correction that lands while the episode query is in error', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+    mockReprocessEpisode.mockResolvedValue({});
+  });
+
+  it('still queues the recut when a failed poll re-renders the page mid-save', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    setupEpisodeMock(makeEpisode({ hasOriginalAudio: true }));
+    render(
+      <QueryClientProvider client={client}>
+        <EpisodeDetail />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-recut-0')).toBeDefined();
+    });
+
+    let releaseCorrection = () => {};
+    mockSubmitCorrection.mockImplementation(
+      () => new Promise((resolve) => { releaseCorrection = () => resolve({}); }),
+    );
+    await user.click(screen.getByTestId('approve-recut-0'));
+    await waitFor(() => {
+      expect(mockSubmitCorrection).toHaveBeenCalledTimes(1);
+    });
+
+    // The poll fails while the correction POST is still in flight.
+    (getEpisode as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('poll failed'));
+    await client.invalidateQueries({ queryKey: ['episode', 'test-feed', 'ep-1'] });
+    await screen.findByText('Failed to load episode');
+
+    releaseCorrection();
+    await waitFor(() => {
+      expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'recut');
+    });
+
+    // Back on a healthy poll: the saved correction must not have raised a toast.
+    (getEpisode as ReturnType<typeof vi.fn>).mockResolvedValue(makeEpisode({ hasOriginalAudio: true }));
+    await client.invalidateQueries({ queryKey: ['episode', 'test-feed', 'ep-1'] });
+    await screen.findByText('Test Episode');
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+  });
+});
+
+describe('Run controls while a job is in flight', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+    mockSubmitCorrection.mockResolvedValue({});
+    mockReprocessEpisode.mockResolvedValue({});
+  });
+
+  it('disables "Not an ad" once the episode is queued, like its siblings', async () => {
+    renderDetail(makeEpisode({ jobState: 'queued' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('dismiss-0')).toHaveProperty('disabled', true);
+    });
+    expect(screen.getByTestId('approve-recut-0')).toHaveProperty('disabled', true);
+  });
+
+  it('explains on the reprocess trigger why it is disabled', async () => {
+    renderDetail(makeEpisode({ jobState: 'queued', pendingReviewMarkers: [] }));
+    const trigger = await screen.findByRole('button', { name: 'Reprocess' });
+    expect(trigger.getAttribute('title')).toBe('This episode is already queued.');
+  });
+
+  it('reads "Reprocessing..." while the request is in flight', async () => {
+    const user = userEvent.setup();
+    mockReprocessEpisode.mockImplementation(() => new Promise(() => {}));
+    renderDetail(makeEpisode({ pendingReviewMarkers: [] }));
+    await user.click(await screen.findByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByRole('menuitem', { name: /^Reprocess/ }));
+    expect(await screen.findByRole('button', { name: 'Reprocessing...' })).toBeDefined();
+  });
+
+  it('says why a chained recut was dropped when a run starts mid-save', async () => {
+    const user = userEvent.setup();
+    const ep = makeEpisode({ hasOriginalAudio: true });
+    const client = makeClient();
+    setupEpisodeMock(ep);
+    let resolveCorrection: (value: unknown) => void = () => {};
+    mockSubmitCorrection.mockImplementation(() => new Promise((resolve) => { resolveCorrection = resolve; }));
+    render(
+      <QueryClientProvider client={client}>
+        <EpisodeDetail />
+      </QueryClientProvider>,
+    );
+
+    await user.click(await screen.findByTestId('approve-recut-0'));
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+
+    (getEpisode as ReturnType<typeof vi.fn>).mockResolvedValue({ ...ep, jobState: 'processing' });
+    await client.invalidateQueries({ queryKey: ['episode', 'test-feed', 'ep-1'] });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Reprocess' })).toHaveProperty('disabled', true);
+    });
+
+    resolveCorrection({});
+    await waitFor(() => {
+      expect(screen.getByText('This episode is already processing.')).toBeDefined();
+    });
+    expect(mockReprocessEpisode).not.toHaveBeenCalled();
+  });
+
+  it('keys the cumulative spend label on jobState, not the stale status', async () => {
+    const spend = { costUsd: '1.25', inputTokens: 100, outputTokens: 20, hasUnknownCost: false };
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [], jobState: 'processing', status: 'completed', cumulativeSpend: spend,
+    }));
+    expect(await screen.findByText(/Recorded so far/)).toBeDefined();
+  });
+
+  it('shows the total spend label when only the cached status still says processing', async () => {
+    const spend = { costUsd: '1.25', inputTokens: 100, outputTokens: 20, hasUnknownCost: false };
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [], jobState: 'idle', status: 'processing', cumulativeSpend: spend,
+    }));
+    expect(await screen.findByText(/Total spend/)).toBeDefined();
   });
 });

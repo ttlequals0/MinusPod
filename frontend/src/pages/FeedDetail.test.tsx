@@ -312,6 +312,41 @@ describe('FeedDetail: bulk pass-through (#746)', () => {
   });
 });
 
+describe('FeedDetail: bulk toolbar', () => {
+  it('gives every bulk button the 44px tap floor', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [{
+      id: 'ep-tap-1',
+      title: 'Completed episode',
+      published: '2026-09-11T00:00:00Z',
+      status: 'completed',
+      jobState: 'idle',
+    }]);
+
+    await user.click(await screen.findByRole('button', { name: 'Select episode' }));
+    for (const name of [/^Reprocess \(/, /^Full Reprocess/, /^Re-detect Ads/, /^Set pass-through/,
+      /^Clear pass-through/, /^Delete \(/, /^Clear$/]) {
+      expect(screen.getByRole('button', { name }).className).toContain('min-h-[44px]');
+    }
+  });
+
+  it('does not call the selection processing while offering pass-through on it', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [{
+      id: 'ep-odd-1',
+      title: 'Episode with a stale status',
+      published: '2026-09-11T00:00:00Z',
+      status: 'processing',
+      jobState: 'idle',
+    }]);
+
+    await user.click(await screen.findByRole('button', { name: 'Select episode' }));
+    expect(screen.getByRole('button', { name: /^Set pass-through/ })).toBeTruthy();
+    expect(screen.queryByText(/already processing/i)).toBeNull();
+    expect(screen.getByText('No run actions apply to this selection.')).toBeTruthy();
+  });
+});
+
 describe('FeedDetail: select-all eligibility', () => {
   const EPISODES: Episode[] = [
     { id: 'ep-idle', title: 'Idle episode', published: '2026-09-11T00:00:00Z', status: 'completed', jobState: 'idle' },

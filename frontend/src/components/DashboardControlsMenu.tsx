@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { useOutsideClick } from '../hooks/useOutsideClick';
+import { usePhonePlacement } from '../hooks/usePhonePlacement';
 import { btnSecondary } from './buttonStyles';
 import { focusRing, selectBase } from './fieldStyles';
 import type { FeedSortBy } from '../utils/feedSort';
-
-// Below Tailwind's sm breakpoint the panel drops straight down, centered under
-// the row like DropdownMenu, so it never hangs off to one side on a phone.
-const PHONE_MAX_WIDTH_PX = 640;
 
 interface DashboardControlsMenuProps {
   dashboardView: 'podcasts' | 'episodes';
@@ -33,18 +30,15 @@ function DashboardControlsMenu({
   episodesPerPodcast, onEpisodesPerPodcastChange, perPodcastMin, perPodcastMax,
 }: DashboardControlsMenuProps) {
   const [open, setOpen] = useState(false);
-  const [phoneTop, setPhoneTop] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   useOutsideClick(rootRef, open, () => setOpen(false));
+  const { phoneTop, placeFor } = usePhonePlacement(open, () => setOpen(false));
 
   const close = () => { setOpen(false); triggerRef.current?.focus(); };
 
   const toggle = () => {
-    if (!open) {
-      const rect = rootRef.current?.getBoundingClientRect();
-      setPhoneTop(rect && window.innerWidth < PHONE_MAX_WIDTH_PX ? rect.bottom + 4 : null);
-    }
+    if (!open) placeFor(rootRef.current?.getBoundingClientRect());
     setOpen((o) => !o);
   };
 
@@ -63,10 +57,9 @@ function DashboardControlsMenu({
         type="button"
         onClick={toggle}
         className={`h-11 min-w-11 px-2.5 sm:px-4 text-sm rounded ${btnSecondary} transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap ${focusRing}`}
-        aria-haspopup="true"
         aria-expanded={open}
         title="Layout and sort"
-        aria-label="Layout and sort"
+        aria-label="View options"
       >
         <SlidersHorizontal className="w-5 h-5 sm:hidden" />
         <span className="hidden sm:inline">View</span>
@@ -83,8 +76,8 @@ function DashboardControlsMenu({
             <div className="space-y-1.5">
               <span className="block text-xs font-medium text-muted-foreground">Layout</span>
               <div className="flex h-11 border border-border rounded overflow-hidden w-full">
-                <button onClick={() => onViewModeChange('grid')} className={`${segClass(viewMode === 'grid')} flex-1`} aria-label="Grid view" title="Grid view">Grid</button>
-                <button onClick={() => onViewModeChange('list')} className={`${segClass(viewMode === 'list')} flex-1`} aria-label="List view" title="List view">List</button>
+                <button onClick={() => onViewModeChange('grid')} className={`${segClass(viewMode === 'grid')} flex-1`} title="Grid view">Grid</button>
+                <button onClick={() => onViewModeChange('list')} className={`${segClass(viewMode === 'list')} flex-1`} title="List view">List</button>
               </div>
             </div>
           )}

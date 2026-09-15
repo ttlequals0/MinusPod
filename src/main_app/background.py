@@ -4,7 +4,7 @@ import os
 import shutil
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 import run_log
@@ -12,6 +12,7 @@ from config import (
     MAX_EPISODE_RETRIES, resolve_episode_log_retention_days,
     title_matches_skip_patterns,
 )
+from database.queue import PENDING_QUEUE_LIMIT
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 from utils.time import parse_iso_utc
 from whisper_pool import get_pool
@@ -25,26 +26,70 @@ refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
 
 IDLE_WAIT_SECONDS = 5.0
+# Idle wait while a hold blocks every pending row: the scan reads up to
+# BLOCKED_SCAN_MAX_ROWS, so repeating it on the short tick is wasted work.
+HELD_IDLE_WAIT_SECONDS = 30.0
 MAINTENANCE_INTERVAL_SECONDS = 300.0
+# Shared-outage retry: each consecutive outage pass doubles the shortened
+# wait, up to the normal refresh interval.
+OUTAGE_RETRY_MAX_DOUBLINGS = 4
+# Hold gating scans pending rows a page at a time and keeps paging only while
+# every row of the page is blocked, so a pass that claims several rows does
+# not meet an unscored one.
+BLOCKED_SCAN_PAGE = PENDING_QUEUE_LIMIT
+BLOCKED_SCAN_MAX_ROWS = 1000
+# Cooldown before a failed search index rebuild is attempted again. The
+# rebuild is a whole-corpus write, so retrying it every pass feeds the
+# lock contention that made it fail.
+INDEX_REBUILD_RETRY_SECONDS = 2700
+INDEX_REBUILD_INTERVAL_SECONDS = 21600
+# Ceiling on deferring to active runs: an instance that is never idle would
+# otherwise never rebuild at all.
+INDEX_REBUILD_MAX_DEFERRAL_SECONDS = 2 * INDEX_REBUILD_INTERVAL_SECONDS
 
 
-def _blocked_slugs(db, held_pairs: set) -> set:
-    """Pending feeds whose required LLM account is currently held, so the
-    dispatcher skips them instead of pausing the whole queue. A feed whose
-    routes cannot be resolved is left eligible; the per-run admission check
-    still refuses it at start if its account turns out to be held.
+def _blocked_queue_entries(db, held_pairs: set, legacy_hold: bool = False) -> set:
+    """Pending (slug, episode_id) pairs the dispatcher must skip while held.
+
+    Scored per row because a pass-through override is: one feed can hold
+    blocked and eligible rows at once. ``legacy_hold`` is the unscoped
+    pre-migration marker, which blocks every row needing any LLM account.
+    Unresolvable routes leave a row eligible for the per-run check to refuse.
     """
-    from main_app.processing import _required_providers_for_admission
-    blocked: set = set()
-    try:
-        pending = db.get_pending_queued_episodes()
-    except Exception as e:
-        refresh_logger.warning(f"Could not list pending episodes for hold gating: {e}")
+    from main_app.processing import (
+        _admission_gates, _required_providers_for_admission, _resolve_route_snapshot,
+    )
+    # Both are slug-independent, so one resolution covers the whole scan.
+    snapshot = _resolve_route_snapshot()
+    if snapshot is None:
         return set()
-    for slug in {row['podcast_slug'] for row in pending}:
-        required = _required_providers_for_admission(slug)
-        if required and held_pairs & set(required):
-            blocked.add(slug)
+    gates = _admission_gates(db)
+    blocked: set = set()
+    scanned = 0
+    while scanned < BLOCKED_SCAN_MAX_ROWS:
+        try:
+            page = db.get_pending_queued_episodes(
+                limit=BLOCKED_SCAN_PAGE, offset=scanned)
+        except Exception as e:
+            refresh_logger.warning(
+                f"Could not list pending episodes for hold gating: {e}")
+            return blocked
+        if not page:
+            return blocked
+        scanned += len(page)
+        page_all_blocked = True
+        for row in page:
+            entry = (row['podcast_slug'], row['episode_id'])
+            required = _required_providers_for_admission(
+                entry[0], entry[1], snapshot=snapshot, gates=gates, queue_row=row)
+            needs_an_account = required is None or bool(required)
+            if ((legacy_hold and needs_an_account)
+                    or (required and held_pairs & set(required))):
+                blocked.add(entry)
+                continue
+            page_all_blocked = False
+        if not page_all_blocked or len(page) < BLOCKED_SCAN_PAGE:
+            break
     return blocked
 
 
@@ -108,13 +153,31 @@ def run_cleanup():
     # logs "Search index rebuilt with N items" itself, so no duplicate log
     # line is needed at this caller.
     try:
-        last_rebuild = getattr(run_cleanup, '_last_index_rebuild', 0)
-        if time.time() - last_rebuild > 21600:
-            db.rebuild_search_index()
-            run_cleanup._last_index_rebuild = time.time()
+        from processing_queue import ProcessingQueue
+        overdue_by = time.time() - getattr(run_cleanup, '_last_index_rebuild', 0)
+        if overdue_by > INDEX_REBUILD_INTERVAL_SECONDS:
+            # A whole-corpus rewrite alongside a live run is what produces the
+            # "database is locked" failures; wait for an idle pass, but only
+            # up to the deferral ceiling.
+            if (overdue_by <= INDEX_REBUILD_MAX_DEFERRAL_SECONDS
+                    and ProcessingQueue().slot_count() > 0):
+                refresh_logger.debug("Search index rebuild deferred: a run is active")
+            else:
+                try:
+                    db.rebuild_search_index()
+                    run_cleanup._last_index_rebuild = time.time()
+                except Exception as e:
+                    refresh_logger.error(f"Search index rebuild failed: {e}")
+                    db.clear_leaked_transaction(refresh_logger, 'search index rebuild')
+                    # Back off instead of rebuilding again on the next pass: the
+                    # retry feeds the same contention that made this attempt fail.
+                    run_cleanup._last_index_rebuild = (
+                        time.time() - INDEX_REBUILD_INTERVAL_SECONDS
+                        + INDEX_REBUILD_RETRY_SECONDS)
     except Exception as e:
-        refresh_logger.error(f"Search index rebuild failed: {e}")
-        db.clear_leaked_transaction(refresh_logger, 'search index rebuild')
+        # The rebuild has its own handler, so this is the slot lookup failing;
+        # it touched no index, so the cadence stays as it was.
+        refresh_logger.error(f"Search index rebuild check failed: {e}")
 
 
 def background_rss_refresh():
@@ -129,6 +192,7 @@ def background_rss_refresh():
     from community_sync import community_pattern_sync_tick
     from db_backup_service import db_backup_tick
     from update_checker import update_check_tick
+    outage_passes = 0
     while not shutdown_event.is_set():
         result = refresh_all_feeds()
         run_cleanup()
@@ -156,13 +220,29 @@ def background_rss_refresh():
         # A detected shared outage schedules one bounded, jittered retry
         # sooner than the normal cadence instead of waiting a full interval
         # (or every feed re-hitting the same host in lockstep next tick).
+        # Every pass re-arms nextRetryAt at the same base delay, so the
+        # doubling lives here or a long outage never backs off at all.
         outage = result.get('outage') if isinstance(result, dict) else None
-        if outage and outage.get('detected') and outage.get('nextRetryAt'):
-            retry_at = parse_iso_utc(outage['nextRetryAt'])
+        if outage and outage.get('detected'):
+            retry_at = parse_iso_utc(outage.get('nextRetryAt'))
             if retry_at:
                 remaining = (retry_at - datetime.now(timezone.utc)).total_seconds()
+                remaining *= 2 ** min(outage_passes, OUTAGE_RETRY_MAX_DOUBLINGS)
                 if 0 < remaining < wait_seconds:
                     wait_seconds = remaining
+            outage_passes += 1
+            # refresh_all_feeds armed this setting at the base delay and the
+            # system health panel renders it, so correct it to the attempt
+            # this loop will actually make.
+            try:
+                db.set_setting(
+                    'feeds_next_refresh_retry_at',
+                    (datetime.now(timezone.utc)
+                     + timedelta(seconds=wait_seconds)).isoformat())
+            except Exception as e:
+                refresh_logger.warning(f"Could not record the next refresh retry: {e}")
+        else:
+            outage_passes = 0
 
         # Wait, but allow early exit on shutdown. A changed setting applies
         # after the current wait completes.
@@ -442,27 +522,30 @@ def background_queue_processor():
             # markers and fires the resume event, so the last hold to expire
             # still gets cleaned up (#696).
             _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
-            # A legacy/unscoped hold pauses the whole queue; provider-scoped
-            # holds only defer entries whose required account is held, so
-            # healthy and pass-through work keeps dispatching.
+            # Holds defer only entries whose required account is held; the
+            # unscoped legacy marker blocks every account, so under it only
+            # work that needs no LLM account gets through.
             legacy_until, _ = get_active_hold(db)
             held_pairs = active_held_pairs(db)
-            blocked_slugs: set = set()
+            blocked_episodes: set = set()
             if legacy_until or held_pairs:
-                probed = _run_tick(probe_rate_limit, 'rate_limit_probe')
-                if legacy_until:
-                    if not rate_limit_pause_logged:
-                        refresh_logger.info(
-                            "Queue paused: LLM provider rate limit; waiting for reset")
-                        rate_limit_pause_logged = True
-                    if probed:
-                        rate_limit_pause_logged = False
-                        continue
-                    shutdown_event.wait(timeout=30)
+                if _run_tick(probe_rate_limit, 'rate_limit_probe'):
+                    # The probe cleared a hold; re-read it all on a fresh pass.
+                    rate_limit_pause_logged = False
                     continue
-                held_pairs = active_held_pairs(db)  # re-read: the probe may have cleared one
-                blocked_slugs = _blocked_slugs(db, held_pairs) if held_pairs else set()
-            rate_limit_pause_logged = False
+                legacy_until, _ = get_active_hold(db)
+                held_pairs = active_held_pairs(db)
+            if legacy_until:
+                if not rate_limit_pause_logged:
+                    refresh_logger.info(
+                        "Queue paused: LLM provider rate limit; only work needing "
+                        "no LLM account dispatches until reset")
+                    rate_limit_pause_logged = True
+            else:
+                rate_limit_pause_logged = False
+            if legacy_until or held_pairs:
+                blocked_episodes = _blocked_queue_entries(
+                    db, held_pairs, legacy_hold=bool(legacy_until))
 
             # Idle-wait while paused instead of claiming and bouncing, which
             # would ramp the backoff to its 5-minute ceiling and stall resume;
@@ -484,11 +567,13 @@ def background_queue_processor():
             limit = pool.max_episodes
             claimed_any = False
             bounced = False
+            nothing_to_claim = False
             # The registry, not `running`: it also sees runs a Play or
             # Reprocess started on this leader outside the dispatcher.
             while registry.slot_count() < limit and not shutdown_event.is_set():
-                queued = db.claim_next_queued_episode(exclude_slugs=blocked_slugs)
+                queued = db.claim_next_queued_episode(exclude_episodes=blocked_episodes)
                 if not queued:
+                    nothing_to_claim = True
                     break
                 claimed_any = True
                 result = _run_claimed_episode(queued, running)
@@ -505,8 +590,13 @@ def background_queue_processor():
                 shutdown_event.wait(timeout=backoff)
                 backoff = min(backoff * 2, 300)  # Max 5 minutes
             elif not claimed_any:
-                # No queued episodes, wait before checking again
-                shutdown_event.wait(timeout=IDLE_WAIT_SECONDS if pool.active else 30)
+                # No queued episodes, wait before checking again. Under a hold
+                # an empty claim means the scan just scored every pending row,
+                # so wait longer than the idle tick before repeating it.
+                if nothing_to_claim and (legacy_until or held_pairs):
+                    shutdown_event.wait(timeout=HELD_IDLE_WAIT_SECONDS)
+                else:
+                    shutdown_event.wait(timeout=IDLE_WAIT_SECONDS if pool.active else 30)
             elif limit == 1 and running:
                 # Inactive pool with a run in flight: wait for it as before.
                 # A gate-skipped claim adds nothing to `running`, so there is

@@ -22,6 +22,7 @@ from config import (
     is_template_cue,
     MIN_AD_DURATION_FOR_REMOVAL,
     coerce_bool_setting,
+    resolve_max_boundary_shift,
 )
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
@@ -35,7 +36,10 @@ from llm_client import (
 )
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
-from utils.markers import dai_core_bounds, invalidate_tail_provenance
+from utils.markers import (
+    COARSE_MEMBER_STAGES, dai_core_bounds, invalidate_tail_provenance,
+    protected_member_spans,
+)
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
     scrub_description, strip_comments_from_prompt
@@ -368,6 +372,21 @@ RESURRECT_BAND_WIDTH = 0.20
 # from the LLM surface as adjust verdicts in the audit log; only true
 # rounding noise rounds away.
 _CONFIRMED_BOUNDARY_TOLERANCE_S = 0.1
+
+
+def _member_conflict(member: dict, start: float, end: float) -> bool:
+    """Whether a proposal drops the evidence one merge member carries."""
+    # A coarse member only has to keep overlapping, since trimming its
+    # padding is the reviewer's job. A measured one must stay covered.
+    tol = _CONFIRMED_BOUNDARY_TOLERANCE_S
+    if member.get('stage') in COARSE_MEMBER_STAGES:
+        retained = min(end, member['end']) - max(start, member['start'])
+        # A sliver is not a surviving member: what is left has to be long
+        # enough to be an ad, and at most half of a member shorter than that.
+        return retained < min(MIN_AD_DURATION_FOR_REMOVAL,
+                              (member['end'] - member['start']) / 2)
+    return start - member['start'] > tol or member['end'] - end > tol
+
 
 # Prose/number consistency check on adjust verdicts: warn when the reasoning
 # names a boundary figure further than the edge-proximity tolerance + 2s
@@ -824,7 +843,7 @@ class AdReviewer:
         if not accepted_ads and not resurrection_eligible:
             return ReviewResult()
 
-        max_shift = self._read_max_boundary_shift()
+        max_shift = resolve_max_boundary_shift(self.db)
         self._active_route = self._resolve_route(pass_provider, pass_model, pass_num)
         model = self._active_route.model_id
         review_sponsor_block, resurrect_sponsor_block = self._sponsor_blocks()
@@ -1331,11 +1350,12 @@ class AdReviewer:
         # the flag without the protected keys; those keep the old blanket
         # expand-only rule.
         if ad.get('merged_distinct_ads'):
-            if 'merged_protected_start' in ad:
-                p_start = ad.get('merged_protected_start')
-                p_end = ad.get('merged_protected_end')
-            else:
-                p_start, p_end = original_start, original_end
+            # Only measured members hold the floor: re-expanding to a coarse
+            # member would undo the trim just accepted.
+            hard = [m for m in protected_member_spans(ad, original_start, original_end)
+                    if m.get('stage') not in COARSE_MEMBER_STAGES]
+            p_start = min((m['start'] for m in hard), default=None)
+            p_end = max((m['end'] for m in hard), default=None)
             floor_start = (clamped_start if p_start is None
                            else min(clamped_start, p_start))
             floor_end = (clamped_end if p_end is None
@@ -1377,16 +1397,8 @@ class AdReviewer:
         """Return whether an inward proposal crosses protected evidence."""
         if end <= start or not ad.get('merged_distinct_ads'):
             return False
-        protected_start = protected_end = None
-        if 'merged_protected_start' in ad:
-            protected_start = ad.get('merged_protected_start')
-            protected_end = ad.get('merged_protected_end')
-        else:
-            protected_start, protected_end = original_start, original_end
-        return ((protected_start is not None
-                 and start - protected_start > _CONFIRMED_BOUNDARY_TOLERANCE_S)
-                or (protected_end is not None
-                    and protected_end - end > _CONFIRMED_BOUNDARY_TOLERANCE_S))
+        return any(_member_conflict(m, start, end) for m in
+                   protected_member_spans(ad, original_start, original_end))
 
     def _recover_contradiction_trim(
         self,
@@ -1696,13 +1708,6 @@ class AdReviewer:
             return self.db.get_setting(key)
         except Exception:
             return None
-
-    def _read_max_boundary_shift(self) -> int:
-        raw = self._read_setting("review_max_boundary_shift")
-        try:
-            return max(1, int(raw)) if raw is not None else 60
-        except (TypeError, ValueError):
-            return 60
 
     def _resolve_model(self, pass_model: str) -> str:
         # Model-only resolution, kept for test_settings_validation coverage.

@@ -85,7 +85,18 @@ describe('DashboardEpisodeGroups', () => {
     renderGroups([feed]);
     const heading = screen.getByRole('heading', { name: 'Show D' });
     expect(heading.querySelector('a')?.getAttribute('href')).toBe('/feeds/show-d');
-    expect(screen.getByRole('link', { name: 'View all episodes' }).getAttribute('href')).toBe('/feeds/show-d');
+    expect(screen.getByRole('link', { name: 'View all episodes of Show D' }).getAttribute('href')).toBe('/feeds/show-d');
+  });
+
+  it('shrinks the view-all link to an icon below sm so the title keeps its width', () => {
+    const feed: Feed = {
+      slug: 'show-f', title: 'Show F', sourceUrl: 'https://example.com/f.xml', feedUrl: 'https://example.com/f.xml',
+      episodeCount: 0, latestEpisodes: [],
+    };
+    renderGroups([feed]);
+    const link = screen.getByRole('link', { name: 'View all episodes of Show F' });
+    expect(link.querySelector('svg')?.getAttribute('class')).toContain('sm:hidden');
+    expect(link.querySelector('span')?.getAttribute('class')).toContain('hidden sm:inline');
   });
 
   it('disables a queued row action while a sibling row stays actionable, keeping both action labels stable', () => {

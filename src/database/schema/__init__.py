@@ -2091,7 +2091,7 @@ class SchemaMixin:
         recomputed cost and, when a row was corrected, the global counter is reset
         to the sum of all per-model rows -- so the result is identical on re-run
         (e.g. concurrent workers). A database that never used Opus 4.8 is left
-        untouched. No rows are deleted. (`record_token_usage` increments both
+        untouched. No rows are deleted. (The counter writes increment both
         counters by the same per-call cost, so the global equals the sum of
         per-model rows by construction.)
         """
@@ -2415,7 +2415,7 @@ class SchemaMixin:
 
         Before the pricing-source fallback fix, these models had no default
         pricing row and, on unknown openai-compatible domains, no live fetch, so
-        `_calculate_token_cost` fell through to the no-pricing $0 path. This is
+        the cost lookup fell through to the no-pricing $0 path. This is
         the third incident of the pricing-frozen class (see opus48-cost-fix and
         1.0.79). Recompute `token_usage.total_cost` from DEFAULT_MODEL_PRICING
         for `claudesonnet5`/`claudefable5` rows where the recorded cost is 0 and

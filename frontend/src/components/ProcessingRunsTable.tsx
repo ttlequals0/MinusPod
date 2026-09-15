@@ -41,8 +41,12 @@ const HEADER_CLASS = 'py-2 pr-4 text-left text-xs font-medium text-muted-foregro
 interface Column {
   label: string;
   title?: string;
+  // Dropped from the table between sm and lg; the mobile cards still list it.
+  lowPriority?: boolean;
   render: (run: EpisodeProcessingRun) => ReactNode;
 }
+
+const LOW_PRIORITY_CLASS = 'hidden lg:table-cell';
 
 // One definition drives both the desktop table and the mobile cards, so the
 // two can never drift apart.
@@ -76,11 +80,13 @@ const COLUMNS: Column[] = [
   {
     label: 'Downloaded',
     title: 'Length of the downloaded copy this run processed',
+    lowPriority: true,
     render: (run) => (run.stats?.downloadedDuration ? formatDuration(run.stats.downloadedDuration) : '-'),
   },
   {
     label: 'Windows',
     title: 'Detection windows the LLM answered',
+    lowPriority: true,
     render: (run) => {
       const w = run.stats?.windows;
       if (!w?.total) return '-';
@@ -90,6 +96,7 @@ const COLUMNS: Column[] = [
   {
     label: 'Stage hits',
     title: 'Detections per stage, before validation',
+    lowPriority: true,
     render: (run) => {
       const h = run.stats?.stageHits;
       return h
@@ -112,6 +119,7 @@ const COLUMNS: Column[] = [
   {
     label: 'Second scan',
     title: 'Second scan of the output audio',
+    lowPriority: true,
     render: (run) => {
       const v = run.stats?.verificationAdsCut;
       if (v == null) return '-';
@@ -301,57 +309,59 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
     <div>
       {note && <p className="text-sm text-muted-foreground mb-3">{note}</p>}
 
-      <table className="hidden sm:table w-full text-sm">
-        <thead>
-          <tr className="border-b border-border">
-            <th className={`${HEADER_CLASS} w-6`} aria-hidden="true" />
-            {COLUMNS.map((col, i) => (
-              <th
-                key={col.label}
-                title={col.title}
-                className={i === COLUMNS.length - 1 ? `${HEADER_CLASS} pr-0` : HEADER_CLASS}
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {runs.map((run) => {
-            const key = runKey(run);
-            const expanded = expandedRuns.has(key);
-            return (
-              <Fragment key={key}>
-                <tr className="border-b border-border/50 last:border-b-0">
-                  <td className="py-2 pr-2">
-                    <PhaseDisclosureButton run={run} expanded={expanded} onToggle={() => toggleExpanded(key)} />
-                  </td>
-                  {COLUMNS.map((col, i) => (
-                    <td
-                      key={col.label}
-                      title={col.label === 'Downloaded' && run.stats?.transcriptSegments != null
-                        ? `${run.stats.transcriptSegments} transcript segments`
-                        : undefined}
-                      className={i === COLUMNS.length - 1 ? 'py-2 whitespace-nowrap' : 'py-2 pr-4 whitespace-nowrap'}
-                    >
-                      {col.render(run)}
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border">
+              <th className={`${HEADER_CLASS} w-6`} aria-hidden="true" />
+              {COLUMNS.map((col, i) => (
+                <th
+                  key={col.label}
+                  title={col.title}
+                  className={`${i === COLUMNS.length - 1 ? `${HEADER_CLASS} pr-0` : HEADER_CLASS}${col.lowPriority ? ` ${LOW_PRIORITY_CLASS}` : ''}`}
+                >
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((run) => {
+              const key = runKey(run);
+              const expanded = expandedRuns.has(key);
+              return (
+                <Fragment key={key}>
+                  <tr className="border-b border-border/50 last:border-b-0">
+                    <td className="py-2 pr-2">
+                      <PhaseDisclosureButton run={run} expanded={expanded} onToggle={() => toggleExpanded(key)} />
                     </td>
-                  ))}
-                </tr>
-                {expanded && (
-                  <tr className="border-b border-border/50 last:border-b-0 bg-muted/20">
-                    <td colSpan={COLUMNS.length + 1} className="py-2 px-3">
-                      <div className="overflow-x-auto">
-                        <PhaseBreakdown run={run} layout="table" />
-                      </div>
-                    </td>
+                    {COLUMNS.map((col, i) => (
+                      <td
+                        key={col.label}
+                        title={col.label === 'Downloaded' && run.stats?.transcriptSegments != null
+                          ? `${run.stats.transcriptSegments} transcript segments`
+                          : undefined}
+                        className={`${i === COLUMNS.length - 1 ? 'py-2 whitespace-nowrap' : 'py-2 pr-4 whitespace-nowrap'}${col.lowPriority ? ` ${LOW_PRIORITY_CLASS}` : ''}`}
+                      >
+                        {col.render(run)}
+                      </td>
+                    ))}
                   </tr>
-                )}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
+                  {expanded && (
+                    <tr className="border-b border-border/50 last:border-b-0 bg-muted/20">
+                      <td colSpan={COLUMNS.length + 1} className="py-2 px-3">
+                        <div className="overflow-x-auto">
+                          <PhaseBreakdown run={run} layout="table" />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <div className="sm:hidden space-y-3">
         {runs.map((run) => {

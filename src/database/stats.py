@@ -334,38 +334,13 @@ class StatsMixin:
 
         return input_per_mtok, output_per_mtok, f"{row['source']}:{row['updated_at']}"
 
-    def _calculate_token_cost(self, conn, model_id: str,
-                              input_tokens: int, output_tokens: int,
-                              match_key: str = '') -> float:
-        """Calculate cost using normalized match_key lookup.
-
-        Resolution: operator override -> exact catalog match -> prefix match -> $0.
-        """
-        if not match_key:
-            match_key = normalize_model_key(model_id)
-
-        logger.debug(f"Cost lookup: model_id='{model_id}' -> match_key='{match_key}'")
-
-        resolved = self._resolve_model_rate(conn, model_id, match_key)
-        if resolved is None:
-            logger.warning(
-                f"No pricing found for model '{model_id}' "
-                f"(match_key='{match_key}'), cost recorded as $0"
-            )
-            return 0.0
-
-        input_per_mtok, output_per_mtok, _revision = resolved
-        input_cost = (input_tokens / 1_000_000) * input_per_mtok
-        output_cost = (output_tokens / 1_000_000) * output_per_mtok
-        return input_cost + output_cost
-
     def _apply_token_usage_counters(self, conn, model_id: str,
                                     input_tokens: int, output_tokens: int,
                                     cost: float) -> None:
         """Upsert the per-model token_usage row and bump global stats.
 
-        Conn-taking so callers (record_token_usage, finalize_llm_attempt)
-        share one implementation under one transaction. Caller commits.
+        Conn-taking so finalize_llm_attempt writes counters inside its own
+        transaction. Caller commits.
         """
         match_key = normalize_model_key(model_id)
         conn.execute(
@@ -388,22 +363,6 @@ class StatsMixin:
             ('total_output_tokens', float(output_tokens)),
             ('total_llm_cost', cost),
         ])
-
-    def record_token_usage(self, model_id: str, input_tokens: int, output_tokens: int) -> float:
-        """Record token usage for an LLM call. Atomic upsert to per-model and global stats.
-        Returns the calculated cost for this call."""
-        if not model_id or (input_tokens <= 0 and output_tokens <= 0):
-            return 0.0
-
-        conn = self.get_connection()
-        cost = self._calculate_token_cost(conn, model_id, input_tokens, output_tokens)
-        self._apply_token_usage_counters(conn, model_id, input_tokens, output_tokens, cost)
-        conn.commit()
-        logger.debug(
-            f"Token usage: model={model_id} "
-            f"in={input_tokens} out={output_tokens} cost=${cost:.6f}"
-        )
-        return cost
 
     def begin_llm_attempt(self, *, run_id, podcast_id, episode_id, phase_key,
                           invoking_pass, provider_key, configured_model,
@@ -922,92 +881,58 @@ class StatsMixin:
         actual latest run, honoring the from/to date window. cumulativeCostUsd,
         runCount, and modelsUsed do respect provider/model, the same way
         they narrow model-usage rows; so does which episodes are listed.
+
+        One page reads the ledger once: the provider/model filter rides along
+        as a per-row flag on a single base pass, and the per-episode model
+        aggregates join the already-paginated key set.
         """
         conn = self.get_connection()
         offset = max(0, (max(1, page) - 1) * limit)
-        filter_sql, filter_params = _build_ledger_filters(
-            from_date, to_date, podcast_slug, provider, model)
         # Latest-run determination drops provider/model so it can't reorder
         # runs by content; it still respects the date window and podcast scope.
         latest_filter_sql, latest_filter_params = _build_ledger_filters(
             from_date, to_date, podcast_slug, None, None)
+        match_sql, match_params = _build_ledger_filters(
+            None, None, None, provider, model)
         base_sql = (
             f"finalized_at IS NOT NULL AND {_LEDGER_BILLABLE_SQL} "  # noqa: S608
             f"AND podcast_id IS NOT NULL AND episode_id IS NOT NULL "
             f"AND podcast_id IN (SELECT id FROM podcasts)"
         )
-        where_sql = base_sql + filter_sql
         latest_where_sql = base_sql + latest_filter_sql
         sort_col = self._EPISODE_COST_SORT_COLUMNS.get(sort_by, 'last_activity_at')
         sort_dir_sql = 'ASC' if sort_dir.lower() == 'asc' else 'DESC'
 
-        count_cte = f"""
-            WITH run_costs AS (
-                SELECT podcast_id, episode_id, run_id
-                FROM llm_call_usage
-                WHERE {where_sql}
-                GROUP BY podcast_id, episode_id, run_id
-            )
-            SELECT COUNT(*) FROM (
-                SELECT podcast_id, episode_id FROM run_costs
-                GROUP BY podcast_id, episode_id
-            )
-        """  # noqa: S608
-        total = conn.execute(count_cte, filter_params).fetchone()[0]
-
-        items_sql = f"""
-            WITH run_costs AS (
-                SELECT
-                    podcast_id, episode_id, run_id,
-                    SUM(CASE WHEN cost_usd IS NOT NULL
-                             THEN CAST(cost_usd AS REAL) ELSE 0 END) AS run_cost_usd
-                FROM llm_call_usage
-                WHERE {where_sql}
-                GROUP BY podcast_id, episode_id, run_id
-            ),
-            episode_models AS (
-                SELECT podcast_id, episode_id,
-                       GROUP_CONCAT(DISTINCT configured_model) AS models_used,
-                       SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_cost_count
-                FROM llm_call_usage
-                WHERE {where_sql}
-                GROUP BY podcast_id, episode_id
-            ),
-            episode_agg AS (
-                SELECT
-                    podcast_id, episode_id,
-                    COUNT(DISTINCT run_id) AS run_count,
-                    SUM(run_cost_usd) AS cumulative_cost_usd
-                FROM run_costs
-                GROUP BY podcast_id, episode_id
-            ),
-            episode_top_model AS (
-                SELECT podcast_id, episode_id, configured_model AS top_model FROM (
-                    SELECT podcast_id, episode_id, configured_model,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY podcast_id, episode_id
-                               ORDER BY model_cost DESC, configured_model ASC
-                           ) AS rn
-                    FROM (
-                        SELECT podcast_id, episode_id, configured_model,
-                               SUM(CASE WHEN cost_usd IS NOT NULL
-                                        THEN CAST(cost_usd AS REAL) ELSE 0 END) AS model_cost
-                        FROM llm_call_usage
-                        WHERE {where_sql}
-                        GROUP BY podcast_id, episode_id, configured_model
-                    )
-                ) WHERE rn = 1
-            ),
-            latest_run_source AS (
-                SELECT
-                    podcast_id, episode_id, run_id,
-                    SUM(CASE WHEN cost_usd IS NOT NULL
-                             THEN CAST(cost_usd AS REAL) ELSE 0 END) AS run_cost_usd,
-                    SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS run_unknown_count,
-                    MAX(COALESCE(finalized_at, created_at)) AS run_activity_at
+        # base is the only read of llm_call_usage; in_filter marks the rows
+        # the provider/model filter keeps, so filtered and unfiltered
+        # aggregates come off the same pass.
+        episodes_cte = f"""
+            WITH base AS (
+                SELECT podcast_id, episode_id, run_id, configured_model, cost_usd,
+                       COALESCE(finalized_at, created_at) AS activity_at,
+                       CASE WHEN 1 = 1{match_sql} THEN 1 ELSE 0 END AS in_filter
                 FROM llm_call_usage
                 WHERE {latest_where_sql}
+            ),
+            run_agg AS (
+                SELECT podcast_id, episode_id, run_id,
+                       MAX(in_filter) AS run_in_filter,
+                       SUM(CASE WHEN in_filter = 1 AND cost_usd IS NOT NULL
+                                THEN CAST(cost_usd AS REAL) ELSE 0 END) AS filtered_cost_usd,
+                       SUM(CASE WHEN cost_usd IS NOT NULL
+                                THEN CAST(cost_usd AS REAL) ELSE 0 END) AS run_cost_usd,
+                       SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS run_unknown_count,
+                       MAX(activity_at) AS run_activity_at
+                FROM base
                 GROUP BY podcast_id, episode_id, run_id
+            ),
+            episode_agg AS (
+                SELECT podcast_id, episode_id,
+                       COUNT(run_id) AS run_count,
+                       SUM(filtered_cost_usd) AS cumulative_cost_usd
+                FROM run_agg
+                WHERE run_in_filter = 1
+                GROUP BY podcast_id, episode_id
             ),
             latest_run AS (
                 SELECT podcast_id, episode_id, run_cost_usd AS latest_run_cost_usd,
@@ -1020,39 +945,85 @@ class StatsMixin:
                                PARTITION BY podcast_id, episode_id
                                ORDER BY run_activity_at DESC, run_id DESC
                            ) AS rn
-                    FROM latest_run_source
+                    FROM run_agg
                 )
                 WHERE rn = 1
             )
-            SELECT
-                p.slug AS podcast_slug,
-                p.title AS podcast_title,
-                ea.episode_id AS episode_id,
-                e.title AS episode_title,
-                em.models_used AS models_used,
-                em.unknown_cost_count AS unknown_cost_count,
-                etm.top_model AS top_model,
-                ea.run_count AS run_count,
-                lr.latest_run_cost_usd AS latest_run_cost_usd,
-                lr.latest_run_unknown_count AS latest_run_unknown_count,
-                ea.cumulative_cost_usd AS cumulative_cost_usd,
-                lr.last_activity_at AS last_activity_at
-            FROM episode_agg ea
-            JOIN podcasts p ON p.id = ea.podcast_id
-            LEFT JOIN episodes e ON e.podcast_id = ea.podcast_id AND e.episode_id = ea.episode_id
-            JOIN latest_run lr ON lr.podcast_id = ea.podcast_id AND lr.episode_id = ea.episode_id
-            JOIN episode_models em ON em.podcast_id = ea.podcast_id AND em.episode_id = ea.episode_id
-            JOIN episode_top_model etm ON etm.podcast_id = ea.podcast_id AND etm.episode_id = ea.episode_id
-            ORDER BY {sort_col} {sort_dir_sql}
-            LIMIT ? OFFSET ?
         """  # noqa: S608
-        # where_sql is inlined three times above (run_costs, episode_models,
-        # episode_top_model) and latest_where_sql once (latest_run_source);
-        # each repeat needs its own copy of that clause's params, in order.
-        rows = conn.execute(
-            items_sql,
-            filter_params + filter_params + filter_params + latest_filter_params + [limit, offset]
-        ).fetchall()
+        base_params = match_params + latest_filter_params
+
+        items_sql = f"""{episodes_cte},
+            page AS (
+                SELECT
+                    p.slug AS podcast_slug,
+                    p.title AS podcast_title,
+                    ea.podcast_id AS podcast_id,
+                    ea.episode_id AS episode_id,
+                    e.title AS episode_title,
+                    ea.run_count AS run_count,
+                    lr.latest_run_cost_usd AS latest_run_cost_usd,
+                    lr.latest_run_unknown_count AS latest_run_unknown_count,
+                    ea.cumulative_cost_usd AS cumulative_cost_usd,
+                    lr.last_activity_at AS last_activity_at,
+                    COUNT(*) OVER () AS total_count
+                FROM episode_agg ea
+                JOIN podcasts p ON p.id = ea.podcast_id
+                LEFT JOIN episodes e ON e.podcast_id = ea.podcast_id
+                                    AND e.episode_id = ea.episode_id
+                JOIN latest_run lr ON lr.podcast_id = ea.podcast_id
+                                  AND lr.episode_id = ea.episode_id
+                ORDER BY {sort_col} {sort_dir_sql}
+                LIMIT ? OFFSET ?
+            ),
+            episode_models AS (
+                SELECT b.podcast_id, b.episode_id,
+                       GROUP_CONCAT(DISTINCT b.configured_model) AS models_used,
+                       SUM(CASE WHEN b.cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_cost_count
+                FROM base b
+                JOIN page pg ON pg.podcast_id = b.podcast_id
+                            AND pg.episode_id = b.episode_id
+                WHERE b.in_filter = 1
+                GROUP BY b.podcast_id, b.episode_id
+            ),
+            episode_top_model AS (
+                SELECT podcast_id, episode_id, configured_model AS top_model FROM (
+                    SELECT podcast_id, episode_id, configured_model,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY podcast_id, episode_id
+                               ORDER BY model_cost DESC, configured_model ASC
+                           ) AS rn
+                    FROM (
+                        SELECT b.podcast_id, b.episode_id, b.configured_model,
+                               SUM(CASE WHEN b.cost_usd IS NOT NULL
+                                        THEN CAST(b.cost_usd AS REAL) ELSE 0 END) AS model_cost
+                        FROM base b
+                        JOIN page pg ON pg.podcast_id = b.podcast_id
+                                    AND pg.episode_id = b.episode_id
+                        WHERE b.in_filter = 1
+                        GROUP BY b.podcast_id, b.episode_id, b.configured_model
+                    )
+                ) WHERE rn = 1
+            )
+            SELECT pg.*, em.models_used AS models_used,
+                   em.unknown_cost_count AS unknown_cost_count,
+                   etm.top_model AS top_model
+            FROM page pg
+            JOIN episode_models em ON em.podcast_id = pg.podcast_id
+                                  AND em.episode_id = pg.episode_id
+            JOIN episode_top_model etm ON etm.podcast_id = pg.podcast_id
+                                      AND etm.episode_id = pg.episode_id
+            ORDER BY {sort_col} {sort_dir_sql}
+        """  # noqa: S608
+        rows = conn.execute(items_sql, base_params + [limit, offset]).fetchall()
+
+        if rows:
+            total = rows[0]['total_count']
+        else:
+            # Past the last page: the window count has no row to ride on.
+            total = conn.execute(
+                f"{episodes_cte} SELECT COUNT(*) FROM episode_agg",  # noqa: S608
+                base_params
+            ).fetchone()[0]
 
         items = [{
             'podcastSlug': row['podcast_slug'],

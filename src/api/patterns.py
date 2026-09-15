@@ -6,7 +6,8 @@ from itertools import combinations
 
 from config import (
     MIN_AD_DURATION, SEGMENT_CATEGORIES,
-    count_pending_review, is_pending_review,
+    count_pending_review, is_pending_review, resolve_max_ad_duration_confirmed,
+    resolve_max_boundary_shift,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
 from utils.markers import BOUNDS_TOLERANCE_S, spans_match
@@ -1073,6 +1074,22 @@ def _resolve_or_create_pattern_from_text(
     )
 
 
+def _usable_reviewer_proposal(db, marker, start, end):
+    """A held marker's reviewer proposal, when it is valid, overlaps the
+    detected span, and stays within the reviewer's per-edge shift cap."""
+    # A hold stamps the raw proposal, which never passed the reviewer's clamp.
+    p_start = marker.get('reviewer_proposed_start')
+    p_end = marker.get('reviewer_proposed_end')
+    if not isinstance(p_start, (int, float)) or not isinstance(p_end, (int, float)):
+        return None
+    if p_end <= p_start or p_end <= start or p_start >= end:
+        return None
+    cap = resolve_max_boundary_shift(db)
+    if abs(p_start - start) > cap or abs(p_end - end) > cap:
+        return None
+    return float(p_start), float(p_end)
+
+
 def _handle_confirm_correction(
     db, pattern_service, slug, episode_id, original_ad, data
 ):
@@ -1109,16 +1126,22 @@ def _handle_confirm_correction(
                 held_marker = m
                 break
         if held_marker is not None:
-            reviewer_start = held_marker.get('reviewer_proposed_start')
-            reviewer_end = held_marker.get('reviewer_proposed_end')
-            if reviewer_start is not None and reviewer_end is not None:
-                env_start = min(original_start, reviewer_start)
-                env_end = max(original_end, reviewer_end)
+            proposal = _usable_reviewer_proposal(
+                db, held_marker, original_start, original_end)
+            if proposal is not None:
+                env_start = min(original_start, proposal[0])
+                env_end = max(original_end, proposal[1])
         if adjusted_start < env_start - 0.5 or adjusted_end > env_end + 0.5:
             return error_response('Adjusted bounds must lie within the reviewed span', 400)
     # The span actually confirmed as ad content.
     eff_start = adjusted_start if has_trim else original_start
     eff_end = adjusted_end if has_trim else original_end
+    # A confirmed correction force-accepts ahead of the validator's duration
+    # checks, so the ceiling has to hold here.
+    max_confirmed = resolve_max_ad_duration_confirmed(db)
+    if eff_end - eff_start > max_confirmed:
+        return error_response(
+            f'Confirmed span exceeds the {max_confirmed:.0f}s maximum ad duration', 400)
 
     logger.info(
         f"CORRECTION: type=confirm, episode={slug}/{episode_id}, "

@@ -549,16 +549,49 @@ COMMON_SPEECH_WORDS = frozenset({
 })
 
 
+# Pronouns and auxiliaries that reach the sponsor slot only as the stem of a
+# quoted contraction ("Let's", "You're"), never as a brand on their own.
+CONTRACTION_STEM_WORDS = frozenset({
+    'let', 'you', 'we', 'they', 'it', 'that', 'this', 'there', 'here',
+    'what', 'who', 'i', 'he', 'she', 'do', 'does', 'did', 'can', 'will',
+    'is', 'are', 'was', 'were', 'has', 'have', 'had', 'would', 'could',
+    'should',
+})
+
+# Endings split off a single token before its stem is checked. Both "n't" and
+# "'t" are tried so "don't" and "can't" each reach a real stem.
+_CONTRACTION_SUFFIXES = ("'s", "'re", "'ll", "'ve", "'d", "'m", "n't", "'t")
+
+
+def strip_apostrophe_suffixes(name: str, suffixes) -> list[str]:
+    """Bases left by stripping one trailing apostrophe suffix from `name`.
+
+    A curly U+2019 matches the ASCII form, so a suffix list only has to spell
+    each ending once. Bases keep the original spelling of what is left.
+    """
+    text = str(name)
+    lowered = text.lower().replace('\u2019', "'")
+    return [text[:-len(suffix)] for suffix in suffixes
+            if lowered.endswith(suffix) and len(text) > len(suffix)]
+
+_SINGLE_WORD_NON_BRAND = COMMON_SPEECH_WORDS | SEGMENT_STRUCTURE_WORDS
+_CONTRACTION_NON_BRAND = _SINGLE_WORD_NON_BRAND | CONTRACTION_STEM_WORDS
+
+
 def is_non_brand_name(name: str) -> bool:
-    """A sanitized name that is never a real advertiser: a known junk value,
-    or a single common/structure word. Multi-word names pass."""
+    """A sanitized name that is never a real advertiser: a known junk value, a
+    single common/structure word, or a contraction of one. Multi-word names pass."""
     if not name:
         return True
-    key = ' '.join(str(name).split()).lower()
+    key = ' '.join(str(name).split()).lower().replace('\u2019', "'")
     if key in INVALID_SPONSOR_VALUES:
         return True
-    return (' ' not in key
-            and key in (COMMON_SPEECH_WORDS | SEGMENT_STRUCTURE_WORDS))
+    if ' ' in key:
+        return False
+    if key in _SINGLE_WORD_NON_BRAND:
+        return True
+    stems = strip_apostrophe_suffixes(key, _CONTRACTION_SUFFIXES)
+    return any(stem in _CONTRACTION_NON_BRAND for stem in stems)
 
 # Vocabulary the model reaches for when describing an ad's shape or evidence,
 # plus the pronouns it quotes ("We'll be right back"). Read only by the

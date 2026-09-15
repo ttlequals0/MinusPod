@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.97.2
+  version: 2.97.3
   contact:
     name: MinusPod
   license:
@@ -5989,8 +5989,20 @@ paths:
       tags:
         - Settings
       summary: Refresh available AI models
-      description: Force refresh the model list from the current LLM provider. Recreates the LLM client and fetches a fresh model list.
+      description: Force refresh the model list for one credential slot. Recreates that slot's LLM client and fetches a fresh model list. The optional body selects the slot; with no body the primary slot is refreshed.
       operationId: refreshModels
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slot:
+                  type: string
+                  enum: [primary, secondary]
+                  default: primary
+                  description: Credential slot to refresh. secondary requires a configured secondary provider.
       responses:
         '200':
           description: Refreshed model list
@@ -6006,6 +6018,15 @@ paths:
                   count:
                     type: integer
                     description: Number of models available
+        '400':
+          description: Invalid slot, or secondary requested with no secondary provider configured
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
 
   /settings/whisper-models:
     get:

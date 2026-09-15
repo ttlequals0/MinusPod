@@ -13,16 +13,41 @@ release notes.
 
 ### Added
 
-- Rate-limit holds now reset when a stage model changes, because a new model can carry different limits. A "Reset holds now" control (API and UI) also clears active holds without turning the hold feature off.
+- Rate-limit holds reset when a stage model changes, since a new model can carry different limits. A "Reset holds now" control (API and UI) clears active holds without turning the feature off.
+- `POST /settings/models/refresh` accepts an optional `slot` so the secondary provider's catalog can be refreshed; the reviewer's "Refresh models" button uses it.
 
 ### Fixed
 
-- The sponsor registry no longer learns common English words such as "all", "out", or "show" as brand names. Such a one-word entry matched ordinary speech. Two matches in a span then granted the ad the confirmed-sponsor duration ceiling, so an over-long false positive could be cut without the length check firing. The learner and the registry matcher both reject single common or structural words now, and any such entry already stored is ignored at match time.
-- The sponsor-name parser drops a hyphenated descriptor prefix such as "Host-read" from a model's reason text, so a real brand is no longer stored as a descriptor-plus-brand duplicate.
-- The per-window retry fallback honors the provider's Retry-After. It previously used a fixed 2s then 5s backoff, so a rate-limit response asking for a longer wait failed both attempts and the review call was skipped, cutting unreviewed boundaries.
-- The system status endpoint reports the transcription backend, model, and host in use from settings, rather than environment defaults that showed a local GPU model while a remote API was configured.
+- The ad reviewer no longer holds a merged ad over any inward trim (regression since 2.96.24, issue #750). Each merge records its member spans. The reviewer may trim a coarse LLM span as long as every member keeps some overlap, and holds only when a trim would drop a detected member or cut into measured evidence (fingerprint, cue pair, text-pattern match). The old 0.1 s edge tolerance turned a 7 s trim on a four-minute break into a hold of the whole break.
+- The confirm endpoint no longer widens its trim envelope with an unvalidated reviewer proposal, and rejects a confirmed span longer than the confirmed-sponsor cap.
+- The sponsor registry no longer learns common English words ("all", "out", "show"), contractions ("Let's", "You're"), or possessives of common words as brand names. A one-word entry matched ordinary speech, and two matches in a span granted the confirmed-sponsor duration ceiling, so an over-long false positive could be cut without the length check. Existing junk entries are ignored at match time, and a possessive of a known brand resolves to that brand's row.
+- The sponsor-name parser drops a hyphenated descriptor prefix such as "Host-read", so a brand is no longer stored twice.
+- The per-window retry fallback honors the provider's Retry-After once, up to the 300 s queue-hold threshold, and the wait ends early on shutdown. It used a fixed 2 s then 5 s backoff, so a rate-limited review call failed both attempts and the ad was cut with unreviewed boundaries.
+- The system status endpoint reports the transcription backend, model, and host from settings, not environment defaults that showed a local GPU model while a remote API was configured.
+- The rate-limit hold view shows provider-scoped holds, so the reset control is reachable when one is active.
+- A credential or base-URL change clears that provider's scoped hold, and saving the secondary provider no longer wipes the primary's hold.
+- A blanket (unscoped) hold pauses secondary-routed runs as well as primary ones.
+- The hold probe uses the held account's own client and a model routed to it, covers review-only routes, and probes each held pair on its own cadence.
+- A single settings request that enables the secondary slot and routes a stage to it keeps that stage's model instead of pruning it.
+- Pass-through, cue-only, and skip-detection runs, including the per-episode pass-through override, are no longer refused by a provider hold. The dispatcher skips blocked episodes individually instead of bouncing a claim, and the retry-detection endpoint honors the per-episode override.
+- A 429 without a provider key inside a run records a hold scoped to that phase's route.
+- Deleting a podcast waits briefly for an in-flight run to acknowledge cancellation, a failed cancellation record returns 503 again, and a cancelled run no longer recreates the deleted feed's directory.
+- The search index rebuild backs off after a failure and does not start while a run is active. It was retried on every cleanup pass under lock contention, rebuilding the full index each time.
+- The shared-outage refresh retry backs off per attempt instead of re-arming on every pass, and the health panel's next-retry time is the attempt the loop actually makes.
+- The Stats episode-cost page aggregates the usage ledger once per request instead of five times.
+- The artwork failure cache prunes expired entries on write and is capped.
+- The pre-ledger usage-cost path was removed. An unpriced model no longer logs a warning; the Stats unknown-cost column is the signal.
 - The dashboard toolbar on narrow phones spreads the view toggle and action buttons to the card width.
 - Episode marker rows share one play-button and jump-button height across every section.
+- On the episode page, the processing-runs table scrolls sideways so the token and cost columns are reachable, "Not an ad" is disabled during a run like its siblings, the Reprocess menu shows its in-flight label and says why it is disabled, and a recut blocked after a correction is reported instead of dropped.
+- A correction saved while the episode page refreshes no longer shows a false "Failed to save" error.
+- In Settings, the reset-holds control and the reviewer's model refresh report failures, and the verification, chapters, and reviewer model lists show loading and error states instead of an empty select.
+- An enabled secondary provider with no type is shown as such instead of masked as Anthropic, and the settings form saves in one request, so a failed save leaves nothing half-applied.
+- Rate-limit fields are grouped per provider for screen readers.
+- On the dashboard, the phone controls popover closes on scroll and resize, row actions and bulk toolbar buttons meet the 44 px touch target, and the podcast title is no longer squeezed by the "View all episodes" link on a 360 px phone.
+- Filter, sort, and page changes keep the current content on screen while the next page loads.
+- Stats tables load with row skeletons, the date inputs have visible labels, both tables share one keyboard-accessible sort header, and "ledger" wording reads "spend".
+- The system health panel uses the shared badge and panel recipes, and accessible names match visible button labels.
 
 ## [2.97.2] - 2026-09-14
 

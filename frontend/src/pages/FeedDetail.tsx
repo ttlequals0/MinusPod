@@ -31,6 +31,7 @@ import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
 import { btnDestructive, btnGhost, btnPrimary, btnSecondary } from '../components/buttonStyles';
+import { cardActionBtn } from '../components/rowActionStyles';
 import { Modal } from '../components/Modal';
 import { selectBase } from '../components/fieldStyles';
 import { focusRing } from '../components/fieldStyles';
@@ -73,6 +74,9 @@ function reprocessModeVerb(mode: string): string {
   if (mode === 'llm') return 'transcript-reuse';
   return 'pattern-assisted';
 }
+
+// Bulk actions sit on the tap floor and pair up per line on a phone.
+const bulkActionBtn = `${cardActionBtn} flex-1 sm:flex-none min-w-[8rem]`;
 
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -351,6 +355,16 @@ function FeedDetail() {
     ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;
   const hasSelection = effectiveSelectedIds.size > 0;
+  // Keyed on jobState, not status: the run buttons key on jobState too, so the
+  // note can never claim a selection is busy while those buttons stay live.
+  const runningSelectedCount = episodes.filter(
+    (ep) => selectedIds.has(ep.id) && isActionBlocked(ep.jobState, false),
+  ).length;
+  const selectionNote = runningSelectedCount > 0
+    ? `Skipping ${runningSelectedCount} already running.`
+    : discoveredCount + pendingCount + processedCount > 0
+      ? null
+      : 'No run actions apply to this selection.';
   const isRecents = feed?.feedType === 'recents';
   const stopsProcessingMessage = deleteStopsProcessingMessage(feed?.statusCounts?.processing ?? 0);
 
@@ -669,7 +683,7 @@ function FeedDetail() {
               <button
                 onClick={() => bulkMutation.mutate({ action: 'process' })}
                 disabled={bulkMutation.isPending}
-                className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+                className={`${bulkActionBtn} ${btnPrimary} disabled:opacity-50 ${focusRing}`}
               >
                 {bulkMutation.isPending ? 'Processing...' : `Process now (${discoveredCount + pendingCount})`}
               </button>
@@ -679,21 +693,21 @@ function FeedDetail() {
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess' })}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+                  className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                 >
                   Reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_full' })}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+                  className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                 >
                   Full Reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_llm' })}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+                  className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                   title="Re-detect ads using existing transcripts (skips re-transcription)"
                 >
                   Re-detect Ads ({processedCount})
@@ -706,7 +720,7 @@ function FeedDetail() {
               onClick={() => passthroughMutation.mutate({ enabled: true })}
               disabled={bulkMutation.isPending || passthroughMutation.isPending}
               title="Serve these episodes unmodified, with no ad processing"
-              className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+              className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
             >
               {passthroughMutation.isPending && passthroughMutation.variables?.enabled
                 ? 'Setting...' : `Set pass-through (${effectiveSelectedIds.size})`}
@@ -715,7 +729,7 @@ function FeedDetail() {
               onClick={() => passthroughMutation.mutate({ enabled: false })}
               disabled={bulkMutation.isPending || passthroughMutation.isPending}
               title="Resume normal ad processing for these episodes"
-              className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+              className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
             >
               {passthroughMutation.isPending && passthroughMutation.variables?.enabled === false
                 ? 'Clearing...' : `Clear pass-through (${effectiveSelectedIds.size})`}
@@ -724,17 +738,17 @@ function FeedDetail() {
               <button
                 onClick={() => setShowBulkDeleteConfirm(true)}
                 disabled={bulkMutation.isPending}
-                className={`px-3 py-1.5 text-sm rounded ${btnDestructive} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+                className={`${bulkActionBtn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
               >
                 Delete ({processedCount})
               </button>
             )}
-            {discoveredCount === 0 && pendingCount === 0 && processedCount === 0 && (
-              <span className="text-xs text-muted-foreground">Selected episodes are already processing.</span>
+            {selectionNote && (
+              <span className="text-xs text-muted-foreground">{selectionNote}</span>
             )}
             <button
               onClick={() => { setSelectedIds(new Set()); setSelectionAnchor(null); }}
-              className={`px-2 py-1 text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+              className={`${cardActionBtn} ${btnGhost} ${focusRing}`}
             >
               Clear
             </button>

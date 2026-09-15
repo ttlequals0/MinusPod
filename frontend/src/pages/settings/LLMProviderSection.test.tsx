@@ -86,6 +86,13 @@ describe('LLMProviderSection: secondary provider block, once enabled', () => {
     expect(screen.getAllByRole('button', { name: 'Test connection' }).length).toBeGreaterThan(0);
   });
 
+  it('offers a placeholder instead of a silent first option when no type is saved', () => {
+    renderSection({ secondaryProviderEnabled: true, secondaryProvider: '' });
+    const select = screen.getByLabelText('Secondary provider type') as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect(within(select).getByRole('option', { name: 'Choose a provider' })).toBeDefined();
+  });
+
   it('shows a base URL field and its own connection test for a configurable-endpoint secondary type', async () => {
     const user = userEvent.setup();
     const onSecondaryConnectionTest = vi.fn().mockResolvedValue({ ok: true, reachable: true, detail: 'OK' });
@@ -193,5 +200,22 @@ describe('LLMProviderSection: manual request-rate limits', () => {
   it('shows a second RPM input once the secondary provider is on', () => {
     renderSection({ secondaryProviderEnabled: true });
     expect(screen.getAllByLabelText('Requests per minute').length).toBe(2);
+  });
+});
+
+describe('LLMProviderSection: rate-limit grouping and field chrome', () => {
+  it('separates the primary and secondary limits with their own legends', () => {
+    renderSection({ secondaryProviderEnabled: true });
+    const groups = screen.getAllByRole('group');
+    const legends = groups.map((g) => g.querySelector('legend')?.textContent);
+    expect(legends).toContain('Primary provider rate limits');
+    expect(legends).toContain('Secondary provider rate limits');
+  });
+
+  it('gives the base URL field the shared input chrome', () => {
+    renderSection({ llmProvider: 'ollama' });
+    const input = screen.getByLabelText('Base URL');
+    expect(input.className).toContain('px-3 py-2');
+    expect(input.className).not.toContain('px-4');
   });
 });

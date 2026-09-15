@@ -242,3 +242,19 @@ describe('ProcessingRunsTable: incomplete run cost', () => {
     expect(table.getAllByText('$0.0500').length).toBeGreaterThan(0);
   });
 });
+
+describe('ProcessingRunsTable: wide-table layout', () => {
+  it('scrolls the desktop table instead of letting a parent clip it', () => {
+    const { container } = render(<ProcessingRunsTable runs={[statsRun]} />);
+    const table = container.querySelector('table') as HTMLTableElement;
+    expect(table.parentElement?.className).toContain('overflow-x-auto');
+  });
+
+  it('drops the low-priority columns below lg', () => {
+    const table = renderTable([statsRun]);
+    for (const label of ['Downloaded', 'Windows', 'Stage hits', 'Second scan']) {
+      expect(table.getByRole('columnheader', { name: label }).className).toContain('hidden lg:table-cell');
+    }
+    expect(table.getByRole('columnheader', { name: 'Cost' }).className).not.toContain('hidden');
+  });
+});

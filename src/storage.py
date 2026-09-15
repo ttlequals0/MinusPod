@@ -58,6 +58,9 @@ _ARTWORK_FAILURE_WINDOWS = {
     'not_found': ARTWORK_FAILURE_TTL_NOT_FOUND_SECONDS,
     'error': ARTWORK_FAILURE_TTL_SECONDS,
 }
+# Ceiling on the durable per-URL failure map, kept newest-first: a feed that
+# churns through candidate URLs must not grow its podcast row without bound.
+ARTWORK_FAILURE_STATE_MAX_ENTRIES = 50
 
 # Extension per stored image type, and the reverse lookup used to find a
 # cached cover when only the base name is known.
@@ -1002,6 +1005,25 @@ class Storage:
             return {}
         return state if isinstance(state, dict) else {}
 
+    @staticmethod
+    def _prune_artwork_failure_state(state: dict) -> dict:
+        """Drop entries past their backoff window, then keep the newest N."""
+        now = utc_now()
+        live = {}
+        for url, entry in state.items():
+            failed_at = parse_iso_utc((entry or {}).get('at'))
+            if failed_at is None:
+                continue
+            window = _ARTWORK_FAILURE_WINDOWS.get(
+                entry.get('status'), ARTWORK_FAILURE_TTL_SECONDS)
+            if (now - failed_at).total_seconds() < window:
+                live[url] = entry
+        if len(live) <= ARTWORK_FAILURE_STATE_MAX_ENTRIES:
+            return live
+        newest = sorted(live.items(), key=lambda item: item[1].get('at') or '',
+                        reverse=True)[:ARTWORK_FAILURE_STATE_MAX_ENTRIES]
+        return dict(newest)
+
     def _artwork_in_backoff(self, slug: str, url: str, podcast: dict | None) -> bool:
         """True if `url` failed recently enough that it should be skipped.
 
@@ -1045,6 +1067,7 @@ class Storage:
             self._artwork_404_cache.delete(key)
         state = self._artwork_failure_state(podcast)
         state[url] = {'status': status, 'at': utc_now_iso()}
+        state = self._prune_artwork_failure_state(state)
         try:
             self.db.update_podcast(slug, artwork_failure_state=json.dumps(state))
             if podcast is not None:
@@ -1058,8 +1081,8 @@ class Storage:
         self._artwork_failure_cache.delete(key)
         self._artwork_404_cache.delete(key)
         state = self._artwork_failure_state(podcast)
-        if url in state:
-            del state[url]
+        # The write path prunes, so clearing only has to drop this entry.
+        if state.pop(url, None) is not None:
             try:
                 self.db.update_podcast(slug, artwork_failure_state=json.dumps(state))
                 if podcast is not None:

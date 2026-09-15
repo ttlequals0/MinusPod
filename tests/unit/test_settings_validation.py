@@ -12,6 +12,9 @@ _test_data_dir = bootstrap('settings_test_', passphrase='settings-validation-tes
 
 import database
 from main_app import app
+from rate_limit_hold import (
+    clear_hold, get_hold_until, is_queue_paused, record_hold_until,
+)
 
 
 @pytest.fixture
@@ -661,6 +664,156 @@ class TestProviderChangeModelPruning:
         assert db.get_setting('review_model') == 'same_as_pass'
 
 
+    def test_single_put_routing_detection_to_secondary_keeps_its_model(self, client):
+        """One PUT that enables the secondary slot and routes detection to it
+        must not prune claude_model against the new global catalog: after the
+        save, detection no longer follows the global provider."""
+        db = database.Database()
+        previous = (db.get_setting('llm_provider'), db.get_setting('claude_model'))
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('claude_model', 'llama3', is_default=False)
+
+        fake_model = MagicMock(id='claude-haiku-4-5-20251001')
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = [fake_model]
+        fake_client.probe_json_format_support.return_value = None
+        try:
+            with patch('api.settings.get_llm_client', return_value=fake_client):
+                response = client.put(
+                    '/api/v1/settings/ad-detection',
+                    data=json.dumps({
+                        'llmProvider': 'openai-compatible',
+                        'secondaryProviderEnabled': True,
+                        'secondaryProvider': 'ollama',
+                        'detectionProvider': 'secondary',
+                    }),
+                    content_type='application/json',
+                )
+            assert response.status_code == 200, response.data
+            assert db.get_setting('claude_model') == 'llama3'
+        finally:
+            db.clear_setting('secondary_provider_enabled')
+            db.clear_setting('secondary_provider')
+            db.clear_setting('detection_provider')
+            db.set_setting('llm_provider', previous[0] or 'anthropic', is_default=False)
+            db.set_setting('claude_model', previous[1] or '', is_default=False)
+
+
+class TestProviderSaveHoldInvalidation:
+    """A provider save lifts the hold that belonged to the account it
+    changed, and only that one."""
+
+    def _future(self):
+        return (datetime.now(timezone.utc) + timedelta(hours=6)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    def test_base_url_change_lifts_the_scoped_primary_hold(self, client):
+        db = database.Database()
+        previous = (db.get_setting('llm_provider'), db.get_setting('openai_base_url'))
+        db.set_setting('llm_provider', 'openai-compatible', is_default=False)
+        record_hold_until(db, 'openai-compatible', self._future())
+
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = []
+        fake_client.probe_json_format_support.return_value = None
+        try:
+            with patch('api.settings.get_llm_client', return_value=fake_client):
+                response = client.put(
+                    '/api/v1/settings/ad-detection',
+                    data=json.dumps({'openaiBaseUrl': 'http://localhost:9001/v1'}),
+                    content_type='application/json',
+                )
+            assert response.status_code == 200, response.data
+            assert is_queue_paused(db, 'openai-compatible', 'primary') is False
+        finally:
+            db.set_setting('llm_provider', previous[0] or 'anthropic', is_default=False)
+            db.set_setting('openai_base_url', previous[1] or '', is_default=False)
+
+    def test_provider_switch_lifts_the_outgoing_providers_hold(self, client):
+        db = database.Database()
+        previous = db.get_setting('llm_provider')
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        record_hold_until(db, 'anthropic', self._future())
+
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = []
+        fake_client.probe_json_format_support.return_value = None
+        try:
+            with patch('api.settings.get_llm_client', return_value=fake_client):
+                response = client.put(
+                    '/api/v1/settings/ad-detection',
+                    data=json.dumps({'llmProvider': 'openai-compatible'}),
+                    content_type='application/json',
+                )
+            assert response.status_code == 200, response.data
+            assert is_queue_paused(db, 'anthropic', 'primary') is False
+        finally:
+            db.set_setting('llm_provider', previous or 'anthropic', is_default=False)
+
+    def test_provider_switch_with_both_accounts_held_resumes_once(self, client):
+        """One save lifting two holds is one resume, not one webhook each."""
+        db = database.Database()
+        previous = db.get_setting('llm_provider')
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        future = self._future()
+        record_hold_until(db, 'anthropic', future)
+        record_hold_until(db, 'openai-compatible', future)
+
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = []
+        fake_client.probe_json_format_support.return_value = None
+        try:
+            with patch('api.settings.get_llm_client', return_value=fake_client), \
+                    patch('rate_limit_hold.fire_queue_resumed_event') as fire:
+                response = client.put(
+                    '/api/v1/settings/ad-detection',
+                    data=json.dumps({'llmProvider': 'openai-compatible'}),
+                    content_type='application/json',
+                )
+            assert response.status_code == 200, response.data
+            fire.assert_called_once()
+            assert is_queue_paused(db, 'anthropic', 'primary') is False
+            assert is_queue_paused(db, 'openai-compatible', 'primary') is False
+        finally:
+            db.set_setting('llm_provider', previous or 'anthropic', is_default=False)
+
+    def test_secondary_provider_switch_lifts_the_outgoing_secondary_hold(self, client):
+        db = database.Database()
+        db.set_setting('secondary_provider', 'ollama', is_default=False)
+        record_hold_until(db, 'ollama', self._future(), credential_slot='secondary')
+        try:
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'secondaryProvider': 'openrouter'}),
+                content_type='application/json',
+            )
+            assert response.status_code == 200, response.data
+            assert is_queue_paused(db, 'ollama', 'secondary') is False
+        finally:
+            db.clear_setting('secondary_provider')
+
+    def test_secondary_save_without_a_secondary_type_keeps_the_primary_hold(self, client):
+        db = database.Database()
+        previous = db.get_setting('llm_provider')
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.clear_setting('secondary_provider')
+        future = self._future()
+        db.set_setting('rate_limit_hold_until', future, is_default=False)
+        try:
+            with patch('rate_limit_hold.fire_queue_resumed_event') as fire:
+                response = client.put(
+                    '/api/v1/settings/ad-detection',
+                    data=json.dumps({'secondaryProviderEnabled': True}),
+                    content_type='application/json',
+                )
+            assert response.status_code == 200, response.data
+            assert db.get_setting('rate_limit_hold_until') == future
+            fire.assert_not_called()
+        finally:
+            db.clear_setting('rate_limit_hold_until')
+            db.clear_setting('secondary_provider_enabled')
+            db.set_setting('llm_provider', previous or 'anthropic', is_default=False)
+
+
 class TestPerPhaseProviderSettings:
     """GET/PUT surface for detectionProvider/verificationProvider/
     chaptersProvider/reviewProvider (see llm_route.py for the resolution
@@ -869,6 +1022,28 @@ class TestSecondaryProviderSettings:
         )
         assert response.status_code == 400, response.data
 
+    def test_invalid_primary_provider_keeps_the_secondary_block_untouched(self, client):
+        """The secondary phase writes first, so every field the primary phase
+        would reject has to be validated before it runs."""
+        db = database.Database()
+        db.set_setting('secondary_provider', 'ollama', is_default=False)
+        future = (datetime.now(timezone.utc)
+                  + timedelta(hours=6)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'ollama', future, credential_slot='secondary')
+        try:
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'secondaryProvider': 'openai-compatible',
+                                 'secondaryProviderEnabled': True,
+                                 'llmProvider': 'bogus'}),
+                content_type='application/json',
+            )
+            assert response.status_code == 400, response.data
+            assert db.get_setting('secondary_provider') == 'ollama'
+            assert get_hold_until(db, 'ollama:secondary') == future
+        finally:
+            clear_hold(db, 'ollama:secondary')
+
     def test_put_empty_secondary_provider_clears_override(self, client):
         db = database.Database()
         db.set_setting('secondary_provider', 'openrouter', is_default=False)
@@ -993,15 +1168,24 @@ class TestSecondaryProviderChangeLiftsRateLimitHold:
         db.clear_secret('secondary_provider_api_key')
 
     @patch('rate_limit_hold.fire_queue_resumed_event')
-    def test_secondary_enabled_toggle_lifts_hold(self, mock_fire, client, held):
-        resp = client.put(
-            '/api/v1/settings/ad-detection',
-            data=json.dumps({'secondaryProviderEnabled': True}),
-            content_type='application/json',
-        )
-        assert resp.status_code == 200, resp.data
-        assert held.get_setting('rate_limit_hold_until') is None
-        mock_fire.assert_called_once_with(held_since='2026-01-01T00:00:00Z')
+    def test_secondary_enabled_toggle_lifts_that_slots_hold(self, mock_fire, client, held):
+        """The secondary slot's own hold goes; the unscoped marker stays,
+        since it may belong to primary."""
+        blanket = held.get_setting('rate_limit_hold_until')
+        held.set_setting('secondary_provider', 'ollama', is_default=False)
+        record_hold_until(held, 'ollama', blanket, credential_slot='secondary')
+        try:
+            resp = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'secondaryProviderEnabled': True}),
+                content_type='application/json',
+            )
+            assert resp.status_code == 200, resp.data
+            assert get_hold_until(held, 'ollama:secondary') is None
+            assert held.get_setting('rate_limit_hold_until') == blanket
+            mock_fire.assert_called_once()
+        finally:
+            clear_hold(held, 'ollama:secondary')
 
     @patch('rate_limit_hold.fire_queue_resumed_event')
     def test_unrelated_change_leaves_hold(self, mock_fire, client, held):

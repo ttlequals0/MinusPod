@@ -11,6 +11,7 @@ import re
 from utils.markers import (
     clip_dai_core_spans,
     invalidate_tail_provenance,
+    MERGE_BOOKKEEPING_KEYS,
     mark_distinct_merge,
     merge_dai_core_spans,
     note_merged_members,
@@ -1269,8 +1270,7 @@ def split_conflicting_action_span(last: dict, current: dict,
         # Legacy no-action behavior: the earlier marker owns a partial
         # overlap. Action-aware callers use explicit precedence below.
         clamped = current.copy()
-        for key in ('merged_distinct_ads', 'merged_protected_start',
-                    'merged_protected_end'):
+        for key in MERGE_BOOKKEEPING_KEYS:
             clamped.pop(key, None)
         clamped['start'] = last['end']
         clip_dai_core_spans(clamped, clamped['start'], clamped['end'])
@@ -1292,8 +1292,7 @@ def split_conflicting_action_span(last: dict, current: dict,
             )
             return last, []
         after = current.copy()
-        for key in ('merged_distinct_ads', 'merged_protected_start',
-                    'merged_protected_end'):
+        for key in MERGE_BOOKKEEPING_KEYS:
             after.pop(key, None)
         after['start'] = last['end']
         clip_dai_core_spans(after, after['start'], after['end'])
@@ -1301,15 +1300,13 @@ def split_conflicting_action_span(last: dict, current: dict,
         return last, [after]
 
     if current['end'] <= last['end']:
-        # Splitting last invalidates any merged_distinct_ads/
-        # merged_protected_start/end bookkeeping from an earlier fold: those
-        # bounds describe last's original range and may not fit either
-        # narrower piece. Strip them so ad_reviewer's expand-only protection
+        # Splitting last invalidates any merge bookkeeping from an earlier
+        # fold: those bounds describe last's original range and may not fit
+        # either narrower piece. Strip them so ad_reviewer's expand-only protection
         # can't float a boundary back out to a stale bound and re-absorb
         # audio this split just carved away.
         base = {k: v for k, v in last.items()
-                if k not in ('merged_distinct_ads', 'merged_protected_start',
-                             'merged_protected_end')}
+                if k not in MERGE_BOOKKEEPING_KEYS}
         before = dict(base)
         before['end'] = current['start']
         clip_dai_core_spans(before, before['start'], before['end'])
@@ -1328,8 +1325,7 @@ def split_conflicting_action_span(last: dict, current: dict,
         return new_last, entries
 
     shortened_last = last.copy()
-    for key in ('merged_distinct_ads', 'merged_protected_start',
-                'merged_protected_end'):
+    for key in MERGE_BOOKKEEPING_KEYS:
         shortened_last.pop(key, None)
     shortened_last['end'] = current['start']
     clip_dai_core_spans(shortened_last, shortened_last['start'],

@@ -22,6 +22,7 @@ from config import (
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
+    REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT,
     AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
     AUDIO_CUE_MIN_CONFIDENCE, AUDIO_CUE_TEMPLATE_SCORE,
     AUDIO_CUE_FORMANT_ATTEN_DB,
@@ -282,7 +283,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         factory=_seed_env_openai_model, seeded=True, in_ad_reset=True,
         payload_key='chaptersModel', payload_kind='str', default=None),
 
-    # -- Per-phase LLM provider routing (see llm_route.py): each stage picks
+    # Per-phase LLM provider routing (see llm_route.py): each stage picks
     # a SLOT (primary/secondary), not a provider type. Unset resolves to
     # primary (verification/chapters resolve to detection's slot instead
     # when also unset, via the same_as_detection sentinel).
@@ -290,7 +291,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'verification_provider': SettingSpec(default=None, seeded=True),
     'chapters_provider': SettingSpec(default=None, seeded=True),
 
-    # -- Secondary provider: an optional second full provider config.
+    # Secondary provider: an optional second full provider config.
     # Disabled by default; a stage referencing the
     # 'secondary' slot while this is false falls back to primary (see
     # llm_route.py). secondary_provider_api_key lives in SECRET_SETTING_KEYS
@@ -318,7 +319,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='same_as_pass', seeded=True, resettable=False,
         payload_key='reviewProvider'),
     'review_max_boundary_shift': SettingSpec(
-        default='60', seeded=True, resettable=False,
+        default=str(REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT), seeded=True, resettable=False,
         payload_key='reviewMaxBoundaryShift', payload_kind='int'),
 
     # -- General processing --

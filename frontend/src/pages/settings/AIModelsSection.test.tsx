@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AIModelsSection from './AIModelsSection';
+import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import type { ClaudeModel } from '../../api/types';
 
 const models: ClaudeModel[] = [
@@ -14,11 +15,16 @@ const models: ClaudeModel[] = [
   { id: 'gpt-5-mini', name: 'GPT-5 Mini' },
 ];
 
+function catalog(overrides: Partial<ModelCatalog> = {}): ModelCatalog {
+  return { models, isLoading: false, isError: false, ...overrides };
+}
+
 function renderSection(overrides: Partial<Parameters<typeof AIModelsSection>[0]> = {}) {
   return render(
     <AIModelsSection
-      models={models}
-      modelsLoading={false}
+      detectionCatalog={catalog()}
+      verificationCatalog={catalog()}
+      chaptersCatalog={catalog()}
       selectedModel="gpt-5"
       verificationModel="gpt-5"
       chaptersModel="gpt-5-mini"
@@ -83,7 +89,10 @@ describe('AIModelsSection: orphaned saved value', () => {
 
 describe('AIModelsSection: empty catalog banner', () => {
   it('still shows the empty-catalog banner when no models are available', () => {
-    renderSection({ models: [], selectedModel: '', verificationModel: '', chaptersModel: '' });
+    renderSection({
+      detectionCatalog: catalog({ models: [] }),
+      selectedModel: '', verificationModel: '', chaptersModel: '',
+    });
     expect(
       screen.getByText('No models available from the LLM provider. Check that your provider is configured correctly and the endpoint is reachable.')
     ).toBeDefined();
@@ -167,7 +176,7 @@ describe('AIModelsSection: per-stage provider selects', () => {
   it('lists the verification-specific catalog once its provider diverges from detection', () => {
     renderSection({
       verificationProvider: 'secondary',
-      verificationModels: [{ id: 'llama3', name: 'Llama 3' }],
+      verificationCatalog: catalog({ models: [{ id: 'llama3', name: 'Llama 3' }] }),
       verificationModel: 'llama3',
     });
     const select = screen.getByLabelText('Verification Model') as HTMLSelectElement;
@@ -176,10 +185,11 @@ describe('AIModelsSection: per-stage provider selects', () => {
     expect(within(select).queryByRole('option', { name: 'GPT-5' })).toBeNull();
   });
 
-  it('falls back to the detection catalog for verification/chapters when no override list is given', () => {
-    renderSection();
+  it('never borrows the detection catalog for a stage whose own list is missing', () => {
+    renderSection({ verificationCatalog: catalog({ models: undefined }) });
     const verifSelect = screen.getByLabelText('Verification Model') as HTMLSelectElement;
-    expect(screen.getAllByRole('option', { name: 'GPT-5' })).toHaveLength(3);
+    expect(within(verifSelect).queryByRole('option', { name: 'GPT-5' })).toBeNull();
+    // The saved id stays selected so the field does not read as reset.
     expect(verifSelect.value).toBe('gpt-5');
   });
 });
@@ -319,5 +329,79 @@ describe('AIModelsSection: custom pricing', () => {
     await user.click(fields.querySelector<HTMLButtonElement>('button')!);
 
     expect(onPricingOverrideUpdate).toHaveBeenCalledWith('retired-model', null);
+  });
+});
+
+describe('AIModelsSection: per-stage catalog states', () => {
+  it('shows a loading line rather than the detection catalog while a stage catalog is in flight', () => {
+    renderSection({
+      secondaryProviderEnabled: true,
+      verificationProvider: 'secondary',
+      verificationCatalog: catalog({ models: undefined, isLoading: true }),
+      verificationModel: 'llama3',
+    });
+    const select = screen.getByLabelText('Verification Model') as HTMLSelectElement;
+    expect(within(select).queryByRole('option', { name: 'GPT-5' })).toBeNull();
+    expect(select.value).toBe('llama3');
+    expect(screen.getByText('Loading models...')).toBeDefined();
+  });
+
+  it('shows an error line rather than the detection catalog when a stage catalog fails', () => {
+    renderSection({
+      secondaryProviderEnabled: true,
+      verificationProvider: 'secondary',
+      verificationCatalog: catalog({ models: undefined, isError: true }),
+      verificationModel: 'llama3',
+    });
+    const select = screen.getByLabelText('Verification Model') as HTMLSelectElement;
+    expect(within(select).queryByRole('option', { name: 'GPT-5' })).toBeNull();
+    expect(screen.getByText("Could not load this provider's model list. Refresh to try again.")).toBeDefined();
+  });
+
+  it('reports the detection catalog state on its own select', () => {
+    renderSection({
+      detectionCatalog: catalog({ models: undefined, isLoading: true }),
+      selectedModel: 'gpt-5',
+    });
+    const select = screen.getByLabelText('Ad Detection Model') as HTMLSelectElement;
+    expect(select.value).toBe('gpt-5');
+    expect(screen.getAllByText('Loading models...')).toHaveLength(1);
+  });
+
+  it('shows an error line when the detection catalog fails', () => {
+    renderSection({ detectionCatalog: catalog({ models: undefined, isError: true }) });
+    expect(screen.getAllByText("Could not load this provider's model list. Refresh to try again.")).toHaveLength(1);
+  });
+
+  it('reports the chapters catalog state without touching the other stages', () => {
+    renderSection({
+      secondaryProviderEnabled: true,
+      chaptersProvider: 'secondary',
+      chaptersCatalog: catalog({ models: undefined, isError: true }),
+    });
+    expect(screen.getAllByText("Could not load this provider's model list. Refresh to try again.")).toHaveLength(1);
+    expect(screen.queryByText('Loading models...')).toBeNull();
+  });
+});
+
+describe('AIModelsSection: stored secondary slot while the secondary provider is off', () => {
+  it('keeps the stored value selected instead of reading as Default (Primary)', () => {
+    renderSection({ detectionProvider: 'secondary' });
+    const select = screen.getByLabelText('Ad Detection Provider') as HTMLSelectElement;
+    expect(select.value).toBe('secondary');
+    expect(select.selectedOptions[0].textContent).toBe('Secondary (provider off)');
+  });
+
+  it('explains which provider the stage actually runs on', () => {
+    renderSection({ detectionProvider: 'secondary' });
+    expect(screen.getByText('Secondary provider is off, so this stage runs on the primary.')).toBeDefined();
+  });
+
+  it('leaves stages that are not on the secondary slot alone', () => {
+    renderSection({ detectionProvider: 'secondary' });
+    expect(
+      within(screen.getByLabelText('Verification Provider')).queryByRole('option', { name: 'Secondary (provider off)' })
+    ).toBeNull();
+    expect(screen.getAllByText('Secondary provider is off, so this stage runs on the primary.')).toHaveLength(1);
   });
 });

@@ -1147,6 +1147,22 @@ def resolve_max_ad_duration_confirmed(db) -> float:
         return MAX_AD_DURATION_CONFIRMED
 
 
+REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT = 60
+
+
+def resolve_max_boundary_shift(db) -> int:
+    """Seconds the reviewer may move one boundary of a candidate."""
+    try:
+        raw = db.get_setting('review_max_boundary_shift')
+    except Exception:
+        raw = None
+    try:
+        return (max(1, int(raw)) if raw is not None
+                else REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT)
+    except (TypeError, ValueError):
+        return REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT
+
+
 def resolve_cue_gated_approval(db, podcast_id) -> bool:
     """Per-feed cue-gated approval opt-in (Phase C held-for-review). Default False."""
     return _resolve_snap_flag(db, podcast_id, 'cue_gated_approval')

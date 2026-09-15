@@ -7,6 +7,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdReviewerSection, { type ReviewerState } from './AdReviewerSection';
+import type { ModelCatalog } from '../../hooks/useModelCatalog';
+import type { ClaudeModel } from '../../api/types';
+
+function catalog(models: ClaudeModel[]): ModelCatalog {
+  return { models, isLoading: false, isError: false };
+}
 
 function baseReviewer(): ReviewerState {
   return {
@@ -90,12 +96,12 @@ describe('AdReviewerSection: not framed as experimental', () => {
 });
 
 describe('AdReviewerSection: review model select', () => {
-  const options = [{ id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash' }];
+  const options = catalog([{ id: 'z-ai/glm-5.3-flash', name: 'GLM 5.3 Flash' }]);
 
   it('shows an off-catalog stored model as the selected option', () => {
     renderSection({
       reviewer: { ...baseReviewer(), model: 'claude-opus-5' },
-      modelOptions: options,
+      catalog: options,
     });
     const select = screen.getByLabelText('Review model') as HTMLSelectElement;
     expect(select.value).toBe('claude-opus-5');
@@ -103,7 +109,7 @@ describe('AdReviewerSection: review model select', () => {
   });
 
   it('keeps same_as_pass on the default option', () => {
-    renderSection({ modelOptions: options });
+    renderSection({ catalog: options });
     const select = screen.getByLabelText('Review model') as HTMLSelectElement;
     expect(select.value).toBe('same_as_pass');
     expect(select.selectedOptions[0].textContent).toBe('Same as pass model');
@@ -113,7 +119,7 @@ describe('AdReviewerSection: review model select', () => {
   it('adds no extra option when the stored model is in the catalog', () => {
     renderSection({
       reviewer: { ...baseReviewer(), model: 'z-ai/glm-5.3-flash' },
-      modelOptions: options,
+      catalog: options,
     });
     const select = screen.getByLabelText('Review model') as HTMLSelectElement;
     expect(select.value).toBe('z-ai/glm-5.3-flash');
@@ -145,7 +151,7 @@ describe('AdReviewerSection: review provider select', () => {
 
   it('enables the review model select and lists that provider\'s models once an explicit provider is chosen', () => {
     const { rerender } = renderSection({
-      modelOptions: [{ id: 'claude-opus-5', label: 'Claude Opus 5' }],
+      catalog: catalog([{ id: 'claude-opus-5', name: 'Claude Opus 5' }]),
     });
     rerender(
       <AdReviewerSection
@@ -155,7 +161,7 @@ describe('AdReviewerSection: review provider select', () => {
         resetIsPending={false}
         onResetReviewPrompt={vi.fn()}
         onResetResurrectPrompt={vi.fn()}
-        modelOptions={[{ id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash' }]}
+        catalog={catalog([{ id: 'z-ai/glm-5.3-flash', name: 'GLM 5.3 Flash' }])}
       />,
     );
     const modelSelect = screen.getByLabelText('Review model') as HTMLSelectElement;
@@ -174,6 +180,24 @@ describe('AdReviewerSection: review provider select', () => {
 
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith({ ...reviewer, provider: 'primary' });
+  });
+
+  it('keeps a stored secondary slot selected while the secondary provider is off', () => {
+    renderSection({ reviewer: { ...baseReviewer(), provider: 'secondary' } });
+    const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
+    expect(select.value).toBe('secondary');
+    expect(select.selectedOptions[0].textContent).toBe('Secondary (provider off)');
+    expect(screen.getByText('Secondary provider is off, so the reviewer runs on the primary.')).toBeDefined();
+  });
+
+  it('drops the off hint once the secondary provider is enabled', () => {
+    renderSection({
+      reviewer: { ...baseReviewer(), provider: 'secondary' },
+      secondaryProviderEnabled: true,
+    });
+    const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
+    expect(select.selectedOptions[0].textContent).toBe('Secondary');
+    expect(screen.queryByText('Secondary provider is off, so the reviewer runs on the primary.')).toBeNull();
   });
 
   it('stores the secondary slot value when Secondary is picked', async () => {

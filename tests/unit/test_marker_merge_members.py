@@ -6,12 +6,17 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='mergemem_tes
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from ad_detector.boundaries import deduplicate_window_ads
+from ad_detector.boundaries import (
+    deduplicate_window_ads,
+    split_conflicting_action_span,
+)
 from utils.markers import (
     clip_dai_core_spans,
     dai_core_bounds,
+    mark_distinct_merge,
     merge_dai_core_spans,
     note_merged_members,
+    protected_member_spans,
 )
 
 
@@ -173,3 +178,149 @@ def test_non_list_dai_core_value_is_ignored():
     assert dai_core_bounds(marker) == (None, None)
     clip_dai_core_spans(marker, 100.0, 220.0)
     assert 'dai_core_spans' not in marker
+
+
+def test_merge_chain_records_one_span_per_protected_member():
+    base = _ad(100.0, 130.0, 'claude')
+    note_merged_members(base, _ad(131.0, 160.0, 'text_pattern'))
+    base['end'] = 160.0
+    note_merged_members(base, _ad(161.0, 200.0, 'claude'))
+    base['end'] = 200.0
+
+    assert base['merged_member_spans'] == [
+        {'start': 100.0, 'end': 130.0, 'stage': 'claude'},
+        {'start': 131.0, 'end': 160.0, 'stage': 'text_pattern'},
+        {'start': 161.0, 'end': 200.0, 'stage': 'claude'},
+    ]
+    assert base['merged_protected_start'] == 100.0
+    assert base['merged_protected_end'] == 200.0
+
+
+def test_unprotected_members_contribute_no_span():
+    base = _ad(837.2, 1040.0, 'dai_differential')
+    note_merged_members(base, _ad(1041.0, 1068.5, 'dai_differential'))
+    assert base['merged_member_spans'] == []
+
+
+def test_merged_member_contributes_its_members_not_its_union():
+    other = _ad(300.0, 400.0, 'dai_differential')
+    other['merged_protected_start'] = 300.0
+    other['merged_protected_end'] = 400.0
+    other['merged_member_spans'] = [
+        {'start': 300.0, 'end': 340.0, 'stage': 'claude'},
+        {'start': 360.0, 'end': 400.0, 'stage': 'claude'},
+    ]
+    base = _ad(100.0, 290.0, 'text_pattern')
+
+    note_merged_members(base, other)
+
+    assert base['merged_member_spans'] == [
+        {'start': 100.0, 'end': 290.0, 'stage': 'text_pattern'},
+        {'start': 300.0, 'end': 340.0, 'stage': 'claude'},
+        {'start': 360.0, 'end': 400.0, 'stage': 'claude'},
+    ]
+    assert base['merged_protected_start'] == 100.0
+    assert base['merged_protected_end'] == 400.0
+
+
+def test_legacy_merged_member_contributes_its_union_as_one_span():
+    # Persisted before member tracking: the union is all that is known, and
+    # an unknown stage stays measured-hard.
+    other = _ad(300.0, 400.0, 'dai_differential')
+    other['merged_protected_start'] = 320.0
+    other['merged_protected_end'] = 360.0
+    base = _ad(100.0, 290.0, 'text_pattern')
+
+    note_merged_members(base, other)
+
+    assert base['merged_member_spans'] == [
+        {'start': 100.0, 'end': 290.0, 'stage': 'text_pattern'},
+        {'start': 320.0, 'end': 360.0, 'stage': None},
+    ]
+
+
+def test_protected_spans_prefer_recorded_members():
+    tracked = {'merged_distinct_ads': True,
+               'merged_protected_start': 100.0, 'merged_protected_end': 180.0,
+               'merged_member_spans': [{'start': 100.0, 'end': 130.0,
+                                        'stage': 'claude'}]}
+    assert protected_member_spans(tracked, 90.0, 200.0) == [
+        {'start': 100.0, 'end': 130.0, 'stage': 'claude'}]
+
+
+def test_protected_spans_shape_a_legacy_union_as_one_measured_member():
+    legacy = {'merged_distinct_ads': True,
+              'merged_protected_start': 100.0, 'merged_protected_end': 180.0}
+    assert protected_member_spans(legacy, 90.0, 200.0) == [
+        {'start': 100.0, 'end': 180.0, 'stage': None}]
+
+
+def test_protected_spans_fall_back_to_the_callers_bounds():
+    untracked = {'merged_distinct_ads': True}
+    assert protected_member_spans(untracked, 90.0, 200.0) == [
+        {'start': 90.0, 'end': 200.0, 'stage': None}]
+
+
+def test_protected_spans_are_empty_when_no_member_was_anchored():
+    unprotected = {'merged_distinct_ads': True, 'merged_member_spans': [],
+                   'merged_protected_start': None, 'merged_protected_end': None}
+    assert protected_member_spans(unprotected, 90.0, 200.0) == []
+
+
+def test_window_dedup_records_member_spans():
+    ads = [
+        {'start': 100.0, 'end': 130.0, 'detection_stage': 'claude',
+         'confidence': 0.9, 'reason': 'ad one'},
+        {'start': 131.0, 'end': 170.0, 'detection_stage': 'claude',
+         'confidence': 0.9, 'reason': 'ad two'},
+    ]
+
+    merged = deduplicate_window_ads(ads)
+
+    assert merged[0]['merged_member_spans'] == [
+        {'start': 100.0, 'end': 130.0, 'stage': 'claude'},
+        {'start': 131.0, 'end': 170.0, 'stage': 'claude'},
+    ]
+
+
+MERGE_KEYS = ('merged_distinct_ads', 'merged_protected_start',
+              'merged_protected_end', 'merged_member_spans')
+
+
+def _tracked_merge(start, end):
+    """Marker carrying full merge bookkeeping across [start, end]."""
+    mid = (start + end) / 2
+    ad = _ad(start, mid, 'claude')
+    mark_distinct_merge(ad, _ad(mid, end, 'claude'))
+    ad['end'] = end
+    return ad
+
+
+def _split(last, current, last_action=None, current_action=None):
+    return split_conflicting_action_span(
+        last, current, last_action, current_action)
+
+
+def test_split_fragments_drop_stale_merge_bookkeeping():
+    # Every path that carves a narrower piece must drop bookkeeping that
+    # described the wider span, member spans included.
+    plain = _ad(100.0, 150.0, 'claude')
+
+    _, entries = _split(dict(plain), _tracked_merge(120.0, 220.0))
+    legacy_clamped = entries[0]
+
+    _, entries = _split(dict(plain), _tracked_merge(120.0, 220.0),
+                        'keep', 'remove')
+    loser_tail = entries[0]
+
+    before, entries = _split(_tracked_merge(100.0, 220.0),
+                             _ad(120.0, 150.0, 'claude'), 'remove', 'remove')
+    nested_after = entries[1]
+
+    shortened, _ = _split(_tracked_merge(100.0, 220.0),
+                          _ad(200.0, 300.0, 'claude'), 'remove', 'remove')
+
+    for fragment in (legacy_clamped, loser_tail, before, nested_after,
+                     shortened):
+        for key in MERGE_KEYS:
+            assert key not in fragment

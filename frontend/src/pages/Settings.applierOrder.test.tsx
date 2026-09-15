@@ -1,11 +1,8 @@
 /**
- * Regression test for the payload split added to updateMutation's mutationFn
- * (splitSecondaryProviderPayload / settingsUtils.ts): a combined save that
- * changes llmProvider and the secondary provider fields in the same request
- * must send the secondary fields in their own PUT first, ahead of the rest.
- * The backend applies secondary provider fields after the primary provider
- * fields within one PUT, so sending them together would have the primary
- * provider's model-pruning check read pre-write secondary state.
+ * A save sends one PUT: the backend applies the secondary provider fields
+ * before the primary provider fields within that request, so a combined
+ * change to llmProvider and the secondary provider does not need the
+ * frontend to split it into two writes.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -76,6 +73,10 @@ vi.mock('../api/settings', () => ({
   resetPrompts: vi.fn(),
   resetPrompt: vi.fn(),
   getModels: vi.fn().mockResolvedValue([]),
+  modelsQueryOptionsFor: (provider: string, slot: string) => ({
+    queryKey: ['models', provider, slot],
+    queryFn: () => Promise.resolve([]),
+  }),
   getWhisperModels: vi.fn().mockResolvedValue([]),
   getWhisperCapacity: vi.fn().mockResolvedValue({
     enabled: false, backend: 'openai-api', active: false, inactiveReason: 'disabled',
@@ -183,8 +184,8 @@ beforeEach(() => {
   mockUpdateSettings.mockResolvedValue({ message: 'ok' });
 });
 
-describe('Settings: applier-ordering payload split', () => {
-  it('sends the secondary provider fields in their own PUT before llmProvider when both change together', async () => {
+describe('Settings: one PUT per save', () => {
+  it('sends the secondary provider fields and llmProvider in a single request', async () => {
     mockGetSettings.mockResolvedValue(makeSettings());
     const user = userEvent.setup();
     renderSettings();
@@ -199,16 +200,11 @@ describe('Settings: applier-ordering payload split', () => {
     const saveButton = await screen.findByRole('button', { name: 'Save Changes' });
     await user.click(saveButton);
 
-    await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledTimes(1));
 
-    const [firstCallPayload] = mockUpdateSettings.mock.calls[0];
-    const [secondCallPayload] = mockUpdateSettings.mock.calls[1];
-
-    expect(firstCallPayload).toEqual({
+    expect(mockUpdateSettings.mock.calls[0][0]).toEqual({
       secondaryProviderEnabled: true,
       secondaryProvider: 'anthropic',
-    });
-    expect(secondCallPayload).toEqual({
       llmProvider: 'openai-compatible',
     });
   });

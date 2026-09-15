@@ -3,13 +3,14 @@ import { focusRing } from './fieldStyles';
 
 export type SortDirection = 'asc' | 'desc';
 
-// Sortable <th> shared by the Patterns, Sponsors, and History tables.
+// Sortable <th> shared by the Patterns, Sponsors, History, and Stats tables.
 // className replaces the default px-4 padding, so pass e.g. 'px-2' to shrink
 // it or 'px-4 hidden md:table-cell' to keep the padding and add visibility.
 export function SortHeader<T extends string>({
   field,
   label,
   className = 'px-4',
+  align = 'left',
   sortField,
   sortDirection,
   onSort,
@@ -17,21 +18,25 @@ export function SortHeader<T extends string>({
   field: T;
   label: string;
   className?: string;
+  align?: 'left' | 'right';
   sortField: T;
   sortDirection: SortDirection;
   onSort: (field: T) => void;
 }) {
   const active = sortField === field;
+  const right = align === 'right';
   return (
     <th
       scope="col"
       aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={`py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hover:bg-accent/50 ${className}`}
+      className={`py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider ${right ? 'text-right' : 'text-left'} ${className}`}
     >
+      {/* Hover lives on the button, and the button fills the cell's height, so
+          the highlighted area is the area that actually sorts. */}
       <button
         type="button"
         onClick={() => onSort(field)}
-        className={`flex w-full items-center gap-1 py-1 -my-1 uppercase tracking-wider text-left ${focusRing}`}
+        className={`flex w-full items-center gap-1 py-3 -my-3 uppercase tracking-wider hover:bg-accent/50 ${right ? 'justify-end text-right' : 'text-left'} ${focusRing}`}
       >
         {label}
         {active && (

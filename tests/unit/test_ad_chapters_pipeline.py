@@ -33,6 +33,11 @@ AD_CFG = AdChapterConfig(
 KEPT_SPONSOR = [{'start': 900.0, 'end': 960.0, 'action_applied': 'keep',
                  'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
 
+# Chapters route a regeneration resolves to; a 429 there pauses this account.
+CHAPTERS_ROUTE = {'provider_key': 'ollama', 'configured_model': 'm-chapters',
+                  'credential_slot': 'secondary'}
+CHAPTERS_HOLD_KEY = 'ollama:secondary'
+
 AD_ENTRY = {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad',
             'category': 'sponsor'}
 RESUME_ENTRY = {'startTime': 960, 'title': 'Show', 'kind': 'resume'}
@@ -381,13 +386,16 @@ def test_regenerate_endpoint_refuses_while_the_queue_is_held(app_client, seeded)
 
 
 def test_regen_job_records_the_hold_on_a_provider_rate_limit(app_client, seeded):
-    """A 429 mid-regeneration pauses the queue and is reported on the episode."""
+    """A 429 mid-regeneration pauses the chapters account and is reported on
+    the episode. An error carrying no provider must not pause every account."""
     from rate_limit_hold import clear_hold, get_hold_until
 
     error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
     seeded.set_setting('rate_limit_hold_enabled', 'true')
     try:
         with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+             patch('main_app.processing._resolve_or_load_route_snapshot',
+                   return_value={'chapters': CHAPTERS_ROUTE}), \
              patch('api.episodes.ChaptersGenerator') as generator, \
              patch('rate_limit_hold.fire_queue_held_event') as fire, \
              patch('rate_limit_hold.get_llm_usage_url', lambda _db: ''):
@@ -395,13 +403,15 @@ def test_regen_job_records_the_hold_on_a_provider_rate_limit(app_client, seeded)
             resp = app_client.post(
                 f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
                 headers=_authed(app_client))
-        held_until = get_hold_until(seeded)
+        held_until = get_hold_until(seeded, CHAPTERS_HOLD_KEY)
+        blanket = get_hold_until(seeded)
     finally:
-        clear_hold(seeded)
+        clear_hold(seeded, CHAPTERS_HOLD_KEY)
         seeded.set_setting('rate_limit_hold_enabled', 'false')
 
     assert resp.status_code == 202, resp.data
     assert held_until and held_until > utc_now_iso()
+    assert blanket is None
     row = seeded.get_episode(SLUG, EPISODE_ID)
     assert row['chapters_regen_started_at'] is None
     assert row['chapters_regen_error'] == hold_message(held_until, error)
@@ -423,16 +433,19 @@ def test_regen_job_under_an_active_hold_does_not_alert_again(app_client, seeded)
     error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
     seeded.set_setting('rate_limit_hold_enabled', 'true')
     try:
-        with patch('api.episodes.ChaptersGenerator') as generator, \
+        with patch('main_app.processing._resolve_or_load_route_snapshot',
+                   return_value={'chapters': CHAPTERS_ROUTE}), \
+             patch('api.episodes.ChaptersGenerator') as generator, \
              patch('rate_limit_hold.fire_queue_held_event') as fire, \
              patch('rate_limit_hold.get_llm_usage_url', lambda _db: ''):
             generator.return_value.generate_chapters.side_effect = error
-            record_hold_until(seeded, None, active_until)
+            record_hold_until(seeded, CHAPTERS_ROUTE['provider_key'], active_until,
+                              credential_slot=CHAPTERS_ROUTE['credential_slot'])
             from api.episodes import _regenerate_chapters_job
             _regenerate_chapters_job(SLUG, EPISODE_ID, stamp)
-        held_until = get_hold_until(seeded)
+        held_until = get_hold_until(seeded, CHAPTERS_HOLD_KEY)
     finally:
-        clear_hold(seeded)
+        clear_hold(seeded, CHAPTERS_HOLD_KEY)
         seeded.set_setting('rate_limit_hold_enabled', 'false')
 
     fire.assert_not_called()

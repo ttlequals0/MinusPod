@@ -73,8 +73,12 @@ def request_cancellation(slug, episode_id) -> str | None:
     return None
 
 
-def wait_for_cancellation(run_id: str, timeout: float) -> bool:
-    """Wait until the owner has stopped and moved the run to a terminal state."""
+def wait_for_cancellation(run_id: str, timeout: float,
+                          poll_interval: float = 0.05) -> bool:
+    """Wait until the owner has stopped and moved the run to a terminal state.
+
+    A long wait should pass a coarser poll_interval; every poll is a query.
+    """
     deadline = time.monotonic() + max(0.0, timeout)
     while True:
         try:
@@ -89,7 +93,7 @@ def wait_for_cancellation(run_id: str, timeout: float) -> bool:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return False
-        time.sleep(min(0.05, remaining))
+        time.sleep(min(poll_interval, remaining))
 
 
 def cancel_processing(slug, episode_id, wait_timeout: float = 0) -> bool:

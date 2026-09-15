@@ -95,7 +95,8 @@ Key endpoints:
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)
 - `PUT /api/v1/settings/ad-detection` - Update ad detection config, including a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override.
 - `GET /api/v1/settings/models` - List available AI models from current provider
-- `POST /api/v1/settings/models/refresh` - Force refresh model list from provider
+- `POST /api/v1/settings/models/refresh` - Force refresh model list from provider. Optional JSON body `{"slot": "primary" | "secondary"}` picks the credential slot (default primary).
+- `POST /api/v1/settings/rate-limit-hold/reset` - Clear every active rate-limit hold without disabling the hold feature
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
 - `POST /api/v1/settings/webhooks/{id}/test` - Fire test webhook
 - `POST /api/v1/settings/webhooks/validate-template` - Validate and preview a payload template

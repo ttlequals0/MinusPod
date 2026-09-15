@@ -282,7 +282,7 @@ def test_graceful_shutdown_stops_admission_and_drains(monkeypatch):
     main_app._shutdown_started = False
 
 
-def test_claim_excludes_slugs_whose_account_is_held(feed):
+def test_claim_excludes_rows_whose_account_is_held(feed):
     """A held feed's queued rows are skipped so the dispatcher claims eligible
     work from another feed instead of stalling on the held head (#F03)."""
     db.create_podcast('healthy-feed', 'https://example.com/healthy.xml', title='Healthy')
@@ -291,12 +291,14 @@ def test_claim_excludes_slugs_whose_account_is_held(feed):
         db.upsert_episode('healthy-feed', 'h0', title='H0', original_url='https://example.com/h.mp3')
         db.upsert_episode_for_processing('healthy-feed', 'h0', 'https://example.com/h.mp3', title='H0')
 
-        claimed = db.claim_next_queued_episode(exclude_slugs={SLUG})
+        held = {(SLUG, 'ep0'), (SLUG, 'ep1')}
+        claimed = db.claim_next_queued_episode(exclude_episodes=held)
         assert claimed is not None
         assert claimed['podcast_slug'] == 'healthy-feed'
 
-        # With the healthy feed also excluded, nothing eligible remains.
-        assert db.claim_next_queued_episode(exclude_slugs={SLUG, 'healthy-feed'}) is None
+        # With the healthy feed's row also excluded, nothing eligible remains.
+        assert db.claim_next_queued_episode(
+            exclude_episodes=held | {('healthy-feed', 'h0')}) is None
     finally:
         db.get_connection().execute("DELETE FROM auto_process_queue")
         db.get_connection().commit()
@@ -329,3 +331,38 @@ def test_resume_lets_the_dispatcher_claim_promptly(feed, monkeypatch):
     finally:
         resumer.cancel()
         set_processing_paused(False, db)
+
+
+def test_claim_excludes_individual_blocked_episodes(feed):
+    """A blocked episode must not starve its feed's eligible siblings: the
+    claim skips the excluded pair and returns the other row."""
+    _queue(2)
+    try:
+        claimed = db.claim_next_queued_episode(exclude_episodes={(SLUG, 'ep0')})
+        assert claimed is not None
+        assert (claimed['podcast_slug'], claimed['episode_id']) == (SLUG, 'ep1')
+
+        # ep1 is claimed and ep0 is blocked, so nothing eligible remains.
+        assert db.claim_next_queued_episode(
+            exclude_episodes={(SLUG, 'ep0')}) is None
+    finally:
+        db.get_connection().execute("DELETE FROM auto_process_queue")
+        db.get_connection().commit()
+
+
+def test_claim_excludes_pairs_across_feeds(feed):
+    """Exclusion is by (slug, episode_id), so a same-named episode id on
+    another feed is not swept up with it."""
+    db.create_podcast('other-feed', 'https://example.com/other.xml', title='Other')
+    try:
+        _queue(1)
+        db.upsert_episode('other-feed', 'ep0', title='O0',
+                          original_url='https://example.com/o.mp3')
+        db.upsert_episode_for_processing('other-feed', 'ep0',
+                                         'https://example.com/o.mp3', title='O0')
+        claimed = db.claim_next_queued_episode(exclude_episodes={(SLUG, 'ep0')})
+        assert (claimed['podcast_slug'], claimed['episode_id']) == ('other-feed', 'ep0')
+    finally:
+        db.get_connection().execute("DELETE FROM auto_process_queue")
+        db.get_connection().commit()
+        db.delete_podcast('other-feed')

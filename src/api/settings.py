@@ -68,8 +68,8 @@ from offline_queue import (
     TTL_HOURS_MIN, TTL_HOURS_MAX,
 )
 from rate_limit_hold import (
-    get_active_hold, is_rate_limit_hold_enabled,
-    clear_hold_for_provider_change, any_hold_active, clear_all_holds,
+    get_any_active_hold, is_rate_limit_hold_enabled,
+    clear_holds_for_provider_change, any_hold_active, clear_all_holds,
     get_llm_usage_url, get_rate_limit_probe_minutes,
     RATE_LIMIT_PROBE_MINUTES_MIN, RATE_LIMIT_PROBE_MINUTES_MAX,
 )
@@ -78,7 +78,7 @@ from transcriber import _get_chunk_settings, probe_whisper_health
 from whisper_pool import get_pool
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
-    get_llm_client, create_client_for_provider,
+    get_llm_client, create_client_for_provider, get_client_for_provider,
     _JSON_FORMAT_SETTING_KEY, _JSON_SCHEMA_SETTING_KEY,
     invalidate_provider_cache, reset_schema_probe_memo,
 )
@@ -114,6 +114,7 @@ VALID_LLM_PROVIDERS = (
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
     PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
 )
+PRICING_SOURCE_MODES = ('auto', 'litellm', 'free')
 
 logger = logging.getLogger('podcast.api')
 
@@ -838,6 +839,10 @@ def update_ad_detection_settings():
             return error_response(
                 'adAddressingMode must be "timestamps", "segment_ids", or "random"', 400)
 
+    provider_error = _validate_provider_payload(data)
+    if provider_error is not None:
+        return provider_error
+
     phases = (
         _apply_prompt_fields,
         _apply_review_fields,
@@ -850,8 +855,10 @@ def update_ad_detection_settings():
         _apply_min_cut_confidence,
         _apply_audio_fields,
         _apply_size_caps,
-        _apply_provider_fields,
+        # Secondary first: the primary phase's model-prune guard resolves
+        # stage slots against secondary state this same PUT may be setting.
         _apply_secondary_provider_fields,
+        _apply_provider_fields,
         _apply_whisper_fields,
         _apply_vad_gap_fields,
         _apply_audio_cue_fields,
@@ -869,28 +876,58 @@ def update_ad_detection_settings():
         _apply_user_agent_fields,
         _apply_provider_rate_limit_fields,
     )
-    # A stage-model change makes any active cooldown meaningless: the new
+    # A stage-model change makes that account's cooldown meaningless: the new
     # model can carry entirely different limits (issue #747). Detect before
     # the phases persist the new values, lift the hold after they succeed.
-    model_changed = any(
-        key in data and str(data[key] or '') != (db.get_setting(db_key) or '')
-        for key, db_key in (
-            ('claudeModel', 'claude_model'),
-            ('reviewModel', 'review_model'),
-            ('verificationModel', 'verification_model'),
-            ('chaptersModel', 'chapters_model'),
-        )
-    )
+    changed_stages = _changed_stage_models(db, data)
 
     for phase in phases:
         err = phase(db, data)
         if err is not None:
             return err
 
-    if model_changed and any_hold_active(db):
-        fire_queue_resumed_event(held_since=clear_all_holds(db))
+    # Routes resolved after the phases, so a save that also moves a stage
+    # lifts the hold on the account it now uses.
+    targets: dict[str, set] = {}
+    for stage in changed_stages:
+        provider_key, credential_slot = _stage_hold_target(db, stage)
+        if provider_key:
+            targets.setdefault(credential_slot, set()).add(provider_key)
+    for credential_slot, provider_keys in targets.items():
+        clear_holds_for_provider_change(
+            db, 'stage model changed', provider_keys,
+            credential_slot=credential_slot)
 
     return json_response({'message': 'Settings updated'})
+
+
+# Stage models the rate-limit hold is scoped by; payload keys come from the
+# registry so a renamed key cannot silently stop lifting holds.
+_STAGE_MODEL_SETTINGS = (
+    ('detection', 'claude_model'),
+    ('review', 'review_model'),
+    ('verification', 'verification_model'),
+    ('chapters', 'chapters_model'),
+)
+
+
+def _changed_stage_models(db, data) -> list[str]:
+    """Stages whose model this payload actually changes."""
+    changed = []
+    for stage, db_key in _STAGE_MODEL_SETTINGS:
+        payload_key = SETTINGS_REGISTRY[db_key].payload_key
+        if (payload_key in data
+                and str(data[payload_key] or '') != (db.get_setting(db_key) or '')):
+            changed.append(stage)
+    return changed
+
+
+def _stage_hold_target(db, stage: str) -> tuple[str | None, str]:
+    """(provider_key, credential_slot) a stage's calls would hit right now."""
+    slot = resolved_stage_slot(db, stage)
+    if slot == SLOT_SECONDARY:
+        return db.get_setting('secondary_provider'), SLOT_SECONDARY
+    return db.get_setting('llm_provider') or get_effective_provider(), SLOT_PRIMARY
 
 
 def _apply_prompt_fields(db, data):
@@ -1691,6 +1728,52 @@ def _stage_follows_global_provider(db, stage: str) -> bool:
     return resolved_stage_slot(db, stage) == SLOT_PRIMARY
 
 
+def _base_url_error(value, label):
+    """400 response when a base URL carries credentials or fails the SSRF
+    check, else None."""
+    if url_has_userinfo(value):
+        return error_response(BASE_URL_USERINFO_ERROR, 400)
+    try:
+        validate_base_url(value)
+    except SSRFError as e:
+        return error_response(f'Invalid {label}: {e}', 400)
+    return None
+
+
+def _validate_provider_payload(data):
+    """Reject provider fields before any applier writes.
+
+    The secondary applier runs first, so a rejection inside the primary one
+    would leave the secondary block persisted and its hold lifted.
+    """
+    if 'llmProvider' in data and data['llmProvider'] not in VALID_LLM_PROVIDERS:
+        return error_response(
+            f'llmProvider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400)
+    if 'pricingSourceMode' in data and data['pricingSourceMode'] not in PRICING_SOURCE_MODES:
+        return error_response(
+            f'pricingSourceMode must be one of: {", ".join(PRICING_SOURCE_MODES)}', 400)
+    if 'openrouterApiKey' in data:
+        key = (data['openrouterApiKey'] or '').strip()
+        if key and not key.startswith('sk-or-'):
+            return error_response('OpenRouter API key must start with sk-or-', 400)
+    if 'openaiBaseUrl' in data:
+        error = _base_url_error(data['openaiBaseUrl'], 'base URL')
+        if error is not None:
+            return error
+    if data.get('secondaryProvider') and data['secondaryProvider'] not in VALID_LLM_PROVIDERS:
+        return error_response(
+            f'secondaryProvider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400)
+    if 'secondaryProviderBaseUrl' in data:
+        value = data['secondaryProviderBaseUrl']
+        if not isinstance(value, str):
+            return error_response('secondaryProviderBaseUrl must be a string', 400)
+        if value.strip():
+            error = _base_url_error(value, 'secondary provider base URL')
+            if error is not None:
+                return error
+    return None
+
+
 def _apply_provider_fields(db, data):
     """Persist LLM provider + base URL + key, then run post-change side effects.
 
@@ -1705,44 +1788,33 @@ def _apply_provider_fields(db, data):
     provider_changed = False
     # Narrower than provider_changed: pricing mode is not a new account.
     credentials_changed = False
+    # Resolved before any write: a hold belongs to the provider that was
+    # configured when the 429 landed, not to the one being saved.
+    affected_providers = {db.get_setting('llm_provider') or get_effective_provider()}
+    # Field values were checked by _validate_provider_payload before any
+    # applier ran, so this phase only writes.
     if 'llmProvider' in data:
-        if data['llmProvider'] not in VALID_LLM_PROVIDERS:
-            return json_response(
-                {'error': f'llmProvider must be one of: {", ".join(VALID_LLM_PROVIDERS)}'}, 400
-            )
         db.set_setting('llm_provider', data['llmProvider'], is_default=False)
         logger.info(f"Updated LLM provider to: {data['llmProvider']}")
+        affected_providers.add(data['llmProvider'])
         provider_changed = True
         credentials_changed = True
 
     if 'openaiBaseUrl' in data:
-        if url_has_userinfo(data['openaiBaseUrl']):
-            return json_response({'error': BASE_URL_USERINFO_ERROR}, 400)
-        try:
-            validate_base_url(data['openaiBaseUrl'])
-        except SSRFError as e:
-            return json_response({'error': f'Invalid base URL: {e}'}, 400)
         db.set_setting('openai_base_url', data['openaiBaseUrl'], is_default=False)
         logger.info(f"Updated OpenAI base URL to: {data['openaiBaseUrl']}")
         provider_changed = True
         credentials_changed = True
 
     if 'pricingSourceMode' in data:
-        valid_modes = ('auto', 'litellm', 'free')
-        if data['pricingSourceMode'] not in valid_modes:
-            return json_response(
-                {'error': f'pricingSourceMode must be one of: {", ".join(valid_modes)}'}, 400
-            )
         db.set_setting('pricing_source_mode', data['pricingSourceMode'], is_default=False)
         logger.info(f"Updated pricing source mode to: {data['pricingSourceMode']}")
         provider_changed = True
 
     if 'openrouterApiKey' in data:
-        key = (data['openrouterApiKey'] or '').strip()
-        if key and not key.startswith('sk-or-'):
-            return json_response({'error': 'OpenRouter API key must start with sk-or-'}, 400)
         try:
-            set_or_clear_secret(db, 'openrouter_api_key', key)
+            set_or_clear_secret(db, 'openrouter_api_key',
+                                (data['openrouterApiKey'] or '').strip())
         except SecretWriteRejected:
             return error_response('provider_crypto_unavailable', 409)
         logger.info("Updated OpenRouter API key")
@@ -1750,7 +1822,8 @@ def _apply_provider_fields(db, data):
         credentials_changed = True
 
     if credentials_changed:
-        clear_hold_for_provider_change(db, 'LLM provider settings changed')
+        clear_holds_for_provider_change(
+            db, 'LLM provider settings changed', affected_providers)
 
     if provider_changed:
         # Clear the cached probe answers so the new endpoint gets re-probed:
@@ -1834,6 +1907,9 @@ def _apply_secondary_provider_fields(db, data):
     matching rate-limit hold the same way a primary provider change does.
     """
     changed = False
+    # Resolved before the write below, so switching the secondary type lifts
+    # the outgoing account's hold as well as the incoming one's.
+    affected_providers = {db.get_setting('secondary_provider')}
 
     if 'secondaryProviderEnabled' in data:
         value = 'true' if bool(data['secondaryProviderEnabled']) else 'false'
@@ -1846,30 +1922,20 @@ def _apply_secondary_provider_fields(db, data):
         if not value:
             db.clear_setting('secondary_provider')
             logger.info("Cleared secondary_provider")
-        elif value in VALID_LLM_PROVIDERS:
+        else:
             db.set_setting('secondary_provider', value, is_default=False)
             logger.info(f"Updated secondary_provider to: {value}")
-        else:
-            return error_response(
-                f'secondaryProvider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400)
+            affected_providers.add(value)
         changed = True
 
     if 'secondaryProviderBaseUrl' in data:
         value = data['secondaryProviderBaseUrl']
-        if not isinstance(value, str):
-            return error_response('secondaryProviderBaseUrl must be a string', 400)
         if not value.strip():
             # Empty clears the override back to the registry default,
             # matching the per-phase provider routing fields above.
             db.clear_setting('secondary_provider_base_url')
             logger.info("Cleared secondary provider base URL")
-        elif url_has_userinfo(value):
-            return error_response(BASE_URL_USERINFO_ERROR, 400)
         else:
-            try:
-                validate_base_url(value)
-            except SSRFError as e:
-                return error_response(f'Invalid secondary provider base URL: {e}', 400)
             db.set_setting('secondary_provider_base_url', value, is_default=False)
             logger.info("Updated secondary provider base URL")
         changed = True
@@ -1884,10 +1950,11 @@ def _apply_secondary_provider_fields(db, data):
 
     if changed:
         invalidate_provider_cache()
-        clear_hold_for_provider_change(
+        # No secondary type configured: nothing to lift, and a null provider
+        # would target the unscoped blanket marker, which may be primary's.
+        clear_holds_for_provider_change(
             db, 'secondary provider settings changed',
-            provider_key=db.get_setting('secondary_provider'),
-            credential_slot='secondary')
+            [p for p in affected_providers if p], credential_slot='secondary')
     return None
 
 
@@ -2726,6 +2793,29 @@ def _current_provider_models():
     return models
 
 
+def _models_from_client(client, provider: str) -> list:
+    """Catalog rows for a built client, with OpenRouter aliases and pricing.
+
+    An unreachable or unauthenticated provider yields an empty list rather
+    than an error: the UI previews providers before their key is saved.
+    """
+    models = []
+    if client:
+        try:
+            models = [
+                {'id': m.id, 'name': m.name, 'created': m.created}
+                for m in client.list_models()
+            ]
+        except ValueError as e:
+            logger.info(f"Provider '{provider}' preview unavailable: {e}")
+        except Exception as e:
+            logger.error(f"Failed to list models for provider '{provider}': {e}")
+    if provider == PROVIDER_OPENROUTER:
+        _ensure_openrouter_aliases_present(models)
+    _enrich_models_with_pricing(models)
+    return models
+
+
 def _secondary_slot_base_url(db, provider: str) -> str | None:
     """Non-secret endpoint for a preview client built against the secondary
     slot. Only configurable-endpoint types have one; anthropic/openrouter
@@ -2762,26 +2852,7 @@ def get_available_models():
                 base_url=_secondary_slot_base_url(db, provider_override))
         else:
             client = create_client_for_provider(provider_override)
-        if client:
-            try:
-                raw_models = client.list_models()
-                models = [
-                    {'id': m.id, 'name': m.name, 'created': m.created}
-                    for m in raw_models
-                ]
-            except ValueError as e:
-                # Expected when a provider has no key configured yet (e.g. UI
-                # previewing providers before the user saves a key).
-                logger.info(f"Provider '{provider_override}' preview unavailable: {e}")
-                models = []
-            except Exception as e:
-                logger.error(f"Failed to list models for provider '{provider_override}': {e}")
-                models = []
-        else:
-            models = []
-        if provider_override == PROVIDER_OPENROUTER:
-            _ensure_openrouter_aliases_present(models)
-        _enrich_models_with_pricing(models)
+        models = _models_from_client(client, provider_override)
     else:
         models = _current_provider_models()
 
@@ -2791,16 +2862,33 @@ def get_available_models():
 @api.route('/settings/models/refresh', methods=['POST'])
 @log_request
 def refresh_models():
-    """Force refresh the model list from the LLM provider.
+    """Force refresh the model list for one credential slot.
 
-    ``get_llm_client(force_new=True)`` rebuilds the client and clears
-    ``_model_list_cache`` in llm_client, so the next ``list_models()``
-    call repopulates from upstream.
+    Optional body {"slot": "primary"|"secondary"}; primary by default, so a
+    bodyless call behaves as before. ``force_new=True`` rebuilds that slot's
+    client and clears ``_model_list_cache`` in llm_client, so the next
+    ``list_models()`` call repopulates from upstream.
     """
-    get_llm_client(force_new=True)
-    models = _current_provider_models()
+    data = request.get_json(silent=True)
+    slot = data.get('slot', SLOT_PRIMARY) if isinstance(data, dict) else SLOT_PRIMARY
+    if slot not in VALID_SLOTS:
+        return error_response(f'slot must be one of: {", ".join(VALID_SLOTS)}', 400)
 
-    logger.info(f"Refreshed model list: {len(models)} models available")
+    if slot == SLOT_SECONDARY:
+        db = get_database()
+        provider = db.get_setting('secondary_provider')
+        if not provider:
+            return error_response(
+                'No secondary provider configured; set secondaryProvider first', 400)
+        client = get_client_for_provider(
+            provider, base_url=_secondary_slot_base_url(db, provider),
+            credential_slot=SLOT_SECONDARY, force_new=True)
+        models = _models_from_client(client, provider)
+    else:
+        get_llm_client(force_new=True)
+        models = _current_provider_models()
+
+    logger.info(f"Refreshed {slot} model list: {len(models)} models available")
     return json_response({'models': models, 'count': len(models)})
 
 
@@ -3026,7 +3114,7 @@ def _rate_limit_hold_view(db) -> dict:
     """Rate-limit hold settings payload shared by GET and PUT (#696)."""
     return {
         'enabled': is_rate_limit_hold_enabled(db),
-        'holdUntil': get_active_hold(db)[0],
+        'holdUntil': get_any_active_hold(db)[0],
         'llmUsageUrl': get_llm_usage_url(db),
         'rateLimitProbeMinutes': get_rate_limit_probe_minutes(db),
     }
@@ -3082,12 +3170,7 @@ def update_rate_limit_hold_settings():
 @api.route('/settings/rate-limit-hold/reset', methods=['POST'])
 @log_request
 def reset_rate_limit_hold():
-    """Lift every active rate-limit hold while leaving the feature enabled.
-
-    Distinct from disabling the feature: a hold is keyed to the endpoint that
-    returned the 429, so after switching models or waiting out an unrelated
-    cooldown the user needs to clear the pause without turning holds off.
-    """
+    """Lift every active rate-limit hold while leaving the feature enabled."""
     db = get_database()
     if any_hold_active(db):
         fire_queue_resumed_event(held_since=clear_all_holds(db))

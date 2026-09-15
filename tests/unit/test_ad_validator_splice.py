@@ -264,3 +264,34 @@ class TestProtectedBoundsClamp:
         out = result.ads[0]
         assert out['end'] == 2315.9
         assert out['merged_protected_end'] == 2315.9
+
+    def test_merged_member_spans_clamped_to_episode_bounds(self):
+        # The reviewer reads the member list, so a member left past EOF would
+        # fail its coverage check on every later proposal.
+        validator = AdValidator(episode_duration=2315.9)
+        ad = {'start': 2159.6, 'end': 2346.6, 'confidence': 0.9,
+              'reason': 'tail pattern', 'detection_stage': 'text_pattern',
+              'merged_distinct_ads': True,
+              'merged_protected_start': 2159.6,
+              'merged_protected_end': 2346.6,
+              'merged_member_spans': [
+                  {'start': 2159.6, 'end': 2346.6, 'stage': 'fingerprint'},
+                  {'start': 2340.0, 'end': 2346.6, 'stage': 'claude'}]}
+        result = validator.validate([ad])
+        out = result.ads[0]
+        assert out['merged_member_spans'] == [
+            {'start': 2159.6, 'end': 2315.9, 'stage': 'fingerprint'}]
+
+    def test_negative_member_start_clamped_to_zero(self):
+        validator = AdValidator(episode_duration=2315.9)
+        ad = {'start': -2.0, 'end': 60.0, 'confidence': 0.9,
+              'reason': 'preroll', 'detection_stage': 'text_pattern',
+              'merged_distinct_ads': True,
+              'merged_protected_start': -2.0,
+              'merged_protected_end': 60.0,
+              'merged_member_spans': [
+                  {'start': -2.0, 'end': 40.0, 'stage': 'fingerprint'}]}
+        result = validator.validate([ad])
+        out = result.ads[0]
+        assert out['merged_member_spans'] == [
+            {'start': 0.0, 'end': 40.0, 'stage': 'fingerprint'}]

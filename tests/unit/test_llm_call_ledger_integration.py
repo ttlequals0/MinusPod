@@ -1,8 +1,7 @@
 """Integration tests: every utils.llm_call dispatch is one ledger attempt.
 
 Covers the contract that begin_llm_attempt/finalize_llm_attempt
-are the single writer of billed LLM calls, replacing the retired adapter
-usage callback (llm_client._record_token_usage).
+are the single writer of billed LLM calls.
 """
 import run_context
 from llm_client import LLMResponse, ProviderRateLimitedError
@@ -179,9 +178,8 @@ def test_retry_that_reissues_creates_two_rows_with_distinct_attempt_ids(temp_db,
 
 
 def test_counters_increment_once_not_twice_via_ledger_alone(temp_db):
-    """The retired record_token_usage callback path must not also write
-    counters: one successful call increments token_usage by exactly its
-    own tokens, not double."""
+    """Counters come from the ledger alone: one successful call increments
+    token_usage by exactly its own tokens, not double."""
     temp_db.create_podcast('show-d', 'https://example.com/d.xml', 'Show D')
     ctx = run_context.begin('show-d', 'ep-once', run_id='run-once')
     try:

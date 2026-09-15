@@ -68,6 +68,10 @@ vi.mock('../api/settings', () => ({
   resetPrompts: vi.fn(),
   resetPrompt: (...a: unknown[]) => mockResetPrompt(...a),
   getModels: vi.fn().mockResolvedValue([]),
+  modelsQueryOptionsFor: (provider: string, slot: string) => ({
+    queryKey: ['models', provider, slot],
+    queryFn: () => Promise.resolve([]),
+  }),
   getWhisperModels: vi.fn().mockResolvedValue([]),
   getWhisperCapacity: vi.fn().mockResolvedValue({
     enabled: false, backend: 'openai-api', active: false, inactiveReason: 'disabled',

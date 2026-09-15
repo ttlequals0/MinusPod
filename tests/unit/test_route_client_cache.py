@@ -16,7 +16,6 @@ class TestGetClientForProviderCache(unittest.TestCase):
 
     tearDown = setUp
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openrouter_api_key', return_value='sk-or')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
     @patch('llm_client.get_effective_base_url', return_value='http://a/v1')
@@ -28,14 +27,12 @@ class TestGetClientForProviderCache(unittest.TestCase):
         self.assertIsInstance(openrouter_client, OpenAICompatibleClient)
         self.assertIsInstance(openai_client, OpenAICompatibleClient)
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openrouter_api_key', return_value='sk-or')
     def test_same_provider_and_base_returns_cached_instance(self, *_mocks):
         first = get_client_for_provider('openrouter')
         second = get_client_for_provider('openrouter')
         self.assertIs(first, second)
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
     def test_different_base_for_same_provider_yields_distinct_clients(self, *_mocks):
         first = get_client_for_provider('openai-compatible', base_url='http://a/v1')
@@ -44,7 +41,6 @@ class TestGetClientForProviderCache(unittest.TestCase):
         self.assertEqual(first.base_url, 'http://a/v1')
         self.assertEqual(second.base_url, 'http://b/v1')
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
     def test_different_base_for_same_provider_gets_distinct_circuit_breakers(self, *_mocks):
         """A replaced endpoint must not inherit the old endpoint's open breaker."""
@@ -53,7 +49,6 @@ class TestGetClientForProviderCache(unittest.TestCase):
         self.assertIsNot(first, second)
         self.assertIsNot(first._circuit_breaker, second._circuit_breaker)
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openrouter_api_key', return_value='sk-or')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
     @patch('llm_client.get_effective_base_url', return_value='http://a/v1')
@@ -65,7 +60,6 @@ class TestGetClientForProviderCache(unittest.TestCase):
         self.assertIsNotNone(openai_client._circuit_breaker)
         self.assertIsNot(openrouter_client._circuit_breaker, openai_client._circuit_breaker)
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openrouter_api_key', return_value='sk-or')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
     @patch('llm_client.get_effective_base_url', return_value='http://a/v1')
@@ -79,7 +73,6 @@ class TestGetClientForProviderCache(unittest.TestCase):
         self.assertEqual(openrouter_client._circuit_breaker.state, 'open')
         self.assertEqual(openai_client._circuit_breaker.state, 'closed')
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_openrouter_api_key', return_value='super-secret-key')
     @patch('llm_client.get_effective_openai_api_key', return_value='another-secret')
     @patch('llm_client.get_effective_base_url', return_value='http://a/v1')
@@ -95,7 +88,6 @@ class TestGetClientForProviderCache(unittest.TestCase):
             self.assertNotIn('super-secret-key', str(key))
             self.assertNotIn('another-secret', str(key))
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_anthropic_api_key', return_value='sk-ant')
     @patch('llm_client.get_effective_provider', return_value='anthropic')
     def test_get_llm_client_delegates_to_per_provider_cache(self, *_mocks):
@@ -113,7 +105,6 @@ class TestCredentialSlotRouting(unittest.TestCase):
 
     tearDown = setUp
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-primary')
     def test_secondary_slot_same_type_different_base_gets_secondary_key(self, *_mocks):
@@ -127,7 +118,6 @@ class TestCredentialSlotRouting(unittest.TestCase):
         self.assertEqual(secondary.api_key, 'sk-secondary')
         self.assertIsNot(primary._circuit_breaker, secondary._circuit_breaker)
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary-ant')
     @patch('llm_client.get_effective_anthropic_api_key', return_value='sk-primary-ant')
     def test_anthropic_primary_and_secondary_are_distinct_clients_and_breakers(self, *_mocks):
@@ -142,7 +132,6 @@ class TestCredentialSlotRouting(unittest.TestCase):
         self.assertEqual(secondary.api_key, 'sk-secondary-ant')
         self.assertIsNot(primary._circuit_breaker, secondary._circuit_breaker)
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary-or')
     @patch('llm_client.get_effective_openrouter_api_key', return_value='sk-primary-or')
     def test_openrouter_primary_and_secondary_are_distinct_clients_and_breakers(self, *_mocks):
@@ -157,7 +146,6 @@ class TestCredentialSlotRouting(unittest.TestCase):
         self.assertEqual(secondary.api_key, 'sk-secondary-or')
         self.assertIsNot(primary._circuit_breaker, secondary._circuit_breaker)
 
-    @patch('llm_client._record_token_usage')
     def test_rotated_credential_rebuilds_cached_client(self, *_mocks):
         with patch('llm_client._provider_config_revision', return_value='1'), \
                 patch('llm_client.get_effective_secondary_provider_api_key',
@@ -173,7 +161,6 @@ class TestCredentialSlotRouting(unittest.TestCase):
         self.assertIsNot(second, first)
         self.assertEqual(second.api_key, 'rotated-key')
 
-    @patch('llm_client._record_token_usage')
     def test_cleared_credential_rebuilds_cached_client(self, *_mocks):
         with patch('llm_client._provider_config_revision', return_value='1'), \
                 patch('llm_client.get_effective_secondary_provider_api_key',
@@ -187,21 +174,18 @@ class TestCredentialSlotRouting(unittest.TestCase):
         self.assertIsNot(second, first)
         self.assertIsNone(second.api_key)
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-primary')
     def test_default_credential_slot_is_primary_and_unchanged(self, *_mocks):
         client = get_client_for_provider('openai-compatible', base_url='http://a/v1')
         self.assertEqual(client.api_key, 'sk-primary')
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_secondary_provider_api_key', return_value=None)
     @patch('llm_client.get_effective_anthropic_api_key', return_value='sk-primary-anthropic')
     def test_secondary_anthropic_with_no_key_does_not_fall_back_to_primary(self, *_mocks):
         client = get_client_for_provider('anthropic', credential_slot='secondary')
         self.assertIsNone(client.api_key)
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_secondary_provider_api_key', return_value='top-secret-secondary-key')
     @patch('llm_client.get_effective_openai_api_key', return_value='sk-primary')
     def test_cache_key_never_contains_secondary_api_key(self, *_mocks):
@@ -215,7 +199,6 @@ class TestCredentialSlotRouting(unittest.TestCase):
         for key in llm_client._circuit_breakers.keys():
             self.assertNotIn('top-secret-secondary-key', str(key))
 
-    @patch('llm_client._record_token_usage')
     @patch('llm_client.get_effective_secondary_provider_api_key', return_value='top-secret-anthropic-secondary')
     @patch('llm_client.get_effective_anthropic_api_key', return_value='top-secret-anthropic-primary')
     def test_anthropic_cache_and_breaker_keys_never_contain_api_keys(self, *_mocks):

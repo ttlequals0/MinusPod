@@ -1,9 +1,16 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DropdownMenu from './DropdownMenu';
 
 const items = [{ title: 'One', onClick: vi.fn() }];
+
+const PHONE_WIDTH_PX = 375;
+const defaultWidth = window.innerWidth;
+const setViewportWidth = (px: number) =>
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: px });
+
+afterEach(() => setViewportWidth(defaultWidth));
 
 describe('DropdownMenu', () => {
   it('closes an open menu when the trigger becomes disabled', async () => {
@@ -58,5 +65,43 @@ describe('DropdownMenu', () => {
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
     }
+  });
+
+  it('leaves the visible label as the accessible name when only a tooltip is set', () => {
+    render(
+      <DropdownMenu triggerLabel="Act" triggerClassName="" items={items} title="Act on this" />);
+    const trigger = screen.getByRole('button', { name: 'Act' });
+    expect(trigger.getAttribute('title')).toBe('Act on this');
+    expect(trigger.getAttribute('aria-label')).toBeNull();
+  });
+
+  it('names an icon-only trigger from ariaLabel', () => {
+    render(
+      <DropdownMenu triggerLabel={<span />} triggerClassName="" items={items}
+        title="Refresh all feeds" ariaLabel="Refresh all feeds" />);
+    expect(screen.getByRole('button', { name: 'Refresh all feeds' })).toBeTruthy();
+  });
+
+  it('closes a phone menu when the page scrolls', async () => {
+    setViewportWidth(PHONE_WIDTH_PX);
+    render(<DropdownMenu triggerLabel="Act" triggerClassName="" items={items} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Act' }));
+    fireEvent.scroll(window);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('closes a phone menu when the viewport resizes', async () => {
+    setViewportWidth(PHONE_WIDTH_PX);
+    render(<DropdownMenu triggerLabel="Act" triggerClassName="" items={items} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Act' }));
+    fireEvent(window, new Event('resize'));
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('keeps an anchored menu open when a scroll happens at desktop width', async () => {
+    render(<DropdownMenu triggerLabel="Act" triggerClassName="" items={items} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Act' }));
+    fireEvent.scroll(window);
+    expect(screen.queryByRole('menu')).toBeTruthy();
   });
 });

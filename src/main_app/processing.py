@@ -57,6 +57,7 @@ from verification_pass import _build_timestamp_map, _map_correction_to_processed
 from whisper_pool import get_pool, is_background_leader
 from config import (
     log_download_query_enabled,
+    resolve_max_boundary_shift,
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
@@ -127,7 +128,7 @@ from llm_route import resolve_route
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
     enforce_provider_rate_limit, get_active_hold, hold_message,
-    hold_queue_for_provider_limit, is_queue_paused,
+    hold_queue_for_provider_limit, is_queue_paused, resolve_hold_scope,
 )
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -416,8 +417,8 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
     # admitted even while a different provider or a different account on
     # the same provider is held, and a run needing a held account is
     # refused before it can spend a call on a healthy one it cannot finish
-    # with.
-    required_providers = _required_providers_for_admission(slug)
+    # with. Mode-scoped too: a run that makes no LLM call is never refused.
+    required_providers = _required_providers_for_admission(slug, episode_id)
     if required_providers is None:
         if is_queue_paused(db):
             return False, "rate_limit_paused"
@@ -989,8 +990,9 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                 f"Ad detection failed: {error_msg}",
                 retry_after_seconds=float(ad_result.get('retry_after_seconds') or 0),
                 provider_key=ad_result.get('provider_key'),
-                credential_slot=ad_result.get('credential_slot', 'primary'),
+                credential_slot=ad_result.get('credential_slot'),
                 manual=ad_result.get('manual', False),
+                phase='detection',
             )
         elif ad_result.get('connectivity'):
             # Endpoint unreachable rather than a bad response, so the offline
@@ -1090,11 +1092,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                     if audio_analysis_result else [])
     if first_pass_ads and audio_analysis_result:
         try:
-            raw_cap = db.get_setting('review_max_boundary_shift')
-            try:
-                max_shift = float(raw_cap) if raw_cap is not None else 60.0
-            except (TypeError, ValueError):
-                max_shift = 60.0
+            max_shift = resolve_max_boundary_shift(db)
             # Mutates first_pass_ads in place (edges + cue_snap metadata).
             snap_ad_boundaries_to_cues(
                 first_pass_ads, audio_analysis_result, max_shift,
@@ -3192,8 +3190,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     retry_after_seconds=float(
                         verification_result.get('retry_after_seconds') or 0),
                     provider_key=verification_result.get('provider_key'),
-                    credential_slot=verification_result.get('credential_slot', 'primary'),
-                    manual=verification_result.get('manual', False))
+                    credential_slot=verification_result.get('credential_slot'),
+                    manual=verification_result.get('manual', False),
+                    phase='verification')
             v_error = verification_result.get('error')
             detail = f": {v_error}" if v_error else ""
             audio_logger.warning(
@@ -3884,9 +3883,8 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 hold_until = None
                 try:
                     hold_until = hold_queue_for_provider_limit(
-                        db, e, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
-                        provider_key=getattr(e, 'provider_key', None),
-                        credential_slot=getattr(e, 'credential_slot', 'primary'))
+                        db, e, slug=slug, episode_id=episode_id,
+                        podcast_name=podcast_name, phase='chapters')
                 except Exception:
                     audio_logger.exception(
                         f"[{slug}:{episode_id}] Failed to record the rate-limit hold")
@@ -4573,8 +4571,10 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
         db.clear_episode_ad_data(slug, episode_id)
 
         new_version = _next_processed_version(episode_data)
-        final_path = storage.get_episode_path(slug, episode_id, version=new_version)
+        # Fence first: resolving the path mkdirs the podcast tree, which would
+        # recreate the directory of a feed deleted mid-run.
         _require_publication_owner(slug, episode_id)
+        final_path = storage.get_episode_path(slug, episode_id, version=new_version)
         shutil.move(audio_path, final_path)
         audio_path = None
 
@@ -4862,18 +4862,17 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # the queue and pauses new starts until the reset. Runs before the
     # offline-queue branch: throttling is not an outage. retry_count untouched.
     if isinstance(error, ProviderRateLimitedError):
+        provider_key, credential_slot = resolve_hold_scope(error)
         if getattr(error, 'manual', False):
             # Manual RPM/RPD/TPM cap: the pre-call backstop already recorded
             # the hold, so read it directly and defer regardless of the #696
             # toggle (a real 429 still routes through the toggle-gated path).
-            hold_until = get_active_hold(
-                db, getattr(error, 'provider_key', None),
-                getattr(error, 'credential_slot', 'primary'))[0]
+            hold_until = get_active_hold(db, provider_key, credential_slot)[0]
         else:
             hold_until = hold_queue_for_provider_limit(
                 db, error, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
-                provider_key=getattr(error, 'provider_key', None),
-                credential_slot=getattr(error, 'credential_slot', 'primary'))
+                provider_key=provider_key,
+                credential_slot=credential_slot)
         if hold_until:
             _requeue_episode_after_hold(
                 db, slug, episode_id, episode_title, episode_data, hold_until, error)
@@ -5023,51 +5022,88 @@ def _persist_route_snapshot(run_id: str, snapshot: dict) -> None:
         audio_logger.warning(f"Could not persist route snapshot for run {run_id}: {exc}")
 
 
-def _chapters_enabled_for_admission(settings_db, slug: str) -> bool:
+def _admission_gates(settings_db) -> dict:
+    """Admission's feed-independent feature gates, so a multi-row scan reads
+    them once instead of per row."""
+    return {'review': _ad_review_enabled(settings_db),
+            'chapters_enabled': settings_db.get_setting('chapters_enabled')}
+
+
+def _chapters_enabled_for_admission(chapters_enabled, podcast_row) -> bool:
     """Whether this run's chapter step could call the chapters LLM at all.
 
     Mirrors the two settings that turn chapters off outright: the global
     chapters_enabled flag and the per-feed chapters_mode. Fails open (True)
-    on any lookup problem or an unresolved/'auto' mode, since counting an
-    unused provider as required is always the safe direction; only a
-    definite 'off' excludes it.
+    on an unresolved/'auto' mode, since counting an unused provider as
+    required is always the safe direction; only a definite 'off' excludes it.
     """
-    chapters_enabled = settings_db.get_setting('chapters_enabled')
     if chapters_enabled is not None and chapters_enabled.lower() != 'true':
         return False
-    try:
-        podcast_row = settings_db.get_podcast_by_slug(slug)
-    except Exception:
-        return True
     return resolve_chapters_mode(podcast_row) != CHAPTERS_MODE_OFF
 
 
-def _required_providers_for_admission(slug: str) -> list[tuple[str, str]] | None:
+def _admission_mode_rows(settings_db, slug: str, episode_id: str | None,
+                         queue_row: dict | None) -> tuple[dict | None, dict | None]:
+    """Podcast and episode rows the mode resolvers read, taken from a pending
+    queue row when the scan already selected those columns."""
+    if queue_row is not None:
+        return ({'passthrough_enabled': queue_row.get('feed_passthrough_enabled'),
+                 'skip_ad_detection': queue_row.get('skip_ad_detection'),
+                 'detection_mode': queue_row.get('detection_mode'),
+                 'chapters_mode': queue_row.get('chapters_mode')},
+                {'passthrough_enabled': queue_row.get('episode_passthrough_enabled')})
+    episode_row = (settings_db.get_episode_state(slug, episode_id)
+                   if episode_id else None)
+    return settings_db.get_podcast_row(slug), episode_row
+
+
+def _required_providers_for_admission(slug: str, episode_id: str | None = None,
+                                      snapshot: dict | None = None,
+                                      gates: dict | None = None,
+                                      queue_row: dict | None = None
+                                      ) -> list[tuple[str, str]] | None:
     """Distinct (provider_key, credential_slot) pairs this run's *enabled*
     phases would resolve to right now, or None when resolution fails
     (admission then falls back to the legacy unscoped hold check, a safe
     superset of any real per-provider hold).
 
     A phase whose feature is off for this run is excluded: a held account
-    that this run will never actually call must not refuse it. A phase
-    snapshot with no credential_slot (older callers, tests) defaults to
-    'primary', matching single-provider installs today.
+    that this run will never actually call must not refuse it. The resolved
+    processing mode counts here too, so a pass-through run needs no account
+    at all and a skip-detection or cue-only run needs only the chapters
+    account. A phase snapshot with no credential_slot (older callers, tests)
+    defaults to 'primary', matching single-provider installs today.
 
     Inside a run, uses the run's frozen route snapshot so a settings change
     during transcription cannot make the reservation cover different
     providers than the run will actually call; at dispatch admission (no
-    installed snapshot yet) it resolves fresh from live settings.
+    installed snapshot yet) it resolves fresh from live settings. Callers
+    scanning many feeds in one pass pass `snapshot` and `gates` in, since
+    neither varies by feed, and `queue_row` so the mode needs no lookup.
     """
     ctx = run_context.current()
-    snapshot = (ctx.route_snapshot if ctx else None) or _resolve_route_snapshot()
+    if snapshot is None:
+        snapshot = (ctx.route_snapshot if ctx else None) or _resolve_route_snapshot()
     if snapshot is None:
         return None
     active_phases = dict(snapshot)
     try:
         settings_db = Database()
-        if not _ad_review_enabled(settings_db):
+        if gates is None:
+            gates = _admission_gates(settings_db)
+        podcast_row, episode_row = _admission_mode_rows(
+            settings_db, slug, episode_id, queue_row)
+        mode = resolve_processing_mode(podcast_row, episode_row)
+        if mode == PROCESSING_MODE_PASSTHROUGH:
+            return []
+        if mode in (PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY):
+            # Both modes skip detection, review and verification outright, so
+            # chapters is the only phase left that can reach an LLM.
+            active_phases = {phase: route for phase, route in active_phases.items()
+                             if phase == 'chapters'}
+        if not gates['review']:
             active_phases.pop('review', None)
-        if not _chapters_enabled_for_admission(settings_db, slug):
+        if not _chapters_enabled_for_admission(gates['chapters_enabled'], podcast_row):
             active_phases.pop('chapters', None)
     except Exception as exc:
         # Fail open to the full (unfiltered) phase set: overcounting a
@@ -5241,7 +5277,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     def _reserve_provider():
         if provider_reservations:
             return
-        pairs = _required_providers_for_admission(slug)
+        pairs = _required_providers_for_admission(slug, episode_id)
+        if pairs is not None and not pairs:
+            return  # No phase reaches an LLM, so there is no spend to reserve.
         provider_keys = (sorted({pk for pk, _slot in pairs}) if pairs
                          else [get_effective_provider()])
         acquired: dict[str, str] = {}
@@ -5335,8 +5373,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Recorded even when _download_and_transcribe raises (OOM
             # exhaustion): the failure handler's history row still gets the
             # batch/retry/device context, not just a bare error string.
-            if transcriber.last_transcription_stats is not None:
-                run_stats['transcription'] = transcriber.last_transcription_stats
+            # One read plus a copy: a concurrent run can replace or mutate
+            # the shared singleton field between two reads of it.
+            transcription_stats = transcriber.last_transcription_stats
+            if transcription_stats is not None:
+                run_stats['transcription'] = dict(transcription_stats)
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
@@ -5821,8 +5862,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             existing_episode = db.get_episode(slug, episode_id) or {}
             new_version = _next_processed_version(existing_episode)
 
-            final_path = storage.get_episode_path(slug, episode_id, version=new_version)
+            # Fence first: resolving the path mkdirs the podcast tree, which
+            # would recreate the directory of a feed deleted mid-run.
             _require_publication_owner(slug, episode_id)
+            final_path = storage.get_episode_path(slug, episode_id, version=new_version)
             shutil.move(processed_path, final_path)
 
             # Retain the pre-cut audio for the ad-editor "Review mode" playback

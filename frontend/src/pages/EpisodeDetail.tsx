@@ -22,7 +22,7 @@ import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
-import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi, ThinkingNoticePass } from '../api/types';
+import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -268,6 +268,13 @@ function SpendSummary({ label, spend, title }: {
   );
 }
 
+// Why a new run cannot start. Only read once isActionBlocked says it cannot.
+function blockedRunReason(jobState?: JobState): string {
+  if (jobState === 'queued') return 'This episode is already queued.';
+  if (jobState === 'processing') return 'This episode is already processing.';
+  return 'A run is already starting.';
+}
+
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
   const [showEditor, setShowEditor] = useState(false);
@@ -354,6 +361,27 @@ function EpisodeDetail() {
       reprocessSubmittingRef.current = false;
     },
   });
+
+  // Eligibility for every control that enqueues a reprocess/redetect/recut
+  // run, derived from the server-authoritative jobState rather than ad-hoc
+  // status checks.
+  const reprocessBlocked = isActionBlocked(episode?.jobState, reprocessMutation.isPending);
+  const reprocessBlockedReason = reprocessBlocked ? blockedRunReason(episode?.jobState) : null;
+
+  // Guards a same-tick double activation (double-click, keyboard repeat) that
+  // would fire two POSTs before the disabled prop re-renders. Above the early
+  // returns because correctionMutation's onSuccess calls it after a re-render.
+  const handleReprocess = (mode: 'reprocess' | 'full' | 'llm' | 'recut') => {
+    if (reprocessSubmittingRef.current) return;
+    // The chained recut after a correction reaches this with no disabled
+    // button in front of it, so a refusal has to say so rather than vanish.
+    if (reprocessBlockedReason) {
+      setCorrectionError(reprocessBlockedReason);
+      return;
+    }
+    reprocessSubmittingRef.current = true;
+    reprocessMutation.mutate(mode);
+  };
 
   const regenerateChaptersMutation = useMutation({
     mutationFn: () => regenerateChapters(slug!, episodeId!),
@@ -613,11 +641,9 @@ function EpisodeDetail() {
   // on every reprocess and would flip the label back to "Process".
   const neverProcessed = !(episode.hasBeenProcessed ?? !!episode.processedAt);
   const reprocessLabel = neverProcessed ? 'Process' : 'Reprocess';
-
-  // Eligibility for every control that enqueues a reprocess/redetect/recut
-  // run, derived from the server-authoritative jobState rather than ad-hoc
-  // status checks.
-  const reprocessBlocked = isActionBlocked(episode.jobState, reprocessMutation.isPending);
+  // A trigger greyed out for minutes has to carry both its state and its why.
+  const reprocessTriggerLabel = reprocessMutation.isPending ? `${reprocessLabel}ing...` : reprocessLabel;
+  const reprocessTriggerTooltip = reprocessBlockedReason ?? `${reprocessLabel} this episode`;
 
   // The per-episode toggle is redundant once the whole feed already runs
   // pass-through (#746); disable it with an explanatory tooltip rather than
@@ -628,14 +654,6 @@ function EpisodeDetail() {
   const passthroughToggleTooltip = feedIsPassthrough
     ? 'This feed already runs in pass-through mode'
     : 'Serve this episode unmodified, with no ad processing';
-
-  // Guards a same-tick double activation (double-click, keyboard repeat)
-  // that would otherwise fire two POSTs before the disabled prop re-renders.
-  const handleReprocess = (mode: 'reprocess' | 'full' | 'llm' | 'recut') => {
-    if (reprocessSubmittingRef.current || reprocessBlocked) return;
-    reprocessSubmittingRef.current = true;
-    reprocessMutation.mutate(mode);
-  };
 
   // Fetch-then-save rather than a plain link, so a 401 or a swept file
   // shows an error here instead of replacing the page with the JSON body.
@@ -826,7 +844,7 @@ function EpisodeDetail() {
               )}
               {episode.cumulativeSpend && (
                 <SpendSummary
-                  label={episode.status === 'processing' ? 'Recorded so far' : 'Total spend'}
+                  label={episode.jobState === 'processing' ? 'Recorded so far' : 'Total spend'}
                   spend={episode.cumulativeSpend}
                   title="Every run this episode has had"
                 />
@@ -841,10 +859,11 @@ function EpisodeDetail() {
                 />
               )}
               <DropdownMenu
-                triggerLabel={reprocessLabel}
+                triggerLabel={reprocessTriggerLabel}
                 triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
                 chevronClassName="w-3 h-3"
                 disabled={reprocessBlocked}
+                title={reprocessTriggerTooltip}
                 items={[
                   { title: reprocessLabel, subtitle: 'Use patterns + AI',
                     tooltip: 'Use learned patterns + AI analysis',
@@ -1587,7 +1606,7 @@ function EpisodeDetail() {
                       )}
                       <button
                         onClick={() => handleCorrection({ type: 'reject', originalAd })}
-                        disabled={correctionMutation.isPending || reprocessMutation.isPending}
+                        disabled={correctionMutation.isPending || reprocessBlocked}
                         data-testid={`dismiss-${index}`}
                         className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                       >

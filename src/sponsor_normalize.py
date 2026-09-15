@@ -7,11 +7,15 @@ All sponsor writes from the rest of the codebase flow through
 import re
 import string
 
-from utils.constants import is_non_brand_name
+from utils.constants import is_non_brand_name, strip_apostrophe_suffixes
 
 
 _STRIP_CHARS = string.whitespace + '\'"`.,;:!?-'
 _MAX_LENGTH = 100
+# The curly apostrophe is normalized by the shared helper, so one spelling.
+_POSSESSIVE_SUFFIXES = ("'s",)
+# Names are stored as typed, so a lookup has to try each spelling.
+_POSSESSIVE_SPELLINGS = ("'s", "\u2019s")
 
 
 def segment_category_for(label, overrides):
@@ -28,6 +32,12 @@ def segment_category_for(label, overrides):
             if best is None or len(name) > len(best[0]):
                 best = (name, category)
     return best[1] if best else None
+
+
+def _possessive_base(name):
+    """Base name of a trailing possessive, else None."""
+    bases = strip_apostrophe_suffixes(name, _POSSESSIVE_SUFFIXES)
+    return bases[0] if bases else None
 
 
 def get_or_create_known_sponsor(db, name):
@@ -64,4 +74,16 @@ def get_or_create_known_sponsor(db, name):
     existing = db.get_known_sponsor_by_name(s)
     if existing:
         return existing['id']
+    base = _possessive_base(s)
+    if base:
+        base_row = db.get_known_sponsor_by_name(base)
+        if base_row:
+            return base_row['id']
+    else:
+        # Symmetric: a possessive brand keeps its own spelling, so the row it
+        # created has to be found when the base name arrives later.
+        for spelling in _POSSESSIVE_SPELLINGS:
+            possessive_row = db.get_known_sponsor_by_name(s + spelling)
+            if possessive_row:
+                return possessive_row['id']
     return db.create_known_sponsor(name=s)

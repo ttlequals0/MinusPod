@@ -96,6 +96,23 @@ def test_put_happy_path_and_persistence(app_client, _clean_settings):
     assert roundtrip['enabled'] is True
 
 
+def test_get_reports_a_provider_slot_scoped_hold(app_client, _clean_settings):
+    """A scoped hold must surface here too, or the pause banner and the
+    Reset button never appear for it."""
+    from rate_limit_hold import clear_hold, record_hold_until
+    from utils.time import utc_now
+    from datetime import timedelta
+    _csrf(app_client)
+    db = _clean_settings
+    future = (utc_now() + timedelta(hours=3)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    record_hold_until(db, 'provider-a', future, credential_slot='secondary')
+    try:
+        body = app_client.get('/api/v1/settings/rate-limit-hold').get_json()
+        assert body['holdUntil'] == future
+    finally:
+        clear_hold(db, 'provider-a:secondary')
+
+
 def test_get_hides_a_marker_past_its_reset(app_client, _clean_settings):
     _csrf(app_client)
     _clean_settings.set_setting('rate_limit_hold_until', '2020-01-01T00:00:00Z')

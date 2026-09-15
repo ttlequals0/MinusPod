@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reconcileStageSlotsForSecondaryToggle, splitSecondaryProviderPayload, type StageProviderSlots } from './settingsUtils';
+import { reconcileStageSlotsForSecondaryToggle, type StageProviderSlots } from './settingsUtils';
 
 function slots(overrides: Partial<StageProviderSlots> = {}): StageProviderSlots {
   return {
@@ -48,39 +48,3 @@ describe('reconcileStageSlotsForSecondaryToggle', () => {
   });
 });
 
-describe('splitSecondaryProviderPayload', () => {
-  it('separates the secondary provider keys from everything else', () => {
-    const { secondaryPayload, restPayload } = splitSecondaryProviderPayload({
-      llmProvider: 'openai-compatible',
-      openaiBaseUrl: 'http://localhost:8000/v1',
-      secondaryProviderEnabled: true,
-      secondaryProvider: 'anthropic',
-      secondaryProviderBaseUrl: '',
-    });
-    expect(secondaryPayload).toEqual({
-      secondaryProviderEnabled: true,
-      secondaryProvider: 'anthropic',
-      secondaryProviderBaseUrl: '',
-    });
-    expect(restPayload).toEqual({
-      llmProvider: 'openai-compatible',
-      openaiBaseUrl: 'http://localhost:8000/v1',
-    });
-  });
-
-  it('returns an empty secondaryPayload when no secondary field changed', () => {
-    const { secondaryPayload, restPayload } = splitSecondaryProviderPayload({
-      llmProvider: 'anthropic',
-    });
-    expect(secondaryPayload).toEqual({});
-    expect(restPayload).toEqual({ llmProvider: 'anthropic' });
-  });
-
-  it('returns an empty restPayload when only secondary fields changed', () => {
-    const { secondaryPayload, restPayload } = splitSecondaryProviderPayload({
-      secondaryProviderEnabled: true,
-    });
-    expect(secondaryPayload).toEqual({ secondaryProviderEnabled: true });
-    expect(restPayload).toEqual({});
-  });
-});

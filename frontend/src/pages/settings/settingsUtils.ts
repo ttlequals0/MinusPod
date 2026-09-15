@@ -1,9 +1,7 @@
 export const BYTES_PER_MB = 1048576;
 
-import type { ClaudeModel, UpdateSettingsPayload } from '../../api/types';
+import type { ClaudeModel } from '../../api/types';
 import { formatTimestamp } from '../../utils/format';
-
-type SettingScalar = string | number | boolean;
 
 export function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
@@ -62,33 +60,6 @@ export function reconcileStageSlotsForSecondaryToggle(
     chaptersProvider: toPrimary(slots.chaptersProvider),
     reviewProvider: toPrimary(slots.reviewProvider),
   };
-}
-
-// Payload keys that must reach the backend in their own PUT, ahead of
-// everything else in the same save. The backend applies the secondary
-// provider fields after the primary provider fields within one PUT, so a
-// combined save (e.g. enabling secondary, routing a stage to it, and
-// changing llmProvider all at once) would have the primary provider's
-// model-pruning check read pre-write secondary state.
-export const SECONDARY_SETTINGS_KEYS: (keyof UpdateSettingsPayload)[] = [
-  'secondaryProviderEnabled', 'secondaryProvider', 'secondaryProviderBaseUrl',
-];
-
-// Splits a changed-fields payload so the secondary provider fields can be
-// sent in their own leading request, ahead of everything else, regardless
-// of which other fields are also dirty in the same save.
-export function splitSecondaryProviderPayload(payload: UpdateSettingsPayload): {
-  secondaryPayload: UpdateSettingsPayload;
-  restPayload: UpdateSettingsPayload;
-} {
-  const secondaryPayload: UpdateSettingsPayload = {};
-  const restPayload: UpdateSettingsPayload = {};
-  for (const [key, value] of Object.entries(payload)) {
-    const target = SECONDARY_SETTINGS_KEYS.includes(key as keyof UpdateSettingsPayload)
-      ? secondaryPayload : restPayload;
-    (target as Record<string, SettingScalar>)[key] = value as SettingScalar;
-  }
-  return { secondaryPayload, restPayload };
 }
 
 export function formatModelLabel(model: ClaudeModel): string {
