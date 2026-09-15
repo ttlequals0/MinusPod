@@ -191,3 +191,23 @@ def test_possessive_without_base_row_creates_row(temp_db):
     sid = get_or_create_known_sponsor(temp_db, "Harry's")
     assert temp_db.get_known_sponsor_by_name('Harry') is None
     assert temp_db.get_known_sponsor_by_id(sid)['name'] == "Harry's"
+
+
+# --- Bare pronouns and audio-signal labels -------------------------------
+
+@pytest.mark.parametrize('word', ['you', 'You', 'we', 'it', 'that', 'this', 'they'])
+def test_bare_pronouns_rejected(temp_db, word):
+    assert get_or_create_known_sponsor(temp_db, word) is None
+
+
+@pytest.mark.parametrize('label', [
+    'volume_decrease', 'digital silence', 'splice evidence: digital silence',
+    'DAI transition pair', 'volume anomaly', 'loudness step', 'VAD gap',
+])
+def test_audio_signal_labels_rejected(temp_db, label):
+    assert get_or_create_known_sponsor(temp_db, label) is None
+
+
+@pytest.mark.parametrize('brand', ['Digital Ocean', 'Athletic Greens', 'Deep Sentinel'])
+def test_brands_sharing_a_signal_word_accepted(temp_db, brand):
+    assert get_or_create_known_sponsor(temp_db, brand) is not None

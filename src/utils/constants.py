@@ -574,24 +574,36 @@ def strip_apostrophe_suffixes(name: str, suffixes) -> list[str]:
     return [text[:-len(suffix)] for suffix in suffixes
             if lowered.endswith(suffix) and len(text) > len(suffix)]
 
-_SINGLE_WORD_NON_BRAND = COMMON_SPEECH_WORDS | SEGMENT_STRUCTURE_WORDS
-_CONTRACTION_NON_BRAND = _SINGLE_WORD_NON_BRAND | CONTRACTION_STEM_WORDS
+_SINGLE_WORD_NON_BRAND = (COMMON_SPEECH_WORDS | SEGMENT_STRUCTURE_WORDS
+                          | CONTRACTION_STEM_WORDS)
+
+# Audio-analysis labels a weak verification model echoes as the "sponsor"
+# ("volume_decrease", "splice evidence: digital silence"). A name made only
+# of these words is a signal name, not an advertiser.
+AUDIO_SIGNAL_WORDS = frozenset({
+    'silence', 'volume', 'loudness', 'splice', 'transition', 'anomaly',
+    'vad', 'dai', 'evidence', 'step', 'decrease', 'increase', 'gap',
+    'digital', 'deep', 'pair', 'cue', 'signal',
+})
 
 
 def is_non_brand_name(name: str) -> bool:
     """A sanitized name that is never a real advertiser: a known junk value, a
-    single common/structure word, or a contraction of one. Multi-word names pass."""
+    single common/structure word or contraction of one, or an audio-signal label."""
     if not name:
         return True
     key = ' '.join(str(name).split()).lower().replace('\u2019', "'")
     if key in INVALID_SPONSOR_VALUES:
+        return True
+    words = key.replace('_', ' ').replace(':', ' ').split()
+    if words and all(word in AUDIO_SIGNAL_WORDS for word in words):
         return True
     if ' ' in key:
         return False
     if key in _SINGLE_WORD_NON_BRAND:
         return True
     stems = strip_apostrophe_suffixes(key, _CONTRACTION_SUFFIXES)
-    return any(stem in _CONTRACTION_NON_BRAND for stem in stems)
+    return any(stem in _SINGLE_WORD_NON_BRAND for stem in stems)
 
 # Vocabulary the model reaches for when describing an ad's shape or evidence,
 # plus the pronouns it quotes ("We'll be right back"). Read only by the
