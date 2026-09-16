@@ -682,8 +682,8 @@ class TestSplitConflictingActionSpan:
 
         assert (new_last['start'], new_last['end']) == (100.0, 108.0)
         assert (entries[1]['start'], entries[1]['end']) == (118.0, 126.0)
-        assert new_last['_trusted_split_fragment'] is True
-        assert entries[1]['_trusted_split_fragment'] is True
+        assert new_last['_measured_split_fragment'] is True
+        assert entries[1]['_measured_split_fragment'] is True
 
     def test_later_keep_owns_overlap_with_defined_remove_pattern(self):
         last = {

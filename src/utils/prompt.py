@@ -130,5 +130,5 @@ def strip_comments_from_prompt(prompt: str|None) -> str|None:
     """
     if not prompt:
         return prompt
-    pattern = r'^([ ]{0,3})<!--(?:.|\n)*?-->(?:\r?\n)?|<!--.*?-->'
-    return re.sub(pattern, r'\1', prompt, flags=re.MULTILINE)
+    pattern = r'^([ ]{0,3})<!--.*?-->(?:\r?\n)?|<!--.*?-->'
+    return re.sub(pattern, r'\1', prompt, flags=re.MULTILINE | re.DOTALL)

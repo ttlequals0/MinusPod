@@ -1017,11 +1017,11 @@ class TestPartitionPass2CategoryActions:
         assert [(ad['start'], ad['end']) for ad in out_p] == [
             (100.0, 130.0), (150.0, 180.0),
         ]
-        assert all(ad['_trusted_split_fragment'] is True for ad in out_p)
+        assert all(ad['_measured_split_fragment'] is True for ad in out_p)
         assert [(ad['start'], ad['end']) for ad in out_o] == [
             (119.0, 149.0), (169.0, 199.0),
         ]
-        assert all(ad['_trusted_split_fragment'] is True for ad in out_o)
+        assert all(ad['_measured_split_fragment'] is True for ad in out_o)
         assert all(ad['reason'] == 'heuristic roll' for ad in out_p + out_o)
 
     def test_kept_audio_covering_candidate_drops_it(self):
@@ -1105,13 +1105,13 @@ class TestPartitionPass2CategoryActions:
         )
 
         short_beep = next(ad for ad in out_p if ad['action_applied'] == 'beep')
-        assert short_beep['_trusted_split_fragment'] is True
+        assert short_beep['_measured_split_fragment'] is True
         applied = AudioProcessor().compute_applied_cuts(
             [dict(short_beep, beep=True)], 200.0)
         assert [(ad['start'], ad['end'], ad['replacement_duration'])
                 for ad in applied] == [(110.0, 118.0, 8.0)]
         assert next(ad for ad in out_o if ad['action_applied'] == 'beep')[
-            '_trusted_split_fragment'] is True
+            '_measured_split_fragment'] is True
 
     def test_run_verification_persists_keep_without_recut(self):
         ctx = types.SimpleNamespace(

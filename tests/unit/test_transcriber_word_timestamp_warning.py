@@ -1,6 +1,9 @@
 """A 200 that carries no word timestamps must say so."""
 import logging
 
+import re
+from urllib.parse import urlparse
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('transcriber_word_ts_')
@@ -22,7 +25,8 @@ def test_segments_without_words_warn_once_naming_provider_and_model(caplog):
                                   {'start': 1, 'end': 2, 'text': 'there'}])
 
     assert len(messages) == 1
-    assert 'whisper.example.com' in messages[0]
+    logged_url = re.search(r'https?://\S+', messages[0]).group(0).rstrip(',;)')
+    assert urlparse(logged_url).hostname == 'whisper.example.com'
     assert 'whisper-1' in messages[0]
 
 

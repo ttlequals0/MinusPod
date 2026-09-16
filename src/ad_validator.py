@@ -1271,8 +1271,8 @@ class AdValidator:
             note_fold(original, current_original)
             original['start'] = min(original['start'], current_original['start'])
             original['end'] = max(original['end'], current_original['end'])
-            if current.get('_trusted_split_fragment'):
-                original['_trusted_split_fragment'] = True
+            if current.get('_measured_split_fragment'):
+                original['_measured_split_fragment'] = True
 
         for current in sorted_ads[1:]:
             last = merged[-1]
@@ -1343,8 +1343,8 @@ class AdValidator:
                     last['confidence'] = current['confidence']
                 if current.get('pattern_defined'):
                     last['pattern_defined'] = True
-                if current.get('_trusted_split_fragment'):
-                    last['_trusted_split_fragment'] = True
+                if current.get('_measured_split_fragment'):
+                    last['_measured_split_fragment'] = True
                 result.corrections.append(f"Merged ads with {gap:.1f}s gap")
             elif 0 <= gap < MAX_SILENT_GAP and not self._has_speech_in_range(last['end'], current['start']):
                 # Merge larger gaps if no speech in between
@@ -1359,8 +1359,8 @@ class AdValidator:
                     last['confidence'] = current['confidence']
                 if current.get('pattern_defined'):
                     last['pattern_defined'] = True
-                if current.get('_trusted_split_fragment'):
-                    last['_trusted_split_fragment'] = True
+                if current.get('_measured_split_fragment'):
+                    last['_measured_split_fragment'] = True
                 result.corrections.append(f"Merged ads across {gap:.1f}s silent gap")
             else:
                 merged.append(current.copy())

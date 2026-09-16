@@ -299,14 +299,14 @@ class AudioProcessor:
                     current_segment['confidence'] = ad['confidence']
                 if ad.get('detection_stage') == 'fingerprint':
                     current_segment['detection_stage'] = 'fingerprint'
-                if ad.get('_trusted_split_fragment'):
-                    current_segment['_trusted_split_fragment'] = True
+                if ad.get('_measured_split_fragment'):
+                    current_segment['_measured_split_fragment'] = True
             else:
                 if current_segment:
                     merged_ads.append(current_segment)
                 current_segment = {'start': ad['start'], 'end': ad['end']}
                 for key in ('reason', 'confidence', 'detection_stage', 'beep',
-                            '_trusted_split_fragment'):
+                            '_measured_split_fragment'):
                     if key in ad:
                         current_segment[key] = ad[key]
         if current_segment:
@@ -320,26 +320,26 @@ class AudioProcessor:
         skipped_count = 0
         for ad in merged_ads:
             duration = ad['end'] - ad['start']
-            trusted_split = bool(ad.get('_trusted_split_fragment'))
-            trusted = (ad.get('detection_stage') == 'fingerprint'
-                       or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
-                       or trusted_split)
+            measured_split = bool(ad.get('_measured_split_fragment'))
+            keep_short = (ad.get('detection_stage') == 'fingerprint'
+                          or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
+                          or measured_split)
             if duration >= MIN_AD_DURATION_FOR_REMOVAL:
                 ads.append(ad)
-            elif trusted:
+            elif keep_short:
                 ads.append(ad)
                 logger.info(
                     f"Keeping short ad ({duration:.1f}s < {MIN_AD_DURATION_FOR_REMOVAL}s): "
                     f"stage={ad.get('detection_stage', '?')} "
                     f"confidence={ad.get('confidence', 'n/a')} "
-                    f"trusted_split={trusted_split}")
+                    f"measured_split={measured_split}")
             else:
                 skipped_count += 1
                 logger.info(f"Skipping short ad ({duration:.1f}s < {MIN_AD_DURATION_FOR_REMOVAL}s): {ad.get('reason', 'unknown')[:50]}")
         if skipped_count > 0:
             logger.info(f"Skipped {skipped_count} short ad detections (< {MIN_AD_DURATION_FOR_REMOVAL}s)")
         for ad in ads:
-            ad.pop('_trusted_split_fragment', None)
+            ad.pop('_measured_split_fragment', None)
 
         # End-of-episode cut: when less than 30s would remain after the last
         # cut, the episode ends at the beep, so the cut runs to the end.

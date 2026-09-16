@@ -631,7 +631,7 @@ def test_build_recut_preserves_trusted_short_cut(monkeypatch):
     ads = [{
         'start': 100.0, 'end': 106.0, 'confidence': 0.85,
         'reason': 'fragment split around beep audio', 'was_cut': True,
-        '_trusted_split_fragment': True,
+        '_measured_split_fragment': True,
     }]
     _stub_recut_db(monkeypatch, ads)
 
@@ -648,7 +648,7 @@ def test_build_recut_trusted_short_cut_still_honors_fp(monkeypatch):
     ads = [{
         'start': 100.0, 'end': 106.0, 'confidence': 0.85,
         'reason': 'fragment split around beep audio', 'was_cut': True,
-        '_trusted_split_fragment': True,
+        '_measured_split_fragment': True,
     }]
     _stub_recut_db(monkeypatch, ads, fp=[{'start': 100.0, 'end': 106.0}])
 

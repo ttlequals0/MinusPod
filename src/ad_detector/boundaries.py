@@ -1242,15 +1242,15 @@ def split_conflicting_action_span(last: dict, current: dict,
     if current['start'] >= last['end']:
         return last, [current.copy()]
 
-    def mark_trusted_fragment(fragment, parent):
-        if (parent.get('_trusted_split_fragment')
+    def mark_measured_fragment(fragment, parent):
+        if (parent.get('_measured_split_fragment')
                 or parent['end'] - parent['start']
                 >= MIN_AD_DURATION_FOR_REMOVAL):
-            fragment['_trusted_split_fragment'] = True
+            fragment['_measured_split_fragment'] = True
         return fragment
 
     def carve(parent, s, e):
-        return mark_trusted_fragment(carve_fragment(parent, s, e), parent)
+        return mark_measured_fragment(carve_fragment(parent, s, e), parent)
 
     priority = {'remove': 0, 'beep': 1, 'keep': 2}
     last_pattern = bool(last.get('pattern_defined'))

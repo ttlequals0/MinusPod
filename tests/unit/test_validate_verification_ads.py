@@ -77,11 +77,11 @@ def test_merge_keeps_correct_twin_for_later_ad():
     assert kept_orig[1]['marker'] == 'C'
 
 
-def test_merge_preserves_later_trusted_split_fragment():
+def test_merge_preserves_later_measured_split_fragment():
     processed = [
         {'start': 100.0, 'end': 102.0, 'confidence': 0.85},
         {'start': 106.0, 'end': 108.0, 'confidence': 0.85,
-         '_trusted_split_fragment': True},
+         '_measured_split_fragment': True},
     ]
     original = [
         {'start': 1100.0, 'end': 1102.0},
@@ -90,12 +90,12 @@ def test_merge_preserves_later_trusted_split_fragment():
 
     kept_proc, kept_orig = _run(processed, original)
 
-    assert kept_proc[0]['_trusted_split_fragment'] is True
+    assert kept_proc[0]['_measured_split_fragment'] is True
     # The twin's span grew with the merge, so it records the same members.
     assert kept_orig[0] == {
         'start': 1100.0,
         'end': 1108.0,
-        '_trusted_split_fragment': True,
+        '_measured_split_fragment': True,
         'merged_distinct_ads': True,
         'merged_protected_start': 1100.0,
         'merged_protected_end': 1108.0,

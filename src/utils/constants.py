@@ -130,13 +130,13 @@ _SPONSOR_LEAD_IN_RE = re.compile(
     r'^(?:(?:our|their|the|his|her|its|my|your)\s+)?'
     r'(?:friends?|partners?|sponsors?|supporters?)'
     r'(?:\s+and\s+(?:friends?|partners?|sponsors?|supporters?))*'
-    r'\s+(?:at|from)\s+(.+)$', re.I)
+    r'\s+(?:at|from)\s+(\S.*)$', re.I)
 
 # Credit lead-in before the advertiser ("Sponsored by Acme"). The whole
 # phrase goes, preposition included, or the brand is stored as "by Acme".
 _CREDIT_LEAD_IN_RE = re.compile(
     r'^(?:brought\s+to\s+you|sponsored|produced|presented|powered|hosted|'
-    r'edited|written)\s+by\b\s*(.*)$', re.I)
+    r'edited|written)\s+by\b(?:\s+(\S.*))?$', re.I)
 
 # Possessives that precede either a brand ("Our Place") or junk ("our
 # sponsor"). Kept in the label; what follows decides.
@@ -157,7 +157,7 @@ def sanitize_sponsor_label(text, show_name: str | None = None) -> str | None:
         return None
     credit = _CREDIT_LEAD_IN_RE.match(label)
     if credit:
-        label = credit.group(1).strip()
+        label = (credit.group(1) or '').strip()
         if not label:
             return None
     lead_in = _SPONSOR_LEAD_IN_RE.match(label)
@@ -679,7 +679,7 @@ _SIGNAL_LABEL_WORDS = AUDIO_SIGNAL_WORDS | STRUCTURAL_LABEL_WORDS
 
 # Lead-in and trailing words a platform label carries ("Hosted on Acast",
 # "Acast ads", "Acast.com", "Anchor FM"); the platform is what is left.
-_HOSTING_LEAD_IN_RE = re.compile(r'^hosted\s+(?:on|at|by)\s+(.+)$', re.I)
+_HOSTING_LEAD_IN_RE = re.compile(r'^hosted\s+(?:on|at|by)\s+(\S.*)$', re.I)
 _HOSTING_TRAILING_WORDS = frozenset({'fm', 'ads', 'com', 'net', 'io'})
 
 

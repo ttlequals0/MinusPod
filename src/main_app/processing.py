@@ -1855,7 +1855,7 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
             f"{processed['end']:.1f}s split around {barrier_label} into "
             f"{len(fragments)} removable fragment(s)")
         trusted_fragment = (
-            processed.get('_trusted_split_fragment')
+            processed.get('_measured_split_fragment')
             or processed['end'] - processed['start']
             >= MIN_AD_DURATION_FOR_REMOVAL
         )
@@ -1865,7 +1865,7 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
                 # The parent cleared the renderer's duration floor before a
                 # protected keep/beep span carved it into smaller pieces.
                 # Validation still decides whether each piece is a cut.
-                fragment_processed['_trusted_split_fragment'] = True
+                fragment_processed['_measured_split_fragment'] = True
             fragment_original = dict(
                 original,
                 start=_map_to_original(
@@ -1874,7 +1874,7 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
                     end, timestamp_map, replacement_duration),
             )
             if trusted_fragment:
-                fragment_original['_trusted_split_fragment'] = True
+                fragment_original['_measured_split_fragment'] = True
             surviving_processed.append(fragment_processed)
             surviving_original.append(fragment_original)
 
@@ -1946,8 +1946,8 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts):
         ):
             # This beep is the boundary that preserves its contested audio,
             # so it must survive the renderer's short-cut confidence floor.
-            beep_processed['_trusted_split_fragment'] = True
-            beep_original['_trusted_split_fragment'] = True
+            beep_processed['_measured_split_fragment'] = True
+            beep_original['_measured_split_fragment'] = True
     remove_processed, remove_original = _split_pass2_candidates_around_spans(
         remove_processed,
         remove_original,
@@ -3093,7 +3093,7 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
         if action is None:
             return None
         candidates.append(dict(
-            cut, action_applied=action, _trusted_split_fragment=True,
+            cut, action_applied=action, _measured_split_fragment=True,
             _crosspass_sources={'pass1'}))
     for cut in pass2_original_cuts:
         action = cut.get('action_applied')
@@ -3133,9 +3133,9 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
                 and not crosses_protected(start, end)):
             current['end'] = max(current['end'], candidate['end'])
             current['_crosspass_sources'].update(candidate['_crosspass_sources'])
-            current['_trusted_split_fragment'] = bool(
-                current.get('_trusted_split_fragment')
-                or candidate.get('_trusted_split_fragment'))
+            current['_measured_split_fragment'] = bool(
+                current.get('_measured_split_fragment')
+                or candidate.get('_measured_split_fragment'))
             merged_crosspass = True
             continue
         planned.append(candidate)
@@ -4642,7 +4642,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
                     if flag.startswith('ERROR:')
                 ]
                 trusted_duration_reject = (
-                    ad.get('_trusted_split_fragment')
+                    ad.get('_measured_split_fragment')
                     and error_flags
                     and all('Very short' in flag for flag in error_flags)
                 )
