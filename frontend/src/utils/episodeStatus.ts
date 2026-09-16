@@ -1,14 +1,15 @@
 import { EPISODE_STATUS_KEYS, type EpisodeStatusKey } from '../api/types';
+import { tint } from '../components/badgeStyles';
 
 export const EPISODE_STATUS_COLORS: Record<string, string> = {
-  discovered: 'bg-c-blue/20 text-c-blue',
-  pending: 'bg-muted text-muted-foreground',
-  queued: 'bg-c-purple/20 text-c-purple',
-  processing: 'bg-warning/20 text-warning',
-  completed: 'bg-success/20 text-success',
-  failed: 'bg-destructive/20 text-destructive',
-  permanently_failed: 'bg-destructive/20 text-destructive',
-  deferred: 'bg-c-purple/20 text-c-purple',
+  discovered: tint.blue,
+  pending: tint.neutral,
+  queued: tint.purple,
+  processing: tint.warning,
+  completed: tint.success,
+  failed: tint.destructive,
+  permanently_failed: tint.destructive,
+  deferred: tint.purple,
 };
 
 export const EPISODE_STATUS_LABELS: Record<string, string> = {
@@ -37,7 +38,7 @@ export function displayStatusLabel(status: string, jobState?: string): string {
 }
 
 export function displayStatusColor(status: string, jobState?: string): string {
-  return EPISODE_STATUS_COLORS[displayStatusKey(status, jobState)] ?? 'bg-muted text-muted-foreground';
+  return EPISODE_STATUS_COLORS[displayStatusKey(status, jobState)] ?? tint.neutral;
 }
 
 // Single source of iteration order for status summaries and stat cards.

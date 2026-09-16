@@ -21,7 +21,7 @@ export function useEscape(onClose: () => void, enabled = true) {
   }, [onClose, enabled]);
 }
 
-const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+export const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 // Keeps Tab inside the dialog and returns focus to the trigger on close, so a
 // keyboard user is never dropped onto the page behind an open dialog.

@@ -1,3 +1,5 @@
+import { tint } from '../components/badgeStyles';
+
 // Sources set by AdValidator._audio_corroboration_source when audio evidence
 // backs a marker (key 'corroborated_by' on the ad dict).
 export type CorroborationSource =
@@ -8,7 +10,7 @@ export type CorroborationSource =
   | 'dai_differential';
 
 // Corroboration is an agreement signal, so every source shares the success tint.
-export const CORROBORATION_CLASS = 'bg-success/20 text-success';
+export const CORROBORATION_CLASS = tint.success;
 
 export const CORROBORATION_META: Record<CorroborationSource, { label: string; title: string }> = {
   transition_pair: {

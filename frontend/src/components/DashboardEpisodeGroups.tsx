@@ -76,7 +76,6 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
     `dashboard-group-collapsed:${feed.slug}`, false);
 
   return (
-    // No overflow-hidden: it clipped the last row's dropdown, and the content is inset from the corners.
     <section aria-labelledby={headingId} className="bg-card rounded-lg border border-border">
       <div className={`flex items-center gap-3 p-4${collapsed ? '' : ' border-b border-border'}`}>
         <Link

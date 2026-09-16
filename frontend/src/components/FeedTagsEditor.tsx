@@ -11,6 +11,7 @@ import { Skeleton } from './Skeleton';
 import { btnOutline } from './buttonStyles';
 import { selectBase } from './fieldStyles';
 import { focusRing } from './fieldStyles';
+import { RemovableChip } from './RemovableChip';
 
 interface Props {
   slug: string;
@@ -100,21 +101,7 @@ export function FeedTagsEditor({ slug }: Props) {
                     <span className="text-xs text-muted-foreground w-16 shrink-0">Yours:</span>
                     <div className="flex flex-wrap gap-1">
                       {tags.user.map((t) => (
-                        <span
-                          key={t}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-c-blue/15 text-c-blue"
-                        >
-                          {t}
-                          <button
-                            type="button"
-                            onClick={() => removeTag(t)}
-                            disabled={save.isPending}
-                            className={`text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50 ${focusRing}`}
-                            aria-label={`Remove ${t}`}
-                          >
-                            ×
-                          </button>
-                        </span>
+                        <RemovableChip key={t} label={t} onRemove={() => removeTag(t)} disabled={save.isPending} />
                       ))}
                     </div>
                   </div>

@@ -18,6 +18,9 @@
 --destructive:1 82% 55%;--destructive-foreground:0 0% 100%;--success:142.3 100% 32.6%;--warning:30.1 100% 44.2%;
 --border:210 15% 85%;--input:210 15% 85%;--ring:194 66% 45%;--radius:0.5rem;
 --c-blue:#2563eb;--c-yellow:#ca8a04;--c-purple:#9333ea;--c-red:#dc2626;--c-teal:#0f766e;
+/* Badge text on a tint of its own hue, solved for the worst backdrop: a 30% hover fill inside a 10% panel. */
+--c-blue-on-tint:hsl(221.2 83.2% 37.5%);--c-purple-on-tint:hsl(271.5 81.3% 38.5%);--c-teal-on-tint:hsl(175.3 77.4% 18.5%);
+--success-on-tint:142.3 100% 18.5%;--warning-on-tint:30.1 100% 25.5%;--destructive-on-tint:1 82% 33%;
 }
 body{margin:0;font-family:'Roboto',ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:hsl(var(--primary));text-decoration:none}
@@ -225,19 +228,19 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:16px">
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(59,130,246,.2);color:var(--c-blue)">discovered</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(59,130,246,.2);color:var(--c-blue-on-tint)">discovered</span>
       <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:hsl(var(--muted));color:hsl(var(--muted-foreground))">pending</span>
-      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(234,179,8,.2);color:var(--c-yellow)">processing</span>
-      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success))">completed</span>
-      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:hsl(var(--destructive) / 0.2);color:hsl(var(--destructive))">failed</span>
-      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(168,85,247,.2);color:var(--c-purple)">queued</span>
-      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(168,85,247,.2);color:var(--c-purple)">queued (offline)</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(234,179,8,.2);color:hsl(var(--warning-on-tint))">processing</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success-on-tint))">completed</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:hsl(var(--destructive) / 0.2);color:hsl(var(--destructive-on-tint))">failed</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(168,85,247,.2);color:var(--c-purple-on-tint)">queued</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(168,85,247,.2);color:var(--c-purple-on-tint)">queued (offline)</span>
     </div>
     <div style="font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty"><strong style="color:hsl(var(--foreground))">queued is purple on purpose.</strong> It is not a terminal state, so it must not borrow completed&rsquo;s green: an episode waiting its turn and an episode that finished have to be distinguishable at a glance in a long list. It shares the offline hue because both mean waiting, and it overrides the displayed status while a job is in the run queue. <span style="font-family:ui-monospace,monospace;font-size:12px">pending</span> means eligible for work; <span style="font-family:ui-monospace,monospace;font-size:12px">queued</span> means work is scheduled.</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(20,184,166,.15);color:var(--c-teal)">community v3 &middot; a1b2c3</span>
-      <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:rgba(245,158,11,.2);color:hsl(var(--warning))">Experimental</span>
-      <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:rgba(245,158,11,.2);color:hsl(var(--warning))">Incomplete</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(20,184,166,.2);color:var(--c-teal-on-tint)">community v3 &middot; a1b2c3</span>
+      <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:rgba(245,158,11,.2);color:hsl(var(--warning-on-tint))">Experimental</span>
+      <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:rgba(245,158,11,.2);color:hsl(var(--warning-on-tint))">Incomplete</span>
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">&larr; cost coverage reuses the warning badge, no new hue</span>
     </div>
     <div style="font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty"><strong style="color:hsl(var(--foreground))">Unknown cost.</strong> A spend figure whose calls were not all priced is a floor, not a total. Mark it with the existing warning badge and prefix the amount with &ldquo;known spend&rdquo;; the title attribute carries the why. Never style it as an error: nothing failed. In a table the same condition is a plain text column instead (&ldquo;Fully priced&rdquo; / &ldquo;3 of 12 unpriced&rdquo;), because a badge per row would be noise.</div>
@@ -323,13 +326,13 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
           <td style="padding:12px 16px"><span style="color:hsl(var(--primary));cursor:pointer" style-hover="text-decoration:underline">The Example Show</span></td>
           <td style="padding:12px 16px;color:hsl(var(--muted-foreground));white-space:nowrap">Aug 2, 14:03</td>
           <td style="padding:12px 16px">4</td>
-          <td style="padding:12px 16px"><span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success))">Completed</span></td>
+          <td style="padding:12px 16px"><span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success-on-tint))">Completed</span></td>
         </tr>
         <tr style="border-top:1px solid hsl(var(--border))" style-hover="background:hsl(var(--muted) / 0.5)">
           <td style="padding:12px 16px"><span style="color:hsl(var(--primary));cursor:pointer" style-hover="text-decoration:underline">Weekly Deep Dive</span></td>
           <td style="padding:12px 16px;color:hsl(var(--muted-foreground));white-space:nowrap">Aug 2, 09:41</td>
           <td style="padding:12px 16px">0</td>
-          <td style="padding:12px 16px"><span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(239,68,68,.2);color:var(--c-red)" title="Error message goes in title">Failed</span></td>
+          <td style="padding:12px 16px"><span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(239,68,68,.2);color:hsl(var(--destructive-on-tint))" title="Error message goes in title">Failed</span></td>
         </tr>
       </tbody>
     </table>
@@ -340,7 +343,7 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
       <div style="max-width:340px;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px">
           <span style="color:hsl(var(--primary));font-size:14px;font-weight:500">The Example Show</span>
-          <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success))">Completed</span>
+          <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success-on-tint))">Completed</span>
         </div>
         <div style="color:hsl(var(--primary));font-size:14px;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ep. 214 &mdash; The one about consistency</div>
         <div style="display:flex;gap:16px;font-size:12px;color:hsl(var(--muted-foreground))"><span>Aug 2, 14:03</span><span>3m 12s</span><span>Ads: 4</span></div>
@@ -425,7 +428,7 @@ tab&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= px-4 py-2 text-sm fon
         <div style="max-width:384px;background:hsl(var(--destructive) / 0.1);border:1px solid hsl(var(--destructive));color:hsl(var(--destructive));border-radius:8px;padding:16px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.15);font-size:14px;display:flex;align-items:flex-start;gap:12px"><span style="flex:1">Refresh failed: upstream returned 503</span><button aria-label="Dismiss" style="border:none;background:none;cursor:pointer;color:hsl(var(--destructive) / 0.7);padding:0;display:flex" style-hover="color:hsl(var(--destructive))"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg></button></div>
         <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.15);font-size:14px">Click delete again to confirm</div>
       </div>
-      <div style="font-size:12px;color:hsl(var(--muted-foreground))">Menus: DropdownMenu component &mdash; w-56 card, shadow-lg, title 14/500 + subtitle 12 muted, align right by default (left when the trigger sits on the row&rsquo;s left edge). Destructive actions confirm via click-again toast (3s) or ConfirmModal, never window.confirm.</div>
+      <div style="font-size:12px;color:hsl(var(--muted-foreground))">Menus: DropdownMenu component &mdash; w-56 card, shadow-lg, title 14/500 + subtitle 12 muted, align right by default (left when the trigger sits on the row&rsquo;s left edge). The live menu renders in a portal on document.body at z-40, above the z-30 sticky header and below the fixed z-50 bars, whose height it subtracts from the room it places itself in; the z-index:10 above is only this sample&rsquo;s local stacking. Destructive actions confirm via click-again toast (3s) or ConfirmModal, never window.confirm.</div>
     </div>
   </div>
 </section>
@@ -533,6 +536,12 @@ class Component extends DCLogic {
     themeStyle['--c-purple'] = dk ? '#c084fc' : '#9333ea';
     themeStyle['--c-red'] = dk ? '#f87171' : '#dc2626';
     themeStyle['--c-teal'] = dk ? '#2dd4bf' : '#0f766e';
+    themeStyle['--c-blue-on-tint'] = dk ? 'hsl(213.1 93.9% 91%)' : 'hsl(221.2 83.2% 37.5%)';
+    themeStyle['--c-purple-on-tint'] = dk ? 'hsl(270 95.2% 93%)' : 'hsl(271.5 81.3% 38.5%)';
+    themeStyle['--c-teal-on-tint'] = dk ? 'hsl(172.5 66% 92%)' : 'hsl(175.3 77.4% 18.5%)';
+    themeStyle['--success-on-tint'] = dk ? '150.1 95.6% 89.5%' : '142.3 100% 18.5%';
+    themeStyle['--warning-on-tint'] = dk ? '43.6 100% 93%' : '30.1 100% 25.5%';
+    themeStyle['--destructive-on-tint'] = dk ? '1 82% 87%' : '1 82% 33%';
     themeStyle.colorScheme = dk ? 'dark' : 'light';
 
     const sun = React.createElement('svg', { width: 20, height: 20, fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 2 },

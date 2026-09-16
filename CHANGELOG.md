@@ -20,6 +20,10 @@ release notes.
 - The processing status bar fits a 360 px phone. The progress bar shrinks, and long hold labels truncate instead of pushing the expand chevron off screen. On phones a timed pause reads "Resumes 9:59 PM" and the running and queued count chips drop their word. The queued chip uses the purple queued color from the episode status palette.
 - A provider rate limit that fails every verification window now re-queues the episode to resume after the hold, the same as a first-pass limit. The verification wrapper had swallowed the hold, so the episode finalized with its first-pass cuts and none of the second pass.
 - A reviewer proposal that the boundary clamp rejected no longer triggers a second recovery call or marks the ad as moved.
+- Badges share one recipe across the app (8 px side padding, 20 percent tint from a named set of theme tokens) instead of hand-written variants in 40 files. The last 10 and 15 percent tints are raised to 20 percent.
+- Dashboard dropdown menus render in one layer above the page containers and the sticky header, and leave the fixed status and save bars their room. A menu flips upward when there is no room below, scrolls when tall, follows its trigger, is fully keyboard reachable, and closes when the trigger scrolls away or focus moves elsewhere. Popovers inside dialogs and under the software keyboard keep their inline placement.
+- Genre and industry tags use the neutral chip, since seven theme hues cannot tell 48 tags apart. Only the universal tag keeps its accent.
+- Badge text uses per-hue on-tint tokens. A guard test checks each token against the card and the page, inside a 10 percent panel of the same hue, and under a 30 percent hover fill. All 20 bundled themes clear 4.5:1 in both modes. Neutral chips now take the secondary text color. The muted foreground color they used before missed 4.5:1 in 34 of the 40 theme and mode pairs, down to 2.58:1 on Slate dark.
 
 ## [2.97.3] - 2026-09-15
 

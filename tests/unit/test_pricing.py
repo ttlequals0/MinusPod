@@ -4,6 +4,10 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 from unittest.mock import patch, MagicMock
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('pricing_test_')
+
 from config import normalize_model_key
 
 

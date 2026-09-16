@@ -7,6 +7,10 @@ Two distinct cases:
 """
 import json
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('google_rate_limit_test_')
+
 from utils.rate_limit import parse_google_retry_delay, parse_google_daily_quota
 from llm_client import (
     classify_daily_quota_exhaustion, extract_retry_after, StructuralRateLimitError,

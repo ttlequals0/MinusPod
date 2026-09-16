@@ -15,6 +15,10 @@ from unittest.mock import patch
 import httpx
 import openai
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('limit_exceeded_test_')
+
 import webhook_service
 from llm_client import (
     is_limit_exceeded_error,

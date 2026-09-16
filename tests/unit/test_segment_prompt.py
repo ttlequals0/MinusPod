@@ -7,6 +7,10 @@ import json
 import logging
 from unittest.mock import patch, MagicMock
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('segment_prompt_test_')
+
 from ad_detector import AddressingStats, AdDetector, WindowResult
 from config import SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION, normalize_segment_category
 from database import DEFAULT_VERIFICATION_PROMPT

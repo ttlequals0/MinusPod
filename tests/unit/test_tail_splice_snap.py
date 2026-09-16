@@ -1,11 +1,11 @@
 """Post-review tail recovery through untranscribed sonic logos."""
-import os
-import sys
 from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+from tests.app_bootstrap import bootstrap
+
+bootstrap('tail_splice_snap_test_')
 
 from ad_detector.boundaries import (
     _merge_ad_pair,

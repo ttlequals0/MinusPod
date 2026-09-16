@@ -14,6 +14,7 @@ import { formatTimestamp } from '../utils/format';
 import { useScanQuery } from '../hooks/useScanQuery';
 import { btnPrimary, btnSecondary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
+import { badgeBase, tint } from './badgeStyles';
 
 interface CueCandidatesSectionProps {
   slug: string;
@@ -239,15 +240,15 @@ function CueCandidatesSection({
                       <span className="font-mono text-sm text-foreground whitespace-nowrap">
                         {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
                       </span>
-                      <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                      <span className={`${badgeBase} font-medium ${
                         c.kind === 'intro' || c.kind === 'outro'
-                          ? 'bg-warning/20 text-warning'
-                          : 'bg-c-blue/20 text-c-blue'
+                          ? tint.warning
+                          : tint.blue
                       }`}>
                         {cueCandidateLabel(c)}
                       </span>
                       {c.kind === 'recurring' && c.suggestedType && (
-                        <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground">
+                        <span className={`${badgeBase} font-medium ${tint.neutral}`}>
                           {c.suggestedType.replace(/_/g, ' ')}
                         </span>
                       )}

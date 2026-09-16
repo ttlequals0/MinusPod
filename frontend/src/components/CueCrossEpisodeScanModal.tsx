@@ -16,6 +16,7 @@ import { formatDate, formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
+import { badgeBase, tint } from './badgeStyles';
 
 const PICKER_PAGE_SIZE = 50;
 // Maximum episodes a user may select for the cross-episode scan (server cap).
@@ -215,7 +216,7 @@ export default function CueCrossEpisodeScanModal({
                           <p className="text-sm font-medium truncate">
                             {ep.title}
                             {rank === 0 && (
-                              <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-primary/20 text-primary align-middle">
+                              <span className={`${badgeBase} ml-2 font-medium ${tint.primary} align-middle`}>
                                 target
                               </span>
                             )}
@@ -383,7 +384,7 @@ export default function CueCrossEpisodeScanModal({
                           {(c.end - c.start).toFixed(2)}s
                         </span>
                         {c.episodeMatches != null && (
-                          <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-c-blue/20 text-c-blue">
+                          <span className={`${badgeBase} ml-2 font-medium ${tint.blue}`}>
                             {/* episodeMatches counts SIBLINGS; the target is always a match too, so +1. */}
                             in {c.episodeMatches + 1} of {episodeCount} eps
                           </span>

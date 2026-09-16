@@ -1,17 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DashboardControlsMenu from './DashboardControlsMenu';
-
-const PHONE_WIDTH_PX = 375;
-const defaultWidth = window.innerWidth;
-const setViewportWidth = (px: number) =>
-  Object.defineProperty(window, 'innerWidth', { configurable: true, value: px });
-
-afterEach(() => setViewportWidth(defaultWidth));
+import { DESKTOP, PHONE, rect, restoreViewport, setupPlacement } from '../test/placement';
 
 function renderMenu(overrides: Partial<Parameters<typeof DashboardControlsMenu>[0]> = {}) {
-  return render(
+  const view = render(
     <DashboardControlsMenu
       dashboardView="podcasts"
       viewMode="grid"
@@ -25,49 +19,54 @@ function renderMenu(overrides: Partial<Parameters<typeof DashboardControlsMenu>[
       {...overrides}
     />,
   );
+  return { ...view, root: view.container.firstChild as HTMLElement };
 }
 
-async function openPanel() {
-  await userEvent.click(screen.getByRole('button', { name: 'View options' }));
-  return screen.getByRole('group', { name: 'Layout and sort' });
-}
+const trigger = () => screen.getByRole('button', { name: 'View options' });
+const panel = () => screen.queryByRole('group', { name: 'Layout and sort' });
+const openPanel = () => userEvent.click(trigger());
 
-describe('DashboardControlsMenu: panel stays with its trigger', () => {
-  it('closes a phone panel when the page scrolls', async () => {
-    setViewportWidth(PHONE_WIDTH_PX);
-    renderMenu();
-    await openPanel();
-    fireEvent.scroll(window);
-    expect(screen.queryByRole('group', { name: 'Layout and sort' })).toBeNull();
-  });
-
-  it('closes a phone panel when the viewport resizes', async () => {
-    setViewportWidth(PHONE_WIDTH_PX);
-    renderMenu();
-    await openPanel();
-    fireEvent(window, new Event('resize'));
-    expect(screen.queryByRole('group', { name: 'Layout and sort' })).toBeNull();
-  });
-
-  it('keeps an anchored panel open when a scroll happens at desktop width', async () => {
-    renderMenu();
-    await openPanel();
-    fireEvent.scroll(window);
-    expect(screen.queryByRole('group', { name: 'Layout and sort' })).toBeTruthy();
-  });
+beforeEach(() => setupPlacement(DESKTOP, { width: 256, height: 200 }));
+afterEach(() => {
+  vi.restoreAllMocks();
+  restoreViewport();
 });
 
-describe('DashboardControlsMenu: accessible names', () => {
-  it('names the layout buttons with the text they show', async () => {
-    renderMenu();
+describe('DashboardControlsMenu', () => {
+  it('centers the panel under the trigger row on a phone', async () => {
+    setupPlacement(PHONE, { width: 256, height: 200 });
+    const { root } = renderMenu();
+    root.getBoundingClientRect = rect({ left: 280, right: 360, top: 100, bottom: 144 });
     await openPanel();
-    expect(screen.getByRole('button', { name: 'Grid' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'List' })).toBeTruthy();
+    expect(panel()!.className).toContain('left-1/2 -translate-x-1/2');
+    expect(panel()!.style.top).toBe('148px');
   });
 
   it('does not announce the trigger as a menu', () => {
     renderMenu();
-    const trigger = screen.getByRole('button', { name: 'View options' });
-    expect(trigger.getAttribute('aria-haspopup')).toBeNull();
+    expect(trigger().getAttribute('aria-haspopup')).toBeNull();
+  });
+
+  it('names the layout and sort buttons with the text they show', async () => {
+    renderMenu();
+    await openPanel();
+    expect(screen.getByRole('button', { name: 'Grid' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'List' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sort by recent' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sort by title' })).toBeTruthy();
+  });
+
+  it('swaps the layout buttons for the per-podcast count in the episodes view', async () => {
+    renderMenu({ dashboardView: 'episodes' });
+    await openPanel();
+    expect(screen.queryByRole('button', { name: 'Grid' })).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Episodes per podcast' })).toBeTruthy();
+  });
+
+  it('routes Tab from the open trigger into the first control', async () => {
+    renderMenu();
+    await openPanel();
+    await userEvent.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Grid' }));
   });
 });

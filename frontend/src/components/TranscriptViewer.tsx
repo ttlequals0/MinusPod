@@ -10,6 +10,7 @@ import { SkeletonRows } from './Skeleton';
 import { formatTimestamp } from '../utils/format';
 import { parseTimeInput } from '../utils/adReviewHelpers';
 import { usePagedList } from '../hooks/usePagedList';
+import { badgeBase, tint } from './badgeStyles';
 
 type Source = 'original' | 'processed';
 
@@ -216,7 +217,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
                     <Highlight text={seg.text} needle={needle} />
                   </span>
                   {ad && (
-                    <span className="shrink-0 self-start rounded bg-destructive/10 px-1.5 py-0.5 text-xs text-destructive">
+                    <span className={`${badgeBase} shrink-0 self-start ${tint.destructive}`}>
                       {ad.sponsor || 'Ad'}
                     </span>
                   )}

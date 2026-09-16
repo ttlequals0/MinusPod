@@ -4,6 +4,7 @@ import { formatTime } from '../../utils/adReviewHelpers';
 import { PLAYBACK_RATES, ghostBtn, primaryBtn, selectionBtn } from './controlStyles';
 import { focusRing } from '../../components/fieldStyles';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
+import { tint } from '../badgeStyles';
 
 // Shared playback transport bar for the audio-editor modals (AdReviewModal and
 // CueMarkModal). Purely presentational: the host owns the <audio> element, the
@@ -136,7 +137,7 @@ function TransportBar({
           <span>/</span>
           {selectionInfo ?? <span>{formatTime(selectionDuration)} selection</span>}
           {inSelection && (
-            <span className="ml-1 px-1.5 py-0.5 rounded bg-warning/15 text-warning text-[10px] font-semibold uppercase tracking-wider">
+            <span className={`ml-1 px-1.5 py-0.5 rounded ${tint.warning} text-[10px] font-semibold uppercase tracking-wider`}>
               {selectionLabel}
             </span>
           )}

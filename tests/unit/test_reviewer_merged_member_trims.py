@@ -9,6 +9,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('reviewer_merged_member_trims_test_')
+
 from ad_detector import AdDetector
 from ad_reviewer import AdReviewer, _clamp_overrode
 from config import HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT

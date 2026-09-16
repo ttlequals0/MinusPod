@@ -1,13 +1,13 @@
 """Tests for chapters_generator topic-boundary prompt construction."""
 import logging
-import os
-import sys
 from dataclasses import dataclass
 from unittest.mock import patch
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+from tests.app_bootstrap import bootstrap
+
+bootstrap('chapters_generator_test_')
 
 import chapters_generator
 from chapters_generator import (
@@ -27,8 +27,8 @@ def _no_retry_sleep(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _model_configured(monkeypatch):
-    """This module has no real Database (no bootstrap() call); stub the
-    model resolver rather than standing one up just for this."""
+    """Stub the model resolver rather than seeding a model setting in the
+    bootstrapped DB."""
     monkeypatch.setattr('chapters_generator.get_chapters_model', lambda: 'test-model')
 
 

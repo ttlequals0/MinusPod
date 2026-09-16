@@ -3,13 +3,14 @@ import type { SystemStatus } from '../api/types';
 import { formatDateTime } from '../utils/format';
 import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
+import { badgeBase, tint } from './badgeStyles';
 
 type Health = 'healthy' | 'warning' | 'critical';
 
 const PILL: Record<Health, string> = {
-  healthy: 'bg-success/20 text-success',
-  warning: 'bg-warning/20 text-warning',
-  critical: 'bg-destructive/20 text-destructive',
+  healthy: tint.success,
+  warning: tint.warning,
+  critical: tint.destructive,
 };
 const DOT: Record<Health | 'neutral', string> = {
   healthy: 'bg-success',
@@ -113,7 +114,7 @@ function SystemHealthPanel({ status }: { status: SystemStatus }) {
       >
         <span className="flex items-center gap-2">
           <span className="text-sm font-medium text-foreground">System health</span>
-          <span className={`px-2 py-0.5 text-xs rounded ${PILL[overall]}`}>
+          <span className={`${badgeBase} ${PILL[overall]}`}>
             {LABEL[overall]}
           </span>
         </span>

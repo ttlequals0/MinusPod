@@ -33,6 +33,7 @@ import {
   SEGMENT_CATEGORY_LABELS,
   type SegmentCategory,
 } from '../utils/segmentCategory';
+import { badgeBase, tint } from './badgeStyles';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -1282,7 +1283,7 @@ function AdReviewModal({
           {boundaryError && (
             <div
               role="alert"
-              className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-destructive/10 text-destructive text-xs font-medium"
+              className={`${badgeBase} mt-1.5 inline-flex items-center gap-1.5 ${tint.destructive} font-medium`}
             >
               <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span>{boundaryError}</span>

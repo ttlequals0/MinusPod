@@ -6,6 +6,7 @@ import { EPISODE_STATUS_COLORS } from '../utils/episodeStatus';
 import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
+import { tint } from './badgeStyles';
 
 interface ProcessingJob {
   slug: string;
@@ -148,7 +149,7 @@ function CountChip({ count, noun, className }: { count: number; noun: string; cl
   return (
     <span
       title={`${count} ${noun}`}
-      className={`px-1.5 py-0.5 text-xs font-medium rounded shrink-0 ${className}`}
+      className={`px-1.5 py-0.5 text-xs rounded font-medium shrink-0 ${className}`}
     >
       +{count}<span className="hidden sm:inline"> {noun}</span>
     </span>
@@ -259,6 +260,8 @@ function GlobalStatusBar() {
 
   return (
     <div
+      // Only while it is on screen: translated away it costs a popover no room.
+      data-viewport-inset={hasActivity ? 'top' : undefined}
       className={`fixed top-0 left-0 right-0 z-50 bg-card border-b border-border shadow-xs transition-all duration-300 ${
         hasActivity ? 'translate-y-0' : '-translate-y-full'
       }`}
@@ -312,7 +315,7 @@ function GlobalStatusBar() {
 
         {/* Hold badge: amber so a stalled queue reads differently from a busy one */}
         {summary && currentJob && (
-          <span className="px-1.5 py-0.5 text-xs font-medium bg-warning/10 text-warning rounded min-w-0 truncate">
+          <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${tint.warning} min-w-0 truncate`}>
             {compactSummary === summary ? summary : (
               <>
                 <span className="sm:hidden">{compactSummary}</span>
@@ -324,7 +327,7 @@ function GlobalStatusBar() {
 
         {/* Other running jobs */}
         {extra > 0 && (
-          <CountChip count={extra} noun="running" className="bg-primary/20 text-primary" />
+          <CountChip count={extra} noun="running" className={tint.primary} />
         )}
 
         {/* Queue badge */}

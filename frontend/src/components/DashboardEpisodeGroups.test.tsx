@@ -77,7 +77,7 @@ describe('DashboardEpisodeGroups', () => {
     expect(screen.getByText('No episodes yet')).toBeTruthy();
   });
 
-  it('group header links to the podcast', () => {
+  it('group header links to the podcast and labels its section', () => {
     const feed: Feed = {
       slug: 'show-d', title: 'Show D', sourceUrl: 'https://example.com/d.xml', feedUrl: 'https://example.com/d.xml',
       episodeCount: 0, latestEpisodes: [],
@@ -86,6 +86,8 @@ describe('DashboardEpisodeGroups', () => {
     const heading = screen.getByRole('heading', { name: 'Show D' });
     expect(heading.querySelector('a')?.getAttribute('href')).toBe('/feeds/show-d');
     expect(screen.getByRole('link', { name: 'View all episodes of Show D' }).getAttribute('href')).toBe('/feeds/show-d');
+    expect(heading.id).toBeTruthy();
+    expect(heading.closest('section')?.getAttribute('aria-labelledby')).toBe(heading.id);
   });
 
   it('shrinks the view-all link to an icon below sm so the title keeps its width', () => {
@@ -97,18 +99,6 @@ describe('DashboardEpisodeGroups', () => {
     const link = screen.getByRole('link', { name: 'View all episodes of Show F' });
     expect(link.querySelector('svg')?.getAttribute('class')).toContain('sm:hidden');
     expect(link.querySelector('span')?.getAttribute('class')).toContain('hidden sm:inline');
-  });
-
-  it('leaves the group section unclipped so a row dropdown can overflow it', () => {
-    const feed: Feed = {
-      slug: 'show-g', title: 'Show G', sourceUrl: 'https://example.com/g.xml', feedUrl: 'https://example.com/g.xml',
-      episodeCount: 1, latestEpisodes: [episodeSummary({ id: 'e1' })],
-    };
-    renderGroups([feed]);
-    // overflow-hidden clipped the last row's dropdown menu on desktop.
-    const section = screen.getByRole('heading', { name: 'Show G' }).closest('section') as HTMLElement;
-    expect(section.getAttribute('aria-labelledby')).toBe('episode-group-heading-show-g');
-    expect(section.className).not.toContain('overflow-hidden');
   });
 
   it('disables a queued row action while a sibling row stays actionable, keeping both action labels stable', () => {

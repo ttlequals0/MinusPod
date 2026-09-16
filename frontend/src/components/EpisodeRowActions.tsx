@@ -6,6 +6,7 @@ import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import DropdownMenu from './DropdownMenu';
 import { btnPrimary } from './buttonStyles';
+import { badgeBase, tint } from './badgeStyles';
 
 interface EpisodeRowActionsProps {
   feedSlug: string;
@@ -52,7 +53,7 @@ function EpisodeRowActions({
         <span
           role="alert"
           title={errorMessage}
-          className="px-2 py-0.5 text-xs rounded whitespace-nowrap bg-destructive/20 text-destructive cursor-help"
+          className={`${badgeBase} whitespace-nowrap ${tint.destructive} cursor-help`}
         >
           Failed
         </span>

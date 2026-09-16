@@ -9,6 +9,7 @@ import { episodeArtworkSrc } from '../utils/artworkUrl';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
 import { isActionBlocked } from '../utils/processingStage';
+import { badgeBase, tint } from './badgeStyles';
 
 interface EpisodeListProps {
   episodes: Episode[];
@@ -137,20 +138,20 @@ function EpisodeRow({
           </div>
           <div className="flex items-center gap-2 mt-1 min-h-6">
             {episode.pendingReviewCount !== undefined && episode.pendingReviewCount > 0 && (
-              <span className="px-2 py-0.5 text-xs rounded whitespace-nowrap bg-warning/20 text-warning">
+              <span className={`${badgeBase} whitespace-nowrap ${tint.warning}`}>
                 {episode.pendingReviewCount} held
               </span>
             )}
             {episode.passthroughEnabled && (
               <span
-                className="px-2 py-0.5 text-xs rounded whitespace-nowrap bg-muted text-muted-foreground"
+                className={`${badgeBase} whitespace-nowrap ${tint.neutral}`}
                 title="Served unmodified; ad processing is skipped for this episode"
               >
                 Pass-through
               </span>
             )}
             <span
-              className={`px-2 py-0.5 text-xs rounded whitespace-nowrap ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
+              className={`${badgeBase} whitespace-nowrap ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
               title={failureReason}
             >
               {displayStatusLabel(episode.status, episode.jobState)}

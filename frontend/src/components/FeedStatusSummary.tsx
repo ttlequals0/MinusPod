@@ -5,6 +5,7 @@ import {
   EPISODE_STATUS_ORDER,
   EPISODE_STATUS_SHORT_LABELS,
 } from '../utils/episodeStatus';
+import { badgeBase } from './badgeStyles';
 
 interface Props {
   counts?: EpisodeStatusCounts;
@@ -23,7 +24,7 @@ function FeedStatusSummary({ counts, className = '' }: Props) {
       {visible.map((key) => (
         <span
           key={key}
-          className={`px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${EPISODE_STATUS_COLORS[key]}`}
+          className={`${badgeBase} font-medium whitespace-nowrap ${EPISODE_STATUS_COLORS[key]}`}
           title={`${counts[key]} ${EPISODE_STATUS_LABELS[key]}`}
         >
           {counts[key]} {EPISODE_STATUS_SHORT_LABELS[key]}

@@ -9,6 +9,7 @@ import { Modal } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing, selectBase } from './fieldStyles';
 import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../utils/segmentCategory';
+import { badgeBase, tint } from './badgeStyles';
 
 interface Props {
   // null = create a new sponsor
@@ -148,10 +149,11 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
                   key={tag}
                   type="button"
                   onClick={() => toggleTag(tag)}
-                  className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+                  aria-pressed={on}
+                  className={`${badgeBase} border transition-colors ${
                     on
-                      ? 'bg-primary/20 text-primary border-primary/40'
-                      : 'bg-secondary text-muted-foreground border-border hover:bg-accent'
+                      ? `${tint.primary} border-primary/40`
+                      : `${tint.neutral} border-border hover:bg-accent`
                   } ${focusRing}`}
                 >
                   {tag}

@@ -13,6 +13,7 @@ import { EVENT_OPTIONS } from './notificationEvents';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import Checkbox from '../../components/Checkbox';
 import { focusRing } from '../../components/fieldStyles';
+import { badgeBase, tint } from '../../components/badgeStyles';
 
 const DEFAULT_TEMPLATE_PLACEHOLDER = [
   'Leave blank to use default payload. Example custom template:',
@@ -190,15 +191,15 @@ function WebhooksBlock() {
                     {wh.url.length > 50 ? wh.url.slice(0, 50) + '...' : wh.url}
                   </span>
                   {wh.payloadTemplate && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-c-blue/10 text-c-blue">
+                    <span className={`${badgeBase} ${tint.blue}`}>
                       custom template
                     </span>
                   )}
                   <span
-                    className={`text-xs px-1.5 py-0.5 rounded ${
+                    className={`${badgeBase} ${
                       wh.enabled
-                        ? 'bg-success/10 text-success'
-                        : 'bg-muted text-muted-foreground'
+                        ? tint.success
+                        : tint.neutral
                     }`}
                   >
                     {wh.enabled ? 'enabled' : 'disabled'}
@@ -210,7 +211,7 @@ function WebhooksBlock() {
                     return (
                       <span
                         key={ev}
-                        className="text-xs px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground"
+                        className={`${badgeBase} ${tint.secondary}`}
                       >
                         {label}
                       </span>

@@ -3,6 +3,7 @@ import type { SearchEpisodeResult, SearchShowResult, SearchTranscriptResult } fr
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
 import { formatDate, formatTimestamp } from '../utils/format';
 import { renderSnippet } from '../utils/searchSnippet';
+import { badgeBase, tint } from './badgeStyles';
 
 export type SearchResultGroup = 'shows' | 'episodes' | 'transcripts';
 
@@ -104,7 +105,7 @@ function SearchResults({ rows, activeIndex, onHover, onSelect, ready = true }: S
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm">{row.title}</span>
                     {row.status && (
-                      <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-normal ${EPISODE_STATUS_COLORS[row.status] || 'bg-muted text-muted-foreground'}`}>
+                      <span className={`${badgeBase} whitespace-nowrap font-normal ${EPISODE_STATUS_COLORS[row.status] || tint.neutral}`}>
                         {EPISODE_STATUS_LABELS[row.status] || row.status}
                       </span>
                     )}

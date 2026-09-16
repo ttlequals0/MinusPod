@@ -15,22 +15,9 @@ import { btnOutline, btnPrimary } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
 import { selectBase } from '../components/fieldStyles';
 import { focusRing } from '../components/fieldStyles';
+import { ActiveBadge } from '../components/ActiveBadge';
 
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
-
-function StatusBadge({ active }: { active: boolean }) {
-  return (
-    <span
-      className={`px-2 py-0.5 text-xs rounded ${
-        active
-          ? 'bg-success/20 text-success'
-          : 'bg-destructive/20 text-destructive'
-      }`}
-    >
-      {active ? 'Active' : 'Inactive'}
-    </span>
-  );
-}
 
 function SponsorsPage() {
   return (
@@ -166,7 +153,7 @@ function SponsorsSection() {
           <div key={s.id} className="bg-card rounded-lg border border-border p-4">
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="text-sm font-medium text-foreground">{s.name}</div>
-              <StatusBadge active={s.is_active} />
+              <ActiveBadge active={s.is_active} />
             </div>
             {s.aliases.length > 0 && (
               <div className="text-xs text-muted-foreground mb-1 truncate">{s.aliases.join(', ')}</div>
@@ -222,7 +209,7 @@ function SponsorsSection() {
                   <td className="px-4 py-3 overflow-hidden">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-foreground truncate">{s.name}</span>
-                      {!s.is_active && <StatusBadge active={false} />}
+                      {!s.is_active && <ActiveBadge active={false} />}
                     </div>
                   </td>
                   <td className="px-4 py-3 overflow-hidden">

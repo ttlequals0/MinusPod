@@ -8,6 +8,10 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('feed_refresh_failure_test_')
+
 import email_service
 import webhook_service
 from webhook_service import (

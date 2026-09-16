@@ -10,6 +10,7 @@ import { ConfirmModal } from '../../components/Modal';
 import { SkeletonRows } from '../../components/Skeleton';
 import { btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { badgeBase, tint } from '../../components/badgeStyles';
 
 const STORAGE_KEY = 'settings-section-transcript-normalization';
 
@@ -71,7 +72,7 @@ function TranscriptNormalizationSection() {
               <div key={n.id} className="bg-card rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span className="text-sm font-mono text-foreground break-all">{n.terms}</span>
-                  <span className="shrink-0 px-2 py-0.5 text-xs rounded bg-muted text-muted-foreground">{n.category}</span>
+                  <span className={`${badgeBase} shrink-0 ${tint.neutral}`}>{n.category}</span>
                 </div>
                 <div className="text-sm text-foreground mb-3 break-all">
                   <span className="text-muted-foreground">→ </span>{n.canonical}
@@ -111,7 +112,7 @@ function TranscriptNormalizationSection() {
                       <td className="px-4 py-3 overflow-hidden"><span className="text-sm font-mono text-foreground truncate block">{n.terms}</span></td>
                       <td className="px-4 py-3 overflow-hidden"><span className="text-sm text-foreground truncate block">{n.canonical}</span></td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="px-2 py-0.5 text-xs rounded bg-muted text-muted-foreground">{n.category}</span>
+                        <span className={`${badgeBase} ${tint.neutral}`}>{n.category}</span>
                       </td>
                       <td className="px-2 py-3 whitespace-nowrap text-xs">
                         <div className="flex gap-1">

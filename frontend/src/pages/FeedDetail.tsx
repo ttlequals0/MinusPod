@@ -35,6 +35,7 @@ import { cardActionBtn } from '../components/rowActionStyles';
 import { Modal } from '../components/Modal';
 import { selectBase } from '../components/fieldStyles';
 import { focusRing } from '../components/fieldStyles';
+import { badgeBase, tint } from '../components/badgeStyles';
 
 function reprocessModeLabel(mode: string): string {
   if (mode === 'full') return 'AI Only';
@@ -480,7 +481,7 @@ function FeedDetail() {
                 </h1>
                 <FeedTypeBadge feedType={feed.feedType} className="mt-1.5" />
                 {feed.titleOverride && (
-                  <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
+                  <span className={`${badgeBase} mt-1.5 shrink-0 font-medium ${tint.blue}`}>
                     Custom
                   </span>
                 )}

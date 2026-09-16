@@ -3,6 +3,7 @@ import ConnectionTestButton from './ConnectionTestButton';
 import type { ConnectionTestResult } from '../../api/providers';
 import { selectBase } from '../../components/fieldStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { StatusDotBadge } from '../../components/StatusDotBadge';
 
 interface PodcastIndexSectionProps {
   searchProvider: string;
@@ -13,21 +14,6 @@ interface PodcastIndexSectionProps {
   onApiKeyChange: (key: string) => void;
   onApiSecretChange: (secret: string) => void;
   onConnectionTest: () => Promise<ConnectionTestResult>;
-}
-
-const STATUS_BADGE_STYLES = {
-  green: { bg: 'bg-success/10 text-success', dot: 'bg-success' },
-  muted: { bg: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/50' },
-} as const;
-
-function StatusBadge({ variant, label }: { variant: 'green' | 'muted'; label: string }) {
-  const s = STATUS_BADGE_STYLES[variant];
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${s.bg}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {label}
-    </span>
-  );
 }
 
 function PodcastIndexSection({
@@ -116,9 +102,9 @@ function PodcastIndexSection({
             <div>
               <p className="text-sm font-medium text-foreground mb-1">Status</p>
               {podcastIndexApiKeyConfigured ? (
-                <StatusBadge variant="green" label="Configured" />
+                <StatusDotBadge tone="success" label="Configured" />
               ) : (
-                <StatusBadge variant="muted" label="Not configured" />
+                <StatusDotBadge tone="neutral" label="Not configured" />
               )}
               <ConnectionTestButton
                 key={`${podcastIndexApiKeyConfigured}|${draftsPending}`}

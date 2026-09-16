@@ -9,6 +9,7 @@ import { formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { btnDestructive, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
+import { badgeBase, tint } from './badgeStyles';
 
 interface CueDetectionsSectionProps {
   slug: string;
@@ -21,22 +22,22 @@ type OutcomeMeta = { label: string; className: string; title: string };
 const OUTCOME_META: Record<CueDetection['outcome'], OutcomeMeta> = {
   pair: {
     label: 'Paired',
-    className: 'bg-c-purple/20 text-c-purple',
+    className: tint.purple,
     title: 'Two cues bracketed and created an ad',
   },
   snap: {
     label: 'Snapped',
-    className: 'bg-c-blue/20 text-c-blue',
+    className: tint.blue,
     title: 'Moved an ad edge onto this cue',
   },
   none: {
     label: 'LLM cue',
-    className: 'bg-muted text-muted-foreground',
+    className: tint.neutral,
     title: 'Sent to the model as evidence; did not move an ad edge',
   },
   below_threshold: {
     label: 'missed - below threshold',
-    className: 'bg-warning/15 text-warning',
+    className: tint.warning,
     title: 'Scored just under the feed threshold; never a signal, never affected a cut',
   },
 };
@@ -45,7 +46,7 @@ const OUTCOME_META: Record<CueDetection['outcome'], OutcomeMeta> = {
 // it (forward-compat), so the row still renders instead of throwing.
 const UNKNOWN_OUTCOME: OutcomeMeta = {
   label: 'unknown',
-  className: 'bg-muted text-muted-foreground',
+  className: tint.neutral,
   title: 'Unrecognized outcome',
 };
 
@@ -73,7 +74,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
       defaultOpen={hasPending}
       storageKey={`episode-cue-detections-${episodeId}`}
       headerRight={
-        <span className="px-2 py-0.5 text-xs rounded bg-secondary text-secondary-foreground">
+        <span className={`${badgeBase} ${tint.secondary}`}>
           {detections.length}
         </span>
       }
@@ -105,13 +106,13 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     {formatTimestamp(d.start_s)} - {formatTimestamp(d.end_s)}
                   </span>
                   {d.cue_type && (
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground">
+                    <span className={`${badgeBase} font-medium ${tint.neutral}`}>
                       {cueTypeLabel(d.cue_type as CueTemplateType)}
                     </span>
                   )}
                   <span
                     title={outcome.title}
-                    className={`px-1.5 py-0.5 text-xs rounded font-medium ${outcome.className}`}
+                    className={`${badgeBase} font-medium ${outcome.className}`}
                   >
                     {outcome.label}
                   </span>
@@ -129,7 +130,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                 <div className="flex items-center gap-2 shrink-0">
                   {d.outcome === 'below_threshold' ? (
                     <span
-                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground"
+                      className={`${badgeBase} font-medium ${tint.neutral}`}
                       title="Informational; not counted in stats"
                     >
                       informational
@@ -154,10 +155,10 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                   ) : (
                     <>
                       <span
-                        className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                        className={`${badgeBase} font-medium ${
                           d.verdict === 'confirmed'
-                            ? 'bg-success/20 text-success'
-                            : 'bg-destructive/20 text-destructive'
+                            ? tint.success
+                            : tint.destructive
                         }`}
                       >
                         {d.verdict === 'confirmed' ? 'Confirmed' : 'Rejected'}

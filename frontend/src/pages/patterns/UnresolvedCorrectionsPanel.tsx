@@ -11,6 +11,7 @@ import Checkbox from '../../components/Checkbox';
 import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { ConfirmModal } from '../../components/Modal';
+import { badgeBase, tint } from '../../components/badgeStyles';
 
 function formatBounds(bounds: { start: number; end: number } | null): string | null {
   if (!bounds) return null;
@@ -223,7 +224,7 @@ export default function UnresolvedCorrectionsPanel() {
       >
         <h2 className="text-base font-semibold text-foreground">Unassigned corrections</h2>
         {data && (
-          <span className="rounded-full bg-warning/20 px-2 py-0.5 text-xs font-medium text-warning">
+          <span className={`${badgeBase} ${tint.warning} font-medium`}>
             {data.count}
           </span>
         )}

@@ -18,6 +18,7 @@ import { SortHeader, useSortState } from '../components/SortHeader';
 import { btnSecondary } from '../components/buttonStyles';
 import { selectBase } from '../components/fieldStyles';
 import { focusRing } from '../components/fieldStyles';
+import { badgeBase, tint } from '../components/badgeStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost' | 'appVersion';
@@ -229,12 +230,12 @@ function HistoryPage() {
                   {entry.podcastTitle}
                 </Link>
                 {entry.status === 'completed' ? (
-                  <span className="px-2 py-0.5 text-xs rounded bg-success/20 text-success">
+                  <span className={`${badgeBase} ${tint.success}`}>
                     Completed
                   </span>
                 ) : (
                   <span
-                    className="px-2 py-0.5 text-xs rounded bg-destructive/20 text-destructive cursor-help"
+                    className={`${badgeBase} ${tint.destructive} cursor-help`}
                     title={entry.errorMessage || 'Processing failed'}
                   >
                     Failed
@@ -365,12 +366,12 @@ function HistoryPage() {
                     </td>
                     <td className="px-4 py-3">
                       {entry.status === 'completed' ? (
-                        <span className="px-2 py-0.5 text-xs rounded bg-success/20 text-success">
+                        <span className={`${badgeBase} ${tint.success}`}>
                           Completed
                         </span>
                       ) : (
                         <span
-                          className="px-2 py-0.5 text-xs rounded bg-destructive/20 text-destructive cursor-help"
+                          className={`${badgeBase} ${tint.destructive} cursor-help`}
                           title={entry.errorMessage || 'Processing failed'}
                         >
                           Failed

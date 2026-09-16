@@ -1,4 +1,5 @@
 import { SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../utils/segmentCategory';
+import { badgeBase, tint } from './badgeStyles';
 
 // Category pill shared by every marker listing on the episode page. Mirrors
 // StageBadge's shape: unknown categories fall back to the raw value with
@@ -10,7 +11,7 @@ export function SegmentCategoryBadge({ category }: { category?: string | null })
   if (!category) {
     return (
       <span
-        className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground"
+        className={`${badgeBase} font-medium ${tint.neutral}`}
         title="No detection stage classified this segment"
       >
         Uncategorized
@@ -19,7 +20,7 @@ export function SegmentCategoryBadge({ category }: { category?: string | null })
   }
   const label = SEGMENT_CATEGORY_LABELS[category as SegmentCategory] ?? category;
   return (
-    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-c-purple/20 text-c-purple">
+    <span className={`${badgeBase} font-medium ${tint.purple}`}>
       {label}
     </span>
   );
@@ -30,7 +31,7 @@ export function SegmentCategoryBadge({ category }: { category?: string | null })
 export function KeptBadge() {
   return (
     <span
-      className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground"
+      className={`${badgeBase} font-medium ${tint.neutral}`}
       title="This segment's category is set to Keep, so it was left in the audio"
     >
       Kept

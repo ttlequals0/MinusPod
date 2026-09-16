@@ -7,6 +7,10 @@ identifies the structural case only, and that ambiguous inputs fall back
 to the existing transient retry path.
 """
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('structural_rate_limit_test_')
+
 from llm_client import classify_structural_rate_limit
 from tests.unit.provider_error_fakes import FakeResponse, FakeProviderError, call_window
 

@@ -19,9 +19,9 @@ describe('PatternTrustBadge', () => {
     expect(badge.className).toContain('text-warning');
   });
 
-  it('renders a muted Unproven badge', () => {
+  it('renders a neutral Unproven badge', () => {
     render(<PatternTrustBadge trust="unproven" />);
     const badge = screen.getByText('Unproven');
-    expect(badge.className).toContain('text-muted-foreground');
+    expect(badge.className).toContain('bg-muted text-secondary-foreground');
   });
 });

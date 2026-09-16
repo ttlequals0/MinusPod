@@ -6,6 +6,7 @@ import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { RemovableChip } from '../../components/RemovableChip';
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -252,21 +253,8 @@ function SecuritySection({
         {blockedAgents.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
             {blockedAgents.map((agent) => (
-              <span
-                key={agent}
-                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-c-blue/20 text-c-blue-on-tint"
-              >
-                {agent}
-                <button
-                  type="button"
-                  onClick={() => removeBlockedAgent(agent)}
-                  disabled={agentsMutation.isPending}
-                  className={`text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50 ${focusRing}`}
-                  aria-label={`Remove ${agent}`}
-                >
-                  ×
-                </button>
-              </span>
+              <RemovableChip key={agent} label={agent} onRemove={() => removeBlockedAgent(agent)}
+                disabled={agentsMutation.isPending} />
             ))}
           </div>
         )}

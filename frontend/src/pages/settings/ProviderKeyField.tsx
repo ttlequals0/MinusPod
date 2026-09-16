@@ -5,6 +5,7 @@ import { ConfirmModal } from '../../components/Modal';
 import { useTransientState } from '../../hooks/useTransientState';
 import { focusRing } from '../../components/fieldStyles';
 import { btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { StatusDotBadge, type StatusDotTone } from '../../components/StatusDotBadge';
 
 interface ProviderKeyFieldProps {
   provider: ProviderName;
@@ -18,20 +19,14 @@ interface ProviderKeyFieldProps {
   onTest: (provider: ProviderName) => Promise<{ ok: boolean; error?: string }>;
 }
 
-const CHIP = {
-  db:   { bg: 'bg-success/10 text-success', dot: 'bg-success', text: 'Stored encrypted' },
-  env:  { bg: 'bg-warning/10 text-warning', dot: 'bg-warning', text: 'Using env fallback' },
-  none: { bg: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/60', text: 'Not set' },
-} as const;
+const CHIP: Record<ProviderStatus['source'], { tone: StatusDotTone; text: string }> = {
+  db:   { tone: 'success', text: 'Stored encrypted' },
+  env:  { tone: 'warning', text: 'Using env fallback' },
+  none: { tone: 'neutral', text: 'Not set' },
+};
 
 function StatusChip({ source }: { source: ProviderStatus['source'] }) {
-  const c = CHIP[source];
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${c.bg}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-      {c.text}
-    </span>
-  );
+  return <StatusDotBadge tone={CHIP[source].tone} label={CHIP[source].text} />;
 }
 
 function ProviderKeyField({

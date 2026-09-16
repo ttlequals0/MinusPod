@@ -7,6 +7,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('llm_secondary_retry_test_')
+
 import run_context
 from llm_client import (
     AnthropicClient,

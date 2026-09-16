@@ -1,5 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react';
 
+type OutsideRefs = RefObject<HTMLElement | null> | RefObject<HTMLElement | null>[];
+
 interface Options {
   // Some callers never bind a touch listener today; default true keeps prior callers unchanged.
   touch?: boolean;
@@ -7,9 +9,11 @@ interface Options {
   target?: Document | Window;
 }
 
-/** Fires onOutside for a mousedown (and by default touchstart) outside ref, only while active. */
+const toList = (r: OutsideRefs) => (Array.isArray(r) ? r : [r]);
+
+/** Fires onOutside for a mousedown (and by default touchstart) outside every ref, only while active. */
 export function useOutsideClick(
-  ref: RefObject<HTMLElement | null>,
+  refs: OutsideRefs,
   active: boolean,
   onOutside: () => void,
   options?: Options,
@@ -17,11 +21,13 @@ export function useOutsideClick(
   const touch = options?.touch ?? true;
   const target = options?.target ?? document;
 
-  // Keep the callback current without adding it to the effect's deps, so
-  // listeners are only re-attached when `active` flips (matches prior callers).
+  // Keep the callback and the refs current without adding them to the effect's
+  // deps, so listeners are only re-attached when `active` flips.
   const onOutsideRef = useRef(onOutside);
+  const refsRef = useRef(toList(refs));
   useEffect(() => {
     onOutsideRef.current = onOutside;
+    refsRef.current = toList(refs);
   });
 
   useEffect(() => {
@@ -29,7 +35,7 @@ export function useOutsideClick(
     // Document | Window addEventListener loses its per-event-name overloads,
     // so the listener is typed against the plain DOM Event here.
     const onPointerDown = (e: Event) => {
-      if (!ref.current?.contains(e.target as Node)) onOutsideRef.current();
+      if (!refsRef.current.some((r) => r.current?.contains(e.target as Node))) onOutsideRef.current();
     };
     target.addEventListener('mousedown', onPointerDown);
     if (touch) target.addEventListener('touchstart', onPointerDown);
@@ -37,5 +43,5 @@ export function useOutsideClick(
       target.removeEventListener('mousedown', onPointerDown);
       if (touch) target.removeEventListener('touchstart', onPointerDown);
     };
-  }, [active, ref, touch, target]);
+  }, [active, touch, target]);
 }

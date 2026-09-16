@@ -8,6 +8,7 @@ import {
 } from '../../api/settings';
 import { btnSecondary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { badgeBase } from '../../components/badgeStyles';
 
 // The splice bar reads as a beep sitting inside content, so its width has to
 // mean something. Scale duration against this, since typical markers are 1-3s.
@@ -101,7 +102,7 @@ function ReplacementAudioField() {
     <div className="pt-4 border-t border-border">
       <div className="flex items-center justify-between gap-3 mb-2">
         <span className="block text-sm font-medium text-foreground">Replacement audio</span>
-        <span className="text-xs px-2 py-0.5 rounded border border-border text-muted-foreground shrink-0">
+        <span className={`${badgeBase} border border-border text-muted-foreground shrink-0`}>
           {isCustom ? 'Your file' : 'Default'}
         </span>
       </div>

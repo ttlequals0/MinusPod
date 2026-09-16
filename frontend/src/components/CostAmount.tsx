@@ -1,4 +1,5 @@
 import { formatCost } from '../utils/format';
+import { badgeBase, tint } from './badgeStyles';
 
 const UNKNOWN_COST_TITLE =
   'Some billable calls have no recorded price, so this amount is a floor, not the full spend';
@@ -19,12 +20,11 @@ function unknownCostTitle(unpricedCount?: number, unit = 'call'): string {
   return `${UNKNOWN_COST_TITLE} (${unpricedCount} unpriced ${noun})`;
 }
 
-// Marks an amount as a known-spend floor. Same badge recipe as every other
-// status chip: px-2 py-0.5 text-xs rounded on a 20% tint.
+// Marks an amount as a known-spend floor, on the shared badge recipe.
 export function IncompleteBadge({ unpricedCount, unit }: { unpricedCount?: number; unit?: string }) {
   return (
     <span
-      className="ml-1 px-2 py-0.5 text-xs rounded bg-warning/20 text-warning whitespace-nowrap"
+      className={`${badgeBase} ml-1 ${tint.warning} whitespace-nowrap`}
       title={unknownCostTitle(unpricedCount, unit)}
     >
       Incomplete

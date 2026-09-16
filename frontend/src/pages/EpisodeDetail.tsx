@@ -44,6 +44,7 @@ import EpisodeLogsCard from '../components/EpisodeLogsCard';
 import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
 import { fileInputBase, focusRing } from '../components/fieldStyles';
+import { badgeBase, tint } from '../components/badgeStyles';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -77,8 +78,8 @@ function formatList(items: string[]): string {
 }
 
 function btnClass(status: string, idleClass: string): string {
-  if (status === 'success') return 'bg-success/20 text-success';
-  if (status === 'error') return 'bg-destructive/20 text-destructive';
+  if (status === 'success') return 'bg-success/20 text-success-on-tint';
+  if (status === 'error') return 'bg-destructive/20 text-destructive-on-tint';
   return idleClass;
 }
 
@@ -763,14 +764,14 @@ function EpisodeDetail() {
                 <span>{formatFileSize(episode.fileSize)}</span>
               )}
               <span
-                className={`px-2 py-0.5 rounded text-xs font-medium ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
+                className={`${badgeBase} font-medium ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
                 title={failureReason}
               >
                 {displayStatusLabel(episode.status, episode.jobState)}
               </span>
               {episode.passthroughEnabled && (
                 <span
-                  className="px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground cursor-help"
+                  className={`${badgeBase} font-medium ${tint.neutral} cursor-help`}
                   title="Served unmodified; ad processing is skipped for this episode"
                 >
                   Pass-through
@@ -778,7 +779,7 @@ function EpisodeDetail() {
               )}
               {episode.lowAdYield && (
                 <span
-                  className="px-2 py-0.5 rounded text-xs font-medium bg-warning/20 text-warning cursor-help"
+                  className={`${badgeBase} font-medium ${tint.warning} cursor-help`}
                   title={`This run removed ${formatDuration(episode.lowAdYield.removedSeconds)} of ads; this feed's recent episodes average ${formatDuration(episode.lowAdYield.feedAverageSeconds)}. The downloaded copy may have arrived with unfilled ad slots, or ads were missed.`}
                 >
                   Low ad yield
@@ -786,28 +787,28 @@ function EpisodeDetail() {
               )}
               {episode.partialDetection && (
                 <span
-                  className="px-2 py-0.5 rounded text-xs font-medium bg-warning/20 text-warning cursor-help"
+                  className={`${badgeBase} font-medium ${tint.warning} cursor-help`}
                   title={episode.partialDetection.reason}
                 >
                   Partial detection
                 </span>
               )}
               {episode.transcriptVttAvailable && (
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-c-blue/20 text-c-blue">
+                <span className={`${badgeBase} font-medium ${tint.blue}`}>
                   VTT
                 </span>
               )}
               {episode.chaptersAvailable && (
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-c-purple/20 text-c-purple">
+                <span className={`${badgeBase} font-medium ${tint.purple}`}>
                   Chapters
                 </span>
               )}
               {episode.daiDifferential && (
                 <span
-                  className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  className={`${badgeBase} font-medium ${
                     episode.daiDifferential.status === 'ok'
-                      ? 'bg-destructive/20 text-destructive'
-                      : 'bg-muted text-muted-foreground'
+                      ? tint.destructive
+                      : tint.neutral
                   }`}
                   title={
                     episode.daiDifferential.status === 'ok'
@@ -986,7 +987,7 @@ function EpisodeDetail() {
                   <a
                     href={episode.transcriptVttUrl}
                     download
-                    className={`px-3 py-1 text-sm bg-c-blue/20 text-c-blue rounded hover:bg-c-blue/30 transition-colors ${focusRing}`}
+                    className={`px-3 py-1 text-sm bg-c-blue/20 text-c-blue-on-tint rounded hover:bg-c-blue/30 transition-colors ${focusRing}`}
                   >
                     Download VTT
                   </a>
@@ -995,7 +996,7 @@ function EpisodeDetail() {
                   <a
                     href={episode.chaptersUrl}
                     download
-                    className={`px-3 py-1 text-sm bg-c-purple/20 text-c-purple rounded hover:bg-c-purple/30 transition-colors ${focusRing}`}
+                    className={`px-3 py-1 text-sm bg-c-purple/20 text-c-purple-on-tint rounded hover:bg-c-purple/30 transition-colors ${focusRing}`}
                   >
                     Download Chapters
                   </a>
@@ -1204,7 +1205,7 @@ function EpisodeDetail() {
                   )}
                   {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
                     <span
-                      className={`px-1.5 py-0.5 text-xs rounded font-medium ${CORROBORATION_CLASS}`}
+                      className={`${badgeBase} font-medium ${CORROBORATION_CLASS}`}
                       title={CORROBORATION_META[segment.corroborated_by].title}
                     >
                       {CORROBORATION_META[segment.corroborated_by].label}
@@ -1212,7 +1213,7 @@ function EpisodeDetail() {
                   )}
                   {segment.cue_snap && (
                     <span
-                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-c-purple/20 text-c-purple"
+                      className={`${badgeBase} font-medium ${tint.purple}`}
                       title={
                         (segment.cue_snap.start as Record<string, unknown> | undefined)?.cue_type === 'content_transition' ||
                         (segment.cue_snap.end as Record<string, unknown> | undefined)?.cue_type === 'content_transition'
@@ -1225,7 +1226,7 @@ function EpisodeDetail() {
                   )}
                   {segment.silence_snap && (
                     <span
-                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-c-teal/20 text-c-teal"
+                      className={`${badgeBase} font-medium ${tint.teal}`}
                       title="Ad edge snapped to nearby silence"
                     >
                       Silence snapped
@@ -1233,36 +1234,36 @@ function EpisodeDetail() {
                   )}
                   {segment.sponsor && (
                     <span
-                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground"
+                      className={`${badgeBase} font-medium ${tint.neutral}`}
                       title="Sponsor"
                     >
                       {segment.sponsor}
                     </span>
                   )}
                   {segment.reviewer_verdict === 'confirmed' && (
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-success/20 text-success" title={segment.reviewer_reasoning || 'Confirmed by reviewer'}>
+                    <span className={`${badgeBase} font-medium ${tint.success}`} title={segment.reviewer_reasoning || 'Confirmed by reviewer'}>
                       Reviewer: confirmed
                     </span>
                   )}
                   {segment.reviewer_verdict === 'adjust' && (
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-c-teal/20 text-c-teal" title={segment.reviewer_reasoning || 'Boundaries adjusted by reviewer'}>
+                    <span className={`${badgeBase} font-medium ${tint.teal}`} title={segment.reviewer_reasoning || 'Boundaries adjusted by reviewer'}>
                       Reviewer: adjusted
                     </span>
                   )}
                   {segment.reviewer_verdict === 'resurrect' && (
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-warning/20 text-warning" title={segment.reviewer_reasoning || 'Resurrected by reviewer'}>
+                    <span className={`${badgeBase} font-medium ${tint.warning}`} title={segment.reviewer_reasoning || 'Resurrected by reviewer'}>
                       Reviewer: resurrected
                     </span>
                   )}
                   {segment.reviewer_verdict === 'failure' && (
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground" title="Reviewer LLM call failed; original detection kept">
+                    <span className={`${badgeBase} font-medium ${tint.neutral}`} title="Reviewer LLM call failed; original detection kept">
                       Reviewer: skipped
                     </span>
                   )}
                   {episode.transcript && (
                     <button
                       onClick={() => handleJumpToAd(index)}
-                      className={`${rowActionBtn} bg-primary/10 text-primary hover:bg-primary/20 active:bg-primary/30 ${focusRing}`}
+                      className={`${rowActionBtn} bg-primary/10 text-primary-on-tint hover:bg-primary/20 active:bg-primary/30 ${focusRing}`}
                       title="Jump to this ad in editor"
                     >
                       Jump
@@ -1272,12 +1273,12 @@ function EpisodeDetail() {
                     const correction = getAdCorrection(segment.start, segment.end);
                     if (correction) {
                       return (
-                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                        <span className={`${badgeBase} font-medium ${
                           correction.correction_type === 'confirm'
-                            ? 'bg-success/20 text-success'
+                            ? tint.success
                             : correction.correction_type === 'false_positive'
-                            ? 'bg-warning/20 text-warning'
-                            : 'bg-c-blue/20 text-c-blue'
+                            ? tint.warning
+                            : tint.blue
                         }`}>
                           {correction.correction_type === 'confirm' ? 'Confirmed'
                            : correction.correction_type === 'false_positive' ? 'Not an ad'
@@ -1516,23 +1517,23 @@ function EpisodeDetail() {
                       )}
                       {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
                         <span
-                          className={`px-1.5 py-0.5 text-xs rounded font-medium ${CORROBORATION_CLASS}`}
+                          className={`${badgeBase} font-medium ${CORROBORATION_CLASS}`}
                           title={CORROBORATION_META[segment.corroborated_by].title}
                         >
                           {CORROBORATION_META[segment.corroborated_by].label}
                         </span>
                       )}
                       <span
-                        className="px-1.5 py-0.5 text-xs rounded font-medium bg-warning/20 text-warning"
+                        className={`${badgeBase} font-medium ${tint.warning}`}
                         title={holdTitle}
                       >
                         {holdLabel}
                       </span>
                       {(correction || segment.approved) && (
-                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                        <span className={`${badgeBase} font-medium ${
                           segment.approved || correction?.correction_type === 'confirm'
-                            ? 'bg-success/20 text-success'
-                            : 'bg-warning/20 text-warning'
+                            ? tint.success
+                            : tint.warning
                         }`}>
                           {segment.approved || correction?.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
                         </span>
@@ -1722,24 +1723,24 @@ function EpisodeDetail() {
                           </span>
                           <SegmentCategoryBadge category={segment.category} />
                           {segment.actionApplied === 'keep' && <KeptBadge />}
-                          <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-destructive/20 text-destructive">
+                          <span className={`${badgeBase} font-medium ${tint.destructive}`}>
                             Not cut
                           </span>
                           {segment.reviewer_verdict === 'reject' && (
-                            <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-destructive/20 text-destructive" title={segment.reviewer_reasoning || 'Rejected by reviewer'}>
+                            <span className={`${badgeBase} font-medium ${tint.destructive}`} title={segment.reviewer_reasoning || 'Rejected by reviewer'}>
                               Reviewer: rejected
                             </span>
                           )}
                           {segment.reviewer_verdict === 'failure' && segment.source === 'reviewer' && (
-                            <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground" title="Reviewer LLM call failed; validator decision kept">
+                            <span className={`${badgeBase} font-medium ${tint.neutral}`} title="Reviewer LLM call failed; validator decision kept">
                               Reviewer: skipped
                             </span>
                           )}
                           {correction && (
-                            <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                            <span className={`${badgeBase} font-medium ${
                               correction.correction_type === 'confirm'
-                                ? 'bg-success/20 text-success'
-                                : 'bg-warning/20 text-warning'
+                                ? tint.success
+                                : tint.warning
                             }`}>
                               {correction.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
                             </span>

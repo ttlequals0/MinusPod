@@ -33,6 +33,8 @@ import { focusRing } from '../components/fieldStyles';
 import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
 } from '../utils/segmentCategory';
+import { badgeBase, tint } from '../components/badgeStyles';
+import { ActiveBadge } from '../components/ActiveBadge';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
@@ -189,21 +191,6 @@ function PatternsPage() {
   // Pagination
   const totalPages = Math.ceil((sortedPatterns?.length || 0) / limit);
   const paginatedPatterns = sortedPatterns?.slice((page - 1) * limit, page * limit);
-
-  const getStatusBadge = (isActive: boolean) => {
-    if (isActive) {
-      return (
-        <span className="px-2 py-0.5 text-xs rounded bg-success/20 text-success">
-          Active
-        </span>
-      );
-    }
-    return (
-      <span className="px-2 py-0.5 text-xs rounded bg-destructive/20 text-destructive">
-        Inactive
-      </span>
-    );
-  };
 
   return (
     <div>
@@ -455,7 +442,7 @@ function PatternsPage() {
                 <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
                 <SegmentCategoryBadge category={pattern.category} />
                 {pattern.created_by === 'user' && (
-                  <span className="px-2 py-0.5 text-xs rounded bg-warning/20 text-warning">
+                  <span className={`${badgeBase} ${tint.warning}`}>
                     Manual
                   </span>
                 )}
@@ -469,7 +456,7 @@ function PatternsPage() {
                 {pattern.source === PATTERN_SOURCE_COMMUNITY && (
                   <PatternTrustBadge trust={pattern.trust} />
                 )}
-                {getStatusBadge(pattern.is_active)}
+                <ActiveBadge active={pattern.is_active} />
               </div>
             </div>
             {pattern.source === PATTERN_SOURCE_COMMUNITY && (
@@ -562,7 +549,7 @@ function PatternsPage() {
                       <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
                       <SegmentCategoryBadge category={pattern.category} />
                       {pattern.created_by === 'user' && (
-                        <span className="px-2 py-0.5 text-xs rounded bg-warning/20 text-warning">
+                        <span className={`${badgeBase} ${tint.warning}`}>
                           Manual
                         </span>
                       )}
@@ -629,7 +616,7 @@ function PatternsPage() {
                     {formatDate(pattern.last_matched_at)}
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap">
-                    {getStatusBadge(pattern.is_active)}
+                    <ActiveBadge active={pattern.is_active} />
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     {pattern.source === PATTERN_SOURCE_COMMUNITY && (

@@ -1,6 +1,10 @@
 """Unit tests for the `create` correction type in submit_correction."""
 import json
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('create_correction_test_')
+
 # Importable handler so we can call it directly without spinning up Flask.
 from api.patterns import _submit_correction_create
 

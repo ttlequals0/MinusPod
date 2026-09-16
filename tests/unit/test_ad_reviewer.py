@@ -4,6 +4,10 @@ import re
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('ad_reviewer_test_')
+
 from ad_reviewer import (
     AdReviewer,
     BOUNDARY_SNAP_TOLERANCE_S,

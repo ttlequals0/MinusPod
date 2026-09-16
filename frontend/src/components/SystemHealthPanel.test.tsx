@@ -107,6 +107,7 @@ describe('SystemHealthPanel: house recipes', () => {
     const pill = screen.getByText('Healthy');
     expect(pill.className).toContain('px-2 py-0.5 text-xs rounded');
     expect(pill.className).toContain('bg-success/20');
+    expect(pill.className).toContain('text-success-on-tint');
   });
 
   it('gives the panel a card radius and the header a 44px tap target', () => {

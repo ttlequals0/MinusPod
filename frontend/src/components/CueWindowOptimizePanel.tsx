@@ -11,6 +11,7 @@ import {
   type CueWindowOptimizeResponse,
 } from '../api/cueTemplates';
 import { focusRing } from './fieldStyles';
+import { badgeBase, tint } from './badgeStyles';
 
 interface CueWindowOptimizePanelProps {
   slug: string;
@@ -95,7 +96,7 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
         <div className="space-y-2">
           {alreadyOptimal ? (
             <p>
-              <span className="px-2 py-0.5 rounded font-medium bg-success/20 text-success">
+              <span className={`${badgeBase} font-medium ${tint.success}`}>
                 Already optimal
               </span>
               <span className="ml-2 text-muted-foreground">

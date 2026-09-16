@@ -12,29 +12,30 @@ import {
 import { formatTimestamp, formatDate } from '../../utils/format';
 import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { badgeBase, tint } from '../../components/badgeStyles';
 
 // "Not cut" = flagged but left in the audio; the bucket covers both
 // validation rejects and human "Not an ad" decisions once a recut restores
 // the span (marker_status in src/detection_review.py keys on was_cut).
 export const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> = {
-  accepted: ['Accepted', 'bg-success/10 text-success'],
-  rejected: ['Not cut', 'bg-destructive/10 text-destructive'],
-  pending: ['Pending', 'bg-warning/10 text-warning'],
+  accepted: ['Accepted', tint.success],
+  rejected: ['Not cut', tint.destructive],
+  pending: ['Pending', tint.warning],
 };
 
 // STATUS_BADGE says what the audio did; this says what a person decided.
 // Only a recorded decision gets a chip: undecided is the default here.
 export const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> = {
-  unresolved: ['Not reviewed', 'bg-secondary text-muted-foreground'],
-  confirmed: ['Confirmed', 'bg-success/10 text-success'],
-  dismissed: ['Not an ad', 'bg-secondary text-muted-foreground'],
+  unresolved: ['Not reviewed', tint.secondary],
+  confirmed: ['Confirmed', tint.success],
+  dismissed: ['Not an ad', tint.secondary],
 };
 
 // Only beep and keep get a badge. remove is what a cut ad normally is, so
 // labelling it would put a chip on nearly every row and say nothing.
 const ACTION_BADGE: Record<string, [string, string]> = {
-  beep: ['Beeped', 'bg-c-blue/10 text-c-blue'],
-  keep: ['Kept', 'bg-muted text-muted-foreground'],
+  beep: ['Beeped', tint.blue],
+  keep: ['Kept', tint.neutral],
 };
 
 // Same audition key for the desktop row and its mobile card twin, so the
@@ -45,32 +46,32 @@ const keyOf = (d: ReviewDetection, index: number) =>
 const timeLabel = (d: ReviewDetection) =>
   `${formatTimestamp(d.start)} - ${formatTimestamp(d.end)} (${Math.round(d.end - d.start)}s)`;
 
+// One chip shape behind the four badge lookups a detection row renders.
+function Chip({ label, cls, title }: { label: string; cls: string; title?: string }) {
+  return <span className={`${badgeBase} whitespace-nowrap ${cls}`} title={title}>{label}</span>;
+}
+
 function DetectionStatusBadge({ status }: { status: ReviewDetection['status'] }) {
   const [label, cls] = STATUS_BADGE[status];
-  return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
+  return <Chip label={label} cls={cls} />;
 }
 
 function ResolutionBadge({ resolution }: { resolution: ReviewDetection['resolution'] }) {
   if (resolution === 'unresolved') return null;
   const [label, cls] = RESOLUTION_BADGE[resolution];
-  return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
+  return <Chip label={label} cls={cls} />;
 }
 
 function ActionBadge({ action }: { action: string | null }) {
   const entry = action ? ACTION_BADGE[action] : undefined;
   if (!entry) return null;
-  const [label, cls] = entry;
-  return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
+  return <Chip label={entry[0]} cls={entry[1]} />;
 }
 
 function ReviewerBadge({ d }: { d: ReviewDetection }) {
   if (!d.reviewerMoved || d.reviewerOriginalStart == null || d.reviewerOriginalEnd == null) return null;
   const title = `Reviewer moved this from ${formatTimestamp(d.reviewerOriginalStart)} - ${formatTimestamp(d.reviewerOriginalEnd)}`;
-  return (
-    <span className="px-2 py-0.5 rounded text-xs whitespace-nowrap bg-c-blue/10 text-c-blue-on-tint" title={title}>
-      Adjusted
-    </span>
-  );
+  return <Chip label="Adjusted" cls={tint.blue} title={title} />;
 }
 
 function DetectionBadges({ d, showCategory }: { d: ReviewDetection; showCategory: boolean }) {

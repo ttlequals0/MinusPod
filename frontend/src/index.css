@@ -31,11 +31,17 @@
     /* Accent hues from the design guide's fixed palette. Mode-driven only,
        never per theme, so a stage or scope badge reads the same everywhere. */
     --c-blue: 221.2 83.2% 53.3%;
-    /* Blue text on a c-blue tinted chip. The tint lifts the background
-       toward the text, so the plain hue lands under 4.5:1. */
-    --c-blue-on-tint: 221.2 83.2% 45%;
     --c-purple: 271.5 81.3% 55.9%;
     --c-teal: 175.3 77.4% 26.1%;
+    /* Badge text on a tint of its own hue. Solved for the worst backdrop a
+       badge meets: a 30 percent hover fill inside a 10 percent hue panel. */
+    --c-blue-on-tint: 221.2 83.2% 37.5%;
+    --c-purple-on-tint: 271.5 81.3% 38.5%;
+    --c-teal-on-tint: 175.3 77.4% 18.5%;
+    --success-on-tint: 142.3 100% 18.5%;
+    --warning-on-tint: 30.1 100% 25.5%;
+    --destructive-on-tint: 1 82% 33%;
+    --primary-on-tint: 194 66% 27%;
     /* Search highlight. Deliberately identical in light and dark: a
        highlighter should read the same way in both. */
     --highlight: 51 100% 63%;
@@ -68,9 +74,15 @@
     --input: 210 8% 22%;
     --ring: 194 66% 61%;
     --c-blue: 213.1 93.9% 67.8%;
-    --c-blue-on-tint: 213.1 93.9% 81%;
     --c-purple: 270 95.2% 75.3%;
     --c-teal: 172.5 66% 50.4%;
+    --c-blue-on-tint: 213.1 93.9% 91%;
+    --c-purple-on-tint: 270 95.2% 93%;
+    --c-teal-on-tint: 172.5 66% 92%;
+    --success-on-tint: 150.1 95.6% 89.5%;
+    --warning-on-tint: 43.6 100% 93%;
+    --destructive-on-tint: 1 82% 87%;
+    --primary-on-tint: 194 66% 89.5%;
   }
 }
 
