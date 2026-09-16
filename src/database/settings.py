@@ -584,6 +584,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'min_content_between_ads_seconds': SettingSpec(
         default=str(MIN_CONTENT_BETWEEN_ADS_SECONDS),
         payload_key='minContentBetweenAdsSeconds', payload_kind='float'),
+    'ad_detection_exclude_start_seconds': SettingSpec(
+        default='0', in_ad_reset=True,
+        payload_key='adDetectionExcludeStartSeconds', payload_kind='float'),
 
     # Length past which an ad needs a confirmed sponsor, and the hard ceiling
     # even a confirmed one cannot pass. Over the first, an otherwise valid ad

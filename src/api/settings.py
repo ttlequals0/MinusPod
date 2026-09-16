@@ -410,6 +410,7 @@ def get_settings():
     vad_gap_mid = _db_float('vad_gap_mid_min_seconds', default_vad_gap_mid)
     vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
     min_content_between_ads = _db_float('min_content_between_ads_seconds', MIN_CONTENT_BETWEEN_ADS_SECONDS)
+    ad_detection_exclude_start = _db_float('ad_detection_exclude_start_seconds', 0.0)
     max_ad_duration = _db_float('max_ad_duration_seconds', MAX_AD_DURATION)
     max_ad_duration_confirmed = _db_float('max_ad_duration_confirmed_seconds',
                                           MAX_AD_DURATION_CONFIRMED)
@@ -747,6 +748,8 @@ def get_settings():
         'vadGapMidMinSeconds': _sv('vad_gap_mid_min_seconds', vad_gap_mid),
         'vadGapTailMinSeconds': _sv('vad_gap_tail_min_seconds', vad_gap_tail),
         'minContentBetweenAdsSeconds': _sv('min_content_between_ads_seconds', min_content_between_ads),
+        'adDetectionExcludeStartSeconds': _sv(
+            'ad_detection_exclude_start_seconds', ad_detection_exclude_start),
         'maxAdDurationSeconds': _sv('max_ad_duration_seconds', max_ad_duration),
         'maxAdDurationConfirmedSeconds': _sv('max_ad_duration_confirmed_seconds',
                                              max_ad_duration_confirmed),
@@ -929,6 +932,7 @@ def update_ad_detection_settings():
         _apply_podcast_index_fields,
         _apply_transcribe_chunk_fields,
         _apply_stage_tunables,
+        _apply_opening_exclusion_fields,
         _apply_ad_merge_fields,
         _apply_max_ad_duration_fields,
         _apply_detection_tuning_fields,
@@ -2117,6 +2121,20 @@ def _apply_vad_gap_fields(db, data):
             return json_response({'error': f'{field_name} must be a positive number'}, 400)
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
+    return None
+
+
+def _apply_opening_exclusion_fields(db, data):
+    if 'adDetectionExcludeStartSeconds' not in data:
+        return None
+    try:
+        value = float(data['adDetectionExcludeStartSeconds'])
+    except (TypeError, ValueError):
+        return json_response({'error': 'adDetectionExcludeStartSeconds must be a number'}, 400)
+    if not math.isfinite(value) or value < 0 or value > 600:
+        return json_response({'error': 'adDetectionExcludeStartSeconds must be between 0 and 600'}, 400)
+    db.set_setting('ad_detection_exclude_start_seconds', str(value), is_default=False)
+    logger.info(f"Updated ad_detection_exclude_start_seconds to: {value}")
     return None
 
 

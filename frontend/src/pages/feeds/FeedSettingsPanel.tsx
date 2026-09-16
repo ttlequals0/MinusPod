@@ -262,6 +262,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const snapLagField = useDraftField(feed, (f) => s(f.cueSnapLagOverride));
   const maxAdDurField = useDraftField(feed, (f) => s(f.maxAdDurationOverride));
   const maxAdDurRejectField = useDraftField(feed, (f) => s(f.maxAdDurationRejectOverride));
+  const introExclusionField = useDraftField(feed, (f) => s(f.adDetectionExcludeStartOverride));
   // Notes commit on Save, not blur: markClean runs in the mutation's onSuccess so
   // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
   const notesField = useDraftField(feed, (f) => f.detectionNotes ?? '', (v) => v.trim());
@@ -1541,6 +1542,23 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </div>
                 </div>
               ))}
+
+              <CueOverrideRow label="Ignore intro ads" min={0} max={600} step={10}
+                value={introExclusionField.value} setValue={introExclusionField.setValue}
+                feedValue={feed.adDetectionExcludeStartOverride}
+                hint="s, empty = use global" placeholder="global"
+                disabled={updateMutation.isPending}
+                onBlur={() => {
+                  const value = parseFloat(introExclusionField.value);
+                  if (value > 0 && value < 1) {
+                    introExclusionField.setValue(s(feed.adDetectionExcludeStartOverride));
+                    return;
+                  }
+                  commitFloat(introExclusionField, feed.adDetectionExcludeStartOverride,
+                    'adDetectionExcludeStartOverride', 0, 600);
+                }}
+                description="Markers beginning in this opening window are ignored. Set 0 to disable the global exclusion for this feed." />
+
 
               {/* Max ad duration override (Phase C held-for-review) */}
               <CueOverrideRow label="Max ad duration" min={1} max={3600} step={1}

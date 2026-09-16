@@ -1136,6 +1136,18 @@ def differential_fetch_effective(explicit, dai_platform=None, dai_likely=False):
     return bool(dai_platform or dai_likely)
 
 
+def resolve_ad_detection_exclude_start_seconds(db, podcast_id) -> float:
+    """Per-feed opening exclusion wins; NULL inherits the global setting."""
+    override = _resolve_override(
+        db, podcast_id, 'ad_detection_exclude_start_override', float, None)
+    if override is not None:
+        return override
+    try:
+        return float(db.get_setting_float('ad_detection_exclude_start_seconds', 0.0))
+    except Exception:
+        return 0.0
+
+
 def resolve_max_ad_duration_override(db, podcast_id) -> float | None:
     """Per-feed max ad duration cap in seconds (Phase C held-for-review).
 

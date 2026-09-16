@@ -440,6 +440,7 @@ export interface UpdateFeedPayload {
   transitionSnapEnabled?: boolean | null;
   maxAdDurationOverride?: number | null;
   maxAdDurationRejectOverride?: number | null;
+  adDetectionExcludeStartOverride?: number | null;
   cueGatedApproval?: boolean | null;
   differentialFetchEnabled?: boolean | null;
   passthroughEnabled?: boolean | null;

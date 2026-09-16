@@ -5493,6 +5493,15 @@ paths:
                     less content (ad-transition music/silence) are collapsed into
                     one contiguous cut. Set to 0 to disable. Default 12.0.
                   example: 12.0
+                adDetectionExcludeStartSeconds:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 600
+                  description: |
+                    Seconds from the start of an episode during which ad markers are
+                    ignored, so an intro cue is not mistaken for an ad break. 0 disables it.
+                    Feeds inherit it or set adDetectionExcludeStartOverride.
                 maxAdDurationSeconds:
                   type: number
                   format: float
@@ -13856,6 +13865,15 @@ components:
               format: float
               minimum: 0
               maximum: 60
+            adDetectionExcludeStartSeconds:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 600
+              description: |
+                Seconds from the start of an episode during which ad markers are
+                ignored, so an intro cue is not mistaken for an ad break. 0 disables it.
+                Feeds inherit it or set adDetectionExcludeStartOverride.
             maxAdDurationSeconds:
               type: number
               format: float

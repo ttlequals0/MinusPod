@@ -481,6 +481,7 @@ _CUE_FLOAT_OVERRIDE_FIELDS = [
     ('cueSnapLeadOverride',            'cue_snap_lead_override',               0.5, 30.0),
     ('cueSnapLagOverride',             'cue_snap_lag_override',                0.5, 30.0),
     ('maxAdDurationOverride',          'max_ad_duration_override',             1.0, 3600.0),
+    ('adDetectionExcludeStartOverride', 'ad_detection_exclude_start_override', 0.0, 600.0),
     ('maxAdDurationRejectOverride',    'max_ad_duration_reject_override',      30.0, 3600.0),
 ]
 
@@ -1901,6 +1902,10 @@ def update_feed(slug):
             v, err = _normalize_cue_float_override(data[json_key], json_key, lo, hi)
             if err:
                 return error_response(err, 400)
+            if (json_key == 'adDetectionExcludeStartOverride'
+                    and v is not None and 0 < v < 1):
+                return error_response(
+                    'adDetectionExcludeStartOverride must be 0 or between 1 and 600', 400)
             if json_key == 'maxAdDurationRejectOverride' and v is not None:
                 # Above the global hard ceiling the validator would clamp it
                 # back, so the feed would show a value it never uses.

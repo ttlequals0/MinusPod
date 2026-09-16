@@ -13,6 +13,7 @@ import AdDetectionSection from './AdDetectionSection';
 interface TunablesState {
   minCutConfidence: number;
   minContentBetweenAdsSeconds: number;
+  adDetectionExcludeStartSeconds: number;
   maxAdDurationSeconds: number;
   maxAdDurationConfirmedSeconds: number;
   verificationMissHoldMinConfidence: number;
@@ -30,6 +31,7 @@ function defaultState(): TunablesState {
   return {
     minCutConfidence: 0.75,
     minContentBetweenAdsSeconds: 12,
+    adDetectionExcludeStartSeconds: 0,
     maxAdDurationSeconds: 300,
     maxAdDurationConfirmedSeconds: 900,
     verificationMissHoldMinConfidence: 0.6,
@@ -57,6 +59,8 @@ function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
         minCutConfidence={state.minCutConfidence}
         onMinCutConfidenceChange={patch('minCutConfidence')}
         minContentBetweenAdsSeconds={state.minContentBetweenAdsSeconds}
+        adDetectionExcludeStartSeconds={state.adDetectionExcludeStartSeconds}
+        onAdDetectionExcludeStartSecondsChange={patch('adDetectionExcludeStartSeconds')}
         onMinContentBetweenAdsSecondsChange={patch('minContentBetweenAdsSeconds')}
         maxAdDurationSeconds={state.maxAdDurationSeconds}
         onMaxAdDurationSecondsChange={patch('maxAdDurationSeconds')}
@@ -93,6 +97,7 @@ beforeEach(() => {
 describe('AdDetectionSection: tunables render with defaults', () => {
   it('shows every new tunable at its default value', () => {
     render(<Harness onCommit={() => {}} />);
+    expect((screen.getByLabelText('Ignore ads at episode start (seconds)') as HTMLInputElement).value).toBe('0');
     expect((screen.getByLabelText('Hold floor') as HTMLInputElement).value).toBe('0.6');
     expect((screen.getByLabelText('Pattern-learning floor') as HTMLInputElement).value).toBe('0.85');
     expect((screen.getByLabelText('Pattern-learning floor, long ads') as HTMLInputElement).value).toBe('0.92');
@@ -205,6 +210,7 @@ describe('AdDetectionSection: commit fires the batched save payload with camelCa
     expect(committed).toEqual({
       minCutConfidence: 0.75,
       minContentBetweenAdsSeconds: 12,
+      adDetectionExcludeStartSeconds: 0,
       maxAdDurationSeconds: 300,
       maxAdDurationConfirmedSeconds: 900,
       verificationMissHoldMinConfidence: 0.7,

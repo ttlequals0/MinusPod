@@ -33,6 +33,7 @@ class TestDetectionTuningSettings:
         assert s['learningMinConfidenceLong']['value'] == 0.92
         assert s['differentialMeasuredCorrMax']['value'] == 0.6
         assert s['differentialHoldMinSeconds']['value'] == 10.0
+        assert s['adDetectionExcludeStartSeconds']['value'] == 0.0
 
     def test_put_roundtrip(self, client):
         r = self._put(client, {'verificationMissHoldMinConfidence': 0.7,
@@ -41,6 +42,13 @@ class TestDetectionTuningSettings:
         s = client.get('/api/v1/settings').get_json()
         assert s['verificationMissHoldMinConfidence']['value'] == 0.7
         assert s['differentialHoldMinSeconds']['value'] == 20.0
+
+    def test_opening_exclusion_roundtrip_and_validation(self, client):
+        assert self._put(client, {'adDetectionExcludeStartSeconds': 120}).status_code == 200
+        s = client.get('/api/v1/settings').get_json()
+        assert s['adDetectionExcludeStartSeconds']['value'] == 120.0
+        assert self._put(client, {'adDetectionExcludeStartSeconds': -1}).status_code == 400
+        assert self._put(client, {'adDetectionExcludeStartSeconds': 601}).status_code == 400
 
     def test_autocut_zero_disables_and_midrange_rejected(self, client):
         assert self._put(client, {'verificationMissAutocutMinConfidence': 0}).status_code == 200

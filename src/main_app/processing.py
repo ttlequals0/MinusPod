@@ -96,6 +96,7 @@ from config import (
     resolve_silence_snap_tunables,
     resolve_tail_retranscribe_tunables,
     resolve_max_ad_duration_override,
+    resolve_ad_detection_exclude_start_seconds,
     resolve_max_ad_duration,
     resolve_max_ad_duration_confirmed,
     resolve_cue_gated_approval,
@@ -984,6 +985,11 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
         audio_logger.warning(f"[{slug}:{episode_id}] Differential stage failed: {e}")
         db.clear_leaked_transaction(audio_logger, 'differential stage')
         return None
+
+
+def _exclude_opening_ads(ads, seconds):
+    """Drop markers that begin inside the configured opening window."""
+    return [ad for ad in ads if float(ad.get('start', 0)) >= seconds] if seconds > 0 else ads
 
 
 def _detect_ads_first_pass(ctx, segments, audio_path,
@@ -3329,8 +3335,17 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             reuse_transcript=reuse_transcript,
             feed_id=ctx.podcast_id,
         )
-        verification_ads_original = verification_result.get('ads', [])
-        verification_ads_processed = verification_result.get('ads_processed', [])
+        opening_exclusion_seconds = resolve_ad_detection_exclude_start_seconds(
+            db, ctx.podcast_id)
+        verification_pairs = [
+            (original, processed)
+            for original, processed in zip(
+                verification_result.get('ads', []),
+                verification_result.get('ads_processed', []), strict=True)
+            if original.get('start', 0) >= opening_exclusion_seconds
+        ]
+        verification_ads_original = [pair[0] for pair in verification_pairs]
+        verification_ads_processed = [pair[1] for pair in verification_pairs]
         verification_segments = verification_result.get('segments', [])
         verification_cue_count = verification_result.get('audio_cue_count', 0)
         storage.save_ads_json(slug, episode_id, verification_result, pass_number=2)
@@ -5860,6 +5875,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             run_stats['transcript_segments'] = len(segments)
 
             podcast_id = ctx.podcast_id
+            opening_exclusion_seconds = resolve_ad_detection_exclude_start_seconds(
+                db, podcast_id)
             if skip_detection:
                 # Stages 3-4 skipped: no prior, no detection, no validation.
                 # Stage 4 in particular must not run on the empty list because
@@ -5924,6 +5941,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     run_stats=run_stats,
                 )
                 _check_cancel(cancel_event, slug, episode_id)
+
+                first_pass_ads = _exclude_opening_ads(first_pass_ads, opening_exclusion_seconds)
+                first_pass_count = len(first_pass_ads)
 
                 cue_templates_for_feed = []
                 if cue_only and podcast_id:
@@ -6016,6 +6036,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             # cue_only skips this outright: the mode promises zero LLM calls.
             # Otherwise a no-op when enable_ad_review is off (the default).
+            ads_to_remove = _exclude_opening_ads(ads_to_remove, opening_exclusion_seconds)
+            all_ads_with_validation = _exclude_opening_ads(all_ads_with_validation, opening_exclusion_seconds)
+
             if not cue_only:
                 ads_to_remove, all_ads_with_validation = _run_ad_reviewer(
                     slug, episode_id, podcast_id, ads_to_remove,

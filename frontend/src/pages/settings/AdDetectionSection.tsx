@@ -6,6 +6,8 @@ interface AdDetectionSectionProps {
   minCutConfidence: number;
   onMinCutConfidenceChange: (value: number) => void;
   minContentBetweenAdsSeconds: number;
+  adDetectionExcludeStartSeconds: number;
+  onAdDetectionExcludeStartSecondsChange: (value: number) => void;
   maxAdDurationSeconds: number;
   onMaxAdDurationSecondsChange: (v: number) => void;
   maxAdDurationConfirmedSeconds: number;
@@ -62,6 +64,8 @@ function AdDetectionSection({
   minCutConfidence,
   onMinCutConfidenceChange,
   minContentBetweenAdsSeconds,
+  adDetectionExcludeStartSeconds,
+  onAdDetectionExcludeStartSecondsChange,
   maxAdDurationSeconds,
   onMaxAdDurationSecondsChange,
   maxAdDurationConfirmedSeconds,
@@ -112,6 +116,12 @@ function AdDetectionSection({
             Lower values remove more potential ads but may include false positives.
           </p>
         </div>
+        {numRow(
+          adDetectionExcludeStartSeconds, onAdDetectionExcludeStartSecondsChange,
+          'adDetectionExcludeStartSeconds', 'Ignore ads at episode start (seconds)',
+          0, 600, 10, 0,
+          'Markers beginning in this opening window are ignored by every detection pass. Set to 0 to disable.',
+        )}
         <div>
           <label htmlFor="minContentBetweenAdsSeconds" className="block text-sm font-medium text-foreground mb-2">
             Ad break filler gap threshold (s)

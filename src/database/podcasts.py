@@ -226,6 +226,7 @@ class PodcastMixin:
     _HELD_REVIEW_COLS = (
         'max_ad_duration_override',
         'max_ad_duration_reject_override',
+        'ad_detection_exclude_start_override',
         'splice_veto_enabled',
         'cue_gated_approval',
     )

@@ -30,9 +30,6 @@ RUN mkdir -p /app/static/ui/swagger \
 # container runtime, driven by the NVIDIA_* env vars in the ENV block.
 FROM ubuntu:26.04
 
-ARG MINUSPOD_VERSION=dev
-LABEL org.opencontainers.image.version="${MINUSPOD_VERSION}"
-
 # Install Python 3.12 from deadsnakes PPA and system dependencies
 # Ubuntu 26.04 ships Python 3.14; deadsnakes pins 3.12 (cp312 is the
 # ceiling for numpy<2.0 wheels; see the numpy pin in requirements.in)
@@ -155,6 +152,11 @@ RUN find ./src -type f -name '*.py' -exec chmod 644 {} \; && \
     useradd --system --uid 1000 --gid minuspod --home-dir /app/data \
             --shell /sbin/nologin minuspod && \
     chown -R minuspod:minuspod /app
+
+# Keep release-varying metadata after dependency and application layers so a
+# version-only change does not invalidate the multi-gigabyte PyTorch layer.
+ARG MINUSPOD_VERSION=dev
+LABEL org.opencontainers.image.version="${MINUSPOD_VERSION}"
 
 # Expose port
 EXPOSE 8000

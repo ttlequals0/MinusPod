@@ -278,6 +278,7 @@ function Settings() {
   const [chaptersProvider, setChaptersProvider] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0);
   const [minContentBetweenAdsSeconds, setMinContentBetweenAdsSeconds] = useState(12);
+  const [adDetectionExcludeStartSeconds, setAdDetectionExcludeStartSeconds] = useState(0);
   const [maxAdDurationSeconds, setMaxAdDurationSeconds] = useState(300);
   const [maxAdDurationConfirmedSeconds, setMaxAdDurationConfirmedSeconds] = useState(900);
   const [verificationMissHoldMinConfidence, setVerificationMissHoldMinConfidence] = useState(0.6);
@@ -724,6 +725,7 @@ function Settings() {
     // Ad detection
     { key: 'minCutConfidence', kind: 'val', useDefault: true, value: minCutConfidence, set: setMinCutConfidence },
     { key: 'minContentBetweenAdsSeconds', kind: 'val', useDefault: true, literal: 12, value: minContentBetweenAdsSeconds, set: setMinContentBetweenAdsSeconds },
+    { key: 'adDetectionExcludeStartSeconds', kind: 'val', useDefault: true, literal: 0, value: adDetectionExcludeStartSeconds, set: setAdDetectionExcludeStartSeconds },
     { key: 'maxAdDurationSeconds', kind: 'val', useDefault: true, literal: 300, value: maxAdDurationSeconds, set: setMaxAdDurationSeconds },
     { key: 'maxAdDurationConfirmedSeconds', kind: 'val', useDefault: true, literal: 900, value: maxAdDurationConfirmedSeconds, set: setMaxAdDurationConfirmedSeconds },
     { key: 'positionalPriorEnabled', kind: 'val', useDefault: true, value: positionalPriorEnabled, set: setPositionalPriorEnabled },
@@ -1347,6 +1349,8 @@ function Settings() {
         onMinCutConfidenceChange={setMinCutConfidence}
         minContentBetweenAdsSeconds={minContentBetweenAdsSeconds}
         onMinContentBetweenAdsSecondsChange={setMinContentBetweenAdsSeconds}
+        adDetectionExcludeStartSeconds={adDetectionExcludeStartSeconds}
+        onAdDetectionExcludeStartSecondsChange={setAdDetectionExcludeStartSeconds}
         maxAdDurationSeconds={maxAdDurationSeconds}
         onMaxAdDurationSecondsChange={setMaxAdDurationSeconds}
         maxAdDurationConfirmedSeconds={maxAdDurationConfirmedSeconds}
