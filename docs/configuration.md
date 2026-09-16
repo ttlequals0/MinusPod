@@ -29,9 +29,9 @@ Add a feed from the dashboard at `/ui/` (Add Feed, RSS URL, optional custom slug
 
 Customize ad detection in Settings:
 - **LLM Provider** - Switch between Anthropic (direct API), OpenRouter, Ollama (local), or OpenAI-compatible endpoints at runtime without restarting the container
-- **AI Model** - Model for first pass ad detection
-- **Verification Model** - Separate model for the post-cut verification pass
-- **Chapters Model** - Model for chapter generation (a small model like Haiku works well here)
+- **AI Model** - Model for first pass ad detection. A provider selector sits beside it; leave it on Default to use the LLM Provider above, or pick a different configured provider to run detection there instead
+- **Verification Model** - Separate model for the post-cut verification pass. Its provider selector defaults to Same as detection and can be pointed at any other configured provider
+- **Chapters Model** - Model for chapter generation (a small model like Haiku works well here). Its provider selector also defaults to Same as detection
 - **Ad chapters** - Publish segments left in the audio as their own chapters, so a chapter-aware player can skip them. Off by default. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
 - **System Prompts** - Customizable prompts for first pass and verification detection
@@ -62,7 +62,8 @@ Cost is one extra LLM call per detected ad (and one extra call per rejected dete
 Settings live under AI & Processing -> Ad Reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
-- **Review model** - `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
+- **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick `Primary` or `Secondary` to run the reviewer on that slot instead, such as detection on primary with review on a cheaper secondary account
+- **Review model** - only used when Review provider is not `Same as pass`. `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
 - **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
 - **Review prompt** - system prompt for the confirm/adjust/reject reviewer
 - **Resurrect prompt** - system prompt for the resurrect/reject reviewer over rejected detections
@@ -142,7 +143,7 @@ Long episodes are chunked into overlapping windows before being sent to the dete
 
 | Control | Range | Default | Notes |
 |---|---|---|---|
-| Window size | 120-1800 seconds | 600s | How much audio each detection request covers. Lower values reduce tokens per request and help small local models or low-tier provider plans stay under per-minute caps. |
+| Window size | 120-10800 seconds | 600s | How much audio each detection request covers. Lower values reduce tokens per request and help small local models or low-tier provider plans stay under per-minute caps. Raise it toward the top of the range for low-request-rate providers (e.g. free tiers capped at a few requests per minute) so more of the transcript fits in fewer calls. |
 | Window overlap | 0-1770 seconds | 180s | Trailing overlap between consecutive windows so an ad straddling a boundary is still visible in the next window. Must be strictly less than window size. |
 
 API: `PUT /api/v1/settings` accepts `windowSizeSeconds` and `windowOverlapSeconds`. Cross-field validation rejects `overlap >= size` with a 400. The reset-to-default buttons in the UI clear the stored value so the built-in defaults apply on the next episode; no restart needed.
@@ -174,6 +175,59 @@ Two things have to be in place first:
 
 If the passphrase is missing, the key inputs collapse to a "Setup required" note, the API returns `409 provider_crypto_unavailable`, and env-var credentials keep working. GET responses never include key values, only booleans plus a `db`/`env`/`none` source marker.
 
+### Secondary provider
+
+Alongside the primary provider above, you can configure one secondary provider: a separate provider type, base URL, and API key that a stage's provider selector can route to instead of primary. This is useful for splitting cost or capacity across two accounts, or across two different providers, without switching your main configuration back and forth.
+
+The secondary provider is off by default, so an install with only a primary provider configured behaves exactly as before. Configure it via `PUT /api/v1/settings/ad-detection`:
+
+- `secondaryProviderEnabled` (boolean) - turns the slot on or off. A stage set to route to secondary while this is off falls back to primary.
+- `secondaryProvider` - the provider type: `anthropic`, `openrouter`, `openai-compatible`, or `ollama`. An empty value clears it.
+- `secondaryProviderBaseUrl` - base URL, used only when the type is `openai-compatible` or `ollama`. SSRF-validated the same way as the primary provider's base URL. Empty clears it back to the default.
+- `secondaryProviderApiKey` - API key for the secondary provider, encrypted the same way as every other provider key. Omit to leave it unchanged; null or empty clears it.
+
+`GET /api/v1/settings` reports the current configuration as `secondaryProviderEnabled`, `secondaryProvider`, and `secondaryProviderBaseUrl`, plus `secondaryProviderApiKeyConfigured` (a boolean; the key itself is never returned). `POST /api/v1/settings/providers/secondary/test-connection` runs the same staged connection probe used for the primary provider, but against the secondary type, base URL, and key, so you can confirm it works before pointing a stage at it.
+
+Changing any secondary provider field lifts an active rate-limit hold for that account, the same as changing the primary provider's credentials does.
+
+Base URLs for either slot are rejected if they embed credentials in the `user:pass@host` form, on save and on a connection test alike. The URL is copied into each run's non-secret route snapshot and returned by `GET /api/v1/settings`, so an embedded password would leak. Put the key in the API key field instead. Remote Whisper is exempt, since its endpoint is not part of that snapshot.
+
+### Rotating or clearing a provider key
+
+Saving a new key, or clearing one, takes effect without a container restart. Provider settings carry a revision marker that every write path bumps, and an already-built client checks that marker before each use, so a cached connection built on the old key is rebuilt rather than reused. The marker lives in the database, so sibling workers pick up the change too, not just the one that handled the request.
+
+In practice:
+
+- Rotation is safe mid-run. A run in flight builds its next client against the new key.
+- Clearing a key really does disable that slot's calls. There is no grace period where the old key keeps working.
+- A rate-limit hold on that account is lifted by the same save, so the queue resumes as soon as the new key is in place.
+
+### Endpoint and model changes during an active run
+
+Each run snapshots its routing when it starts: for every phase, the provider, the model, and the endpoint. The whole run then uses that snapshot, and it is stored with the run so a recovered run resumes on the same routes rather than silently re-resolving. Editing a stage's provider or model, or changing a base URL, therefore does not take effect on a run already underway; it applies to the next run. The ad reviewer freezes its own routing settings the same way, so a mid-run change cannot re-route review.
+
+Credentials are the deliberate exception, as described above: the snapshot holds endpoints and model ids, never keys, and keys resolve when a client is built. Rotating a key changes what an in-flight run authenticates with; changing an endpoint does not change where it sends.
+
+### Budgets when a cost is unknown
+
+Provider admission reserves budget before a run starts and reconciles it afterwards against what the run actually spent. When some of that spend has no resolved cost, usually an unpriced or custom model, reconciliation stays conservative: instead of settling on the known-only subtotal, which would understate the run and release budget it may well have used, the reservation is settled as uncertain and keeps counting its reserved amount against the daily total.
+
+Admission is cautious the same way. A run whose cost cannot be estimated is denied admission by default; the behavior is configurable to allow it outright, or to allow it against a fixed fallback reservation. A run abandoned by a dead worker is also settled as uncertain rather than released whenever it had already attempted a provider call.
+
+If your daily budget looks consumed faster than your invoices suggest, unpriced models are the usual reason. Set prices for those model ids (Settings > AI & Processing > AI Models) and the estimates sharpen. The same condition surfaces per episode as `hasUnknownCost` and in the UI as a partial-total marker.
+
+### Which run a cost figure describes
+
+Three different questions look alike on the episode page, so the API keeps them apart:
+
+| Field | Question it answers |
+|---|---|
+| `activeRunSpend` | What is the run that owns this episode right now spending? Null when no run owns it. |
+| `latestRunSpend` | What did the most recent attempt spend? Includes failures and runs that made no LLM call. |
+| `cumulativeSpend` | What has this episode cost across every attempt ever made? |
+
+The active run and the latest attempted run are usually the same run. They diverge while a reprocess is in flight: `activeRunSpend` climbs live from the ledger, and `latestRunSpend` still describes the previous attempt, because a run's history row is only written when it finishes. Neither is the same as the run that produced the audio being served, which is the latest run that actually completed; a failed reprocess of a good episode changes `latestRunSpend` without changing what listeners hear.
+
 ### JSON schema response format
 
 OpenAI-compatible endpoints only. When on, MinusPod asks the endpoint to enforce a JSON schema on detection, review, category repair, and trim-recovery responses instead of only asking for JSON, which cuts malformed replies. Off by default; the toggle is in **Settings > LLM Provider**.
@@ -188,9 +242,9 @@ Settings > Cover Art has an **Overlay MinusPod badge on cover art** toggle, off 
 
 ### Pass-through mode
 
-Pass-through is one of the five presets on each feed's **Processing mode** select (Feed Settings), alongside standard, keep content only, skip ad detection, and cue-only (experimental). Choosing it stops processing that feed's episodes entirely: each new episode is downloaded and served exactly as published, with no transcription, ad detection, or cutting. Useful for archiving originals, or for pausing ad removal on a feed without touching your podcast app.
+Pass-through is one of the five presets on each feed's **Processing mode** select (Feed Settings), alongside standard, keep content only, skip ad detection, and cue-only (experimental). Choosing it stops processing that feed's episodes entirely: each new episode is downloaded and relayed, with no transcription or ad removal. Audio may still be transcoded for serving, so pass-through is not a promise of byte-identical audio; see the caveat below. Useful for archiving originals, or for pausing ad removal on a feed without touching your podcast app.
 
-The served feed URL does not change, which is the point: your app keeps pulling the same MinusPod feed, and switching to another mode resumes full processing for new episodes. Two caveats: enclosures that are not MP3 get converted to MP3 (the serving stack requires it), and the download size cap (`MINUSPOD_MAX_AUDIO_DOWNLOAD_MB`, default 500) still applies, so raise it before archiving very large episodes. Episodes that were served untouched keep their original audio until you reprocess them. While the feed is on Pass-through, a full or AI reprocess just re-downloads the current copy; the per-episode Recut action still works on episodes that have a retained original and ad markers.
+The served feed URL does not change, which is the point: your app keeps pulling the same MinusPod feed, and switching to another mode resumes full processing for new episodes. Two caveats. First, the serving stack names episode files `.mp3` and declares `audio/mpeg`, so an enclosure that is not already MP3 is re-encoded to MP3 at the configured bitrate, as is one whose codec ffprobe cannot identify; an MP3 enclosure is relayed as-is. Second, the download size cap (`MINUSPOD_MAX_AUDIO_DOWNLOAD_MB`, default 500) still applies, so raise it before archiving very large episodes. Episodes that were served untouched keep their original audio until you reprocess them. While the feed is on Pass-through, a full or AI reprocess just re-downloads the current copy; the per-episode Recut action still works on episodes that have a retained original and ad markers.
 
 ### Segment categories
 
@@ -417,6 +471,25 @@ The feature is off by default. Configure it in **Settings > AI & Processing > Qu
 Only a reset further out than five minutes triggers a hold. Shorter ones keep the existing in-process retry, so a single throttled window recovers without pausing the queue. The hold covers detection, review, and verification, so a throttle part-way through a run sends the whole episode back to the queue rather than skipping that stage. Nothing bypasses the pause: Play and Reprocess wait with the rest, because a hand-picked episode would only hit the same 429. Held episodes keep their queue position and status, so there is no give-up window and nothing to release. Turning the toggle off lifts an active pause at once.
 
 While a hold is active, a probe re-checks it instead of waiting out the provider's stated reset. With a usage endpoint configured it is checked first and can clear the hold early or push it out to a fresher reset; without one, a single minimal completion call does the same check.
+
+A hold on one provider is lifted automatically when you update that provider's own credentials in Settings > Providers, or when you turn this toggle off. Changing several provider settings together in one save does not clear a hold that belongs to just one of them.
+
+Holds are scoped per credential, not just per provider type. If primary and secondary use the same provider type, for example two Anthropic accounts, a 429 on one does not pause the other. Updating a slot's credentials lifts only that slot's hold.
+
+### Manual request-rate limits
+
+The rate-limit hold above reacts to a 429 after it happens. Manual request-rate limits keep you under a provider account's hard limits in the first place, so a low-tier account never sends the request that would be rejected. Both features share the same queue-hold machinery, so a manual limit pauses the queue exactly like a real 429 and resumes on its own. A manual hold clears only when its reset time passes, and is never cleared early by the usage probe (that probe sends a real request, which would burn the quota the cap protects).
+
+Limits are scoped to one provider account, meaning one credential slot on one provider type: primary and secondary count separately even when both point at the same provider. Counting comes from the LLM call ledger: requests in the last 60 seconds against the per-minute cap (RPM), input plus output tokens of finalized calls in the last 60 seconds against the tokens-per-minute cap (TPM), and requests since the last UTC midnight against the per-day cap (RPD). When any cap is reached, that account's queue is paused. A per-minute pause (RPM or TPM) lifts about 60 seconds after the oldest contributing call in the window; the per-day pause lifts at the next UTC midnight, which is the fixed reset boundary regardless of your server's timezone or the provider's own billing day. When more than one cap is over, the later reset wins.
+
+All are off by default (0 means unlimited), so existing installs are unaffected. Configure them under **Settings > AI & Processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
+
+- `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the primary provider account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
+- `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the secondary provider account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`).
+
+Example, using figures that were current for one provider's free tier at the time of writing: an account allowed 5 requests per minute and 20 per day. Providers change their tiers often, so read your own account's limits rather than trusting this number, then set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Pair this with a large detection window size (see [Detection window geometry](#detection-window-geometry)) so each episode spends fewer requests, and a whole episode can fit inside a small daily budget. The token-per-minute allowance on a tier like that is often generous enough that TPM is not the binding limit, but you can set `providerTokensPerMin` if your account has a tighter token budget.
+
+A held or limited provider never reroutes to another provider: the episode waits in the queue for that account's reset.
 
 ## Whisper Pool
 

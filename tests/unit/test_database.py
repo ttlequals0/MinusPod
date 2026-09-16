@@ -784,12 +784,22 @@ class TestResetFailedQueueItems:
         assert count == 0
 
 
+def _book_usage(temp_db, model_id, input_tokens, output_tokens):
+    """One billable ledger attempt, the only production counter writer."""
+    attempt_id = temp_db.begin_llm_attempt(
+        run_id='run-usage', podcast_id=None, episode_id=None, phase_key='detection',
+        invoking_pass=1, provider_key='anthropic', configured_model=model_id)
+    return temp_db.finalize_llm_attempt(
+        attempt_id, state='success', input_tokens=input_tokens,
+        output_tokens=output_tokens)
+
+
 class TestTokenUsage:
     """Tests for LLM token usage tracking and cost calculation."""
 
-    def test_record_token_usage_creates_entry(self, temp_db):
+    def test_finalized_attempt_creates_entry(self, temp_db):
         """Single call creates per-model row and global stats."""
-        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1000, 500)
+        _book_usage(temp_db, 'claude-haiku-4-5-20251001', 1000, 500)
 
         summary = temp_db.get_token_usage_summary()
         assert summary['totalInputTokens'] == 1000
@@ -799,10 +809,10 @@ class TestTokenUsage:
         assert summary['models'][0]['modelId'] == 'claude-haiku-4-5-20251001'
         assert summary['models'][0]['callCount'] == 1
 
-    def test_record_token_usage_accumulates(self, temp_db):
+    def test_finalized_attempts_accumulate(self, temp_db):
         """Multiple calls for the same model increment correctly."""
-        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1000, 500)
-        temp_db.record_token_usage('claude-haiku-4-5-20251001', 2000, 1000)
+        _book_usage(temp_db, 'claude-haiku-4-5-20251001', 1000, 500)
+        _book_usage(temp_db, 'claude-haiku-4-5-20251001', 2000, 1000)
 
         summary = temp_db.get_token_usage_summary()
         assert summary['totalInputTokens'] == 3000
@@ -811,42 +821,40 @@ class TestTokenUsage:
         assert summary['models'][0]['callCount'] == 2
         assert summary['models'][0]['totalInputTokens'] == 3000
 
-    def test_record_token_usage_multiple_models(self, temp_db):
+    def test_finalized_attempts_keep_models_separate(self, temp_db):
         """Per-model isolation works, global totals sum correctly."""
-        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1000, 500)
-        temp_db.record_token_usage('claude-sonnet-4-20250514', 2000, 1000)
+        _book_usage(temp_db, 'claude-haiku-4-5-20251001', 1000, 500)
+        _book_usage(temp_db, 'claude-sonnet-4-20250514', 2000, 1000)
 
         summary = temp_db.get_token_usage_summary()
         assert summary['totalInputTokens'] == 3000
         assert summary['totalOutputTokens'] == 1500
         assert len(summary['models']) == 2
 
-    def test_calculate_token_cost_exact_match(self, temp_db):
-        """Cost is calculated correctly with known model pricing."""
+    def test_resolve_rate_exact_match(self, temp_db):
+        """Rates come from the catalog row for a known model."""
         conn = temp_db.get_connection()
-        # Haiku: $1.0/Mtok in, $5.0/Mtok out
-        cost = temp_db._calculate_token_cost(conn, 'claude-haiku-4-5-20251001', 1_000_000, 1_000_000)
-        assert abs(cost - 6.0) < 0.001  # $1 input + $5 output
+        rate = temp_db._resolve_model_rate(conn, 'claude-haiku-4-5-20251001')
+        assert rate[:2] == (1.0, 5.0)
 
-    def test_calculate_token_cost_prefix_match_close_length(self, temp_db):
+    def test_resolve_rate_prefix_match_close_length(self, temp_db):
         """Prefix match works when stored key covers >= 80% of lookup key length."""
         conn = temp_db.get_connection()
         # 'claudehaiku45x' (14 chars) vs stored 'claudehaiku45' (13 chars): 13 >= 14*0.8=11.2 -> match
-        cost = temp_db._calculate_token_cost(conn, 'claude-haiku-4-5x', 1_000_000, 0, match_key='claudehaiku45x')
-        assert abs(cost - 1.0) < 0.001
+        rate = temp_db._resolve_model_rate(conn, 'claude-haiku-4-5x', match_key='claudehaiku45x')
+        assert rate[:2] == (1.0, 5.0)
 
-    def test_calculate_token_cost_prefix_match_rejected_short_key(self, temp_db):
+    def test_resolve_rate_prefix_match_rejected_short_key(self, temp_db):
         """Prefix match rejects when stored key is much shorter than lookup key."""
         conn = temp_db.get_connection()
         # 'claudehaiku4520251001extra' (24 chars) vs stored 'claudehaiku45' (13 chars): 13 < 24*0.8 -> no match
-        cost = temp_db._calculate_token_cost(conn, 'claude-haiku-4-5-20251001-extra', 1_000_000, 0)
-        assert cost == 0.0
+        assert temp_db._resolve_model_rate(
+            conn, 'claude-haiku-4-5-20251001-extra') is None
 
-    def test_calculate_token_cost_unknown_model(self, temp_db):
-        """Unknown model returns 0 cost without crashing."""
+    def test_resolve_rate_unknown_model(self, temp_db):
+        """Unknown model resolves no rate, so the call books as unknown cost."""
         conn = temp_db.get_connection()
-        cost = temp_db._calculate_token_cost(conn, 'unknown-model-xyz', 1_000_000, 1_000_000)
-        assert cost == 0.0
+        assert temp_db._resolve_model_rate(conn, 'unknown-model-xyz') is None
 
     def test_get_token_usage_summary_empty(self, temp_db):
         """Empty database returns zero totals."""
@@ -858,7 +866,7 @@ class TestTokenUsage:
 
     def test_get_token_usage_summary_with_data(self, temp_db):
         """Summary returns correct structure and values."""
-        temp_db.record_token_usage('claude-haiku-4-5-20251001', 100_000, 50_000)
+        _book_usage(temp_db, 'claude-haiku-4-5-20251001', 100_000, 50_000)
 
         summary = temp_db.get_token_usage_summary()
         assert summary['totalInputTokens'] == 100_000
@@ -874,15 +882,14 @@ class TestTokenUsage:
         assert model['inputCostPerMtok'] == 1.0
         assert model['outputCostPerMtok'] == 5.0
 
-    def test_calculate_opus48_cost_exact_match_not_prefix(self, temp_db):
+    def test_opus48_rate_is_exact_match_not_prefix(self, temp_db):
         """Opus 4.8 resolves to its own 5/25 pricing, not Opus 4.0 (15/75) via prefix."""
         conn = temp_db.get_connection()
         # claudeopus48 seeded from DEFAULT_MODEL_PRICING at 5/25; claudeopus4 is 15/75.
-        cost = temp_db._calculate_token_cost(conn, 'claude-opus-4-8', 1_000_000, 1_000_000)
-        assert abs(cost - 30.0) < 0.001  # $5 input + $25 output, not $90 (15+75)
+        assert temp_db._resolve_model_rate(conn, 'claude-opus-4-8')[:2] == (5.0, 25.0)
 
     def test_prefix_match_refused_when_next_char_is_digit(self, temp_db):
-        """A version-crossing prefix (next char a digit) is refused -> $0 no-pricing path."""
+        """A version-crossing prefix (next char a digit) is refused -> no rate."""
         conn = temp_db.get_connection()
         # Row 'claudeopus4' (15/75) exists; remove the exact 'claudeopus48' row so
         # only the prefix candidate remains. Lookup 'claudeopus48' must NOT match it.
@@ -896,9 +903,8 @@ class TestTokenUsage:
                ON CONFLICT(match_key) DO NOTHING""",
         )
         conn.commit()
-        cost = temp_db._calculate_token_cost(conn, 'claude-opus-4-8', 1_000_000, 1_000_000,
-                                            match_key='claudeopus48')
-        assert cost == 0.0  # refused: no false 90.0 charge
+        rate = temp_db._resolve_model_rate(conn, 'claude-opus-4-8', match_key='claudeopus48')
+        assert rate is None  # refused: no false 15/75 charge
 
     def test_prefix_match_accepted_when_next_char_is_letter(self, temp_db):
         """A same-generation prefix (next char a letter) is still accepted."""
@@ -914,17 +920,15 @@ class TestTokenUsage:
         conn.commit()
         # 'claude37sonnetx' (15) vs 'claude37sonnet' (14): 14 >= 15*0.8=12 -> passes length
         # rule; next char 'x' is a letter -> digit guard allows the match.
-        cost = temp_db._calculate_token_cost(conn, 'claude-3-7-sonnet-x', 1_000_000, 0,
-                                            match_key='claude37sonnetx')
-        assert abs(cost - 3.0) < 0.001
+        rate = temp_db._resolve_model_rate(
+            conn, 'claude-3-7-sonnet-x', match_key='claude37sonnetx')
+        assert rate[:2] == (3.0, 15.0)
 
     def test_sonnet5_and_fable5_default_pricing_present(self, temp_db):
         """New defaults resolve to verified LiteLLM 2026-07-02 rates via exact match."""
         conn = temp_db.get_connection()
-        sonnet = temp_db._calculate_token_cost(conn, 'claude-sonnet-5', 1_000_000, 1_000_000)
-        assert abs(sonnet - 18.0) < 0.001  # 3 + 15
-        fable = temp_db._calculate_token_cost(conn, 'claude-fable-5', 1_000_000, 1_000_000)
-        assert abs(fable - 60.0) < 0.001  # 10 + 50
+        assert temp_db._resolve_model_rate(conn, 'claude-sonnet-5')[:2] == (3.0, 15.0)
+        assert temp_db._resolve_model_rate(conn, 'claude-fable-5')[:2] == (10.0, 50.0)
 
 
 class TestOpus48CostCorrectionMigration:
@@ -1003,7 +1007,7 @@ class TestOpus48CostCorrectionMigration:
         """With no Opus 4.8 usage, the migration is a no-op and does not rewrite the global."""
         conn = temp_db.get_connection()
         conn.execute("DELETE FROM schema_migrations WHERE name = 'correct_opus48_token_cost'")
-        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1_000_000, 0)  # $1.0
+        _book_usage(temp_db, 'claude-haiku-4-5-20251001', 1_000_000, 0)  # $1.0
         # Deliberately desync the global so we can prove the migration did not touch it.
         conn.execute("UPDATE stats SET value = 2.5 WHERE key = 'total_llm_cost'")
         conn.commit()
@@ -1020,8 +1024,8 @@ class TestOpus48CostCorrectionMigration:
         self._seed_miscosted(temp_db, 2_000_000, 1_000_000)
         conn = temp_db.get_connection()
         # Other real usage: Haiku 1M/0 = $1.0, Sonnet 4.5 1M/0 = $3.0
-        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1_000_000, 0)
-        temp_db.record_token_usage('claude-sonnet-4-5-20250929', 1_000_000, 0)
+        _book_usage(temp_db, 'claude-haiku-4-5-20251001', 1_000_000, 0)
+        _book_usage(temp_db, 'claude-sonnet-4-5-20250929', 1_000_000, 0)
         conn.execute("DELETE FROM schema_migrations WHERE name = 'correct_opus48_token_cost'")
         conn.commit()
 
@@ -1117,7 +1121,7 @@ class TestSonnet5Fable5CostRecomputeMigration:
         conn.execute(
             "DELETE FROM schema_migrations WHERE name = 'recompute_sonnet5_fable5_token_cost'"
         )
-        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1_000_000, 0)  # $1.0
+        _book_usage(temp_db, 'claude-haiku-4-5-20251001', 1_000_000, 0)  # $1.0
         conn.execute("UPDATE stats SET value = 2.5 WHERE key = 'total_llm_cost'")
         conn.commit()
 
@@ -1618,6 +1622,118 @@ class TestBatchMethods:
         temp_db.batch_clear_episode_details(slug, [])
         temp_db.batch_reset_episodes_to_discovered(slug, [])
         assert temp_db.batch_set_episodes_pending(slug, []) == 0
+
+
+class TestSetEpisodesPassthrough:
+    """set_episodes_passthrough (#746): per-episode pass-through override."""
+
+    def test_updates_only_requested_rows(self, temp_db):
+        slug = 'passthrough-feed'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
+        temp_db.upsert_episode(slug, 'ep-2', original_url='https://example.com/2.mp3')
+
+        count = temp_db.set_episodes_passthrough(slug, ['ep-1'], True)
+        assert count == 1
+        assert temp_db.get_episode(slug, 'ep-1')['passthrough_enabled'] == 1
+        assert temp_db.get_episode(slug, 'ep-2')['passthrough_enabled'] is None
+
+    def test_disable_clears_flag(self, temp_db):
+        slug = 'passthrough-clear'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
+        temp_db.set_episodes_passthrough(slug, ['ep-1'], True)
+
+        count = temp_db.set_episodes_passthrough(slug, ['ep-1'], False)
+        assert count == 1
+        assert temp_db.get_episode(slug, 'ep-1')['passthrough_enabled'] == 0
+
+    def test_does_not_touch_other_feeds(self, temp_db):
+        slug_a = 'passthrough-a'
+        slug_b = 'passthrough-b'
+        temp_db.create_podcast(slug_a, 'https://example.com/a.xml', 'A')
+        temp_db.create_podcast(slug_b, 'https://example.com/b.xml', 'B')
+        # Same episode_id in both feeds, since episode_id is only unique per podcast.
+        temp_db.upsert_episode(slug_a, 'shared-id', original_url='https://example.com/a.mp3')
+        temp_db.upsert_episode(slug_b, 'shared-id', original_url='https://example.com/b.mp3')
+
+        temp_db.set_episodes_passthrough(slug_a, ['shared-id'], True)
+
+        assert temp_db.get_episode(slug_a, 'shared-id')['passthrough_enabled'] == 1
+        assert temp_db.get_episode(slug_b, 'shared-id')['passthrough_enabled'] is None
+
+    def test_empty_ids_is_a_noop(self, temp_db):
+        slug = 'passthrough-empty'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        assert temp_db.set_episodes_passthrough(slug, [], True) == 0
+
+    def test_unknown_feed_is_a_noop(self, temp_db):
+        assert temp_db.set_episodes_passthrough('no-such-feed', ['ep-1'], True) == 0
+
+    def test_reprocess_ids_get_the_obligation_with_the_flag(self, temp_db):
+        slug = 'passthrough-obligation'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3',
+                               status='processed')
+        temp_db.upsert_episode(slug, 'ep-2', original_url='https://example.com/2.mp3',
+                               status='processed')
+
+        updated = temp_db.set_episodes_passthrough(
+            slug, ['ep-1', 'ep-2'], True, reprocess_ids=['ep-1'],
+            reprocess_requested_at='2026-03-01T00:00:00Z')
+
+        assert updated == 2
+        ep1 = temp_db.get_episode(slug, 'ep-1')
+        assert ep1['passthrough_enabled'] == 1
+        assert ep1['status'] == 'pending'
+        assert ep1['reprocess_requested_at'] == '2026-03-01T00:00:00Z'
+        assert ep1['reprocess_mode'] == 'reprocess'
+        # Flagged but not asked to reprocess: status must not move.
+        ep2 = temp_db.get_episode(slug, 'ep-2')
+        assert ep2['passthrough_enabled'] == 1
+        assert ep2['status'] == 'processed'
+
+
+class TestGetEpisodeJobStates:
+    """get_episode_job_states: ownership from the queue and the run registry."""
+
+    def _seed(self, temp_db, slug='job-states-feed'):
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
+        return slug, temp_db.get_podcast_by_slug(slug)
+
+    def test_empty_ids_is_a_noop(self, temp_db):
+        assert temp_db.get_episode_job_states([]) == {}
+
+    def test_pending_queue_row_reports_queued(self, temp_db):
+        slug, _ = self._seed(temp_db)
+        temp_db.queue_episode_for_processing(slug, 'ep-1', 'https://example.com/1.mp3')
+        assert temp_db.get_episode_job_states(['ep-1']) == {(slug, 'ep-1'): 'queued'}
+
+    def test_active_run_reports_processing(self, temp_db):
+        slug, podcast = self._seed(temp_db)
+        temp_db.get_connection().execute(
+            "INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, state) "
+            "VALUES ('run-1', ?, 'ep-1', 1, 'running')", (podcast['id'],))
+        temp_db.get_connection().commit()
+        assert temp_db.get_episode_job_states(['ep-1']) == {(slug, 'ep-1'): 'processing'}
+
+    def test_active_run_outranks_a_pending_queue_row(self, temp_db):
+        slug, podcast = self._seed(temp_db)
+        temp_db.queue_episode_for_processing(slug, 'ep-1', 'https://example.com/1.mp3')
+        temp_db.get_connection().execute(
+            "INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, state) "
+            "VALUES ('run-2', ?, 'ep-1', 1, 'running')", (podcast['id'],))
+        temp_db.get_connection().commit()
+        assert temp_db.get_episode_job_states(['ep-1']) == {(slug, 'ep-1'): 'processing'}
+
+    def test_finished_run_and_no_queue_row_report_nothing(self, temp_db):
+        slug, podcast = self._seed(temp_db)
+        temp_db.get_connection().execute(
+            "INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, state) "
+            "VALUES ('run-3', ?, 'ep-1', 1, 'finished')", (podcast['id'],))
+        temp_db.get_connection().commit()
+        assert temp_db.get_episode_job_states(['ep-1']) == {}
 
 
 class TestCloseQueueRowsForEpisode:

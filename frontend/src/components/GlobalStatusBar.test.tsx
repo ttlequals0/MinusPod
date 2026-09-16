@@ -60,6 +60,11 @@ function holdRow(match: string) {
   return row as HTMLElement;
 }
 
+/** The chip's noun is a span hidden on phones, so match the whole chip. */
+function chip(text: string) {
+  return screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === text);
+}
+
 async function renderBar(status: unknown) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
@@ -219,7 +224,44 @@ describe('GlobalStatusBar multiple jobs', () => {
     const a = job('feed-a', '1', 'First'); const b = job('feed-b', '2', 'Second');
     await renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
     expect(screen.getByText('First')).toBeDefined();
-    expect(screen.getByText('+1 running')).toBeDefined();
+    expect(chip('+1 running')).toBeDefined();
+  });
+
+  it('renders the compact resume label beside the full one on a timed pause', async () => {
+    const a = job('feed-a', '1', 'First'); const b = job('feed-b', '2', 'Second');
+    const holdUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    await renderBar(makeStatus({
+      currentJob: a, jobs: [a, b],
+      hold: emptyHold({ queuePaused: true, holdUntil }),
+    }));
+    // Both hold labels are in the DOM; the breakpoint picks one.
+    expect(screen.getByText(/^Paused until /)).toBeDefined();
+    expect(screen.getByText(/^Resumes /)).toBeDefined();
+    expect(chip('+1 running')).toBeDefined();
+  });
+
+  it('tints the queued chip with the shared queued hue', async () => {
+    const a = job('feed-a', '1', 'First');
+    await renderBar(makeStatus({
+      currentJob: a, jobs: [a], queueLength: 3, hold: emptyHold(),
+    }));
+    expect(chip('+3 queued').className).toContain('c-purple');
+  });
+
+  it('renders an offline hold label once beside a running job', async () => {
+    const a = job('feed-a', '1', 'First');
+    await renderBar(makeStatus({
+      currentJob: a, jobs: [a],
+      hold: emptyHold({
+        offlineHeld: 2,
+        offlineServices: [{
+          service: 'whisper', held: 2, reachable: false,
+          checkedAt: new Date().toISOString(),
+        }],
+      }),
+    }));
+    // No compact form for this label, so it must not be duplicated.
+    expect(screen.getAllByText('Whisper endpoint unreachable')).toHaveLength(1);
   });
 
   it('lists every job with its own stage once expanded', async () => {

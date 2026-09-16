@@ -1,5 +1,6 @@
 """Feed routes: /feeds/* endpoints."""
 import json
+import math
 import sqlite3
 import logging
 import os
@@ -54,6 +55,8 @@ from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
 from utils.paths import RECENTS_ARTWORK_PATH
+from utils.text import truncate
+from api.episodes import _episode_base_json, _job_state
 from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, is_local_feed,
                                is_recents_feed, recents_cutoff)
 from podping_listener import feed_url_domain
@@ -967,28 +970,106 @@ def _podcast_listing_fields(podcast, podping) -> dict:
     }
 
 
+_FEEDS_DEFAULT_LIMIT = 50
+_FEEDS_MAX_LIMIT = 200
+_LATEST_EPISODES_DEFAULT_PER_FEED = 3
+_LATEST_EPISODES_MAX_PER_FEED = 20
+
+
+def _episode_summary_json(ep, *, slug, is_local, storage, job_states) -> dict:
+    """Bounded per-feed episode projection for the /feeds listing.
+
+    Reuses the episode-list serializer so the grouped dashboard view matches
+    /feeds/<slug>/episodes exactly rather than re-deriving the same rules a
+    second way. Trimmed to the fields the dashboard card renders, plus the
+    hold, pass-through and error signals a card must not silently drop.
+    """
+    base = _episode_base_json(ep, slug=slug, is_local=is_local, storage=storage)
+    description = ep.get('description')
+    return {
+        'id': base['id'],
+        'title': base['title'],
+        'published': base['published'],
+        'createdAt': base['createdAt'],
+        'processedAt': base['processedAt'],
+        'duration': base['duration'],
+        'status': base['status'],
+        'jobState': _job_state(ep['status'], job_states.get((slug, ep['episode_id']))),
+        'artworkUrl': base['artworkUrl'],
+        'error': base['error'],
+        'pendingReviewCount': base['pendingReviewCount'],
+        'passthroughEnabled': base['passthroughEnabled'],
+        'hasBeenProcessed': base['hasBeenProcessed'],
+        'description': truncate(description, 200) if description else None,
+    }
+
+
 @api.route('/feeds', methods=['GET'])
 @log_request
 def list_feeds():
-    """List all podcast feeds with metadata."""
+    """List all podcast feeds with metadata.
+
+    Bare (no page/limit) stays unbounded for existing all-feeds consumers.
+    includeLatestEpisodes adds a per-feed episode projection via one
+    windowed query, not one request per feed.
+    """
     db = get_database()
 
-    podcasts = db.get_all_podcasts()
-    feed_auth_key = get_feed_auth_key(db)
+    limit_param = request.args.get('limit', type=int)
+    page_param = request.args.get('page', type=int)
+    if limit_param is None and page_param is None:
+        podcasts = db.get_all_podcasts()
+        total = len(podcasts)
+        limit = total
+        page = 1
+    else:
+        limit = min(max(1, limit_param or _FEEDS_DEFAULT_LIMIT), _FEEDS_MAX_LIMIT)
+        page = max(1, page_param or 1)
+        podcasts, total = db.get_podcasts_page(limit, (page - 1) * limit)
 
+    feed_auth_key = get_feed_auth_key(db)
     podping = _podping_context(db)
+
+    include_latest = request.args.get('includeLatestEpisodes', '').lower() == 'true'
+    episodes_per_feed = min(
+        max(1, request.args.get('episodesPerFeed', _LATEST_EPISODES_DEFAULT_PER_FEED, type=int)),
+        _LATEST_EPISODES_MAX_PER_FEED)
+    latest_by_podcast = {}
+    job_states = {}
+    storage = None
+    if include_latest and podcasts:
+        storage = get_storage()
+        podcast_ids = [p['id'] for p in podcasts]
+        latest_by_podcast = db.get_latest_episodes_for_podcasts(podcast_ids, episodes_per_feed)
+        all_episode_ids = [ep['episode_id'] for eps in latest_by_podcast.values() for ep in eps]
+        job_states = db.get_episode_job_states(all_episode_ids)
+
     feeds = []
     for podcast in podcasts:
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
 
-        feeds.append({
+        feed_json = {
             **_podcast_base_json(podcast, feed_url),
             **_podcast_listing_fields(podcast, podping),
             'lastEpisodeDate': podcast.get('last_episode_date'),
-        })
+        }
+        if include_latest:
+            feed_json['latestEpisodes'] = [
+                _episode_summary_json(
+                    ep, slug=podcast['slug'], is_local=is_local_feed(podcast),
+                    storage=storage, job_states=job_states)
+                for ep in latest_by_podcast.get(podcast['id'], [])
+            ]
+        feeds.append(feed_json)
 
+    total_pages = math.ceil(total / limit) if total and limit else 1
     return json_response({
         'feeds': feeds,
+        'total': total,
+        'totalPages': total_pages,
+        'page': page,
+        'limit': limit,
+        'offset': (page - 1) * limit,
         # Stamped whenever an all-feeds refresh pass finishes (15-minute
         # scheduler or the manual Refresh All action); null until the
         # first pass completes.
@@ -1943,6 +2024,25 @@ def _best_effort_rmtree(slug: str, path) -> None:
         logger.warning(f"[{slug}] could not remove {path}: left {remaining}")
 
 
+def _clear_deletion_fence(db, podcast_id) -> None:
+    """Drop the delete marker after an aborted delete; it fences the feed out
+    of acquisition, so leaving it set makes the feed unprocessable forever."""
+    try:
+        conn = db.get_connection()
+        conn.execute('UPDATE podcasts SET deletion_requested_at = NULL WHERE id = ?',
+                     (podcast_id,))
+        conn.commit()
+    except Exception:
+        logger.exception(f"Could not clear the deletion marker for podcast {podcast_id}")
+
+
+# How long a delete waits for a cancelled run to stop before deleting anyway.
+_DELETE_CANCEL_WAIT_SECONDS = 2.0
+# Coarser than the default poll: this wait runs for seconds, and each poll
+# queries processing_runs.
+_DELETE_CANCEL_POLL_SECONDS = 0.2
+
+
 @api.route('/feeds/<slug>', methods=['DELETE'])
 @log_request
 def delete_feed(slug):
@@ -1968,30 +2068,34 @@ def delete_feed(slug):
 
         status_service = get_status_service()
         queue = ProcessingQueue()
-        active_run_ids = []
+        cancelled_runs = []
         for current_slug, current_episode_id in queue.get_current():
             if current_slug != slug:
                 continue
             run_id = request_cancellation(slug, current_episode_id)
             if not run_id:
+                # None also means the run ended between the listing above and
+                # this call; only a run still active is a real failure.
+                if not queue.active_run_id(slug, current_episode_id):
+                    continue
+                _clear_deletion_fence(db, podcast['id'])
                 return error_response(
                     'Could not record cancellation; feed was not deleted', 503)
-            active_run_ids.append(run_id)
+            cancelled_runs.append((current_episode_id, run_id))
 
-        deadline = time.monotonic() + 2.0
-        for run_id in active_run_ids:
+        # Bounded window for the owner to stop before its rows and files are
+        # torn down (#745); a wedged run is deleted anyway, since the podcast
+        # delete cascades and the processing-side fence blocks recreation.
+        deadline = time.monotonic() + _DELETE_CANCEL_WAIT_SECONDS
+        for episode_id, run_id in cancelled_runs:
             if not wait_for_cancellation(
-                    run_id, timeout=max(0.0, deadline - time.monotonic())):
-                return json_response({
-                    'message': 'Feed deletion is waiting for processing to stop',
-                    'slug': slug,
-                }, 202)
+                    run_id, timeout=max(0.0, deadline - time.monotonic()),
+                    poll_interval=_DELETE_CANCEL_POLL_SECONDS):
+                logger.warning(
+                    f"[{slug}:{episode_id}] run {run_id} did not acknowledge "
+                    f"cancellation in {_DELETE_CANCEL_WAIT_SECONDS:.0f}s; "
+                    f"deleting anyway")
 
-        if any(current_slug == slug for current_slug, _ in queue.get_current()):
-            return json_response({
-                'message': 'Feed deletion is waiting for processing to stop',
-                'slug': slug,
-            }, 202)
         if db.active_upload_reservations(podcast['id']):
             return json_response({
                 'message': 'Feed deletion is waiting for uploads to finish',
@@ -2000,27 +2104,34 @@ def delete_feed(slug):
         status_service.remove_feed_from_queue(slug)      # drop queued display entries for this feed
         status_service.remove_feed_refresh(slug)         # drop any in-progress refresh badge
 
-        # Serialize the last active-run check with acquisition. A later acquire
+        # Serialize the last upload check with acquisition. A later acquire
         # sees no podcast and fails closed.
         conn = db.get_connection()
         conn.execute('BEGIN IMMEDIATE')
-        active = conn.execute(
-            "SELECT 1 FROM processing_runs WHERE podcast_id = ? "
-            "AND state IN ('running', 'cancel_requested') UNION ALL "
+        active_upload = conn.execute(
             "SELECT 1 FROM upload_reservations WHERE podcast_id = ? "
             "AND state IN ('reserved', 'prepared', 'publishing') LIMIT 1",
-            (podcast['id'], podcast['id']),
+            (podcast['id'],),
         ).fetchone()
-        if active:
+        if active_upload:
             conn.rollback()
             return json_response({
-                'message': 'Feed deletion is waiting for processing to stop',
+                'message': 'Feed deletion is waiting for uploads to finish',
                 'slug': slug,
             }, 202)
+        # processing_runs, auto_process_queue, episodes, and
+        # upload_reservations all cascade away with the podcast row; a run
+        # still 'running' at this instant is torn down here, not waited on.
         if not db.delete_podcast(slug, commit=False):
             conn.rollback()
             return error_response('Feed not found', 404)
         conn.commit()
+
+        # Clear the live status display for any run cancelled above: its
+        # worker may never get a chance to observe the cancellation and
+        # clear it itself, since its row and podcast are already gone.
+        for episode_id, run_id in cancelled_runs:
+            status_service.clear_if_matches(slug, episode_id, run_id=run_id)
 
         # Invalidate feed cache since we deleted a feed
         from main_app.feeds import invalidate_feed_cache
@@ -2058,10 +2169,17 @@ def delete_feed(slug):
         from recents_feed import rebuild_recents_feed
         rebuild_recents_feed()
         logger.info(f"Deleted feed: {slug}")
-        return json_response({'message': 'Feed deleted', 'slug': slug})
+        message = ('Feed deleted; in-progress processing was cancelled'
+                   if cancelled_runs else 'Feed deleted')
+        return json_response({
+            'message': message,
+            'slug': slug,
+            'cancelledJobs': len(cancelled_runs),
+        })
 
     except Exception:
         db.rollback_open_transaction()
+        _clear_deletion_fence(db, podcast['id'])
         logger.exception(f"Failed to delete feed {slug}")
         return error_response('Failed to delete feed', 500)
 
@@ -2198,20 +2316,20 @@ def regenerate_feeds():
         return error_response('Failed to regenerate feeds', 500)
 
 
-def _extract_artwork_url_from_feed(source_url: str) -> str | None:
-    """Extract artwork URL from a podcast's RSS feed."""
+def _extract_artwork_candidates_from_feed(source_url: str) -> list[str]:
+    """Ordered artwork candidate URLs from a podcast's RSS feed."""
     try:
         from rss_parser import RSSParser
         rss_parser = RSSParser()
         feed_content = rss_parser.fetch_feed(source_url)
         if not feed_content:
-            return None
+            return []
         # Pass raw XML; see extract_podcast_artwork_url docstring on why
         # the feedparser path is unreliable for the channel image.
         return rss_parser.extract_podcast_artwork_url(feed_content)
     except Exception as e:
-        logger.warning(f"Failed to extract artwork URL from feed: {e}")
-    return None
+        logger.warning(f"Failed to extract artwork candidates from feed: {e}")
+    return []
 
 
 @api.route('/feeds/<slug>/artwork', methods=['GET'])
@@ -2232,13 +2350,14 @@ def get_artwork(slug):
         podcast = db.get_podcast_by_slug(slug)
         if podcast and podcast.get('artwork_cached'):
             db.update_podcast(slug, artwork_cached=0)
+            candidates = []
+            if podcast.get('source_url'):
+                candidates = _extract_artwork_candidates_from_feed(podcast['source_url'])
             artwork_url = podcast.get('artwork_url')
-            if not artwork_url and podcast.get('source_url'):
-                artwork_url = _extract_artwork_url_from_feed(podcast['source_url'])
-                if artwork_url:
-                    db.update_podcast(slug, artwork_url=artwork_url)
-            if artwork_url:
-                storage.download_artwork(slug, artwork_url)
+            if artwork_url and artwork_url not in candidates:
+                candidates.append(artwork_url)
+            if candidates:
+                storage.download_artwork(slug, candidates)
                 artwork = storage.get_artwork(slug)
 
     if not artwork:

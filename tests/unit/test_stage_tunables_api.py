@@ -54,6 +54,19 @@ class TestMaxTokensValidation:
         assert r.status_code == 400
 
 
+class TestWindowSizeValidation:
+    """window_size_seconds range raised to 10800 for low-request-rate providers (#747)."""
+
+    def test_max_boundary_accepted(self, client):
+        r = _put(client, {'windowSizeSeconds': 10800})
+        assert r.status_code == 200, r.data
+
+    def test_above_max_rejected(self, client):
+        r = _put(client, {'windowSizeSeconds': 10801})
+        assert r.status_code == 400
+        assert 'windowSizeSeconds' in json.loads(r.data)['error']
+
+
 class TestReasoningBudget:
     def test_anthropic_budget_accepted(self, client):
         # Force provider to anthropic via DB before validation.

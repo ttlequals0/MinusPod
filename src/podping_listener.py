@@ -8,12 +8,17 @@ resolves its own singletons -- see that module's docstring.
 """
 import json
 import logging
+import random
+import re
 
 from database.podcasts import has_upstream
 import time
+from datetime import timedelta
 from urllib.parse import urlparse, urlunparse
 
 import requests
+
+from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.podping')
 
@@ -34,7 +39,63 @@ HOST_FLUSH_SECONDS = 60
 # jumping to the chain head. Every deploy used to lose the pings sent while
 # the container was down, and a podping is never resent.
 LAST_BLOCK_SETTING = 'podping_last_block'
-NODE_BACKOFF_SCHEDULE = (5, 15, 60)
+
+# Durable per-node health (JSON blob keyed by node URL) and the all-nodes-down
+# degraded signal, both survive a restart via the settings table.
+NODE_HEALTH_SETTING = 'podping_node_health'
+DEGRADED_SETTING = 'podping_all_nodes_down'
+DEGRADED_SINCE_SETTING = 'podping_degraded_since'
+
+NODE_BACKOFF_BASE_SECONDS = 5
+NODE_BACKOFF_MAX_SECONDS = 300
+NODE_BACKOFF_JITTER_FRACTION = 0.2
+NODE_BACKOFF_MAX_STEP = 6  # 5 * 2**6 = 320s, already past the 300s cap
+
+# A healthy node succeeds every tick; persist its last-success time no more
+# often than this so the status API stays current without writing per RPC.
+NODE_SUCCESS_PERSIST_SECONDS = 60
+
+_QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
+
+
+def _sanitize_failure_reason(message: str) -> str:
+    """Short, credential-free reason for durable storage and logs: strips any
+    URL query string (where a token would live) and caps the length."""
+    text = _QUERY_STRING_RE.sub(r'\1?<redacted>', str(message))
+    return text[:200]
+
+
+def _new_node_health_entry() -> dict:
+    return {
+        'consecutive_failures': 0,
+        'last_success_at': None,
+        'next_retry_at': None,
+        'last_failure_reason': None,
+    }
+
+
+def get_node_health_summary(db) -> list[dict]:
+    """Per-node durable health for API/status display, one entry per node in
+    PODPING_NODES order (unseen nodes default to a blank healthy record)."""
+    try:
+        raw = db.get_setting(NODE_HEALTH_SETTING)
+        data = json.loads(raw) if raw else {}
+    except Exception:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+
+    summary = []
+    for node in PODPING_NODES:
+        entry = data.get(node) or {}
+        summary.append({
+            'node': node,
+            'consecutiveFailures': int(entry.get('consecutive_failures') or 0),
+            'lastSuccessAt': entry.get('last_success_at'),
+            'nextRetryAt': entry.get('next_retry_at'),
+            'lastFailureReason': entry.get('last_failure_reason'),
+        })
+    return summary
 
 
 def _default_sleep_shutdown_aware(seconds):
@@ -198,17 +259,28 @@ class PodpingListener:
     injectable so tests never touch the network or a real clock sleep.
     """
 
-    def __init__(self, rpc=None, db=None, refresh=None, sleep=None):
+    def __init__(self, rpc=None, db=None, refresh=None, sleep=None, rand=None,
+                 now=None):
         self.rpc = rpc or self._default_rpc
         self.db = db
         self.refresh = refresh
         self.sleep = sleep or _default_sleep_shutdown_aware
+        # Injectable so backoff-jitter tests can assert exact values instead
+        # of a range; defaults to real jitter in production.
+        self.rand = rand or random.uniform
+        # Injectable clock so backoff-deadline tests need no real sleeping.
+        self.now = now or utc_now
 
         self.node_index = 0
         self._backoff_step = 0
         # Nodes that have failed since the last success, so a node that stays
         # down logs once instead of once per backoff cycle.
         self._failed_nodes = set()
+        # Durable per-node health, loaded once at start so a restart resumes
+        # each node's failure streak instead of re-escalating from zero.
+        self._node_health = self._load_node_health()
+        # Node -> time its last success was written, for the persist cadence.
+        self._success_persisted_at = {}
 
         self.feed_map = {}
         self.feed_rules = {}
@@ -237,8 +309,105 @@ class PodpingListener:
             raise ValueError(f"Malformed jsonrpc response from {url}")
         return payload['result']
 
+    def _load_node_health(self) -> dict:
+        if self.db is None:
+            return {}
+        try:
+            raw = self.db.get_setting(NODE_HEALTH_SETTING)
+        except Exception:
+            return {}
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _persist_node_health(self):
+        if self.db is None:
+            return
+        try:
+            self.db.set_setting(NODE_HEALTH_SETTING, json.dumps(self._node_health))
+        except Exception as exc:
+            logger.debug("Could not persist podping node health: %s", exc)
+
+    def _set_degraded(self, active: bool):
+        """Non-fatal all-nodes-down signal for /system/status; never touches
+        /health or feed refresh, which stay independent of Podping."""
+        if self.db is None:
+            return
+        try:
+            currently_active = self.db.get_setting(DEGRADED_SETTING) == '1'
+        except Exception:
+            return
+        if active == currently_active:
+            return
+        try:
+            self.db.set_setting(DEGRADED_SETTING, '1' if active else '0')
+            self.db.set_setting(DEGRADED_SINCE_SETTING, utc_now_iso() if active else '')
+        except Exception as exc:
+            logger.debug("Could not persist podping degraded flag: %s", exc)
+
+    def _backoff_seconds(self, step: int) -> float:
+        """Exponential backoff (base 5s, doubling, capped at 300s) with a
+        +/-20% jitter so multiple listeners retrying together don't align."""
+        base = min(NODE_BACKOFF_BASE_SECONDS * (2 ** step), NODE_BACKOFF_MAX_SECONDS)
+        jitter = base * NODE_BACKOFF_JITTER_FRACTION
+        return max(0.0, base + self.rand(-jitter, jitter))
+
+    def _record_node_failure(self, node, message):
+        entry = self._node_health.setdefault(node, _new_node_health_entry())
+        entry['consecutive_failures'] = entry.get('consecutive_failures', 0) + 1
+        entry['last_failure_reason'] = _sanitize_failure_reason(message)
+        node_step = min(entry['consecutive_failures'] - 1, NODE_BACKOFF_MAX_STEP)
+        retry_at = self.now() + timedelta(
+            seconds=self._backoff_seconds(node_step))
+        entry['next_retry_at'] = retry_at.isoformat()
+        self._persist_node_health()
+
+    def _record_node_success(self, node):
+        """Update in-memory health every time; persist on a transition (first
+        record, or recovery) and otherwise at most once per cadence window, so
+        the status API's last-success time advances without a write per RPC."""
+        entry = self._node_health.get(node)
+        is_transition = entry is None or bool(entry.get('consecutive_failures'))
+        if entry is None:
+            entry = _new_node_health_entry()
+            self._node_health[node] = entry
+        now = self.now()
+        entry['consecutive_failures'] = 0
+        entry['last_success_at'] = now.strftime(ISO_FORMAT)
+        entry['next_retry_at'] = None
+        written_at = self._success_persisted_at.get(node)
+        due = (written_at is None
+               or (now - written_at).total_seconds() >= NODE_SUCCESS_PERSIST_SECONDS)
+        if is_transition or due:
+            self._persist_node_health()
+            self._success_persisted_at[node] = now
+
+    def _log_outage_recovery(self, node):
+        """Correlate a recovery with how long every node was down, so an
+        external Hive-node outage reads distinctly from an internal scheduler
+        failure (that path logs 'Podping listener loop iteration failed')."""
+        duration_s = None
+        if self.db is not None:
+            try:
+                since_raw = self.db.get_setting(DEGRADED_SINCE_SETTING)
+            except Exception:
+                since_raw = None
+            since_dt = parse_iso_utc(since_raw) if since_raw else None
+            if since_dt is not None:
+                duration_s = (self.now() - since_dt).total_seconds()
+        logger.info(
+            "Podping recovered via %s after all nodes were unavailable "
+            "(outage_duration_s=%s); missed pings are not redelivered, "
+            "normal feed refresh catches up any stale feeds",
+            node, f"{duration_s:.0f}" if duration_s is not None else 'unknown')
+
     def _node_failure(self, message):
-        """Log, rotate to the next node, and back off (5s/15s/60s, capped).
+        """Log, rotate to the next node, back off (exponential + jitter), and
+        record durable per-node health.
 
         A node warns on its first failure, repeats go to DEBUG, and only the
         transition into losing every node (when pings are missed) is an ERROR;
@@ -247,7 +416,8 @@ class PodpingListener:
         node = PODPING_NODES[self.node_index]
         first_failure = node not in self._failed_nodes
         self._failed_nodes.add(node)
-        if first_failure and len(self._failed_nodes) >= len(PODPING_NODES):
+        all_down = len(self._failed_nodes) >= len(PODPING_NODES)
+        if first_failure and all_down:
             logger.error(
                 "All %d podping nodes failed; pings are being missed. Last: %s: %s",
                 len(PODPING_NODES), node, message)
@@ -255,15 +425,45 @@ class PodpingListener:
             logger.warning("Podping node %s failed: %s", node, message)
         else:
             logger.debug("Podping node %s failed again: %s", node, message)
+
+        self._record_node_failure(node, message)
+        if all_down:
+            self._set_degraded(True)
+
         self.node_index = (self.node_index + 1) % len(PODPING_NODES)
-        step = min(self._backoff_step, len(NODE_BACKOFF_SCHEDULE) - 1)
-        self._backoff_step = min(self._backoff_step + 1, len(NODE_BACKOFF_SCHEDULE) - 1)
-        self.sleep(NODE_BACKOFF_SCHEDULE[step])
+        step = self._backoff_step
+        self._backoff_step = min(self._backoff_step + 1, NODE_BACKOFF_MAX_STEP)
+        self.sleep(self._backoff_seconds(step))
+
+    def _node_retry_at(self, node):
+        """Persisted backoff deadline for a node, or None when it has none."""
+        entry = self._node_health.get(node) or {}
+        return parse_iso_utc(entry.get('next_retry_at'))
+
+    def _select_node(self) -> int:
+        """Index of the node to call next: the first from the current position
+        whose persisted backoff deadline has passed, else the one due soonest.
+        Reading the stored deadline is what keeps backoff across a restart,
+        where the in-memory rotation starts over at node 0."""
+        now = self.now()
+        soonest_index = self.node_index
+        soonest_at = None
+        for offset in range(len(PODPING_NODES)):
+            index = (self.node_index + offset) % len(PODPING_NODES)
+            retry_at = self._node_retry_at(PODPING_NODES[index])
+            if retry_at is None or retry_at <= now:
+                return index
+            if soonest_at is None or retry_at < soonest_at:
+                soonest_at = retry_at
+                soonest_index = index
+        return soonest_index
 
     def _call_rpc(self, method, params, expected_type=dict):
         """Call self.rpc, validating the response shape. Any exception,
         timeout, or shape mismatch is treated as a node failure (logged,
         node rotated, backoff applied) and returns None."""
+        self.node_index = self._select_node()
+        node = PODPING_NODES[self.node_index]
         try:
             result = self.rpc(method, params)
         except Exception as exc:
@@ -273,7 +473,12 @@ class PodpingListener:
             self._node_failure(f"{method} returned an invalid response shape")
             return None
         self._backoff_step = 0
+        was_all_down = len(self._failed_nodes) >= len(PODPING_NODES)
         self._failed_nodes.clear()
+        self._record_node_success(node)
+        if was_all_down:
+            self._log_outage_recovery(node)
+        self._set_degraded(False)
         return result
 
     def _refresh_feed_map(self):

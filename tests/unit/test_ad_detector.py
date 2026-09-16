@@ -474,6 +474,23 @@ class TestGetUncoveredPortions:
         assert result[1]['start'] == 260
         assert result[1]['end'] == 300
 
+    def test_fragment_drops_the_parents_merge_bookkeeping(self):
+        """A kept union would let the reviewer's floor re-expand the fragment."""
+        ad = {'start': 100, 'end': 300, 'confidence': 0.9, 'reason': 'test',
+              'merged_distinct_ads': True,
+              'merged_protected_start': 100.0, 'merged_protected_end': 300.0,
+              'merged_member_spans': [{'start': 100.0, 'end': 200.0,
+                                       'stage': 'claude'}],
+              'dai_core_spans': [{'start': 110.0, 'end': 280.0}]}
+        result = get_uncovered_portions(ad, [(100, 250)], min_duration=15.0)
+        assert len(result) == 1
+        portion = result[0]
+        assert (portion['start'], portion['end']) == (250, 300)
+        assert not portion.keys() & {
+            'merged_distinct_ads', 'merged_protected_start',
+            'merged_protected_end', 'merged_member_spans'}
+        assert portion['dai_core_spans'] == [{'start': 250.0, 'end': 280.0}]
+
     def test_more_than_half_uncovered_returns_original(self):
         """>50% uncovered means overlap is incidental -- return original ad."""
         ad = {'start': 100, 'end': 200, 'confidence': 0.9, 'reason': 'test'}

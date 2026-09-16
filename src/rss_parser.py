@@ -755,8 +755,8 @@ class RSSParser:
         }
 
     @staticmethod
-    def extract_podcast_artwork_url(feed_content_or_parsed, channel=None) -> str | None:
-        """Channel-level podcast artwork URL.
+    def extract_podcast_artwork_url(feed_content_or_parsed, channel=None) -> list[str]:
+        """Ordered channel-level podcast artwork candidate URLs.
 
         feedparser flattens ``<itunes:image>`` across the whole document, so
         ``parsed_feed.feed.image.href`` gets clobbered by the LAST itunes:image
@@ -766,23 +766,25 @@ class RSSParser:
         feedparser surfaces the 40 MB per-episode GIF.
 
         Parse the raw XML directly so we only consider channel-level
-        elements. Order of preference:
+        elements. Returned in preference order, deduped, so a caller can
+        fall back to the next candidate when the preferred one 404s:
 
           1. ``<itunes:image href="...">`` as a direct child of ``<channel>``
           2. ``<image><url>`` as a direct child of ``<channel>``
 
-        Accepts either raw bytes/str (preferred) or a feedparser parse
-        result (legacy compat); the legacy path is intentionally narrow
-        because it carries the bug described above.
+        Empty list when neither is present. Accepts either raw bytes/str
+        (preferred) or a feedparser parse result (legacy compat, at most one
+        candidate); the legacy path is intentionally narrow because it
+        carries the bug described above.
         """
         if not feed_content_or_parsed:
-            return None
+            return []
 
         if channel is not None or isinstance(feed_content_or_parsed, (str, bytes)):
             if channel is None:
                 channel = RSSParser.find_channel_element(feed_content_or_parsed)
                 if channel is None:
-                    return None
+                    return []
 
             ITUNES_NS_TAGS = (
                 '{http://www.itunes.com/dtds/podcast-1.0.dtd}image',
@@ -790,16 +792,19 @@ class RSSParser:
             )
             channel_itunes_image = None
             channel_rss_image = None
+            # No early break: both candidates are collected in one pass
+            # (the itunes:image tag commonly precedes <image> in channel
+            # order, and a caller needs both to build the fallback list).
             for elem in channel:
                 tag = getattr(elem, 'tag', '')
                 if not isinstance(tag, str):
                     continue
-                if tag in ITUNES_NS_TAGS:
+                if channel_itunes_image is None and tag in ITUNES_NS_TAGS:
                     href = elem.get('href') or ''
                     if href.strip():
                         channel_itunes_image = href.strip()
-                        break
-                if tag == 'image' or tag.endswith('}image'):
+                    continue
+                if channel_rss_image is None and (tag == 'image' or tag.endswith('}image')):
                     for sub in elem:
                         sub_tag = getattr(sub, 'tag', '')
                         if isinstance(sub_tag, str) and (sub_tag == 'url' or sub_tag.endswith('}url')):
@@ -807,17 +812,24 @@ class RSSParser:
                             if url_text:
                                 channel_rss_image = url_text
                                 break
-            return channel_itunes_image or channel_rss_image
+            seen = set()
+            candidates = []
+            for url in (channel_itunes_image, channel_rss_image):
+                if url and url not in seen:
+                    seen.add(url)
+                    candidates.append(url)
+            return candidates
 
         # Legacy feedparser path (kept narrow; see docstring).
         feed = getattr(feed_content_or_parsed, 'feed', None)
         if feed is None:
-            return None
-        if hasattr(feed, 'image') and hasattr(feed.image, 'href'):
-            return feed.image.href
+            return []
+        if hasattr(feed, 'image') and hasattr(feed.image, 'href') and feed.image.href:
+            return [feed.image.href]
         if 'itunes_image' in feed:
-            return feed.itunes_image.get('href')
-        return None
+            href = feed.itunes_image.get('href')
+            return [href] if href else []
+        return []
 
     @staticmethod
     def _dedup_category_labels(tags) -> list[str]:
@@ -961,7 +973,8 @@ class RSSParser:
         # (feedparser corrupts feed.image.href with per-episode itunes:image
         # overrides). Emit BOTH the standard <image> block and the
         # <itunes:image> tag that Apple Podcasts and most apps prefer.
-        artwork_url = self.extract_podcast_artwork_url(feed_content, channel=channel_elem)
+        artwork_candidates = self.extract_podcast_artwork_url(feed_content, channel=channel_elem)
+        artwork_url = artwork_candidates[0] if artwork_candidates else None
         # When the watermark is enabled and we have the cover cached, point the
         # channel image at our badge-overlaid variant so podcast apps show the
         # filtered feed is distinct (issue #420). This is podcast-level artwork,

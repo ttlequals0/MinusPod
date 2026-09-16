@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import ad_detector
 from ad_detector import AdDetector, WindowResult
+from llm_capabilities import PASS_AD_DETECTION_1
 from llm_client import ProviderRateLimitedError
 
 
@@ -57,7 +58,7 @@ def _run_pass(detector, num_windows, failed_idxs, **extra):
             progress_range=100,
             slug='s',
             episode_id='1',
-            pass_name='ad_detection_1',
+            pass_name=PASS_AD_DETECTION_1,
             window_label_prefix='Window',
             validate_timestamps=False,
             **extra,
@@ -168,3 +169,20 @@ class TestCategoryRepairHold:
         assert failure['rate_limited_hold'] is True
         assert failure['retry_after_seconds'] == 900.0
         assert final_ads == []
+
+    def test_manual_hold_flag_survives_the_failure_envelope(self):
+        """A manual MinusPod cap must stay manual across the stage boundary,
+        with its provider/slot, so the queue defers it and never probes it."""
+        detector = AdDetector(api_key='test-key')
+        error = ProviderRateLimitedError(
+            'manual cap resets in 60s', retry_after_seconds=60.0,
+            provider_key='openrouter', credential_slot='secondary', manual=True)
+        with patch('ad_detector.call_llm', return_value=(None, error)):
+            (_final_ads, _raw, _fw, failure, *_rest) = _run_pass(
+                detector, 3, set(), category_repair_enabled=True)
+
+        assert failure is not None
+        assert failure['rate_limited_hold'] is True
+        assert failure['manual'] is True
+        assert failure['provider_key'] == 'openrouter'
+        assert failure['credential_slot'] == 'secondary'

@@ -78,24 +78,40 @@ def recents_cutoff(podcast: dict) -> str:
     return (podcast.get('created_at') or '')[:10]
 
 
+_ALL_PODCASTS_SQL = f"""
+    SELECT p.*,
+           COUNT(e.id) as episode_count,
+           SUM(CASE WHEN e.status = 'processed' THEN 1 ELSE 0 END) as processed_count,
+           MAX(e.created_at) as last_episode_date,
+           {_STATUS_COUNT_SELECT}
+    FROM podcasts p
+    LEFT JOIN episodes e ON p.id = e.podcast_id
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+"""  # noqa: S608 (_STATUS_COUNT_SELECT is a fixed enum-derived string, not user input)
+
+
 class PodcastMixin:
     """Podcast management methods."""
 
     def get_all_podcasts(self) -> list[dict]:
-        """Get all podcasts with episode counts."""
+        """Get all podcasts with episode counts, unbounded.
+
+        Kept unbounded (no LIMIT/OFFSET) for callers that need every feed in
+        one pass, such as OPML export or the all-feeds refresh count. Use
+        get_podcasts_page for a paginated view.
+        """
         conn = self.get_connection()
-        cursor = conn.execute(f"""
-            SELECT p.*,
-                   COUNT(e.id) as episode_count,
-                   SUM(CASE WHEN e.status = 'processed' THEN 1 ELSE 0 END) as processed_count,
-                   MAX(e.created_at) as last_episode_date,
-                   {_STATUS_COUNT_SELECT}
-            FROM podcasts p
-            LEFT JOIN episodes e ON p.id = e.podcast_id
-            GROUP BY p.id
-            ORDER BY p.created_at DESC
-        """)  # noqa: S608
+        cursor = conn.execute(_ALL_PODCASTS_SQL)  # noqa: S608
         return [dict(row) for row in cursor.fetchall()]
+
+    def get_podcasts_page(self, limit: int, offset: int) -> tuple[list[dict], int]:
+        """One page of podcasts with episode counts, plus the total feed count."""
+        conn = self.get_connection()
+        total = conn.execute("SELECT COUNT(*) FROM podcasts").fetchone()[0]
+        cursor = conn.execute(
+            _ALL_PODCASTS_SQL + " LIMIT ? OFFSET ?", (limit, offset))  # noqa: S608
+        return [dict(row) for row in cursor.fetchall()], total
 
     def get_podcast_feed_urls(self) -> list[dict]:
         """slug + source_url only. The podping listener rebuilds its feed map
@@ -302,6 +318,7 @@ class PodcastMixin:
                 'low_ad_yield_action', 'episode_logs',
                 'retention_days_override', 'keep_original_audio_override',
                 'p20_channel_json', 'author', 'explicit', 'categories',
+                'artwork_failure_state',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)

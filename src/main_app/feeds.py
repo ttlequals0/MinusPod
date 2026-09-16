@@ -1,5 +1,6 @@
 """Feed management: get_feed_map, invalidate_feed_cache, refresh_rss_feed, refresh_all_feeds."""
 import logging
+import random
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
@@ -8,6 +9,10 @@ from datetime import datetime, timedelta, timezone
 from config import (
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     FEED_REFRESH_FAILURE_COUNT_INTERVAL,
+    FEED_REFRESH_OUTAGE_FRACTION,
+    FEED_REFRESH_OUTAGE_MIN_FEEDS,
+    FEED_REFRESH_OUTAGE_RETRY_BASE_SECONDS,
+    FEED_REFRESH_OUTAGE_RETRY_JITTER_SECONDS,
     title_matches_skip_patterns,
 )
 
@@ -147,7 +152,8 @@ def invalidate_feed_cache():
     _feed_cache.invalidate('all_feeds')
 
 
-def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
+def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
+                      record_failure: bool = True):
     """Refresh RSS feed for a podcast.
 
     Args:
@@ -156,6 +162,11 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         force: If True, bypass conditional GET (ETag/Last-Modified) to force full fetch.
                Use this when the RSS cache was deleted and needs regeneration.
                Also bypasses the refresh-attempt throttle.
+        record_failure: If False, an origin fetch/parse failure is returned
+               without touching refresh_failure_count or firing the alert.
+               refresh_all_feeds passes False and applies counting itself
+               once it knows whether the whole batch looks like a shared
+               outage.
     """
     podcast = db.get_podcast_row(slug)
     if is_local_feed(podcast):
@@ -250,9 +261,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
 
         if not feed_content:
             refresh_logger.error(f"[{slug}] Failed to fetch RSS feed")
-            _record_refresh_failure(
-                slug, 'Failed to fetch RSS feed (unreachable, invalid '
-                      'response, or blocked)', podcast=podcast)
+            if record_failure:
+                _record_refresh_failure(
+                    slug, 'Failed to fetch RSS feed (unreachable, invalid '
+                          'response, or blocked)', podcast=podcast)
             status_service.complete_feed_refresh(slug, 0)
             _refresh_coalesce.invalidate(slug)
             return RefreshOutcome(False, 'fetch_failed', error='Failed to fetch RSS feed')
@@ -267,9 +279,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         if not parsed_feed or (not parsed_feed.feed and not parsed_feed.entries
                                and getattr(parsed_feed, 'bozo', False)):
             refresh_logger.error(f"[{slug}] Fetched feed could not be parsed as RSS")
-            _record_refresh_failure(
-                slug, 'Fetched feed could not be parsed as RSS (the URL may '
-                      'be returning an error page)', podcast=podcast)
+            if record_failure:
+                _record_refresh_failure(
+                    slug, 'Fetched feed could not be parsed as RSS (the URL may '
+                          'be returning an error page)', podcast=podcast)
             status_service.complete_feed_refresh(slug, 0)
             _refresh_coalesce.invalidate(slug)
             return RefreshOutcome(False, 'parse_failed', error='Fetched feed could not be parsed as RSS')
@@ -286,9 +299,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             # stopped line-clamping).
             description = fields['description'][:10000]
 
-            # Extract artwork URL from RAW xml (feedparser corrupts the
-            # channel image with the last per-episode itunes:image it sees).
-            artwork_url = rss_parser.extract_podcast_artwork_url(
+            # Extract ordered artwork candidates from RAW xml (feedparser
+            # corrupts the channel image with the last per-episode
+            # itunes:image it sees): itunes:image first, then <image><url>.
+            artwork_candidates = rss_parser.extract_podcast_artwork_url(
                 feed_content, channel=channel_elem)
 
             # Channel-level <link> is the show's website (#521); only keep
@@ -302,38 +316,42 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             podping = rss_parser.extract_podping_declaration(
                 feed_content, channel=channel_elem)
 
-            # Captured before the write below: download_artwork re-reads the
-            # row, so once the new URL is stored it compares it against itself.
             prev = podcast or {}
-            artwork_changed = bool(artwork_url) and artwork_url != prev.get('artwork_url')
+            # "Changed" means the resolved cover has dropped out of the
+            # feed's current candidate set entirely, not just that the
+            # preferred candidate differs from it: otherwise a
+            # persistently-broken itunes:image (while the RSS <image> keeps
+            # resolving fine) would look "changed" on every single refresh
+            # and force a redownload attempt of the known-bad URL each time.
+            artwork_source_changed = (bool(artwork_candidates)
+                                      and prev.get('artwork_url') not in artwork_candidates)
             changed = [
                 name for name, before, after in (
                     ('title', prev.get('title'), title),
                     ('description', prev.get('description'), description),
-                    ('artwork', prev.get('artwork_url'), artwork_url),
                     ('website', prev.get('website_url'), website_url),
                 )
                 if after and before != after
             ]
+            if artwork_source_changed:
+                changed.append('artwork')
             if changed:
                 refresh_logger.info(
                     f"[{slug}] Feed metadata changed upstream: {', '.join(changed)}")
 
-            # Update podcast metadata (and ETag if available) in a single DB call
+            # Update podcast metadata (and ETag if available) in a single DB
+            # call. artwork_url/artwork_cached are deliberately NOT written
+            # here: storage.download_artwork is the sole writer of those two
+            # fields (via save_artwork), so a failed candidate never clears
+            # or overwrites a still-valid cached cover.
             update_kwargs = dict(
                 title=title,
                 description=description,
-                artwork_url=artwork_url,
                 website_url=website_url,
                 **podping_declaration_columns(
                     podping.get('uses_podping'), podping.get('hive_accounts')),
                 channel_metadata_at=utc_now_iso(),
             )
-            if artwork_changed:
-                # Clear the cache flag with the URL: a download that then
-                # fails would otherwise leave the row claiming the new cover
-                # is cached, and no later refresh would retry it.
-                update_kwargs['artwork_cached'] = 0
             db.update_podcast(slug, **update_kwargs)
 
             # Map iTunes categories to MinusPod vocabulary tags, then refresh the
@@ -366,10 +384,16 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                     f"network={network_info.get('network_id')}"
                 )
 
-            # A changed URL forces the fetch: the row already carries it.
-            if artwork_url:
-                storage.download_artwork(slug, artwork_url,
-                                         force=artwork_changed)
+            # A changed source forces the fetch past the "already cached"
+            # guard; otherwise the durable per-URL backoff throttles retries
+            # of a still-broken candidate while a working one stays served.
+            if artwork_candidates:
+                # Automatic refresh: bypass the cached-guard for a changed
+                # source, but keep the per-URL backoff so a persistently broken
+                # replacement is not refetched on every refresh.
+                storage.download_artwork(slug, artwork_candidates,
+                                         force=artwork_source_changed,
+                                         bypass_backoff=False)
 
         # Discover all episodes from the feed (upsert as 'discovered').
         # Pass parsed_feed so extract_episodes does not re-parse the same
@@ -485,14 +509,17 @@ def refresh_all_feeds(force: bool = False):
 
         feed_map = get_feed_map()
 
-        # Parallelize feed refresh with ThreadPoolExecutor
+        # Parallelize feed refresh with ThreadPoolExecutor. record_failure=False:
+        # per-feed failure counting is deferred until the batch fraction is
+        # known below, so a shared outage never marks healthy feeds broken.
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {}
             for slug, feed_info in feed_map.items():
                 row = db.get_podcast_by_slug(slug)
                 if is_local_feed(row) or is_recents_feed(row):
                     continue
-                futures[executor.submit(refresh_rss_feed, slug, feed_info['in'], force)] = slug
+                futures[executor.submit(
+                    refresh_rss_feed, slug, feed_info['in'], force, False)] = slug
             outcomes = {}
             for future in as_completed(futures):
                 slug = futures[future]
@@ -507,8 +534,48 @@ def refresh_all_feeds(force: bool = False):
 
         succeeded = sum(1 for outcome in outcomes.values() if outcome.success)
         failed = len(outcomes) - succeeded
+        total = len(outcomes)
         refresh_logger.info(
             f"RSS refresh complete: {succeeded} succeeded, {failed} failed")
+
+        outage_detected = (
+            failed > 0 and total >= FEED_REFRESH_OUTAGE_MIN_FEEDS
+            and (failed / total) >= FEED_REFRESH_OUTAGE_FRACTION
+        )
+        outage_info = {'detected': False, 'affectedCount': failed, 'nextRetryAt': None}
+
+        if outage_detected:
+            # Shared outage: origin feeds did not individually break, the
+            # network path did. Cached feed data and conditional-fetch
+            # validators (etag/last-modified) are untouched by a failed
+            # refresh_rss_feed call, so nothing needs preserving here beyond
+            # not counting the failures. One jittered retry avoids every
+            # instance hammering the same upstream host back-to-back.
+            refresh_logger.warning(
+                f"RSS refresh: shared outage detected ({failed}/{total} feeds "
+                "failed together) - skipping per-feed failure counting, "
+                "scheduling one jittered retry")
+            retry_delay = (FEED_REFRESH_OUTAGE_RETRY_BASE_SECONDS
+                           + random.uniform(0, FEED_REFRESH_OUTAGE_RETRY_JITTER_SECONDS))
+            next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=retry_delay)
+            next_retry_iso = next_retry_at.isoformat()
+            db.set_setting('feeds_refresh_outage_active', '1')
+            db.set_setting('feeds_refresh_outage_affected_count', str(failed))
+            db.set_setting('feeds_refresh_outage_detected_at', utc_now_iso())
+            db.set_setting('feeds_next_refresh_retry_at', next_retry_iso)
+            outage_info = {
+                'detected': True, 'affectedCount': failed, 'nextRetryAt': next_retry_iso,
+            }
+        else:
+            # Not an outage (or too few feeds to judge): count failures the
+            # same way refresh_rss_feed would have inline.
+            for slug, outcome in outcomes.items():
+                if outcome.status in ('fetch_failed', 'parse_failed'):
+                    _record_refresh_failure(slug, outcome.error or 'RSS refresh failed')
+            if db.get_setting('feeds_refresh_outage_active') == '1':
+                db.set_setting('feeds_refresh_outage_active', '0')
+                db.set_setting('feeds_next_refresh_retry_at', '')
+
         if failed == 0:
             db.set_setting('feeds_last_refresh_completed_at', utc_now_iso())
         return {
@@ -516,10 +583,12 @@ def refresh_all_feeds(force: bool = False):
             'succeeded': succeeded,
             'failed': failed,
             'outcomes': {slug: outcome.to_dict() for slug, outcome in outcomes.items()},
+            'outage': outage_info,
         }
     except Exception as e:
         refresh_logger.error(f"RSS refresh failed: {_scrub_query_strings(str(e))}")
-        return {'success': False, 'succeeded': 0, 'failed': 0, 'outcomes': {}}
+        return {'success': False, 'succeeded': 0, 'failed': 0, 'outcomes': {},
+                'outage': {'detected': False, 'affectedCount': 0, 'nextRetryAt': None}}
 
 
 def refresh_single_feed(slug: str) -> bool:
@@ -622,12 +691,25 @@ def refresh_feed_artwork(slug, podcast=None):
         # Local artwork is uploaded by the operator, never fetched upstream.
         return False
     try:
+        # Re-derive candidates from the live feed so a manual refresh can
+        # recover from a preferred candidate that has started 404ing, not
+        # just re-fetch the URL already on the row. Falls back to the
+        # stored URL if the feed can't be fetched.
+        candidates = []
+        try:
+            feed_content = rss_parser.fetch_feed(podcast['source_url'])
+            if feed_content:
+                candidates = rss_parser.extract_podcast_artwork_url(feed_content)
+        except Exception as e:
+            refresh_logger.warning(f"[{slug}] artwork candidate fetch failed: {e}")
+        if not candidates and podcast.get('artwork_url'):
+            candidates = [podcast['artwork_url']]
         # force, because the guard reads the same URL back off the row and
         # would always match; without it this only cleared the badge variant.
         # Then drop the cached badge so it recomposites with the current
         # badge rendering even when the cover itself has not changed.
-        if podcast.get('artwork_url'):
-            storage.download_artwork(slug, podcast['artwork_url'], force=True)
+        if candidates:
+            storage.download_artwork(slug, candidates, force=True)
         storage.clear_watermark_cache(slug)
     except Exception as e:
         refresh_logger.warning(f"[{slug}] artwork refresh failed: {e}")

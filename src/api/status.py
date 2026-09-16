@@ -14,7 +14,7 @@ from api import (
 )
 from config import DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER
 from offline_queue import get_probe_state
-from rate_limit_hold import get_active_hold
+from rate_limit_hold import get_any_active_hold
 from processing_queue import (
     ProcessingQueue, is_processing_paused, set_processing_paused,
 )
@@ -69,8 +69,12 @@ def _build_hold_block(db) -> dict:
 
     Reports what the maintenance tick last observed. Nothing here probes a
     service, so an open SSE stream cannot generate outbound traffic.
+
+    holdUntil/holdSince surface whichever active hold, legacy or any
+    provider-scoped one, resets latest, so the dashboard still shows a
+    pause while any provider is held, even one that isn't the default.
     """
-    hold_until, hold_since = get_active_hold(db)
+    hold_until, hold_since = get_any_active_hold(db)
     return {
         'queuePaused': hold_until is not None,
         'holdUntil': hold_until,

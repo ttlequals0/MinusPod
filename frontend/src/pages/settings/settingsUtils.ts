@@ -23,6 +23,12 @@ export function formatTokenCount(tokens: number): string {
   return String(tokens);
 }
 
+// "12.3K in / 456 out": shared by every place that reports an input/output
+// token pair (run rows, phase rows, episode-level spend summaries).
+export function formatTokenRange(inputTokens: number, outputTokens: number): string {
+  return `${formatTokenCount(inputTokens)} in / ${formatTokenCount(outputTokens)} out`;
+}
+
 export function formatCost(cost: number): string {
   return `$${cost.toFixed(2)}`;
 }
@@ -30,6 +36,30 @@ export function formatCost(cost: number): string {
 export function formatStorage(mb: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
   return `${mb.toFixed(1)} MB`;
+}
+
+export interface StageProviderSlots {
+  detectionProvider: string;
+  verificationProvider: string;
+  chaptersProvider: string;
+  reviewProvider: string;
+}
+
+// Disabling the secondary provider must not leave a stage pointed at an
+// orphaned 'secondary' slot, so any stage on it falls back to 'primary'.
+// Enabling never touches these values. It only unlocks the option.
+export function reconcileStageSlotsForSecondaryToggle(
+  enabled: boolean,
+  slots: StageProviderSlots,
+): StageProviderSlots {
+  if (enabled) return slots;
+  const toPrimary = (slot: string) => (slot === 'secondary' ? 'primary' : slot);
+  return {
+    detectionProvider: toPrimary(slots.detectionProvider),
+    verificationProvider: toPrimary(slots.verificationProvider),
+    chaptersProvider: toPrimary(slots.chaptersProvider),
+    reviewProvider: toPrimary(slots.reviewProvider),
+  };
 }
 
 export function formatModelLabel(model: ClaudeModel): string {

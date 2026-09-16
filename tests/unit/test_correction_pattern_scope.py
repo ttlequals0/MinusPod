@@ -47,6 +47,8 @@ def _mock_db():
     # name/aliases as strings and scans existing patterns for near-duplicates.
     db.get_known_sponsor_by_name.return_value = None
     db.get_ad_patterns.return_value = []
+    # Duration caps read real numbers; a bare MagicMock floats to 1.0.
+    db.get_setting_float.side_effect = lambda key, default=None: default
     db.create_ad_pattern.return_value = 1234
     return db
 

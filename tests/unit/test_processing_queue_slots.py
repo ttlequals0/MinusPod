@@ -263,6 +263,24 @@ def test_pause_committed_before_admission_blocks_cross_process_acquire(
             child.join(timeout=_CROSS_PROCESS_TIMEOUT)
 
 
+def test_orphan_run_for_missing_podcast_self_terminates(queue):
+    """A run whose podcast row is gone self-terminates without needing its
+    owner pid proven dead (#745): a normal podcast delete cascades the run
+    row away entirely, but this is the safety net for any run left behind
+    by a delete that outran the cascade."""
+    run_id = queue.acquire('a', '1')
+    assert run_id
+    conn = queue._database().get_connection()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("DELETE FROM podcasts WHERE slug = 'a'")
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = ON")
+
+    assert queue.reconcile_dead_owners() == 0  # orphans are not "recovered" jobs
+    assert _row(queue, run_id)['state'] == 'interrupted'
+    assert queue.get_current() == []
+
+
 def test_zombie_is_not_considered_live(queue, monkeypatch):
     import processing_queue
     monkeypatch.setattr(processing_queue, '_pid_stat', lambda pid: (10.0, 'Z'))

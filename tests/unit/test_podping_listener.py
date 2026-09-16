@@ -137,10 +137,14 @@ class TestFeedAcceptance:
 
 
 class TestNodeRotation:
+    """rand=lambda lo, hi: 0 removes jitter so exact backoff values (base 5s,
+    doubling, capped at 300s) are assertable; production uses real jitter."""
+
     def test_increments_node_index_on_request_exception(self):
         rpc = ScriptedRpc({'some_method': requests.RequestException('boom')})
         sleep_calls = []
-        listener = PodpingListener(rpc=rpc, sleep=sleep_calls.append)
+        listener = PodpingListener(rpc=rpc, sleep=sleep_calls.append,
+                                   rand=lambda lo, hi: 0)
         start_index = listener.node_index
 
         result = listener._call_rpc('some_method', [])
@@ -152,7 +156,8 @@ class TestNodeRotation:
     def test_invalid_shape_also_rotates(self):
         rpc = ScriptedRpc({'some_method': None})
         sleep_calls = []
-        listener = PodpingListener(rpc=rpc, sleep=sleep_calls.append)
+        listener = PodpingListener(rpc=rpc, sleep=sleep_calls.append,
+                                   rand=lambda lo, hi: 0)
 
         result = listener._call_rpc('some_method', [])
 
@@ -163,12 +168,13 @@ class TestNodeRotation:
     def test_backoff_escalates_across_consecutive_failures(self):
         rpc = ScriptedRpc({'some_method': requests.RequestException('boom')})
         sleep_calls = []
-        listener = PodpingListener(rpc=rpc, sleep=sleep_calls.append)
+        listener = PodpingListener(rpc=rpc, sleep=sleep_calls.append,
+                                   rand=lambda lo, hi: 0)
 
         for _ in range(4):
             listener._call_rpc('some_method', [])
 
-        assert sleep_calls == [5, 15, 60, 60]
+        assert sleep_calls == [5, 10, 20, 40]
 
     def test_success_resets_backoff(self):
         rpc = ScriptedRpc({
@@ -176,7 +182,8 @@ class TestNodeRotation:
             'succeeds': {'ok': True},
         })
         sleep_calls = []
-        listener = PodpingListener(rpc=rpc, sleep=sleep_calls.append)
+        listener = PodpingListener(rpc=rpc, sleep=sleep_calls.append,
+                                   rand=lambda lo, hi: 0)
 
         listener._call_rpc('fails', [])
         listener._call_rpc('succeeds', [])

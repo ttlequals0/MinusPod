@@ -290,22 +290,6 @@ def _verdict_agrees(verdict: str, expected: str) -> bool:
     return verdict == 'reject'
 
 
-def _resolve_calibration_model(db) -> str:
-    """review_model wins unless it's the same_as_pass placeholder, in which
-    case fall back to the detection pass model. Same rule as
-    AdReviewer._resolve_model, which reads the live pass model instead."""
-    configured = db.get_setting('review_model')
-    if configured and configured != 'same_as_pass':
-        return configured
-    fallback = db.get_setting('claude_model')
-    if fallback:
-        return fallback
-    raise ValueError(
-        'No model configured for reviewer calibration: set review_model '
-        'or claude_model first.'
-    )
-
-
 def run_calibration(llm_client=None, model: str | None = None) -> dict:
     """Run CALIBRATION_CORPUS through the production AdReviewer stack.
 
@@ -314,12 +298,31 @@ def run_calibration(llm_client=None, model: str | None = None) -> dict:
     """
     from ad_reviewer import AdReviewer
     from database import Database
-    from llm_client import get_llm_client
+    from llm_client import get_client_for_provider
+    from llm_route import resolve_route
     from utils.time import utc_now_iso
 
     db = Database()
-    client = llm_client or get_llm_client()
-    resolved_model = model or _resolve_calibration_model(db)
+    client = llm_client
+    resolved_model = model
+    if client is None or resolved_model is None:
+        # Resolve the review route the way a real run does: the detection route
+        # is the pass fallback, so same_as_pass inherits detection's actual slot
+        # and model instead of the primary. Sending the review model to the wrong
+        # endpoint 404s and opens that endpoint's breaker.
+        try:
+            detection = resolve_route('detection')
+            route = resolve_route(
+                'review', pass_provider=detection.provider_key,
+                pass_model=detection.model_id, pass_base_url=detection.base_url,
+                pass_credential_slot=detection.credential_slot)
+        except ValueError as e:
+            raise ValueError("No model configured for reviewer calibration: "
+                             "set review_model or claude_model first.") from e
+        client = client or get_client_for_provider(
+            route.provider_key, base_url=route.base_url,
+            credential_slot=route.credential_slot)
+        resolved_model = resolved_model or route.model_id
     reviewer = AdReviewer(db=db, llm_client=client, sponsor_service=None)
 
     cases_out = []

@@ -106,17 +106,20 @@ class ProcessingQueue:
                 and current_start != recorded_start)
 
     def _reconcile_dead_owners(self, conn) -> list[tuple[str, str, str]]:
-        """Recover processing state only when its process identity is proven dead."""
+        """Recover processing state when its owner is proven dead, or its
+        podcast no longer exists (orphaned by a podcast delete outrunning
+        the worker's next cooperative check; see #745)."""
         rows = conn.execute(
             "SELECT r.run_id, r.podcast_id, r.episode_id, r.owner_pid, r.owner_pid_start, "
             "r.heartbeat_at, p.slug FROM processing_runs r "
-            "JOIN podcasts p ON p.id = r.podcast_id "
+            "LEFT JOIN podcasts p ON p.id = r.podcast_id "
             "WHERE r.state IN ('running', 'cancel_requested')"
         ).fetchall()
         recovered = []
         now = datetime.now(timezone.utc)
         for row in rows:
-            if self._owner_proven_dead(row['owner_pid'], row['owner_pid_start']):
+            orphaned = row['slug'] is None
+            if orphaned or self._owner_proven_dead(row['owner_pid'], row['owner_pid_start']):
                 cursor = conn.execute(
                     "UPDATE processing_runs SET state = 'interrupted', "
                     "finished_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
@@ -124,7 +127,7 @@ class ProcessingQueue:
                     "AND state IN ('running', 'cancel_requested')",
                     (row['run_id'], row['owner_pid'], row['owner_pid_start']),
                 )
-                if cursor.rowcount:
+                if cursor.rowcount and not orphaned:
                     successor = conn.execute(
                         "SELECT 1 FROM processing_runs WHERE podcast_id = ? "
                         "AND episode_id = ? "

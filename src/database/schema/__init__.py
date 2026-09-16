@@ -162,6 +162,7 @@ class SchemaMixin:
         'token_usage',
         'ad_reviewer_log',
         'podping_hosts',
+        'llm_call_usage',
         'addressing_log',
         'processing_runs',
         'upload_reservations',
@@ -197,6 +198,13 @@ class SchemaMixin:
             "CREATE INDEX IF NOT EXISTS idx_podping_hosts_last_seen "
             "ON podping_hosts(last_seen_at DESC)"
         )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_run ON llm_call_usage(run_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_episode ON llm_call_usage(podcast_id, episode_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_model ON llm_call_usage(provider_key, configured_model)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_created ON llm_call_usage(created_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_state ON llm_call_usage(state)")
+        # The provider/credential_slot index is created in _run_schema_migrations,
+        # after the ALTER that adds credential_slot to pre-existing tables.
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_addressing_log_episode "
             "ON addressing_log(episode_id)"
@@ -316,6 +324,8 @@ class SchemaMixin:
             # marks it in flight and the error is the last failure.
             ('chapters_regen_started_at', 'TEXT'),
             ('chapters_regen_error', 'TEXT'),
+            # Per-episode pass-through override, issue #746.
+            ('passthrough_enabled', 'INTEGER'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
@@ -482,6 +492,11 @@ class SchemaMixin:
             ('categories', 'TEXT'),
             # Operator hints appended to the LLM prompt for this feed (#709).
             ('detection_notes', 'TEXT'),
+            # Durable, status-aware artwork negative cache: JSON map of
+            # attempted candidate URL -> {status, at}, so a broken preferred
+            # cover is not retried until its backoff window elapses even
+            # after a process restart.
+            ('artwork_failure_state', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
@@ -536,6 +551,8 @@ class SchemaMixin:
             "ON processing_runs(owner_pid, owner_pid_start) "
             "WHERE state IN ('running', 'cancel_requested')"
         )
+        runs_cols = self._get_table_columns(conn, 'processing_runs')
+        self._add_column_if_missing(conn, 'processing_runs', 'route_snapshot_json', 'TEXT', runs_cols)
         upload_cols = self._get_table_columns(conn, 'upload_reservations')
         self._add_column_if_missing(
             conn, 'upload_reservations', 'backup_name', 'TEXT', upload_cols)
@@ -550,6 +567,16 @@ class SchemaMixin:
             "CREATE INDEX IF NOT EXISTS idx_provider_spend_run "
             "ON provider_spend_reservations(run_id, status)"
         )
+        # credential_slot: per-account rate accounting; NULL on historical
+        # rows reads as 'primary'.
+        llm_usage_cols = self._get_table_columns(conn, 'llm_call_usage')
+        slot_added = self._add_column_if_missing(
+            conn, 'llm_call_usage', 'credential_slot', 'TEXT', llm_usage_cols)
+        if slot_added or 'credential_slot' in llm_usage_cols:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_slot_created "
+                "ON llm_call_usage(provider_key, credential_slot, created_at DESC)"
+            )
         conn.commit()
         marker = 'scope_pattern_corrections_podcast_once'
         if (self._table_exists(conn, 'episodes')
@@ -1398,6 +1425,8 @@ class SchemaMixin:
             ('app_version', 'TEXT'),
             # Run log pointer (#660): data-dir-relative path
             ('log_file', 'TEXT'),
+            # Ledger correlation key: links to llm_call_usage.run_id
+            ('run_id', 'TEXT'),
         ]:
             self._add_column_if_missing(conn, 'processing_history', col, definition, hist_cols)
 
@@ -2062,7 +2091,7 @@ class SchemaMixin:
         recomputed cost and, when a row was corrected, the global counter is reset
         to the sum of all per-model rows -- so the result is identical on re-run
         (e.g. concurrent workers). A database that never used Opus 4.8 is left
-        untouched. No rows are deleted. (`record_token_usage` increments both
+        untouched. No rows are deleted. (The counter writes increment both
         counters by the same per-call cost, so the global equals the sum of
         per-model rows by construction.)
         """
@@ -2386,7 +2415,7 @@ class SchemaMixin:
 
         Before the pricing-source fallback fix, these models had no default
         pricing row and, on unknown openai-compatible domains, no live fetch, so
-        `_calculate_token_cost` fell through to the no-pricing $0 path. This is
+        the cost lookup fell through to the no-pricing $0 path. This is
         the third incident of the pricing-frozen class (see opus48-cost-fix and
         1.0.79). Recompute `token_usage.total_cost` from DEFAULT_MODEL_PRICING
         for `claudesonnet5`/`claudefable5` rows where the recorded cost is 0 and

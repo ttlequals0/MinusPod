@@ -81,6 +81,21 @@ class TestNormalizeModelKey:
         assert normalize_model_key('model:v2-large') == 'modelv2large'
 
 
+def _book_call(db, model_id, input_tokens, output_tokens):
+    """One billable ledger attempt, the live counter writer; (cost, row)."""
+    attempt_id = db.begin_llm_attempt(
+        run_id='run-pricing', podcast_id=None, episode_id=None,
+        phase_key='detection', invoking_pass=1, provider_key='anthropic',
+        configured_model=model_id)
+    cost = db.finalize_llm_attempt(
+        attempt_id, state='success', input_tokens=input_tokens,
+        output_tokens=output_tokens)
+    row = db.get_connection().execute(
+        "SELECT cost_source, cost_usd FROM llm_call_usage WHERE attempt_id = ?",
+        (attempt_id,)).fetchone()
+    return cost, row
+
+
 class TestModelPricingOverrides:
     def test_positive_override_precedes_catalog(self, temp_db):
         temp_db.upsert_fetched_pricing([{
@@ -97,11 +112,12 @@ class TestModelPricingOverrides:
             },
         })
 
-        cost = temp_db.record_token_usage('local-model', 1_000_000, 500_000)
+        cost, _row = _book_call(temp_db, 'local-model', 1_000_000, 500_000)
 
         assert cost == 8.0
 
-    def test_explicit_zero_is_free_without_missing_warning(self, temp_db, caplog):
+    def test_explicit_zero_is_free_not_unknown(self, temp_db):
+        """A 0/0 override is a priced-as-free call, not a missing rate."""
         temp_db.merge_model_pricing_overrides({
             'free-model': {
                 'inputCostPerMtok': 0.0,
@@ -109,11 +125,10 @@ class TestModelPricingOverrides:
             },
         })
 
-        with caplog.at_level('WARNING'):
-            cost = temp_db.record_token_usage('free-model', 1000, 500)
+        cost, row = _book_call(temp_db, 'free-model', 1000, 500)
 
         assert cost == 0.0
-        assert 'No pricing found' not in caplog.text
+        assert row['cost_source'] == 'explicit_zero'
 
     def test_normalized_model_id_uses_override(self, temp_db):
         temp_db.merge_model_pricing_overrides({
@@ -123,7 +138,7 @@ class TestModelPricingOverrides:
             },
         })
 
-        cost = temp_db.record_token_usage('local-model', 500_000, 500_000)
+        cost, _row = _book_call(temp_db, 'local-model', 500_000, 500_000)
 
         assert cost == 4.0
 
@@ -175,7 +190,7 @@ class TestModelPricingOverrides:
                 'outputCostPerMtok': 2.0,
             },
         })
-        temp_db.record_token_usage('local-model', 1_000_000, 1_000_000)
+        _book_call(temp_db, 'local-model', 1_000_000, 1_000_000)
         temp_db.merge_model_pricing_overrides({
             'local-model': {
                 'inputCostPerMtok': 10.0,
@@ -190,12 +205,14 @@ class TestModelPricingOverrides:
         assert summary['models'][0]['inputCostPerMtok'] == 10.0
         assert summary['models'][0]['outputCostPerMtok'] == 20.0
 
-    def test_missing_override_keeps_catalog_fallback_warning(self, temp_db, caplog):
-        with caplog.at_level('WARNING'):
-            cost = temp_db.record_token_usage('uncatalogued-model', 1000, 500)
+    def test_uncatalogued_model_books_unknown_cost(self, temp_db):
+        """No override and no catalog row leaves the spend visibly unknown
+        rather than silently priced at zero."""
+        cost, row = _book_call(temp_db, 'uncatalogued-model', 1000, 500)
 
         assert cost == 0.0
-        assert "No pricing found for model 'uncatalogued-model'" in caplog.text
+        assert row['cost_source'] == 'unknown'
+        assert row['cost_usd'] is None
 
 
 

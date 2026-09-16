@@ -110,6 +110,34 @@ describe('RichText block handling', () => {
     const { container } = render(<RichText html="<div><p>One</p></div><div><p>Two</p></div>" />);
     expect(container.textContent).not.toMatch(/\n\s*\n/);
   });
+
+  it('collapses a long plain-text blank run to one blank line', () => {
+    const { container } = render(<RichText html={'Line one\n\n\n\n\nLine two'} />);
+    expect(container.textContent).toBe('Line one\n\nLine two');
+  });
+
+  it('collapses repeated <br> to at most one blank line', () => {
+    const { container } = render(<RichText html={'A<br><br><br><br>B'} />);
+    expect(container.textContent).not.toMatch(/\n\s*\n\s*\n/);
+  });
+
+  it('treats nbsp-only lines as blank when collapsing', () => {
+    const { container } = render(<RichText html={'A\n\u00A0\n\u00A0\nB'} />);
+    expect(container.textContent).toBe('A\n\nB');
+  });
+
+  it('preserves a single line break', () => {
+    const { container } = render(<RichText html={'A\nB'} />);
+    expect(container.textContent).toBe('A\nB');
+  });
+
+  it('separates description from chapter notes without merging or large gaps', () => {
+    const { container } = render(
+      <RichText html={'Last word.' + '\n\nChapters\n1. Intro'} />,
+    );
+    expect(container.textContent).toContain('Last word.\n\nChapters');
+    expect(container.textContent).not.toMatch(/\n\s*\n\s*\n/);
+  });
 });
 
 describe('RichText: table cells and relative links', () => {

@@ -167,6 +167,9 @@ class VerificationPass:
                     'status': 'detection_failed', 'error': detection_error,
                     'rate_limited_hold': verification_result.get('rate_limited_hold', False),
                     'retry_after_seconds': verification_result.get('retry_after_seconds'),
+                    'provider_key': verification_result.get('provider_key'),
+                    'credential_slot': verification_result.get('credential_slot', 'primary'),
+                    'manual': verification_result.get('manual', False),
                     'audio_cue_count': verification_cue_count, **window_counts}
 
         processed_ads = verification_result.get('ads', [])

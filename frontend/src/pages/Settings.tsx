@@ -2,13 +2,16 @@ import { useState, useEffect, useRef } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, setQueuePriority, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
+import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, setQueuePriority, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
 import type { PromptName } from '../api/settings';
+import { modelsQueryOptionsFor } from '../api/settings';
+import { useModelCatalog } from '../hooks/useModelCatalog';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
-import type { BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
+import type { BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, ProviderSlot, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
+import { LLM_PROVIDERS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
@@ -29,6 +32,7 @@ import {
   testProvider,
   testWhisperConnection,
   testLlmConnection,
+  testSecondaryProviderConnection,
   testPodcastIndex,
   type ProviderName,
   type ProvidersResponse,
@@ -57,7 +61,7 @@ import OutboundRequestsSection from './settings/OutboundRequestsSection';
 import { Search, X } from 'lucide-react';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
 import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
-import { formatModelLabel } from './settings/settingsUtils';
+import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils';
 import { btnPrimary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
 
@@ -75,6 +79,19 @@ function SettingsGroupHeader({ title }: { title: string }) {
 }
 
 type SettingScalar = string | number | boolean;
+
+// Which catalog section a model refresh came from, so its pending and error
+// state stay in the section whose button started it.
+type CatalogScope = 'stages' | 'review';
+interface CatalogRefreshError {
+  scope: CatalogScope;
+  message: string;
+}
+interface CatalogTarget {
+  provider: string;
+  slot: ProviderSlot;
+}
+type StageKey = 'detection' | 'verification' | 'chapters' | 'review';
 
 // One registry row per Save-bar field. Hydration, the changed-field diff,
 // and dirty detection all resolve the server-side value through
@@ -100,6 +117,25 @@ interface FieldSpec {
   // ...or a property patch collected into one of the nested state objects.
   obj?: 'reviewer' | 'audioCue' | 'whisperApi';
   prop?: string;
+}
+
+// One mutation per Refresh button: a shared instance drops the first click's
+// pending state as soon as the second click rebinds the observer.
+function useCatalogRefresh(
+  targets: CatalogTarget[],
+  onRebuilt: (targets: CatalogTarget[]) => void,
+  onFailed: (message: string) => void,
+) {
+  return useMutation({
+    mutationFn: async () => {
+      const slots = Array.from(new Set(targets.map((t) => t.slot)));
+      await Promise.all(slots.map((slot) => refreshModels(slot)));
+      return targets;
+    },
+    onSuccess: onRebuilt,
+    onError: (e: unknown) =>
+      onFailed(getErrorMessage(e, 'Could not refresh this provider\'s model list.')),
+  });
 }
 
 function fieldBaseline(settings: SettingsShape, f: FieldSpec): SettingScalar | undefined {
@@ -129,6 +165,7 @@ function Settings() {
   // neutral placeholders that are never displayed.
   const [reviewer, setReviewer] = useState({
     enabled: false,
+    provider: '',
     model: '',
     maxShift: 0,
     reviewPrompt: '',
@@ -233,6 +270,10 @@ function Settings() {
   }, [settingsQuery, settingsMatchKeys]);
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
+  // Per-phase provider overrides; '' inherits (see AIModelsSection's
+  // provider selects for the exact fallback per stage).
+  const [detectionProvider, setDetectionProvider] = useState('');
+  const [verificationProvider, setVerificationProvider] = useState('');
   const [whisperModel, setWhisperModel] = useState('');
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(false);
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
@@ -264,6 +305,7 @@ function Settings() {
   const [adChapterResumeTitle, setAdChapterResumeTitle] = useState('Show');
   const [adChapterMinConfidence, setAdChapterMinConfidence] = useState(0.9);
   const [chaptersModel, setChaptersModel] = useState('');
+  const [chaptersProvider, setChaptersProvider] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0);
   const [minContentBetweenAdsSeconds, setMinContentBetweenAdsSeconds] = useState(12);
   const [maxAdDurationSeconds, setMaxAdDurationSeconds] = useState(300);
@@ -280,6 +322,24 @@ function Settings() {
   // Neutral placeholder (cast); replaced by hydration before the form renders.
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('' as LlmProvider);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
+  // Optional second provider config; off by default (single-provider
+  // installs never see these fields diverge from their neutral placeholders).
+  const [secondaryProviderEnabled, setSecondaryProviderEnabled] = useState(false);
+  // Always the saved value: a display-only fallback would differ from the
+  // baseline hydration seeds from, leaving the form permanently dirty. The
+  // type select shows a placeholder while this is unset.
+  const [secondaryProvider, setSecondaryProvider] = useState<LlmProvider | ''>('');
+  const [secondaryProviderBaseUrl, setSecondaryProviderBaseUrl] = useState('');
+  // True once the user edits or clears the secondary base URL, so an inline key
+  // save can send an intentional clear ('') while a pre-hydration '' is skipped.
+  const [secondaryBaseUrlDirty, setSecondaryBaseUrlDirty] = useState(false);
+  // Manual per-provider request-rate limits (#747); 0 = unlimited.
+  const [providerRequestsPerMin, setProviderRequestsPerMin] = useState(0);
+  const [providerRequestsPerDay, setProviderRequestsPerDay] = useState(0);
+  const [secondaryProviderRequestsPerMin, setSecondaryProviderRequestsPerMin] = useState(0);
+  const [secondaryProviderRequestsPerDay, setSecondaryProviderRequestsPerDay] = useState(0);
+  const [providerTokensPerMin, setProviderTokensPerMin] = useState(0);
+  const [secondaryProviderTokensPerMin, setSecondaryProviderTokensPerMin] = useState(0);
   const [pricingSourceMode, setPricingSourceMode] = useState('auto');
   const [whisperBackend, setWhisperBackend] = useState<WhisperBackend>('' as WhisperBackend);
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
@@ -321,6 +381,40 @@ function Settings() {
     queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
   };
   const handleProviderKeyTest = (provider: ProviderName) => testProvider(provider);
+
+  // The secondary slot's key has no dedicated /settings/providers/secondary
+  // REST surface (unlike the primary keys): it saves/clears through the
+  // main settings PUT and its only test is the end-to-end connection probe.
+  const handleSecondaryProviderKeySave = async (apiKey: string) => {
+    // Co-persist the slot's type and base URL with the key (#234) so the
+    // connection probe tests the right destination. The base URL is sent only
+    // once touched, so a deliberate clear ('') commits but a pre-hydration ''
+    // does not (#235).
+    const body: {
+      secondaryProviderApiKey: string;
+      secondaryProvider?: LlmProvider;
+      secondaryProviderBaseUrl?: string;
+    } = { secondaryProviderApiKey: apiKey };
+    if (secondaryProvider) body.secondaryProvider = secondaryProvider;
+    if (secondaryBaseUrlDirty) body.secondaryProviderBaseUrl = secondaryProviderBaseUrl;
+    await updateSettings(body);
+    setSecondaryBaseUrlDirty(false);
+    await reloadSettingsAfterSecondaryKeyChange();
+  };
+  const handleSecondaryProviderKeyClear = async () => {
+    await updateSettings({ secondaryProviderApiKey: '' });
+    await reloadSettingsAfterSecondaryKeyChange();
+  };
+  const reloadSettingsAfterSecondaryKeyChange = () => {
+    queryClient.invalidateQueries({ queryKey: ['settings'] });
+    // A secondary-key change only alters the secondary slot's catalog; refetch
+    // just those model queries, not all four slots.
+    queryClient.invalidateQueries({
+      queryKey: ['models'],
+      predicate: (q) => q.queryKey[2] === SLOT_SECONDARY,
+    });
+    return queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
+  };
   const [podcastSearchProvider, setPodcastSearchProvider] = useState('');
   const [podcastIndexApiKey, setPodcastIndexApiKey] = useState('');
   const [podcastIndexApiSecret, setPodcastIndexApiSecret] = useState('');
@@ -349,12 +443,92 @@ function Settings() {
     queryFn: getReviewerSettings,
   });
 
-  const { data: models, isLoading: modelsLoading } = useQuery({
-    queryKey: ['models', llmProvider],
-    queryFn: () => getModels(llmProvider),
-    // Gate on llmProvider too: it is an empty placeholder until hydration runs.
-    enabled: !settingsLoading && !!llmProvider,
-  });
+  // Per-phase model catalogs. detection/verification/chaptersProvider and
+  // reviewer.provider store a SLOT ('primary'/'secondary', plus
+  // same_as_detection/same_as_pass), not a provider type, so each is
+  // resolved to a type here before it can be used to fetch a model catalog.
+  // Mirrors llm_route.py's inheritance and secondary fallback.
+  const resolveStageSlots = (secondaryUsable: boolean): Record<StageKey, ProviderSlot> => {
+    const detection: ProviderSlot = detectionProvider === SLOT_SECONDARY && secondaryUsable
+      ? SLOT_SECONDARY
+      : SLOT_PRIMARY;
+    const inherited = (configured: string): ProviderSlot => (configured === SLOT_SECONDARY
+      ? (secondaryUsable ? SLOT_SECONDARY : SLOT_PRIMARY)
+      : configured === SLOT_PRIMARY
+        ? SLOT_PRIMARY
+        : detection);
+    return {
+      detection,
+      verification: inherited(verificationProvider),
+      chapters: inherited(chaptersProvider),
+      review: reviewer.provider === SLOT_SECONDARY && secondaryUsable
+        ? SLOT_SECONDARY
+        : SLOT_PRIMARY,
+    };
+  };
+  // llm_route.py routes a stage to the secondary only when the slot is on and
+  // has a saved type; without a type it falls back to the primary, so the
+  // catalogs have to show the primary's models too.
+  const stageSlots = resolveStageSlots(secondaryProviderEnabled && !!secondaryProvider);
+  const detectionSlot = stageSlots.detection;
+  const verificationSlot = stageSlots.verification;
+  const chaptersSlot = stageSlots.chapters;
+  const reviewSlot = stageSlots.review;
+  const effectiveDetectionProvider = detectionSlot === SLOT_SECONDARY ? secondaryProvider : llmProvider;
+  const effectiveVerificationProvider = verificationSlot === SLOT_SECONDARY ? secondaryProvider : llmProvider;
+  const effectiveChaptersProvider = chaptersSlot === SLOT_SECONDARY ? secondaryProvider : llmProvider;
+  const effectiveReviewProvider = reviewer.provider === SLOT_SECONDARY || reviewer.provider === SLOT_PRIMARY
+    ? (reviewSlot === SLOT_SECONDARY ? secondaryProvider : llmProvider)
+    // same_as_pass (or an unset/legacy value): inherits the pass's own
+    // provider, so no separate catalog is fetched. Callers fall back
+    // to the detection catalog.
+    : null;
+
+  const handleSecondaryProviderEnabledChange = (enabled: boolean) => {
+    setSecondaryProviderEnabled(enabled);
+    if (enabled) {
+      // Seed a concrete type so the type select and its dependent controls
+      // never render blank; the user can change it before saving.
+      if (!secondaryProvider) setSecondaryProvider(LLM_PROVIDERS.ANTHROPIC);
+      return;
+    }
+    const reverted = reconcileStageSlotsForSecondaryToggle(false, {
+      detectionProvider, verificationProvider, chaptersProvider,
+      reviewProvider: reviewer.provider,
+    });
+    if (reverted.detectionProvider !== detectionProvider) setDetectionProvider(reverted.detectionProvider);
+    if (reverted.verificationProvider !== verificationProvider) setVerificationProvider(reverted.verificationProvider);
+    if (reverted.chaptersProvider !== chaptersProvider) setChaptersProvider(reverted.chaptersProvider);
+    if (reverted.reviewProvider !== reviewer.provider) {
+      setReviewer((prev) => ({ ...prev, provider: reverted.reviewProvider }));
+    }
+  };
+
+  const handleSecondaryProviderChange = (provider: LlmProvider) => {
+    setSecondaryProvider(provider);
+    // Mirrors llmProvider's own onChange below: a saved model only survives
+    // a type switch for a stage this new type doesn't actually serve. The new
+    // type makes the slot usable, so resolve the stages against that.
+    const next = resolveStageSlots(true);
+    if (next.detection === SLOT_SECONDARY) setSelectedModel('');
+    if (next.verification === SLOT_SECONDARY) setVerificationModel('');
+    if (next.chapters === SLOT_SECONDARY) setChaptersModel('');
+    // The base URL belongs to the old endpoint; clear it (and mark it touched)
+    // so an inline key save commits the clear, not a stale URL (#235).
+    setSecondaryProviderBaseUrl('');
+    setSecondaryBaseUrlDirty(true);
+  };
+
+  const catalogsEnabled = !settingsLoading;
+  const detectionCatalog = useModelCatalog(effectiveDetectionProvider, detectionSlot, catalogsEnabled);
+  const verificationCatalog = useModelCatalog(effectiveVerificationProvider, verificationSlot, catalogsEnabled);
+  const chaptersCatalog = useModelCatalog(effectiveChaptersProvider, chaptersSlot, catalogsEnabled);
+  const reviewFetch = useModelCatalog(effectiveReviewProvider ?? '', reviewSlot, catalogsEnabled);
+  // same_as_pass fetches no catalog of its own; the (disabled) select still
+  // lists detection's models so a stored value renders.
+  const reviewCatalog = effectiveReviewProvider
+    ? reviewFetch
+    : { ...reviewFetch, models: detectionCatalog.models };
 
   const { data: whisperModels } = useQuery({
     queryKey: ['whisperModels'],
@@ -500,17 +674,35 @@ function Settings() {
     { key: 'resurrectPromptOverride', kind: 'str', value: reviewer.resurrectPromptOverride, obj: 'reviewer', prop: 'resurrectPromptOverride' },
     { key: 'enableAdReview', kind: 'val', useDefault: true, value: reviewer.enabled, obj: 'reviewer', prop: 'enabled' },
     { key: 'reviewModel', kind: 'str', useDefault: true, value: reviewer.model, obj: 'reviewer', prop: 'model' },
+    { key: 'reviewProvider', kind: 'str', useDefault: true, value: reviewer.provider, obj: 'reviewer', prop: 'provider' },
     { key: 'reviewMaxBoundaryShift', kind: 'val', useDefault: true, value: reviewer.maxShift, obj: 'reviewer', prop: 'maxShift' },
     { key: 'adReviewerParallelAds', kind: 'val', useDefault: true, value: reviewer.parallelAds, obj: 'reviewer', prop: 'parallelAds' },
     // Models
     { key: 'claudeModel', kind: 'str', value: selectedModel, set: setSelectedModel },
     { key: 'verificationModel', kind: 'str', value: verificationModel, set: setVerificationModel },
     { key: 'chaptersModel', kind: 'str', value: chaptersModel, set: setChaptersModel },
+    // Per-phase provider overrides: SLOT values, not provider types (see
+    // llm_route.py). Detection's own unset baseline is 'primary';
+    // verification/chapters' is 'same_as_detection'.
+    { key: 'detectionProvider', kind: 'str', literal: SLOT_PRIMARY, value: detectionProvider, set: setDetectionProvider },
+    { key: 'verificationProvider', kind: 'str', literal: 'same_as_detection', value: verificationProvider, set: setVerificationProvider },
+    { key: 'chaptersProvider', kind: 'str', literal: 'same_as_detection', value: chaptersProvider, set: setChaptersProvider },
     { key: 'whisperModel', kind: 'str', useDefault: true, value: whisperModel, set: setWhisperModel },
     // Providers
     { key: 'llmProvider', kind: 'str', useDefault: true, value: llmProvider, set: (v) => setLlmProvider(v as LlmProvider) },
     { key: 'podcastSearchProvider', kind: 'str', value: podcastSearchProvider, set: setPodcastSearchProvider },
     { key: 'openaiBaseUrl', kind: 'str', useDefault: true, value: openaiBaseUrl, set: setOpenaiBaseUrl },
+    // Secondary provider (off by default; the key itself saves separately,
+    // like the primary keys, not through this batch).
+    { key: 'secondaryProviderEnabled', kind: 'val', literal: false, value: secondaryProviderEnabled, set: setSecondaryProviderEnabled },
+    { key: 'secondaryProvider', kind: 'str', value: secondaryProvider, set: (v) => setSecondaryProvider(v as LlmProvider | '') },
+    { key: 'secondaryProviderBaseUrl', kind: 'str', value: secondaryProviderBaseUrl, set: setSecondaryProviderBaseUrl },
+    { key: 'providerRequestsPerMin', kind: 'val', useDefault: true, literal: 0, value: providerRequestsPerMin, set: setProviderRequestsPerMin },
+    { key: 'providerRequestsPerDay', kind: 'val', useDefault: true, literal: 0, value: providerRequestsPerDay, set: setProviderRequestsPerDay },
+    { key: 'secondaryProviderRequestsPerMin', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderRequestsPerMin, set: setSecondaryProviderRequestsPerMin },
+    { key: 'secondaryProviderRequestsPerDay', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderRequestsPerDay, set: setSecondaryProviderRequestsPerDay },
+    { key: 'providerTokensPerMin', kind: 'val', useDefault: true, literal: 0, value: providerTokensPerMin, set: setProviderTokensPerMin },
+    { key: 'secondaryProviderTokensPerMin', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderTokensPerMin, set: setSecondaryProviderTokensPerMin },
     { key: 'pricingSourceMode', kind: 'str', useDefault: true, value: pricingSourceMode, set: setPricingSourceMode },
     // Transcription
     { key: 'whisperBackend', kind: 'str', useDefault: true, value: whisperBackend, set: (v) => setWhisperBackend(v as WhisperBackend) },
@@ -623,6 +815,7 @@ function Settings() {
   // defaults), and keying on identity alone would strand the flag as true,
   // where a later unrelated refetch would clobber genuinely-unsaved edits.
   const [rehydratePending, setRehydratePending] = useState(false);
+  const [modelsRefreshError, setModelsRefreshError] = useState<CatalogRefreshError | null>(null);
   const [seenSettingsUpdatedAt, setSeenSettingsUpdatedAt] = useState(0);
   const settingsJustFetched = settingsUpdatedAt !== seenSettingsUpdatedAt;
   if (settings && (settings !== settingsSnapshot || settingsJustFetched)) {
@@ -698,9 +891,10 @@ function Settings() {
       const payload = computeChangedFields();
       if (podcastIndexApiKey) payload.podcastIndexApiKey = podcastIndexApiKey;
       if (podcastIndexApiSecret) payload.podcastIndexApiSecret = podcastIndexApiSecret;
+
       const tasks: Promise<unknown>[] = [];
-      // Skip the main PUT when nothing in its payload changed (e.g. only the
-      // reviewer-pattern fields are dirty) to avoid a no-op request.
+      // Skip a PUT with an empty payload (e.g. only the reviewer-pattern
+      // fields are dirty) to avoid a no-op request.
       if (Object.keys(payload).length > 0) tasks.push(updateSettings(payload));
       if (reviewerPatternsChanged()) {
         tasks.push(updateReviewerSettings({
@@ -769,12 +963,39 @@ function Settings() {
     },
   });
 
-  const refreshModelsMutation = useMutation({
-    mutationFn: refreshModels,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['models'] });
-    },
-  });
+  const catalogTargets = (scope: CatalogScope): CatalogTarget[] => (scope === 'review'
+    ? [effectiveReviewProvider
+      ? { provider: effectiveReviewProvider, slot: reviewSlot }
+      // same_as_pass borrows detection's catalog, so that is the key to
+      // rebuild and invalidate; the review slot's own key has no subscriber.
+      : { provider: effectiveDetectionProvider, slot: detectionSlot }]
+    : [
+      { provider: effectiveDetectionProvider, slot: detectionSlot },
+      { provider: effectiveVerificationProvider, slot: verificationSlot },
+      { provider: effectiveChaptersProvider, slot: chaptersSlot },
+    ]);
+
+  const onCatalogsRebuilt = (scope: CatalogScope) => (targets: CatalogTarget[]) => {
+    setModelsRefreshError((prev) => (prev?.scope === scope ? null : prev));
+    // Only the rebuilt slots are stale; the ['models'] prefix would refetch
+    // catalogs this refresh never touched.
+    for (const target of targets) {
+      queryClient.invalidateQueries({
+        queryKey: modelsQueryOptionsFor(target.provider, target.slot).queryKey,
+      });
+    }
+  };
+  const onCatalogRefreshFailed = (scope: CatalogScope) => (message: string) =>
+    setModelsRefreshError({ scope, message });
+
+  const stagesRefresh = useCatalogRefresh(
+    catalogTargets('stages'), onCatalogsRebuilt('stages'), onCatalogRefreshFailed('stages'),
+  );
+  const reviewRefresh = useCatalogRefresh(
+    catalogTargets('review'), onCatalogsRebuilt('review'), onCatalogRefreshFailed('review'),
+  );
+  const refreshErrorFor = (scope: CatalogScope) =>
+    (modelsRefreshError?.scope === scope ? modelsRefreshError.message : null);
 
   const modelPricingMutation = useMutation({
     mutationFn: ({ modelId, override }: {
@@ -1010,9 +1231,11 @@ function Settings() {
         pricingSourceMode={pricingSourceMode}
         onProviderChange={(p) => {
           setLlmProvider(p);
-          setSelectedModel('');
-          setVerificationModel('');
-          setChaptersModel('');
+          // Only clear a stage's model if this switch actually changes its
+          // effective provider, i.e. it currently resolves to primary.
+          if (detectionSlot === SLOT_PRIMARY) setSelectedModel('');
+          if (verificationSlot === SLOT_PRIMARY) setVerificationModel('');
+          if (chaptersSlot === SLOT_PRIMARY) setChaptersModel('');
         }}
         onBaseUrlChange={setOpenaiBaseUrl}
         onPricingSourceModeChange={setPricingSourceMode}
@@ -1025,19 +1248,50 @@ function Settings() {
         onOllamaNumCtxUpdate={(payload) => tunableMutation.mutate(payload)}
         llmJsonSchemaEnabled={settings?.llmJsonSchemaEnabled?.value ?? settings?.defaults?.llmJsonSchemaEnabled ?? false}
         onLlmJsonSchemaEnabledChange={(v) => tunableMutation.mutate({ llmJsonSchemaEnabled: v })}
+        secondaryProviderEnabled={secondaryProviderEnabled}
+        onSecondaryProviderEnabledChange={handleSecondaryProviderEnabledChange}
+        secondaryProvider={secondaryProvider}
+        onSecondaryProviderChange={handleSecondaryProviderChange}
+        secondaryProviderBaseUrl={secondaryProviderBaseUrl}
+        onSecondaryProviderBaseUrlChange={(v) => { setSecondaryProviderBaseUrl(v); setSecondaryBaseUrlDirty(true); }}
+        secondaryProviderApiKeyConfigured={settings?.secondaryProviderApiKeyConfigured ?? false}
+        onSecondaryProviderKeySave={handleSecondaryProviderKeySave}
+        onSecondaryProviderKeyClear={handleSecondaryProviderKeyClear}
+        onSecondaryConnectionTest={testSecondaryProviderConnection}
+        providerRequestsPerMin={providerRequestsPerMin}
+        onProviderRequestsPerMinChange={setProviderRequestsPerMin}
+        providerRequestsPerDay={providerRequestsPerDay}
+        onProviderRequestsPerDayChange={setProviderRequestsPerDay}
+        secondaryProviderRequestsPerMin={secondaryProviderRequestsPerMin}
+        onSecondaryProviderRequestsPerMinChange={setSecondaryProviderRequestsPerMin}
+        secondaryProviderRequestsPerDay={secondaryProviderRequestsPerDay}
+        onSecondaryProviderRequestsPerDayChange={setSecondaryProviderRequestsPerDay}
+        providerTokensPerMin={providerTokensPerMin}
+        onProviderTokensPerMinChange={setProviderTokensPerMin}
+        secondaryProviderTokensPerMin={secondaryProviderTokensPerMin}
+        onSecondaryProviderTokensPerMinChange={setSecondaryProviderTokensPerMin}
       />
 
       <AIModelsSection
-        models={models}
-        modelsLoading={modelsLoading}
+        detectionCatalog={detectionCatalog}
+        verificationCatalog={verificationCatalog}
+        chaptersCatalog={chaptersCatalog}
+        refreshError={refreshErrorFor('stages')}
         selectedModel={selectedModel}
         verificationModel={verificationModel}
         chaptersModel={chaptersModel}
         onSelectedModelChange={setSelectedModel}
         onVerificationModelChange={setVerificationModel}
         onChaptersModelChange={setChaptersModel}
-        onRefresh={() => refreshModelsMutation.mutate()}
-        refreshIsPending={refreshModelsMutation.isPending}
+        detectionProvider={detectionProvider}
+        verificationProvider={verificationProvider}
+        chaptersProvider={chaptersProvider}
+        onDetectionProviderChange={setDetectionProvider}
+        onVerificationProviderChange={setVerificationProvider}
+        onChaptersProviderChange={setChaptersProvider}
+        secondaryProviderEnabled={secondaryProviderEnabled}
+        onRefresh={() => stagesRefresh.mutate()}
+        refreshIsPending={stagesRefresh.isPending}
         modelPricingOverrides={settings?.modelPricingOverrides?.value ?? {}}
         additionalModelIds={[
           reviewer.model && reviewer.model !== 'same_as_pass' ? reviewer.model : '',
@@ -1054,6 +1308,14 @@ function Settings() {
           tunables={settings.stageTunables}
           defaults={settings.stageTunableDefaults}
           llmProvider={llmProvider}
+          // StageTunablesSection expects a provider TYPE (or '' to inherit),
+          // not the SLOT stored in these settings. Resolve each stage's
+          // slot to its actual type first (see the effective*Provider block
+          // above, which mirrors llm_route.py's inheritance).
+          detectionProvider={effectiveDetectionProvider}
+          verificationProvider={effectiveVerificationProvider}
+          chaptersProvider={effectiveChaptersProvider}
+          reviewProvider={effectiveReviewProvider ?? ''}
           onSave={(payload) => stageTunablesMutation.mutate(payload)}
           saveIsPending={stageTunablesMutation.isPending}
           saveIsSuccess={stageTunablesMutation.isSuccess}
@@ -1150,7 +1412,11 @@ function Settings() {
         onChange={setReviewer}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
-        modelOptions={models?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
+        secondaryProviderEnabled={secondaryProviderEnabled}
+        catalog={reviewCatalog}
+        modelsRefreshError={refreshErrorFor('review')}
+        onRefreshModels={() => reviewRefresh.mutate()}
+        refreshModelsIsPending={reviewRefresh.isPending}
         reviewPromptIsDefault={settings?.reviewPrompt.isDefault}
         resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
         onResetReviewPrompt={() => resetPromptMutation.mutate('review')}
@@ -1326,7 +1592,7 @@ function Settings() {
       {/* Error display */}
       {(updateMutation.error || resetMutation.error || resetPromptsMutation.error || resetPromptMutation.error) && (
         <div className="p-4 rounded-lg bg-destructive/10 text-destructive">
-          {((updateMutation.error || resetMutation.error || resetPromptsMutation.error || resetPromptMutation.error) as Error).message}
+          <p>{((updateMutation.error || resetMutation.error || resetPromptsMutation.error || resetPromptMutation.error) as Error).message}</p>
         </div>
       )}
 

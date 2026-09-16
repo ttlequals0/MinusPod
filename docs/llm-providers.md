@@ -9,6 +9,7 @@
 - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Using OpenRouter](#using-openrouter)
+- [Per-Stage Providers](#per-stage-providers)
 - [LLM Pricing](#llm-pricing)
 - [Custom model pricing](#custom-model-pricing)
 - [Reviewer Calibration Self-Test](#reviewer-calibration-self-test)
@@ -235,6 +236,32 @@ Any [OpenRouter model ID](https://openrouter.ai/models) works:
 The `openrouter/free` and `openrouter/auto` aliases are not in OpenRouter's `/api/v1/models` list, so MinusPod adds them to the dropdown for you. Other unlisted model IDs can be typed straight into any model field (the "Type a model ID" link next to each dropdown), or seeded with `OPENAI_MODEL`.
 
 All of these can be changed at runtime from the Settings UI. No container restart needed.
+
+## Per-Stage Providers
+
+MinusPod supports up to two full provider configurations: the primary LLM Provider, and one optional secondary provider with its own type, base URL, and API key. Secondary is off by default (see [Secondary provider](configuration.md#secondary-provider)). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI & Processing > AI Models shows a slot selector next to each model selector:
+
+- **Ad Detection Provider** - `Default (Primary)` or `Secondary`. Secondary only appears in the list once the secondary provider is enabled and configured.
+- **Verification Provider** - `Same as detection` (default), `Default (Primary)`, or `Secondary`. Pointing it at the other slot is useful for cost control (a cheap pass-2 sanity check) or comparing two providers' output on the same episode.
+- **Chapters Provider** - `Same as detection` (default), `Default (Primary)`, or `Secondary`, independent of the other two.
+
+The Ad Reviewer section has its own slot selector, described in [Ad Reviewer](configuration.md#ad-reviewer). `Same as pass` inherits both the provider and model of whichever pass is being reviewed. `Primary` or `Secondary` runs the reviewer on that slot instead, and enables the Review Model selector for its catalog.
+
+Switching a stage's slot only changes that stage. Model discovery re-runs for the newly selected slot, so the model dropdown next to it shows that slot's own catalog. Every other stage's slot and model stay exactly as you left them. A stage still accepts a hand-typed model ID (the "Type a model ID" link) for models a slot's catalog does not list, the same as the single-provider case. If a stage is set to Secondary and the secondary provider is later disabled, that stage falls back to Primary until Secondary is turned back on.
+
+Each slot needs its own API key and, where relevant, base URL configured under Settings > LLM Provider before a stage can use it; an unconfigured slot's model list comes back empty until credentials are saved.
+
+### The slots are routes, not a failover chain
+
+Primary and Secondary are two independent accounts a stage can be pointed at. They are not a chain, and nothing at runtime moves a call from one to the other. When a call fails, it retries against the same slot it was routed to, with the same credentials and endpoint, and then gives up; the episode never spills onto the other provider. A rate-limit pause behaves the same way: the episode waits in the queue for that account's reset instead of rerouting.
+
+The one time a stage changes slot is at configuration time, not on failure. A stage set to Secondary while the secondary provider is disabled or has no type saved resolves to Primary, and logs a warning once. That is a fail-safe for an incomplete configuration, evaluated when the route is resolved, not a response to an error.
+
+A run's routes are frozen when it starts. Each phase's provider, model, and endpoint are snapshotted at run start and reused for the whole run, so editing a provider or a stage's model mid-run does not re-route work already underway. The change applies to the next run. Credentials are the exception: they are read when the client is built, so a rotated key is picked up without a restart. See [Rotating a provider key](configuration.md#rotating-or-clearing-a-provider-key).
+
+### Staying under an account's limits
+
+Each slot has its own optional requests-per-minute, requests-per-day, and tokens-per-minute caps, counted per account rather than per provider type, so two accounts on the same provider throttle independently. The per-day counter resets at UTC midnight regardless of where you or the provider are. They are off by default. See [Manual request-rate limits](configuration.md#manual-request-rate-limits).
 
 ## LLM Pricing
 

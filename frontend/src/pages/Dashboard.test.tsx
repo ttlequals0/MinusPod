@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import Dashboard from './Dashboard';
 import { useQuickSearchHotkey } from '../components/QuickSearch';
-import type { Feed } from '../api/types';
+import type { Feed, EpisodeSummary } from '../api/types';
 
 // A different title than the search fixture below, so grid and results
 // panel text never collide in a getByText query.
@@ -19,17 +19,64 @@ const FEED: Feed = {
   episodeCount: 1,
 };
 
+function episodeSummary(overrides: Partial<EpisodeSummary> & { id: string }): EpisodeSummary {
+  return {
+    title: `Episode ${overrides.id}`,
+    published: '2026-09-01T00:00:00Z',
+    createdAt: '2026-09-01T00:00:00Z',
+    status: 'completed',
+    ...overrides,
+  };
+}
+
+// Two podcasts (title-sortable as Alpha < Zulu) plus a Recents pseudo-feed
+// whose latestEpisodes is always empty (#721 known gap): the grouped view
+// must exclude it rather than render a broken, empty card for it.
+const ZULU_FEED: Feed = {
+  slug: 'zulu-show', title: 'Zulu Show',
+  sourceUrl: 'https://example.com/zulu.xml', feedUrl: 'https://example.com/zulu.xml',
+  episodeCount: 5, artworkUrl: 'https://example.com/zulu.jpg',
+  latestEpisodes: [
+    episodeSummary({ id: 'z1', jobState: 'queued', status: 'processing' }),
+    episodeSummary({ id: 'z2', jobState: 'idle' }),
+    episodeSummary({ id: 'z3', jobState: 'idle' }),
+    episodeSummary({ id: 'z4', jobState: 'idle' }),
+    episodeSummary({ id: 'z5', jobState: 'idle' }),
+  ],
+};
+const ALPHA_FEED: Feed = {
+  slug: 'alpha-show', title: 'Alpha Show',
+  sourceUrl: 'https://example.com/alpha.xml', feedUrl: 'https://example.com/alpha.xml',
+  episodeCount: 0,
+  latestEpisodes: [],
+};
+const RECENTS_FEED: Feed = {
+  slug: 'recents', title: 'Recents', feedType: 'recents',
+  sourceUrl: '', feedUrl: 'https://example.com/recents.xml',
+  episodeCount: 10,
+  latestEpisodes: [],
+};
+
 // Indirected through a mock so a test can leave the feeds query pending.
 const mockFeedsQueryFn = vi.fn(async () => ({ feeds: [FEED], lastRefreshCompletedAt: null }));
+const mockEpisodesQueryFn = vi.fn(async () => ({
+  feeds: [ZULU_FEED, ALPHA_FEED, RECENTS_FEED], lastRefreshCompletedAt: null,
+}));
+const mockReprocessEpisode = vi.fn(async () => ({ message: 'ok', mode: 'reprocess' as const }));
 
 vi.mock('../api/feeds', () => ({
   feedsQueryOptions: {
     queryKey: ['feeds'],
     queryFn: () => mockFeedsQueryFn(),
   },
+  feedsQueryOptionsFor: (params: unknown) => ({
+    queryKey: ['feeds', params],
+    queryFn: () => mockEpisodesQueryFn(),
+  }),
   refreshFeed: vi.fn(),
   refreshAllFeeds: vi.fn(),
   deleteFeed: vi.fn(),
+  reprocessEpisode: () => mockReprocessEpisode(),
 }));
 
 const mockSearch = vi.fn();
@@ -156,6 +203,34 @@ describe('Dashboard search field', () => {
   });
 });
 
+describe('Dashboard delete confirmation', () => {
+  it('warns that deleting stops the job when an episode is processing', async () => {
+    mockFeedsQueryFn.mockResolvedValueOnce({
+      feeds: [{
+        ...FEED,
+        statusCounts: { discovered: 0, pending: 0, processing: 1, completed: 0, failed: 0, permanently_failed: 0, deferred: 0 },
+      }],
+      lastRefreshCompletedAt: null,
+    });
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete feed' }));
+
+    expect(screen.getByText('An episode is processing right now. Deleting this podcast will stop it.')).toBeDefined();
+  });
+
+  it('does not warn about stopping a job when nothing is processing', async () => {
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete feed' }));
+
+    expect(screen.getByText('Click delete again to confirm')).toBeDefined();
+    expect(screen.queryByText(/Deleting this podcast will stop/)).toBeNull();
+  });
+});
+
 describe('Dashboard loading state', () => {
   afterEach(() => localStorage.removeItem('dashboardViewMode'));
 
@@ -173,5 +248,156 @@ describe('Dashboard loading state', () => {
     renderDashboard();
     expect(screen.getByTestId('skeleton-rows')).toBeDefined();
     expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
+  });
+});
+
+describe('Dashboard Episodes view', () => {
+  afterEach(() => {
+    localStorage.removeItem('dashboardView');
+    localStorage.removeItem('dashboardSortBy');
+    localStorage.removeItem('dashboardEpisodesPerPodcast');
+  });
+
+  it('groups by podcast at the default cap and excludes the Recents pseudo-feed', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
+
+    await screen.findByRole('heading', { name: 'Zulu Show' });
+    screen.getByRole('heading', { name: 'Alpha Show' });
+    expect(screen.queryByRole('heading', { name: 'Recents' })).toBeNull();
+
+    // Default N=3: only the first 3 of Zulu's 5 latestEpisodes render.
+    expect(screen.getByText('Episode z1')).toBeTruthy();
+    expect(screen.getByText('Episode z2')).toBeTruthy();
+    expect(screen.getByText('Episode z3')).toBeTruthy();
+    expect(screen.queryByText('Episode z4')).toBeNull();
+    expect(screen.queryByText('Episode z5')).toBeNull();
+  });
+
+  it('group header links to the podcast', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
+    const heading = await screen.findByRole('heading', { name: 'Zulu Show' });
+    const link = heading.querySelector('a');
+    expect(link?.getAttribute('href')).toBe('/feeds/zulu-show');
+  });
+
+  it('disables a queued row action while a sibling row stays actionable', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
+    await screen.findByText('Episode z1');
+    // z1's status is 'processing' (never completed), so its action label
+    // stays "Process" even while disabled for being queued.
+    const queuedButton = screen.getByText('Process').closest('button') as HTMLButtonElement;
+    expect(queuedButton.disabled).toBe(true);
+    const idleButton = screen.getAllByText('Reprocess')[0].closest('button') as HTMLButtonElement;
+    expect(idleButton.disabled).toBe(false);
+  });
+
+  it('renders a feed with no episodes cleanly instead of a broken card', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
+    await screen.findByRole('heading', { name: 'Alpha Show' });
+    expect(screen.getByText('No episodes yet')).toBeTruthy();
+  });
+
+  it('preserves sort when switching between Podcasts and Episodes views', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Sort by title' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Episodes' }));
+
+    const headings = await screen.findAllByRole('heading', { level: 2 });
+    expect(headings.map((h) => h.textContent)).toEqual(['Alpha Show', 'Zulu Show']);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Podcasts' }));
+    expect(JSON.parse(localStorage.getItem('dashboardSortBy') ?? '""')).toBe('title');
+  });
+});
+
+describe('Dashboard episodes view: list continuity', () => {
+  const episodesResponse = {
+    feeds: [ZULU_FEED, ALPHA_FEED, RECENTS_FEED], lastRefreshCompletedAt: null,
+  };
+
+  afterEach(() => {
+    localStorage.removeItem('dashboardView');
+    localStorage.removeItem('dashboardEpisodesPerPodcast');
+    mockEpisodesQueryFn.mockImplementation(async () => episodesResponse);
+  });
+
+  it('keeps the current groups on screen while a new episode count loads', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
+    await screen.findByRole('heading', { name: 'Zulu Show' });
+
+    const before = mockEpisodesQueryFn.mock.calls.length;
+    mockEpisodesQueryFn.mockReturnValue(new Promise(() => {}) as never);
+    await userEvent.click(screen.getByRole('button', { name: 'View options' }));
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Episodes per podcast' }), '5');
+
+    await waitFor(() => {
+      expect(mockEpisodesQueryFn.mock.calls.length).toBeGreaterThan(before);
+    });
+    expect(screen.getByRole('heading', { name: 'Zulu Show' })).toBeTruthy();
+    expect(screen.queryAllByTestId('skeleton-rows')).toHaveLength(0);
+  });
+});
+
+describe('Dashboard toolbar heights', () => {
+  afterEach(() => {
+    localStorage.removeItem('dashboardView');
+    localStorage.removeItem('dashboardEpisodesPerPodcast');
+  });
+
+  it('gives the Podcasts/Episodes switch a 44px outer height', async () => {
+    renderDashboard();
+    const group = await screen.findByRole('group', { name: 'Dashboard view' });
+    expect(group.className).toContain('h-11');
+    const podcastsButton = screen.getByRole('button', { name: 'Podcasts' });
+    expect(podcastsButton.className).toContain('inline-flex');
+    expect(podcastsButton.className).toContain('items-center');
+    expect(podcastsButton.className).toContain('justify-center');
+  });
+
+  it('gives the grid/list icon buttons a 44px wrapper height and matching min-width', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
+    const gridButton = await screen.findByRole('button', { name: 'Grid' });
+    const wrapper = gridButton.closest('div');
+    expect(wrapper?.className).toContain('h-11');
+    expect(gridButton.className).toContain('min-w-11');
+    expect(gridButton.className).toContain('inline-flex');
+    expect(gridButton.className).toContain('items-center');
+    expect(gridButton.className).toContain('justify-center');
+  });
+
+  it('gives the sort icon buttons a 44px wrapper height and matching min-width', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
+    const sortButton = await screen.findByRole('button', { name: 'Sort by recent' });
+    const wrapper = sortButton.closest('div');
+    expect(wrapper?.className).toContain('h-11');
+    expect(sortButton.className).toContain('min-w-11');
+  });
+
+  it('gives Refresh All and Add Feed a 44px height and matching min-width', async () => {
+    renderDashboard();
+    const refreshAll = await screen.findByRole('button', { name: 'Refresh all feeds' });
+    expect(refreshAll.className).toContain('h-11');
+    expect(refreshAll.className).toContain('min-w-11');
+
+    const addFeed = screen.getByRole('link', { name: 'Add Feed' });
+    expect(addFeed.className).toContain('h-11');
+    expect(addFeed.className).toContain('min-w-11');
+  });
+
+  it('gives the episodes-per-podcast select a matching 44px height', async () => {
+    renderDashboard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
+    const select = await screen.findByRole('combobox', { name: 'Episodes per podcast' });
+    expect(select.className).toContain('h-11');
   });
 });

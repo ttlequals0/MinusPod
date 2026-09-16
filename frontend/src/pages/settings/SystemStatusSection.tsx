@@ -3,6 +3,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { formatUptime, formatDuration, formatTokenCount, formatCost, formatStorage } from './settingsUtils';
 import UpdateStatusPanel from './UpdateStatusPanel';
+import SystemHealthPanel from '../../components/SystemHealthPanel';
 import { focusRing } from '../../components/fieldStyles';
 
 interface SystemStatusSectionProps {
@@ -63,6 +64,7 @@ function SystemStatusSection({
           </div>
         </div>
       ) : null}
+      {status && <SystemHealthPanel status={status} />}
       <UpdateStatusPanel />
     </CollapsibleSection>
   );

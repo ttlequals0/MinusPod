@@ -9,11 +9,11 @@ import math
 import re
 
 from utils.markers import (
+    carve_fragment,
     clip_dai_core_spans,
     invalidate_tail_provenance,
     mark_distinct_merge,
-    merge_dai_core_spans,
-    note_merged_members,
+    note_fold,
 )
 from utils.text import get_transcript_text_for_range
 from utils.time import overlap_seconds, ranges_overlap
@@ -811,14 +811,7 @@ def get_uncovered_portions(ad: dict, covered_regions: list,
         return []
 
     # Build ad copies for each uncovered portion
-    portions = []
-    for start, end in uncovered:
-        portion = ad.copy()
-        portion['start'] = start
-        portion['end'] = end
-        portions.append(portion)
-
-    return portions
+    return [carve_fragment(ad, start, end) for start, end in uncovered]
 
 
 def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
@@ -1256,6 +1249,9 @@ def split_conflicting_action_span(last: dict, current: dict,
             fragment['_trusted_split_fragment'] = True
         return fragment
 
+    def carve(parent, s, e):
+        return mark_trusted_fragment(carve_fragment(parent, s, e), parent)
+
     priority = {'remove': 0, 'beep': 1, 'keep': 2}
     last_pattern = bool(last.get('pattern_defined'))
     current_pattern = bool(current.get('pattern_defined'))
@@ -1268,14 +1264,7 @@ def split_conflicting_action_span(last: dict, current: dict,
             and current['end'] > last['end']):
         # Legacy no-action behavior: the earlier marker owns a partial
         # overlap. Action-aware callers use explicit precedence below.
-        clamped = current.copy()
-        for key in ('merged_distinct_ads', 'merged_protected_start',
-                    'merged_protected_end'):
-            clamped.pop(key, None)
-        clamped['start'] = last['end']
-        clip_dai_core_spans(clamped, clamped['start'], clamped['end'])
-        mark_trusted_fragment(clamped, current)
-        return last, [clamped]
+        return last, [carve(current, last['end'], current['end'])]
     current_wins = (
         effective_last_action is None
         or effective_current_action is None
@@ -1291,34 +1280,12 @@ def split_conflicting_action_span(last: dict, current: dict,
                 f"{last['start']:.1f}s-{last['end']:.1f}s"
             )
             return last, []
-        after = current.copy()
-        for key in ('merged_distinct_ads', 'merged_protected_start',
-                    'merged_protected_end'):
-            after.pop(key, None)
-        after['start'] = last['end']
-        clip_dai_core_spans(after, after['start'], after['end'])
-        mark_trusted_fragment(after, current)
-        return last, [after]
+        return last, [carve(current, last['end'], current['end'])]
 
     if current['end'] <= last['end']:
-        # Splitting last invalidates any merged_distinct_ads/
-        # merged_protected_start/end bookkeeping from an earlier fold: those
-        # bounds describe last's original range and may not fit either
-        # narrower piece. Strip them so ad_reviewer's expand-only protection
-        # can't float a boundary back out to a stale bound and re-absorb
-        # audio this split just carved away.
-        base = {k: v for k, v in last.items()
-                if k not in ('merged_distinct_ads', 'merged_protected_start',
-                             'merged_protected_end')}
-        before = dict(base)
-        before['end'] = current['start']
-        clip_dai_core_spans(before, before['start'], before['end'])
-        after = dict(base)
-        after['start'] = current['end']
-        after['end'] = last['end']
-        clip_dai_core_spans(after, after['start'], after['end'])
-        mark_trusted_fragment(before, last)
-        mark_trusted_fragment(after, last)
+        before = carve(last, last['start'], current['start'])
+        after = carve(last, current['end'], last['end'])
+        # Current keeps its own span, so its bookkeeping stays valid.
         current_copy = current.copy()
         clip_dai_core_spans(current_copy, current_copy['start'], current_copy['end'])
         new_last = before if before['start'] < before['end'] else None
@@ -1327,16 +1294,10 @@ def split_conflicting_action_span(last: dict, current: dict,
             entries.append(after)
         return new_last, entries
 
-    shortened_last = last.copy()
-    for key in ('merged_distinct_ads', 'merged_protected_start',
-                'merged_protected_end'):
-        shortened_last.pop(key, None)
-    shortened_last['end'] = current['start']
-    clip_dai_core_spans(shortened_last, shortened_last['start'],
-                        shortened_last['end'])
-    mark_trusted_fragment(shortened_last, last)
+    shortened_last = carve(last, last['start'], current['start'])
     if shortened_last['end'] <= shortened_last['start']:
         shortened_last = None
+    # Current keeps its own span, so its bookkeeping stays valid.
     return shortened_last, [current.copy()]
 
 
@@ -1396,20 +1357,7 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
                     f"actions) at window-dedup"
                 )
                 continue
-            merge_dai_core_spans(last, current)
-            # Non-overlapping spans (touching or gapped) are distinct ads
-            # chained together, not the same ad re-detected across an
-            # overlapping window. LLM ad breaks are often exactly contiguous
-            # (end == next start), so touch must count too. Keep these
-            # expand-only in the reviewer; a true overlap (start < end) is the
-            # same ad and stays tightenable.
-            if current['start'] >= last['end']:
-                mark_distinct_merge(last, current)
-            elif 'merged_protected_start' in last:
-                # True overlap extending a tracked merge: fold the member in
-                # so the protected union covers audio it adds past the
-                # recorded end (else a later trim could sever it).
-                note_merged_members(last, current)
+            note_fold(last, current)
             # Merge: extend end time if current goes further
             if current['end'] > last['end']:
                 last['end'] = current['end']

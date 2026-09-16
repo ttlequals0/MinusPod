@@ -6,6 +6,10 @@ the channel ``<itunes:image href="...">``, but the FIRST episode also
 declares its own ``<itunes:image>`` (a 40 MB animated GIF), and
 feedparser folds that into ``feed.image.href``. Reading the raw XML
 channel-level elements directly avoids that override.
+
+The function returns an ORDERED CANDIDATE LIST (itunes:image first, then
+the RSS <image><url>), not a single URL, so a downloader can fall back to
+the next candidate when the preferred one fails.
 """
 import defusedxml
 defusedxml.defuse_stdlib()
@@ -29,21 +33,24 @@ def _feed(channel_inner: str) -> str:
 
 
 class TestRawXmlExtraction:
-    def test_prefers_channel_itunes_image_over_rss_image(self):
+    def test_channel_itunes_image_is_the_first_candidate(self):
         feed = _feed("""
             <itunes:image href="https://example.com/channel-itunes.png"/>
             <image><url>https://example.com/channel-rss.png</url></image>
         """)
-        assert RSSParser.extract_podcast_artwork_url(feed) == "https://example.com/channel-itunes.png"
+        assert RSSParser.extract_podcast_artwork_url(feed) == [
+            "https://example.com/channel-itunes.png",
+            "https://example.com/channel-rss.png",
+        ]
 
     def test_falls_back_to_rss_image_when_no_channel_itunes_image(self):
         feed = _feed("""<image><url>https://example.com/only-rss.png</url></image>""")
-        assert RSSParser.extract_podcast_artwork_url(feed) == "https://example.com/only-rss.png"
+        assert RSSParser.extract_podcast_artwork_url(feed) == ["https://example.com/only-rss.png"]
 
     def test_ignores_per_episode_itunes_image(self):
         # No channel-level image at all; per-episode override must NOT leak in.
         feed = _feed("")
-        assert RSSParser.extract_podcast_artwork_url(feed) is None
+        assert RSSParser.extract_podcast_artwork_url(feed) == []
 
     def test_pc20_shape_returns_channel_png_not_episode_gif(self):
         # Mirrors the real pc20.xml shape that exposes the feedparser bug.
@@ -56,19 +63,20 @@ class TestRawXmlExtraction:
             </image>
         """)
         result = RSSParser.extract_podcast_artwork_url(feed)
-        assert result == "https://noagendaassets.com/enc/pc20-channel.png"
-        assert "PER-EPISODE-OVERRIDE" not in (result or "")
+        # Same URL declared both ways: deduped to a single candidate.
+        assert result == ["https://noagendaassets.com/enc/pc20-channel.png"]
+        assert "PER-EPISODE-OVERRIDE" not in result[0]
 
     def test_accepts_bytes(self):
         feed = _feed("""<image><url>https://example.com/bytes.png</url></image>""")
-        assert RSSParser.extract_podcast_artwork_url(feed.encode('utf-8')) == "https://example.com/bytes.png"
+        assert RSSParser.extract_podcast_artwork_url(feed.encode('utf-8')) == ["https://example.com/bytes.png"]
 
-    def test_malformed_xml_returns_none(self):
-        assert RSSParser.extract_podcast_artwork_url("<<not really xml>>") is None
+    def test_malformed_xml_returns_empty_list(self):
+        assert RSSParser.extract_podcast_artwork_url("<<not really xml>>") == []
 
-    def test_empty_input_returns_none(self):
-        assert RSSParser.extract_podcast_artwork_url("") is None
-        assert RSSParser.extract_podcast_artwork_url(None) is None
+    def test_empty_input_returns_empty_list(self):
+        assert RSSParser.extract_podcast_artwork_url("") == []
+        assert RSSParser.extract_podcast_artwork_url(None) == []
 
 
 class TestModifiedFeedEmitsChannelArtwork:

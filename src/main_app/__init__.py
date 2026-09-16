@@ -13,6 +13,8 @@ import time
 import uuid
 from utils.session_defaults import _default_session_cookie_secure
 from utils.paths import resolve_data_dir
+# Re-exported: main_app.shutdown_event stays the same object every waiter uses.
+from utils.shutdown import shutdown_event
 from pathlib import Path
 
 import defusedxml
@@ -201,7 +203,6 @@ status_service = StatusService()
 pattern_service = PatternService(db)
 
 # Graceful shutdown support
-shutdown_event = threading.Event()
 processing_queue = ProcessingQueue()
 _previous_signal_handlers = {}
 _shutdown_started = False

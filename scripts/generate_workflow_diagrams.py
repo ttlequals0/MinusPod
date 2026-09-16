@@ -544,9 +544,40 @@ def d_fail(t):
     return c.render()
 
 
+def d_pool(t):
+    """Whisper pool: several episodes transcribe at once, the rest wait."""
+    c = Canvas(t, 880, 296, "The Whisper pool runs several episodes at once")
+
+    c.text(20, 34, "WAITING", 11, fill=t["mutedFg"], weight=500, spacing="0.1em")
+    for i, name in enumerate(("Episode 5", "Episode 6", "Episode 7")):
+        y = 48 + i * 46
+        c.card(20, y, 168, 36)
+        c.text(38, y + 22, name, 13, fill=t["mutedFg"])
+    c.arrow(194, 118, 248, 118, color=t["primary"])
+
+    px, py, pw, ph = 248, 24, 372, 248
+    c.card(px, py, pw, ph, fill=tint(t["primary"], t["tintBase"]),
+           stroke=t["primary"])
+    c.text(px + 20, py + 28, "Whisper pool", 15, fill=t["primary"], weight=600)
+    c.text(px + pw - 20, py + 28, "UP TO 4 AT ONCE", 11, fill=t["primary"],
+           weight=500, anchor="end", spacing="0.08em")
+    for i in range(4):
+        sy = py + 48 + i * 48
+        c.card(px + 20, sy, pw - 40, 36, fill=t["card"], stroke=t["border"])
+        c.text(px + 38, sy + 22, f"Episode {i + 1}", 13, weight=500)
+        c.badge(px + pw - 128, sy + 8, "transcribing", t["primary"])
+
+    c.arrow(px + pw + 6, 148, px + pw + 54, 148, color=t["primary"])
+    c.card(px + pw + 54, 115, 198, 66)
+    c.text(px + pw + 78, 141, "Then the pipeline", 13, weight=500)
+    c.text(px + pw + 78, 161, "detect, cut, serve", 12, fill=t["mutedFg"])
+    return c.render()
+
+
 DIAGRAMS = [
     ("wf-overview", d_hero),
     ("wf-arrival", d_arrive),
+    ("wf-pool", d_pool),
     ("wf-pipeline", d_pipeline),
     ("wf-detection", d_gate),
     ("wf-modes", d_modes),

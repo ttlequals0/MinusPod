@@ -1,19 +1,21 @@
+import { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Episode } from '../api/types';
-import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS, isFailedStatus } from '../utils/episodeStatus';
+import { displayStatusColor, displayStatusLabel, isFailedStatus } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';
 import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
+import { isActionBlocked } from '../utils/processingStage';
 
 interface EpisodeListProps {
   episodes: Episode[];
   feedSlug: string;
   feedArtworkUrl?: string;
   selectedIds?: Set<string>;
-  onToggle?: (id: string) => void;
+  onToggle?: (id: string, shiftKey: boolean) => void;
   onSelectAll?: (checked: boolean) => void;
 }
 
@@ -26,7 +28,7 @@ function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle
     );
   }
 
-  const selectableEpisodes = episodes.filter(ep => ep.status !== 'processing');
+  const selectableEpisodes = episodes.filter(ep => !isActionBlocked(ep.jobState, false));
   const allSelected = selectedIds && selectableEpisodes.length > 0 &&
     selectableEpisodes.every(ep => selectedIds.has(ep.id));
 
@@ -35,6 +37,7 @@ function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle
       {onSelectAll && selectedIds && (
         <div className="flex items-center gap-2 pl-3 py-2">
           <Checkbox
+            ariaLabel="Select all on page"
             checked={!!allSelected}
             onChange={(checked) => onSelectAll(checked)}
           />
@@ -61,12 +64,16 @@ function EpisodeRow({
   feedArtworkUrl,
   selected,
   onToggle,
+  renderActions,
 }: {
   episode: Episode;
   feedSlug: string;
   feedArtworkUrl?: string;
   selected: boolean;
-  onToggle?: (id: string) => void;
+  onToggle?: (id: string, shiftKey: boolean) => void;
+  // Optional per-row control (e.g. a process/reprocess menu) rendered outside
+  // the episode Link so it never nests an interactive element inside an <a>.
+  renderActions?: (episode: Episode) => ReactNode;
 }) {
   // Rows of the recents feed belong to another feed; link there.
   const rowSlug = episode.feedSlug ?? feedSlug;
@@ -80,12 +87,12 @@ function EpisodeRow({
     return `${minutes}m`;
   };
 
-  const canSelect = episode.status !== 'processing';
+  const canSelect = !isActionBlocked(episode.jobState, false);
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
   return (
-    <div className="relative bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
+    <div className="relative flex items-stretch bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
       {onToggle && canSelect && (
         // 44x44 tap zone (iOS HIG minimum); visible checkbox centered inside.
         // onClick + onTouchEnd both stopPropagation so the underlying Link
@@ -93,7 +100,7 @@ function EpisodeRow({
         <button
           type="button"
           aria-label={selected ? 'Deselect episode' : 'Select episode'}
-          onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggle(episode.id); }}
+          onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggle(episode.id, e.shiftKey); }}
           onTouchEnd={(e) => { e.stopPropagation(); }}
           className={`absolute top-0 left-0 z-10 h-11 w-11 flex items-center justify-center ${focusRing}`}
         >
@@ -102,7 +109,7 @@ function EpisodeRow({
       )}
       <Link
         to={`/feeds/${rowSlug}/episodes/${episode.id}`}
-        className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
+        className={`flex-1 min-w-0 flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
       >
         <Artwork
           // A recents row falls back to its source feed's cover, not this feed's.
@@ -119,7 +126,7 @@ function EpisodeRow({
           {/* Fixed slots (two description lines, one meta line, one badge
               line) so every row in the list is the same height. */}
           <p className="text-sm text-muted-foreground mt-1 line-clamp-2 min-h-10">
-            {episode.description ? stripHtml(episode.description) : ''}
+            {episode.description ? stripHtml(episode.description, { collapse: true }) : ''}
           </p>
           <div className="flex gap-x-3 mt-2 text-sm text-muted-foreground truncate">
             <span className="whitespace-nowrap">{formatDate(episode.published)}</span>
@@ -134,17 +141,31 @@ function EpisodeRow({
                 {episode.pendingReviewCount} held
               </span>
             )}
+            {episode.passthroughEnabled && (
+              <span
+                className="px-2 py-0.5 text-xs rounded whitespace-nowrap bg-muted text-muted-foreground"
+                title="Served unmodified; ad processing is skipped for this episode"
+              >
+                Pass-through
+              </span>
+            )}
             <span
-              className={`px-2 py-0.5 text-xs rounded whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}${failureReason ? ' cursor-help' : ''}`}
+              className={`px-2 py-0.5 text-xs rounded whitespace-nowrap ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
               title={failureReason}
             >
-              {EPISODE_STATUS_LABELS[episode.status] || episode.status}
+              {displayStatusLabel(episode.status, episode.jobState)}
             </span>
           </div>
         </div>
       </Link>
+      {renderActions && (
+        <div className="flex items-center pr-4 shrink-0">
+          {renderActions(episode)}
+        </div>
+      )}
     </div>
   );
 }
 
+export { EpisodeRow };
 export default EpisodeList;

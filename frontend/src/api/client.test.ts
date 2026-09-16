@@ -10,7 +10,7 @@
  * wrapper funnels through.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { apiRequest } from './client';
+import { ApiError, apiRequest } from './client';
 
 // Minimal fetch Response stand-in: only the surface apiRequest actually
 // reads (status/ok/headers.get/json), so this doesn't depend on whatever
@@ -108,5 +108,33 @@ describe('apiRequest: retry on 429', () => {
     const err = await caught;
     expect(err).toBeInstanceOf(Error);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('ApiError: conflict bodies', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps the jobState a 409 reported so callers can reconcile eligibility', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse(
+      { error: 'Episode is currently processing', status: 409, jobState: 'processing' }, 409,
+    )));
+
+    const error = await apiRequest('/episodes/show/ep-1/reprocess', { method: 'POST' })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(409);
+    expect((error as ApiError).jobState).toBe('processing');
+    expect((error as ApiError).message).toBe('Episode is currently processing');
+  });
+
+  it('reports no jobState when the error body carries none', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ error: 'nope' }, 400)));
+
+    const error = await apiRequest('/x', { method: 'POST' }).catch((e: unknown) => e);
+
+    expect((error as ApiError).jobState).toBeUndefined();
   });
 });

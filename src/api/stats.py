@@ -1,14 +1,71 @@
 """Stats routes: /stats/* endpoints."""
 import logging
+import math
+from datetime import datetime
 
 from flask import request
 
 from api import (
-    api, log_request, json_response,
+    api, error_response, log_request, json_response,
     get_database,
 )
+from utils.time import parse_iso_utc
 
 logger = logging.getLogger('podcast.api')
+
+
+_DATE_PARAM_ERROR = ("{name} must be a date (YYYY-MM-DD) or an ISO 8601 "
+                     "timestamp")
+
+
+def _date_param_is_valid(value: str) -> bool:
+    """True when a from/to value parses as a bare date or an ISO timestamp.
+
+    Same parse the db layer's day-start canonicalization uses, so the API
+    never accepts a value the query then silently treats as raw text."""
+    text = value.strip()
+    if parse_iso_utc(text) is not None:
+        return True
+    try:
+        datetime.strptime(text[:10], '%Y-%m-%d')
+        return True
+    except ValueError:
+        return False
+
+
+def _invalid_date_param(params: dict) -> str | None:
+    """Name of the first unparseable from/to param, or None."""
+    for name, key in (('from', 'from_date'), ('to', 'to_date')):
+        value = params.get(key)
+        if value and not _date_param_is_valid(value):
+            return name
+    return None
+
+
+def _date_scope_params() -> dict:
+    """from/to/podcastSlug scope for the ledger endpoints. from/to pass
+    through verbatim: the db layer canonicalizes them to whole UTC days."""
+    return {
+        'from_date': request.args.get('from'),
+        'to_date': request.args.get('to'),
+        'podcast_slug': request.args.get('podcastSlug'),
+    }
+
+
+def _parse_list_params():
+    """Shared page/limit/sortBy/sortDir/filter parsing for the ledger list
+    endpoints below. Mirrors GET /history's page+limit contract."""
+    limit = min(max(1, request.args.get('limit', 50, type=int)), 100)
+    page = max(1, request.args.get('page', 1, type=int))
+    return {
+        'page': page,
+        'limit': limit,
+        'sort_by': request.args.get('sortBy', ''),
+        'sort_dir': request.args.get('sortDir', 'desc'),
+        **_date_scope_params(),
+        'provider': request.args.get('provider'),
+        'model': request.args.get('model'),
+    }
 
 
 @api.route('/stats/dashboard', methods=['GET'])
@@ -63,3 +120,88 @@ def get_addressing_stats():
     db = get_database()
     podcast_slug = request.args.get('podcast_slug')
     return json_response(db.get_addressing_stats(podcast_slug=podcast_slug))
+
+
+@api.route('/stats/model-usage', methods=['GET'])
+@log_request
+def get_model_usage_stats():
+    """Paginated spend by (provider, model) over the llm_call_usage ledger.
+
+    The from/to filters select whole UTC days, inclusive of both ends.
+    """
+    db = get_database()
+    params = _parse_list_params()
+    invalid = _invalid_date_param(params)
+    if invalid:
+        return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
+    items, total = db.get_model_usage_stats(**params)
+    return json_response({
+        'items': items,
+        'total': total,
+        'totalPages': math.ceil(total / params['limit']) if total > 0 else 1,
+        'page': params['page'],
+        'limit': params['limit'],
+    })
+
+
+@api.route('/stats/episode-costs', methods=['GET'])
+@log_request
+def get_episode_cost_stats():
+    """Paginated per-episode cost breakdown over the llm_call_usage ledger.
+
+    The from/to filters select whole UTC days, inclusive of both ends.
+    """
+    db = get_database()
+    params = _parse_list_params()
+    invalid = _invalid_date_param(params)
+    if invalid:
+        return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
+    items, total = db.get_episode_cost_stats(**params)
+    return json_response({
+        'items': items,
+        'total': total,
+        'totalPages': math.ceil(total / params['limit']) if total > 0 else 1,
+        'page': params['page'],
+        'limit': params['limit'],
+    })
+
+
+@api.route('/stats/episode-costs/runs', methods=['GET'])
+@log_request
+def get_episode_cost_runs():
+    """Per-run, per-phase cost breakdown for one episode, for the expandable
+    Episode-costs row. Same run shape as the episode detail page so both
+    surfaces render an identical table."""
+    from api.episodes import _processing_runs
+    slug = request.args.get('slug')
+    episode_id = request.args.get('episodeId')
+    if not slug or not episode_id:
+        return error_response('slug and episodeId are required', 400)
+    db = get_database()
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return error_response('Episode not found', 404)
+    return json_response({'runs': _processing_runs(db, episode)})
+
+
+@api.route('/stats/ledger-filter-options', methods=['GET'])
+@log_request
+def get_ledger_filter_options():
+    """Distinct providers and provider/model pairs in the ledger, for the
+    Stats filters.
+
+    Honors the same from/to/podcastSlug scope as the list endpoints (from/to
+    select whole UTC days) but is never paginated, so a provider or model
+    past the first page of a list request can still be selected.
+    """
+    params = _date_scope_params()
+    invalid = _invalid_date_param(params)
+    if invalid:
+        return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
+    pairs = get_database().get_ledger_filter_options(
+        from_date=params['from_date'], to_date=params['to_date'],
+        podcast_slug=params['podcast_slug'])
+    return json_response({
+        'providers': sorted({p['provider'] for p in pairs}),
+        'pairs': pairs,
+    })

@@ -4,8 +4,12 @@ bootstrap('estimated_span_advisory_test_')
 
 from unittest.mock import MagicMock
 
-from ad_detector import AdDetector
+import pytest
+
+from ad_detector import AdDetector, _label_reach
+from ad_detector.boundaries import tighten_pattern_regions
 from text_pattern_matcher import TextPatternMatcher, AdPattern, TextMatch
+from utils.markers import note_fold
 
 SEGMENTS = [{'start': s, 'end': s + 5.0, 'text': 'words ' * 12}
             for s in range(1970, 2100, 5)]
@@ -51,6 +55,75 @@ def test_estimated_pattern_stage_promotion_does_not_corroborate_hold():
     assert len(merged) == 1
     assert merged[0].get('held_for_review')
     assert merged[0].get('differential_uncorroborated')
+
+
+CLAUDE_MEMBER = {'start': 649.4, 'end': 921.1, 'confidence': 0.9,
+                 'detection_stage': 'claude', 'reason': 'ad read'}
+
+
+def _estimated_member(start=831.75):
+    return {'start': start, 'end': 999.65, 'confidence': 0.85,
+            'detection_stage': 'text_pattern', 'pattern_id': 600,
+            'span_estimated': True, 'text_start': 831.75, 'text_end': 860.0,
+            'sponsor': 'Acme', 'reason': 'Acme (pattern #600)'}
+
+
+@pytest.mark.parametrize('ads,members', [
+    pytest.param([CLAUDE_MEMBER, _estimated_member()],
+                 [{'start': 649.4, 'end': 921.1, 'stage': 'claude'},
+                  {'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'}],
+                 id='claude_first'),
+    pytest.param([_estimated_member(start=649.4), CLAUDE_MEMBER],
+                 [{'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'},
+                  {'start': 649.4, 'end': 921.1, 'stage': 'claude'}],
+                 id='estimate_first'),
+])
+def test_folded_marker_records_only_the_matched_text(ads, members):
+    # The accumulator may start as either member; the estimated tail never
+    # becomes protected audio the reviewer has to keep.
+    d = AdDetector.__new__(AdDetector)
+
+    merged = d._merge_detection_results([dict(a) for a in ads], None,
+                                        action_map=None)
+
+    assert len(merged) == 1
+    assert merged[0]['merged_member_spans'] == members
+
+
+def test_estimate_moved_by_a_snap_still_narrows_to_its_text():
+    # A snap moved the end 0.4s; the estimated tail is still not evidence.
+    ad = dict(_estimated_member(), end=1000.05)
+
+    note_fold(ad, {'start': 1100.0, 'end': 1200.0, 'confidence': 0.9,
+                   'detection_stage': 'claude'})
+
+    assert ad['merged_member_spans'][0] == {
+        'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'}
+
+
+def test_tightening_moves_the_span_but_not_the_label_reach():
+    # Snapping to LLM bounds only moves the bounds: the flag still gates
+    # corroboration, and the label still reaches only the matched text.
+    region = {'start': 501.1, 'end': 601.1, 'pattern_id': 614}
+    marker = {'start': 501.1, 'end': 601.1, 'pattern_id': 614,
+              'detection_stage': 'text_pattern', 'span_estimated': True,
+              'text_start': 501.1, 'text_end': 510.0}
+    claude = [{'start': 501.1, 'end': 539.2, 'confidence': 0.98,
+               'category': 'sponsor'}]
+
+    tighten_pattern_regions(claude, [region], [marker], None)
+
+    assert (marker['start'], marker['end']) == (501.1, 539.2)
+    assert marker['span_estimated'] is True
+    assert _label_reach(marker) == pytest.approx(8.9)
+
+
+def test_label_reach_is_clipped_to_the_entry_span():
+    # Text bounds recorded outside the span claim no audio at all.
+    entry = {'start': 831.75, 'end': 999.65, 'span_estimated': True,
+             'text_start': 700.0, 'text_end': 800.0}
+
+    assert _label_reach(entry) == 0.0
 
 
 def test_merge_matches_propagates_estimated_span_conservatively():

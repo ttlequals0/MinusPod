@@ -156,6 +156,21 @@ class TestDbFallback:
         assert config.get_stage_tunable("detection_max_tokens", settings=settings) == 8192
 
 
+class TestWindowSizeRange:
+    """window_size_seconds range: raised to 10800 for low-request-rate providers (#747)."""
+
+    def test_max_boundary_accepted(self, monkeypatch):
+        monkeypatch.setenv("WINDOW_SIZE_SECONDS", "10800")
+        with patch("database.Database", side_effect=Exception("no db in test")):
+            assert config.get_stage_tunable("window_size_seconds") == 10800
+
+    def test_above_max_falls_back_to_default(self, monkeypatch, caplog):
+        monkeypatch.setenv("WINDOW_SIZE_SECONDS", "10801")
+        with patch("database.Database", side_effect=Exception("no db")):
+            assert config.get_stage_tunable("window_size_seconds") == 600
+        assert any("out of range" in r.message for r in caplog.records)
+
+
 class TestStageTunableReset:
     """reset_setting must clear stage-tunable rows (not silently no-op).
 

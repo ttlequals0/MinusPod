@@ -1,10 +1,17 @@
 import { useState, useMemo, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import DashboardControlsMenu from '../components/DashboardControlsMenu';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
-import { feedsQueryOptions, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
+import { feedsQueryOptions, feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import DropdownMenu from '../components/DropdownMenu';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
+import DashboardEpisodeGroups, {
+  DEFAULT_EPISODES_PER_PODCAST,
+  MIN_EPISODES_PER_PODCAST,
+  MAX_EPISODES_PER_PODCAST,
+  clampEpisodesPerPodcast,
+} from '../components/DashboardEpisodeGroups';
 import { Skeleton, SkeletonRows, SkeletonStatCards } from '../components/Skeleton';
 import SearchResults from '../components/SearchResults';
 import type { SearchResultRow } from '../components/SearchResults';
@@ -12,9 +19,14 @@ import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useOutsideClick } from '../hooks/useOutsideClick';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
+import { deleteStopsProcessingMessage } from '../utils/feedTitle';
 import { formatDateTime } from '../utils/format';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
 import { focusRing, inputBase } from '../components/fieldStyles';
+
+type DashboardView = 'podcasts' | 'episodes';
+const DASHBOARD_VIEW_KEY = 'dashboardView';
+const DASHBOARD_EPISODES_PER_PODCAST_KEY = 'dashboardEpisodesPerPodcast';
 
 // Boxed keyboard-shortcut badge, matching the mockup's shortcut hints.
 const kbdClass = 'rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground';
@@ -25,12 +37,29 @@ function Dashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useLocalStorageState<'grid' | 'list'>('dashboardViewMode', 'grid');
   const [sortBy, setSortBy] = useLocalStorageState<FeedSortBy>(DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT);
+  const [dashboardView, setDashboardView] = useLocalStorageState<DashboardView>(DASHBOARD_VIEW_KEY, 'podcasts');
+  const [episodesPerPodcastRaw, setEpisodesPerPodcast] = useLocalStorageState<number>(
+    DASHBOARD_EPISODES_PER_PODCAST_KEY, DEFAULT_EPISODES_PER_PODCAST,
+  );
+  // Clamped defensively: a hand-edited or stale localStorage value could sit
+  // outside the 1-10 range the select and the backend projection expect.
+  const episodesPerPodcast = clampEpisodesPerPodcast(episodesPerPodcastRaw);
   const [actionError, setActionError] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isLoading, error } = useQuery(feedsQueryOptions);
   const feeds = data?.feeds;
   const lastRefreshCompletedAt = data?.lastRefreshCompletedAt ?? null;
+
+  // Fetched only for the Episodes view; the base feeds query above stays
+  // unbounded and unprojected for the Podcasts (grid/list) view.
+  const episodesQuery = useQuery({
+    ...feedsQueryOptionsFor({ includeLatestEpisodes: true, episodesPerFeed: episodesPerPodcast }),
+    enabled: dashboardView === 'episodes',
+    // Changing the per-podcast count keeps the current groups until the new
+    // ones land, instead of blanking the list under an open menu.
+    placeholderData: keepPreviousData,
+  });
 
   const refreshMutation = useMutation({
     mutationFn: ({ slug, options }: { slug: string; options?: { force?: boolean } }) =>
@@ -78,6 +107,8 @@ function Dashboard() {
   };
 
   const sortedFeeds = useMemo(() => (feeds ? sortFeeds(feeds, sortBy) : []), [feeds, sortBy]);
+  const groupFeeds = episodesQuery.data?.feeds;
+  const sortedGroupFeeds = useMemo(() => (groupFeeds ? sortFeeds(groupFeeds, sortBy) : []), [groupFeeds, sortBy]);
 
   const navigate = useNavigate();
   const searchRootRef = useRef<HTMLDivElement>(null);
@@ -192,69 +223,45 @@ function Dashboard() {
             </span>
           )}
         </div>
-        <div className="flex gap-2 items-center shrink-0">
-          <div className="flex gap-2 items-center overflow-x-auto no-scrollbar">
-            <div className="flex border border-border rounded overflow-hidden">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 transition-colors ${
-                  viewMode === 'grid'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="Grid view"
-                title="Grid view"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 transition-colors ${
-                  viewMode === 'list'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="List view"
-                title="List view"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex border border-border rounded overflow-hidden">
-              <button
-                onClick={() => setSortBy('recent')}
-                className={`p-2 transition-colors ${
-                  sortBy === 'recent'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="Sort by recent"
-                title="Sort by most recent episode"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setSortBy('title')}
-                className={`p-2 transition-colors ${
-                  sortBy === 'title'
-                    ? 'bg-primary text-primary-foreground'
-                    : btnSecondary
-                } ${focusRing}`}
-                aria-label="Sort by title"
-                title="Sort alphabetically"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                </svg>
-              </button>
-            </div>
+        <div className="w-full sm:w-auto flex gap-2 items-center justify-between sm:justify-start overflow-x-auto no-scrollbar sm:overflow-visible">
+          <div className="flex h-11 border border-border rounded overflow-hidden shrink-0" role="group" aria-label="Dashboard view">
+            <button
+              onClick={() => setDashboardView('podcasts')}
+              aria-pressed={dashboardView === 'podcasts'}
+              className={`inline-flex items-center justify-center px-2.5 sm:px-3 text-sm transition-colors ${
+                dashboardView === 'podcasts'
+                  ? 'bg-primary text-primary-foreground'
+                  : btnSecondary
+              } ${focusRing}`}
+              title="Group by podcast"
+            >
+              Podcasts
+            </button>
+            <button
+              onClick={() => setDashboardView('episodes')}
+              aria-pressed={dashboardView === 'episodes'}
+              className={`inline-flex items-center justify-center px-2.5 sm:px-3 text-sm transition-colors ${
+                dashboardView === 'episodes'
+                  ? 'bg-primary text-primary-foreground'
+                  : btnSecondary
+              } ${focusRing}`}
+              title="Show latest episodes per podcast"
+            >
+              Episodes
+            </button>
           </div>
+          <div className="flex gap-2 items-center shrink-0">
+          <DashboardControlsMenu
+            dashboardView={dashboardView}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            episodesPerPodcast={episodesPerPodcast}
+            onEpisodesPerPodcastChange={(n) => setEpisodesPerPodcast(clampEpisodesPerPodcast(n))}
+            perPodcastMin={MIN_EPISODES_PER_PODCAST}
+            perPodcastMax={MAX_EPISODES_PER_PODCAST}
+          />
           <DropdownMenu
             triggerLabel={
               <>
@@ -264,9 +271,11 @@ function Dashboard() {
                 <span className="hidden sm:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}</span>
               </>
             }
-            triggerClassName={`p-2 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
+            triggerClassName={`h-11 min-w-11 px-2.5 sm:px-4 text-sm rounded shrink-0 ${btnSecondary} disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap`}
+            chevronClassName="w-4 h-4 hidden sm:block"
             disabled={refreshAllMutation.isPending}
             title="Refresh all feeds"
+            ariaLabel="Refresh all feeds"
             items={[
               {
                 title: 'Refresh All',
@@ -282,7 +291,7 @@ function Dashboard() {
           />
           <Link
             to="/add"
-            className={`p-2 sm:px-4 sm:py-2 rounded ${btnPrimary} transition-colors ${focusRing}`}
+            className={`h-11 min-w-11 sm:px-4 inline-flex items-center justify-center rounded shrink-0 ${btnPrimary} transition-colors ${focusRing}`}
             title="Add Feed"
           >
             <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -290,6 +299,7 @@ function Dashboard() {
             </svg>
             <span className="hidden sm:inline">Add Feed</span>
           </Link>
+          </div>
         </div>
       </div>
 
@@ -314,6 +324,17 @@ function Dashboard() {
             </a>
           </p>
         </div>
+      ) : dashboardView === 'episodes' ? (
+        episodesQuery.isLoading ? (
+          <SkeletonRows count={4} className="flex flex-col gap-4" />
+        ) : episodesQuery.error ? (
+          <div className="text-center py-12">
+            <p className="text-destructive">Failed to load episodes</p>
+            <p className="text-sm text-muted-foreground mt-2">{(episodesQuery.error as Error).message}</p>
+          </div>
+        ) : (
+          <DashboardEpisodeGroups feeds={sortedGroupFeeds} episodesPerPodcast={episodesPerPodcast} />
+        )
       ) : viewMode === 'grid' ? (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {sortedFeeds.map((feed) => (
@@ -357,8 +378,15 @@ function Dashboard() {
             </div>
           )}
           {deleteConfirm && (
-            <div className="bg-card border border-border rounded-lg p-4 shadow-lg">
+            <div className="bg-card border border-border rounded-lg p-4 shadow-lg max-w-sm">
               <p className="text-sm text-foreground">Click delete again to confirm</p>
+              {(() => {
+                const processingCount = feeds?.find((f) => f.slug === deleteConfirm)?.statusCounts?.processing ?? 0;
+                const message = deleteStopsProcessingMessage(processingCount);
+                return message && (
+                  <p className="text-sm text-warning mt-1">{message}</p>
+                );
+              })()}
             </div>
           )}
         </div>

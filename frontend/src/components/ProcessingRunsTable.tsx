@@ -1,7 +1,9 @@
-import { ReactNode } from 'react';
-import { EpisodeProcessingRun } from '../api/types';
-import { formatDateTime } from '../utils/format';
-import { formatDuration, formatTokenCount } from '../pages/settings/settingsUtils';
+import { Fragment, ReactNode, useState } from 'react';
+import { EpisodeProcessingRun, LLM_PROVIDER_LABELS, LlmProvider, RunPhaseUsage } from '../api/types';
+import { formatCost, formatDateTime } from '../utils/format';
+import { formatDuration, formatTokenCount, formatTokenRange } from '../pages/settings/settingsUtils';
+import DisclosureButton from './DisclosureButton';
+import CostAmount from './CostAmount';
 
 interface ProcessingRunsTableProps {
   runs: EpisodeProcessingRun[];
@@ -27,13 +29,24 @@ function rssDeltaNote(runs: EpisodeProcessingRun[], rssDuration?: number | null)
     'than the duration the feed declares. Dynamically inserted ad loads vary per download.';
 }
 
+// A run total with unpriced phase rows behind it reads as a floor, not as
+// the full bill.
+function RunCost({ run }: { run: EpisodeProcessingRun }) {
+  const unpriced = (run.phases ?? []).filter((p) => p.costUsd == null).length;
+  return <CostAmount amount={run.llmCost} unpricedCount={unpriced} unit="phase group" />;
+}
+
 const HEADER_CLASS = 'py-2 pr-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
 
 interface Column {
   label: string;
   title?: string;
+  // Dropped from the table between sm and lg; the mobile cards still list it.
+  lowPriority?: boolean;
   render: (run: EpisodeProcessingRun) => ReactNode;
 }
+
+const LOW_PRIORITY_CLASS = 'hidden lg:table-cell';
 
 // One definition drives both the desktop table and the mobile cards, so the
 // two can never drift apart.
@@ -67,11 +80,13 @@ const COLUMNS: Column[] = [
   {
     label: 'Downloaded',
     title: 'Length of the downloaded copy this run processed',
+    lowPriority: true,
     render: (run) => (run.stats?.downloadedDuration ? formatDuration(run.stats.downloadedDuration) : '-'),
   },
   {
     label: 'Windows',
     title: 'Detection windows the LLM answered',
+    lowPriority: true,
     render: (run) => {
       const w = run.stats?.windows;
       if (!w?.total) return '-';
@@ -81,6 +96,7 @@ const COLUMNS: Column[] = [
   {
     label: 'Stage hits',
     title: 'Detections per stage, before validation',
+    lowPriority: true,
     render: (run) => {
       const h = run.stats?.stageHits;
       return h
@@ -103,6 +119,7 @@ const COLUMNS: Column[] = [
   {
     label: 'Second scan',
     title: 'Second scan of the output audio',
+    lowPriority: true,
     render: (run) => {
       const v = run.stats?.verificationAdsCut;
       if (v == null) return '-';
@@ -111,9 +128,9 @@ const COLUMNS: Column[] = [
   },
   {
     label: 'Tokens',
-    render: (run) => `${formatTokenCount(run.inputTokens)} in / ${formatTokenCount(run.outputTokens)} out`,
+    render: (run) => formatTokenRange(run.inputTokens, run.outputTokens),
   },
-  { label: 'Cost', render: (run) => `$${run.llmCost.toFixed(2)}` },
+  { label: 'Cost', render: (run) => <RunCost run={run} /> },
 ];
 
 const COLUMN = Object.fromEntries(COLUMNS.map((c) => [c.label, c])) as Record<string, Column>;
@@ -124,63 +141,257 @@ function runKey(run: EpisodeProcessingRun): string {
   return `${run.runNumber}-${run.processedAt}`;
 }
 
-function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
-  const note = rssDeltaNote(runs, rssDuration);
+function providerLabel(provider: string): string {
+  return LLM_PROVIDER_LABELS[provider as LlmProvider] ?? provider;
+}
 
-  return (
-    <div>
-      {note && <p className="text-sm text-muted-foreground mb-3">{note}</p>}
+function capitalize(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
 
-      <table className="hidden sm:table w-full text-sm">
+// The "(pass N)" suffix only earns its place when the same phase ran in more
+// than one pass; a phase that appears once reads as just its name.
+function phaseLabel(phase: RunPhaseUsage, disambiguate: boolean): string {
+  const base = capitalize(phase.phaseKey);
+  return disambiguate && phase.invokingPass ? `${base} (pass ${phase.invokingPass})` : base;
+}
+
+// Stages the ledger tracks that a run can legitimately skip; a run missing
+// one of these says why instead of just omitting the row. Review/chapters
+// have no such run-level flag, so they only render when the ledger has them.
+const SKIPPABLE_STAGES = ['detection', 'verification'] as const;
+
+function missingStageReason(run: EpisodeProcessingRun, phaseKey: typeof SKIPPABLE_STAGES[number]): string {
+  const skipped = phaseKey === 'detection' ? run.stats?.detectionSkipped : run.stats?.verificationSkipped;
+  if (skipped) return 'Skipped';
+  if (run.stats?.cueOnly) return 'Not applicable';
+  return 'Unavailable';
+}
+
+function missingStages(run: EpisodeProcessingRun): { phaseKey: string; reason: string }[] {
+  const phases = run.phases ?? [];
+  return SKIPPABLE_STAGES
+    .filter((key) => !phases.some((p) => p.phaseKey === key))
+    .map((key) => ({ phaseKey: key, reason: missingStageReason(run, key) }));
+}
+
+// Compact per-phase/model breakdown for one run's expanded row. A phase with
+// a retry or fallback yields several model rows, one per configured model.
+// layout picks the surface: 'table' for the desktop row, 'cards' for the
+// mobile stacked view (which wraps instead of scrolling horizontally). Both
+// callers stay mounted (CSS-gated); each renders only its own layout.
+function PhaseBreakdown({ run, layout }: { run: EpisodeProcessingRun; layout: 'table' | 'cards' }) {
+  if (!run.breakdownAvailable) {
+    return <p className="text-xs text-muted-foreground py-1">Breakdown unavailable</p>;
+  }
+  const phases = run.phases ?? [];
+  const phaseKeyCounts = phases.reduce<Record<string, number>>((acc, p) => {
+    acc[p.phaseKey] = (acc[p.phaseKey] ?? 0) + 1;
+    return acc;
+  }, {});
+  const hasCache = phases.some((p) => p.cacheReadTokens || p.cacheWriteTokens);
+  const hasReasoning = phases.some((p) => p.reasoningTokens);
+  const gaps = missingStages(run);
+  const cellClass = 'py-1 pr-3';
+  const modelTitle = (p: RunPhaseUsage) =>
+    (p.returnedModel && p.returnedModel !== p.configuredModel ? `Configured as ${p.configuredModel}` : undefined);
+  // Metrics after the Phase column, shared by the desktop table and the mobile
+  // stacked cards so the two layouts can't drift. left = identity, right = numeric.
+  const metrics: { label: string; align: 'left' | 'right'; render: (p: RunPhaseUsage) => ReactNode;
+    title?: (p: RunPhaseUsage) => string | undefined }[] = [
+    { label: 'Provider', align: 'left', render: (p) => providerLabel(p.provider) },
+    { label: 'Model', align: 'left', render: (p) => p.returnedModel ?? p.configuredModel, title: modelTitle },
+    { label: 'Input', align: 'right', render: (p) => formatTokenCount(p.inputTokens) },
+    { label: 'Output', align: 'right', render: (p) => formatTokenCount(p.outputTokens) },
+    ...(hasCache ? [{ label: 'Cache', align: 'right' as const, render: (p: RunPhaseUsage) => (
+      p.cacheReadTokens || p.cacheWriteTokens
+        ? `${formatTokenCount(p.cacheReadTokens)} r / ${formatTokenCount(p.cacheWriteTokens)} w` : '-') }] : []),
+    ...(hasReasoning ? [{ label: 'Reasoning', align: 'right' as const,
+      render: (p: RunPhaseUsage) => (p.reasoningTokens ? formatTokenCount(p.reasoningTokens) : '-') }] : []),
+    { label: 'Cost', align: 'right', render: (p) => (p.costUsd == null ? 'Unknown' : formatCost(parseFloat(p.costUsd))) },
+  ];
+  const rowKey = (p: RunPhaseUsage, i: number) => `${p.phaseKey}-${p.invokingPass}-${p.configuredModel}-${i}`;
+  const colClass = (m: typeof metrics[number], i: number) =>
+    `${m.align === 'right' ? 'text-right' : 'text-left'} ${i === metrics.length - 1 ? 'py-1' : cellClass}`;
+
+  if (layout === 'table') {
+    return (
+      <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-border">
-            {COLUMNS.map((col, i) => (
-              <th
-                key={col.label}
-                title={col.title}
-                className={i === COLUMNS.length - 1 ? `${HEADER_CLASS} pr-0` : HEADER_CLASS}
-              >
-                {col.label}
+          <tr className="text-muted-foreground">
+            <th className={`font-medium text-left ${cellClass}`}>Phase</th>
+            {metrics.map((m, i) => (
+              <th key={m.label} className={`font-medium ${colClass(m, i)}`}>
+                {m.label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {runs.map((run) => (
-            <tr key={runKey(run)} className="border-b border-border/50 last:border-b-0">
-              {COLUMNS.map((col, i) => (
+          {phases.map((p, i) => (
+            <tr key={rowKey(p, i)} className="border-t border-border/40">
+              <td className={cellClass}>{phaseLabel(p, phaseKeyCounts[p.phaseKey] > 1)}</td>
+              {metrics.map((m, j) => (
                 <td
-                  key={col.label}
-                  title={col.label === 'Downloaded' && run.stats?.transcriptSegments != null
-                    ? `${run.stats.transcriptSegments} transcript segments`
-                    : undefined}
-                  className={i === COLUMNS.length - 1 ? 'py-2 whitespace-nowrap' : 'py-2 pr-4 whitespace-nowrap'}
+                  key={m.label}
+                  title={m.title?.(p)}
+                  className={colClass(m, j)}
                 >
-                  {col.render(run)}
+                  {m.render(p)}
                 </td>
               ))}
             </tr>
           ))}
+          {gaps.map((g) => (
+            <tr key={g.phaseKey} className="border-t border-border/40 text-muted-foreground">
+              <td className={cellClass}>{capitalize(g.phaseKey)}</td>
+              <td className="py-1" colSpan={metrics.length}>{g.reason}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
+    );
+  }
 
-      <div className="sm:hidden space-y-3">
-        {runs.map((run) => (
-          <div key={runKey(run)} className="bg-card border border-border rounded-lg p-4 text-sm">
-            <div className="flex items-center justify-between gap-2 mb-2 font-medium">
-              <span>{COLUMN.Run.render(run)}</span>
-              <span>{COLUMN.Result.render(run)}</span>
-            </div>
-            <dl className="space-y-1">
-              {CARD_ROWS.map((col) => (
-                <div key={col.label} className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground shrink-0">{col.label}</dt>
-                  <dd className="text-right">{col.render(run)}</dd>
+  return (
+    <div className="space-y-2">
+      {phases.map((p, i) => (
+          <div key={rowKey(p, i)} className="rounded border border-border/40 p-2 text-xs">
+            <div className="font-medium mb-1">{phaseLabel(p, phaseKeyCounts[p.phaseKey] > 1)}</div>
+            <dl className="space-y-0.5">
+              {metrics.map((m) => (
+                <div key={m.label} className="flex justify-between gap-2">
+                  <dt className="text-muted-foreground shrink-0">{m.label}</dt>
+                  <dd className="text-right break-all" title={m.title?.(p)}>{m.render(p)}</dd>
                 </div>
               ))}
             </dl>
           </div>
         ))}
+        {gaps.map((g) => (
+          <div key={g.phaseKey} className="rounded border border-border/40 p-2 text-xs flex justify-between gap-2 text-muted-foreground">
+            <span className="font-medium">{capitalize(g.phaseKey)}</span>
+            <span>{g.reason}</span>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+// Shared by the desktop table cell and the mobile card so the toggle's
+// label logic can't drift between the two layouts.
+function PhaseDisclosureButton({
+  run, expanded, onToggle, showLabel,
+}: { run: EpisodeProcessingRun; expanded: boolean; onToggle: () => void; showLabel?: boolean }) {
+  const label = expanded
+    ? `Hide phase breakdown for run #${run.runNumber}`
+    : `Show phase breakdown for run #${run.runNumber}`;
+  return (
+    <DisclosureButton
+      expanded={expanded}
+      onToggle={onToggle}
+      label={label}
+      showLabel={showLabel}
+    />
+  );
+}
+
+function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
+  const note = rssDeltaNote(runs, rssDuration);
+  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
+  const toggleExpanded = (key: string) => setExpandedRuns((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
+  return (
+    <div>
+      {note && <p className="text-sm text-muted-foreground mb-3">{note}</p>}
+
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border">
+              <th className={`${HEADER_CLASS} w-6`} aria-hidden="true" />
+              {COLUMNS.map((col, i) => (
+                <th
+                  key={col.label}
+                  title={col.title}
+                  className={`${i === COLUMNS.length - 1 ? `${HEADER_CLASS} pr-0` : HEADER_CLASS}${col.lowPriority ? ` ${LOW_PRIORITY_CLASS}` : ''}`}
+                >
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((run) => {
+              const key = runKey(run);
+              const expanded = expandedRuns.has(key);
+              return (
+                <Fragment key={key}>
+                  <tr className="border-b border-border/50 last:border-b-0">
+                    <td className="py-2 pr-2">
+                      <PhaseDisclosureButton run={run} expanded={expanded} onToggle={() => toggleExpanded(key)} />
+                    </td>
+                    {COLUMNS.map((col, i) => (
+                      <td
+                        key={col.label}
+                        title={col.label === 'Downloaded' && run.stats?.transcriptSegments != null
+                          ? `${run.stats.transcriptSegments} transcript segments`
+                          : undefined}
+                        className={`${i === COLUMNS.length - 1 ? 'py-2 whitespace-nowrap' : 'py-2 pr-4 whitespace-nowrap'}${col.lowPriority ? ` ${LOW_PRIORITY_CLASS}` : ''}`}
+                      >
+                        {col.render(run)}
+                      </td>
+                    ))}
+                  </tr>
+                  {expanded && (
+                    <tr className="border-b border-border/50 last:border-b-0 bg-muted/20">
+                      <td colSpan={COLUMNS.length + 1} className="py-2 px-3">
+                        <div className="overflow-x-auto">
+                          <PhaseBreakdown run={run} layout="table" />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="sm:hidden space-y-3">
+        {runs.map((run) => {
+          const key = runKey(run);
+          const expanded = expandedRuns.has(key);
+          return (
+            <div key={key} className="bg-card border border-border rounded-lg p-4 text-sm">
+              <div className="flex items-center justify-between gap-2 mb-2 font-medium">
+                <span>{COLUMN.Run.render(run)}</span>
+                <span>{COLUMN.Result.render(run)}</span>
+              </div>
+              <dl className="space-y-1">
+                {CARD_ROWS.map((col) => (
+                  <div key={col.label} className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground shrink-0">{col.label}</dt>
+                    <dd className="text-right">{col.render(run)}</dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="mt-2">
+                <PhaseDisclosureButton run={run} expanded={expanded} onToggle={() => toggleExpanded(key)} showLabel />
+              </div>
+              {expanded && (
+                <div className="mt-2">
+                  <PhaseBreakdown run={run} layout="cards" />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

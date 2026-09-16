@@ -3,24 +3,26 @@ import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   downloadEpisodeAudio, episodeOriginalUrl, getEpisode, getFeed, reprocessEpisode, regenerateChapters,
-  updateLocalEpisode, uploadLocalEpisodeArtwork,
+  updateLocalEpisode, uploadLocalEpisodeArtwork, setEpisodesPassthrough,
 } from '../api/feeds';
 import type { LocalEpisodePatch } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
-import { getErrorMessage } from '../api/client';
+import { getErrorMessage, jobStateOf } from '../api/client';
 import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBadge';
 import PrevNextLink from '../components/PrevNextLink';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import Artwork from '../components/Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
-import { EPISODE_STATUS_COLORS, isFailedStatus } from '../utils/episodeStatus';
+import { displayStatusColor, displayStatusLabel, isFailedStatus } from '../utils/episodeStatus';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
+import { isActionBlocked } from '../utils/processingStage';
+import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
-import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi, ThinkingNoticePass } from '../api/types';
+import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -30,13 +32,14 @@ import CueDetectionsSection from '../components/CueDetectionsSection';
 import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
-import { formatStorage, formatDuration } from './settings/settingsUtils';
+import { formatStorage, formatDuration, formatTokenRange } from './settings/settingsUtils';
 import { formatDate, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
 import { rowActionBtn } from '../components/rowActionStyles';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
+import CostAmount from '../components/CostAmount';
 import EpisodeLogsCard from '../components/EpisodeLogsCard';
 import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
@@ -250,6 +253,28 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
 // Save status type for visual feedback
 type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
 
+// One spend line in the episode header. An amount with unknown-cost rows
+// behind it is labeled as a known-spend floor, never as the full total.
+function SpendSummary({ label, spend, title }: {
+  label: string;
+  spend: { costUsd: string; inputTokens: number; outputTokens: number; hasUnknownCost?: boolean };
+  title?: string;
+}) {
+  return (
+    <span className="text-xs text-muted-foreground" title={title}>
+      {label}: <CostAmount amount={parseFloat(spend.costUsd)} unpriced={spend.hasUnknownCost} />
+      {' '}({formatTokenRange(spend.inputTokens, spend.outputTokens)})
+    </span>
+  );
+}
+
+// Why a new run cannot start. Only read once isActionBlocked says it cannot.
+function blockedRunReason(jobState?: JobState): string {
+  if (jobState === 'queued') return 'This episode is already queued.';
+  if (jobState === 'processing') return 'This episode is already processing.';
+  return 'A run is already starting.';
+}
+
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
   const [showEditor, setShowEditor] = useState(false);
@@ -272,6 +297,10 @@ function EpisodeDetail() {
   // When a "Confirm & Recut" action fires, this flag signals the correctionMutation
   // onSuccess to chain a recut immediately after the correction is stored.
   const pendingRecutRef = useRef(false);
+  // Blocks a second reprocess submit fired before React re-renders the
+  // disabled button (double-click, keyboard repeat): state alone lags a
+  // synchronous second click by a render.
+  const reprocessSubmittingRef = useRef(false);
   // Rejecting the last held marker clears the review set; the banner that follows
   // offers a re-detect.
   const [heldReviewCleared, setHeldReviewCleared] = useState(false);
@@ -283,7 +312,14 @@ function EpisodeDetail() {
     queryKey: ['episode', slug, episodeId],
     queryFn: () => getEpisode(slug!, episodeId!),
     enabled: !!slug && !!episodeId,
-    refetchInterval: (query) => (query.state.data?.chaptersRegenerating ? 3000 : false),
+    // Poll only while a run is actually executing: active-run spend moves then
+    // and nothing else pushes it here. A queued episode can sit for hours, and
+    // GlobalStatusBar invalidates ['episode'] when its run starts.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data?.chaptersRegenerating) return 3000;
+      return data?.jobState === 'processing' ? 5000 : false;
+    },
   });
 
   // Fetched only for ``artworkUrl``, the fallback when the episode
@@ -299,19 +335,53 @@ function EpisodeDetail() {
     // Awaited so the mutation stays pending until the refetch lands. The POST
     // only queues the run, so returning early would re-enable the button while
     // the cached status still said the episode was idle.
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       // A later run supersedes the cleared-review banner from an earlier one.
       setHeldReviewCleared(false);
-      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+      applyEpisodeJobState(queryClient, slug!, [episodeId!], jobStateOf(result));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
+        queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
+        queryClient.invalidateQueries({ queryKey: ['processing-episodes'] }),
+      ]);
     },
     // Processing is serialized by a lock, so a stale cached status leaves the
     // button enabled and the click is refused; showing the 409 stops it just
     // flickering with nothing to explain it (#707).
     onError: async (error) => {
       setCorrectionError(getErrorMessage(error, 'Could not start reprocessing.'));
-      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+      applyEpisodeJobState(queryClient, slug!, [episodeId!], jobStateFromError(error));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
+        queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
+        queryClient.invalidateQueries({ queryKey: ['processing-episodes'] }),
+      ]);
+    },
+    onSettled: () => {
+      reprocessSubmittingRef.current = false;
     },
   });
+
+  // Eligibility for every control that enqueues a reprocess/redetect/recut
+  // run, derived from the server-authoritative jobState rather than ad-hoc
+  // status checks.
+  const reprocessBlocked = isActionBlocked(episode?.jobState, reprocessMutation.isPending);
+  const reprocessBlockedReason = reprocessBlocked ? blockedRunReason(episode?.jobState) : null;
+
+  // Guards a same-tick double activation (double-click, keyboard repeat) that
+  // would fire two POSTs before the disabled prop re-renders. Above the early
+  // returns because correctionMutation's onSuccess calls it after a re-render.
+  const handleReprocess = (mode: 'reprocess' | 'full' | 'llm' | 'recut') => {
+    if (reprocessSubmittingRef.current) return;
+    // The chained recut after a correction reaches this with no disabled
+    // button in front of it, so a refusal has to say so rather than vanish.
+    if (reprocessBlockedReason) {
+      setCorrectionError(reprocessBlockedReason);
+      return;
+    }
+    reprocessSubmittingRef.current = true;
+    reprocessMutation.mutate(mode);
+  };
 
   const regenerateChaptersMutation = useMutation({
     mutationFn: () => regenerateChapters(slug!, episodeId!),
@@ -326,6 +396,24 @@ function EpisodeDetail() {
       console.error('Failed to regenerate chapters:', error);
       await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
+  });
+
+  // Sets or clears this episode's pass-through override (#746).
+  const passthroughMutation = useMutation({
+    mutationFn: (enabled: boolean) => setEpisodesPassthrough(slug!, [episodeId!], enabled),
+    onSuccess: async (result) => {
+      // Apply the returned jobState only when this episode was actually
+      // accepted; a rejected one (e.g. a running episode) must not be flipped
+      // to idle, which would re-enable reprocess controls mid-run.
+      if ((result.accepted ?? []).includes(episodeId!)) {
+        applyEpisodeJobState(queryClient, slug!, [episodeId!], jobStateOf(result));
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
+        queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
+      ]);
+    },
+    onError: (error) => setCorrectionError(getErrorMessage(error, 'Could not update pass-through.')),
   });
 
   // Mutation for submitting ad corrections
@@ -374,7 +462,7 @@ function EpisodeDetail() {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
       if (pendingRecutRef.current) {
         pendingRecutRef.current = false;
-        reprocessMutation.mutate('recut');
+        handleReprocess('recut');
       }
       // episode here is the pre-refetch row, so a single held marker
       // matching this reject means the review set just emptied.
@@ -401,19 +489,28 @@ function EpisodeDetail() {
     correctionMutation.mutate(correction);
   };
 
-  // Per-row save status for the Held-for-Review and Detections-Not-Cut rows.
-  // Match on the full identity, not just start/end, so two markers that
-  // happen to share boundaries don't both light up when only one is saving.
-  const rowSaveStatus = (segment: {
-    start: number; end: number; confidence: number; reason?: string;
-  }): SaveStatus => {
-    const mutAd = correctionMutation.variables?.originalAd;
-    return mutAd?.start === segment.start &&
+  // Per-row, per-action save status for the Held-for-Review and
+  // Detections-Not-Cut rows. Match on the full row identity plus which
+  // action (confirm / confirm-trimmed / reject) submitted the in-flight
+  // mutation, so a failure on one action doesn't render "Error!" on the
+  // other actions sharing the same row.
+  const rowSaveStatus = (
+    segment: { start: number; end: number; confidence: number; reason?: string },
+    kind: 'confirm' | 'confirm-trimmed' | 'reject',
+  ): SaveStatus => {
+    const vars = correctionMutation.variables;
+    const mutAd = vars?.originalAd;
+    const sameRow = mutAd?.start === segment.start &&
       mutAd?.end === segment.end &&
       mutAd?.confidence === segment.confidence &&
-      mutAd?.reason === (segment.reason || '')
-      ? saveStatus
-      : 'idle';
+      mutAd?.reason === (segment.reason || '');
+    if (!sameRow) return 'idle';
+    const sameAction = kind === 'reject'
+      ? vars?.type === 'reject'
+      : kind === 'confirm-trimmed'
+      ? vars?.type === 'confirm' && vars?.adjustedStart != null && vars?.adjustedEnd != null
+      : vars?.type === 'confirm' && vars?.adjustedStart == null && vars?.adjustedEnd == null;
+    return sameAction ? saveStatus : 'idle';
   };
 
   // Open (or toggle) the editor from a fresh entry point. Reopening must land
@@ -539,16 +636,24 @@ function EpisodeDetail() {
     ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
     : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)';
 
-  // An episode that hasn't gone through the pipeline yet reads "Process",
-  // not "Reprocess". Keyed on processedAt presence, not status: status
-  // cycles back through pending/processing on every reprocess (a
-  // reprocess-queued or currently-reprocessing episode must still read
-  // "Reprocess"), while processedAt is set once on the first completed run
-  // and never cleared by a later reprocess (reset_episode_for_reprocess in
-  // reprocess_modes.py leaves it untouched), so it stays the reliable
-  // "has this ever finished processing" signal throughout that window.
-  const neverProcessed = !episode.processedAt;
+  // "Process" vs "Reprocess" is keyed on hasBeenProcessed (processedAt as a
+  // pre-field fallback), not status: status cycles back to pending/processing
+  // on every reprocess and would flip the label back to "Process".
+  const neverProcessed = !(episode.hasBeenProcessed ?? !!episode.processedAt);
   const reprocessLabel = neverProcessed ? 'Process' : 'Reprocess';
+  // A trigger greyed out for minutes has to carry both its state and its why.
+  const reprocessTriggerLabel = reprocessMutation.isPending ? `${reprocessLabel}ing...` : reprocessLabel;
+  const reprocessTriggerTooltip = reprocessBlockedReason ?? `${reprocessLabel} this episode`;
+
+  // The per-episode toggle is redundant once the whole feed already runs
+  // pass-through (#746); disable it with an explanatory tooltip rather than
+  // hiding it, matching the redetectDisabled pattern above.
+  const feedIsPassthrough = feed?.processingMode === 'passthrough';
+  const passthroughToggleLabel = episode.passthroughEnabled ? 'Clear pass-through' : 'Set pass-through';
+  const passthroughToggleDisabled = feedIsPassthrough || reprocessBlocked || passthroughMutation.isPending;
+  const passthroughToggleTooltip = feedIsPassthrough
+    ? 'This feed already runs in pass-through mode'
+    : 'Serve this episode unmodified, with no ad processing';
 
   // Fetch-then-save rather than a plain link, so a 401 or a swept file
   // shows an error here instead of replacing the page with the JSON body.
@@ -658,11 +763,19 @@ function EpisodeDetail() {
                 <span>{formatFileSize(episode.fileSize)}</span>
               )}
               <span
-                className={`px-2 py-0.5 rounded text-xs font-medium ${EPISODE_STATUS_COLORS[episode.status]}${failureReason ? ' cursor-help' : ''}`}
+                className={`px-2 py-0.5 rounded text-xs font-medium ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
                 title={failureReason}
               >
-                {episode.status}
+                {displayStatusLabel(episode.status, episode.jobState)}
               </span>
+              {episode.passthroughEnabled && (
+                <span
+                  className="px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground cursor-help"
+                  title="Served unmodified; ad processing is skipped for this episode"
+                >
+                  Pass-through
+                </span>
+              )}
               {episode.lowAdYield && (
                 <span
                   className="px-2 py-0.5 rounded text-xs font-medium bg-warning/20 text-warning cursor-help"
@@ -715,10 +828,26 @@ function EpisodeDetail() {
                     : 'Cross-fetch: failed'}
                 </span>
               )}
-              {episode.llmCost != null && (
-                <span className="text-xs text-muted-foreground">
-                  LLM: ${episode.llmCost.toFixed(2)} ({episode.inputTokens != null && episode.inputTokens >= 1000 ? `${(episode.inputTokens / 1000).toFixed(1)}K` : episode.inputTokens ?? 0} in / {episode.outputTokens != null && episode.outputTokens >= 1000 ? `${(episode.outputTokens / 1000).toFixed(1)}K` : episode.outputTokens ?? 0} out)
-                </span>
+              {episode.activeRunSpend && (
+                <SpendSummary
+                  label="Active run"
+                  spend={episode.activeRunSpend}
+                  title="Spend recorded so far by the run currently in flight"
+                />
+              )}
+              {episode.latestRunSpend && (
+                <SpendSummary
+                  label="Latest run"
+                  spend={episode.latestRunSpend}
+                  title="The last attempted run, a failed one included"
+                />
+              )}
+              {episode.cumulativeSpend && (
+                <SpendSummary
+                  label={episode.jobState === 'processing' ? 'Recorded so far' : 'Total spend'}
+                  spend={episode.cumulativeSpend}
+                  title="Every run this episode has had"
+                />
               )}
               {downloadItems.length > 0 && (
                 <DropdownMenu
@@ -730,33 +859,36 @@ function EpisodeDetail() {
                 />
               )}
               <DropdownMenu
-                triggerLabel={reprocessMutation.isPending
-                  ? (neverProcessed ? 'Processing...' : 'Reprocessing...')
-                  : reprocessLabel}
+                triggerLabel={reprocessTriggerLabel}
                 triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
                 chevronClassName="w-3 h-3"
-                disabled={reprocessMutation.isPending || episode.status === 'processing'}
+                disabled={reprocessBlocked}
+                title={reprocessTriggerTooltip}
                 items={[
                   { title: reprocessLabel, subtitle: 'Use patterns + AI',
                     tooltip: 'Use learned patterns + AI analysis',
-                    onClick: () => reprocessMutation.mutate('reprocess') },
+                    onClick: () => handleReprocess('reprocess') },
                   { title: 'Full Analysis', subtitle: 'Skip patterns, AI only',
                     tooltip: 'Skip pattern DB, AI analyzes everything fresh',
-                    onClick: () => reprocessMutation.mutate('full') },
+                    onClick: () => handleReprocess('full') },
                   ...(episode.hasOriginalAudio ? [{
                     title: 'Recut Audio', subtitle: 'Apply edits, no AI',
                     tooltip: 'Re-cut the original audio from your current ad edits (no transcription or AI)',
-                    onClick: () => reprocessMutation.mutate('recut') }] : []),
+                    onClick: () => handleReprocess('recut') }] : []),
                   ...(episode.transcriptAvailable ? [{
                     title: 'Re-detect Ads', subtitle: 'Keep transcript, re-cut',
                     disabled: redetectDisabled,
                     tooltip: redetectTooltip,
-                    onClick: () => reprocessMutation.mutate('llm') }] : []),
+                    onClick: () => handleReprocess('llm') }] : []),
                   ...(episode.transcriptVttAvailable ? [{
                     title: 'Regenerate Chapters', subtitle: 'Use existing transcript',
                     disabled: chaptersRegenerating,
                     tooltip: 'Regenerate chapters from existing transcript',
                     onClick: () => regenerateChaptersMutation.mutate() }] : []),
+                  { title: passthroughToggleLabel, subtitle: 'Served unmodified, no ad processing',
+                    disabled: passthroughToggleDisabled,
+                    tooltip: passthroughToggleTooltip,
+                    onClick: () => passthroughMutation.mutate(!episode.passthroughEnabled) },
                 ]}
               />
             </div>
@@ -811,8 +943,8 @@ function EpisodeDetail() {
               </span>
               <button
                 type="button"
-                onClick={() => reprocessMutation.mutate('llm')}
-                disabled={reprocessMutation.isPending || episode.status === 'processing'}
+                onClick={() => handleReprocess('llm')}
+                disabled={reprocessBlocked}
                 className={`shrink-0 px-3 py-1.5 text-xs sm:text-sm rounded ${btnSecondary} disabled:opacity-50 disabled:cursor-not-allowed ${focusRing}`}
               >
                 Re-run detection
@@ -899,7 +1031,9 @@ function EpisodeDetail() {
 
         {(episode.description || episode.chapterNotes) && (
           <RichText
-            html={(episode.description ?? '') + (episode.chapterNotes ?? '')}
+            html={[episode.description, episode.chapterNotes]
+              .filter((s): s is string => !!s && s.trim().length > 0)
+              .join('\n\n')}
             className="mt-4 block text-muted-foreground wrap-break-word"
           />
         )}
@@ -1040,6 +1174,7 @@ function EpisodeDetail() {
                 <div className="flex flex-wrap items-center gap-2">
                   {episode.hasOriginalAudio && (
                     <AuditionPlayButton
+                      size="row"
                       playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
                       onClick={() => {
                         // Play the same timeframe the row displays: for
@@ -1127,7 +1262,7 @@ function EpisodeDetail() {
                   {episode.transcript && (
                     <button
                       onClick={() => handleJumpToAd(index)}
-                      className={`px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs bg-primary/10 text-primary rounded hover:bg-primary/20 active:bg-primary/30 transition-colors touch-manipulation min-h-[36px] sm:min-h-0 ${focusRing}`}
+                      className={`${rowActionBtn} bg-primary/10 text-primary hover:bg-primary/20 active:bg-primary/30 ${focusRing}`}
                       title="Jump to this ad in editor"
                     >
                       Jump
@@ -1278,8 +1413,8 @@ function EpisodeDetail() {
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
             <button
-              onClick={() => { setHeldReviewCleared(false); reprocessMutation.mutate('llm'); }}
-              disabled={reprocessMutation.isPending || redetectDisabled}
+              onClick={() => { setHeldReviewCleared(false); handleReprocess('llm'); }}
+              disabled={reprocessBlocked || redetectDisabled}
               title={redetectTooltip}
               data-testid="redetect-after-review"
               className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
@@ -1343,7 +1478,9 @@ function EpisodeDetail() {
                 : segment.hold_reason === 'cue_low_confidence'
                 ? 'Low-confidence cue'
                 : 'Held';
-              const rowStatus = rowSaveStatus(segment);
+              const confirmStatus = rowSaveStatus(segment, 'confirm');
+              const trimmedStatus = rowSaveStatus(segment, 'confirm-trimmed');
+              const rejectStatus = rowSaveStatus(segment, 'reject');
               const heldKey = `held-${segment.start}-${segment.end}`;
               const heldPlaying = markerAudition.playingKey === heldKey;
               const originalAd = toOriginalAd(segment);
@@ -1433,11 +1570,11 @@ function EpisodeDetail() {
                           }
                           handleCorrection({ type: 'confirm', originalAd });
                         }}
-                        disabled={correctionMutation.isPending || reprocessMutation.isPending}
+                        disabled={correctionMutation.isPending || reprocessBlocked}
                         data-testid={`approve-recut-${index}`}
-                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
+                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(confirmStatus, btnPrimary)} ${focusRing}`}
                       >
-                        {btnLabel(rowStatus, oneTapRecut ? 'Confirm & Recut' : 'Confirm ad')}
+                        {btnLabel(confirmStatus, oneTapRecut ? 'Confirm & Recut' : 'Confirm ad')}
                       </button>
                       {segment.reviewer_proposed_start != null && segment.reviewer_proposed_end != null && (
                         <button
@@ -1452,27 +1589,28 @@ function EpisodeDetail() {
                               adjustedEnd: segment.reviewer_proposed_end,
                             });
                           }}
-                          disabled={correctionMutation.isPending || reprocessMutation.isPending}
+                          disabled={correctionMutation.isPending || reprocessBlocked}
                           data-testid={`approve-trimmed-${index}`}
                           title="Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode"
-                          className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnSecondary)} ${focusRing}`}
+                          className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(trimmedStatus, btnSecondary)} ${focusRing}`}
                         >
-                          {btnLabel(rowStatus,
+                          {btnLabel(trimmedStatus,
                             `Confirm trimmed (${formatTimestamp(segment.reviewer_proposed_start)} - ${formatTimestamp(segment.reviewer_proposed_end)})`)}
                         </button>
                       )}
-                      {!episode.hasOriginalAudio && rowStatus === 'success' && (
+                      {!episode.hasOriginalAudio
+                        && (confirmStatus === 'success' || trimmedStatus === 'success' || rejectStatus === 'success') && (
                         <span className="text-xs text-muted-foreground italic self-center">
                           Saved - applies on next reprocess
                         </span>
                       )}
                       <button
                         onClick={() => handleCorrection({ type: 'reject', originalAd })}
-                        disabled={correctionMutation.isPending || reprocessMutation.isPending}
+                        disabled={correctionMutation.isPending || reprocessBlocked}
                         data-testid={`dismiss-${index}`}
-                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
+                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                       >
-                        {btnLabel(rowStatus, 'Not an ad')}
+                        {btnLabel(rejectStatus, 'Not an ad')}
                       </button>
                     </div>
                   )}
@@ -1483,9 +1621,8 @@ function EpisodeDetail() {
           {episode.hasOriginalAudio && approvedHeldCount > 0 && (
             <div className="mt-4 pt-4 border-t border-warning/20 flex justify-end">
               <button
-                onClick={() => reprocessMutation.mutate('recut')}
-                disabled={correctionMutation.isPending || reprocessMutation.isPending
-                  || episode.status === 'processing'}
+                onClick={() => handleReprocess('recut')}
+                disabled={correctionMutation.isPending || reprocessBlocked}
                 data-testid="apply-approved-recut"
                 className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
               >
@@ -1513,6 +1650,7 @@ function EpisodeDetail() {
                   <div className="flex flex-wrap items-center gap-2">
                     {episode.hasOriginalAudio && (
                       <AuditionPlayButton
+                        size="row"
                         label="this segment"
                         playing={markerAudition.playingKey === `kept-${segment.start}-${segment.end}`}
                         onClick={() => markerAudition.toggle(
@@ -1557,7 +1695,8 @@ function EpisodeDetail() {
               >
                 {(() => {
                   const correction = getAdCorrection(segment.start, segment.end);
-                  const rowStatus = rowSaveStatus(segment);
+                  const confirmStatus = rowSaveStatus(segment, 'confirm');
+                  const rejectStatus = rowSaveStatus(segment, 'reject');
                   const rejectedKey = `rejected-${segment.start}-${segment.end}`;
                   const originalAd = toOriginalAd(segment);
                   const rejectedPlaying = markerAudition.playingKey === rejectedKey;
@@ -1628,16 +1767,16 @@ function EpisodeDetail() {
                           <button
                             onClick={() => handleCorrection({ type: 'confirm', originalAd })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
+                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(confirmStatus, btnPrimary)} ${focusRing}`}
                           >
-                            {btnLabel(rowStatus, 'Confirm ad')}
+                            {btnLabel(confirmStatus, 'Confirm ad')}
                           </button>
                           <button
                             onClick={() => handleCorrection({ type: 'reject', originalAd })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
+                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                           >
-                            {btnLabel(rowStatus, 'Not an ad')}
+                            {btnLabel(rejectStatus, 'Not an ad')}
                           </button>
                         </div>
                       )}

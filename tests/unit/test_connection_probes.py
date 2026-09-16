@@ -17,6 +17,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('conn_probes_test_', passphrase='conn-probes-test-pass')
 
 from main_app import app  # noqa: E402
+from config import DEFAULT_OPENAI_BASE_URL  # noqa: E402
 from api.providers import _probe_models_endpoint, _same_server  # noqa: E402
 from api.podcast_search import _podcast_index_headers  # noqa: E402
 from llm_client import invalidate_provider_cache  # noqa: E402
@@ -177,6 +178,12 @@ class TestLlmConnectionEndpoint:
             r = self._post(client, 'openai', {'baseUrl': 'http://host:99999999/v1'})
         assert r.status_code == 200
 
+    def test_userinfo_base_url_rejected(self, client):
+        r = self._post(client, 'openai',
+                       {'baseUrl': 'http://user:pass@server:8000/v1'})
+        assert r.status_code == 400
+        assert 'credentials' in r.get_json()['error']
+
     def test_same_server_malformed_port_is_false(self):
         assert _same_server('http://host:notaport/v1',
                             'http://host:8000/v1') is False
@@ -235,6 +242,154 @@ class TestFixedProviderConnection:
         data = r.get_json()
         assert data['ok'] is False
         assert data['reachable'] is False
+
+
+class TestSecondaryProviderConnection:
+    """/settings/providers/secondary/test-connection: the same staged
+    probe as the primary routes above, but targeting the
+    secondary_provider_* settings and secondary_provider_api_key secret."""
+
+    def _post(self, client, body=None):
+        return client.post('/api/v1/settings/providers/secondary/test-connection',
+                           data=json.dumps(body if body is not None else {}),
+                           content_type='application/json')
+
+    def test_not_configured(self, client, temp_db):
+        temp_db.clear_setting('secondary_provider')
+        r = self._post(client)
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data['ok'] is False
+        assert 'secondary provider type' in data['detail'].lower()
+
+    def test_fixed_endpoint_type_uses_secondary_key(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'anthropic', is_default=False)
+        temp_db.set_secret('secondary_provider_api_key', 'sk-ant-secondary')
+        temp_db.set_secret('anthropic_api_key', 'sk-ant-primary')
+        with patch('api.providers.safe_get', return_value=_response(200, json_body={'data': []})) as sg:
+            r = self._post(client)
+        assert r.status_code == 200
+        assert r.get_json()['ok'] is True
+        assert sg.call_args[0][0] == 'https://api.anthropic.com/v1/models'
+        assert sg.call_args[1]['headers']['x-api-key'] == 'sk-ant-secondary'
+
+    def test_openai_compatible_type_uses_secondary_base_and_key(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        temp_db.set_setting('secondary_provider_base_url', 'http://server:8000/v1')
+        temp_db.set_secret('secondary_provider_api_key', 'sk-secondary-saved')
+        with patch('api.providers._probe_models_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}) as probe:
+            r = self._post(client, {'baseUrl': 'http://server:8000/v1'})
+        assert r.status_code == 200
+        assert probe.call_args[0][0] == 'http://server:8000/v1'
+        assert probe.call_args[0][1] == 'sk-secondary-saved'
+
+    def test_key_withheld_from_other_server(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        temp_db.set_setting('secondary_provider_base_url', 'http://server:8000/v1')
+        temp_db.set_secret('secondary_provider_api_key', 'sk-secondary-saved')
+        with patch('api.providers._probe_models_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}) as probe:
+            self._post(client, {'baseUrl': 'http://evil.example.com/v1'})
+        assert probe.call_args[0][1] == ''
+
+    def test_ollama_type_base_url_normalized_to_v1(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'ollama', is_default=False)
+        temp_db.set_setting('secondary_provider_base_url', 'http://localhost:11434')
+        with patch('api.providers._probe_models_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}) as probe:
+            r = self._post(client, {'baseUrl': 'http://localhost:11434'})
+        assert r.status_code == 200
+        assert probe.call_args[0][0] == 'http://localhost:11434/v1'
+
+    def test_empty_base_url_is_error(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        r = self._post(client, {'baseUrl': ''})
+        assert r.status_code == 200
+        assert 'base URL' in r.get_json()['detail']
+
+    def test_non_string_base_url_rejected(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        assert self._post(client, {'baseUrl': 5}).status_code == 400
+
+    def test_draft_provider_overrides_saved_type(self, client, temp_db):
+        """A `provider` in the body probes the form's current (unsaved)
+        selection, not the last-saved secondary_provider setting."""
+        temp_db.set_setting('secondary_provider', 'ollama', is_default=False)
+        temp_db.set_secret('secondary_provider_api_key', 'sk-ollama-secondary')
+        with patch('api.providers.safe_get', return_value=_response(200, json_body={'data': []})) as sg:
+            r = self._post(client, {'provider': 'anthropic'})
+        assert r.status_code == 200
+        assert r.get_json()['ok'] is True
+        assert sg.call_args[0][0] == 'https://api.anthropic.com/v1/models'
+
+    def test_draft_provider_withholds_key_saved_for_another_type(self, client, temp_db):
+        """The stored key was entered for the saved type, so a fixed-endpoint
+        probe of an unsaved type override must not send it."""
+        temp_db.set_setting('secondary_provider', 'ollama', is_default=False)
+        temp_db.set_secret('secondary_provider_api_key', 'sk-ollama-secondary')
+        with patch('api.providers.safe_get', return_value=_response(401)) as sg:
+            r = self._post(client, {'provider': 'anthropic'})
+        assert r.status_code == 200
+        assert 'x-api-key' not in sg.call_args[1]['headers']
+        assert 'Save an API key' in r.get_json()['detail']
+
+    def test_draft_provider_withholds_key_for_configurable_type(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'anthropic', is_default=False)
+        temp_db.set_setting('secondary_provider_base_url', 'http://server:8000/v1')
+        temp_db.set_secret('secondary_provider_api_key', 'sk-ant-secondary')
+        with patch('api.providers._probe_models_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}) as probe:
+            self._post(client, {'provider': 'openai-compatible',
+                                'baseUrl': 'http://server:8000/v1'})
+        assert probe.call_args[0][1] == ''
+
+    def test_key_withheld_when_no_base_url_ever_saved(self, client, temp_db):
+        """The default endpoint is not an operator-designated server, so it
+        must not pass the saved-URL gate."""
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        temp_db.clear_setting('secondary_provider_base_url')
+        temp_db.set_secret('secondary_provider_api_key', 'sk-secondary-saved')
+        with patch('api.providers._probe_models_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}) as probe:
+            r = self._post(client)
+        assert r.status_code == 200
+        assert probe.call_args[0][0] == DEFAULT_OPENAI_BASE_URL
+        assert probe.call_args[0][1] == ''
+
+    def test_userinfo_base_url_rejected(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+        r = self._post(client, {'baseUrl': 'http://user:pass@server:8000/v1'})
+        assert r.status_code == 400
+        assert 'credentials' in r.get_json()['error']
+
+    def test_draft_provider_and_base_url_used_together(self, client, temp_db):
+        """A type change and a base URL edit made in the same unsaved form
+        state are both honored, not just whichever was saved last."""
+        temp_db.set_setting('secondary_provider', 'anthropic', is_default=False)
+        temp_db.set_setting('secondary_provider_base_url', 'http://saved-host:8000/v1')
+        temp_db.set_secret('secondary_provider_api_key', 'sk-secondary-saved')
+        with patch('api.providers._probe_models_endpoint',
+                   return_value={'ok': True, 'reachable': True,
+                                 'status': 200, 'detail': 'Connected.'}) as probe:
+            r = self._post(client, {
+                'provider': 'openai-compatible',
+                'baseUrl': 'http://draft-host:8000/v1',
+            })
+        assert r.status_code == 200
+        assert probe.call_args[0][0] == 'http://draft-host:8000/v1'
+        # The draft base URL does not match the saved one, so the gate
+        # withholds the key even though a key is configured.
+        assert probe.call_args[0][1] == ''
+
+    def test_invalid_draft_provider_rejected(self, client, temp_db):
+        temp_db.set_setting('secondary_provider', 'anthropic', is_default=False)
+        assert self._post(client, {'provider': 'bogus'}).status_code == 400
 
 
 class TestLegacyKeyTestOllamaNormalization:

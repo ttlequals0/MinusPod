@@ -1,9 +1,13 @@
 """Statistics and token usage mixin for MinusPod database."""
 import json
 import logging
+import uuid
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from config import normalize_model_key
 from utils.app_version import APP_VERSION as __version__
+from utils.time import parse_iso_utc
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +27,107 @@ _PROCESSED_EPISODE_EXISTS_SQL = (
     "WHERE h.episode_id = e.episode_id AND h.podcast_id = e.podcast_id "
     "AND h.status = 'completed')"
 )
+
+
+def _ledger_row_is_billable(state: str, input_tokens, output_tokens, cost: float) -> bool:
+    """Whether a finalized llm_call_usage row counts toward totals.
+
+    Single source of truth for finalize_llm_attempt's counter gate and the
+    run-scoped readers below: success, or a failure with tokens known (a
+    billed failure); excludes an all-zero row (unknown cost, no tokens).
+    """
+    tokens_known = input_tokens is not None and output_tokens is not None
+    if not (state == 'success' or (state == 'failure' and tokens_known)):
+        return False
+    return (input_tokens or 0) > 0 or (output_tokens or 0) > 0 or cost != 0
+
+
+# SQL mirror of _ledger_row_is_billable, for GROUP BY aggregates that must
+# filter in SQL rather than materialising every ledger row in Python.
+_LEDGER_BILLABLE_SQL = (
+    "(state = 'success' OR (state = 'failure' AND input_tokens IS NOT NULL "
+    "AND output_tokens IS NOT NULL)) "
+    "AND (COALESCE(input_tokens, 0) > 0 OR COALESCE(output_tokens, 0) > 0 "
+    "OR (cost_usd IS NOT NULL AND CAST(cost_usd AS REAL) != 0))"
+)
+
+
+def _utc_day_start(value: str) -> str | None:
+    """Start-of-UTC-day ISO (YYYY-MM-DDT00:00:00Z) for a date or datetime
+    string, or None if it cannot be parsed. Ledger timestamps are UTC, so a
+    day-granular Stats filter is compared on whole UTC days."""
+    if not value:
+        return None
+    text = value.strip()
+    dt = parse_iso_utc(text)
+    if dt is None:
+        try:
+            dt = datetime.strptime(text[:10], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return dt.astimezone(timezone.utc).strftime('%Y-%m-%dT00:00:00Z')
+
+
+def _build_ledger_filters(from_date=None, to_date=None, podcast_slug=None,
+                          provider=None, model=None) -> tuple[str, list]:
+    """WHERE-clause fragment (leading ' AND ...') and params for the
+    model-usage/episode-cost list queries. Shared so both endpoints filter
+    identically on created_at range, podcast, provider, and model.
+
+    Dates are treated as whole UTC days with a half-open range
+    (created_at >= day-start AND created_at < next-day-start), so the final
+    second of the selected day is included regardless of whether the caller
+    sends a bare date, a whole-second, or a fractional-second timestamp
+    (textual comparison otherwise dropped 'T23:59:59Z' under 'T23:59:59.999Z')."""
+    clauses = []
+    params: list = []
+    if from_date:
+        start = _utc_day_start(from_date)
+        clauses.append("created_at >= ?")
+        params.append(start if start is not None else from_date)
+    if to_date:
+        start = _utc_day_start(to_date)
+        if start is not None:
+            next_day = (datetime.strptime(start, '%Y-%m-%dT00:00:00Z')
+                        + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00Z')
+            clauses.append("created_at < ?")
+            params.append(next_day)
+        else:
+            clauses.append("created_at <= ?")
+            params.append(to_date)
+    if podcast_slug:
+        clauses.append("podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)")
+        params.append(podcast_slug)
+    if provider:
+        clauses.append("provider_key = ?")
+        params.append(provider)
+    if model:
+        clauses.append("configured_model = ?")
+        params.append(model)
+    if not clauses:
+        return "", params
+    return " AND " + " AND ".join(clauses), params
+
+
+def _sum_billable_rows(rows) -> tuple[int, int, Decimal, bool]:
+    """(input tokens, output tokens, known-cost sum, has_unknown_cost) over
+    the billable rows of a finalized-ledger result set."""
+    total_input = 0
+    total_output = 0
+    total_cost = Decimal('0')
+    has_unknown_cost = False
+    for row in rows:
+        cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
+        if not _ledger_row_is_billable(
+                row['state'], row['input_tokens'], row['output_tokens'], cost):
+            continue
+        total_input += row['input_tokens'] or 0
+        total_output += row['output_tokens'] or 0
+        if row['cost_usd'] is not None:
+            total_cost += Decimal(row['cost_usd'])
+        else:
+            has_unknown_cost = True
+    return total_input, total_output, total_cost, has_unknown_cost
 
 
 class StatsMixin:
@@ -155,30 +260,25 @@ class StatsMixin:
 
     # ========== Token Usage Methods ==========
 
-    def _calculate_token_cost(self, conn, model_id: str,
-                              input_tokens: int, output_tokens: int,
-                              match_key: str = '') -> float:
-        """Calculate cost using normalized match_key lookup.
+    def _resolve_model_rate(self, conn, model_id: str, match_key: str = ''):
+        """Resolve current per-mtok input/output rates for a model.
 
-        Resolution: operator override -> exact catalog match -> prefix match -> $0.
+        Returns (input_per_mtok, output_per_mtok, revision) or None when no
+        operator override, exact catalog match, or prefix match resolves a
+        rate. Resolution: operator override -> exact match_key -> prefix match.
+        `revision` identifies the resolved rate's provenance ('override' or
+        '<source>:<updated_at>') so callers can snapshot what priced a call.
         """
         if not match_key:
             match_key = normalize_model_key(model_id)
 
-        logger.debug(f"Cost lookup: model_id='{model_id}' -> match_key='{match_key}'")
-
         override = self.get_model_pricing_override(model_id)
         if override is not None:
-            input_per_mtok = override['inputCostPerMtok']
-            output_per_mtok = override['outputCostPerMtok']
-            return (
-                (input_tokens / 1_000_000) * input_per_mtok
-                + (output_tokens / 1_000_000) * output_per_mtok
-            )
+            return override['inputCostPerMtok'], override['outputCostPerMtok'], 'override'
 
         # Exact match on match_key
         cursor = conn.execute(
-            "SELECT input_cost_per_mtok, output_cost_per_mtok "
+            "SELECT input_cost_per_mtok, output_cost_per_mtok, source, updated_at "
             "FROM model_pricing WHERE match_key = ?",
             (match_key,)
         )
@@ -193,7 +293,8 @@ class StatsMixin:
         # still matches row 'claude37sonnet' because the next char is a letter.
         if not row:
             cursor = conn.execute(
-                """SELECT match_key, input_cost_per_mtok, output_cost_per_mtok
+                """SELECT match_key, input_cost_per_mtok, output_cost_per_mtok,
+                          source, updated_at
                    FROM model_pricing
                    WHERE ? LIKE match_key || '%'
                      AND length(match_key) >= length(?) * 0.8
@@ -218,11 +319,7 @@ class StatsMixin:
                 break
 
         if not row:
-            logger.warning(
-                f"No pricing found for model '{model_id}' "
-                f"(match_key='{match_key}'), cost recorded as $0"
-            )
-            return 0.0
+            return None
 
         input_per_mtok = row['input_cost_per_mtok']
         output_per_mtok = row['output_cost_per_mtok']
@@ -235,22 +332,17 @@ class StatsMixin:
             input_per_mtok = max(0.0, input_per_mtok)
             output_per_mtok = max(0.0, output_per_mtok)
 
-        input_cost = (input_tokens / 1_000_000) * input_per_mtok
-        output_cost = (output_tokens / 1_000_000) * output_per_mtok
-        return input_cost + output_cost
+        return input_per_mtok, output_per_mtok, f"{row['source']}:{row['updated_at']}"
 
-    def record_token_usage(self, model_id: str, input_tokens: int, output_tokens: int) -> float:
-        """Record token usage for an LLM call. Atomic upsert to per-model and global stats.
-        Returns the calculated cost for this call."""
-        if not model_id or (input_tokens <= 0 and output_tokens <= 0):
-            return 0.0
+    def _apply_token_usage_counters(self, conn, model_id: str,
+                                    input_tokens: int, output_tokens: int,
+                                    cost: float) -> None:
+        """Upsert the per-model token_usage row and bump global stats.
 
-        conn = self.get_connection()
+        Conn-taking so finalize_llm_attempt writes counters inside its own
+        transaction. Caller commits.
+        """
         match_key = normalize_model_key(model_id)
-        cost = self._calculate_token_cost(conn, model_id, input_tokens, output_tokens,
-                                          match_key=match_key)
-
-        # Upsert per-model token_usage row
         conn.execute(
             """INSERT INTO token_usage
                    (model_id, match_key, total_input_tokens, total_output_tokens,
@@ -272,12 +364,683 @@ class StatsMixin:
             ('total_llm_cost', cost),
         ])
 
-        conn.commit()
-        logger.debug(
-            f"Token usage: model={model_id} match_key={match_key} "
-            f"in={input_tokens} out={output_tokens} cost=${cost:.6f}"
+    def begin_llm_attempt(self, *, run_id, podcast_id, episode_id, phase_key,
+                          invoking_pass, provider_key, configured_model,
+                          window_label=None, credential_slot='primary') -> str:
+        """Insert an in_flight llm_call_usage row; return a new attempt_id."""
+        attempt_id = str(uuid.uuid4())
+        conn = self.get_connection()
+        conn.execute(
+            """INSERT INTO llm_call_usage
+                   (attempt_id, run_id, podcast_id, episode_id, phase_key,
+                    invoking_pass, window_label, provider_key, credential_slot,
+                    configured_model, state)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight')""",
+            (attempt_id, run_id, podcast_id, episode_id, phase_key,
+             invoking_pass, window_label, provider_key, credential_slot,
+             configured_model)
         )
+        conn.commit()
+        return attempt_id
+
+    def count_recent_llm_attempts(self, provider_key: str, credential_slot: str,
+                                  since_iso: str) -> int:
+        """Ledger attempts for one (provider, slot) with created_at >= since_iso.
+
+        NULL credential_slot (historical rows) reads as 'primary'. Backs the
+        manual per-provider RPM/RPD throttle.
+        """
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT COUNT(*) AS n FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return int(row['n']) if row else 0
+
+    def oldest_recent_llm_attempt(self, provider_key: str, credential_slot: str,
+                                  since_iso: str) -> str | None:
+        """created_at of the oldest (provider, slot) attempt at or after
+        since_iso, or None when the window holds none. NULL slot reads as
+        'primary'."""
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT MIN(created_at) AS oldest FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return row['oldest'] if row and row['oldest'] else None
+
+    def sum_recent_llm_tokens(self, provider_key: str, credential_slot: str,
+                              since_iso: str) -> int:
+        """Finalized input+output tokens for one (provider, slot) with
+        created_at >= since_iso. Only finalized rows carry token counts;
+        in-flight rows are unknown, the same approximation RPM accepts.
+        Backs the manual per-provider TPM throttle. NULL slot reads as
+        'primary'."""
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT COALESCE(SUM(COALESCE(input_tokens, 0)
+                                   + COALESCE(output_tokens, 0)), 0) AS n
+               FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND finalized_at IS NOT NULL
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return int(row['n']) if row else 0
+
+    def oldest_recent_llm_token_attempt(self, provider_key: str,
+                                        credential_slot: str,
+                                        since_iso: str) -> str | None:
+        """created_at of the oldest token-contributing finalized (provider,
+        slot) row at or after since_iso, or None. Used for the TPM reset."""
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT MIN(created_at) AS oldest FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND finalized_at IS NOT NULL
+                 AND (input_tokens IS NOT NULL OR output_tokens IS NOT NULL)
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return row['oldest'] if row and row['oldest'] else None
+
+    def finalize_llm_attempt(self, attempt_id: str, *, state: str,
+                             returned_model=None, input_tokens=None,
+                             output_tokens=None, cache_read_tokens=None,
+                             cache_write_tokens=None, reasoning_tokens=None,
+                             provider_reported_cost_usd=None) -> float:
+        """Finalize one ledger attempt and derive counters when billable.
+
+        Cost/cost_source: provider_reported_cost_usd wins when given
+        ('provider_reported'); else a resolved rate over known tokens
+        ('estimated', or 'explicit_zero' when the resolved rate is 0/0);
+        else 'unknown' with cost_usd left NULL. Counters (token_usage +
+        global stats) are derived in this same transaction only when the
+        attempt is billable: state == 'success', or state == 'failure' with
+        tokens known (a billed failure), and either tokens or cost is
+        nonzero. 'cancelled' and unknown-token, zero-cost failures update
+        the ledger row only.
+        """
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT configured_model FROM llm_call_usage WHERE attempt_id = ?",
+            (attempt_id,)
+        ).fetchone()
+        if row is None:
+            logger.warning(f"finalize_llm_attempt: unknown attempt_id '{attempt_id}'")
+            return 0.0
+        configured_model = row['configured_model']
+
+        tokens_known = input_tokens is not None and output_tokens is not None
+        cost_usd = None
+        cost_source = 'unknown'
+        rate_snapshot = None
+        pricing_revision = None
+        cost = 0.0
+
+        if provider_reported_cost_usd is not None:
+            cost_source = 'provider_reported'
+            cost_dec = Decimal(str(provider_reported_cost_usd))
+            cost_usd = str(cost_dec)
+            cost = float(cost_dec)
+        elif tokens_known:
+            resolved = self._resolve_model_rate(conn, configured_model)
+            # An endpoint alias may resolve to a differently-named priced model.
+            if resolved is None and returned_model and returned_model != configured_model:
+                resolved = self._resolve_model_rate(conn, returned_model)
+            if resolved is not None:
+                input_per_mtok, output_per_mtok, revision = resolved
+                if input_per_mtok == 0 and output_per_mtok == 0:
+                    cost_source = 'explicit_zero'
+                    cost_dec = Decimal('0')
+                else:
+                    cost_source = 'estimated'
+                    mtok = Decimal(1_000_000)
+                    cost_dec = (
+                        Decimal(input_tokens) / mtok * Decimal(str(input_per_mtok))
+                        + Decimal(output_tokens) / mtok * Decimal(str(output_per_mtok))
+                    )
+                    rate_snapshot = json.dumps({
+                        'inputCostPerMtok': input_per_mtok,
+                        'outputCostPerMtok': output_per_mtok,
+                    })
+                    pricing_revision = revision
+                cost_usd = str(cost_dec)
+                cost = float(cost_dec)
+
+        # Guard on finalized_at IS NULL so a duplicate finalize is a no-op:
+        # counters must not double-count when an attempt is finalized twice
+        # (recovery, retry). A repeat returns the already-recorded cost.
+        cursor = conn.execute(
+            """UPDATE llm_call_usage SET
+                   finalized_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+                   state = ?, returned_model = ?, input_tokens = ?,
+                   output_tokens = ?, cache_read_tokens = ?,
+                   cache_write_tokens = ?, reasoning_tokens = ?, cost_usd = ?,
+                   cost_source = ?, rate_snapshot = ?, pricing_revision = ?
+               WHERE attempt_id = ? AND finalized_at IS NULL""",
+            (state, returned_model, input_tokens, output_tokens,
+             cache_read_tokens, cache_write_tokens, reasoning_tokens,
+             cost_usd, cost_source, rate_snapshot, pricing_revision, attempt_id)
+        )
+        if cursor.rowcount == 0:
+            conn.commit()
+            existing = conn.execute(
+                "SELECT cost_usd FROM llm_call_usage WHERE attempt_id = ?",
+                (attempt_id,)
+            ).fetchone()
+            if existing is not None and existing['cost_usd'] is not None:
+                return float(existing['cost_usd'])
+            return 0.0
+
+        counter_input = input_tokens or 0
+        counter_output = output_tokens or 0
+        if _ledger_row_is_billable(state, input_tokens, output_tokens, cost):
+            self._apply_token_usage_counters(
+                conn, configured_model, counter_input, counter_output, cost)
+
+        conn.commit()
         return cost
+
+    def finalize_llm_attempt_from_response(self, attempt_id: str, state: str,
+                                           response) -> float:
+        """finalize_llm_attempt fed from a provider response object.
+
+        Guards every field a client may leave unset or set to the wrong type,
+        so the dispatch path and the rate-limit probe extract usage, returned
+        model, and provider-reported cost identically. Returns the cost.
+        """
+        usage = getattr(response, 'usage', None)
+        if not isinstance(usage, dict):
+            usage = {}
+        returned_model = getattr(response, 'returned_model', None)
+        if not isinstance(returned_model, str):
+            returned_model = None
+        provider_cost = getattr(response, 'provider_reported_cost_usd', None)
+        if isinstance(provider_cost, bool) or not isinstance(provider_cost, (int, float)):
+            provider_cost = None
+        return self.finalize_llm_attempt(
+            attempt_id, state=state, returned_model=returned_model,
+            input_tokens=usage.get('input_tokens'),
+            output_tokens=usage.get('output_tokens'),
+            cache_read_tokens=usage.get('cache_read_tokens'),
+            cache_write_tokens=usage.get('cache_write_tokens'),
+            reasoning_tokens=usage.get('reasoning_tokens'),
+            provider_reported_cost_usd=provider_cost,
+        )
+
+    def get_run_usage_totals(self, run_id: str) -> dict:
+        """Sum one run's finalized billable ledger rows.
+
+        The single source for run totals: processing_history and provider
+        reconcile both read this instead of separately re-deriving from a
+        live in-process accumulator, so a late-finishing pool worker can
+        never diverge from what was actually billed.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT state, input_tokens, output_tokens, cost_usd
+               FROM llm_call_usage
+               WHERE run_id IS ? AND finalized_at IS NOT NULL""",
+            (run_id,)
+        ).fetchall()
+        total_input, total_output, total_cost, has_unknown_cost = _sum_billable_rows(rows)
+        return {
+            'input_tokens': total_input,
+            'output_tokens': total_output,
+            'cost_usd': str(total_cost),
+            'has_unknown_cost': has_unknown_cost,
+        }
+
+    def get_episode_run_usage_totals(self, podcast_id: int, episode_id: str) -> dict:
+        """get_run_usage_totals for every run of one episode, keyed by run_id,
+        in a single scan so a page rendering N runs does not issue N queries.
+        Runs with no billable rows are still present with zeroed totals."""
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT run_id, state, input_tokens, output_tokens, cost_usd
+               FROM llm_call_usage
+               WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL""",
+            (podcast_id, episode_id)
+        ).fetchall()
+        by_run: dict = {}
+        for row in rows:
+            by_run.setdefault(row['run_id'], []).append(row)
+        totals = {}
+        for run_id, run_rows in by_run.items():
+            total_input, total_output, total_cost, has_unknown = _sum_billable_rows(run_rows)
+            totals[run_id] = {
+                'input_tokens': total_input,
+                'output_tokens': total_output,
+                'cost_usd': str(total_cost),
+                'has_unknown_cost': has_unknown,
+            }
+        return totals
+
+    def get_run_provider_spend(self, run_id: str, provider_key: str) -> int:
+        """MicroUSD spend of one run's finalized billable ledger rows for one
+        provider. Backs provider budget reconcile so it reads the same
+        ledger sum as get_run_usage_totals, not a second independent
+        re-derivation.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT state, input_tokens, output_tokens, cost_usd
+               FROM llm_call_usage
+               WHERE run_id IS ? AND provider_key = ? AND finalized_at IS NOT NULL""",
+            (run_id, provider_key)
+        ).fetchall()
+        total_cost = Decimal('0')
+        for row in rows:
+            cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
+            if not _ledger_row_is_billable(
+                    row['state'], row['input_tokens'], row['output_tokens'], cost):
+                continue
+            if row['cost_usd'] is not None:
+                total_cost += Decimal(row['cost_usd'])
+        return round(total_cost * 1_000_000)
+
+    def get_ledger_filter_options(self, *, from_date: str = None, to_date: str = None,
+                                  podcast_slug: str = None) -> list[dict]:
+        """Distinct (provider, model) pairs in the billable ledger for the
+        Stats filter dropdowns, ordered by provider then model, dropping rows
+        with a null provider or model. Same finalized/billable/date scope as
+        the list endpoints so a value past the first list page stays
+        selectable."""
+        conn = self.get_connection()
+        filter_sql, filter_params = _build_ledger_filters(
+            from_date, to_date, podcast_slug)
+        rows = conn.execute(
+            f"""SELECT DISTINCT provider_key, configured_model
+                FROM llm_call_usage
+                WHERE finalized_at IS NOT NULL AND {_LEDGER_BILLABLE_SQL}{filter_sql}
+                ORDER BY provider_key, configured_model""",  # noqa: S608
+            filter_params
+        ).fetchall()
+        return [{'provider': r['provider_key'], 'model': r['configured_model']}
+                for r in rows if r['provider_key'] and r['configured_model']]
+
+    def run_provider_spend_is_incomplete(self, run_id: str, provider_key: str) -> bool:
+        """True when this run has a billable call for the provider whose cost
+        is unknown (cost_usd IS NULL). Budget reconcile keeps a conservative
+        reservation in that case instead of settling on a known-only subtotal
+        that understates spend. Same billable predicate as
+        get_run_provider_spend, so an all-zero row never counts as missing."""
+        conn = self.get_connection()
+        row = conn.execute(
+            f"""SELECT 1 FROM llm_call_usage
+                WHERE run_id IS ? AND provider_key = ? AND finalized_at IS NOT NULL
+                  AND {_LEDGER_BILLABLE_SQL} AND cost_usd IS NULL
+                LIMIT 1""",  # noqa: S608
+            (run_id, provider_key)
+        ).fetchone()
+        return row is not None
+
+    def get_episode_phase_usage(self, podcast_id: int, episode_id: str) -> dict:
+        """Per-run phase/provider/model usage breakdown from the ledger.
+
+        Returns {run_id: [{phaseKey, invokingPass, provider, configuredModel,
+        returnedModel, inputTokens, outputTokens, cacheReadTokens,
+        cacheWriteTokens, reasoningTokens, costUsd, costSource}, ...]}, one
+        row per distinct (phase_key, invoking_pass, provider_key,
+        configured_model): a retried/fallback phase naturally yields
+        several rows since a fallback changes configured_model. Only
+        finalized billable rows count (the same predicate get_run_usage_totals
+        uses), so a run's phase costs always sum to that run's subtotal.
+        A group containing an 'unknown' cost_source row reports costUsd=None
+        and costSource='unknown' rather than silently understating the total.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT run_id, phase_key, invoking_pass, provider_key,
+                      configured_model, returned_model, state, input_tokens,
+                      output_tokens, cache_read_tokens, cache_write_tokens,
+                      reasoning_tokens, cost_usd, cost_source
+               FROM llm_call_usage
+               WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL
+               ORDER BY run_id, created_at""",
+            (podcast_id, episode_id)
+        ).fetchall()
+
+        groups: dict = {}
+        for row in rows:
+            cost = float(row['cost_usd']) if row['cost_usd'] is not None else 0.0
+            if not _ledger_row_is_billable(
+                    row['state'], row['input_tokens'], row['output_tokens'], cost):
+                continue
+            key = (row['run_id'], row['phase_key'], row['invoking_pass'],
+                   row['provider_key'], row['configured_model'])
+            group = groups.get(key)
+            if group is None:
+                group = {
+                    'phaseKey': row['phase_key'],
+                    'invokingPass': row['invoking_pass'],
+                    'provider': row['provider_key'],
+                    'configuredModel': row['configured_model'],
+                    'returnedModel': row['returned_model'],
+                    'inputTokens': 0,
+                    'outputTokens': 0,
+                    'cacheReadTokens': 0,
+                    'cacheWriteTokens': 0,
+                    'reasoningTokens': 0,
+                    'costUsd': Decimal('0'),
+                    'costKnown': True,
+                    'costSources': set(),
+                }
+                groups[key] = group
+            group['inputTokens'] += row['input_tokens'] or 0
+            group['outputTokens'] += row['output_tokens'] or 0
+            group['cacheReadTokens'] += row['cache_read_tokens'] or 0
+            group['cacheWriteTokens'] += row['cache_write_tokens'] or 0
+            group['reasoningTokens'] += row['reasoning_tokens'] or 0
+            if row['returned_model']:
+                group['returnedModel'] = row['returned_model']
+            if row['cost_usd'] is None:
+                group['costKnown'] = False
+            else:
+                group['costUsd'] += Decimal(row['cost_usd'])
+            group['costSources'].add(row['cost_source'])
+
+        result: dict = {}
+        for (run_id, *_rest), group in groups.items():
+            sources = group.pop('costSources')
+            cost_known = group.pop('costKnown')
+            if cost_known and 'unknown' not in sources:
+                group['costUsd'] = str(group['costUsd'])
+                group['costSource'] = sources.pop() if len(sources) == 1 else 'mixed'
+            else:
+                group['costUsd'] = None
+                group['costSource'] = 'unknown'
+            result.setdefault(run_id, []).append(group)
+        return result
+
+    def get_episode_cumulative_usage(self, podcast_id: int, episode_id: str) -> dict:
+        """Sum ALL finalized billable ledger rows for this episode across
+        every attempt/run: lifetime spend, not just the latest run.
+        Mirrors get_run_usage_totals's convention: cost_usd sums only rows
+        with a known cost; unknown-cost rows still count toward tokens.
+        ``hasUnknownCost`` is true when any contributing row's cost is
+        unknown, so callers know costUsd may understate the true total
+        instead of silently trusting a partial sum.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT state, input_tokens, output_tokens, cost_usd
+               FROM llm_call_usage
+               WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL""",
+            (podcast_id, episode_id)
+        ).fetchall()
+        total_input, total_output, total_cost, has_unknown_cost = _sum_billable_rows(rows)
+        return {
+            'inputTokens': total_input,
+            'outputTokens': total_output,
+            'costUsd': str(total_cost),
+            'hasUnknownCost': has_unknown_cost,
+        }
+
+    _MODEL_USAGE_SORT_COLUMNS = {
+        'provider': 'provider_key',
+        'model': 'configured_model',
+        'calls': 'calls',
+        'distinctEpisodes': 'distinct_episodes',
+        'inputTokens': 'input_tokens',
+        'outputTokens': 'output_tokens',
+        'knownCostUsd': 'known_cost_usd',
+        'unknownCostCount': 'unknown_cost_count',
+    }
+
+    def get_model_usage_stats(self, *, page: int = 1, limit: int = 50,
+                              sort_by: str = 'knownCostUsd', sort_dir: str = 'desc',
+                              from_date: str = None, to_date: str = None,
+                              podcast_slug: str = None, provider: str = None,
+                              model: str = None) -> tuple[list[dict], int]:
+        """Paginated spend-by-(provider, model) breakdown over the ledger.
+
+        Same provider+model grouped across every episode; an identical
+        model id under two providers stays two separate rows because
+        provider_key is part of the GROUP BY. unknownCostCount counts
+        billable rows whose cost could not be resolved (cost_usd NULL),
+        so an unpriced model's spend is visibly incomplete rather than $0.
+        """
+        conn = self.get_connection()
+        offset = max(0, (max(1, page) - 1) * limit)
+        filter_sql, filter_params = _build_ledger_filters(
+            from_date, to_date, podcast_slug, provider, model)
+        where_sql = f"finalized_at IS NOT NULL AND {_LEDGER_BILLABLE_SQL}{filter_sql}"
+        sort_col = self._MODEL_USAGE_SORT_COLUMNS.get(sort_by, 'known_cost_usd')
+        sort_dir_sql = 'ASC' if sort_dir.lower() == 'asc' else 'DESC'
+
+        total = conn.execute(
+            f"""SELECT COUNT(*) FROM (
+                    SELECT 1 FROM llm_call_usage
+                    WHERE {where_sql}
+                    GROUP BY provider_key, configured_model
+                )""",  # noqa: S608
+            filter_params
+        ).fetchone()[0]
+
+        rows = conn.execute(
+            f"""SELECT
+                    provider_key,
+                    configured_model,
+                    COUNT(*) AS calls,
+                    COUNT(DISTINCT CASE WHEN podcast_id IS NOT NULL AND episode_id IS NOT NULL
+                                         THEN podcast_id || ':' || episode_id END) AS distinct_episodes,
+                    COALESCE(SUM(COALESCE(input_tokens, 0)), 0) AS input_tokens,
+                    COALESCE(SUM(COALESCE(output_tokens, 0)), 0) AS output_tokens,
+                    COALESCE(SUM(CASE WHEN cost_usd IS NOT NULL
+                                      THEN CAST(cost_usd AS REAL) ELSE 0 END), 0) AS known_cost_usd,
+                    SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_cost_count
+                FROM llm_call_usage
+                WHERE {where_sql}
+                GROUP BY provider_key, configured_model
+                ORDER BY {sort_col} {sort_dir_sql}
+                LIMIT ? OFFSET ?""",  # noqa: S608
+            filter_params + [limit, offset]
+        ).fetchall()
+
+        items = [{
+            'provider': row['provider_key'],
+            'model': row['configured_model'],
+            'calls': row['calls'],
+            'distinctEpisodes': row['distinct_episodes'],
+            'inputTokens': row['input_tokens'],
+            'outputTokens': row['output_tokens'],
+            'knownCostUsd': str(Decimal(str(round(row['known_cost_usd'], 6)))),
+            'unknownCostCount': row['unknown_cost_count'],
+        } for row in rows]
+        return items, total
+
+    _EPISODE_COST_SORT_COLUMNS = {
+        'podcastSlug': 'podcast_slug',
+        'podcastTitle': 'podcast_title',
+        'episodeTitle': 'episode_title',
+        'runCount': 'run_count',
+        'latestRunCostUsd': 'latest_run_cost_usd',
+        'cumulativeCostUsd': 'cumulative_cost_usd',
+        'lastActivityAt': 'last_activity_at',
+    }
+
+    def get_episode_cost_stats(self, *, page: int = 1, limit: int = 50,
+                               sort_by: str = 'lastActivityAt', sort_dir: str = 'desc',
+                               from_date: str = None, to_date: str = None,
+                               podcast_slug: str = None, provider: str = None,
+                               model: str = None) -> tuple[list[dict], int]:
+        """Paginated per-episode cost breakdown over the ledger.
+
+        The provider/model filter never reorders which run is latest.
+        latestRunCostUsd and lastActivityAt always describe the episode's
+        actual latest run, honoring the from/to date window. cumulativeCostUsd,
+        runCount, and modelsUsed do respect provider/model, the same way
+        they narrow model-usage rows; so does which episodes are listed.
+
+        One page reads the ledger once: the provider/model filter rides along
+        as a per-row flag on a single base pass, and the per-episode model
+        aggregates join the already-paginated key set.
+        """
+        conn = self.get_connection()
+        offset = max(0, (max(1, page) - 1) * limit)
+        # Latest-run determination drops provider/model so it can't reorder
+        # runs by content; it still respects the date window and podcast scope.
+        latest_filter_sql, latest_filter_params = _build_ledger_filters(
+            from_date, to_date, podcast_slug, None, None)
+        match_sql, match_params = _build_ledger_filters(
+            None, None, None, provider, model)
+        base_sql = (
+            f"finalized_at IS NOT NULL AND {_LEDGER_BILLABLE_SQL} "  # noqa: S608
+            f"AND podcast_id IS NOT NULL AND episode_id IS NOT NULL "
+            f"AND podcast_id IN (SELECT id FROM podcasts)"
+        )
+        latest_where_sql = base_sql + latest_filter_sql
+        sort_col = self._EPISODE_COST_SORT_COLUMNS.get(sort_by, 'last_activity_at')
+        sort_dir_sql = 'ASC' if sort_dir.lower() == 'asc' else 'DESC'
+
+        # base is the only read of llm_call_usage; in_filter marks the rows
+        # the provider/model filter keeps, so filtered and unfiltered
+        # aggregates come off the same pass.
+        episodes_cte = f"""
+            WITH base AS (
+                SELECT podcast_id, episode_id, run_id, configured_model, cost_usd,
+                       COALESCE(finalized_at, created_at) AS activity_at,
+                       CASE WHEN 1 = 1{match_sql} THEN 1 ELSE 0 END AS in_filter
+                FROM llm_call_usage
+                WHERE {latest_where_sql}
+            ),
+            run_agg AS (
+                SELECT podcast_id, episode_id, run_id,
+                       MAX(in_filter) AS run_in_filter,
+                       SUM(CASE WHEN in_filter = 1 AND cost_usd IS NOT NULL
+                                THEN CAST(cost_usd AS REAL) ELSE 0 END) AS filtered_cost_usd,
+                       SUM(CASE WHEN cost_usd IS NOT NULL
+                                THEN CAST(cost_usd AS REAL) ELSE 0 END) AS run_cost_usd,
+                       SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS run_unknown_count,
+                       MAX(activity_at) AS run_activity_at
+                FROM base
+                GROUP BY podcast_id, episode_id, run_id
+            ),
+            episode_agg AS (
+                SELECT podcast_id, episode_id,
+                       COUNT(run_id) AS run_count,
+                       SUM(filtered_cost_usd) AS cumulative_cost_usd
+                FROM run_agg
+                WHERE run_in_filter = 1
+                GROUP BY podcast_id, episode_id
+            ),
+            latest_run AS (
+                SELECT podcast_id, episode_id, run_cost_usd AS latest_run_cost_usd,
+                       run_unknown_count AS latest_run_unknown_count,
+                       run_activity_at AS last_activity_at
+                FROM (
+                    SELECT podcast_id, episode_id, run_cost_usd, run_unknown_count,
+                           run_activity_at,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY podcast_id, episode_id
+                               ORDER BY run_activity_at DESC, run_id DESC
+                           ) AS rn
+                    FROM run_agg
+                )
+                WHERE rn = 1
+            )
+        """  # noqa: S608
+        base_params = match_params + latest_filter_params
+
+        items_sql = f"""{episodes_cte},
+            page AS (
+                SELECT
+                    p.slug AS podcast_slug,
+                    p.title AS podcast_title,
+                    ea.podcast_id AS podcast_id,
+                    ea.episode_id AS episode_id,
+                    e.title AS episode_title,
+                    ea.run_count AS run_count,
+                    lr.latest_run_cost_usd AS latest_run_cost_usd,
+                    lr.latest_run_unknown_count AS latest_run_unknown_count,
+                    ea.cumulative_cost_usd AS cumulative_cost_usd,
+                    lr.last_activity_at AS last_activity_at,
+                    COUNT(*) OVER () AS total_count
+                FROM episode_agg ea
+                JOIN podcasts p ON p.id = ea.podcast_id
+                LEFT JOIN episodes e ON e.podcast_id = ea.podcast_id
+                                    AND e.episode_id = ea.episode_id
+                JOIN latest_run lr ON lr.podcast_id = ea.podcast_id
+                                  AND lr.episode_id = ea.episode_id
+                ORDER BY {sort_col} {sort_dir_sql}
+                LIMIT ? OFFSET ?
+            ),
+            episode_models AS (
+                SELECT b.podcast_id, b.episode_id,
+                       GROUP_CONCAT(DISTINCT b.configured_model) AS models_used,
+                       SUM(CASE WHEN b.cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_cost_count
+                FROM base b
+                JOIN page pg ON pg.podcast_id = b.podcast_id
+                            AND pg.episode_id = b.episode_id
+                WHERE b.in_filter = 1
+                GROUP BY b.podcast_id, b.episode_id
+            ),
+            episode_top_model AS (
+                SELECT podcast_id, episode_id, configured_model AS top_model FROM (
+                    SELECT podcast_id, episode_id, configured_model,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY podcast_id, episode_id
+                               ORDER BY model_cost DESC, configured_model ASC
+                           ) AS rn
+                    FROM (
+                        SELECT b.podcast_id, b.episode_id, b.configured_model,
+                               SUM(CASE WHEN b.cost_usd IS NOT NULL
+                                        THEN CAST(b.cost_usd AS REAL) ELSE 0 END) AS model_cost
+                        FROM base b
+                        JOIN page pg ON pg.podcast_id = b.podcast_id
+                                    AND pg.episode_id = b.episode_id
+                        WHERE b.in_filter = 1
+                        GROUP BY b.podcast_id, b.episode_id, b.configured_model
+                    )
+                ) WHERE rn = 1
+            )
+            SELECT pg.*, em.models_used AS models_used,
+                   em.unknown_cost_count AS unknown_cost_count,
+                   etm.top_model AS top_model
+            FROM page pg
+            JOIN episode_models em ON em.podcast_id = pg.podcast_id
+                                  AND em.episode_id = pg.episode_id
+            JOIN episode_top_model etm ON etm.podcast_id = pg.podcast_id
+                                      AND etm.episode_id = pg.episode_id
+            ORDER BY {sort_col} {sort_dir_sql}
+        """  # noqa: S608
+        rows = conn.execute(items_sql, base_params + [limit, offset]).fetchall()
+
+        if rows:
+            total = rows[0]['total_count']
+        else:
+            # Past the last page: the window count has no row to ride on.
+            total = conn.execute(
+                f"{episodes_cte} SELECT COUNT(*) FROM episode_agg",  # noqa: S608
+                base_params
+            ).fetchone()[0]
+
+        items = [{
+            'podcastSlug': row['podcast_slug'],
+            'podcastTitle': row['podcast_title'],
+            'episodeId': row['episode_id'],
+            'episodeTitle': row['episode_title'],
+            'modelsUsed': row['models_used'].split(',') if row['models_used'] else [],
+            'topModel': row['top_model'] or '',
+            'runCount': row['run_count'],
+            'latestRunCostUsd': str(Decimal(str(round(row['latest_run_cost_usd'] or 0, 6)))),
+            'latestRunUnknownCount': row['latest_run_unknown_count'] or 0,
+            'cumulativeCostUsd': str(Decimal(str(round(row['cumulative_cost_usd'] or 0, 6)))),
+            'unknownCostCount': row['unknown_cost_count'] or 0,
+            'hasUnknownCost': (row['unknown_cost_count'] or 0) > 0,
+            'lastActivityAt': row['last_activity_at'],
+        } for row in rows]
+        return items, total
 
     def get_token_usage_summary(self) -> dict:
         """Get global totals and per-model breakdown of token usage."""
@@ -335,11 +1098,15 @@ class StatsMixin:
                                    output_tokens: int = 0,
                                    llm_cost: float = 0.0,
                                    audio_cues_detected: int = 0,
-                                   processing_stats: dict = None) -> int:
+                                   processing_stats: dict = None,
+                                   run_id: str = None) -> int:
         """Record a processing attempt in history. Returns history entry ID.
 
         ``processing_stats`` is the pipeline's per-run stats dict (#519),
-        serialized here so callers never handle the JSON encoding."""
+        serialized here so callers never handle the JSON encoding.
+        ``run_id`` links this row to its llm_call_usage attempts for the
+        phase-cost breakdown; None for call sites outside a bound run
+        (recuts, offline-queue expiry) or before this column existed."""
         conn = self.get_connection()
 
         # Calculate reprocess number (count existing entries + 1)
@@ -356,14 +1123,14 @@ class StatsMixin:
                (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
                 processed_at, processing_duration_seconds, status, ads_detected,
                 error_message, reprocess_number, input_tokens, output_tokens, llm_cost,
-                audio_cues_detected, processing_stats_json, app_version)
-               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                audio_cues_detected, processing_stats_json, app_version, run_id)
+               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
              processing_duration_seconds, status, ads_detected, error_message,
              reprocess_number, input_tokens, output_tokens, llm_cost,
              audio_cues_detected,
              json.dumps(processing_stats) if processing_stats else None,
-             __version__)
+             __version__, run_id)
         )
         conn.commit()
         # Logger errors must not propagate: callers (e.g. _record_history_and_event)

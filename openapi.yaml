@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.96.25
+  version: 2.97.3
   contact:
     name: MinusPod
   license:
@@ -248,8 +248,43 @@ paths:
       tags:
         - Feeds
       summary: List all feeds
-      description: Returns a list of all configured podcast feeds with metadata
+      description: >-
+        Returns configured podcast feeds with metadata. Omitting page and
+        limit still returns every feed, with pagination fields describing
+        that unbounded page; passing either one switches to a paginated
+        page. Set includeLatestEpisodes=true to add a bounded
+        latestEpisodes projection to each feed, computed in one query for
+        the whole page rather than one request per feed.
       operationId: listFeeds
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based). Only takes effect when page or limit is set; otherwise every feed is returned.
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          description: Feeds per page. Only takes effect when page or limit is set.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: includeLatestEpisodes
+          in: query
+          description: When true, add a latestEpisodes projection to each feed.
+          schema:
+            type: boolean
+            default: false
+        - name: episodesPerFeed
+          in: query
+          description: Maximum episodes per feed in latestEpisodes. Clamped to 1-20.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 3
       responses:
         '200':
           description: List of feeds
@@ -262,6 +297,17 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Feed'
+                  total:
+                    type: integer
+                    description: Total feed count.
+                  totalPages:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
                   lastRefreshCompletedAt:
                     type:
                       - string
@@ -2006,8 +2052,8 @@ paths:
                       transcript; no transcription or AI. Requires the retained
                       original audio, saved segments, and existing ad markers
       responses:
-        '200':
-          description: Episode reprocessing started
+        '202':
+          description: Reprocessing started, or queued behind the active run
           content:
             application/json:
               schema:
@@ -2015,13 +2061,34 @@ paths:
                 properties:
                   message:
                     type: string
+                  mode:
+                    type: string
                   status:
                     type: string
-                    enum: [completed, processing]
+                    enum: [processing, queued]
+                  reason:
+                    type: string
+                    description: Present when status is queued; why it could not start immediately.
+                  jobState:
+                    type: string
+                    enum: [queued, processing]
+                    description: Authoritative queue/run state, derived the same way as the episode's jobState field, so the client reconciles from one field.
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Episode is already processing
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Error'
+                  - type: object
+                    properties:
+                      jobState:
+                        type: string
+                        enum: [processing]
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -2808,6 +2875,278 @@ paths:
                         $ref: '#/components/schemas/AddressingModeStats'
                       segment_ids:
                         $ref: '#/components/schemas/AddressingModeStats'
+
+  /stats/model-usage:
+    get:
+      tags:
+        - Stats
+      summary: Get paginated spend by provider and model
+      description: |
+        Paginated, sortable, filterable breakdown of the llm_call_usage
+        ledger grouped by (provider, model). A model id shared by two
+        providers is reported as two separate rows. Spend includes billed
+        failures, not only successes; unknownCostCount counts billable
+        rows whose cost could not be resolved so an unpriced model's spend
+        stays visibly incomplete instead of reading as $0.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: sortBy
+          in: query
+          description: Unrecognized values fall back to knownCostUsd.
+          schema:
+            type: string
+            enum: [provider, model, calls, distinctEpisodes, inputTokens, outputTokens, knownCostUsd, unknownCostCount]
+            default: knownCostUsd
+        - name: sortDir
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: from
+          in: query
+          description: >-
+            Start of the window. Accepts a bare YYYY-MM-DD date or an ISO
+            8601 timestamp, and selects whole UTC days: the value is
+            truncated to the start of its UTC day, so that whole day is
+            included. An unparseable value is a 400.
+          schema:
+            type: string
+        - name: to
+          in: query
+          description: >-
+            End of the window, inclusive of the whole UTC day it names, down
+            to its final fractional second. Same accepted formats as from,
+            and the same 400 on an unparseable value.
+          schema:
+            type: string
+        - name: podcastSlug
+          in: query
+          schema:
+            type: string
+        - name: provider
+          in: query
+          schema:
+            type: string
+        - name: model
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated provider/model spend
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        provider: { type: string }
+                        model: { type: string }
+                        calls: { type: integer }
+                        distinctEpisodes: { type: integer }
+                        inputTokens: { type: integer }
+                        outputTokens: { type: integer }
+                        knownCostUsd:
+                          type: string
+                          description: Decimal string; sum of rows with a resolved cost.
+                        unknownCostCount:
+                          type: integer
+                          description: Billable rows whose cost could not be resolved.
+                  total: { type: integer }
+                  totalPages: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
+
+  /stats/episode-costs:
+    get:
+      tags:
+        - Stats
+      summary: Get paginated per-episode LLM cost
+      description: |
+        Paginated, sortable, filterable per-episode breakdown of the
+        llm_call_usage ledger. The provider/model filter never reorders
+        which run counts as latest: latestRunCostUsd and lastActivityAt
+        always reflect the episode's actual latest run, honoring the
+        from/to window if set. cumulativeCostUsd sums only the runs that
+        match every filter, including provider/model, so the two cost
+        figures diverge once an episode has been reprocessed.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: sortBy
+          in: query
+          description: Unrecognized values fall back to lastActivityAt.
+          schema:
+            type: string
+            enum: [podcastSlug, podcastTitle, episodeTitle, runCount, latestRunCostUsd, cumulativeCostUsd, lastActivityAt]
+            default: lastActivityAt
+        - name: sortDir
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: from
+          in: query
+          description: >-
+            Start of the window. Accepts a bare YYYY-MM-DD date or an ISO
+            8601 timestamp, and selects whole UTC days: the value is
+            truncated to the start of its UTC day, so that whole day is
+            included. An unparseable value is a 400.
+          schema:
+            type: string
+        - name: to
+          in: query
+          description: >-
+            End of the window, inclusive of the whole UTC day it names, down
+            to its final fractional second. Same accepted formats as from,
+            and the same 400 on an unparseable value.
+          schema:
+            type: string
+        - name: podcastSlug
+          in: query
+          schema:
+            type: string
+        - name: provider
+          in: query
+          schema:
+            type: string
+        - name: model
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated per-episode cost
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        podcastSlug: { type: string }
+                        podcastTitle: { type: string }
+                        episodeId: { type: string }
+                        episodeTitle: { type: string }
+                        modelsUsed:
+                          type: array
+                          items: { type: string }
+                        runCount: { type: integer }
+                        latestRunCostUsd:
+                          type: string
+                          description: >-
+                            Decimal string; cost of the episode's actual latest run.
+                            Not narrowed by the provider/model filter.
+                        cumulativeCostUsd:
+                          type: string
+                          description: >-
+                            Decimal string; cost summed across every run matching
+                            all filters, including provider/model.
+                        lastActivityAt: { type: string }
+                  total: { type: integer }
+                  totalPages: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
+
+  /stats/ledger-filter-options:
+    get:
+      tags:
+        - Stats
+      summary: List the provider and model values present in the usage ledger
+      description: |
+        Distinct providers and models the llm_call_usage ledger holds, for
+        populating the Stats page filter dropdowns. It honors the same
+        from/to/podcastSlug scope as the two list endpoints, so the options
+        describe the data actually in view, but it is never paginated: a
+        provider or model that only appears on a later page of a list
+        request is still selectable. Rows with a null provider or model are
+        dropped. providers is sorted and deduplicated; pairs preserves which
+        models belong to which provider, so a model id served by two
+        providers stays distinguishable.
+      parameters:
+        - name: from
+          in: query
+          description: >-
+            Same whole-UTC-day semantics as the list endpoints. Bare
+            YYYY-MM-DD or ISO 8601; unparseable is a 400.
+          schema:
+            type: string
+        - name: to
+          in: query
+          description: >-
+            Inclusive of the whole UTC day it names. Unparseable is a 400.
+          schema:
+            type: string
+        - name: podcastSlug
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Filter options for the ledger lists
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [providers, pairs]
+                properties:
+                  providers:
+                    type: array
+                    items: { type: string }
+                  pairs:
+                    type: array
+                    description: Every distinct provider and model combination, ordered by provider then model.
+                    items:
+                      type: object
+                      required: [provider, model]
+                      properties:
+                        provider: { type: string }
+                        model: { type: string }
+              example:
+                providers: [anthropic, openrouter]
+                pairs:
+                  - provider: anthropic
+                    model: example-model-pro
+                  - provider: openrouter
+                    model: example-model-mini
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
 
   /patterns:
     get:
@@ -4547,6 +4886,42 @@ paths:
                 $ref: '#/components/schemas/ConnectionTestResult'
         '400': { description: 'Invalid input (non-string baseUrl or model, non-boolean skipFlacCompression)' }
         '404': { description: 'Provider without a testable endpoint' }
+  /settings/providers/secondary/test-connection:
+    post:
+      tags:
+        - Settings
+      summary: Test the secondary provider connection end to end
+      description: |
+        Same staged probe as `/settings/providers/{provider}/test-connection`,
+        but targets the optional secondary provider slot: its key comes from
+        `secondaryProviderApiKey`, and its type and endpoint come from
+        `secondaryProvider`/`secondaryProviderBaseUrl` unless the request
+        body's `provider`/`baseUrl` override them, to test an unsaved form
+        value before Save. Returns `ok: false` with a `detail` explaining the
+        reason when no secondary provider type is configured yet.
+      operationId: testSecondaryProviderConnection
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provider:
+                  type: string
+                  enum: [anthropic, openrouter, openai-compatible, ollama]
+                  description: Provider type to test; when absent the saved secondaryProvider is used
+                baseUrl:
+                  type: string
+                  description: Base URL to test; when absent the saved secondary value is used
+      responses:
+        '200':
+          description: Probe result (always 200; see `ok` field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionTestResult'
+        '400': { description: 'Invalid input (non-string baseUrl, non-string provider, or provider not one of the supported types)' }
   /settings/podcast-index/test:
     post:
       tags:
@@ -4637,6 +5012,31 @@ paths:
                   type: string
                   description: Model for chapter title generation and topic detection (smaller/cheaper models work well). No model ships by default; unset until configured.
                   example: claude-haiku-4-5
+                detectionProvider:
+                  type: string
+                  description: |
+                    Routing slot for first-pass ad detection: `primary` runs it on the
+                    global llmProvider, `secondary` on the optional secondary provider
+                    (falls back to primary if secondary is disabled or unconfigured).
+                    Empty string clears the override back to primary.
+                  enum: [primary, secondary, '']
+                  example: ''
+                verificationProvider:
+                  type: string
+                  description: |
+                    Routing slot for the verification pass: `primary`, `secondary`, or
+                    `same_as_detection` to inherit detectionProvider's resolved slot.
+                    Empty string clears the override back to same_as_detection.
+                  enum: [primary, secondary, same_as_detection, '']
+                  example: ''
+                chaptersProvider:
+                  type: string
+                  description: |
+                    Routing slot for chapter title generation: `primary`, `secondary`, or
+                    `same_as_detection` to inherit detectionProvider's resolved slot.
+                    Empty string clears the override back to same_as_detection.
+                  enum: [primary, secondary, same_as_detection, '']
+                  example: ''
                 whisperModel:
                   type: string
                   description: Whisper model for transcription (tiny, base, small, medium, large-v3)
@@ -5121,6 +5521,16 @@ paths:
                   description: |
                     Number of ads the reviewer asks the LLM about at the same time.
                   example: 4
+                reviewProvider:
+                  type: string
+                  description: |
+                    Routing slot for the reviewer pass. `same_as_pass` (default) inherits
+                    both the provider and model of whichever pass is being reviewed.
+                    `primary` or `secondary` runs the reviewer on that slot instead and
+                    enables reviewModel; secondary falls back to primary when it is
+                    disabled or unconfigured.
+                  enum: [primary, secondary, same_as_pass]
+                  example: same_as_pass
                 maxArtworkBytes:
                   type: integer
                   minimum: 65536
@@ -5182,6 +5592,60 @@ paths:
                 openrouterApiKey:
                   type: string
                   description: API key for OpenRouter (only used when provider is openrouter)
+                secondaryProviderEnabled:
+                  type: boolean
+                  description: |
+                    Turn the optional secondary provider slot on or off. A
+                    per-stage provider override set to secondary while this is
+                    false falls back to primary. Off by default.
+                secondaryProvider:
+                  type: string
+                  nullable: true
+                  description: Secondary provider type. Empty or null clears it.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                  example: openai-compatible
+                secondaryProviderBaseUrl:
+                  type: string
+                  description: |
+                    Base URL for the secondary provider, used when its type has a
+                    configurable endpoint (openai-compatible, ollama). SSRF-validated
+                    like every other operator-configured URL. Empty clears the
+                    override back to the default.
+                  example: http://localhost:11434/v1
+                secondaryProviderApiKey:
+                  type: string
+                  nullable: true
+                  description: API key for the secondary provider. Omit to leave unchanged; null or empty to clear.
+                providerRequestsPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Manual requests-per-minute cap for the primary provider account. 0 means unlimited.
+                  example: 5
+                providerRequestsPerDay:
+                  type: integer
+                  minimum: 0
+                  description: Manual requests-per-day cap for the primary provider account. 0 means unlimited.
+                  example: 20
+                secondaryProviderRequestsPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Manual requests-per-minute cap for the secondary provider account. 0 means unlimited.
+                  example: 5
+                secondaryProviderRequestsPerDay:
+                  type: integer
+                  minimum: 0
+                  description: Manual requests-per-day cap for the secondary provider account. 0 means unlimited.
+                  example: 20
+                providerTokensPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Manual tokens-per-minute cap for the primary provider account. 0 means unlimited.
+                  example: 250000
+                secondaryProviderTokensPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Manual tokens-per-minute cap for the secondary provider account. 0 means unlimited.
+                  example: 250000
                 detectionTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for the first-pass ad detection LLM call.
@@ -5490,6 +5954,14 @@ paths:
           schema:
             type: string
             enum: [anthropic, openrouter, openai-compatible, ollama]
+        - name: slot
+          in: query
+          required: false
+          description: Which credential slot to preview `provider` with. `secondary` uses the secondary provider slot's own API key and base URL instead of the primary slot's; only meaningful together with `provider`.
+          schema:
+            type: string
+            enum: [primary, secondary]
+            default: primary
       responses:
         '200':
           description: List of available models
@@ -5503,7 +5975,7 @@ paths:
                     items:
                       $ref: '#/components/schemas/Model'
         '400':
-          description: Invalid provider parameter
+          description: Invalid provider or slot parameter
           content:
             application/json:
               schema:
@@ -5517,8 +5989,20 @@ paths:
       tags:
         - Settings
       summary: Refresh available AI models
-      description: Force refresh the model list from the current LLM provider. Recreates the LLM client and fetches a fresh model list.
+      description: Force refresh the model list for one credential slot. Recreates that slot's LLM client and fetches a fresh model list. The optional body selects the slot; with no body the primary slot is refreshed.
       operationId: refreshModels
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slot:
+                  type: string
+                  enum: [primary, secondary]
+                  default: primary
+                  description: Credential slot to refresh. secondary requires a configured secondary provider.
       responses:
         '200':
           description: Refreshed model list
@@ -5534,6 +6018,15 @@ paths:
                   count:
                     type: integer
                     description: Number of models available
+        '400':
+          description: Invalid slot, or secondary requested with no secondary provider configured
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
 
   /settings/whisper-models:
     get:
@@ -5639,7 +6132,12 @@ paths:
       tags:
         - System
       summary: Get system status
-      description: Returns system status, statistics, and configuration
+      description: >-
+        Returns system status, statistics, and configuration, plus three
+        non-fatal degraded signals: feed-refresh outage state, Podping
+        all-nodes-down state with per-node health, and the health of the
+        configured transcription backend. None of them gates readiness;
+        /health is the readiness probe.
       operationId: getSystemStatus
       responses:
         '200':
@@ -6439,6 +6937,36 @@ paths:
                   rateLimitProbeMinutes:
                     type: integer
 
+  /settings/rate-limit-hold/reset:
+    post:
+      tags:
+        - Settings
+      summary: Clear active rate-limit holds without disabling the feature
+      description: >-
+        Lifts every active provider rate-limit hold while leaving the feature
+        enabled. Use after switching models or providers, whose limits differ
+        from the endpoint that produced the hold (#747).
+      operationId: resetRateLimitHold
+      responses:
+        '200':
+          description: Holds cleared; current rate-limit hold settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  holdUntil:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
+                  llmUsageUrl:
+                    type: string
+                  rateLimitProbeMinutes:
+                    type: integer
+
   /settings/whisper/capacity:
     get:
       tags:
@@ -7073,6 +7601,114 @@ paths:
                           type: string
                         reason:
                           type: string
+                  jobState:
+                    type: string
+                    enum: [idle, queued]
+                    description: Present for process/reprocess/reprocess_full/reprocess_llm actions. Bulk enqueues never start processing synchronously, so this is queued whenever anything was queued, else idle. Not present for delete.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/passthrough:
+    post:
+      tags:
+        - Episodes
+      summary: Set per-episode pass-through override
+      description: >-
+        Set or clear the per-episode pass-through override (issue #746) for
+        one or more episodes. An episode flagged this way is relayed with no
+        transcription, ad detection, or cutting, even when the feed's own
+        processing mode is not passthrough; the audio may still be
+        transcoded to MP3 when the publisher's enclosure is not already MP3.
+        Enabling enqueues a normal reprocess for each affected episode so
+        the pass-through branch runs now; disabling only clears the flag.
+        Repeated ids are deduplicated in request order, so each id appears
+        once across accepted and rejected. Rate limited to 5/min.
+      operationId: setEpisodesPassthrough
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [episodeIds, enabled]
+              properties:
+                episodeIds:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                  maxItems: 500
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Pass-through override result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+                    description: Number of episodes whose passthroughEnabled flag was set
+                  queued:
+                    type: integer
+                    description: >-
+                      Episodes that actually hold a queue row after the call,
+                      counted from the queue itself rather than from the
+                      attempted inserts, so a swallowed enqueue failure is
+                      never reported as queued work. Always 0 when disabling.
+                  accepted:
+                    type: array
+                    description: Episode ids the override was applied to, in request order.
+                    items:
+                      type: string
+                  rejected:
+                    type: array
+                    description: Episode ids the override was not applied to, each with its reason.
+                    items:
+                      type: object
+                      required: [episodeId, reason]
+                      properties:
+                        episodeId:
+                          type: string
+                        reason:
+                          type: string
+                          enum: [not_found, processing]
+                          description: >-
+                            not_found means no episode with that id belongs to
+                            this feed. processing means a run already owns the
+                            episode and has resolved its mode, so enabling
+                            would not take effect this run; it is returned only
+                            when enabling, since disabling an owned episode is
+                            accepted.
+                  jobState:
+                    type: string
+                    enum: [idle, queued]
+                    description: >-
+                      Present only when enabled is true. queued when anything
+                      reached the queue, else idle. Disabling enqueues
+                      nothing, so the field is omitted entirely.
+              example:
+                updated: 2
+                queued: 2
+                accepted: [a1b2c3d4e5f6, b2c3d4e5f6a1]
+                rejected:
+                  - episodeId: c3d4e5f6a1b2
+                    reason: processing
+                jobState: queued
+        '400':
+          description: >-
+            Malformed request. Returned when the body is not a JSON object,
+            when episodeIds is missing or is not a non-empty array, when any
+            episodeIds entry is not a non-empty string, when more than 500
+            ids are sent, or when enabled is missing or not a boolean.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -7665,6 +8301,27 @@ paths:
                   activeDomains:    { type: integer }
                   activeWindowDays: { type: integer, example: 30 }
                   listenerEnabled:  { type: boolean }
+                  allNodesDown:
+                    type: boolean
+                    description: >-
+                      Non-fatal: every configured Hive RPC node is currently
+                      failing. RSS polling remains the fallback, so this never
+                      gates /health or feed refresh.
+                  degradedSince:
+                    type: [string, 'null']
+                    format: date-time
+                    description: When allNodesDown last became true, or null.
+                  nodes:
+                    type: array
+                    description: Durable per-node health, one entry per configured RPC node.
+                    items:
+                      type: object
+                      properties:
+                        node:                { type: string, example: https://api.hive.blog }
+                        consecutiveFailures: { type: integer }
+                        lastSuccessAt:       { type: [string, 'null'], format: date-time }
+                        nextRetryAt:         { type: [string, 'null'], format: date-time }
+                        lastFailureReason:   { type: [string, 'null'] }
 
   /feeds/{slug}/tags:
     get:
@@ -10314,6 +10971,72 @@ components:
             - boolean
             - 'null'
           description: Whether the pass-2 verification scan of the cut audio is skipped for this feed, which roughly halves the ad-detection LLM spend on feeds whose first pass is already reliable. Held differential detections that pass 2 would have confirmed then wait for a human. Null and false both mean the second pass runs.
+        latestEpisodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeedLatestEpisode'
+          description: Present only when the request set includeLatestEpisodes=true. Up to episodesPerFeed episodes for this feed, newest first.
+
+    FeedLatestEpisode:
+      type: object
+      description: >-
+        Bounded per-feed episode projection returned by GET /feeds when
+        includeLatestEpisodes=true, for rendering a grouped episodes view
+        without a separate request per feed.
+      properties:
+        id:
+          type: string
+          description: Episode id.
+        title:
+          type: string
+        published:
+          type: string
+          format: date-time
+          description: publishedAt if the feed declared one, else the episode's createdAt.
+        createdAt:
+          type: string
+          format: date-time
+        processedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        duration:
+          type:
+            - number
+            - 'null'
+          description: Original duration in seconds.
+        status:
+          type: string
+          enum: [discovered, pending, processing, completed, failed, permanently_failed, deferred]
+        jobState:
+          type: string
+          enum: [idle, queued, processing]
+          description: Authoritative queue/run state, derived from live queue rows rather than the stored status.
+        hasBeenProcessed:
+          type: boolean
+          description: Same meaning as EpisodeSummary.hasBeenProcessed, so a grouped dashboard row can label its action button without a second request.
+        artworkUrl:
+          type:
+            - string
+            - 'null'
+          description: Same fallback rules as EpisodeSummary.artworkUrl.
+        error:
+          type:
+            - string
+            - 'null'
+          description: Failure reason from the most recent processing attempt, present when status is failed or permanently_failed.
+        pendingReviewCount:
+          type: integer
+          description: Ads held for human review on this episode, so a dashboard row can show the hold chip.
+        passthroughEnabled:
+          type: boolean
+          description: Per-episode pass-through override, same meaning as EpisodeSummary.passthroughEnabled.
+        description:
+          type:
+            - string
+            - 'null'
+          description: Episode description, truncated to 200 characters.
 
     EpisodeSummary:
       type: object
@@ -10331,6 +11054,10 @@ components:
         status:
           type: string
           enum: [discovered, pending, processing, completed, failed, permanently_failed, deferred]
+        jobState:
+          type: string
+          enum: [idle, submitting, queued, processing]
+          description: Authoritative queue/run state, derived from live queue rows rather than the stored status. A pending episode with no queue row reports idle, not queued. The server never returns submitting; that value is a client-only placeholder used right after a request is sent, before the server confirms queued or processing.
         createdAt:
           type: string
           format: date-time
@@ -10356,6 +11083,12 @@ components:
         pendingReviewCount:
           type: integer
           description: Number of ads held for human review (not yet approved or dismissed)
+        passthroughEnabled:
+          type: boolean
+          description: Per-episode pass-through override (issue #746). When true, this episode is relayed with no transcription, ad detection, or cutting, even when the feed's own processing mode is not passthrough. The audio may still be transcoded to MP3 when the publisher's enclosure is not already MP3, since the serving stack names episode files .mp3 and declares audio/mpeg. Set via POST /feeds/{slug}/episodes/passthrough.
+        hasBeenProcessed:
+          type: boolean
+          description: True when this episode has a processed output on record, independent of its current status. A completed episode queued again reverts to status pending, so clients use this rather than status to choose between a Process and a Reprocess label.
         artworkUrl:
           type: string
           nullable: true
@@ -10491,6 +11224,28 @@ components:
               description: One entry per processing run, oldest first.
               items:
                 $ref: '#/components/schemas/EpisodeProcessingRun'
+            activeRunSpend:
+              oneOf:
+                - $ref: '#/components/schemas/EpisodeRunSpend'
+                - type: 'null'
+              description: >-
+                Live ledger spend of the run that currently owns this episode,
+                read straight from the ledger while the run is still in flight.
+                Null when no run owns the episode, so a client can use its
+                presence as the "a run is spending right now" signal. Replaces
+                the removed currentRunSpend field.
+            latestRunSpend:
+              oneOf:
+                - $ref: '#/components/schemas/EpisodeRunSpend'
+                - type: 'null'
+              description: >-
+                Spend of the latest attempted run, which is a different
+                question from activeRunSpend: failures and runs that made no
+                LLM call are included, and the run need not be the one that
+                produced the served audio. Null when the episode has no
+                processing history.
+            cumulativeSpend:
+              $ref: '#/components/schemas/EpisodeCumulativeSpend'
             lowAdYield:
               type:
                 - object
@@ -10744,12 +11499,158 @@ components:
               type: string
               description: Present only when state is error. Either an exception escaped the whole batch (a per-file failure lands in failed above instead), or the value "import interrupted", meaning a worker crashed mid-commit and this state was self-healed from a stuck running job whose lock nobody still holds.
 
+    EpisodeRunSpend:
+      type: object
+      description: >-
+        LLM spend attributed to one processing run. Used for both
+        activeRunSpend (in-flight, read live from the ledger) and
+        latestRunSpend (the latest attempted run).
+      required: [runId, inputTokens, outputTokens, costUsd, breakdownAvailable, hasUnknownCost]
+      properties:
+        runId:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Ledger run identifier. Null on a run recorded before the usage
+            ledger existed and on recuts, which have no ledger rows; those
+            runs report only their stored processing-history total.
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        costUsd:
+          type: string
+          description: >-
+            Decimal string, not a number, so no precision is lost in JSON.
+            Sums only the calls whose cost could be resolved, so it
+            understates the true figure whenever hasUnknownCost is true.
+        breakdownAvailable:
+          type: boolean
+          description: >-
+            True when this run has ledger rows, which is also when
+            processingRuns[].phases carries its per-phase breakdown. False
+            for a pre-ledger run or a recut, whose figures come from the
+            stored processing-history total instead.
+        hasUnknownCost:
+          type: boolean
+          description: >-
+            True when at least one billable call in this run has no resolved
+            cost, usually an unpriced or custom model. Clients should label
+            costUsd as a partial figure rather than a total.
+      examples:
+        - summary: Fully priced run
+          value:
+            runId: 9f2c1b7a4d6e
+            inputTokens: 184320
+            outputTokens: 9210
+            costUsd: '0.412300'
+            breakdownAvailable: true
+            hasUnknownCost: false
+        - summary: Partial, some calls have no resolved price
+          value:
+            runId: 3a7d0e55c118
+            inputTokens: 210500
+            outputTokens: 11040
+            costUsd: '0.087500'
+            breakdownAvailable: true
+            hasUnknownCost: true
+        - summary: Legacy run recorded before the ledger
+          value:
+            runId: null
+            inputTokens: 120000
+            outputTokens: 6400
+            costUsd: '0.245000'
+            breakdownAvailable: false
+            hasUnknownCost: false
+
+    EpisodeCumulativeSpend:
+      type: object
+      description: >-
+        Lifetime LLM spend for this episode, summed over every processing
+        attempt rather than one run. Always present; an episode with no
+        ledger rows reports zeros.
+      required: [inputTokens, outputTokens, costUsd, hasUnknownCost]
+      properties:
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        costUsd:
+          type: string
+          description: Decimal string. Sums only calls with a resolved cost.
+        hasUnknownCost:
+          type: boolean
+          description: >-
+            True when any contributing call has no resolved cost, so costUsd
+            is a floor rather than the real total.
+      example:
+        inputTokens: 512000
+        outputTokens: 24600
+        costUsd: '1.104200'
+        hasUnknownCost: false
+
+    EpisodeRunPhaseUsage:
+      type: object
+      description: >-
+        One pipeline phase's ledger usage inside a run, grouped by phase,
+        invoking pass, provider and configured model. A phase that retried
+        onto a different model contributes more than one entry.
+      properties:
+        phaseKey:
+          type: string
+          enum: [detection, verification, review, chapters, probe]
+        invokingPass:
+          type:
+            - integer
+            - 'null'
+          description: 1 or 2 for a pass-scoped call, null otherwise.
+        provider:
+          type: string
+          description: Provider the call routed to. Endpoint URLs are never stored here.
+        configuredModel:
+          type: string
+        returnedModel:
+          type:
+            - string
+            - 'null'
+          description: Model id the provider reported serving, when it differs from the configured one.
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        cacheReadTokens:
+          type: integer
+        cacheWriteTokens:
+          type: integer
+        reasoningTokens:
+          type: integer
+        costUsd:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Decimal string, or null when any call in the group has no
+            resolved cost. Null is the signal to render this phase as
+            unpriced rather than as zero.
+        costSource:
+          type: string
+          enum: [provider_reported, estimated, explicit_zero, mixed, unknown]
+          description: >-
+            How the cost was arrived at. mixed means the grouped calls did
+            not agree on one source; unknown pairs with a null costUsd.
+
     EpisodeProcessingRun:
       type: object
       description: One processing run of an episode, with its pipeline stats.
       properties:
         runNumber:
           type: integer
+        runId:
+          type:
+            - string
+            - 'null'
+          description: Ledger run identifier. Null for a pre-ledger run or a recut.
         processedAt:
           type: string
           format: date-time
@@ -10775,6 +11676,17 @@ components:
         hasLog:
           type: boolean
           description: True when this run stored a pipeline log the run-log endpoint can serve.
+        breakdownAvailable:
+          type: boolean
+          description: True when this run has usage-ledger rows, which is when phases is non-empty.
+        phases:
+          type: array
+          description: >-
+            Per-phase provider, model, token and cost breakdown from the
+            usage ledger. Empty for a pre-ledger run or a recut, whose
+            figures come from the stored run total instead.
+          items:
+            $ref: '#/components/schemas/EpisodeRunPhaseUsage'
         stats:
           type:
             - object
@@ -10865,6 +11777,51 @@ components:
               description: Ads the second scan of the output audio found and cut. 0 means the scan ran and came back clean. Absent or null means the scan did not run, either because it was skipped (see verificationSkipped and detectionSkipped) or because it failed.
             secondsRemoved:
               type: number
+            transcription:
+              type: object
+              description: >-
+                Local Whisper transcription outcome for this run. The whole
+                block is absent when the run did not transcribe locally, so a
+                run on the remote API backend or one that skipped
+                transcription has no entry at all.
+              properties:
+                outcome:
+                  type: string
+                  enum: [success, failed]
+                batchSize:
+                  type: integer
+                  description: Batch size the run finished on, lower than the configured tier after a GPU-memory downshift.
+                retryCount:
+                  type: integer
+                  description: Retries the run consumed, each one halving the batch size after an out-of-memory error.
+                retrySucceeded:
+                  type: boolean
+                  description: True when the run retried and then completed. Always false on a failed outcome.
+                device:
+                  type: string
+                  enum: [cpu, cuda]
+                gpuDeviceName:
+                  type:
+                    - string
+                    - 'null'
+                  description: Reported GPU name. Null whenever device is cpu.
+                model:
+                  type: string
+                  description: Whisper model the run loaded.
+                error:
+                  type:
+                    - string
+                    - 'null'
+                  description: Failure reason, truncated to 500 characters. Null on a successful outcome.
+              example:
+                outcome: success
+                batchSize: 4
+                retryCount: 2
+                retrySucceeded: true
+                device: cuda
+                gpuDeviceName: NVIDIA GPU
+                model: large-v3
+                error: null
             thinkingNotices:
               type: array
               description: >-
@@ -11275,6 +12232,18 @@ components:
               type: string
             isDefault:
               type: boolean
+        reviewProvider:
+          type: object
+          description: |
+            Routing slot used for the reviewer pass: `primary`, `secondary`,
+            or the sentinel `same_as_pass` (the default), which inherits
+            both the provider and model of the pass being reviewed and
+            ignores reviewModel. `primary`/`secondary` enable reviewModel.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
         reviewMaxBoundaryShift:
           type: object
           description: Cap on boundary shift in seconds for adjust verdicts.
@@ -11364,12 +12333,44 @@ components:
               type: string
             isDefault:
               type: boolean
+        detectionProvider:
+          type: object
+          description: |
+            Routing slot for first-pass ad detection: `primary` or
+            `secondary`. Empty when unset, which resolves to primary.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        verificationProvider:
+          type: object
+          description: |
+            Routing slot for the verification pass: `primary`, `secondary`,
+            or `same_as_detection`. Empty when unset, which resolves to
+            same_as_detection.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
         chaptersModel:
           type: object
           properties:
             value:
               type: string
               description: Model for chapter title generation and topic detection
+            isDefault:
+              type: boolean
+        chaptersProvider:
+          type: object
+          description: |
+            Routing slot for chapter title generation: `primary`,
+            `secondary`, or `same_as_detection`. Empty when unset, which
+            resolves to same_as_detection.
+          properties:
+            value:
+              type: string
             isDefault:
               type: boolean
         whisperModel:
@@ -12278,6 +13279,94 @@ components:
         openrouterApiKeyConfigured:
           type: boolean
           description: Whether an OpenRouter API key is configured (read-only)
+        secondaryProviderEnabled:
+          type: object
+          description: |
+            Optional second full provider config. Per-stage provider
+            overrides (detectionProvider, verificationProvider,
+            chaptersProvider, reviewProvider) pick a routing slot, primary or
+            secondary, rather than a provider type; a stage routed to
+            secondary while this is false falls back to primary. Off by
+            default, so a single-provider install is unchanged.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        secondaryProvider:
+          type: object
+          properties:
+            value:
+              type: string
+              nullable: true
+              description: Secondary provider type (anthropic, openrouter, openai-compatible, ollama), or null when unset
+            isDefault:
+              type: boolean
+        secondaryProviderBaseUrl:
+          type: object
+          description: Base URL for the secondary provider, when its type uses a configurable endpoint (openai-compatible, ollama).
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        secondaryProviderApiKeyConfigured:
+          type: boolean
+          description: Whether a secondary provider API key is configured (read-only; the key itself is never returned)
+        providerRequestsPerMin:
+          type: object
+          description: Manual requests-per-minute cap for the primary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        providerRequestsPerDay:
+          type: object
+          description: Manual requests-per-day cap for the primary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        secondaryProviderRequestsPerMin:
+          type: object
+          description: Manual requests-per-minute cap for the secondary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        secondaryProviderRequestsPerDay:
+          type: object
+          description: Manual requests-per-day cap for the secondary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        providerTokensPerMin:
+          type: object
+          description: Manual tokens-per-minute cap for the primary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        secondaryProviderTokensPerMin:
+          type: object
+          description: Manual tokens-per-minute cap for the secondary provider account. 0 means unlimited.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
         podcastSearchReady:
           type: boolean
           description: >-
@@ -12384,6 +13473,18 @@ components:
             maxRssBytes:
               type: integer
             maxAudioDownloadMb:
+              type: integer
+            providerRequestsPerMin:
+              type: integer
+            providerRequestsPerDay:
+              type: integer
+            secondaryProviderRequestsPerMin:
+              type: integer
+            secondaryProviderRequestsPerDay:
+              type: integer
+            providerTokensPerMin:
+              type: integer
+            secondaryProviderTokensPerMin:
               type: integer
             autoProcessEnabled:
               type: boolean
@@ -12517,8 +13618,17 @@ components:
               type: integer
             whisperModel:
               type: string
+              description: Effective transcription model from settings (local model, or the remote API model when the backend is openai-api)
             whisperDevice:
               type: string
+              description: Local compute device, or "remote" when transcription runs on a remote whisper API
+            whisperBackend:
+              type: string
+              description: Transcription backend in use (local or openai-api)
+            whisperApiHost:
+              type: string
+              nullable: true
+              description: scheme://host of the remote whisper endpoint, or null when transcription is local
             baseUrl:
               type: string
         stats:
@@ -12536,6 +13646,130 @@ components:
             totalLlmCost:
               type: number
               description: Estimated cumulative LLM cost in USD
+        feedRefresh:
+          type: object
+          description: >-
+            Scheduled-refresh health. Informational only: it never gates
+            readiness, and /health ignores it. A shared network outage
+            degrades feed freshness, not the process, so the aggregate is
+            reported without naming any feed.
+          properties:
+            lastSuccessfulRefreshAt:
+              type:
+                - string
+                - 'null'
+              format: date-time
+            outageDegraded:
+              type: boolean
+              description: >-
+                True while a refresh pass is treated as a shared outage
+                rather than per-feed breakage, which happens when a large
+                enough share of a batch fails together. Per-feed failure
+                counting is suspended for that pass so healthy feeds are not
+                marked broken.
+            outageAffectedCount:
+              type: integer
+              description: Feeds that failed together in the pass that opened the outage.
+            nextRetryAt:
+              type:
+                - string
+                - 'null'
+              format: date-time
+              description: When the jittered early retry is due. Null once the outage clears.
+        podping:
+          type: object
+          description: >-
+            Podping listener health. Informational only, the same as
+            feedRefresh: scheduled RSS polling remains the fallback, so an
+            outage here delays notifications rather than stopping discovery.
+            GET /podping/hosts reports the same node data for the Podping
+            page.
+          properties:
+            listenerEnabled:
+              type: boolean
+            allNodesDown:
+              type: boolean
+              description: >-
+                True only while every configured Hive RPC node is
+                unavailable. Any single node succeeding clears it.
+            degradedSince:
+              type:
+                - string
+                - 'null'
+              format: date-time
+            nodes:
+              type: array
+              description: One entry per configured node, in the configured order.
+              items:
+                type: object
+                properties:
+                  node:
+                    type: string
+                  consecutiveFailures:
+                    type: integer
+                    description: Failure streak, which survives a restart rather than resetting.
+                  lastSuccessAt:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
+                  nextRetryAt:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
+                  lastFailureReason:
+                    type:
+                      - string
+                      - 'null'
+        transcriber:
+          type: object
+          description: >-
+            Health of the configured transcription backend. Which shape comes
+            back depends on that backend, because the local reading says
+            nothing when transcription runs on a remote API. Informational
+            only, and never a readiness gate.
+          properties:
+            backend:
+              type: string
+              enum: [local, openai-api]
+              description: The configured backend, which is what decides the rest of this object.
+            available:
+              type: boolean
+              description: >-
+                On the local backend, false after a GPU-memory exhaustion
+                used up every batch-size retry, so a transcriber failing
+                episode after episode is visible instead of silent. On the
+                API backend, false when no base URL is configured, and
+                otherwise the last cached probe result.
+            device:
+              type: string
+              enum: [cpu, cuda]
+              description: Local backend only. The effective device, not the raw setting.
+            lastOutcome:
+              type:
+                - object
+                - 'null'
+              description: >-
+                Local backend only. The most recent local transcription
+                outcome, shared across workers so any worker reports the same
+                one. Null when nothing has been transcribed yet.
+            probed:
+              type: boolean
+              description: >-
+                API backend only. False when no probe result is cached; this
+                endpoint never fires an outbound request of its own, so a
+                never-probed endpoint reads as available.
+            instanceCount:
+              type: integer
+              description: API backend only, and present only when probed is true.
+        security:
+          type: object
+          properties:
+            cryptoReady:
+              type: boolean
+            plaintextSecretsCount:
+              type: integer
 
     ReleaseInfo:
       type: object
@@ -13429,6 +14663,18 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+
+    LedgerDateBadRequest:
+      description: >-
+        A from or to value could not be parsed as a date or timestamp. from
+        is checked first, so only the first offending parameter is named.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: from must be a date (YYYY-MM-DD) or an ISO 8601 timestamp
+            status: 400
 
     NotFound:
       description: Resource not found

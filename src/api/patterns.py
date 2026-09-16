@@ -6,10 +6,11 @@ from itertools import combinations
 
 from config import (
     MIN_AD_DURATION, SEGMENT_CATEGORIES,
-    count_pending_review, is_pending_review,
+    count_pending_review, is_pending_review, resolve_max_ad_duration_confirmed,
+    resolve_max_boundary_shift,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
-from utils.markers import BOUNDS_TOLERANCE_S, spans_match
+from utils.markers import BOUNDS_TOLERANCE_S, clip_merge_spans, spans_match
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
 from pattern_service import PatternService, compute_pattern_trust
@@ -959,6 +960,8 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
             'reason': f"Split from {original_start:.1f}s-{original_end:.1f}s block",
             'pattern_id': piece_id,
         })
+        # Each piece is narrower than the span the merge records describe.
+        clip_merge_spans(split_marker, piece['start'], piece['end'])
         new_markers.append(split_marker)
 
         db.create_pattern_correction(
@@ -1073,6 +1076,22 @@ def _resolve_or_create_pattern_from_text(
     )
 
 
+def _usable_reviewer_proposal(db, marker, start, end):
+    """A held marker's reviewer proposal, when it is valid, overlaps the
+    detected span, and stays within the reviewer's per-edge shift cap."""
+    # A hold stamps the raw proposal, which never passed the reviewer's clamp.
+    p_start = marker.get('reviewer_proposed_start')
+    p_end = marker.get('reviewer_proposed_end')
+    if not isinstance(p_start, (int, float)) or not isinstance(p_end, (int, float)):
+        return None
+    if p_end <= p_start or p_end <= start or p_start >= end:
+        return None
+    cap = resolve_max_boundary_shift(db)
+    if abs(p_start - start) > cap or abs(p_end - end) > cap:
+        return None
+    return float(p_start), float(p_end)
+
+
 def _handle_confirm_correction(
     db, pattern_service, slug, episode_id, original_ad, data
 ):
@@ -1099,12 +1118,32 @@ def _handle_confirm_correction(
             return error_response('adjusted_start and adjusted_end must be numbers', 400)
         if adjusted_end <= adjusted_start:
             return error_response('adjusted_end must be greater than adjusted_start', 400)
-        # A trim narrows the reviewed span; bounds outside it are not a trim.
-        if adjusted_start < original_start - 0.5 or adjusted_end > original_end + 0.5:
-            return error_response('Adjusted bounds must lie within the original span', 400)
+        # A trim narrows the reviewed span: the detected span alone, or the
+        # envelope of detected and reviewer-proposed bounds when the held
+        # marker carries a reviewer proposal (e.g. reviewer_boundary_conflict).
+        env_start, env_end = original_start, original_end
+        held_marker = None
+        for m in _load_markers(db, slug, episode_id) or []:
+            if _matches_held_marker(m, original_start, original_end, 0.5):
+                held_marker = m
+                break
+        if held_marker is not None:
+            proposal = _usable_reviewer_proposal(
+                db, held_marker, original_start, original_end)
+            if proposal is not None:
+                env_start = min(original_start, proposal[0])
+                env_end = max(original_end, proposal[1])
+        if adjusted_start < env_start - 0.5 or adjusted_end > env_end + 0.5:
+            return error_response('Adjusted bounds must lie within the reviewed span', 400)
     # The span actually confirmed as ad content.
     eff_start = adjusted_start if has_trim else original_start
     eff_end = adjusted_end if has_trim else original_end
+    # A confirmed correction force-accepts ahead of the validator's duration
+    # checks, so the ceiling has to hold here.
+    max_confirmed = resolve_max_ad_duration_confirmed(db)
+    if eff_end - eff_start > max_confirmed:
+        return error_response(
+            f'Confirmed span exceeds the {max_confirmed:.0f}s maximum ad duration', 400)
 
     logger.info(
         f"CORRECTION: type=confirm, episode={slug}/{episode_id}, "
@@ -1352,6 +1391,7 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
                 m['reviewer_original_end'] = m.get('end')
                 m['start'] = new_start
                 m['end'] = new_end
+                clip_merge_spans(m, new_start, new_end)
             m['approved'] = True
             m['reviewer_moved'] = False
             changed = True

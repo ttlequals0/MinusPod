@@ -1,12 +1,16 @@
-"""Integration tests for the LLM-only reprocess mode (issue #349).
+"""Integration tests for the LLM-only reprocess mode (issue #349) and for the
+authoritative jobState the reprocess/bulk endpoints return alongside status.
 
 The endpoint reruns ad detection and re-cut using the saved transcript and
 skips re-transcription. It must refuse to run when no transcript exists, since
-there is nothing to reuse. These tests only exercise the request-validation
-paths (400 responses), which return before any background processing starts.
+there is nothing to reuse. Most tests here exercise the request-validation
+paths (400 responses), which return before any background processing starts;
+the jobState tests below mock start_background_processing to reach the
+queued/processing/409 branches without spinning a real pipeline.
 """
 import os
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -42,6 +46,15 @@ def seeded_episode(app_client):
 
     try:
         db.delete_podcast(slug)
+    except Exception:
+        pass
+    # The queued-jobState tests add a display-queue entry via
+    # get_status_service().queue_episode(); it lives in StatusService's
+    # in-memory queue, not the DB, so deleting the podcast row does not
+    # clear it and it would otherwise leak into other tests' queue reads.
+    try:
+        from api import get_status_service
+        get_status_service().remove_feed_from_queue(slug)
     except Exception:
         pass
 
@@ -82,3 +95,107 @@ def test_bulk_reprocess_llm_action_accepted(app_client, seeded_episode, _auth):
     body = r.get_json() or {}
     assert body.get('skipped') == 1
     assert body.get('queued') == 0
+
+
+def test_bulk_reprocess_returns_queued_job_state(app_client, seeded_episode, _auth):
+    # 'reprocess' (unlike 'reprocess_llm') needs no transcript, so the
+    # episode is actually enqueued and the bulk response reports jobState.
+    slug = seeded_episode['slug']
+    ep_id = seeded_episode['episode_id']
+
+    r = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes/bulk',
+        json={'episodeIds': [ep_id], 'action': 'reprocess'},
+    )
+
+    assert r.status_code == 200
+    body = r.get_json() or {}
+    assert body.get('queued') == 1
+    assert body.get('jobState') == 'queued'
+
+
+def test_bulk_delete_omits_job_state(app_client, seeded_episode, _auth):
+    # jobState only describes queue/run state; delete has neither.
+    slug = seeded_episode['slug']
+    ep_id = seeded_episode['episode_id']
+
+    r = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes/bulk',
+        json={'episodeIds': [ep_id], 'action': 'delete'},
+    )
+
+    assert r.status_code == 200
+    assert 'jobState' not in (r.get_json() or {})
+
+
+@patch('main_app.processing.start_background_processing', return_value=(True, 'started'))
+def test_reprocess_returns_processing_job_state_when_started(_start, app_client, seeded_episode, _auth):
+    slug = seeded_episode['slug']
+    ep_id = seeded_episode['episode_id']
+
+    r = app_client.post(f'/api/v1/episodes/{slug}/{ep_id}/reprocess', json={'mode': 'reprocess'})
+
+    assert r.status_code == 202
+    body = r.get_json() or {}
+    assert body.get('status') == 'processing'
+    assert body.get('jobState') == 'processing'
+
+
+@patch('main_app.processing.start_background_processing', return_value=(False, 'queue_busy:other:ep'))
+def test_reprocess_returns_queued_job_state_with_no_duplicate_queue_row(_start, app_client, seeded_episode, _auth):
+    slug = seeded_episode['slug']
+    ep_id = seeded_episode['episode_id']
+    db = seeded_episode['db']
+
+    r1 = app_client.post(f'/api/v1/episodes/{slug}/{ep_id}/reprocess', json={'mode': 'reprocess'})
+    assert r1.status_code == 202
+    body1 = r1.get_json() or {}
+    assert body1.get('status') == 'queued'
+    assert body1.get('jobState') == 'queued'
+
+    # Second immediate submission: same reported job state, no error to
+    # special-case, and the UNIQUE(podcast_id, episode_id) constraint means
+    # this can only ever update the existing row, never insert a second one.
+    r2 = app_client.post(f'/api/v1/episodes/{slug}/{ep_id}/reprocess', json={'mode': 'reprocess'})
+    assert r2.status_code == 202
+    body2 = r2.get_json() or {}
+    assert body2.get('jobState') == 'queued'
+
+    podcast = db.get_podcast_by_slug(slug)
+    row_count = db.get_connection().execute(
+        'SELECT COUNT(*) AS n FROM auto_process_queue WHERE podcast_id = ? AND episode_id = ?',
+        (podcast['id'], ep_id),
+    ).fetchone()['n']
+    assert row_count == 1
+
+
+def test_reprocess_409_when_already_processing_carries_job_state(app_client, seeded_episode, _auth):
+    slug = seeded_episode['slug']
+    ep_id = seeded_episode['episode_id']
+    db = seeded_episode['db']
+    db.upsert_episode(slug, ep_id, status='processing')
+
+    r = app_client.post(f'/api/v1/episodes/{slug}/{ep_id}/reprocess', json={'mode': 'reprocess'})
+
+    assert r.status_code == 409
+    body = r.get_json() or {}
+    assert body.get('jobState') == 'processing'
+
+
+def test_second_active_run_blocked_by_partial_unique_index(seeded_episode):
+    # Confirms (does not rebuild) the atomic admission the reprocess endpoint
+    # relies on: two concurrent acquires for the same episode cannot both
+    # win, so the endpoint's own duplicate-submission handling never needs
+    # to guard a second active run itself.
+    from processing_queue import ProcessingQueue
+
+    slug = seeded_episode['slug']
+    ep_id = seeded_episode['episode_id']
+    queue = ProcessingQueue()
+
+    first = queue.acquire(slug, ep_id)
+    try:
+        assert first is not None
+        assert queue.acquire(slug, ep_id) is None
+    finally:
+        queue.release(first, terminal_state='interrupted')

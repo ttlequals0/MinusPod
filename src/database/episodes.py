@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
+# Shared with the stats mixin so both agree on what counts as processed.
+from database.stats import _PROCESSED_EPISODE_EXISTS_SQL
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
@@ -17,6 +19,16 @@ logger = logging.getLogger(__name__)
 # archive feed held the single write lock long enough for every other writer to
 # exceed its 30s busy_timeout and fail with "database is locked".
 DISCOVERY_UPSERT_CHUNK = 50
+
+# Shared SET clause for requeueing an episode to 'pending' (params: reprocess_mode,
+# reprocess_requested_at). One definition so a new reset column cannot be added to
+# one requeue path and missed by the other.
+_REQUEUE_PENDING_SET_SQL = (
+    "status = 'pending', retry_count = 0, error_message = NULL, "
+    "reprocess_mode = ?, reprocess_requested_at = ?, reprocess_source = NULL, "
+    "deferred_at = NULL, deferred_service = NULL, "
+    "updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+)
 
 # A regen stamp older than this belongs to a worker that died mid-run.
 CHAPTERS_REGEN_STALE_SECONDS = 900
@@ -118,7 +130,8 @@ class EpisodeMixin:
         # Get episodes
         params.extend([limit, offset])
         cursor = conn.execute(
-            f"""SELECT e.* FROM episodes e
+            f"""SELECT e.*, {_PROCESSED_EPISODE_EXISTS_SQL} AS has_been_processed
+                FROM episodes e
                 {where_clause}
                 {order_clause}
                 LIMIT ? OFFSET ?""",  # noqa: S608
@@ -128,13 +141,48 @@ class EpisodeMixin:
         episodes = [dict(row) for row in cursor.fetchall()]
         return episodes, total
 
+    def get_latest_episodes_for_podcasts(self, podcast_ids: list[int],
+                                         per_feed_limit: int) -> dict[int, list[dict]]:
+        """Latest `per_feed_limit` episodes for each of `podcast_ids`, newest first.
+
+        One windowed query (ROW_NUMBER partitioned by podcast_id) ranks every
+        feed at once instead of a query per feed. Ordering matches
+        get_episodes: COALESCE(published_at, created_at) DESC, id DESC as a
+        tie-breaker.
+        """
+        result: dict[int, list[dict]] = {pid: [] for pid in podcast_ids}
+        if not podcast_ids:
+            return result
+        conn = self.get_connection()
+        placeholders = ','.join('?' * len(podcast_ids))
+        cursor = conn.execute(
+            f"""SELECT e.*, {_PROCESSED_EPISODE_EXISTS_SQL} AS has_been_processed
+                FROM (
+                    SELECT ep.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY ep.podcast_id
+                               ORDER BY COALESCE(ep.published_at, ep.created_at) DESC, ep.id DESC
+                           ) AS rn
+                    FROM episodes ep
+                    WHERE ep.podcast_id IN ({placeholders})
+                ) e
+                WHERE e.rn <= ?
+                ORDER BY e.podcast_id, e.rn""",  # noqa: S608
+            [*podcast_ids, per_feed_limit]
+        )
+        for row in cursor.fetchall():
+            row_dict = dict(row)
+            result[row_dict['podcast_id']].append(row_dict)
+        return result
+
     def get_episode(self, slug: str, episode_id: str) -> dict | None:
         """Get episode by slug and episode_id."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT e.*, p.slug, p.title AS podcast_title,
+            f"""SELECT e.*, p.slug, p.title AS podcast_title,
                       -- Fixed-width ISO stamps compare as strings; NULL yields NULL.
                       (e.chapters_regen_started_at > ?) AS chapters_regen_active,
+                      {_PROCESSED_EPISODE_EXISTS_SQL} AS has_been_processed,
                       ed.transcript_text,
                       (ed.original_transcript_text IS NOT NULL) as has_original_transcript,
                       ed.transcript_vtt,
@@ -145,7 +193,7 @@ class EpisodeMixin:
                FROM episodes e
                JOIN podcasts p ON e.podcast_id = p.id
                LEFT JOIN episode_details ed ON e.id = ed.episode_id
-               WHERE p.slug = ? AND e.episode_id = ?""",
+               WHERE p.slug = ? AND e.episode_id = ?""",  # noqa: S608
             (_chapters_regen_cutoff(), slug, episode_id)
         )
         row = cursor.fetchone()
@@ -352,7 +400,7 @@ class EpisodeMixin:
         """Just the fields a caller needs to decide whether to act on an episode."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT e.status, e.processed_version,
+            """SELECT e.status, e.processed_version, e.passthrough_enabled,
                       (ed.transcript_vtt IS NOT NULL) AS has_transcript_vtt
                FROM episodes e
                JOIN podcasts p ON e.podcast_id = p.id
@@ -1053,6 +1101,41 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_episode_job_states(self, episode_ids: list[str]) -> dict:
+        """{(podcast_slug, episode_id): 'processing' | 'queued'} for the given ids.
+
+        One query over both ownership registries so a worker that has claimed
+        a run or a queue row but not yet flipped the episode status can never
+        be reported as idle.
+        """
+        if not episode_ids:
+            return {}
+        conn = self.get_connection()
+        placeholders = ','.join('?' * len(episode_ids))
+        rows = conn.execute(
+            f"""SELECT p.slug AS podcast_slug, q.episode_id AS episode_id,
+                       CASE WHEN q.status = 'processing' THEN 'processing'
+                            ELSE 'queued' END AS job_state
+                FROM auto_process_queue q
+                JOIN podcasts p ON q.podcast_id = p.id
+                WHERE q.status IN ('pending', 'processing')
+                  AND q.episode_id IN ({placeholders})
+                UNION ALL
+                SELECT p.slug, r.episode_id, 'processing'
+                FROM processing_runs r
+                JOIN podcasts p ON r.podcast_id = p.id
+                WHERE r.state IN ('running', 'cancel_requested')
+                  AND r.episode_id IN ({placeholders})""",  # noqa: S608
+            [*episode_ids, *episode_ids]
+        )
+        states: dict = {}
+        for row in rows.fetchall():
+            key = (row['podcast_slug'], row['episode_id'])
+            # An owned run outranks a waiting queue row for the same episode.
+            if states.get(key) != 'processing':
+                states[key] = row['job_state']
+        return states
+
     def batch_clear_episode_details(self, slug: str, episode_ids: list[str]) -> None:
         """Clear episode_details for multiple episodes in one query."""
         if not episode_ids:
@@ -1387,17 +1470,53 @@ class EpisodeMixin:
         placeholders = ','.join('?' for _ in episode_ids)
         params = [reprocess_mode, reprocess_requested_at, podcast['id']] + list(episode_ids)
         cursor = conn.execute(
-            f"""UPDATE episodes SET
-                status = 'pending', retry_count = 0, error_message = NULL,
-                reprocess_mode = ?, reprocess_requested_at = ?,
-                reprocess_source = NULL,
-                deferred_at = NULL, deferred_service = NULL,
-                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            f"""UPDATE episodes SET {_REQUEUE_PENDING_SET_SQL}
             WHERE podcast_id = ? AND episode_id IN ({placeholders})""",  # noqa: S608
             params
         )
         conn.commit()
         return cursor.rowcount
+
+    def set_episodes_passthrough(self, slug: str, episode_ids: list[str],
+                                  enabled: bool, *,
+                                  reprocess_ids: list[str] | None = None,
+                                  reprocess_requested_at: str = None) -> int:
+        """Set passthrough_enabled for a feed's episodes (#746). ``reprocess_ids``
+        (a subset) are marked pending with a reprocess stamp in the same
+        transaction as the flag, so the obligation survives a failed enqueue
+        (requeue_stranded_pending_episodes picks up a pending row with no queue
+        entry). Returns count updated.
+        """
+        if not episode_ids:
+            return 0
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return 0
+        value = 1 if enabled else 0
+        reprocess_set = set(reprocess_ids or ())
+        updated = 0
+        for start in range(0, len(episode_ids), DISCOVERY_UPSERT_CHUNK):
+            chunk = list(episode_ids[start:start + DISCOVERY_UPSERT_CHUNK])
+            chunk_reprocess = [eid for eid in chunk if eid in reprocess_set]
+            with self.transaction(immediate=True) as conn:
+                placeholders = ','.join('?' for _ in chunk)
+                cursor = conn.execute(
+                    f"""UPDATE episodes SET
+                        passthrough_enabled = ?,
+                        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                    WHERE podcast_id = ? AND episode_id IN ({placeholders})""",  # noqa: S608
+                    [value, podcast['id'], *chunk]
+                )
+                updated += cursor.rowcount
+                if chunk_reprocess:
+                    reprocess_placeholders = ','.join('?' for _ in chunk_reprocess)
+                    conn.execute(
+                        f"""UPDATE episodes SET {_REQUEUE_PENDING_SET_SQL}
+                        WHERE podcast_id = ?
+                          AND episode_id IN ({reprocess_placeholders})""",  # noqa: S608
+                        ['reprocess', reprocess_requested_at, podcast['id'], *chunk_reprocess]
+                    )
+        return updated
 
     def delete_episodes(self, slug: str, episode_ids: list[str], storage,
                          keep_original: bool = False) -> tuple[int, float]:

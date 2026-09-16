@@ -5,7 +5,7 @@ Uses the main_app boot pattern from test_offline_queue: bind a temp DATA_DIR
 before importing main_app so singletons initialize against it.
 """
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -15,19 +15,25 @@ _test_data_dir = bootstrap('rate_limit_hold_test_')
 from llm_client import (
     ProviderRateLimitedError, is_connectivity_error, is_retryable_error,
 )
+from llm_route import Route
 from database.queue import compute_queue_priority
 from main_app import db
 from main_app.processing import (
     _handle_processing_failure, is_transient_error, start_background_processing,
 )
 from rate_limit_hold import (
+    _probe_at_key,
+    active_held_pairs,
     clear_hold_for_provider_change,
     get_active_hold,
+    get_any_active_hold,
     hold_message,
     hold_queue_for_provider_limit,
     is_queue_paused,
     is_rate_limit_hold_enabled,
+    probe_rate_limit,
     rate_limit_hold_tick,
+    record_hold_until,
 )
 from tests.unit.provider_error_fakes import FakeResponse, FakeProviderError, call_window
 from tests.unit.rate_limit_fixtures import PRODUCTION_RESET_BODY
@@ -254,6 +260,9 @@ def seeded_episode():
     _set_hold_enabled(False)
     db.set_setting('rate_limit_hold_until', '')
     db.clear_setting('rate_limit_hold_since')
+    from rate_limit_hold import _provider_hold_suffixes, clear_hold
+    for provider in _provider_hold_suffixes(db):
+        clear_hold(db, provider)
     db.get_connection().execute("DELETE FROM auto_process_queue")
     db.get_connection().commit()
 
@@ -360,6 +369,23 @@ class TestFailureHandlerHold:
         assert episode['retry_count'] == 1  # 429s never burn retry_count (#238)
         assert not episode.get('deferred_at')
 
+    def test_manual_limit_defers_even_with_hold_disabled(self, seeded_episode):
+        """A manual cap (#747) crossed mid-run defers to PENDING regardless of
+        the #696 toggle: the pre-call backstop already recorded the marker."""
+        from rate_limit_hold import record_hold_until
+        _set_hold_enabled(False)
+        record_hold_until(db, 'anthropic', '2099-01-01T00:00:00Z',
+                          credential_slot='primary', manual=True)
+        err = ProviderRateLimitedError(
+            'manual rate limit reached', retry_after_seconds=60.0,
+            provider_key='anthropic', credential_slot='primary', manual=True)
+        _fail(seeded_episode, err)
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['status'] == 'pending'
+        assert episode['retry_count'] == 1  # untouched
+        assert not episode.get('deferred_at')
+        assert self._queue_row(seeded_episode)['status'] == 'pending'
+
     def test_hold_branch_precedes_offline_queue(self, seeded_episode):
         """Both features enabled: a held 429 is a rate-limit hold, not an
         endpoint outage, so the offline queue must not claim it."""
@@ -380,6 +406,95 @@ class TestStartGate:
         db.set_setting('rate_limit_hold_until', future)
         started, reason = start_background_processing(
             SLUG, 'ep-play', 'https://example.com/e.mp3', 'E', 'P', None, None)
+        assert started is False
+        assert reason == 'rate_limit_paused'
+
+
+def _admit_or_refuse(monkeypatch, snapshot, episode_id):
+    """Drive start_background_processing far enough to observe the hold
+    gate's verdict without starting a real run: acquire() is stubbed to
+    fail immediately, so any non-hold refusal proves the gate admitted it.
+    """
+    from main_app import processing
+    from processing_queue import ProcessingQueue
+    monkeypatch.setattr(processing, '_resolve_route_snapshot', lambda: snapshot)
+    monkeypatch.setattr(ProcessingQueue, 'acquire', lambda self, *a, **kw: None)
+    return start_background_processing(
+        SLUG, episode_id, 'https://example.com/e.mp3', 'E', 'P', None, None)
+
+
+def _phase_snapshot(**routes):
+    """A route snapshot shaped like _resolve_route_snapshot's real return,
+    mapping each phase to an arbitrary provider_key for admission tests."""
+    return {phase: {'provider_key': provider, 'configured_model': 'model-x'}
+            for phase, provider in routes.items()}
+
+
+class TestProviderScopedAdmission:
+    """A hold on one provider must not pause a run whose phases all use a
+    different, healthy provider, and a run needing a held provider must be
+    refused before it can spend a call on any other provider it needs.
+    """
+
+    def test_hold_on_one_provider_leaves_other_provider_run_admissible(
+            self, monkeypatch, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        snapshot = _phase_snapshot(detection='provider-b', review='provider-b',
+                                   verification='provider-b', chapters='provider-b')
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-b')
+        assert started is False
+        assert reason == 'queue_busy'  # past the hold gate; acquire() is the stub
+
+    def test_run_needing_two_providers_is_held_while_one_is_held(
+            self, monkeypatch, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        snapshot = _phase_snapshot(detection='provider-a', review='provider-b',
+                                   verification='provider-a', chapters='provider-b')
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-mixed')
+        assert started is False
+        assert reason == 'rate_limit_paused'  # refused before any provider is called
+
+    def test_no_cross_provider_fallback_when_reviewer_provider_is_held(
+            self, monkeypatch, seeded_episode):
+        """Detection/verification/chapters are healthy on provider-b; only
+        the reviewer's provider-a is held. With the reviewer enabled and in
+        use, the run must still be refused wholesale, not started with
+        review silently skipped or rerouted."""
+        db.set_setting('enable_ad_review', 'true')
+        try:
+            future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            record_hold_until(db, 'provider-a', future)
+            snapshot = _phase_snapshot(detection='provider-b', review='provider-a',
+                                       verification='provider-b', chapters='provider-b')
+            started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-reviewer')
+        finally:
+            db.set_setting('enable_ad_review', 'false')
+        assert started is False
+        assert reason == 'rate_limit_paused'
+
+    def test_disabled_reviewer_provider_does_not_count_toward_admission(
+            self, monkeypatch, seeded_episode):
+        """enable_ad_review is off by default: a held review_provider must
+        not refuse a run that will never actually call the reviewer."""
+        assert db.get_setting('enable_ad_review') in (None, '', 'false')
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        snapshot = _phase_snapshot(detection='provider-b', review='provider-a',
+                                   verification='provider-b', chapters='provider-b')
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-disabled-review')
+        assert started is False
+        assert reason == 'queue_busy'  # past the hold gate; acquire() is the stub
+
+    def test_legacy_global_hold_still_blocks_every_provider(self, monkeypatch, seeded_episode):
+        """A hold recorded by pre-migration code (the bare, unscoped key)
+        still pauses every provider for one release."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)
+        snapshot = _phase_snapshot(detection='provider-b', review='provider-b',
+                                   verification='provider-b', chapters='provider-b')
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-legacy')
         assert started is False
         assert reason == 'rate_limit_paused'
 
@@ -511,6 +626,46 @@ class TestTick:
         assert is_queue_paused(db) is True
 
 
+class TestProviderScopedPauseProbeAndTick:
+    """A single-provider install's real 429s land on a provider-scoped key
+    (record_hold_until(db, 'anthropic', ...)), not the legacy one. The
+    dispatcher's blanket pause, the early-recovery probe, and the tick's
+    cleanup must all still react to that hold exactly as they do for a
+    legacy one. TestPauseGate/TestTick above only exercise
+    record_hold_until(db, None, ...) and would miss this regression.
+    """
+
+    def test_any_active_hold_reports_a_provider_scoped_pause(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)
+        hold_until, hold_since = get_any_active_hold(db)
+        assert hold_until == future
+        assert hold_since
+        assert is_queue_paused(db) is False  # legacy key untouched
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_probe_clears_the_effective_providers_own_key(self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)
+        db.set_setting('llm_usage_url', 'https://example-provider.test/v1/usage')
+        db.clear_setting('rate_limit_probe_at')
+        db.set_setting('rate_limit_probe_minutes', '5')
+        with patch('rate_limit_hold.get_effective_provider', return_value='anthropic'), \
+             patch('rate_limit_hold.read_usage_status', return_value={'blocked': False}):
+            assert probe_rate_limit(db) is True
+        assert is_queue_paused(db, 'anthropic') is False
+        mock_fire.assert_called_once()
+        db.clear_setting('llm_usage_url')
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_tick_clears_an_expired_provider_scoped_marker(self, mock_fire, seeded_episode):
+        past = (datetime.now(timezone.utc) - timedelta(seconds=5)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', past)
+        rate_limit_hold_tick(db)
+        assert is_queue_paused(db, 'anthropic') is False
+        mock_fire.assert_called_once()
+
+
 class TestToggleDefault:
     def test_disabled_default(self):
         assert is_rate_limit_hold_enabled(db) is False
@@ -629,3 +784,362 @@ class TestProviderChangeClear:
         db.set_setting('rate_limit_hold_until', '2020-01-01T00:00:00Z')
         assert clear_hold_for_provider_change(db, 'provider changed') is False
         mock_fire.assert_not_called()
+
+
+class TestProviderScopedHoldStorage:
+    """record_hold_until/get_active_hold/is_queue_paused directly, with an
+    explicit provider_key: a hold on one provider must not be visible when
+    a different provider is queried, and the legacy unscoped marker must
+    still be honored as a fallback for either.
+    """
+
+    def test_record_writes_only_that_providers_key(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        assert is_queue_paused(db, 'provider-a') is True
+        assert is_queue_paused(db, 'provider-b') is False
+        assert is_queue_paused(db) is False  # legacy key untouched
+
+    def test_get_active_hold_is_provider_specific(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        hold_until, hold_since = get_active_hold(db, 'provider-a')
+        assert hold_until == future
+        assert hold_since  # a fresh pause stamps its start
+        assert get_active_hold(db, 'provider-b') == (None, None)
+
+    def test_legacy_marker_is_a_fallback_for_any_provider(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)  # pre-migration write
+        assert is_queue_paused(db, 'provider-a') is True
+        assert is_queue_paused(db, 'provider-b') is True
+        assert get_active_hold(db, 'provider-a')[0] == future
+
+    def test_clear_for_provider_change_leaves_other_providers_held(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        record_hold_until(db, 'provider-b', future)
+        assert clear_hold_for_provider_change(
+            db, 'provider-a credentials changed', provider_key='provider-a') is True
+        assert is_queue_paused(db, 'provider-a') is False
+        assert is_queue_paused(db, 'provider-b') is True
+
+
+class TestCredentialSlotScopedHolds:
+    """A provider can have two independent accounts (primary/secondary); a
+    429 on one must not pause the other same-type account.
+    """
+
+    def test_secondary_hold_does_not_pause_primary(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        assert is_queue_paused(db, 'anthropic', 'secondary') is True
+        assert is_queue_paused(db, 'anthropic', 'primary') is False
+        assert is_queue_paused(db, 'anthropic') is False  # default slot is primary
+
+    def test_primary_hold_does_not_pause_secondary(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='primary')
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+        assert is_queue_paused(db, 'anthropic', 'secondary') is False
+
+    def test_admission_admits_primary_only_run_while_secondary_is_held(
+            self, monkeypatch, seeded_episode):
+        """A hold on (anthropic, secondary) must not block a run whose
+        phases all resolve to (anthropic, primary)."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        snapshot = {
+            phase: {'provider_key': 'anthropic', 'configured_model': 'model-x',
+                    'credential_slot': 'primary'}
+            for phase in ('detection', 'review', 'verification', 'chapters')
+        }
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-primary-only')
+        assert started is False
+        assert reason == 'queue_busy'  # past the hold gate; acquire() is the stub
+
+    def test_admission_refuses_run_needing_the_held_secondary_slot(
+            self, monkeypatch, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        snapshot = {
+            phase: {'provider_key': 'anthropic', 'configured_model': 'model-x',
+                    'credential_slot': 'secondary'}
+            for phase in ('detection', 'review', 'verification', 'chapters')
+        }
+        started, reason = _admit_or_refuse(monkeypatch, snapshot, 'ep-admit-secondary-held')
+        assert started is False
+        assert reason == 'rate_limit_paused'
+
+    def test_get_active_hold_is_slot_specific(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        hold_until, hold_since = get_active_hold(db, 'anthropic', 'secondary')
+        assert hold_until == future
+        assert hold_since
+        assert get_active_hold(db, 'anthropic', 'primary') == (None, None)
+
+    def test_legacy_type_only_key_falls_back_for_primary_not_secondary(self, seeded_episode):
+        """A hold recorded before slot-scoping (a bare per-provider marker)
+        still blocks primary for one release, but must not bleed onto a
+        secondary account that could not have caused it (secondary did not
+        exist yet)."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)  # pre-slot-scoping call site
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+        assert is_queue_paused(db, 'anthropic', 'secondary') is False
+
+    def test_global_legacy_key_is_a_blanket_pause_for_every_slot(self, seeded_episode):
+        """A 429 whose error carried no provider key stamps the unscoped
+        marker, which pauses the whole queue; a secondary-routed start must
+        not slip past it."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)  # fully-unscoped write
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+        assert is_queue_paused(db, 'anthropic', 'secondary') is True
+
+    def test_clear_for_secondary_change_does_not_lift_primary_hold(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='primary')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        assert clear_hold_for_provider_change(
+            db, 'secondary provider settings changed',
+            provider_key='anthropic', credential_slot='secondary') is True
+        assert is_queue_paused(db, 'anthropic', 'secondary') is False
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+
+    def test_clear_for_secondary_change_does_not_falsely_report_lifting_a_primary_hold(
+            self, seeded_episode):
+        """Only a legacy (pre-slot) hold is active; a secondary credential
+        change must not report success while leaving that hold (which may
+        genuinely belong to primary) untouched."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)  # pre-slot-scoping marker
+        assert clear_hold_for_provider_change(
+            db, 'secondary provider settings changed',
+            provider_key='anthropic', credential_slot='secondary') is False
+        assert is_queue_paused(db, 'anthropic', 'primary') is True
+
+    def test_clear_for_secondary_change_keeps_the_blanket_hold(self, seeded_episode):
+        """The unscoped marker pauses secondary too, but it can belong to
+        primary, so a secondary credential change must not lift it."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting('rate_limit_hold_until', future)
+        clear_hold_for_provider_change(
+            db, 'secondary provider settings changed',
+            provider_key='anthropic', credential_slot='secondary')
+        assert db.get_setting('rate_limit_hold_until') == future
+
+    def test_status_hold_block_reflects_a_slot_scoped_hold(self, seeded_episode):
+        from api.status import _build_hold_block
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future, credential_slot='secondary')
+        block = _build_hold_block(db)
+        assert block['queuePaused'] is True
+        assert block['holdUntil'] == future
+
+
+class TestActiveHeldPairs:
+    def test_returns_provider_and_slot_for_active_scoped_holds(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', future)  # primary (pre-slot marker)
+        record_hold_until(db, 'openrouter', future, credential_slot='secondary')
+        pairs = active_held_pairs(db)
+        assert ('anthropic', 'primary') in pairs
+        assert ('openrouter', 'secondary') in pairs
+
+    def test_excludes_expired_holds(self, seeded_episode):
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'anthropic', past, force=True)
+        assert ('anthropic', 'primary') not in active_held_pairs(db)
+
+
+class TestProbeRoutesToTheHeldAccount:
+    """The completion probe must call the (provider, slot) that is actually
+    held, with a model routed there: pairing the detection model setting
+    with the global primary client makes every mixed-provider probe fail and
+    charges the failure to the wrong provider.
+    """
+
+    def setup_method(self):
+        self._detection_model = db.get_setting('claude_model')
+        db.set_setting('rate_limit_probe_minutes', '5')
+        db.clear_setting('rate_limit_probe_at')
+        db.clear_setting('llm_usage_url')
+
+    def teardown_method(self):
+        db.set_setting('claude_model', self._detection_model or '')
+        db.clear_setting('rate_limit_probe_at')
+        db.clear_setting('llm_usage_url')
+
+    def _routes(self, mapping):
+        """Patch resolve_route with a phase -> (provider, slot, model) map."""
+        def _resolve(phase, **kwargs):
+            if phase not in mapping:
+                raise ValueError(f'no route for {phase}')
+            provider, slot, model = mapping[phase]
+            return Route(phase=phase, provider_key=provider, model_id=model,
+                         base_url=None, slot=slot, credential_slot=slot)
+        return patch('rate_limit_hold.resolve_route', side_effect=_resolve)
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_secondary_hold_is_probed_with_the_secondary_route(self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-b', future, credential_slot='secondary')
+        db.set_setting('claude_model', 'primary-model')
+        client = MagicMock()
+        routes = {'detection': ('provider-a', 'primary', 'primary-model'),
+                  'verification': ('provider-b', 'secondary', 'secondary-model')}
+        with patch('rate_limit_hold.get_effective_provider', return_value='provider-a'), \
+                self._routes(routes), \
+                patch('rate_limit_hold.get_client_for_provider', return_value=client) as get_client:
+            assert probe_rate_limit(db) is True
+        get_client.assert_called_once_with(
+            'provider-b', base_url=None, credential_slot='secondary')
+        assert client.messages_create.call_args.kwargs['model'] == 'secondary-model'
+        assert is_queue_paused(db, 'provider-b', 'secondary') is False
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_primary_hold_is_probed_with_a_model_routed_to_primary(
+            self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future, credential_slot='primary')
+        # Detection routes to the secondary slot, so its model is the wrong
+        # one to send at the held primary account.
+        db.set_setting('claude_model', 'secondary-model')
+        client = MagicMock()
+        routes = {'detection': ('provider-b', 'secondary', 'secondary-model'),
+                  'verification': ('provider-a', 'primary', 'primary-model')}
+        with patch('rate_limit_hold.get_effective_provider', return_value='provider-a'), \
+                self._routes(routes), \
+                patch('rate_limit_hold.get_client_for_provider', return_value=client) as get_client:
+            assert probe_rate_limit(db) is True
+        get_client.assert_called_once_with(
+            'provider-a', base_url=None, credential_slot='primary')
+        assert client.messages_create.call_args.kwargs['model'] == 'primary-model'
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_pair_only_the_review_stage_targets_is_probed(self, mock_fire, seeded_episode):
+        """A slot nothing but the reviewer routes to still has to be probed,
+        or it waits out a reset the provider may have already lifted."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-c', future, credential_slot='secondary')
+        client = MagicMock()
+        routes = {'detection': ('provider-a', 'primary', 'primary-model'),
+                  'review': ('provider-c', 'secondary', 'review-model')}
+        with patch('rate_limit_hold.get_effective_provider', return_value='provider-a'), \
+                self._routes(routes), \
+                patch('rate_limit_hold.get_client_for_provider', return_value=client) as get_client:
+            assert probe_rate_limit(db) is True
+        get_client.assert_called_once_with(
+            'provider-c', base_url=None, credential_slot='secondary')
+        assert client.messages_create.call_args.kwargs['model'] == 'review-model'
+        assert is_queue_paused(db, 'provider-c', 'secondary') is False
+
+    def test_hold_with_no_routed_stage_is_left_to_expire(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-z', future, credential_slot='secondary')
+        routes = {'detection': ('provider-a', 'primary', 'primary-model')}
+        with patch('rate_limit_hold.get_effective_provider', return_value='provider-a'), \
+                self._routes(routes), \
+                patch('rate_limit_hold.get_client_for_provider') as get_client:
+            assert probe_rate_limit(db) is False
+        get_client.assert_not_called()
+        assert is_queue_paused(db, 'provider-z', 'secondary') is True
+        # The cadence stamp belongs to the probed marker, not to every hold.
+        assert db.get_setting(_probe_at_key('provider-z:secondary'))
+        assert db.get_setting(_probe_at_key(None)) is None
+
+    def test_clearing_one_hold_leaves_another_providers_probe_state(self, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        record_hold_until(db, 'provider-b', future)
+        db.set_setting(_probe_at_key('provider-b:primary'), '2026-01-01T00:00:00Z')
+        clear_hold_for_provider_change(
+            db, 'provider-a credentials changed', provider_key='provider-a')
+        assert db.get_setting(_probe_at_key('provider-b:primary')) == '2026-01-01T00:00:00Z'
+
+
+class TestProbeCoversEveryHeldPair:
+    """One pass must not stop at the first active marker: a manual cap or a
+    hold still inside its cadence window would otherwise starve every other
+    held pair until wall-clock expiry.
+    """
+
+    setup_method = TestProbeRoutesToTheHeldAccount.setup_method
+    teardown_method = TestProbeRoutesToTheHeldAccount.teardown_method
+    _routes = TestProbeRoutesToTheHeldAccount._routes
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_manual_cap_does_not_starve_another_held_pair(self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future, manual=True)
+        record_hold_until(db, 'provider-b', future, credential_slot='secondary')
+        client = MagicMock()
+        routes = {'detection': ('provider-a', 'primary', 'primary-model'),
+                  'verification': ('provider-b', 'secondary', 'secondary-model')}
+        with patch('rate_limit_hold.get_effective_provider', return_value='provider-a'), \
+                self._routes(routes), \
+                patch('rate_limit_hold.get_client_for_provider', return_value=client) as get_client:
+            assert probe_rate_limit(db) is True
+        get_client.assert_called_once_with(
+            'provider-b', base_url=None, credential_slot='secondary')
+        assert is_queue_paused(db, 'provider-b', 'secondary') is False
+        assert is_queue_paused(db, 'provider-a', 'primary') is True
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_hold_inside_its_cadence_does_not_starve_another_pair(
+            self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        record_hold_until(db, 'provider-b', future, credential_slot='secondary')
+        just_probed = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        db.set_setting(_probe_at_key('provider-a:primary'), just_probed)
+        client = MagicMock()
+        routes = {'detection': ('provider-a', 'primary', 'primary-model'),
+                  'verification': ('provider-b', 'secondary', 'secondary-model')}
+        with patch('rate_limit_hold.get_effective_provider', return_value='provider-a'), \
+                self._routes(routes), \
+                patch('rate_limit_hold.get_client_for_provider', return_value=client) as get_client:
+            assert probe_rate_limit(db) is True
+        get_client.assert_called_once_with(
+            'provider-b', base_url=None, credential_slot='secondary')
+        assert db.get_setting(_probe_at_key('provider-a:primary')) == just_probed
+
+
+class TestUsageUrlProbeScope:
+    """llm_usage_url is one global setting describing one account, so tier 1
+    may only speak for the global provider's primary slot."""
+
+    setup_method = TestProbeRoutesToTheHeldAccount.setup_method
+    teardown_method = TestProbeRoutesToTheHeldAccount.teardown_method
+    _routes = TestProbeRoutesToTheHeldAccount._routes
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_usage_url_is_not_consulted_for_a_non_primary_pair(
+            self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-b', future, credential_slot='secondary')
+        db.set_setting('llm_usage_url', 'https://example-provider.test/v1/usage')
+        client = MagicMock()
+        routes = {'verification': ('provider-b', 'secondary', 'secondary-model')}
+        with patch('rate_limit_hold.get_effective_provider', return_value='provider-a'), \
+                self._routes(routes), \
+                patch('rate_limit_hold.read_usage_status') as read_usage, \
+                patch('rate_limit_hold.get_client_for_provider', return_value=client):
+            assert probe_rate_limit(db) is True
+        read_usage.assert_not_called()
+        assert is_queue_paused(db, 'provider-b', 'secondary') is False
+
+    @patch('rate_limit_hold.fire_queue_resumed_event')
+    def test_usage_url_still_answers_for_the_effective_primary(
+            self, mock_fire, seeded_episode):
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        record_hold_until(db, 'provider-a', future)
+        db.set_setting('llm_usage_url', 'https://example-provider.test/v1/usage')
+        with patch('rate_limit_hold.get_effective_provider', return_value='provider-a'), \
+                patch('rate_limit_hold.read_usage_status',
+                      return_value={'blocked': False}) as read_usage:
+            assert probe_rate_limit(db) is True
+        read_usage.assert_called_once()
+        assert is_queue_paused(db, 'provider-a', 'primary') is False

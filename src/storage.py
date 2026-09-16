@@ -30,6 +30,7 @@ from utils.safe_http import (
 )
 from utils.ttl_cache import TTLCache
 from utils.paths import resolve_data_dir
+from utils.time import utc_now, utc_now_iso, parse_iso_utc
 
 
 _ALLOWED_IMAGE_TYPES = frozenset({
@@ -48,6 +49,18 @@ STORAGE_STATS_TTL_SECONDS = 45
 # Long enough to stop the churn, short enough that a publisher fix is picked
 # up the same day. A forced refresh ignores it.
 ARTWORK_FAILURE_TTL_SECONDS = 6 * 3600
+# A 404 means the resource is confirmed gone rather than transiently broken,
+# so it is backed off for longer than a generic fetch error.
+ARTWORK_FAILURE_TTL_NOT_FOUND_SECONDS = 24 * 3600
+# Per-status backoff window, keyed by the classification _download_artwork_uncached
+# returns on failure.
+_ARTWORK_FAILURE_WINDOWS = {
+    'not_found': ARTWORK_FAILURE_TTL_NOT_FOUND_SECONDS,
+    'error': ARTWORK_FAILURE_TTL_SECONDS,
+}
+# Ceiling on the durable per-URL failure map, kept newest-first: a feed that
+# churns through candidate URLs must not grow its podcast row without bound.
+ARTWORK_FAILURE_STATE_MAX_ENTRIES = 50
 
 # Extension per stored image type, and the reverse lookup used to find a
 # cached cover when only the base name is known.
@@ -182,8 +195,11 @@ class Storage:
 
         # Artwork URLs that failed validation, so a broken one is not refetched
         # on every feed refresh. Keyed by slug and URL, so a changed URL retries
-        # at once.
+        # at once. Two caches so a 404 backs off longer than a transient error;
+        # both are an in-process fast path only: the podcasts.artwork_failure_state
+        # column is the durable record consulted when a cache is cold (restart).
         self._artwork_failure_cache = TTLCache(ARTWORK_FAILURE_TTL_SECONDS)
+        self._artwork_404_cache = TTLCache(ARTWORK_FAILURE_TTL_NOT_FOUND_SECONDS)
 
         self._initialized = True
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
@@ -743,7 +759,7 @@ class Storage:
             if declared_type and declared_type not in _ALLOWED_IMAGE_TYPES:
                 logger.warning(
                     "[%s:%s] episode_artwork_rejected_content_type declared=%s url=%s",
-                    slug, episode_id, declared_type, artwork_url,
+                    slug, episode_id, declared_type, safe_url_for_log(artwork_url),
                 )
                 return False
 
@@ -753,7 +769,7 @@ class Storage:
             except ResponseTooLargeError:
                 logger.warning(
                     "[%s:%s] episode_artwork_size_cap_exceeded max=%d url=%s",
-                    slug, episode_id, max_bytes, artwork_url,
+                    slug, episode_id, max_bytes, safe_url_for_log(artwork_url),
                 )
                 return False
 
@@ -761,7 +777,7 @@ class Storage:
             if not detected:
                 logger.warning(
                     "[%s:%s] episode_artwork_rejected_magic declared=%s url=%s",
-                    slug, episode_id, declared_type, artwork_url,
+                    slug, episode_id, declared_type, safe_url_for_log(artwork_url),
                 )
                 return False
 
@@ -958,36 +974,173 @@ class Storage:
         return any((podcast_dir / f"artwork{ext}").exists()
                    for ext in ('.jpg', '.png', '.gif', '.webp'))
 
-    def download_artwork(self, slug: str, artwork_url: str,
-                         force: bool = False) -> bool:
-        """Download and cache podcast artwork.
+    @staticmethod
+    def _normalize_artwork_candidates(artwork_urls) -> list[str]:
+        """Coerce a single URL or an ordered list into a deduped candidate list."""
+        if not artwork_urls:
+            return []
+        if isinstance(artwork_urls, str):
+            return [artwork_urls]
+        seen = set()
+        out = []
+        for url in artwork_urls:
+            if url and url not in seen:
+                seen.add(url)
+                out.append(url)
+        return out
+
+    @staticmethod
+    def _artwork_negative_cache_key(slug: str, url: str) -> str:
+        return f"{slug}\n{url}"
+
+    @staticmethod
+    def _artwork_failure_state(podcast: dict | None) -> dict:
+        """Parse the durable per-URL failure record off a podcast row."""
+        raw = (podcast or {}).get('artwork_failure_state')
+        if not raw:
+            return {}
+        try:
+            state = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        return state if isinstance(state, dict) else {}
+
+    @staticmethod
+    def _prune_artwork_failure_state(state: dict) -> dict:
+        """Drop entries past their backoff window, then keep the newest N."""
+        now = utc_now()
+        live = {}
+        for url, entry in state.items():
+            failed_at = parse_iso_utc((entry or {}).get('at'))
+            if failed_at is None:
+                continue
+            window = _ARTWORK_FAILURE_WINDOWS.get(
+                entry.get('status'), ARTWORK_FAILURE_TTL_SECONDS)
+            if (now - failed_at).total_seconds() < window:
+                live[url] = entry
+        if len(live) <= ARTWORK_FAILURE_STATE_MAX_ENTRIES:
+            return live
+        newest = sorted(live.items(), key=lambda item: item[1].get('at') or '',
+                        reverse=True)[:ARTWORK_FAILURE_STATE_MAX_ENTRIES]
+        return dict(newest)
+
+    def _artwork_in_backoff(self, slug: str, url: str, podcast: dict | None) -> bool:
+        """True if `url` failed recently enough that it should be skipped.
+
+        Checks the in-process caches first, then the durable DB record (the
+        authoritative source, re-read each call so its own deadline is never
+        extended by an in-process TTL).
+        """
+        key = self._artwork_negative_cache_key(slug, url)
+        if self._artwork_failure_cache.get(key) is not None:
+            return True
+        if self._artwork_404_cache.get(key) is not None:
+            return True
+        entry = self._artwork_failure_state(podcast).get(url)
+        if not entry:
+            return False
+        failed_at = parse_iso_utc(entry.get('at'))
+        if failed_at is None:
+            return False
+        status = entry.get('status')
+        window = _ARTWORK_FAILURE_WINDOWS.get(status, ARTWORK_FAILURE_TTL_SECONDS)
+        # Do not warm the in-process cache here: its full TTL would restart
+        # from now and could outlast this entry's own deadline. The durable
+        # record above is authoritative and re-checked each call.
+        return (utc_now() - failed_at).total_seconds() < window
+
+    def _record_artwork_negative_cache(self, slug: str, podcast: dict | None,
+                                       url: str, status: str) -> None:
+        """Memoize a failed candidate URL, in-process and durably.
+
+        Mutates podcast['artwork_failure_state'] in place so a caller
+        iterating multiple candidates against the same dict sees each
+        prior failure when recording the next one, instead of each write
+        clobbering the last off a stale snapshot.
+        """
+        key = self._artwork_negative_cache_key(slug, url)
+        if status == 'not_found':
+            self._artwork_404_cache.set(key, True)
+            self._artwork_failure_cache.delete(key)
+        else:
+            self._artwork_failure_cache.set(key, True)
+            self._artwork_404_cache.delete(key)
+        state = self._artwork_failure_state(podcast)
+        state[url] = {'status': status, 'at': utc_now_iso()}
+        state = self._prune_artwork_failure_state(state)
+        try:
+            self.db.update_podcast(slug, artwork_failure_state=json.dumps(state))
+            if podcast is not None:
+                podcast['artwork_failure_state'] = json.dumps(state)
+        except Exception as e:
+            logger.warning(f"[{slug}] Failed to persist artwork failure state: {e}")
+
+    def _clear_artwork_negative_cache(self, slug: str, podcast: dict | None, url: str) -> None:
+        """Drop a URL's failure memo, in-process and durably, on success."""
+        key = self._artwork_negative_cache_key(slug, url)
+        self._artwork_failure_cache.delete(key)
+        self._artwork_404_cache.delete(key)
+        state = self._artwork_failure_state(podcast)
+        # The write path prunes, so clearing only has to drop this entry.
+        if state.pop(url, None) is not None:
+            try:
+                self.db.update_podcast(slug, artwork_failure_state=json.dumps(state))
+                if podcast is not None:
+                    podcast['artwork_failure_state'] = json.dumps(state)
+            except Exception as e:
+                logger.warning(f"[{slug}] Failed to clear artwork failure state: {e}")
+
+    def download_artwork(self, slug: str, artwork_urls: str | list[str] | None,
+                         force: bool = False, bypass_backoff: bool | None = None) -> bool:
+        """Download and cache podcast artwork, trying each candidate in order.
+
+        Accepts a single URL (legacy callers) or an ordered list of
+        feed-declared candidates (e.g. itunes:image then <image><url>). The
+        podcast's currently cached artwork_url is appended as a final
+        fallback candidate: when every fetched candidate fails, the
+        existing file and DB row are left completely untouched rather than
+        cleared. Each candidate's failure is memoized separately (see
+        _artwork_in_backoff) so a persistently broken preferred URL is
+        skipped on later refreshes without blocking a working alternate.
+        """
+        # force bypasses the "already cached" guard so a changed source is
+        # refetched; it does NOT bypass the per-URL failure backoff unless the
+        # caller asks (an explicit user refresh; a new candidate has no record).
+        if bypass_backoff is None:
+            bypass_backoff = force
+        candidates = self._normalize_artwork_candidates(artwork_urls)
+        if not candidates:
+            return False
+
+        podcast = self.db.get_podcast_by_slug(slug)
+        cached_url = (podcast or {}).get('artwork_url')
+        if cached_url and cached_url not in candidates:
+            candidates = [*candidates, cached_url]
+
+        for url in candidates:
+            if not bypass_backoff and self._artwork_in_backoff(slug, url, podcast):
+                logger.debug(
+                    f"[{slug}] Skipping artwork retry, this URL failed recently")
+                continue
+            ok, status = self._download_artwork_uncached(slug, url, force)
+            if ok:
+                self._clear_artwork_negative_cache(slug, podcast, url)
+                return True
+            self._record_artwork_negative_cache(slug, podcast, url, status)
+
+        return False
+
+    def _download_artwork_uncached(self, slug: str, artwork_url: str,
+                                   force: bool) -> tuple[bool, str | None]:
+        """Fetch, validate, and save one artwork URL. See download_artwork.
 
         Content-Type header is advisory only; the saved bytes are validated
         against a fixed file-magic allowlist (JPEG/PNG/GIF/WebP). SVG is
         excluded because it admits script execution. Oversize responses are
         rejected outright with a structured log rather than saved partially.
+        Returns (success, failure_status): failure_status is 'not_found' for
+        an HTTP 404, else 'error', and is None on success.
         """
-        if not artwork_url:
-            return False
-
-        failure_key = f"{slug}\n{artwork_url}"
-        if not force and self._artwork_failure_cache.get(failure_key):
-            logger.debug(
-                f"[{slug}] Skipping artwork retry, this URL failed recently")
-            return False
-
-        ok = self._download_artwork_uncached(slug, artwork_url, force)
-        # Failures only; see download_episode_artwork. A forced retry that
-        # succeeds clears the entry so the unforced path stops being blocked.
-        if ok:
-            self._artwork_failure_cache.delete(failure_key)
-        else:
-            self._artwork_failure_cache.set(failure_key, True)
-        return ok
-
-    def _download_artwork_uncached(self, slug: str, artwork_url: str,
-                                   force: bool) -> bool:
-        """Fetch, validate, and save artwork. See download_artwork."""
         try:
             # Check if we already have this artwork on disk. Callers that
             # already wrote the new URL to the row pass force, since the
@@ -996,7 +1149,7 @@ class Storage:
             if podcast and podcast.get('artwork_url') == artwork_url and podcast.get('artwork_cached'):
                 if self.get_artwork(slug) is not None:
                     logger.debug(f"[{slug}] Artwork already cached")
-                    return True
+                    return True, None
                 logger.info(f"[{slug}] artwork_cached flag set but file missing, re-downloading")
 
             logger.info(f"[{slug}] Downloading artwork from {safe_url_for_log(artwork_url)}")
@@ -1017,16 +1170,24 @@ class Storage:
                 )
             except SSRFError as e:
                 logger.warning(f"[{slug}] SSRF blocked in download_artwork: {e}")
-                return False
-            response.raise_for_status()
+                return False, 'error'
+            try:
+                response.raise_for_status()
+            except Exception:
+                status_code = getattr(response, 'status_code', None)
+                logger.warning(
+                    "[%s] artwork_fetch_failed status=%s url=%s",
+                    slug, status_code, safe_url_for_log(artwork_url),
+                )
+                return False, ('not_found' if status_code == 404 else 'error')
 
             declared_type = (response.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()
             if declared_type and declared_type not in _ALLOWED_IMAGE_TYPES:
                 logger.warning(
                     "[%s] artwork_rejected_content_type declared=%s url=%s",
-                    slug, declared_type, artwork_url,
+                    slug, declared_type, safe_url_for_log(artwork_url),
                 )
-                return False
+                return False, 'error'
 
             max_bytes = _max_artwork_bytes()
             try:
@@ -1034,23 +1195,24 @@ class Storage:
             except ResponseTooLargeError:
                 logger.warning(
                     "[%s] artwork_size_cap_exceeded max=%d url=%s",
-                    slug, max_bytes, artwork_url,
+                    slug, max_bytes, safe_url_for_log(artwork_url),
                 )
-                return False
+                return False, 'error'
 
             detected = _detect_image_mime(image_data)
             if not detected:
                 logger.warning(
                     "[%s] artwork_rejected_magic declared=%s url=%s",
-                    slug, declared_type, artwork_url,
+                    slug, declared_type, safe_url_for_log(artwork_url),
                 )
-                return False
+                return False, 'error'
 
-            return self.save_artwork(slug, image_data, detected, artwork_url)
+            ok = self.save_artwork(slug, image_data, detected, artwork_url)
+            return ok, (None if ok else 'error')
 
         except Exception as e:
             logger.warning(f"[{slug}] Failed to download artwork: {e}")
-            return False
+            return False, 'error'
 
     # ========== Cleanup Methods ==========
 

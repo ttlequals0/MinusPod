@@ -22,18 +22,25 @@ from config import (
     is_template_cue,
     MIN_AD_DURATION_FOR_REMOVAL,
     coerce_bool_setting,
+    resolve_max_boundary_shift,
 )
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
-from run_context import run_in_worker_thread
+from llm_route import Route, SAME_AS_PASS, SLOT_PRIMARY, resolve_review_route, resolve_route
+from run_context import route_for_phase, run_in_worker_thread
 from llm_client import (
+    get_client_for_provider, get_effective_provider,
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
     ProviderRateLimitedError, StructuralRateLimitError,
 )
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
-from utils.markers import dai_core_bounds, invalidate_tail_provenance
+from utils.markers import (
+    COARSE_MEMBER_STAGES, dai_core_bounds, finite_number,
+    invalidate_tail_provenance, protected_member_spans, span_bounds,
+    spans_match,
+)
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
     scrub_description, strip_comments_from_prompt
@@ -367,6 +374,46 @@ RESURRECT_BAND_WIDTH = 0.20
 # rounding noise rounds away.
 _CONFIRMED_BOUNDARY_TOLERANCE_S = 0.1
 
+
+def _bounds_unchanged(start, end, original_start, original_end) -> bool:
+    """Whether both edges stay within the confirmed-boundary tolerance."""
+    return spans_match(start, end, original_start, original_end,
+                       tol=_CONFIRMED_BOUNDARY_TOLERANCE_S)
+
+
+def _clamp_overrode(new_start, new_end, original_start, original_end,
+                    clamped_start, clamped_end) -> bool:
+    """Whether a valid, moved proposal was ruled on by the clamp."""
+    return (new_end > new_start
+            and not _bounds_unchanged(new_start, new_end,
+                                      original_start, original_end)
+            and not _bounds_unchanged(clamped_start, clamped_end,
+                                      new_start, new_end))
+
+
+# How far a reviewer proposal may cut into a measured merge member before the
+# ad is held. Tuned on its own: matching BOUNDARY_SNAP_TOLERANCE_S is chance.
+_MEASURED_MEMBER_TOLERANCE_S = 3.0
+
+
+def _member_conflict(member: dict, start: float, end: float) -> bool:
+    """Whether a proposal drops the evidence one merge member carries."""
+    # A coarse member only has to keep overlapping, since trimming its padding
+    # is the reviewer's job. A measured one must stay covered.
+    retained = min(end, member['end']) - max(start, member['start'])
+    length = member['end'] - member['start']
+    if member.get('stage') in COARSE_MEMBER_STAGES:
+        # A sliver is not a surviving member: what is left has to be long
+        # enough to be an ad, and at most half of a member shorter than that.
+        floor = min(MIN_AD_DURATION_FOR_REMOVAL, length / 2)
+    elif member.get('stage') is None:
+        # Legacy union of unknown composition: any real intrusion is a conflict.
+        floor = length - _CONFIRMED_BOUNDARY_TOLERANCE_S
+    else:
+        floor = max(length / 2, length - _MEASURED_MEMBER_TOLERANCE_S)
+    return retained < floor
+
+
 # Prose/number consistency check on adjust verdicts: warn when the reasoning
 # names a boundary figure further than the edge-proximity tolerance + 2s
 # margin from the emitted boundary (observability only; see
@@ -436,14 +483,8 @@ def _first_num(d: dict, keys: tuple, default: float) -> float:
     correction under a corrected_/adjusted_ key when start/end is absent.
     """
     for k in keys:
-        v = d.get(k)
-        if v is None or isinstance(v, bool):
-            continue
-        try:
-            f = float(v)
-        except (TypeError, ValueError):
-            continue
-        if math.isfinite(f):
+        f = finite_number(d.get(k))
+        if f is not None:
             return f
     return default
 
@@ -465,6 +506,9 @@ class ReviewVerdict:
     success: bool = True
     structured_is_ad: bool | None = None
     boundary_conflict: bool = False
+    # The model gave bounds and the clamp ruled on them; no prose-only
+    # trim is pending.
+    proposal_clamped: bool = False
 
 
 @dataclass
@@ -734,14 +778,27 @@ class AdReviewer:
     def __init__(
         self,
         db,
-        llm_client,
+        llm_client=None,
         sponsor_service=None,
         sponsor_history_provider: Callable[[str], str] | None = None,
     ):
         self.db = db
-        self._llm_client = llm_client
+        self._llm_client_override = llm_client
+        self._active_route = None
         self.sponsor_service = sponsor_service
         self._sponsor_history_provider = sponsor_history_provider
+
+    @property
+    def _llm_client(self):
+        """Client for the in-progress review() call: an explicit override
+        (tests, calibration) wins; otherwise the resolved route's client."""
+        if self._llm_client_override is not None:
+            return self._llm_client_override
+        if self._active_route is None:
+            return None
+        return get_client_for_provider(
+            self._active_route.provider_key, base_url=self._active_route.base_url,
+            credential_slot=self._active_route.credential_slot)
 
     def review(
         self,
@@ -751,6 +808,7 @@ class AdReviewer:
         episode_meta: dict,
         pass_num: int,
         pass_model: str,
+        pass_provider: str | None = None,
     ) -> ReviewResult:
         """Run reviewer over both pools.
 
@@ -769,6 +827,10 @@ class AdReviewer:
             pass_num: 1 (first detection pass) or 2 (verification pass).
             pass_model: Model used by the corresponding pass; used as fallback
                 when ``review_model`` setting is ``same_as_pass``.
+            pass_provider: Provider used by the corresponding pass; used as
+                fallback when ``review_provider`` setting is ``same_as_pass``.
+                Omitted callers (tests, calibration) fall back to the global
+                effective provider.
 
         Returns:
             ReviewResult with the post-reviewer accepted list and the audit
@@ -779,7 +841,7 @@ class AdReviewer:
         try:
             return self._review_inner(
                 accepted_ads, resurrection_eligible, segments,
-                episode_meta, pass_num, pass_model,
+                episode_meta, pass_num, pass_model, pass_provider,
             )
         except ProviderRateLimitedError:
             raise
@@ -799,12 +861,14 @@ class AdReviewer:
         episode_meta: dict,
         pass_num: int,
         pass_model: str,
+        pass_provider: str | None = None,
     ) -> ReviewResult:
         if not accepted_ads and not resurrection_eligible:
             return ReviewResult()
 
-        max_shift = self._read_max_boundary_shift()
-        model = self._resolve_model(pass_model)
+        max_shift = resolve_max_boundary_shift(self.db)
+        self._active_route = self._resolve_route(pass_provider, pass_model, pass_num)
+        model = self._active_route.model_id
         review_sponsor_block, resurrect_sponsor_block = self._sponsor_blocks()
         review_prompt = self._render_review_prompt(max_shift, review_sponsor_block)
         resurrect_prompt = self._render_resurrect_prompt(resurrect_sponsor_block)
@@ -911,6 +975,7 @@ class AdReviewer:
                 result.held_by_contradiction.append(held)
             elif (verdict.verdict == "confirmed"
                   and pass_num == 1
+                  and not verdict.proposal_clamped
                   and reasoning_affirms_ad(verdict.reasoning)
                   and _TRIM_LANGUAGE_RE.search(verdict.reasoning or "")):
                 # Affirmed ad whose prose describes a trim the boundary
@@ -952,6 +1017,13 @@ class AdReviewer:
                         max_shift,
                         episode_meta.get('slug'),
                         episode_meta.get('episode_id'))
+                    if _bounds_unchanged(new_start, new_end,
+                                         verdict.original_start,
+                                         verdict.original_end):
+                        # Clamped back to the original: an adjust stamp
+                        # would misreport it as moved.
+                        result.accepted_after_review.append(updated_ad)
+                        continue
                     verdict.verdict = "adjust"
                     verdict.adjusted_start = new_start
                     verdict.adjusted_end = new_end
@@ -1071,6 +1143,8 @@ class AdReviewer:
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
         max_tokens, temperature, reasoning = resolve_stage_tunables('reviewer')
 
+        provider = self._active_route.provider_key if self._active_route else None
+        credential_slot = self._active_route.credential_slot if self._active_route else 'primary'
         t0 = time.monotonic()
         response, error = call_llm_for_window(
             llm_client=self._llm_client,
@@ -1086,9 +1160,12 @@ class AdReviewer:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            phase_key='review',
+            provider=provider,
+            credential_slot=credential_slot,
             response_format=schema_format_for(
                 model, 'ad_review', AD_REVIEW_JSON_SCHEMA,
-                'Review verdicts for the candidate ad.'),
+                'Review verdicts for the candidate ad.', provider=provider),
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
 
@@ -1197,13 +1274,15 @@ class AdReviewer:
             ad, new_start, new_end, original_start, original_end,
             max_shift, slug, episode_id)
 
+        proposal_clamped = _clamp_overrode(
+            new_start, new_end, original_start, original_end,
+            clamped_start, clamped_end)
+
         # Verdict is derived from the boundary delta, not from the LLM.
         delta_start = clamped_start - original_start
         delta_end = clamped_end - original_end
-        unchanged = (
-            abs(delta_start) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
-            and abs(delta_end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
-        )
+        unchanged = _bounds_unchanged(
+            clamped_start, clamped_end, original_start, original_end)
         # Log every non-zero LLM-proposed shift, even when rounded to
         # confirmed, so we can see the distribution of adjustments the model
         # is making vs the tolerance floor.
@@ -1268,6 +1347,7 @@ class AdReviewer:
                 reasoning=reason, confidence=confidence,
                 model_used=model, latency_ms=latency_ms, success=True,
                 structured_is_ad=structured_is_ad,
+                proposal_clamped=proposal_clamped,
             ),
             ad,
         )
@@ -1304,11 +1384,11 @@ class AdReviewer:
         # the flag without the protected keys; those keep the old blanket
         # expand-only rule.
         if ad.get('merged_distinct_ads'):
-            if 'merged_protected_start' in ad:
-                p_start = ad.get('merged_protected_start')
-                p_end = ad.get('merged_protected_end')
-            else:
-                p_start, p_end = original_start, original_end
+            # Only measured members hold the floor: re-expanding to a coarse
+            # member would undo the trim just accepted.
+            hard = [m for m in protected_member_spans(ad, original_start, original_end)
+                    if m.get('stage') not in COARSE_MEMBER_STAGES]
+            p_start, p_end = span_bounds(hard)
             floor_start = (clamped_start if p_start is None
                            else min(clamped_start, p_start))
             floor_end = (clamped_end if p_end is None
@@ -1350,16 +1430,8 @@ class AdReviewer:
         """Return whether an inward proposal crosses protected evidence."""
         if end <= start or not ad.get('merged_distinct_ads'):
             return False
-        protected_start = protected_end = None
-        if 'merged_protected_start' in ad:
-            protected_start = ad.get('merged_protected_start')
-            protected_end = ad.get('merged_protected_end')
-        else:
-            protected_start, protected_end = original_start, original_end
-        return ((protected_start is not None
-                 and start - protected_start > _CONFIRMED_BOUNDARY_TOLERANCE_S)
-                or (protected_end is not None
-                    and protected_end - end > _CONFIRMED_BOUNDARY_TOLERANCE_S))
+        return any(_member_conflict(m, start, end) for m in
+                   protected_member_spans(ad, original_start, original_end))
 
     def _recover_contradiction_trim(
         self,
@@ -1412,6 +1484,8 @@ class AdReviewer:
         )
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
         call_label = f"reviewer-pass{pass_num}-trim-recovery"
+        provider = self._active_route.provider_key if self._active_route else None
+        credential_slot = self._active_route.credential_slot if self._active_route else 'primary'
         try:
             response, error = call_llm(
                 llm_client=self._llm_client,
@@ -1425,9 +1499,12 @@ class AdReviewer:
                 episode_id=episode_id,
                 call_label=call_label,
                 pass_name=pass_name,
+                phase_key='review',
+                provider=provider,
+                credential_slot=credential_slot,
                 response_format=schema_format_for(
                     model, 'trim_recovery', TRIM_RECOVERY_JSON_SCHEMA,
-                    'Ad sub-span inside the original candidate.'),
+                    'Ad sub-span inside the original candidate.', provider=provider),
             )
         except Exception as e:
             # call_llm never raises by contract; belt-and-braces so a bug
@@ -1483,6 +1560,14 @@ class AdReviewer:
                 f"{o_start:.1f}-{o_end:.1f}s. Holding without bounds."
             )
             return None
+        if not protection_conflict and ad.get('merged_distinct_ads'):
+            # Same floor the boundary clamp applies: a stamped proposal must
+            # not cut into a measured member either.
+            hard = [m for m in protected_member_spans(ad, o_start, o_end)
+                    if m.get('stage') not in COARSE_MEMBER_STAGES]
+            p_start, p_end = span_bounds(hard)
+            if p_start is not None:
+                start, end = min(start, p_start), max(end, p_end)
         logger.info(
             f"[{slug}:{episode_id}] {call_label} recovered proposed trim "
             f"{start:.1f}-{end:.1f}s from span {o_start:.1f}-{o_end:.1f}s"
@@ -1665,20 +1750,48 @@ class AdReviewer:
         except Exception:
             return None
 
-    def _read_max_boundary_shift(self) -> int:
-        raw = self._read_setting("review_max_boundary_shift")
-        try:
-            return max(1, int(raw)) if raw is not None else 60
-        except (TypeError, ValueError):
-            return 60
-
     def _resolve_model(self, pass_model: str) -> str:
-        # Same same_as_pass rule as tools.reviewer_calibration._resolve_calibration_model,
-        # which resolves the pass model from settings instead of the live run.
+        # Model-only resolution, kept for test_settings_validation coverage.
+        # Live review() calls resolve the whole route via _resolve_route.
         configured = self._read_setting("review_model") or "same_as_pass"
         if configured == "same_as_pass":
             return pass_model
         return configured
+
+    def _resolve_route(self, pass_provider: str | None, pass_model: str,
+                       pass_num: int = 1):
+        """Review route from the frozen run snapshot: an explicit slot uses the
+        resolved review route as frozen (so a mid-run change cannot re-route),
+        same_as_pass inherits the invoking pass's full route (pass 1 detection,
+        pass 2 verification). Outside a run, falls back to a live resolve_route.
+        """
+        review_entry = route_for_phase('review')
+        gate = review_entry.get('gate') if review_entry else None
+        if gate is not None:
+            review_provider_setting = gate.get('review_provider') or SAME_AS_PASS
+            if review_provider_setting != SAME_AS_PASS:
+                slot = review_entry.get('credential_slot', SLOT_PRIMARY)
+                return Route(
+                    phase='review', provider_key=review_entry['provider_key'],
+                    model_id=review_entry['configured_model'],
+                    base_url=review_entry.get('base_url'),
+                    slot=slot, credential_slot=slot)
+            invoking_phase = 'verification' if pass_num == 2 else 'detection'
+            pass_entry = route_for_phase(invoking_phase) or {}
+            pass_base_url = None
+            pass_credential_slot = None
+            if pass_entry.get('provider_key') == pass_provider:
+                pass_base_url = pass_entry.get('base_url')
+                pass_credential_slot = pass_entry.get('credential_slot')
+            return resolve_review_route(
+                review_provider_setting=review_provider_setting,
+                review_model_setting=gate.get('review_model'),
+                pass_provider=pass_provider, pass_model=pass_model,
+                pass_base_url=pass_base_url,
+                pass_credential_slot=pass_credential_slot)
+        return resolve_route(
+            'review', pass_provider=pass_provider or get_effective_provider(),
+            pass_model=pass_model)
 
     @staticmethod
     def _extract_response_text(response) -> str:

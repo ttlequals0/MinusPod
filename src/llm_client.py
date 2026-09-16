@@ -26,6 +26,7 @@ import os
 import re
 import socket
 import threading
+import time
 import uuid
 from urllib.parse import urlparse
 from types import SimpleNamespace
@@ -186,6 +187,13 @@ def _log_content(label: str, content: str, max_length: int = 2000):
         )
 
 
+def _numeric_usage_value(value):
+    """Return value if it's a real numeric token count, else None (unknown)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
 # Probe anthropic SDK error importability once; _anthropic_exc() keys off it.
 try:
     from anthropic import APIError as _anthropic_api_error  # noqa: F401
@@ -203,6 +211,8 @@ class LLMResponse:
     finish_reason: str | None = None
     reasoning_present: bool = False
     reasoning_exhausted: bool = False
+    returned_model: str | None = None
+    provider_reported_cost_usd: float | None = None
 
 
 @dataclass
@@ -280,15 +290,40 @@ def _get_cached_model_list(provider_key: str) -> list['LLMModel'] | None:
 
 
 def _set_cached_model_list(provider_key: str, models: list['LLMModel']):
-    """Store a model list in the cache."""
+    """Store a model list; remember non-empty lists as last-good."""
     with _model_list_cache_lock:
         _model_list_cache.set(provider_key, models)
+        if models:
+            _model_list_last_good[provider_key] = models
+
+
+# Last successful non-empty catalog per key, kept beyond the TTL so a transient
+# upstream failure (e.g. OpenRouter's /models 408) serves the previous catalog
+# instead of collapsing the dropdown.
+_model_list_last_good: dict[str, list['LLMModel']] = {}
+# 2 attempts: OpenRouter's /models 408s while cold (~10s each), then succeeds warm.
+_MODEL_LIST_MAX_ATTEMPTS = 2
+_MODEL_LIST_RETRY_BACKOFF = 0.75
+
+
+def _get_last_good_model_list(provider_key: str) -> list['LLMModel'] | None:
+    with _model_list_cache_lock:
+        return _model_list_last_good.get(provider_key)
+
+
+def _is_transient_list_error(error: Exception) -> bool:
+    """Connection/timeout/5xx (via the shared classifier) plus request-timeout
+    408/425. Never 429: a rate limit must honor its hold, not a fixed retry."""
+    return is_connectivity_error(error) or _provider_status_code(error) in (408, 425)
 
 
 def _clear_model_list_cache():
-    """Flush the model list cache (called on provider change or manual refresh)."""
+    """Flush the model list cache and last-good fallback (called on provider
+    change or manual refresh), so a manual refresh can surface a truthful empty
+    catalog instead of resurrecting a stale one."""
     with _model_list_cache_lock:
         _model_list_cache.clear()
+        _model_list_last_good.clear()
 
 
 def get_effective_provider() -> str:
@@ -347,14 +382,41 @@ def reset_schema_probe_memo() -> None:
 
 
 def invalidate_provider_cache() -> None:
-    """Drop every entry in the TTL cache so the next read sees fresh DB
-    values. Call from write paths that touch provider settings (api_key,
-    base_url, llm_provider, model selectors) -- without this the 5s TTL
-    causes the GET /settings response right after a PUT to return the
-    pre-write value, which makes the UI's hasChanges flip back to false
-    and the Save Changes button vanish before the user can confirm."""
+    """Flush the provider settings TTL cache and bump the shared config
+    revision so already-built clients rebuild with the new credentials or
+    endpoint. Call from every provider-settings write path (api_key, base_url,
+    llm_provider, model selectors)."""
+    # Bump the revision (a DB write) before clearing the TTL cache: clearing
+    # first would let a concurrent read re-cache the pre-write revision for the
+    # full TTL and keep serving the stale client.
+    _bump_provider_config_revision()
     with _provider_cache_lock:
         _provider_cache.clear()
+
+
+def _provider_config_revision() -> str:
+    """Non-secret revision that changes whenever provider settings are
+    written. Part of the client-acquire staleness check so a rotated or
+    cleared credential is never reused behind a cached client."""
+    return _get_cached_setting('provider_config_revision') or '0'
+
+
+def _bump_provider_config_revision() -> None:
+    """Increment the shared provider-config revision. A lost concurrent
+    increment is benign: any change still invalidates clients built on the
+    prior value."""
+    try:
+        from database import Database
+        db = Database()
+        current = db.get_setting('provider_config_revision') or '0'
+        try:
+            nxt = int(current) + 1
+        except (TypeError, ValueError):
+            nxt = 1
+        db.set_setting('provider_config_revision', str(nxt))
+    except Exception:
+        # A missed bump leaves clients built on a rotated credential cached.
+        logger.warning("Could not bump provider_config_revision", exc_info=True)
 
 
 def get_effective_openrouter_api_key() -> str | None:
@@ -397,6 +459,12 @@ def get_effective_ollama_api_key() -> str | None:
     if db_val:
         return db_val
     return os.environ.get('OLLAMA_API_KEY')
+
+
+def get_effective_secondary_provider_api_key() -> str | None:
+    """Return the secondary-slot API key. DB secret only, no env fallback:
+    the secondary slot is not backed by a legacy env var."""
+    return _get_cached_secret('secondary_provider_api_key')
 
 
 def _apply_pass_fallback(
@@ -540,16 +608,27 @@ class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
     def __init__(self):
-        self._usage_callback = None
         self._circuit_breaker: CircuitBreaker | None = None
+        # Which account this client authenticates as; part of the model-list
+        # cache identity so two accounts on one endpoint never share a list.
+        self.credential_slot = 'primary'
+        # Provider-config revision this client was built on; a mismatch at
+        # acquire time rebuilds it so a rotated credential is never reused.
+        self._config_revision = None
 
     def set_circuit_breaker(self, cb: CircuitBreaker):
         """Attach a circuit breaker for API call protection."""
         self._circuit_breaker = cb
 
-    def set_usage_callback(self, callback):
-        """Set a callback to be invoked with (model, usage_dict) after each LLM call."""
-        self._usage_callback = callback
+    def close(self):
+        """Best-effort close of the underlying SDK client's connections,
+        called when a cached client is evicted after a settings change."""
+        client = getattr(self, '_client', None)
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                pass
 
     def _check_circuit_breaker(self):
         """Check circuit breaker before API call. Raises CircuitBreakerOpen if open."""
@@ -568,14 +647,6 @@ class LLMClient(ABC):
         """Log a warning if the LLM response was truncated due to max_tokens."""
         if stop_indicator in ('max_tokens', 'length'):
             logger.warning(f"LLM response truncated (hit max_tokens={max_tokens}, model={model})")
-
-    def _notify_usage(self, response: 'LLMResponse'):
-        """Notify the usage callback if set. Errors are logged but never propagated."""
-        if self._usage_callback and response.usage:
-            try:
-                self._usage_callback(response.model, response.usage)
-            except Exception as e:
-                logger.warning(f"Token usage recording failed: {e}")
 
     def _log_messages(self, provider_label: str, system: str, messages: list[dict],
                        model: str, temperature: float | None, max_tokens: int):
@@ -731,7 +802,10 @@ class AnthropicClient(LLMClient):
             if not self.api_key:
                 raise ValueError("No Anthropic API key provided")
             from anthropic import Anthropic
-            self._client = Anthropic(api_key=self.api_key)
+            # max_retries=0: retries run at the accounted llm_call boundary so
+            # each HTTP attempt gets its own ledger row (the SDK default of 2
+            # would hide up to 3 attempts behind one row).
+            self._client = Anthropic(api_key=self.api_key, max_retries=0)
             logger.info("Anthropic client initialized")
 
     def messages_create(
@@ -850,13 +924,25 @@ class AnthropicClient(LLMClient):
         finish_reason = getattr(response, 'stop_reason', None)
         self._warn_if_truncated(finish_reason, eff_max, model)
 
+        usage = None
+        if response.usage:
+            usage = {
+                'input_tokens': response.usage.input_tokens,
+                'output_tokens': response.usage.output_tokens
+            }
+            cache_write = _numeric_usage_value(
+                getattr(response.usage, 'cache_creation_input_tokens', None))
+            cache_read = _numeric_usage_value(
+                getattr(response.usage, 'cache_read_input_tokens', None))
+            if cache_write is not None:
+                usage['cache_write_tokens'] = cache_write
+            if cache_read is not None:
+                usage['cache_read_tokens'] = cache_read
+
         llm_response = LLMResponse(
             content=content,
             model=model,
-            usage={
-                'input_tokens': response.usage.input_tokens,
-                'output_tokens': response.usage.output_tokens
-            } if response.usage else None,
+            usage=usage,
             finish_reason=finish_reason,
             reasoning_present=reasoning_present,
             reasoning_exhausted=(
@@ -864,6 +950,7 @@ class AnthropicClient(LLMClient):
                 and reasoning_present
                 and finish_reason in ('max_tokens', 'length')
             ),
+            returned_model=getattr(response, 'model', None),
         )
 
         # Log response
@@ -876,11 +963,11 @@ class AnthropicClient(LLMClient):
                 f" len={len(content)}"
             )
 
-        self._notify_usage(llm_response)
         return llm_response
 
     def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
-        cached = None if bypass_cache else _get_cached_model_list(PROVIDER_ANTHROPIC)
+        cache_key = f"{PROVIDER_ANTHROPIC}:{self.credential_slot}"
+        cached = None if bypass_cache else _get_cached_model_list(cache_key)
         if cached is not None:
             return cached
 
@@ -896,7 +983,7 @@ class AnthropicClient(LLMClient):
                         name=model.display_name if hasattr(model, 'display_name') else model.id,
                         created=str(model.created) if hasattr(model, 'created') else None
                     ))
-            _set_cached_model_list(PROVIDER_ANTHROPIC, models)
+            _set_cached_model_list(cache_key, models)
             return models
         except Exception as e:
             logger.error(f"Could not fetch models from Anthropic API: {e}")
@@ -945,6 +1032,9 @@ class OpenAICompatibleClient(LLMClient):
             kwargs: dict[str, Any] = {
                 'base_url': self.base_url,
                 'api_key': self.api_key,
+                # See AnthropicClient: retries are accounted at the llm_call
+                # boundary, not hidden inside the SDK.
+                'max_retries': 0,
             }
             if self.extra_headers:
                 kwargs['default_headers'] = self.extra_headers
@@ -1129,13 +1219,32 @@ class OpenAICompatibleClient(LLMClient):
             and output_tokens >= eff_max
         )
 
+        prompt_details = getattr(usage, 'prompt_tokens_details', None)
+        cache_read_tokens = getattr(prompt_details, 'cached_tokens', None)
+        if isinstance(prompt_details, dict):
+            cache_read_tokens = prompt_details.get('cached_tokens')
+
+        response_usage = None
+        if response.usage:
+            response_usage = {
+                'input_tokens': response.usage.prompt_tokens,
+                'output_tokens': response.usage.completion_tokens
+            }
+            numeric_reasoning = _numeric_usage_value(reasoning_tokens)
+            numeric_cache_read = _numeric_usage_value(cache_read_tokens)
+            if numeric_reasoning is not None:
+                response_usage['reasoning_tokens'] = numeric_reasoning
+            if numeric_cache_read is not None:
+                response_usage['cache_read_tokens'] = numeric_cache_read
+
+        # OpenRouter reports the actual billed cost on usage.cost when asked;
+        # prefer it over our estimated rate table when present.
+        provider_cost = _numeric_usage_value(getattr(usage, 'cost', None)) if usage else None
+
         llm_response = LLMResponse(
             content=content,
             model=model,
-            usage={
-                'input_tokens': response.usage.prompt_tokens,
-                'output_tokens': response.usage.completion_tokens
-            } if response.usage else None,
+            usage=response_usage,
             finish_reason=finish_reason,
             reasoning_present=reasoning_present,
             reasoning_exhausted=(
@@ -1143,6 +1252,8 @@ class OpenAICompatibleClient(LLMClient):
                 and reasoning_present
                 and (finish_reason in ('max_tokens', 'length') or exhausted_without_reason)
             ),
+            returned_model=getattr(response, 'model', None),
+            provider_reported_cost_usd=provider_cost,
         )
 
         # Log response
@@ -1155,7 +1266,6 @@ class OpenAICompatibleClient(LLMClient):
                 f" len={len(content)}"
             )
 
-        self._notify_usage(llm_response)
         return llm_response
 
     def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
@@ -1165,32 +1275,50 @@ class OpenAICompatibleClient(LLMClient):
         This ensures Ollama models (qwen3, mistral, phi4-mini, etc.) are
         visible alongside Claude/GPT models from other providers.
         """
-        cache_key = f"openai:{self.base_url}"
+        cache_key = f"openai:{self.base_url}:{self.credential_slot}"
         cached = None if bypass_cache else _get_cached_model_list(cache_key)
         if cached is not None:
             return cached
 
         self._ensure_client()
 
-        try:
-            response = self._client.models.list()
-            models = []
-            for model in response.data:
-                model_id = model.id if hasattr(model, 'id') else str(model)
-                models.append(LLMModel(
-                    id=model_id,
-                    name=model_id,
-                    created=str(model.created) if hasattr(model, 'created') else None
-                ))
-            _set_cached_model_list(cache_key, models)
-            return models
-        except Exception as e:
-            logger.error(f"Could not fetch models from OpenAI-compatible API: {e}")
-            native = self._try_ollama_native_list()
-            if native:
-                _set_cached_model_list(cache_key, native)
-                return native
-            return []
+        last_error: Exception | None = None
+        for attempt in range(_MODEL_LIST_MAX_ATTEMPTS):
+            try:
+                response = self._client.models.list()
+                models = []
+                for model in response.data:
+                    model_id = model.id if hasattr(model, 'id') else str(model)
+                    models.append(LLMModel(
+                        id=model_id,
+                        name=model_id,
+                        created=str(model.created) if hasattr(model, 'created') else None
+                    ))
+                _set_cached_model_list(cache_key, models)
+                return models
+            except Exception as e:
+                last_error = e
+                if attempt == _MODEL_LIST_MAX_ATTEMPTS - 1 or not _is_transient_list_error(e):
+                    break
+                time.sleep(_MODEL_LIST_RETRY_BACKOFF)
+
+        logger.error(f"Could not fetch models from OpenAI-compatible API: {last_error}")
+        native = self._try_ollama_native_list()
+        if native:
+            _set_cached_model_list(cache_key, native)
+            return native
+        # Only a transient failure serves the last good catalog; a hard failure
+        # (revoked key, 404) must surface the empty list rather than resurrect a
+        # prior key's or provider's models. Cache the served list under the TTL
+        # so repeat loads skip the slow failure path.
+        stale = _get_last_good_model_list(cache_key)
+        if stale and _is_transient_list_error(last_error):
+            _set_cached_model_list(cache_key, stale)
+            logger.warning(
+                f"Serving {len(stale)} models from the last successful fetch "
+                f"after a transient catalog refresh failure")
+            return stale
+        return []
 
     def get_provider_name(self) -> str:
         return f"openai-compatible ({safe_url_for_log(self.base_url, keep_path=True)})"
@@ -1428,9 +1556,23 @@ def get_llm_max_retries() -> int:
 # Factory function - this is the main entry point
 # =============================================================================
 
-_cached_client: LLMClient | None = None
-_cached_client_config_key: str | None = None
 _client_lock = threading.Lock()
+
+# Cache of built clients keyed by (provider_key, normalized_base,
+# credential_slot). Multiple providers can be active concurrently (per-phase
+# routing), so this is no longer a single global slot: each (provider, base,
+# slot) triple gets its own entry and rebuilds independently when its own
+# config changes. credential_slot is required in the key (not just base_url):
+# anthropic and openrouter have no configurable per-slot endpoint, so a
+# same-type primary/secondary pair would otherwise resolve to the identical
+# (provider_key, base) pair and silently share one client and credential.
+_client_cache: dict[tuple[str, str | None, str], LLMClient] = {}
+
+# Circuit breakers keyed by the same (provider, normalized_base, slot) identity
+# as the client cache, so an outage on one route cannot open another's and a
+# replaced endpoint does not inherit the old one's open breaker.
+_circuit_breakers: dict[tuple[str, str | None, str], CircuitBreaker] = {}
+_circuit_breaker_lock = threading.Lock()
 
 
 def _normalize_base_url_for_provider(provider: str, base_url: str) -> str:
@@ -1446,32 +1588,50 @@ def _normalize_base_url_for_provider(provider: str, base_url: str) -> str:
     return base_url
 
 
-def _current_config_key() -> str:
-    """Stable identifier for the *current* effective LLM client config.
+def _resolve_cache_key(provider_key: str, base_url: str | None = None,
+                       credential_slot: str = 'primary') -> tuple[str, str | None, str]:
+    """Client cache key for a provider: (provider_key, normalized_base, credential_slot).
 
-    Used by ``get_llm_client`` to detect cross-worker settings changes. Each
-    gunicorn worker has its own ``_cached_client``; only the worker that
-    handled a settings PUT runs ``force_new``. Other workers must notice the
-    change at next call and rebuild themselves -- otherwise requests routed
-    to a sibling worker keep hitting the previous provider/base_url.
+    When base_url is omitted, falls back to the effective DB/env setting for
+    that provider: this is what makes get_llm_client's global-provider path
+    pick up cross-worker settings changes without an explicit force_new.
+    Never includes a credential: callers resolve API keys separately inside
+    _build_client at build time. credential_slot IS included (it is a label,
+    not a secret): anthropic and openrouter resolve the same base for both
+    slots, so without the slot in the key a same-type secondary account would
+    collide with primary's entry and silently reuse its client and credential.
     """
-    provider = get_effective_provider()
-    if provider == PROVIDER_ANTHROPIC:
-        return "anthropic"
-    if provider == PROVIDER_OPENROUTER:
-        return f"openrouter:{OPENROUTER_BASE_URL}"
-    if provider in PROVIDERS_NON_ANTHROPIC:
-        base = _normalize_base_url_for_provider(provider, get_effective_base_url())
-        return f"{provider}:{base}"
-    return f"unknown:{provider}"
+    if provider_key == PROVIDER_ANTHROPIC:
+        return (provider_key, None, credential_slot)
+    if provider_key == PROVIDER_OPENROUTER:
+        return (provider_key, base_url or OPENROUTER_BASE_URL, credential_slot)
+    if provider_key in PROVIDERS_NON_ANTHROPIC:
+        raw = base_url or get_effective_base_url()
+        return (provider_key, _normalize_base_url_for_provider(provider_key, raw), credential_slot)
+    return (provider_key, base_url, credential_slot)
 
-# Circuit breaker for LLM API calls (one per process, shared across threads).
-# cause_classifier is a lazy lambda (not `is_auth_error` directly) because
-# that function is defined further down this module; the name is only
-# resolved when the breaker actually opens, well after import completes.
-_llm_circuit_breaker = CircuitBreaker(
-    "llm-api", failure_threshold=5, recovery_timeout=60,
-    cause_classifier=lambda error: is_auth_error(error))
+
+def _get_circuit_breaker_for_provider(provider_key: str,
+                                      credential_slot: str = 'primary',
+                                      base_url: str | None = None) -> CircuitBreaker:
+    """Return (creating if needed) the per-route circuit breaker.
+
+    Keyed by the same (provider, normalized_base, credential_slot) identity as
+    the client cache so an outage on one provider, slot, or endpoint does not
+    open another's, and swapping a failing endpoint gets a fresh breaker.
+    cause_classifier is a lazy lambda (not `is_auth_error` directly) because
+    that function is defined further down this module.
+    """
+    key = _resolve_cache_key(provider_key, base_url, credential_slot)
+    label = provider_key if credential_slot == 'primary' else f'{provider_key}:{credential_slot}'
+    with _circuit_breaker_lock:
+        cb = _circuit_breakers.get(key)
+        if cb is None:
+            cb = CircuitBreaker(
+                f"llm-api:{label}", failure_threshold=5, recovery_timeout=60,
+                cause_classifier=lambda error: is_auth_error(error))
+            _circuit_breakers[key] = cb
+        return cb
 
 # Per-run token accumulator, keyed by run_context (one per thread's run):
 # pool workers (ad-detection windows, reviewer batches) are bound to their
@@ -1515,37 +1675,72 @@ def get_last_episode_token_totals() -> dict:
     return ctx.tokens.last_totals()
 
 
-def _record_token_usage(model: str, usage: dict):
-    """Module-level callback for recording token usage to the database."""
-    input_tokens = usage.get('input_tokens', 0)
-    output_tokens = usage.get('output_tokens', 0)
-    cost = 0.0
+def get_client_for_provider(provider_key: str, base_url: str | None = None,
+                            credential_slot: str = 'primary',
+                            force_new: bool = False) -> LLMClient:
+    """Cache-per-(provider, base, credential_slot) client with its own
+    circuit breaker attached. Concurrent phases on different
+    providers, or on different slots of the same provider type, each get
+    their own client and breaker, so an outage on one does not open another's.
 
-    try:
-        from database import Database
-        db = Database()
-        cost = db.record_token_usage(
-            model_id=model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-        )
-    except Exception as e:
-        logger.warning(f"Failed to record token usage to DB: {e}")
+    ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
+    providers (used by per-phase routing); omit it to use the effective
+    setting, which is also what makes the cache auto-invalidate on a
+    cross-worker settings change (see ``_resolve_cache_key``). ``credential_slot``
+    is 'primary' (default, the provider type's own secret) or 'secondary'
+    (reads secondary_provider_api_key instead). It IS part of both the cache
+    key and the circuit breaker key: anthropic/openrouter have no per-slot
+    endpoint, so a same-type secondary account would otherwise resolve to the
+    same (provider_key, base) pair as primary and silently reuse its client,
+    credential, and breaker. Credentials are resolved inside ``_build_client``
+    at build time from provider_key/credential_slot. Never put an API key in
+    the cache key: credential_slot is a label ('primary'/'secondary'), not a
+    secret.
 
-    accum_active = _get_accumulator_active()
-    logger.info(
-        f"Token callback: model={model} in={input_tokens} out={output_tokens}"
-        f" cost=${cost:.6f} accum_active={accum_active}"
-        f" (thread={threading.current_thread().name})"
-    )
-    ctx = run_context.current()
-    if ctx is not None:
-        ctx.tokens.add(input_tokens, output_tokens, cost)
+    force_new=True also flushes the provider settings cache.
+    """
+    if force_new:
+        _clear_provider_cache()
+        _clear_model_list_cache()
+
+    revision = _provider_config_revision()
+    with _client_lock:
+        cache_key = _resolve_cache_key(provider_key, base_url, credential_slot)
+        cached = _client_cache.get(cache_key)
+        if cached is not None and not force_new and cached._config_revision == revision:
+            return cached
+
+        if cached is not None:
+            # Replace the entry, but do not close the old client here: another
+            # thread may hold this reference mid-request. Let it close on GC.
+            logger.info(f"LLM config changed for provider '{provider_key}', rebuilding client")
+
+        client = _build_client(provider_key, base_url, credential_slot)
+        if client is None:
+            logger.error(
+                f"Unknown LLM provider '{provider_key}' (valid values: anthropic, "
+                "openrouter, openai-compatible, ollama), defaulting to anthropic"
+            )
+            client = AnthropicClient()
+        client.credential_slot = credential_slot
+        client._config_revision = revision
+
+        # No usage callback wired: utils.llm_call records every dispatch
+        # through the llm_call_usage ledger (begin_llm_attempt /
+        # finalize_llm_attempt) instead, so counters have a single writer.
+        client.set_circuit_breaker(
+            _get_circuit_breaker_for_provider(provider_key, credential_slot, base_url))
+        _client_cache[cache_key] = client
+        logger.info(f"LLM client initialized for provider '{provider_key}': {client.get_provider_name()}")
+        return client
 
 
 def get_llm_client(force_new: bool = False) -> LLMClient:
     """
-    Factory function that returns the appropriate LLM client based on config.
+    Factory function that returns the client for the globally configured
+    provider. Deprecated for per-phase calls: resolve a Route via
+    llm_route.resolve_route and call get_client_for_provider directly so
+    each phase gets its own cached client and circuit breaker.
 
     The client is cached for reuse. Use force_new=True to create a fresh client
     (also flushes the provider settings cache). The cache also auto-invalidates
@@ -1568,42 +1763,7 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
     Returns:
         LLMClient instance
     """
-    global _cached_client, _cached_client_config_key
-
-    if force_new:
-        _clear_provider_cache()
-        _clear_model_list_cache()
-
-    with _client_lock:
-        current_key = _current_config_key()
-        if (
-            _cached_client is not None
-            and not force_new
-            and _cached_client_config_key == current_key
-        ):
-            return _cached_client
-
-        if _cached_client is not None and _cached_client_config_key != current_key:
-            logger.info(
-                f"LLM config changed ({_cached_client_config_key!r} -> {current_key!r}),"
-                " rebuilding client"
-            )
-
-        provider = get_effective_provider()
-
-        _cached_client = _build_client(provider)
-        if _cached_client is None:
-            logger.error(
-                f"Unknown LLM_PROVIDER '{provider}' (valid values: anthropic, "
-                "openrouter, openai-compatible, ollama), defaulting to anthropic"
-            )
-            _cached_client = AnthropicClient()
-
-        _cached_client.set_usage_callback(_record_token_usage)
-        _cached_client.set_circuit_breaker(_llm_circuit_breaker)
-        _cached_client_config_key = current_key
-        logger.info(f"LLM client initialized: {_cached_client.get_provider_name()}")
-        return _cached_client
+    return get_client_for_provider(get_effective_provider(), force_new=force_new)
 
 
 # OpenCode Go and Zen route a session's requests to one backend for prompt
@@ -1619,14 +1779,31 @@ def _opencode_headers(base_url: str) -> dict[str, str]:
     return {'x-opencode-session': _OPENCODE_SESSION_ID, 'x-opencode-client': 'minuspod'}
 
 
-def _build_client(provider: str) -> LLMClient | None:
-    """Build an LLM client for a given provider without caching."""
+def _build_client(provider: str, base_url: str | None = None,
+                   credential_slot: str = 'primary') -> LLMClient | None:
+    """Build an LLM client for a given provider without caching.
+
+    ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
+    providers (used by per-provider routing); when omitted, the effective
+    setting is used as before. ``credential_slot`` picks which secret to
+    resolve: 'primary' (default) reads the provider type's own key;
+    'secondary' reads secondary_provider_api_key instead, so a secondary
+    slot of the same type as primary never reuses primary's credential. An
+    unset secondary key builds with no/empty key (matching the keyless-local
+    path below) rather than falling back to the primary secret; the auth
+    error then surfaces at call time, not here.
+    """
+    secondary = credential_slot == 'secondary'
     if provider == PROVIDER_ANTHROPIC:
-        return AnthropicClient()
+        client = AnthropicClient()
+        if secondary:
+            client.api_key = get_effective_secondary_provider_api_key()
+        return client
     elif provider == PROVIDER_OPENROUTER:
-        api_key = get_effective_openrouter_api_key() or 'not-needed'
+        api_key = (get_effective_secondary_provider_api_key() if secondary
+                   else get_effective_openrouter_api_key()) or 'not-needed'
         return OpenAICompatibleClient(
-            base_url=OPENROUTER_BASE_URL,
+            base_url=base_url or OPENROUTER_BASE_URL,
             api_key=api_key,
             extra_headers={
                 'HTTP-Referer': OPENROUTER_HTTP_REFERER,
@@ -1634,30 +1811,40 @@ def _build_client(provider: str) -> LLMClient | None:
             }
         )
     elif provider in PROVIDERS_NON_ANTHROPIC:
-        raw_base_url = get_effective_base_url()
-        base_url = _normalize_base_url_for_provider(provider, raw_base_url)
+        raw_base_url = base_url or get_effective_base_url()
+        normalized_base_url = _normalize_base_url_for_provider(provider, raw_base_url)
         if provider == PROVIDER_OLLAMA:
-            if base_url != raw_base_url:
-                logger.info(f"Ollama provider: normalized base_url to {safe_url_for_log(base_url)}")
-            api_key = get_effective_ollama_api_key() or 'not-needed'
+            if normalized_base_url != raw_base_url:
+                logger.info(f"Ollama provider: normalized base_url to {safe_url_for_log(normalized_base_url)}")
+            api_key = (get_effective_secondary_provider_api_key() if secondary
+                       else get_effective_ollama_api_key()) or 'not-needed'
         else:
-            api_key = get_effective_openai_api_key()
-        return OpenAICompatibleClient(base_url=base_url, api_key=api_key,
-                                      extra_headers=_opencode_headers(base_url))
+            api_key = (get_effective_secondary_provider_api_key() if secondary
+                       else get_effective_openai_api_key()) or 'not-needed'
+        return OpenAICompatibleClient(base_url=normalized_base_url, api_key=api_key,
+                                      extra_headers=_opencode_headers(normalized_base_url))
     return None
 
 
-def create_client_for_provider(provider: str) -> LLMClient | None:
+def create_client_for_provider(
+    provider: str, credential_slot: str = 'primary', base_url: str | None = None,
+) -> LLMClient | None:
     """Create a non-cached LLM client for a specific provider.
 
     Used for previewing available models before saving provider settings.
     Unlike get_llm_client(), this does not touch the global cache and does
     not set a usage callback -- only suitable for list_models() calls.
+    credential_slot='secondary' resolves the secondary slot's credential
+    instead of the provider type's own primary secret; base_url overrides
+    the primary slot's endpoint setting, for previewing the secondary
+    slot's own configurable endpoint.
     """
     try:
-        client = _build_client(provider)
+        client = _build_client(provider, base_url=base_url, credential_slot=credential_slot)
         if client is None:
             logger.warning(f"Unknown provider '{provider}' for preview client")
+        else:
+            client.credential_slot = credential_slot
         return client
     except Exception as e:
         logger.error(f"Failed to create preview client for provider '{provider}': {e}")
@@ -1895,7 +2082,7 @@ def check_llm_connectivity(timeout: float = 5.0) -> bool:
         logger.debug(f"LLM connectivity probe failed: {e}")
         return False
     if reachable:
-        _llm_circuit_breaker.reset()
+        _get_circuit_breaker_for_provider(get_effective_provider()).reset()
     return reachable
 
 
@@ -2066,9 +2253,21 @@ class ProviderRateLimitedError(Exception):
     connectivity classification so nothing downstream re-drives it.
     """
 
-    def __init__(self, message: str, retry_after_seconds: float):
+    def __init__(self, message: str, retry_after_seconds: float,
+                 provider_key: str | None = None,
+                 credential_slot: str = 'primary', manual: bool = False,
+                 phase: str | None = None):
         super().__init__(message)
         self.retry_after_seconds = float(retry_after_seconds)
+        self.provider_key = provider_key
+        self.credential_slot = credential_slot
+        # Pipeline phase the call belonged to, so a hold can be scoped from
+        # the run's route when the error carries no provider.
+        self.phase = phase
+        # manual=True marks a MinusPod-configured RPM/RPD/TPM cap (not a real
+        # 429): the mid-run defer reads the recorded hold marker, not the
+        # toggle-gated 429 path.
+        self.manual = manual
 
 
 def extract_error_body(error: Exception) -> Any:

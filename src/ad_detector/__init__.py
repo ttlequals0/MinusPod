@@ -16,22 +16,21 @@ from typing import NamedTuple
 from audio_enforcer import AudioEnforcer
 from cancel import _check_cancel
 from llm_client import (
-    get_llm_client, get_api_key, LLMClient,
+    get_llm_client, get_client_for_provider, get_api_key, LLMClient,
     is_connectivity_error, is_retryable_error, is_not_found_error,
     is_rate_limit_error, is_limit_exceeded_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
     StructuralRateLimitError, ProviderRateLimitedError,
 )
-from run_context import run_in_worker_thread
+from run_context import route_for_phase, run_in_worker_thread
 from sponsor_normalize import segment_category_for
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.markers import (
     DAI_CORE_SPANS,
-    mark_distinct_merge,
-    merge_dai_core_spans,
-    note_merged_members,
+    estimated_text_bounds,
+    note_fold,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -354,6 +353,12 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
         "limit_exceeded": limit_exceeded,
         "rate_limited_hold": rate_limited_hold,
         "retry_after_seconds": getattr(last_error, 'retry_after_seconds', None),
+        "provider_key": getattr(last_error, 'provider_key', None),
+        "credential_slot": getattr(last_error, 'credential_slot', 'primary'),
+        # Manual MinusPod caps (#747) must stay manual across the stage
+        # boundary: a manual hold is never completion-probed, and defers even
+        # when the 429-hold toggle is off.
+        "manual": getattr(last_error, 'manual', False),
         # Lets the pipeline tell "endpoint down" apart from a bad response so
         # the offline queue (#482) defers only genuine outages. Includes
         # CircuitBreakerOpen, which reaches here as last_error because
@@ -547,13 +552,14 @@ _MEMBER_STAGES = '_member_stages'
 
 
 def _label_reach(entry: dict) -> float:
-    """Audio a member's reason/sponsor label may claim: the full span, or
-    just the matched-text extent when the span is duration-estimated."""
+    """Audio a member's reason/sponsor label may claim: the full span, or just
+    the matched-text extent when the span is duration-estimated. The label claim
+    stays text-limited even after the span moves, unlike member protection,
+    which only narrows while the span is still the estimate."""
+    text = estimated_text_bounds(entry)
+    if text is not None:
+        return max(0.0, text[1] - text[0])
     if entry.get('span_estimated'):
-        text_start = entry.get('text_start')
-        text_end = entry.get('text_end')
-        if text_start is not None and text_end is not None:
-            return max(0.0, text_end - text_start)
         # No text bounds recorded: conservative half-span cap.
         return (entry['end'] - entry['start']) / 2
     return entry['end'] - entry['start']
@@ -577,6 +583,16 @@ def _pattern_match_evidence(match, kind: str) -> str:
     if matched:
         return f'{kind} "{truncate(matched, PATTERN_EVIDENCE_MAX_CHARS)}" {pct}'
     return f'{kind} {pct}'
+
+
+def _phase_for_pass(pass_name: str) -> str:
+    """Route-snapshot phase key for a detection pass_name."""
+    if pass_name == PASS_AD_DETECTION_1:
+        return 'detection'
+    if pass_name == PASS_AD_DETECTION_2:
+        return 'verification'
+    logger.debug("Unknown pass_name for ad_detector: %r, defaulting to 'detection'", pass_name)
+    return 'detection'
 
 
 class AdDetector:
@@ -743,7 +759,10 @@ class AdDetector:
         return models_list
 
     def get_model(self) -> str:
-        """Get configured model from database, or raise if unset."""
+        """This run's detection model, or the configured value outside a run."""
+        route = route_for_phase('detection')
+        if route:
+            return route['configured_model']
         self._ensure_deps()
         try:
             model = self.db.get_setting('claude_model')
@@ -754,7 +773,10 @@ class AdDetector:
         raise ModelNotConfiguredError('claude_model')
 
     def get_verification_model(self) -> str:
-        """Get verification pass model from database, else fall back to first pass model."""
+        """This run's verification model, or the configured value outside a run."""
+        route = route_for_phase('verification')
+        if route:
+            return route['configured_model']
         self._ensure_deps()
         try:
             model = self.db.get_setting('verification_model')
@@ -763,6 +785,30 @@ class AdDetector:
         except Exception:
             pass
         return self.get_model()
+
+    def get_provider(self) -> str:
+        """This run's detection provider, or the global effective provider outside a run."""
+        route = route_for_phase('detection')
+        return route['provider_key'] if route else get_effective_provider()
+
+    def get_verification_provider(self) -> str:
+        """This run's verification provider, or the global effective provider outside a run."""
+        route = route_for_phase('verification')
+        return route['provider_key'] if route else get_effective_provider()
+
+    def _client_for_pass(self, pass_name: str) -> LLMClient | None:
+        """LLM client for a detection pass: the run's routed provider client,
+        or the legacy override/global client outside a run."""
+        if self._llm_client_override is not None:
+            return self._llm_client_override
+        route = route_for_phase(_phase_for_pass(pass_name))
+        if route:
+            return get_client_for_provider(
+                route['provider_key'], base_url=route.get('base_url'),
+                credential_slot=route.get('credential_slot', 'primary'))
+        if not self.api_key:
+            return None
+        return get_llm_client()
 
     def _apply_pass_override(self, rendered: str, setting_key: str) -> str:
         """Append the user's per-pass override (empty by default -> no change)."""
@@ -999,17 +1045,14 @@ class AdDetector:
         the temperature/max_tokens/reasoning values, and is forwarded to the LLM
         client for per-pass fallback flag scoping.
         """
-        if pass_name == PASS_AD_DETECTION_1:
-            prefix = 'detection'
-        elif pass_name == PASS_AD_DETECTION_2:
-            prefix = 'verification'
-        else:
-            raise ValueError(f"Unknown pass_name for ad_detector: {pass_name!r}")
-
-        max_tokens, temperature, reasoning = resolve_stage_tunables(prefix)
+        phase = _phase_for_pass(pass_name)
+        max_tokens, temperature, reasoning = resolve_stage_tunables(phase)
+        route = route_for_phase(phase)
+        provider = route['provider_key'] if route else None
+        credential_slot = route.get('credential_slot', 'primary') if route else 'primary'
 
         return call_llm_for_window(
-            llm_client=self._llm_client,
+            llm_client=self._client_for_pass(pass_name),
             model=model,
             system_prompt=system_prompt,
             prompt=prompt,
@@ -1022,9 +1065,12 @@ class AdDetector:
             episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            phase_key=phase,
+            provider=provider,
+            credential_slot=credential_slot,
             response_format=schema_format_for(
                 model, 'ad_detection', AD_DETECTION_JSON_SCHEMA,
-                'Ad segments detected in this window.'),
+                'Ad segments detected in this window.', provider=provider),
         )
 
     def _process_single_window(self, *, window_idx, window, total_windows,
@@ -1424,6 +1470,7 @@ class AdDetector:
                         slug=slug,
                         episode_id=episode_id,
                         window_label=window_label,
+                        pass_name=pass_name,
                     )
                 except ProviderRateLimitedError as e:
                     # Same rule as a held window: the hold defers the episode.
@@ -1468,7 +1515,7 @@ class AdDetector:
 
     def _repair_window_categories(self, *, ads, transcript_excerpt, model,
                                    llm_timeout, max_retries, slug, episode_id,
-                                   window_label):
+                                   window_label, pass_name=PASS_AD_DETECTION_1):
         """One follow-up LLM call asking only for categories on ``ads``
         missing one; prompt wording alone left most detections
         category-less on real episodes, so ask again narrowly instead.
@@ -1482,9 +1529,13 @@ class AdDetector:
             return 0
 
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
+        phase = _phase_for_pass(pass_name)
+        route = route_for_phase(phase)
+        provider = route['provider_key'] if route else None
+        credential_slot = route.get('credential_slot', 'primary') if route else 'primary'
 
         response, error = call_llm(
-            llm_client=self._llm_client,
+            llm_client=self._client_for_pass(pass_name),
             model=model,
             system_prompt=CATEGORY_REPAIR_SYSTEM_PROMPT,
             prompt=prompt,
@@ -1494,10 +1545,13 @@ class AdDetector:
             slug=slug,
             episode_id=episode_id,
             call_label=f"{window_label} category repair",
+            phase_key=phase,
+            provider=provider,
+            credential_slot=credential_slot,
             response_format=schema_format_for(
                 model, 'segment_categories', CATEGORY_REPAIR_JSON_SCHEMA,
                 'Category for each listed segment.',
-                allow_provider_schema=True),
+                allow_provider_schema=True, provider=provider),
         )
         if response is None:
             # A rate-limit hold is queue-wide state, not a degraded window.
@@ -2305,7 +2359,10 @@ class AdDetector:
         else:
             reason = f"Pattern #{match.pattern_id} ({evidence})"
 
-        all_ads.append({
+        # getattr: FingerprintMatch has no span-estimation fields (audio
+        # stage matches real audio, never estimates a boundary).
+        span_estimated = getattr(match, 'span_estimated', False)
+        entry = {
             'start': match.start,
             'end': match.end,
             'confidence': match.confidence,
@@ -2319,12 +2376,11 @@ class AdDetector:
             # getattr: FingerprintMatch has no 'defined' field (audio stage
             # predates the trust-tier split); treat it as not tier-1.
             'pattern_defined': getattr(match, 'defined', False),
-            # getattr: FingerprintMatch has no span-estimation fields (audio
-            # stage matches real audio, never estimates a boundary).
-            'span_estimated': getattr(match, 'span_estimated', False),
+            'span_estimated': span_estimated,
             'text_start': getattr(match, 'text_start', None),
             'text_end': getattr(match, 'text_end', None),
-        })
+        }
+        all_ads.append(entry)
         pattern_matched_regions.append({
             'start': match.start,
             'end': match.end,
@@ -2730,19 +2786,7 @@ class AdDetector:
                         and current['start'] >= last['end']):
                     merged.append(_with_category_span(current.copy()))
                     continue
-                merge_dai_core_spans(last, current)
-                # Non-overlapping spans (touching or gapped) are distinct ads,
-                # not the same ad overlapping across stages. Touch counts too
-                # (LLM breaks are often exactly contiguous). Keep these
-                # expand-only in the reviewer so a later inward pull can't drop
-                # a sub-ad; a true overlap (start < end) stays tightenable.
-                if current['start'] >= last['end']:
-                    mark_distinct_merge(last, current)
-                elif 'merged_protected_start' in last:
-                    # True overlap extending a tracked merge: fold the member
-                    # in so the protected union covers audio it adds past the
-                    # recorded end (else a later trim could sever it).
-                    note_merged_members(last, current)
+                note_fold(last, current)
                 # The label goes to the member classifying the most audio,
                 # ties to the incumbent. A member naming nothing, or naming
                 # something outside the vocabulary, displaces nothing.
@@ -2935,7 +2979,10 @@ class AdDetector:
                                or sanitize_sponsor_label(other.get('sponsor')))
 
                     combined = a.copy()
-                    merge_dai_core_spans(combined, b)
+                    note_fold(combined, b)
+                    # The flag is the reviewer's gate on member protection.
+                    if b.get('merged_distinct_ads'):
+                        combined['merged_distinct_ads'] = True
                     combined['start'] = min(a['start'], b['start'])
                     combined['end'] = max(a['end'], b['end'])
                     combined['confidence'] = max(a_conf, b_conf)

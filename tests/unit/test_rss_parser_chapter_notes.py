@@ -27,7 +27,7 @@ def _feed(chapter_notes, extra=None):
 
 
 def test_upstream_item_gets_the_block_when_enabled():
-    assert '<p>Notes</p>' + BLOCK in _feed({UPSTREAM_ID: CHAPTERS})
+    assert '<p>Notes</p>\n\n' + BLOCK in _feed({UPSTREAM_ID: CHAPTERS})
 
 
 def test_no_block_when_disabled_or_without_chapters():
@@ -38,7 +38,7 @@ def test_no_block_when_disabled_or_without_chapters():
 def test_db_appended_item_gets_the_block_too():
     extra = [{'episode_id': 'abcdef012345', 'title': 'Old', 'description': '<p>Old notes</p>',
               'published_at': '2026-01-01T00:00:00Z', 'new_duration': 100, 'episode_number': 1}]
-    assert '<p>Old notes</p>' + BLOCK in _feed({'abcdef012345': CHAPTERS}, extra)
+    assert '<p>Old notes</p>\n\n' + BLOCK in _feed({'abcdef012345': CHAPTERS}, extra)
 
 
 def test_db_appended_item_without_notes_still_gets_a_description():

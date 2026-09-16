@@ -1,5 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
 export const CUE_SCORE_MIN = 0.30;
@@ -132,18 +132,50 @@ export interface FeedsResponse {
   // Stamped whenever an all-feeds refresh pass finishes (15-minute
   // scheduler or Refresh All); null until the first pass completes.
   lastRefreshCompletedAt: string | null;
+  // Present only when the request passed page/limit; a bare request stays
+  // unbounded (all feeds, no pagination metadata).
+  total?: number;
+  totalPages?: number;
+  page?: number;
+  limit?: number;
+  offset?: number;
 }
 
-export async function getFeedsResponse(): Promise<FeedsResponse> {
-  return apiRequest<FeedsResponse>('/feeds');
+export interface GetFeedsParams {
+  page?: number;
+  limit?: number;
+  // Adds a bounded per-feed `latestEpisodes` projection via one windowed
+  // query rather than one request per feed.
+  includeLatestEpisodes?: boolean;
+  episodesPerFeed?: number;
+}
+
+export async function getFeedsResponse(params?: GetFeedsParams): Promise<FeedsResponse> {
+  const qs = buildQueryString({
+    page: params?.page,
+    limit: params?.limit,
+    includeLatestEpisodes: params?.includeLatestEpisodes,
+    episodesPerFeed: params?.episodesPerFeed,
+  });
+  return apiRequest<FeedsResponse>(`/feeds${qs}`);
 }
 
 // Shared options so every consumer of the ['feeds'] cache stores the same
-// FeedsResponse shape; spread and add `select` to derive a view.
+// FeedsResponse shape; spread and add `select` to derive a view. No-params
+// shape: unbounded, no latestEpisodes projection.
 export const feedsQueryOptions = {
   queryKey: ['feeds'],
-  queryFn: getFeedsResponse,
+  queryFn: () => getFeedsResponse(),
 } as const;
+
+// Paginated/projected variant (grouped dashboard view). Distinct queryKey
+// per params so it doesn't collide with the unbounded feedsQueryOptions cache.
+export function feedsQueryOptionsFor(params: GetFeedsParams) {
+  return {
+    queryKey: ['feeds', params] as const,
+    queryFn: () => getFeedsResponse(params),
+  };
+}
 
 export async function getFeeds(): Promise<Feed[]> {
   return (await getFeedsResponse()).feeds;
@@ -343,15 +375,21 @@ export async function getEpisode(slug: string, episodeId: string): Promise<Episo
   return apiRequest<EpisodeDetail>(`/feeds/${slug}/episodes/${episodeId}`);
 }
 
+export interface ReprocessEpisodeResult {
+  message: string;
+  mode: string;
+  jobState?: JobState;
+}
+
 export async function reprocessEpisode(
   slug: string,
   episodeId: string,
   mode: 'reprocess' | 'full' | 'llm' | 'recut' = 'reprocess'
-): Promise<{ message: string; mode: string }> {
-  return apiRequest<{ message: string; mode: string }>(`/episodes/${slug}/${episodeId}/reprocess`, {
-    method: 'POST',
-    body: { mode },
-  });
+): Promise<ReprocessEpisodeResult> {
+  return apiRequest<ReprocessEpisodeResult>(
+    `/episodes/${slug}/${episodeId}/reprocess`,
+    { method: 'POST', body: { mode } },
+  );
 }
 
 export interface UpdateFeedPayload {
@@ -521,6 +559,31 @@ export async function bulkEpisodeAction(
   return apiRequest<BulkActionResult>(`/feeds/${slug}/episodes/bulk`, {
     method: 'POST',
     body: { episodeIds, action },
+  });
+}
+
+export interface SetEpisodesPassthroughResult {
+  updated: number;
+  // Episodes also enqueued for a reprocess so the flag applies this run.
+  // Only set (>0) when enabled=true; clearing never forces a reprocess.
+  queued: number;
+  // Episodes the change applied to, and the ones it did not with a reason.
+  accepted?: string[];
+  rejected?: { episodeId: string; reason: 'not_found' | 'processing' }[];
+  // Authoritative state for the accepted episodes; sent only when enabling.
+  jobState?: JobState;
+}
+
+// Sets or clears the per-episode pass-through override (#746) for one or
+// more episodes (single-episode toggle or bulk selection).
+export async function setEpisodesPassthrough(
+  slug: string,
+  episodeIds: string[],
+  enabled: boolean,
+): Promise<SetEpisodesPassthroughResult> {
+  return apiRequest<SetEpisodesPassthroughResult>(`/feeds/${slug}/episodes/passthrough`, {
+    method: 'POST',
+    body: { episodeIds, enabled },
   });
 }
 

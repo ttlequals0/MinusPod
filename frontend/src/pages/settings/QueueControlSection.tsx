@@ -15,6 +15,7 @@ import {
   updateProviderBudget,
   getRateLimitHoldSettings,
   updateRateLimitHoldSettings,
+  resetRateLimitHold,
   type ProviderBudget,
 } from '../../api/settings';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
@@ -163,6 +164,8 @@ interface HoldBlockConfig<
   loadErrorText: string;
   /** Rendered under the toggle while the feature holds the queue. */
   status?: (data: T) => ReactNode | null;
+  /** When set, a Reset button appears while status is active (rate-limit-hold). */
+  resetAction?: () => Promise<unknown>;
 }
 
 // Shared shape of the offline-queue and rate-limit-hold settings: a toggle,
@@ -187,6 +190,7 @@ function QueueHoldBlock<
     llmUsageUrl?: string; rateLimitProbeMinutes?: number;
   }>({});
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
   const enabled = draft.enabled ?? data?.enabled ?? false;
   const ttlHours = draft.ttlHours ?? data?.ttlHours ?? 48;
   const llmUsageUrl = draft.llmUsageUrl ?? data?.llmUsageUrl ?? '';
@@ -204,6 +208,15 @@ function QueueHoldBlock<
       qc.invalidateQueries({ queryKey: config.queryKey });
     },
     onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Save failed')),
+  });
+
+  const reset = useMutation({
+    mutationFn: () => config.resetAction!(),
+    onSuccess: () => {
+      setResetError(null);
+      qc.invalidateQueries({ queryKey: config.queryKey });
+    },
+    onError: (e: unknown) => setResetError(getErrorMessage(e, 'Reset failed')),
   });
 
   if (isLoading || !active) {
@@ -310,7 +323,26 @@ function QueueHoldBlock<
         </div>
       )}
 
-      {config.status?.(data)}
+      {(() => {
+        const statusNode = config.status?.(data);
+        if (!statusNode) return null;
+        return (
+          <div className="space-y-2">
+            <div className="text-sm text-muted-foreground">{statusNode}</div>
+            {config.resetAction && (
+              <button
+                type="button"
+                onClick={() => reset.mutate()}
+                disabled={reset.isPending}
+                className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm ${focusRing}`}
+              >
+                {reset.isPending ? 'Resetting...' : 'Reset holds now'}
+              </button>
+            )}
+            {resetError && <p className="text-sm text-destructive">{resetError}</p>}
+          </div>
+        );
+      })()}
 
       {saveError && (
         <p className="text-sm text-destructive">{saveError}</p>
@@ -478,6 +510,7 @@ function QueueControlSection({
               queryKey: ['rateLimitHold'],
               load: getRateLimitHoldSettings,
               save: updateRateLimitHoldSettings,
+              resetAction: resetRateLimitHold,
               toggleLabel: 'Pause the queue when the LLM provider is rate limited',
               ariaLabel: 'Rate-limit hold toggle',
               probeFields: true,

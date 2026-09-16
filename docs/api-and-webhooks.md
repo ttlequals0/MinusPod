@@ -20,7 +20,7 @@ Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CS
 Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
 - `GET /api/v1/health/live` - Liveness probe (process up); always 200, safe for frequent polling
-- `GET /api/v1/feeds` - List all feeds
+- `GET /api/v1/feeds` - List feeds. With no `page`/`limit`, returns every feed (unchanged default). Passing `page`/`limit` paginates the list; `includeLatestEpisodes=true` (with optional `episodesPerFeed`, default 3, max 20) adds each feed's newest episodes without a separate request per feed
 - `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap, `onlyExposeProcessedEpisodes` to hide unprocessed episodes from the served feed, `retentionDaysOverride` for a per-feed retention window or archive, `keepOriginalAudioOverride` for the pre-cut original audio)
 - `PATCH /api/v1/feeds/{slug}` - Update a feed's settings: `queuePriority` (`high`/`normal`/`low`, restamps the feed's already-queued pending episodes immediately), `retentionDaysOverride`, `keepOriginalAudioOverride`, `maxEpisodes`, `onlyExposeProcessedEpisodes`, `processingMode`, `chaptersMode`, title blacklist, and the other per-feed overrides listed in the OpenAPI spec
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
@@ -30,9 +30,9 @@ Key endpoints:
 - `POST /api/v1/feeds/refresh` - Refresh every subscribed feed. Returns per-feed outcomes and totals; HTTP 207 means the pass completed with at least one feed failure.
 - `GET/HEAD /api/v1/feeds/{slug}/artwork` - Serve cached feed artwork without admin authentication. Traversal-like or over-200-character legacy slugs are rejected before this public exemption.
 - `GET /api/v1/podcast-search?q=query` - Search podcasts via PodcastIndex.org
-- `GET /api/v1/feeds/{slug}/episodes` - List episodes (supports `sort_by`, `sort_dir`, `status` filter, pagination)
+- `GET /api/v1/feeds/{slug}/episodes` - List episodes (supports `sort_by`, `sort_dir`, `status` filter, pagination). Each episode carries a `jobState` (`idle`, `queued`, or `processing`) alongside the lifecycle `status`; it is read from the live queue, so a `pending` episode with no queue row reports `idle` rather than `queued`.
 - `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, reprocess_llm, delete)
-- `GET /api/v1/feeds/{slug}/episodes/{id}` - Get episode detail with ad markers and transcript
+- `GET /api/v1/feeds/{slug}/episodes/{id}` - Get episode detail with ad markers and transcript, including the same `jobState` field as the list endpoint
 - `GET /api/v1/feeds/{slug}/episodes/{id}/artwork` - Serve an episode's cover, fetching and caching it from the publisher on first request. Publishers block images requested with a cross-site Referer, so the web UI asks here instead of loading them directly. Redirects to the feed cover when the episode has none or the fetch is refused. The URL comes from the episode record, never from the caller
 - `POST /api/v1/episodes/{slug}/{id}/reprocess` - Reprocess an episode (body `mode`: reprocess/full/llm/recut; `llm` re-detects on the existing transcript and `recut` re-cuts from the saved ad list, both skipping transcription). See [Reprocessing](configuration.md#reprocessing) for the full mode reference. The older `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` ignores `mode` and always runs a full reprocess.
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cancel` - Cancel processing for a stuck episode
@@ -95,7 +95,8 @@ Key endpoints:
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)
 - `PUT /api/v1/settings/ad-detection` - Update ad detection config, including a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override.
 - `GET /api/v1/settings/models` - List available AI models from current provider
-- `POST /api/v1/settings/models/refresh` - Force refresh model list from provider
+- `POST /api/v1/settings/models/refresh` - Force refresh model list from provider. Optional JSON body `{"slot": "primary" | "secondary"}` picks the credential slot (default primary).
+- `POST /api/v1/settings/rate-limit-hold/reset` - Clear every active rate-limit hold without disabling the hold feature
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
 - `POST /api/v1/settings/webhooks/{id}/test` - Fire test webhook
 - `POST /api/v1/settings/webhooks/validate-template` - Validate and preview a payload template

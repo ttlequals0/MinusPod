@@ -49,18 +49,19 @@ vi.mock('../api/feeds', () => ({
   bulkEpisodeAction: vi.fn(),
 }));
 
-function makeFeed(): Feed {
+function makeFeed(overrides: Partial<Feed> = {}): Feed {
   return {
     slug: 'test-feed',
     title: 'Test Feed',
     sourceUrl: 'https://example.com/feed.xml',
     feedUrl: 'https://minuspod.example.com/feeds/test-feed.xml',
     episodeCount: 3,
+    ...overrides,
   };
 }
 
-async function renderFeedDetail() {
-  const feed = makeFeed();
+async function renderFeedDetail(feedOverrides: Partial<Feed> = {}) {
+  const feed = makeFeed(feedOverrides);
   mockGetFeed.mockResolvedValue(feed);
   mockGetFeedsResponse.mockResolvedValue({ feeds: [feed], lastRefreshCompletedAt: null });
   mockGetEpisodes.mockResolvedValue({ episodes: [], total: 0 });
@@ -97,6 +98,31 @@ describe('FeedDetail: deleting the feed', () => {
 
     expect(mockDeleteFeed).not.toHaveBeenCalled();
     expect(screen.getByText('Click delete again to confirm')).toBeDefined();
+  });
+
+  it('warns that deleting stops the job when an episode is processing', async () => {
+    await renderFeedDetail({ statusCounts: { discovered: 0, pending: 0, processing: 1, completed: 0, failed: 0, permanently_failed: 0, deferred: 0 } });
+
+    await userEvent.click(deleteButton());
+
+    expect(screen.getByText('An episode is processing right now. Deleting this podcast will stop it.')).toBeDefined();
+  });
+
+  it('warns with a plural count when several episodes are processing', async () => {
+    await renderFeedDetail({ statusCounts: { discovered: 0, pending: 0, processing: 3, completed: 0, failed: 0, permanently_failed: 0, deferred: 0 } });
+
+    await userEvent.click(deleteButton());
+
+    expect(screen.getByText('3 episodes are processing right now. Deleting this podcast will stop them.')).toBeDefined();
+  });
+
+  it('does not warn about stopping a job when nothing is processing', async () => {
+    await renderFeedDetail({ statusCounts: { discovered: 0, pending: 2, processing: 0, completed: 1, failed: 0, permanently_failed: 0, deferred: 0 } });
+
+    await userEvent.click(deleteButton());
+
+    expect(screen.getByText('Click delete again to confirm')).toBeDefined();
+    expect(screen.queryByText(/Deleting this podcast will stop/)).toBeNull();
   });
 
   it('deletes on the second click', async () => {

@@ -2392,6 +2392,55 @@ class TestClampResidueValidatesSeparately:
         # The trimmed-out region 100-130 stays dropped.
         assert (100.0, 130.0) not in spans
 
+    def test_residue_drops_the_parents_merge_bookkeeping(self):
+        # The residue is narrower than the span those records describe.
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 100.0, 'end': 200.0,
+                'confirmed_span': {'start': 130.0, 'end': 200.0},
+            }],
+        )
+
+        result = validator.validate(
+            [{'start': 100.0, 'end': 240.0, 'confidence': 0.95,
+              'reason': 'redetected ad plus a new back-to-back ad',
+              'merged_distinct_ads': True,
+              'merged_protected_start': 100.0, 'merged_protected_end': 240.0,
+              'merged_member_spans': [
+                  {'start': 100.0, 'end': 200.0, 'stage': 'claude'}]}])
+
+        residue = next(ad for ad in result.ads if ad['start'] == 200.0)
+        assert not residue.keys() & {
+            'merged_distinct_ads', 'merged_protected_start',
+            'merged_protected_end', 'merged_member_spans'}
+
+    def test_clamp_to_the_approved_span_narrows_the_merge_records(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 100.0, 'end': 300.0,
+                'confirmed_span': {'start': 100.0, 'end': 150.0},
+            }],
+        )
+
+        out = validator.validate(
+            [{'start': 100.0, 'end': 300.0, 'confidence': 0.9,
+              'reason': 'redetected merged ad',
+              'merged_distinct_ads': True,
+              'merged_protected_start': 100.0, 'merged_protected_end': 300.0,
+              'merged_member_spans': [
+                  {'start': 100.0, 'end': 150.0, 'stage': 'claude'},
+                  {'start': 160.0, 'end': 300.0, 'stage': 'claude'}]}]).ads[0]
+
+        assert (out['start'], out['end']) == (100.0, 150.0)
+        assert out['merged_member_spans'] == [
+            {'start': 100.0, 'end': 150.0, 'stage': 'claude'}]
+        assert (out['merged_protected_start'],
+                out['merged_protected_end']) == (100.0, 150.0)
+
 
 class TestPlainConfirmMultiFragment:
     """A plain confirmation (no confirmed_span) names no exact sub-span, so

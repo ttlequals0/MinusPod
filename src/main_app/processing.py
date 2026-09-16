@@ -47,8 +47,9 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import (clip_dai_core_spans, fold_marker_pair,
-                           foldable_twin, invalidate_tail_provenance)
+from utils.markers import (clip_dai_core_spans, clip_merge_spans,
+                           fold_marker_pair, foldable_twin,
+                           invalidate_tail_provenance)
 from utils.time import (
     adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now_iso,
@@ -57,6 +58,7 @@ from verification_pass import _build_timestamp_map, _map_correction_to_processed
 from whisper_pool import get_pool, is_background_leader
 from config import (
     log_download_query_enabled,
+    resolve_max_boundary_shift,
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
@@ -80,7 +82,7 @@ from config import (
     normalize_segment_category,
     SEGMENT_CATEGORIES,
     DEFAULT_SEGMENT_ACTION,
-    resolve_feed_processing_mode,
+    resolve_processing_mode,
     resolve_skip_second_pass,
     resolve_skip_transcription,
     resolve_cue_only_safety,
@@ -105,6 +107,7 @@ from config import (
     ModelNotConfiguredError,
     coerce_bool_setting,
 )
+from database import Database
 from database.podcasts import is_local_feed
 from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
@@ -119,13 +122,14 @@ from llm_client import (
     is_limit_exceeded_error, is_auth_error, LimitExceededError,
     ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
-    get_last_episode_token_totals,
     get_effective_provider,
 )
 from database.queue import compute_queue_priority
+from llm_route import resolve_route
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
-    hold_message, hold_queue_for_provider_limit, is_queue_paused,
+    enforce_provider_rate_limit, get_active_hold, hold_message,
+    hold_queue_for_provider_limit, is_queue_paused, resolve_hold_scope,
 )
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -408,9 +412,24 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         return False, "queue_only"
 
     # Rate-limit hold (#696): the one choke point every start goes through,
-    # so a Play or Reprocess waits in the queue like the rest.
-    if is_queue_paused(db):
-        return False, "rate_limit_paused"
+    # so a Play or Reprocess waits in the queue like the rest. Provider- and
+    # slot-scoped: checked against every (provider, credential_slot) this
+    # run's phases would use, so a run needing only healthy accounts is
+    # admitted even while a different provider or a different account on
+    # the same provider is held, and a run needing a held account is
+    # refused before it can spend a call on a healthy one it cannot finish
+    # with. Mode-scoped too: a run that makes no LLM call is never refused.
+    required_providers = _required_providers_for_admission(slug, episode_id)
+    if required_providers is None:
+        if is_queue_paused(db):
+            return False, "rate_limit_paused"
+    else:
+        # Manual RPM/RPD caps (#747): record a hold for any required account
+        # already at its limit, so the is_queue_paused check below refuses it.
+        for provider, slot in required_providers:
+            enforce_provider_rate_limit(db, provider, slot)
+        if any(is_queue_paused(db, provider, slot) for provider, slot in required_providers):
+            return False, "rate_limit_paused"
 
     # Check if queue is busy with another episode
     run_id = queue.acquire(slug, episode_id, limit=get_pool().max_episodes, timeout=0)
@@ -971,6 +990,10 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             typed = ProviderRateLimitedError(
                 f"Ad detection failed: {error_msg}",
                 retry_after_seconds=float(ad_result.get('retry_after_seconds') or 0),
+                provider_key=ad_result.get('provider_key'),
+                credential_slot=ad_result.get('credential_slot'),
+                manual=ad_result.get('manual', False),
+                phase='detection',
             )
         elif ad_result.get('connectivity'):
             # Endpoint unreachable rather than a bad response, so the offline
@@ -1070,11 +1093,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                     if audio_analysis_result else [])
     if first_pass_ads and audio_analysis_result:
         try:
-            raw_cap = db.get_setting('review_max_boundary_shift')
-            try:
-                max_shift = float(raw_cap) if raw_cap is not None else 60.0
-            except (TypeError, ValueError):
-                max_shift = 60.0
+            max_shift = resolve_max_boundary_shift(db)
             # Mutates first_pass_ads in place (edges + cue_snap metadata).
             snap_ad_boundaries_to_cues(
                 first_pass_ads, audio_analysis_result, max_shift,
@@ -1931,9 +1950,10 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
 
 
 def _build_reviewer(db, ad_detector) -> AdReviewer:
+    # No llm_client: the reviewer resolves its own route (possibly a
+    # different provider than detection) per review() call.
     return AdReviewer(
         db=db,
-        llm_client=ad_detector._llm_client,
         sponsor_service=getattr(ad_detector, 'sponsor_service', None),
         sponsor_history_provider=ad_detector._build_known_pattern_hint,
     )
@@ -2042,6 +2062,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         episode_title, podcast_description, episode_description,
     )
     pass2_model = ad_detector.get_verification_model()
+    pass2_provider = ad_detector.get_verification_provider()
     result = reviewer.review(
         accepted_ads=accepted_originals,
         resurrection_eligible=eligible_originals,
@@ -2049,6 +2070,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         episode_meta=episode_meta,
         pass_num=2,
         pass_model=pass2_model,
+        pass_provider=pass2_provider,
     )
 
     # Index by (start, end) so verdict application is O(V), not O(V*N).
@@ -2315,7 +2337,7 @@ def _merge_reviewer_result(result, all_ads_with_validation):
 def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
                      all_ads_with_validation, segments, podcast_name,
                      episode_title, episode_description, podcast_description,
-                     min_cut_confidence, pass_num, pass_model,
+                     min_cut_confidence, pass_num, pass_model, pass_provider=None,
                      audio_analysis=None, cue_gate_enabled=False):
     """Run the LLM ad reviewer over the cut list and resurrection-eligible
     rejects. Returns updated ``(ads_to_remove, all_ads_with_validation)``.
@@ -2362,6 +2384,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
         episode_meta=episode_meta,
         pass_num=pass_num,
         pass_model=pass_model,
+        pass_provider=pass_provider,
     )
 
     new_ads_to_remove = list(result.accepted_after_review)
@@ -2609,6 +2632,9 @@ def _finalize_user_confirmed_bounds(
             marker.get('end_extended_by_content', missing),
             marker.get('tail_splice_snap', missing),
             marker.get('dai_core_spans', missing),
+            marker.get('merged_member_spans', missing),
+            marker.get('merged_protected_start'),
+            marker.get('merged_protected_end'),
         )
         # Final human authority supersedes how an automatic tail happened to
         # reach even the same edge; do not let that stale provenance enable a
@@ -2617,6 +2643,7 @@ def _finalize_user_confirmed_bounds(
         marker.pop('tail_splice_snap', None)
         marker['start'], marker['end'] = target_start, target_end
         clip_dai_core_spans(marker, target_start, target_end)
+        clip_merge_spans(marker, target_start, target_end)
         flags = (marker.get('validation') or {}).get('flags')
         note_added = False
         if isinstance(flags, list):
@@ -2628,6 +2655,9 @@ def _finalize_user_confirmed_bounds(
             marker.get('end_extended_by_content', missing),
             marker.get('tail_splice_snap', missing),
             marker.get('dai_core_spans', missing),
+            marker.get('merged_member_spans', missing),
+            marker.get('merged_protected_start'),
+            marker.get('merged_protected_end'),
         )
         return (
             (old_start, old_end) != (target_start, target_end)
@@ -3166,7 +3196,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 raise ProviderRateLimitedError(
                     f"Verification failed: {verification_result.get('error')}",
                     retry_after_seconds=float(
-                        verification_result.get('retry_after_seconds') or 0))
+                        verification_result.get('retry_after_seconds') or 0),
+                    provider_key=verification_result.get('provider_key'),
+                    credential_slot=verification_result.get('credential_slot'),
+                    manual=verification_result.get('manual', False),
+                    phase='verification')
             v_error = verification_result.get('error')
             detail = f": {v_error}" if v_error else ""
             audio_logger.warning(
@@ -3358,6 +3392,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             audio_logger.info(f"[{slug}:{episode_id}] Verification: clean")
 
         verification_ok = not crosspass_rerender_failed
+    except ProviderRateLimitedError:
+        # The hold handler must see this: re-queue after the reset, not finalize unverified.
+        raise
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")
         # The pass did not complete; callers must not report a clean scan.
@@ -3849,6 +3886,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     episode_id=episode_id,
                     replacement_duration=replacement_duration,
                     segment_markers=markers,
+                    slug=slug,
                 )
             except ProviderRateLimitedError as e:
                 # The audio is already cut, so hold the queue and publish ad
@@ -3856,7 +3894,8 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 hold_until = None
                 try:
                     hold_until = hold_queue_for_provider_limit(
-                        db, e, slug=slug, episode_id=episode_id, podcast_name=podcast_name)
+                        db, e, slug=slug, episode_id=episode_id,
+                        podcast_name=podcast_name, phase='chapters')
                 except Exception:
                     audio_logger.exception(
                         f"[{slug}:{episode_id}] Failed to record the rate-limit hold")
@@ -4168,22 +4207,35 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
         return False
     stats = dict(run_stats or {})
     ctx = run_context.current()
+    run_totals = token_totals
+    run_id_for_history = None
     if (ctx is not None and ctx.slug == slug
             and ctx.episode_id == str(episode_id) and ctx.run_id):
         notices = ctx.thinking_notices(ctx.run_id)
         if notices:
             stats['thinking_notices'] = notices
+        # Persisted totals come from the ledger, not the in-process
+        # accumulator: a pool worker that finishes after collection would
+        # otherwise silently drop its tokens/cost from this run's row.
+        ledger_totals = db.get_run_usage_totals(ctx.run_id)
+        run_totals = {
+            'input_tokens': ledger_totals['input_tokens'],
+            'output_tokens': ledger_totals['output_tokens'],
+            'cost': float(ledger_totals['cost_usd']),
+        }
+        run_id_for_history = ctx.run_id
     history_id = db.record_processing_history(
         podcast_id=podcast_data['id'], podcast_slug=slug,
         podcast_title=podcast_data.get('title') or podcast_name,
         episode_id=episode_id, episode_title=episode_title,
         status=status, processing_duration_seconds=processing_time,
         ads_detected=ads_detected, error_message=error_message,
-        input_tokens=token_totals['input_tokens'],
-        output_tokens=token_totals['output_tokens'],
-        llm_cost=token_totals['cost'],
+        input_tokens=run_totals['input_tokens'],
+        output_tokens=run_totals['output_tokens'],
+        llm_cost=run_totals['cost'],
         audio_cues_detected=audio_cues_detected,
         processing_stats=stats or None,
+        run_id=run_id_for_history,
     )
     _finalize_run_log(db, history_id, slug, episode_id)
     return True
@@ -4331,6 +4383,7 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         # evidence inside the approved range so validation cannot restore a
         # stale automatic boundary over audio the user chose to preserve.
         clip_dai_core_spans(match, n_start, n_end)
+        clip_merge_spans(match, n_start, n_end)
         adjusted.add(id(match))
         applied += 1
     if applied:
@@ -4530,8 +4583,10 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
         db.clear_episode_ad_data(slug, episode_id)
 
         new_version = _next_processed_version(episode_data)
-        final_path = storage.get_episode_path(slug, episode_id, version=new_version)
+        # Fence first: resolving the path mkdirs the podcast tree, which would
+        # recreate the directory of a feed deleted mid-run.
         _require_publication_owner(slug, episode_id)
+        final_path = storage.get_episode_path(slug, episode_id, version=new_version)
         shutil.move(audio_path, final_path)
         audio_path = None
 
@@ -4763,6 +4818,40 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                 pass
 
 
+def _requeue_episode_after_hold(db, slug, episode_id, episode_title,
+                                episode_data, hold_until, error):
+    """Send a rate-limit-held episode back to PENDING, keeping its queue
+    position. Shared by real-429 and manual-cap defers (#696, #747)."""
+    db.upsert_episode(
+        slug, episode_id,
+        status=EpisodeStatus.PENDING.value,
+        error_message=hold_message(hold_until, error),
+    )
+    # Release the claimed queue row in place so the episode keeps its
+    # priority and position. A run started outside the queue processor
+    # has no row, so it gets one at the boost its request would carry.
+    if not db.reopen_claimed_queue_row(slug, episode_id):
+        # episode_data predates the run; a JIT play may have had no row
+        # then, so read the row the run wrote.
+        row = db.get_episode(slug, episode_id) or episode_data or {}
+        podcast = db.get_podcast_by_slug(slug) or {}
+        # Only Play and Reprocess start outside the queue, so this is user
+        # intent: the mark clears the drainer's auto-process gate. Never
+        # over an existing stamp, which would relabel someone's reprocess.
+        if not row.get('reprocess_requested_at'):
+            db.upsert_episode(slug, episode_id,
+                              reprocess_requested_at=utc_now_iso(),
+                              reprocess_source=REPROCESS_SOURCE_JIT)
+        db.upsert_episode_for_processing(
+            slug, episode_id, row.get('original_url'),
+            title=episode_title, published_at=row.get('published_at'),
+            description=row.get('description'),
+            priority=compute_queue_priority(
+                podcast.get('queue_priority'), row.get('published_at'),
+                manual=True),
+        )
+
+
 def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                 episode_data, error, start_time, run_stats=None):
     """Handle processing failure: GPU cleanup, retry logic, error recording."""
@@ -4785,37 +4874,20 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # the queue and pauses new starts until the reset. Runs before the
     # offline-queue branch: throttling is not an outage. retry_count untouched.
     if isinstance(error, ProviderRateLimitedError):
-        hold_until = hold_queue_for_provider_limit(
-            db, error, slug=slug, episode_id=episode_id, podcast_name=podcast_name)
+        provider_key, credential_slot = resolve_hold_scope(error)
+        if getattr(error, 'manual', False):
+            # Manual RPM/RPD/TPM cap: the pre-call backstop already recorded
+            # the hold, so read it directly and defer regardless of the #696
+            # toggle (a real 429 still routes through the toggle-gated path).
+            hold_until = get_active_hold(db, provider_key, credential_slot)[0]
+        else:
+            hold_until = hold_queue_for_provider_limit(
+                db, error, slug=slug, episode_id=episode_id, podcast_name=podcast_name,
+                provider_key=provider_key,
+                credential_slot=credential_slot)
         if hold_until:
-            db.upsert_episode(
-                slug, episode_id,
-                status=EpisodeStatus.PENDING.value,
-                error_message=hold_message(hold_until, error),
-            )
-            # Release the claimed queue row in place so the episode keeps its
-            # priority and position. A run started outside the queue processor
-            # has no row, so it gets one at the boost its request would carry.
-            if not db.reopen_claimed_queue_row(slug, episode_id):
-                # episode_data predates the run; a JIT play may have had no row
-                # then, so read the row the run wrote.
-                row = db.get_episode(slug, episode_id) or episode_data or {}
-                podcast = db.get_podcast_by_slug(slug) or {}
-                # Only Play and Reprocess start outside the queue, so this is user
-                # intent: the mark clears the drainer's auto-process gate. Never
-                # over an existing stamp, which would relabel someone's reprocess.
-                if not row.get('reprocess_requested_at'):
-                    db.upsert_episode(slug, episode_id,
-                                      reprocess_requested_at=utc_now_iso(),
-                                      reprocess_source=REPROCESS_SOURCE_JIT)
-                db.upsert_episode_for_processing(
-                    slug, episode_id, row.get('original_url'),
-                    title=episode_title, published_at=row.get('published_at'),
-                    description=row.get('description'),
-                    priority=compute_queue_priority(
-                        podcast.get('queue_priority'), row.get('published_at'),
-                        manual=True),
-                )
+            _requeue_episode_after_hold(
+                db, slug, episode_id, episode_title, episode_data, hold_until, error)
             return
 
     # Offline queue (#482): endpoint-down failures defer instead of failing.
@@ -4930,6 +5002,188 @@ def build_podcast_context(podcast_settings):
     return f"{description}\n\nOperator notes for this show:\n{notes}".strip()
 
 
+def _load_route_snapshot(run_id: str) -> dict | None:
+    """The persisted snapshot for an existing run row, or None when there
+    isn't one yet (fresh run) or the row/column can't be read."""
+    try:
+        row = db.get_connection().execute(
+            "SELECT route_snapshot_json FROM processing_runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+    except Exception as exc:
+        audio_logger.warning(f"Could not read route snapshot for run {run_id}: {exc}")
+        return None
+    if not row or not row['route_snapshot_json']:
+        return None
+    try:
+        return json.loads(row['route_snapshot_json'])
+    except (TypeError, ValueError) as exc:
+        audio_logger.warning(f"Could not parse route snapshot for run {run_id}: {exc}")
+        return None
+
+
+def _persist_route_snapshot(run_id: str, snapshot: dict) -> None:
+    try:
+        conn = db.get_connection()
+        conn.execute(
+            "UPDATE processing_runs SET route_snapshot_json = ? WHERE run_id = ?",
+            (json.dumps(snapshot), run_id),
+        )
+        conn.commit()
+    except Exception as exc:
+        audio_logger.warning(f"Could not persist route snapshot for run {run_id}: {exc}")
+
+
+def _admission_gates(settings_db) -> dict:
+    """Admission's feed-independent feature gates, so a multi-row scan reads
+    them once instead of per row."""
+    return {'review': _ad_review_enabled(settings_db),
+            'chapters_enabled': settings_db.get_setting('chapters_enabled')}
+
+
+def _chapters_enabled_for_admission(chapters_enabled, podcast_row) -> bool:
+    """Whether this run's chapter step could call the chapters LLM at all.
+
+    Mirrors the two settings that turn chapters off outright: the global
+    chapters_enabled flag and the per-feed chapters_mode. Fails open (True)
+    on an unresolved/'auto' mode, since counting an unused provider as
+    required is always the safe direction; only a definite 'off' excludes it.
+    """
+    if chapters_enabled is not None and chapters_enabled.lower() != 'true':
+        return False
+    return resolve_chapters_mode(podcast_row) != CHAPTERS_MODE_OFF
+
+
+def _admission_mode_rows(settings_db, slug: str, episode_id: str | None,
+                         queue_row: dict | None) -> tuple[dict | None, dict | None]:
+    """Podcast and episode rows the mode resolvers read, taken from a pending
+    queue row when the scan already selected those columns."""
+    if queue_row is not None:
+        return ({'passthrough_enabled': queue_row.get('feed_passthrough_enabled'),
+                 'skip_ad_detection': queue_row.get('skip_ad_detection'),
+                 'detection_mode': queue_row.get('detection_mode'),
+                 'chapters_mode': queue_row.get('chapters_mode')},
+                {'passthrough_enabled': queue_row.get('episode_passthrough_enabled')})
+    episode_row = (settings_db.get_episode_state(slug, episode_id)
+                   if episode_id else None)
+    return settings_db.get_podcast_row(slug), episode_row
+
+
+def _required_providers_for_admission(slug: str, episode_id: str | None = None,
+                                      snapshot: dict | None = None,
+                                      gates: dict | None = None,
+                                      queue_row: dict | None = None
+                                      ) -> list[tuple[str, str]] | None:
+    """Distinct (provider_key, credential_slot) pairs this run's *enabled*
+    phases would resolve to right now, or None when resolution fails
+    (admission then falls back to the legacy unscoped hold check, a safe
+    superset of any real per-provider hold).
+
+    A phase whose feature is off for this run is excluded: a held account
+    that this run will never actually call must not refuse it. The resolved
+    processing mode counts here too, so a pass-through run needs no account
+    at all and a skip-detection or cue-only run needs only the chapters
+    account. A phase snapshot with no credential_slot (older callers, tests)
+    defaults to 'primary', matching single-provider installs today.
+
+    Inside a run, uses the run's frozen route snapshot so a settings change
+    during transcription cannot make the reservation cover different
+    providers than the run will actually call; at dispatch admission (no
+    installed snapshot yet) it resolves fresh from live settings. Callers
+    scanning many feeds in one pass pass `snapshot` and `gates` in, since
+    neither varies by feed, and `queue_row` so the mode needs no lookup.
+    """
+    ctx = run_context.current()
+    if snapshot is None:
+        snapshot = (ctx.route_snapshot if ctx else None) or _resolve_route_snapshot()
+    if snapshot is None:
+        return None
+    active_phases = dict(snapshot)
+    try:
+        settings_db = Database()
+        if gates is None:
+            gates = _admission_gates(settings_db)
+        podcast_row, episode_row = _admission_mode_rows(
+            settings_db, slug, episode_id, queue_row)
+        mode = resolve_processing_mode(podcast_row, episode_row)
+        if mode == PROCESSING_MODE_PASSTHROUGH:
+            return []
+        if mode in (PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY):
+            # Both modes skip detection, review and verification outright, so
+            # chapters is the only phase left that can reach an LLM.
+            active_phases = {phase: route for phase, route in active_phases.items()
+                             if phase == 'chapters'}
+        if not gates['review']:
+            active_phases.pop('review', None)
+        if not _chapters_enabled_for_admission(gates['chapters_enabled'], podcast_row):
+            active_phases.pop('chapters', None)
+    except Exception as exc:
+        # Fail open to the full (unfiltered) phase set: overcounting a
+        # provider as required is the safe direction, a crash here is not.
+        audio_logger.warning(f"Could not resolve phase enablement for admission: {exc}")
+        active_phases = dict(snapshot)
+    return list({(route['provider_key'], route.get('credential_slot', 'primary'))
+                 for route in active_phases.values()})
+
+
+def _resolve_route_snapshot() -> dict | None:
+    """Resolve this run's per-phase LLM routes once, non-secret only
+    ({provider_key, configured_model, base_url, credential_slot}). None when
+    resolution fails (e.g. no model configured yet): callers then fall back
+    to today's per-call resolution against the live global settings.
+
+    The review entry also freezes the raw review_provider/review_model
+    setting VALUES as of run start under 'gate'. AdReviewer resolves its
+    route from this frozen gate (honoring same_as_pass against whichever
+    pass is calling) instead of re-reading settings per call, so an
+    operator changing review_provider mid-run cannot change pass-2's
+    provider after pass-1 already ran on a different one.
+    """
+    try:
+        detection = resolve_route('detection')
+        verification = resolve_route('verification')
+        chapters = resolve_route('chapters')
+        review = resolve_route(
+            'review', pass_provider=detection.provider_key,
+            pass_model=detection.model_id)
+        # Database(), not the module-level db: resolve_route above already
+        # reads settings through its own fresh Database() singleton lookup,
+        # and the gate must match that same source of truth.
+        settings_db = Database()
+        review_gate = {
+            'review_provider': settings_db.get_setting('review_provider'),
+            'review_model': settings_db.get_setting('review_model'),
+        }
+    except Exception as exc:
+        audio_logger.warning(f"Could not resolve per-phase LLM routes: {exc}")
+        return None
+    snapshot = {
+        route.phase: {
+            'provider_key': route.provider_key, 'configured_model': route.model_id,
+            'base_url': route.base_url, 'credential_slot': route.credential_slot,
+        }
+        for route in (detection, review, verification, chapters)
+    }
+    snapshot['review']['gate'] = review_gate
+    return snapshot
+
+
+def _resolve_or_load_route_snapshot(run_id: str | None) -> dict | None:
+    """This run's immutable route snapshot: reused from the row when a
+    prior resolution for the same run_id already persisted one (recovery),
+    else resolved fresh from current settings and persisted.
+    """
+    if run_id:
+        existing = _load_route_snapshot(run_id)
+        if existing is not None:
+            return existing
+
+    snapshot = _resolve_route_snapshot()
+    if snapshot is not None and run_id:
+        _persist_route_snapshot(run_id, snapshot)
+    return snapshot
+
+
 def process_episode(slug: str, episode_id: str, episode_url: str,
                    episode_title: str = "Unknown", podcast_name: str = "Unknown",
                    episode_description: str = None, episode_artwork_url: str = None,
@@ -4951,11 +5205,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     """
     start_time = time.time()
     start_episode_token_tracking()
+    ctx = run_context.current()
     if run_id:
-        ctx = run_context.current()
         if ctx is not None:
             ctx.run_id = run_id
         _check_cancel(cancel_event, slug, episode_id, run_id)
+
+    route_snapshot = _resolve_or_load_route_snapshot(run_id)
+    if ctx is not None and route_snapshot is not None:
+        ctx.set_route_snapshot(route_snapshot)
 
     episode_data = db.get_episode(slug, episode_id)
     reprocess_mode = episode_data.get('reprocess_mode') if episode_data else None
@@ -4979,11 +5237,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     if notes:
         audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(notes)} chars)")
 
-    # Effective per-feed mode, resolved once from the row above. The
-    # precedence (passthrough > skip-detection > keep-content > cue_only > standard)
-    # lives in resolve_feed_processing_mode; the branches below check the
-    # resolved mode, never the raw columns.
-    processing_mode = resolve_feed_processing_mode(podcast_settings)
+    # Effective mode: a per-episode pass-through override (#746) wins over
+    # the feed mode; otherwise the feed mode's own precedence (passthrough >
+    # skip-detection > keep-content > cue_only > standard) applies. The
+    # branches below check the resolved mode, never the raw columns.
+    processing_mode = resolve_processing_mode(podcast_settings, episode_data)
 
     # Pass-through (#521): the feed opted out of processing entirely.
     # Full and AI reprocesses also land here while the toggle is on; the
@@ -5025,19 +5283,48 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     if skip_transcription_active:
         run_stats['transcription_skipped'] = True
 
-    provider_reservation_id = None
+    provider_reservations: dict[str, str] = {}
     provider_attempted = False
 
     def _reserve_provider():
-        nonlocal provider_reservation_id
-        if provider_reservation_id is not None:
+        if provider_reservations:
             return
-        admission = db.reserve_provider_spend(
-            get_effective_provider(), None, run_id=run_id)
-        if not admission['allowed']:
-            raise RuntimeError(
-                f"Provider admission denied: {admission['reason']}")
-        provider_reservation_id = admission['reservation_id']
+        pairs = _required_providers_for_admission(slug, episode_id)
+        if pairs is not None and not pairs:
+            return  # No phase reaches an LLM, so there is no spend to reserve.
+        provider_keys = (sorted({pk for pk, _slot in pairs}) if pairs
+                         else [get_effective_provider()])
+        acquired: dict[str, str] = {}
+        for provider_key in provider_keys:
+            admission = db.reserve_provider_spend(
+                provider_key, None, run_id=run_id)
+            if not admission['allowed']:
+                for rid in acquired.values():
+                    db.release_provider_spend(rid)
+                raise RuntimeError(
+                    f"Provider admission denied for {provider_key}: "
+                    f"{admission['reason']}")
+            if admission['reservation_id'] is not None:
+                acquired[provider_key] = admission['reservation_id']
+        provider_reservations.update(acquired)
+
+    def _reconcile_provider_actuals():
+        for provider_key, rid in provider_reservations.items():
+            # Unknown-cost calls make the known-only subtotal an understatement;
+            # settle at the reservation estimate (None) rather than release the
+            # difference back as if the run spent less than it did.
+            if db.run_provider_spend_is_incomplete(run_id, provider_key):
+                db.reconcile_provider_spend(rid, None)
+            else:
+                db.reconcile_provider_spend(
+                    rid, db.get_run_provider_spend(run_id, provider_key))
+
+    def _settle_provider_reservations():
+        for rid in provider_reservations.values():
+            if provider_attempted:
+                db.reconcile_provider_spend(rid, None)
+            else:
+                db.release_provider_spend(rid)
 
     def _fire_degraded_redetect():
         # Closes over this run's fixed identifiers; episode_data is the
@@ -5083,11 +5370,26 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             and not _forced_transcription_already_done(
                 slug, episode_id,
                 (episode_data or {}).get('reprocess_requested_at')))
-        audio_path, segments = _download_and_transcribe(
-            slug, episode_id, episode_url,
-            skip_transcription=skip_transcription_active,
-            podcast=podcast_settings,
-            force_transcription=force_transcription)
+        # Reset first: last_transcription_stats is a shared-singleton field
+        # (see transcriber.Transcriber.__init__), so a stale value from an
+        # earlier episode must not be mistaken for this run's outcome when
+        # transcription is skipped or an existing transcript is reused.
+        transcriber.last_transcription_stats = None
+        try:
+            audio_path, segments = _download_and_transcribe(
+                slug, episode_id, episode_url,
+                skip_transcription=skip_transcription_active,
+                podcast=podcast_settings,
+                force_transcription=force_transcription)
+        finally:
+            # Recorded even when _download_and_transcribe raises (OOM
+            # exhaustion): the failure handler's history row still gets the
+            # batch/retry/device context, not just a bare error string.
+            # One read plus a copy: a concurrent run can replace or mutate
+            # the shared singleton field between two reads of it.
+            transcription_stats = transcriber.last_transcription_stats
+            if transcription_stats is not None:
+                run_stats['transcription'] = dict(transcription_stats)
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
@@ -5134,6 +5436,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             diff_thread.start()
         _check_cancel(cancel_event, slug, episode_id)
 
+        processed_path = None
         try:
             # Stage 2: Audio analysis (ad-cue detection; nothing to feed when
             # detection is skipped)
@@ -5364,6 +5667,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     episode_title, episode_description, podcast_description,
                     min_cut_confidence, pass_num=1,
                     pass_model=ad_detector.get_model(),
+                    pass_provider=ad_detector.get_provider(),
                     audio_analysis=audio_analysis_result,
                     cue_gate_enabled=cue_gate_enabled,
                 )
@@ -5571,8 +5875,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             existing_episode = db.get_episode(slug, episode_id) or {}
             new_version = _next_processed_version(existing_episode)
 
-            final_path = storage.get_episode_path(slug, episode_id, version=new_version)
+            # Fence first: resolving the path mkdirs the podcast tree, which
+            # would recreate the directory of a feed deleted mid-run.
             _require_publication_owner(slug, episode_id)
+            final_path = storage.get_episode_path(slug, episode_id, version=new_version)
             shutil.move(processed_path, final_path)
 
             # Retain the pre-cut audio for the ad-editor "Review mode" playback
@@ -5644,11 +5950,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    owns_failure=False,
                                    progress=recut_progress,
                                    podcast_row=podcast_settings):
-                    if provider_reservation_id:
-                        totals = get_last_episode_token_totals()
-                        db.reconcile_provider_spend(
-                            provider_reservation_id,
-                            round(totals['cost'] * 1_000_000))
+                    _reconcile_provider_actuals()
                     _fire_degraded_redetect()
                     return True
                 if recut_progress.get('mutated'):
@@ -5659,8 +5961,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         db.get_episode(slug, episode_id),
                         RuntimeError('Approval recut failed after rewriting the '
                                      'episode'), start_time, run_stats=run_stats)
-                    if provider_reservation_id:
-                        db.reconcile_provider_spend(provider_reservation_id, None)
+                    _settle_provider_reservations()
                     return False
                 # Nothing was overwritten: finalize this run's render and leave
                 # the filed confirms for the next run to apply.
@@ -5686,11 +5987,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 podcast_row=podcast_settings)
 
             _publish_status('complete_job', slug, episode_id)
-            if provider_reservation_id:
-                totals = get_last_episode_token_totals()
-                db.reconcile_provider_spend(
-                    provider_reservation_id,
-                    round(totals['cost'] * 1_000_000))
+            _reconcile_provider_actuals()
             return True
 
         finally:
@@ -5699,20 +5996,19 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # shut down here.
             if os.path.exists(audio_path):
                 os.unlink(audio_path)
+            # Still present means the render was never moved to final_path.
+            if processed_path and os.path.exists(processed_path):
+                try:
+                    os.unlink(processed_path)
+                except OSError as e:
+                    audio_logger.warning(
+                        f"[{slug}:{episode_id}] Failed to remove the unpublished render: {e}")
 
     except ProcessingCancelled:
-        if provider_reservation_id:
-            if provider_attempted:
-                db.reconcile_provider_spend(provider_reservation_id, None)
-            else:
-                db.release_provider_spend(provider_reservation_id)
+        _settle_provider_reservations()
         raise
     except Exception as e:
-        if provider_reservation_id:
-            if provider_attempted:
-                db.reconcile_provider_spend(provider_reservation_id, None)
-            else:
-                db.release_provider_spend(provider_reservation_id)
+        _settle_provider_reservations()
         _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                     episode_data, e, start_time,
                                     run_stats=run_stats)

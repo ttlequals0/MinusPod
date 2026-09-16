@@ -13,3 +13,13 @@ export function feedDisplayTitle(feed: Pick<Feed, 'title' | 'titleOverride'>): s
 export function feedHasUpstream(feed: { feedType?: string }): boolean {
   return feed.feedType !== 'local' && feed.feedType !== 'recents';
 }
+
+// Delete-confirmation copy for a podcast with an episode actively processing
+// (#745). Only 'processing' has a run to stop; a 'pending' (queued) episode
+// is just removed along with the podcast, so it's excluded on purpose.
+export function deleteStopsProcessingMessage(processingCount: number): string | null {
+  if (processingCount <= 0) return null;
+  return processingCount === 1
+    ? 'An episode is processing right now. Deleting this podcast will stop it.'
+    : `${processingCount} episodes are processing right now. Deleting this podcast will stop them.`;
+}

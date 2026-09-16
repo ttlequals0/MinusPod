@@ -16,9 +16,10 @@ from utils.time import parse_timestamp, adjust_timestamp, span_inside_any_cut
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
-    get_llm_client, get_api_key, LLMClient,
+    get_llm_client, get_client_for_provider, get_api_key, LLMClient,
     get_llm_timeout, get_llm_max_retries, ProviderRateLimitedError,
 )
+from run_context import route_for_phase
 from utils.llm_call import call_llm
 
 logger = logging.getLogger(__name__)
@@ -147,7 +148,10 @@ def _format_hints_block(hints: list[dict]) -> str:
 
 
 def get_chapters_model() -> str:
-    """Get configured chapters model from database, else the detection model, else raise."""
+    """This run's chapters model, else the configured value outside a run."""
+    route = route_for_phase('chapters')
+    if route:
+        return route['configured_model']
     try:
         db = Database()
 
@@ -177,6 +181,7 @@ class ChaptersGenerator:
         self._api_key_override: str | None = api_key
         self._llm_client_override: LLMClient | None = None
         self._episode_id: str | None = None
+        self._slug: str | None = None
         # (template, override), read once per run rather than per window.
         self._chapter_prompt: tuple[str, str] | None = None
         # Set when topic detection or title generation fails and the run
@@ -203,11 +208,16 @@ class ChaptersGenerator:
 
     @property
     def _llm_client(self) -> LLMClient | None:
-        """Current LLM client. Reads through ``get_llm_client`` on every access
-        so that provider/base-URL changes via the settings API take effect
-        immediately without restarting the worker."""
+        """Current LLM client: this run's chapters-route client, or the
+        global client outside a run. Reads through on every access so a
+        settings change takes effect without restarting the worker."""
         if self._llm_client_override is not None:
             return self._llm_client_override
+        route = route_for_phase('chapters')
+        if route:
+            return get_client_for_provider(
+                route['provider_key'], base_url=route.get('base_url'),
+                credential_slot=route.get('credential_slot', 'primary'))
         if not self.api_key:
             return None
         return get_llm_client()
@@ -215,6 +225,16 @@ class ChaptersGenerator:
     @_llm_client.setter
     def _llm_client(self, value: LLMClient | None) -> None:
         self._llm_client_override = value
+
+    @staticmethod
+    def _chapters_provider() -> str | None:
+        route = route_for_phase('chapters')
+        return route['provider_key'] if route else None
+
+    @staticmethod
+    def _chapters_credential_slot() -> str:
+        route = route_for_phase('chapters')
+        return route.get('credential_slot', 'primary') if route else 'primary'
 
     def _initialize_client(self):
         """Surface LLM client init errors before a generation run."""
@@ -346,10 +366,13 @@ class ChaptersGenerator:
                 max_tokens=max_tokens,
                 temperature=temperature,
                 reasoning_effort=reasoning,
-                slug=None,
+                slug=self._slug,
                 episode_id=self._episode_id,
                 call_label="chapter topic detection",
                 pass_name=PASS_CHAPTER_GENERATION,
+                phase_key='chapters',
+                provider=self._chapters_provider(),
+                credential_slot=self._chapters_credential_slot(),
             )
             if response is None:
                 # A rate-limit hold is queue-wide state, not a degraded run.
@@ -529,10 +552,13 @@ class ChaptersGenerator:
             max_tokens=max_tokens,
             temperature=temperature,
             reasoning_effort=reasoning,
-            slug=None,
+            slug=self._slug,
             episode_id=self._episode_id,
             call_label="chapter title generation",
             pass_name=PASS_CHAPTER_GENERATION,
+            phase_key='chapters',
+            provider=self._chapters_provider(),
+            credential_slot=self._chapters_credential_slot(),
         )
         if response is None:
             # Caller (generate_chapter_titles) catches this and degrades to
@@ -729,6 +755,7 @@ class ChaptersGenerator:
         replacement_duration: float = 0.0,
         segment_markers: list[dict] | None = None,
         marker_cuts: list[dict] | None = None,
+        slug: str | None = None,
     ) -> dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
@@ -757,12 +784,16 @@ class ChaptersGenerator:
                 segments are already on the processed timeline, but hints
                 still need the original applied-cut list to map from marker
                 (original-time) coordinates.
+            slug: Podcast slug, for the llm_call_usage ledger's podcast
+                linkage. Omitted call sites still ledger the attempt, just
+                without a resolved podcast_id.
 
         Returns:
             {'version': '1.2.0', 'chapters': [{'startTime', 'title'}, ...]}
         """
         logger.info(f"Generating chapters for '{episode_title}'")
         self._episode_id = episode_id
+        self._slug = slug
         self._topic_detection_failed = False
         self._title_generation_failed = False
         self._model_not_configured_message = None

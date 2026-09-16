@@ -4,6 +4,7 @@ import random
 import time
 from typing import Union
 
+import run_context
 from llm_capabilities import supports_json_schema
 from llm_client import (
     is_retryable_error,
@@ -19,16 +20,26 @@ from llm_client import (
     supports_json_schema_for_calls,
 )
 from rate_limit_hold import (
-    MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, is_rate_limit_hold_enabled,
+    MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, enforce_provider_rate_limit,
+    is_rate_limit_hold_enabled,
 )
-# webhook_service is lazy-imported at the call sites below (only entered on
-# the alert paths: auth failure, limit exceeded, structural-429). Keeping it
-# out of this module's import-time graph lets the offline benchmark in
-# benchmarks/llm/ import ad_detector -> utils.llm_call without pulling in
-# jinja2/flask transitively.
+from utils.shutdown import shutdown_event
+from utils.time import parse_iso_utc, utc_now
+# webhook_service, database and cancel are lazy-imported at the call sites
+# below (database pulls in Flask via AuthLockoutMixin; cancel pulls in
+# database transitively). Keeping them out of this module's import-time
+# graph lets the offline benchmark in benchmarks/llm/ import
+# ad_detector -> utils.llm_call without pulling in jinja2/flask transitively.
 from utils.retry import calculate_backoff
 
 logger = logging.getLogger(__name__)
+
+# Longest in-process wait: a reset past MIN_HOLD_RESET_SECONDS becomes a
+# queue-level hold instead, so sleeping longer than that here skips the review
+# that hold exists to trigger.
+FALLBACK_RETRY_AFTER_CAP_SECONDS = float(MIN_HOLD_RESET_SECONDS)
+# Slice that wait so a container stop is not sat out.
+RETRY_SLEEP_SLICE_SECONDS = 5.0
 
 
 def json_schema_format(name: str, schema: dict, description: str | None = None) -> dict:
@@ -41,15 +52,20 @@ def json_schema_format(name: str, schema: dict, description: str | None = None) 
 
 def schema_format_for(model, name: str, schema: dict,
                       description: str | None = None,
-                      allow_provider_schema: bool = False) -> dict:
+                      allow_provider_schema: bool = False,
+                      provider: str | None = None) -> dict:
     """json_schema response_format when `model` supports it, else json_object.
 
     ``allow_provider_schema`` additionally accepts a provider with a proven
     schema path (Anthropic). Only for call sites that send no reasoning
     budget: see supports_json_schema_for_calls for why the two gates differ.
+
+    ``provider``, when given, is the resolved route's provider for this
+    call; omitted, this falls back to the global effective provider.
     """
     if supports_json_schema_for_calls(model) or (
-            allow_provider_schema and supports_json_schema(get_effective_provider())):
+            allow_provider_schema
+            and supports_json_schema(provider or get_effective_provider())):
         return json_schema_format(name, schema, description)
     return {"type": "json_object"}
 
@@ -61,8 +77,13 @@ class EmptyCompletionError(Exception):
     the call never produced an answer (truncation, refusal, or a flaky
     endpoint). Treated as a retryable failure so it is retried and, if it
     persists, surfaced as a failed window rather than silently recorded as
-    "no ads" (issue #358).
+    "no ads" (issue #358). Carries the raw response when one was returned so
+    the ledger can still record the tokens the provider billed for it.
     """
+
+    def __init__(self, *args, response=None):
+        super().__init__(*args)
+        self.response = response
 
 
 class ReasoningExhaustedError(EmptyCompletionError):
@@ -83,10 +104,85 @@ def _call_once(llm_client, llm_kwargs, model):
                 or (getattr(response, 'reasoning_present', False)
                     and getattr(response, 'finish_reason', None) in ('max_tokens', 'length'))):
             raise ReasoningExhaustedError(
-                f"empty completion from {model} after reasoning exhausted the output budget"
+                f"empty completion from {model} after reasoning exhausted the output budget",
+                response=response,
             )
-        raise EmptyCompletionError(f"empty completion from {model} (no content returned)")
+        raise EmptyCompletionError(
+            f"empty completion from {model} (no content returned)", response=response)
     return response
+
+
+def _resolve_podcast_id(slug: str | None) -> int | None:
+    """Podcast row id for a slug, or None (chapters calls may have no slug)."""
+    if not slug:
+        return None
+    try:
+        from database import Database
+        podcast = Database().get_podcast_by_slug(slug)
+    except Exception:
+        logger.warning(f"Could not resolve podcast_id for slug '{slug}'")
+        return None
+    return podcast['id'] if podcast else None
+
+
+def _invoking_pass_from_name(pass_name: str | None) -> int | None:
+    """1 or 2 from a '..._pass_1' / '..._pass_2' pass_name, else None."""
+    if pass_name and pass_name.endswith('_1'):
+        return 1
+    if pass_name and pass_name.endswith('_2'):
+        return 2
+    return None
+
+
+def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass,
+                      provider_key, credential_slot, slug, episode_id, call_label):
+    """One ledger-tracked adapter dispatch.
+
+    Begins an attempt before the network call and finalizes it after, so
+    every real dispatch (including each retry) is its own billable ledger
+    row: the single writer of token counters, replacing the retired
+    adapter usage callback.
+    """
+    from cancel import ProcessingCancelled
+    from database import Database
+    db = Database()
+    ctx = run_context.current()
+    attempt_id = db.begin_llm_attempt(
+        run_id=ctx.run_id if ctx else None,
+        podcast_id=_resolve_podcast_id(slug),
+        episode_id=episode_id,
+        phase_key=phase_key,
+        invoking_pass=invoking_pass,
+        provider_key=provider_key,
+        configured_model=model,
+        window_label=call_label,
+        credential_slot=credential_slot,
+    )
+    try:
+        response = _call_once(llm_client, llm_kwargs, model)
+    except ProcessingCancelled:
+        db.finalize_llm_attempt(attempt_id, state='cancelled')
+        raise
+    except Exception as e:
+        # An empty/reasoning-exhausted completion still carries the usage the
+        # provider billed; record it on the failed attempt instead of zero.
+        _finalize_attempt(db, attempt_id, 'failure', getattr(e, 'response', None), ctx)
+        raise
+
+    _finalize_attempt(db, attempt_id, 'success', response, ctx)
+    return response
+
+
+def _finalize_attempt(db, attempt_id, state, response, ctx) -> None:
+    """Finalize one ledger attempt with the response's usage (if any) and
+    add the resulting cost to the run accumulator."""
+    cost = db.finalize_llm_attempt_from_response(attempt_id, state, response)
+    if ctx is None:
+        return
+    usage = getattr(response, 'usage', None)
+    if not isinstance(usage, dict):
+        usage = {}
+    ctx.tokens.add(usage.get('input_tokens') or 0, usage.get('output_tokens') or 0, cost)
 
 
 def _apply_reasoning_fallback(error, llm_kwargs, *, slug, episode_id, call_label):
@@ -105,33 +201,72 @@ def _is_retryable(error) -> bool:
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
 
 
-def _fire_limit_exceeded_webhook(error, model):
+def _shutdown_requested() -> bool:
+    """True once the process has been asked to shut down."""
+    return shutdown_event.is_set()
+
+
+def _sleep_before_retry(delay: float) -> bool:
+    """Wait `delay` in slices, ending early on shutdown; False when interrupted."""
+    remaining = delay
+    while remaining > 0:
+        if _shutdown_requested():
+            return False
+        slice_seconds = min(RETRY_SLEEP_SLICE_SECONDS, remaining)
+        time.sleep(slice_seconds)
+        remaining -= slice_seconds
+    return not _shutdown_requested()
+
+
+def _fallback_delay(error, base_delay: float, honor_retry_after: bool) -> float:
+    """Per-window retry wait: a rate limit's own reset beats the fixed backoff.
+
+    Only the first retry honors the reset, capped, so a long hint cannot park
+    a worker for the sum of both iterations.
+    """
+    if honor_retry_after and is_rate_limit_error(error):
+        retry_after = extract_retry_after(
+            error, max_seconds=FALLBACK_RETRY_AFTER_CAP_SECONDS)
+        if retry_after is not None:
+            return retry_after + random.uniform(0.0, 2.0)
+    return base_delay
+
+
+def _fire_limit_exceeded_webhook(error, model, provider=None):
     try:
         from webhook_service import fire_limit_exceeded_event
         fire_limit_exceeded_event(
-            get_effective_provider(), model, str(error),
+            provider or get_effective_provider(), model, str(error),
             getattr(error, 'status_code', None),
         )
     except Exception:
         logger.exception("Failed to fire limit-exceeded webhook")
 
 
-def _fire_auth_failure_webhook(error, model):
+def _fire_auth_failure_webhook(error, model, provider=None):
     try:
         from webhook_service import fire_auth_failure_event
         fire_auth_failure_event(
-            get_effective_provider(), model, str(error),
+            provider or get_effective_provider(), model, str(error),
             getattr(error, 'status_code', None),
         )
     except Exception:
         logger.exception("Failed to fire auth-failure webhook")
 
 
-def _terminal_error(error, *, model, slug, episode_id, call_label):
-    """Return a terminal or normalized provider error, else None."""
+def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None,
+                    credential_slot='primary', phase=None):
+    """Return a terminal or normalized provider error, else None.
+
+    ``provider``, when given, is the call's resolved route provider; omitted,
+    error context falls back to the global effective provider.
+    ``credential_slot`` is that route's account ('primary'/'secondary'), so a
+    held 429 pauses only the account that actually hit the limit. ``phase``
+    labels the call so a hold can fall back to the run's route for it.
+    """
+    provider = provider or get_effective_provider()
     daily_quota = classify_daily_quota_exhaustion(error)
     if daily_quota is not None:
-        provider = get_effective_provider()
         limit = daily_quota.get('limit')
         actionable = (
             f"{provider} free-tier daily quota"
@@ -145,7 +280,6 @@ def _terminal_error(error, *, model, slug, episode_id, call_label):
 
     structural = classify_structural_rate_limit(error)
     if structural is not None:
-        provider = get_effective_provider()
         limit = structural.get('limit')
         used = structural.get('used')
         requested = structural.get('requested')
@@ -171,7 +305,7 @@ def _terminal_error(error, *, model, slug, episode_id, call_label):
         logger.warning(
             f"[{slug}:{episode_id}] {call_label} provider limit exceeded: {error}"
         )
-        _fire_limit_exceeded_webhook(error, model)
+        _fire_limit_exceeded_webhook(error, model, provider)
         return error
 
     if is_rate_limit_error(error) and is_rate_limit_hold_enabled():
@@ -179,7 +313,8 @@ def _terminal_error(error, *, model, slug, episode_id, call_label):
         if hold_after is not None and hold_after > MIN_HOLD_RESET_SECONDS:
             held = ProviderRateLimitedError(
                 f"provider rate limit resets in {hold_after:.0f}s: {error}",
-                retry_after_seconds=hold_after)
+                retry_after_seconds=hold_after, provider_key=provider,
+                credential_slot=credential_slot, phase=phase)
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} rate limit: "
                 f"holding queue {hold_after:.0f}s until provider reset"
@@ -191,8 +326,37 @@ def _terminal_error(error, *, model, slug, episode_id, call_label):
 
     logger.warning(f"[{slug}:{episode_id}] {call_label} failed: {error}")
     if is_auth_error(error):
-        _fire_auth_failure_webhook(error, model)
+        _fire_auth_failure_webhook(error, model, provider)
     return error
+
+
+def _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id,
+                             phase=None):
+    """ProviderRateLimitedError when the manual RPM/RPD cap is hit, else None.
+
+    Records the provider+slot hold as a side effect (via
+    enforce_provider_rate_limit) so admission and the probe tick see it too.
+    """
+    try:
+        from database import Database
+        reset_iso = enforce_provider_rate_limit(
+            Database(), provider_key, credential_slot,
+            slug=slug, episode_id=episode_id)
+    except Exception:
+        logger.exception("Manual rate-limit check failed; allowing the call")
+        return None
+    if reset_iso is None:
+        return None
+    reset_at = parse_iso_utc(reset_iso)
+    retry_after = max(0.0, (reset_at - utc_now()).total_seconds()) if reset_at else 0.0
+    logger.warning(
+        f"[{slug}:{episode_id}] {provider_key} manual rate limit reached; "
+        f"holding queue {retry_after:.0f}s until {reset_iso}"
+    )
+    return ProviderRateLimitedError(
+        f"manual rate limit for {provider_key} resets in {retry_after:.0f}s",
+        retry_after_seconds=retry_after, provider_key=provider_key,
+        credential_slot=credential_slot, manual=True, phase=phase)
 
 
 def call_llm(
@@ -207,20 +371,39 @@ def call_llm(
     slug: str | None,
     episode_id: str | None,
     call_label: str,
+    phase_key: str,
     temperature: float = 0.0,
     reasoning_effort: Union[int, str] | None = None,
     pass_name: str | None = None,
     response_format: dict | None = None,
+    provider: str | None = None,
+    credential_slot: str = 'primary',
 ) -> tuple[object | None, Exception | None]:
-    """Call LLM with primary retry + secondary fallback retry.
+    """Call LLM with an in-loop retry then a per-window fallback retry.
+
+    Both retry loops stay on the same route/slot; this is not a cross-provider
+    failover chain (see ``provider``/``credential_slot`` below).
 
     Generic seam shared by ad detection/review (via ``call_llm_for_window``)
     and chapters generation. Never raises: all failures come back as the
     second tuple element so callers can degrade gracefully.
 
+    ``provider``, when given, is the resolved route's provider for this
+    call; error/webhook context uses it instead of the global effective
+    provider. ``credential_slot`` is that route's account ('primary' or
+    'secondary'), carried onto a held 429 so the queue pauses only that
+    account, not every account on the same provider type.
+
+    ``phase_key`` labels this call in the llm_call_usage ledger ('detection',
+    'verification', 'review', 'chapters'); every real dispatch (including
+    each retry below) is recorded as its own billable ledger row.
+
     Returns:
         Tuple of (response, last_error). response is None if all retries failed.
     """
+    provider_key = provider or get_effective_provider()
+
+    invoking_pass = _invoking_pass_from_name(pass_name)
     llm_kwargs = dict(
         model=model,
         max_tokens=max_tokens,
@@ -237,8 +420,19 @@ def call_llm(
     last_error = None
 
     for attempt in range(max_retries + 1):
+        # Manual rate-limit backstop (#747): re-checked before every dispatch,
+        # not once up front, so a cap crossed mid-retry defers instead of
+        # burning more requests. Admission is still the primary gate.
+        held = _manual_rate_limit_error(provider_key, credential_slot, slug,
+                                        episode_id, phase=phase_key)
+        if held is not None:
+            return None, held
         try:
-            response = _call_once(llm_client, llm_kwargs, model)
+            response = _ledger_call_once(
+                llm_client, llm_kwargs, model, phase_key=phase_key,
+                invoking_pass=invoking_pass, provider_key=provider_key,
+                credential_slot=credential_slot,
+                slug=slug, episode_id=episode_id, call_label=call_label)
             return response, None
         except Exception as e:
             last_error = e
@@ -247,7 +441,8 @@ def call_llm(
                 call_label=call_label)
             terminal = _terminal_error(
                 e, model=model, slug=slug, episode_id=episode_id,
-                call_label=call_label)
+                call_label=call_label, provider=provider,
+                credential_slot=credential_slot, phase=phase_key)
             if terminal is not None:
                 last_error = terminal
                 break
@@ -276,14 +471,24 @@ def call_llm(
             break
 
     if response is None and last_error is not None and _is_retryable(last_error):
-        for retry_num, delay in enumerate([2, 5], 1):
+        for retry_num, base_delay in enumerate([2, 5], 1):
+            held = _manual_rate_limit_error(provider_key, credential_slot, slug,
+                                            episode_id, phase=phase_key)
+            if held is not None:
+                return None, held
+            delay = _fallback_delay(last_error, base_delay, retry_num == 1)
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} per-window retry "
-                f"{retry_num}/2 after {delay}s backoff"
+                f"{retry_num}/2 after {delay:.1f}s backoff"
             )
-            time.sleep(delay)
+            if not _sleep_before_retry(delay):
+                break
             try:
-                response = _call_once(llm_client, llm_kwargs, model)
+                response = _ledger_call_once(
+                    llm_client, llm_kwargs, model, phase_key=phase_key,
+                    invoking_pass=invoking_pass, provider_key=provider_key,
+                    credential_slot=credential_slot,
+                    slug=slug, episode_id=episode_id, call_label=call_label)
                 logger.info(
                     f"[{slug}:{episode_id}] {call_label} succeeded on retry {retry_num}"
                 )
@@ -296,7 +501,8 @@ def call_llm(
                         call_label=call_label)
                 terminal = _terminal_error(
                     e, model=model, slug=slug, episode_id=episode_id,
-                    call_label=call_label)
+                    call_label=call_label, provider=provider,
+                    credential_slot=credential_slot, phase=phase_key)
                 if terminal is not None:
                     last_error = terminal
                     break

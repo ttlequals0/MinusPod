@@ -15,7 +15,12 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, _get_version, _start_time,
 )
-from config import resolve_whisper_device
+import transcriber
+from config import WHISPER_BACKEND_API, resolve_whisper_device
+from database.settings import registry_default
+from podping_listener import (
+    get_node_health_summary, DEGRADED_SETTING, DEGRADED_SINCE_SETTING,
+)
 from pricing_fetcher import force_refresh_pricing
 from secrets_crypto import (
     count_plaintext_secrets,
@@ -23,6 +28,7 @@ from secrets_crypto import (
     encrypt_backup_file,
 )
 from db_backup_service import backup_now, BackupInProgressError
+from utils.http import safe_url_for_log
 
 logger = logging.getLogger('podcast.api')
 
@@ -41,6 +47,32 @@ def _server_start_time() -> float:
 # resolves /app from /app/src/api/system.py on the shipped image, and
 # the equivalent checkout root in dev.
 _ROOT_DIR = Path(__file__).resolve().parents[2]
+
+
+def _effective_whisper_config(db):
+    """Transcription config actually in use: DB settings win over env, as in GET /settings."""
+    def setting(key):
+        return db.get_setting(key) or registry_default(key)
+
+    backend = setting('whisper_backend')
+    if backend == WHISPER_BACKEND_API:
+        base_url = setting('whisper_api_base_url')
+        return {
+            'whisperBackend': backend,
+            'whisperModel': setting('whisper_api_model'),
+            # No local device is involved; reporting cuda here would imply GPU work that never runs.
+            'whisperDevice': 'remote',
+            # scheme://host only: the configured URL can carry credentials or a token.
+            'whisperApiHost': safe_url_for_log(base_url) if base_url else None,
+        }
+    return {
+        'whisperBackend': backend,
+        'whisperModel': setting('whisper_model'),
+        # Effective device, not the raw env value: an unrecognized setting
+        # transcribes on CPU, and the UI should say so (#605).
+        'whisperDevice': resolve_whisper_device(),
+        'whisperApiHost': None,
+    }
 
 
 # ========== System Endpoints ==========
@@ -130,10 +162,7 @@ def get_system_status():
         },
         'settings': {
             'retentionDays': retention_days,
-            'whisperModel': os.environ.get('WHISPER_MODEL', 'small'),
-            # Effective device, not the raw env value: an unrecognized setting
-            # transcribes on CPU, and the UI should say so (#605).
-            'whisperDevice': resolve_whisper_device(),
+            **_effective_whisper_config(db),
             'baseUrl': os.environ.get('BASE_URL', 'http://localhost:8000')
         },
         'stats': {
@@ -147,6 +176,30 @@ def get_system_status():
             'plaintextSecretsCount': plaintext_secrets,
         },
         'database': db.sqlite_diagnostics(),
+        # Informational only, never gates readiness (see /health above): a
+        # shared refresh outage degrades feed freshness, not the process.
+        'feedRefresh': {
+            'lastSuccessfulRefreshAt': db.get_setting('feeds_last_refresh_completed_at'),
+            'outageDegraded': db.get_setting('feeds_refresh_outage_active') == '1',
+            'outageAffectedCount': int(db.get_setting('feeds_refresh_outage_affected_count') or 0),
+            'nextRetryAt': db.get_setting('feeds_next_refresh_retry_at') or None,
+        },
+        # Informational only, never gates readiness (see /health above): the
+        # RPC listener is one input path among several (RSS polling remains
+        # the fallback), so an all-nodes-down Podping outage degrades ping
+        # timeliness, not the process.
+        'podping': {
+            'listenerEnabled': db.get_setting_bool('podping_enabled', False),
+            'allNodesDown': db.get_setting(DEGRADED_SETTING) == '1',
+            'degradedSince': db.get_setting(DEGRADED_SINCE_SETTING) or None,
+            'nodes': get_node_health_summary(db),
+        },
+        # Informational only, never gates readiness (see /health above): a
+        # GPU-OOM exhaustion on the local Whisper backend degrades
+        # transcription, not the process (episodes re-queue as transient).
+        # Reports the configured backend, since the local reading says
+        # nothing when transcription runs on a remote API.
+        'transcriber': transcriber.get_transcriber_health(),
     })
 
 

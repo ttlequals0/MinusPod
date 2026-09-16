@@ -5,6 +5,9 @@ from flask import request
 
 from api import api, get_database, json_response, log_request
 from config import PODPING_HOST_ACTIVE_DAYS
+from podping_listener import (
+    get_node_health_summary, DEGRADED_SETTING, DEGRADED_SINCE_SETTING,
+)
 
 logger = logging.getLogger('podcast.api')
 
@@ -38,4 +41,9 @@ def list_podping_hosts():
         'activeDomains': db.count_active_podping_domains(PODPING_HOST_ACTIVE_DAYS),
         'activeWindowDays': PODPING_HOST_ACTIVE_DAYS,
         'listenerEnabled': db.get_setting_bool('podping_enabled', False),
+        # Non-fatal RPC-node health: the listener still falls back to RSS
+        # polling, so this never gates feed refresh or /health.
+        'allNodesDown': db.get_setting(DEGRADED_SETTING) == '1',
+        'degradedSince': db.get_setting(DEGRADED_SINCE_SETTING) or None,
+        'nodes': get_node_health_summary(db),
     })

@@ -35,9 +35,12 @@ def test_malformed_entries_are_skipped_not_fatal():
 
 
 def test_append_keeps_the_description_and_adds_the_block():
-    assert append_chapters('<p>Show notes</p>', CHAPTERS) == '<p>Show notes</p>' + BLOCK
+    # One blank line separates the description from the appended chapters.
+    assert append_chapters('<p>Show notes</p>', CHAPTERS) == '<p>Show notes</p>\n\n' + BLOCK
     assert append_chapters('<p>Show notes</p>', None) == '<p>Show notes</p>'
     assert append_chapters(None, CHAPTERS) == BLOCK
+    # No separator when there is no description to separate from.
+    assert not append_chapters('', CHAPTERS).startswith('\n')
 
 
 def test_ad_chapter_lines_use_the_stored_title_only():

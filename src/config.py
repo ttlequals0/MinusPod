@@ -424,6 +424,16 @@ RSS_REFRESH_INTERVAL = 900      # Seconds between RSS refreshes (15 min)
 FEED_REFRESH_FAILURE_ALERT_THRESHOLD = 3
 FEED_REFRESH_FAILURE_COUNT_INTERVAL = 600  # Seconds between counted failures
 
+# Shared-outage detection for refresh_all_feeds. When most feeds in one
+# batch fail together (a shared network blip, not N unrelated publishers
+# breaking at once), skip per-feed failure counting so healthy feeds are
+# not marked broken, and schedule one bounded retry instead of letting
+# every feed's own retry logic fire in lockstep at the next 15-min tick.
+FEED_REFRESH_OUTAGE_FRACTION = 0.5       # Failed/total ratio that trips outage mode
+FEED_REFRESH_OUTAGE_MIN_FEEDS = 3        # Below this batch size, count failures per-feed as usual
+FEED_REFRESH_OUTAGE_RETRY_BASE_SECONDS = 180   # Base delay before the one retry
+FEED_REFRESH_OUTAGE_RETRY_JITTER_SECONDS = 90  # Random extra delay, avoids thundering-herd retries
+
 # ============================================================
 # Deferred-episode services
 # ============================================================
@@ -762,6 +772,14 @@ def resolve_feed_processing_mode(podcast_row):
     if podcast_row.get('detection_mode') == DETECTION_MODE_CUE_ONLY:
         return PROCESSING_MODE_CUE_ONLY
     return PROCESSING_MODE_STANDARD
+
+
+def resolve_processing_mode(podcast_row, episode_row):
+    """Effective mode for one episode: a per-episode pass-through override
+    (issue #746) wins over the feed mode; otherwise the feed mode applies."""
+    if episode_row and episode_row.get('passthrough_enabled'):
+        return PROCESSING_MODE_PASSTHROUGH
+    return resolve_feed_processing_mode(podcast_row)
 
 
 # Invariant: resolve_feed_processing_mode(updates) == mode for every entry
@@ -1127,6 +1145,22 @@ def resolve_max_ad_duration_confirmed(db) -> float:
                                           MAX_AD_DURATION_CONFIRMED))
     except Exception:
         return MAX_AD_DURATION_CONFIRMED
+
+
+REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT = 60
+
+
+def resolve_max_boundary_shift(db) -> int:
+    """Seconds the reviewer may move one boundary of a candidate."""
+    try:
+        raw = db.get_setting('review_max_boundary_shift')
+    except Exception:
+        raw = None
+    try:
+        return (max(1, int(raw)) if raw is not None
+                else REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT)
+    except (TypeError, ValueError):
+        return REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT
 
 
 def resolve_cue_gated_approval(db, podcast_id) -> bool:
@@ -1705,7 +1739,7 @@ STAGE_TUNABLE_RANGES = {
     # detection window geometry. Cross-field constraint (overlap < size) is
     # enforced at the API layer; the per-field bounds here are the static
     # envelope the resolver checks against.
-    'window_size_seconds': (120, 1800),
+    'window_size_seconds': (120, 10800),
     'window_overlap_seconds': (0, 1770),
 }
 
@@ -2035,6 +2069,14 @@ def _validate_positive_int(value: str) -> bool:
         return False
 
 
+def _validate_non_negative_int(value: str) -> bool:
+    """Manual rate-limit gate: 0 means off, positive is a cap."""
+    try:
+        return int(value) >= 0
+    except (ValueError, TypeError):
+        return False
+
+
 # Size-cap bounds (issue #491). Single owner shared by get_env_backed_int,
 # the settings API validation, and the runtime consumers.
 MAX_ARTWORK_BYTES_MIN = 64 * 1024
@@ -2169,6 +2211,21 @@ ENV_BACKED_SETTINGS = (
      str(EPISODE_LOG_RETENTION_DAYS_DEFAULT), _validate_episode_log_retention_days),
     ('episode_log_level', 'EPISODE_LOG_LEVEL', EPISODE_LOG_LEVEL_DEBUG,
      _validate_episode_log_level),
+    # Manual per-provider request-rate limits (issue #747). 0 = unlimited
+    # (off by default). Counted per provider account (primary/secondary) so
+    # MinusPod self-throttles under a low-tier provider's hard limits.
+    ('provider_requests_per_min', 'PROVIDER_REQUESTS_PER_MIN', '0',
+     _validate_non_negative_int),
+    ('provider_requests_per_day', 'PROVIDER_REQUESTS_PER_DAY', '0',
+     _validate_non_negative_int),
+    ('secondary_provider_requests_per_min', 'SECONDARY_PROVIDER_REQUESTS_PER_MIN',
+     '0', _validate_non_negative_int),
+    ('secondary_provider_requests_per_day', 'SECONDARY_PROVIDER_REQUESTS_PER_DAY',
+     '0', _validate_non_negative_int),
+    ('provider_tokens_per_min', 'PROVIDER_TOKENS_PER_MIN', '0',
+     _validate_non_negative_int),
+    ('secondary_provider_tokens_per_min', 'SECONDARY_PROVIDER_TOKENS_PER_MIN',
+     '0', _validate_non_negative_int),
 )
 
 

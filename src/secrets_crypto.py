@@ -45,6 +45,7 @@ SECRET_SETTING_KEYS = frozenset(
         "openai_api_key",
         "openrouter_api_key",
         "ollama_api_key",
+        "secondary_provider_api_key",
         "whisper_api_key",
         "podcast_index_api_key",
         "podcast_index_api_secret",

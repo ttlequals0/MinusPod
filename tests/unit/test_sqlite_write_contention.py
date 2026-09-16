@@ -2,24 +2,45 @@
 statement and every no-op commit lands in the queue that made refresh
 sweeps and LLM calls stall each other for seconds.
 """
+from concurrent.futures import ThreadPoolExecutor
+
+
+def _begin(temp_db, model='claude-opus-5'):
+    return temp_db.begin_llm_attempt(
+        run_id='run-contention', podcast_id=None, episode_id=None,
+        phase_key='detection', invoking_pass=1, provider_key='anthropic',
+        configured_model=model)
 
 
 def test_token_usage_bumps_three_stats_in_one_statement(temp_db, monkeypatch):
+    attempt_id = _begin(temp_db)
     conn = temp_db.get_connection()
     executed = []
     real_execute = conn.execute
     monkeypatch.setattr(conn, 'execute',
                         lambda sql, *a: (executed.append(str(sql)), real_execute(sql, *a))[1])
 
-    temp_db.record_token_usage('claude-opus-5', 1000, 500)
+    temp_db.finalize_llm_attempt(attempt_id, state='success',
+                                 input_tokens=1000, output_tokens=500)
 
     stats_writes = [q for q in executed if 'INSERT INTO stats' in q]
     assert len(stats_writes) == 1
 
 
-def test_token_usage_totals_are_still_correct(temp_db):
-    temp_db.record_token_usage('claude-opus-5', 1000, 500)
-    temp_db.record_token_usage('claude-opus-5', 200, 100)
+def test_concurrent_finalizes_lose_no_counter_updates(temp_db):
+    """Two workers finalizing at once each take the write lock in turn; the
+    counters must end up at the sum, not at one writer's value."""
+    attempts = [_begin(temp_db), _begin(temp_db)]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(temp_db.finalize_llm_attempt, attempts[0],
+                            state='success', input_tokens=1000, output_tokens=500),
+            executor.submit(temp_db.finalize_llm_attempt, attempts[1],
+                            state='success', input_tokens=200, output_tokens=100),
+        ]
+        for future in futures:
+            future.result()
 
     assert temp_db.get_stat('total_input_tokens') == 1200
     assert temp_db.get_stat('total_output_tokens') == 600

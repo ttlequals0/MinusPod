@@ -31,4 +31,5 @@ def call_window(client, max_retries=5):
         slug="t",
         episode_id="e",
         window_label="w",
+        phase_key="test",
     )

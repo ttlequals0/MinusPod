@@ -2,9 +2,11 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed } from '../api/feeds';
+import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed, setEpisodesPassthrough } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
-import { getErrorMessage } from '../api/client';
+import { getErrorMessage, jobStateOf } from '../api/client';
+import { isActionBlocked } from '../utils/processingStage';
+import { applyEpisodeJobState } from '../utils/jobStateCache';
 import { PendingRecutsBar } from './patterns/PendingRecutsBar';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
@@ -18,7 +20,7 @@ import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import FeedTypeBadge from '../components/FeedTypeBadge';
 import PodpingBadge from '../components/PodpingBadge';
-import { feedDisplayTitle, feedHasUpstream } from '../utils/feedTitle';
+import { feedDisplayTitle, feedHasUpstream, deleteStopsProcessingMessage } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
 import LocalFeedPanel from './feeds/LocalFeedPanel';
 import FeedStatsCards from './feeds/FeedStatsCards';
@@ -29,6 +31,7 @@ import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
 import { btnDestructive, btnGhost, btnPrimary, btnSecondary } from '../components/buttonStyles';
+import { cardActionBtn } from '../components/rowActionStyles';
 import { Modal } from '../components/Modal';
 import { selectBase } from '../components/fieldStyles';
 import { focusRing } from '../components/fieldStyles';
@@ -72,6 +75,9 @@ function reprocessModeVerb(mode: string): string {
   return 'pattern-assisted';
 }
 
+// Bulk actions sit on the tap floor and pair up per line on a phone.
+const bulkActionBtn = `${cardActionBtn} flex-1 sm:flex-none min-w-[8rem]`;
+
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
@@ -92,12 +98,17 @@ function FeedDetail() {
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Anchor row for shift-click range selection; reset wherever selection is.
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   // Delete confirms by a second click within 3s, matching the dashboard.
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkActionResult | null>(null);
+  const [passthroughResult, setPassthroughResult] = useState<
+    { enabled: boolean; updated: number; queued: number } | null
+  >(null);
 
   // AddFeed's local-feed create flow passes a notice through router state
   // (e.g. an artwork upload failure or size warning) since it can't set
@@ -149,6 +160,21 @@ function FeedDetail() {
   const episodes = episodesData?.episodes ?? [];
   const totalEpisodes = episodesData?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalEpisodes / pageSize));
+
+  // Same eligibility rule the row checkboxes use, so select-all can never
+  // pick an episode whose own control is unavailable.
+  const selectableIds = useMemo(
+    () => new Set((episodesData?.episodes ?? [])
+      .filter(ep => !isActionBlocked(ep.jobState, false)).map(ep => ep.id)),
+    [episodesData],
+  );
+
+  // Selection pruned against the current server state: an episode that got
+  // queued elsewhere drops out instead of riding along into a bulk action.
+  const effectiveSelectedIds = useMemo(
+    () => new Set([...selectedIds].filter(id => selectableIds.has(id))),
+    [selectedIds, selectableIds],
+  );
 
   const refreshMutation = useMutation({
     mutationFn: (opts?: { force?: boolean }) => refreshFeed(slug!, opts),
@@ -217,18 +243,40 @@ function FeedDetail() {
 
   const bulkMutation = useMutation({
     mutationFn: ({ action }: { action: BulkAction }) =>
-      bulkEpisodeAction(slug!, Array.from(selectedIds), action),
-    onSuccess: (result) => {
+      bulkEpisodeAction(slug!, Array.from(effectiveSelectedIds), action),
+    onSuccess: (result, _variables, context) => {
       setBulkResult(result);
+      applyEpisodeJobState(queryClient, slug!, context.ids, jobStateOf(result));
       setSelectedIds(new Set());
+      setSelectionAnchor(null);
       setShowBulkDeleteConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     },
+    onMutate: () => ({ ids: Array.from(effectiveSelectedIds) }),
     onError: (err) => {
       setShowBulkDeleteConfirm(false);
       setActionError(getErrorMessage(err, 'Could not apply that action.'));
     },
+  });
+
+  const passthroughMutation = useMutation({
+    mutationFn: ({ enabled }: { enabled: boolean }) =>
+      setEpisodesPassthrough(slug!, Array.from(effectiveSelectedIds), enabled),
+    onSuccess: (result, variables) => {
+      setPassthroughResult({ enabled: variables.enabled, updated: result.updated, queued: result.queued });
+      // The response reports one state for the batch, so it can only be
+      // applied when every accepted episode shares it.
+      const accepted = result.accepted ?? [];
+      if (result.queued === 0 || result.queued === accepted.length) {
+        applyEpisodeJobState(queryClient, slug!, accepted, jobStateOf(result));
+      }
+      setSelectedIds(new Set());
+      setSelectionAnchor(null);
+      queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
+      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+    },
+    onError: (err) => setActionError(getErrorMessage(err, 'Could not update pass-through.')),
   });
 
   const closeReprocessModal = () => {
@@ -246,45 +294,79 @@ function FeedDetail() {
     updateMutation.mutate({ titleOverride: editTitle.trim() || null });
   };
 
-  const handleToggleSelect = (id: string) => {
+  const handleToggleSelect = (id: string, shiftKey: boolean) => {
+    // Shift+click applies the anchor row's current state to every selectable
+    // row between the anchor and it (inclusive), in current page order, skipping
+    // blocked rows (standard range-select). A plain click toggles one row and
+    // becomes the new anchor.
+    if (shiftKey && selectionAnchor && selectionAnchor !== id) {
+      const order = episodes.map(ep => ep.id);
+      const a = order.indexOf(selectionAnchor);
+      const b = order.indexOf(id);
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        const select = selectedIds.has(selectionAnchor);
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          for (let i = lo; i <= hi; i++) {
+            const rid = order[i];
+            if (!selectableIds.has(rid)) continue;
+            if (select) next.add(rid); else next.delete(rid);
+          }
+          return next;
+        });
+        setSelectionAnchor(id);
+        return;
+      }
+    }
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+    setSelectionAnchor(id);
   };
 
   const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const selectable = episodes.filter(ep => ep.status !== 'processing').map(ep => ep.id);
-      setSelectedIds(new Set(selectable));
-    } else {
-      setSelectedIds(new Set());
-    }
+    setSelectedIds(checked ? new Set(selectableIds) : new Set());
+    setSelectionAnchor(null);
   };
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
     setPage(1);
     setSelectedIds(new Set());
+    setSelectionAnchor(null);
   };
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     setSelectedIds(new Set());
+    setSelectionAnchor(null);
   };
 
   // Bulk-action eligibility: count per-action so a mixed selection still
   // surfaces actionable buttons (backend skips ineligible rows).
-  const selectedEpisodes = episodes.filter(ep => selectedIds.has(ep.id));
+  const selectedEpisodes = episodes.filter(ep => effectiveSelectedIds.has(ep.id));
   const discoveredCount = selectedEpisodes.filter(ep => ep.status === 'discovered').length;
   const pendingCount = selectedEpisodes.filter(ep => ep.status === 'pending').length;
   const processedCount = selectedEpisodes.filter(ep =>
     ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;
-  const hasSelection = selectedIds.size > 0;
+  const hasSelection = effectiveSelectedIds.size > 0;
+  // Keyed on jobState, not status: the run buttons key on jobState too, so the
+  // note can never claim a selection is busy while those buttons stay live.
+  const runningSelectedCount = episodes.filter(
+    (ep) => selectedIds.has(ep.id) && isActionBlocked(ep.jobState, false),
+  ).length;
+  const selectionNote = runningSelectedCount > 0
+    ? `Skipping ${runningSelectedCount} already running.`
+    : discoveredCount + pendingCount + processedCount > 0
+      ? null
+      : 'No run actions apply to this selection.';
   const isRecents = feed?.feedType === 'recents';
+  const stopsProcessingMessage = deleteStopsProcessingMessage(feed?.statusCounts?.processing ?? 0);
 
   if (feedLoading) {
     return (
@@ -559,7 +641,7 @@ function FeedDetail() {
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
           <select
             value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); }}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); setSelectionAnchor(null); }}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
           >
             <option value="all">All statuses</option>
@@ -579,6 +661,7 @@ function FeedDetail() {
               setSortDir(newDir);
               setPage(1);
               setSelectedIds(new Set());
+              setSelectionAnchor(null);
             }}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
           >
@@ -594,13 +677,13 @@ function FeedDetail() {
       {/* Bulk action toolbar */}
       {hasSelection && (
         <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+          <span className="text-sm font-medium text-foreground">{effectiveSelectedIds.size} selected</span>
           <div className="flex flex-wrap items-center gap-2 ml-auto">
             {discoveredCount + pendingCount > 0 && (
               <button
                 onClick={() => bulkMutation.mutate({ action: 'process' })}
                 disabled={bulkMutation.isPending}
-                className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+                className={`${bulkActionBtn} ${btnPrimary} disabled:opacity-50 ${focusRing}`}
               >
                 {bulkMutation.isPending ? 'Processing...' : `Process now (${discoveredCount + pendingCount})`}
               </button>
@@ -610,40 +693,62 @@ function FeedDetail() {
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess' })}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+                  className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                 >
                   Reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_full' })}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+                  className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                 >
                   Full Reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_llm' })}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
+                  className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                   title="Re-detect ads using existing transcripts (skips re-transcription)"
                 >
                   Re-detect Ads ({processedCount})
                 </button>
-                <button
-                  onClick={() => setShowBulkDeleteConfirm(true)}
-                  disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnDestructive} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
-                >
-                  Delete ({processedCount})
-                </button>
               </>
             )}
-            {discoveredCount === 0 && pendingCount === 0 && processedCount === 0 && (
-              <span className="text-xs text-muted-foreground">Selected episodes are already processing.</span>
+            {/* Pass-through applies regardless of episode status; only actively
+                processing rows are excluded from selection in the first place. */}
+            <button
+              onClick={() => passthroughMutation.mutate({ enabled: true })}
+              disabled={bulkMutation.isPending || passthroughMutation.isPending}
+              title="Serve these episodes unmodified, with no ad processing"
+              className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+            >
+              {passthroughMutation.isPending && passthroughMutation.variables?.enabled
+                ? 'Setting...' : `Set pass-through (${effectiveSelectedIds.size})`}
+            </button>
+            <button
+              onClick={() => passthroughMutation.mutate({ enabled: false })}
+              disabled={bulkMutation.isPending || passthroughMutation.isPending}
+              title="Resume normal ad processing for these episodes"
+              className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+            >
+              {passthroughMutation.isPending && passthroughMutation.variables?.enabled === false
+                ? 'Clearing...' : `Clear pass-through (${effectiveSelectedIds.size})`}
+            </button>
+            {processedCount > 0 && (
+              <button
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                disabled={bulkMutation.isPending}
+                className={`${bulkActionBtn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
+              >
+                Delete ({processedCount})
+              </button>
+            )}
+            {selectionNote && (
+              <span className="text-xs text-muted-foreground">{selectionNote}</span>
             )}
             <button
-              onClick={() => setSelectedIds(new Set())}
-              className={`px-2 py-1 text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+              onClick={() => { setSelectedIds(new Set()); setSelectionAnchor(null); }}
+              className={`${cardActionBtn} ${btnGhost} ${focusRing}`}
             >
               Clear
             </button>
@@ -658,7 +763,7 @@ function FeedDetail() {
           episodes={episodes}
           feedSlug={slug!}
           feedArtworkUrl={feed.artworkUrl}
-          selectedIds={isRecents ? undefined : selectedIds}
+          selectedIds={isRecents ? undefined : effectiveSelectedIds}
           onToggle={isRecents ? undefined : handleToggleSelect}
           onSelectAll={isRecents ? undefined : handleSelectAll}
         />
@@ -774,7 +879,7 @@ function FeedDetail() {
         <Modal onClose={() => setShowBulkDeleteConfirm(false)} panelClassName="max-w-md w-full">
           <div className="p-6">
             <h2 className="text-xl font-semibold text-foreground mb-4">
-              Delete {selectedIds.size} Episode{selectedIds.size > 1 ? 's' : ''}
+              Delete {effectiveSelectedIds.size} Episode{effectiveSelectedIds.size > 1 ? 's' : ''}
             </h2>
             <p className="text-sm text-muted-foreground mb-4">
               This will delete processed audio files and reset selected episodes to discovered status. Episode records and processing history are preserved.
@@ -828,6 +933,28 @@ function FeedDetail() {
           </div>
         </Modal>
       )}
+
+      {/* Pass-through Result Modal */}
+      {passthroughResult && (
+        <Modal onClose={() => setPassthroughResult(null)} panelClassName="max-w-md w-full">
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-foreground mb-4">
+              {passthroughResult.enabled ? 'Pass-through Set' : 'Pass-through Cleared'}
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              {passthroughResult.updated} episode{passthroughResult.updated === 1 ? '' : 's'} updated.
+              {passthroughResult.enabled && passthroughResult.queued > 0
+                ? ` ${passthroughResult.queued} queued to run pass-through.` : ''}
+            </p>
+            <button
+              onClick={() => setPassthroughResult(null)}
+              className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
+            >
+              Done
+            </button>
+          </div>
+        </Modal>
+      )}
       {/* Same bottom-right confirm/error toasts the dashboard uses. */}
       {(deleteConfirm || actionError) && (
         <div className="fixed bottom-4 right-4 flex flex-col items-end gap-2">
@@ -848,6 +975,9 @@ function FeedDetail() {
           {deleteConfirm && (
             <div className="bg-card border border-border rounded-lg p-4 shadow-lg max-w-sm">
               <p className="text-sm text-foreground">Click delete again to confirm</p>
+              {stopsProcessingMessage && (
+                <p className="text-sm text-warning mt-1">{stopsProcessingMessage}</p>
+              )}
               {feed?.feedType === 'local' && (
                 <p className="text-sm text-warning mt-1">
                   This is a local feed: the imported originals are the only copy and will be deleted.

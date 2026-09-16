@@ -33,6 +33,7 @@ from config import (
     CUE_ONLY_SAFETY_HOLD_NEW,
     CUE_ONLY_SAFETY_AUTO_CUT,
     resolve_feed_processing_mode,
+    resolve_processing_mode,
     resolve_skip_transcription,
     resolve_cue_only_safety,
 )
@@ -83,6 +84,36 @@ class TestResolveFeedProcessingMode:
         row = {'passthrough_enabled': None, 'skip_ad_detection': None,
                'detection_mode': mode}
         assert resolve_feed_processing_mode(row) == PROCESSING_MODE_STANDARD
+
+
+class TestResolveProcessingMode:
+    """Per-episode pass-through override (issue #746): wins over the feed
+    mode when set, otherwise the feed mode resolver applies unchanged."""
+
+    def test_episode_flag_wins_over_standard_feed(self):
+        row = _row()  # standard feed (all flags unset)
+        assert resolve_processing_mode(row, {'passthrough_enabled': 1}) == \
+            PROCESSING_MODE_PASSTHROUGH
+
+    def test_episode_flag_wins_over_skip_detection_feed(self):
+        row = _row(skip=1)
+        assert resolve_processing_mode(row, {'passthrough_enabled': 1}) == \
+            PROCESSING_MODE_PASSTHROUGH
+
+    def test_episode_flag_unset_falls_back_to_feed_mode(self):
+        row = _row(skip=1)
+        assert resolve_processing_mode(row, {'passthrough_enabled': 0}) == \
+            PROCESSING_MODE_SKIP_DETECTION
+        assert resolve_processing_mode(row, {}) == PROCESSING_MODE_SKIP_DETECTION
+
+    def test_no_episode_row_falls_back_to_feed_mode(self):
+        row = _row(skip=1)
+        assert resolve_processing_mode(row, None) == PROCESSING_MODE_SKIP_DETECTION
+
+    def test_feed_already_passthrough_is_unaffected(self):
+        row = _row(pt=1)
+        assert resolve_processing_mode(row, {'passthrough_enabled': 0}) == \
+            PROCESSING_MODE_PASSTHROUGH
 
 
 def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
@@ -149,6 +180,10 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         db.get_podcast_by_slug.return_value = podcast_row
         db.reserve_provider_spend.return_value = (
             admission or {'allowed': True, 'reservation_id': 'provider-run-1'})
+        # Reconcile now reads the ledger sum, not the in-process accumulator
+        # this harness fakes via ctx.tokens.add above.
+        db.get_run_provider_spend.return_value = round(token_cost * 1_000_000)
+        db.run_provider_spend_is_incomplete.return_value = False
         if download_error is not None:
             dat.side_effect = download_error
         if detect_error is not None:
@@ -189,6 +224,20 @@ class TestProcessEpisodeModePlumbing:
             db.get_episode.return_value = {}
             db.get_podcast_by_slug.return_value = _row(
                 pt=1, skip=1, mode=DETECTION_MODE_KEEP_CONTENT)
+            pt.return_value = True
+            result = processing.process_episode(
+                'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
+        assert result is True
+        pt.assert_called_once()
+
+    def test_episode_passthrough_flag_routes_to_passthrough_on_standard_feed(self):
+        # Issue #746: the per-episode flag must win even though the feed
+        # itself is in standard mode (no feed-level flags set).
+        with patch.object(processing, 'db') as db, \
+             patch.object(processing, '_passthrough_episode') as pt, \
+             patch.object(processing, 'start_episode_token_tracking'):
+            db.get_episode.return_value = {'passthrough_enabled': 1}
+            db.get_podcast_by_slug.return_value = _row()
             pt.return_value = True
             result = processing.process_episode(
                 'mode-feed', 'ep1', 'https://example.com/ep1.mp3')

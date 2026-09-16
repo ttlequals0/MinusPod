@@ -4,11 +4,14 @@ from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 bootstrap('verify_status_test_')
 
 import ad_detector
+from llm_client import ProviderRateLimitedError
 from main_app import processing
 from verification_pass import VerificationPass
 
@@ -188,3 +191,21 @@ class TestVerificationWindowCounts:
               'status': 'transcription_failed'}, run_stats=run_stats)
 
         assert 'verification_windows' not in run_stats
+
+
+class TestRateLimitedVerification:
+    def test_rate_limited_hold_raises_for_the_run_level_handler(self):
+        with pytest.raises(ProviderRateLimitedError) as excinfo:
+            _run({
+                'ads': [], 'ads_processed': [], 'segments': [],
+                'status': 'detection_failed',
+                'rate_limited_hold': True,
+                'retry_after_seconds': 4499,
+                'error': ('All 19 verification windows failed (last error: '
+                          'ProviderRateLimitedError: provider rate limit reached)'),
+                'windows_total': 19,
+                'windows_failed': 19,
+            })
+
+        assert excinfo.value.phase == 'verification'
+        assert excinfo.value.retry_after_seconds == 4499

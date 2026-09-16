@@ -104,6 +104,147 @@ BATCH_SIZE_TIERS = [
     (120 * 60, 8),      # 90-120 min: batch_size=8
 ]
 
+# Bounded admission for local (in-process) CUDA transcription. A single GPU
+# holds one Whisper model at a time (WhisperModelSingleton); two concurrent
+# local transcriptions would each allocate batched-inference memory against
+# the same device and OOM each other. This is unrelated to whisper_pool
+# (bounded admission for the remote API backend only) and to LLM provider
+# budgets/holds: it guards local GPU memory specifically. CPU transcription
+# is unaffected (no shared VRAM to protect).
+GPU_TRANSCRIBE_MAX_CONCURRENT = max(1, int(os.getenv('GPU_TRANSCRIBE_MAX_CONCURRENT', '1')))
+_GPU_ADMISSION_SEMAPHORE = threading.Semaphore(GPU_TRANSCRIBE_MAX_CONCURRENT)
+
+
+def _gpu_admission_acquire(device: str) -> bool:
+    """Take a local-GPU admission permit for `device == 'cuda'`; a no-op
+    pass-through otherwise. Returns whether a permit was actually taken, so
+    the caller releases only what it acquired."""
+    if device != "cuda":
+        return False
+    _GPU_ADMISSION_SEMAPHORE.acquire()
+    return True
+
+
+def _gpu_admission_release() -> None:
+    _GPU_ADMISSION_SEMAPHORE.release()
+
+
+# Last local transcription outcome, mirrored at module scope so
+# get_local_transcriber_health() can report it without needing the
+# Transcriber() instance (module functions such as probe_whisper_health
+# follow the same instance-free pattern for the remote backend).
+_local_transcription_state_lock = threading.Lock()
+_last_local_transcription_outcome: dict | None = None
+
+# Same outcome persisted as JSON in settings, so the worker answering
+# /system/status reports the exhaustion another gunicorn worker recorded.
+# Mirrors the batch-ceiling setting's shape (device identity plus a stamp).
+LOCAL_OUTCOME_SETTING = 'transcribe_last_local_outcome'
+
+
+def _record_local_transcription_outcome(outcome: dict) -> None:
+    """Keep the last local outcome in-process and in cross-worker state."""
+    global _last_local_transcription_outcome
+    record = dict(outcome)
+    record['backend'] = WHISPER_BACKEND_LOCAL
+    if not record.get('device'):
+        record['device'] = resolve_whisper_device()
+    record['observed_at'] = utc_now_iso()
+    with _local_transcription_state_lock:
+        _last_local_transcription_outcome = record
+    # Inline import: database imports modules that import transcriber.
+    from database import Database
+    try:
+        Database().set_setting(LOCAL_OUTCOME_SETTING, json.dumps(record))
+    except Exception as e:
+        logger.debug(f"Could not persist local transcription outcome: {e}")
+
+
+def _read_persisted_local_outcome() -> dict | None:
+    """Last local outcome any worker persisted, or None if unreadable."""
+    from database import Database
+    try:
+        raw = Database().get_setting(LOCAL_OUTCOME_SETTING)
+    except Exception as e:
+        logger.debug(f"Could not read local transcription outcome: {e}")
+        return None
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _latest_local_outcome(device: str) -> dict | None:
+    """Newest outcome for `device` across this process and shared state.
+
+    A record from another device (the setting changed since) says nothing
+    about the device now configured, so it is ignored rather than reported.
+    """
+    with _local_transcription_state_lock:
+        in_process = dict(_last_local_transcription_outcome) if _last_local_transcription_outcome else None
+    candidates = [c for c in (in_process, _read_persisted_local_outcome())
+                  if c and c.get('device') == device]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda c: c.get('observed_at') or '')
+
+
+def get_local_transcriber_health() -> dict:
+    """Local-backend transcriber health for /system/status.
+
+    The local model runs in-process with no endpoint to probe, so 'available'
+    reflects the last transcription outcome (a GPU-OOM exhaustion reads as
+    available=False). The outcome is read from shared state so any worker
+    reports the latest one; no attempt yet reads as available.
+    """
+    device = resolve_whisper_device()
+    outcome = _latest_local_outcome(device)
+    last_outcome = None
+    if outcome is not None:
+        last_outcome = {
+            'status': outcome.get('outcome'),
+            'device': outcome.get('device'),
+            'backend': outcome.get('backend'),
+            'observedAt': outcome.get('observed_at'),
+        }
+    return {
+        'backend': WHISPER_BACKEND_LOCAL,
+        'device': device,
+        'available': outcome is None or outcome.get('outcome') != 'failed',
+        'lastOutcome': last_outcome,
+    }
+
+
+def get_remote_transcriber_health() -> dict:
+    """API-backend transcriber health for /system/status, from cached probes
+    only: a polled status endpoint must not fire an outbound request per
+    tick. Unconfigured reads as unavailable; never probed reads as available
+    (nothing has failed)."""
+    settings = _get_whisper_settings()
+    base_url = (settings.get('api_base_url') or '').rstrip('/')
+    if not base_url:
+        return {'backend': WHISPER_BACKEND_API, 'available': False, 'probed': False}
+    probe = _health_cache.get(base_url) or _last_good_health(base_url)
+    if probe is None:
+        return {'backend': WHISPER_BACKEND_API, 'available': True, 'probed': False}
+    return {
+        'backend': WHISPER_BACKEND_API,
+        'available': bool(probe.get('available')),
+        'probed': True,
+        'instanceCount': len(probe.get('instances') or []),
+    }
+
+
+def get_transcriber_health() -> dict:
+    """Health of the configured backend. The local reading (last in-process
+    outcome) means nothing when transcription runs on a remote API."""
+    if _get_whisper_settings()['backend'] == WHISPER_BACKEND_API:
+        return get_remote_transcriber_health()
+    return get_local_transcriber_health()
+
 # Whisper artifacts on silence and music. Matched after trailing punctuation
 # is stripped, so a bare phrase or bare punctuation is an artifact.
 HALLUCINATION_PATTERNS = re.compile(
@@ -1232,7 +1373,9 @@ def _full_span_clips(duration: float | None) -> list[dict] | None:
 class Transcriber:
     def __init__(self):
         # Model is now managed by singleton
-        pass
+        # Last local transcribe() outcome (batch_size/retry_count/device/etc),
+        # read by callers that want it beside the per-phase stats (#519).
+        self.last_transcription_stats = None
 
     def _transcribe_via_api(
         self,
@@ -1926,6 +2069,17 @@ class Transcriber:
         transcribe_language = None if language_setting == 'auto' else (language_setting or 'en')
 
         preprocessed_path = None
+        # Defensive defaults: referenced in the stats recording below even if
+        # an exception hits before the real assignments further down.
+        device = None
+        batch_size = None
+        current_model = None
+        retry_count = 0
+        # Admission guard (module-level, see GPU_TRANSCRIBE_MAX_CONCURRENT):
+        # taken for the whole call so preprocessing and every retry attempt
+        # for this episode hold the device before another local transcription
+        # can start. Released in the finally below on every exit path.
+        gpu_admission_acquired = _gpu_admission_acquire(resolve_whisper_device())
         try:
             # Get audio duration for adaptive batch sizing
             audio_duration = self.get_audio_duration(audio_path)
@@ -2084,6 +2238,17 @@ class Transcriber:
                         # proves the size fits; failures never persist anything.
                         self.record_batch_size_ceiling(batch_size)
 
+                    self.last_transcription_stats = {
+                        'outcome': 'success',
+                        'batch_size': batch_size,
+                        'retry_count': retry_count,
+                        'retry_succeeded': retry_count > 0,
+                        'device': device,
+                        'gpu_device_name': get_gpu_device_name() if device == 'cuda' else None,
+                        'model': current_model,
+                    }
+                    _record_local_transcription_outcome(self.last_transcription_stats)
+
                     return result
 
                 except Exception as inner_e:
@@ -2113,6 +2278,17 @@ class Transcriber:
 
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
+            self.last_transcription_stats = {
+                'outcome': 'failed',
+                'batch_size': batch_size,
+                'retry_count': retry_count,
+                'retry_succeeded': False,
+                'device': device,
+                'gpu_device_name': get_gpu_device_name() if device == 'cuda' else None,
+                'model': current_model,
+                'error': str(e)[:500],
+            }
+            _record_local_transcription_outcome(self.last_transcription_stats)
             # Clean up GPU memory on ANY failure to prevent memory leaks
             # This is critical for OOM recovery - free memory before retry
             try:
@@ -2123,6 +2299,8 @@ class Transcriber:
                 logger.warning(f"Failed to clean up GPU memory: {cleanup_err}")
             return None
         finally:
+            if gpu_admission_acquired:
+                _gpu_admission_release()
             # Clean up preprocessed file
             if preprocessed_path and os.path.exists(preprocessed_path):
                 try:

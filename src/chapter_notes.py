@@ -45,4 +45,6 @@ def format_chapter_block(chapters_json) -> str:
 
 
 def append_chapters(description, chapters_json) -> str:
-    return (description or '') + format_chapter_block(chapters_json)
+    # One blank line between the original description and the chapter list.
+    parts = [description or '', format_chapter_block(chapters_json)]
+    return '\n\n'.join(p for p in parts if p)
