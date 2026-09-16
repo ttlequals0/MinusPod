@@ -166,3 +166,44 @@ class TestSegmentAndStructureNames:
     ])
     def test_keeps_real_advertisers(self, brand):
         assert sanitize_sponsor_label(brand) == brand
+
+
+class TestCreditLeadInsAreStrippedWhole:
+    """The model prefixes the advertiser with the credit phrase. Stripping the
+    verb alone stored "by Acme" as the brand, in the marker and the registry."""
+
+    @pytest.mark.parametrize('label', [
+        'Sponsored by Acme', 'sponsored by acme'.title(), 'Produced by Acme',
+        'Presented by Acme', 'Brought to you by Acme', 'Powered by Acme',
+        'Hosted by Acme', 'Edited by Acme', 'Written by Acme',
+    ])
+    def test_the_brand_alone_survives(self, label):
+        assert sanitize_sponsor_label(label) == 'Acme'
+
+    def test_a_lead_in_behind_the_credit_is_stripped_too(self):
+        assert sanitize_sponsor_label(
+            'Sponsored by our friends at Acme') == 'Acme'
+
+    @pytest.mark.parametrize('label', [
+        'Sponsored by', 'Brought to you by', 'Produced by   ',
+        'Sponsored by our sponsor',
+    ])
+    def test_a_credit_naming_no_brand_is_rejected(self, label):
+        assert sanitize_sponsor_label(label) is None
+
+    def test_a_brand_beginning_with_by_is_untouched(self):
+        assert sanitize_sponsor_label('Byrna') == 'Byrna'
+
+
+class TestHostingPlatformsAreNotAdvertisers:
+    """A hosting platform delivers the ad; it does not buy it. The screen
+    belongs on a new label, not on a registry row already stored, which still
+    has to compile into the brand matcher."""
+
+    @pytest.mark.parametrize('label', ['Anchor', 'SoundCloud', 'acast'])
+    def test_a_hosting_name_is_never_a_new_sponsor_label(self, label):
+        assert sanitize_sponsor_label(label) is None
+
+    def test_an_existing_registry_row_still_matches(self):
+        from utils.constants import is_non_brand_name
+        assert is_non_brand_name('Anchor') is False

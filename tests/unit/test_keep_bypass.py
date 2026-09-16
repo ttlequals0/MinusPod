@@ -757,6 +757,8 @@ class TestExcludeKeptSpansFromVerification:
     KEPT_MARKER = {'start': 500.0, 'end': 520.0, 'action_applied': 'keep'}
 
     def test_overlapping_finding_dropped_before_any_routing(self, caplog):
+        """A category action kept this span, so pass 2 re-finding it every run
+        contradicts nothing: drop it instead of filing a review every time."""
         proc_overlap = {'start': 405.0, 'end': 415.0, 'confidence': 0.95,
                         'validation': {'decision': 'ACCEPT', 'adjusted_confidence': 0.95}}
         orig_overlap = {'start': 504.0, 'end': 514.0, 'confidence': 0.95,
@@ -769,14 +771,10 @@ class TestExcludeKeptSpansFromVerification:
 
         assert out_proc == []
         assert out_orig == []
-        assert any('contradicts kept span' in r.message for r in caplog.records)
-
-        # The keep still stands, but the disagreement surfaces for review
-        # instead of vanishing.
-        assert conflicts == [orig_overlap]
-        assert orig_overlap['held_for_review'] is True
-        assert orig_overlap['was_cut'] is False
-        assert orig_overlap['hold_reason'] == HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+        assert conflicts == []
+        assert 'held_for_review' not in orig_overlap
+        assert any('the category action keeps' in r.message
+                   for r in caplog.records)
 
         # Nothing routes to a cut: the kept span is never cut through.
         v_ads_to_cut, v_ads_for_ui, v_ads_held, n = processing._gate_verification_ads_by_confidence(
@@ -837,6 +835,57 @@ class TestExcludeKeptSpansFromVerification:
         assert conflicts == []
         assert 'held_for_review' not in orig_overlap
         assert any('false-positive rejection' in r.message for r in caplog.records)
+
+    def test_a_finding_reaching_past_the_kept_span_is_held_for_review(self):
+        """A 90 s read that clips a 20 s keep by a second is mostly audio the
+        operator never ruled on: hold it rather than drop it with the keep."""
+        proc_overlap = {'start': 420.0, 'end': 510.0, 'confidence': 0.95}
+        orig_overlap = {'start': 519.0, 'end': 609.0, 'confidence': 0.95}
+
+        with patch.object(processing, 'get_replacement_duration', return_value=1.0):
+            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
+                [proc_overlap], [orig_overlap], [self.KEPT_MARKER], self.PASS1_CUTS)
+
+        assert out_proc == []
+        assert out_orig == []
+        assert conflicts == [orig_overlap]
+        assert orig_overlap['held_for_review'] is True
+        assert orig_overlap['was_cut'] is False
+        assert orig_overlap['hold_reason'] == HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+
+
+class TestContainmentIsMeasuredAgainstEveryOverlappingKeep:
+    """Two back-to-back keeps cover a finding between them. Measured against
+    the first keep alone it looked half-covered and filed a review every run."""
+
+    PASS1_CUTS = [{'start': 100.0, 'end': 200.0, 'replacement_duration': 1.0}]
+    # Processed 401.0-421.0 and 421.0-441.0 after the pass-1 cut above.
+    KEPT_MARKERS = [{'start': 500.0, 'end': 520.0, 'action_applied': 'keep'},
+                    {'start': 520.0, 'end': 540.0, 'action_applied': 'keep'}]
+
+    def _exclude(self, proc, orig):
+        with patch.object(processing, 'get_replacement_duration', return_value=1.0):
+            return processing._exclude_kept_spans_from_verification(
+                [proc], [orig], self.KEPT_MARKERS, self.PASS1_CUTS)
+
+    def test_a_finding_the_union_covers_is_dropped(self):
+        proc = {'start': 405.0, 'end': 435.0, 'confidence': 0.95}
+        orig = {'start': 504.0, 'end': 534.0, 'confidence': 0.95}
+
+        out_proc, out_orig, conflicts = self._exclude(proc, orig)
+
+        assert (out_proc, out_orig, conflicts) == ([], [], [])
+        assert 'held_for_review' not in orig
+
+    def test_a_finding_the_union_only_half_covers_is_held(self):
+        proc = {'start': 421.0, 'end': 461.0, 'confidence': 0.95}
+        orig = {'start': 520.0, 'end': 560.0, 'confidence': 0.95}
+
+        out_proc, out_orig, conflicts = self._exclude(proc, orig)
+
+        assert (out_proc, out_orig) == ([], [])
+        assert conflicts == [orig]
+        assert orig['hold_reason'] == HOLD_REASON_VERIFICATION_KEPT_CONFLICT
 
 
 class TestStampPass2MarkerCategories:
@@ -1101,7 +1150,7 @@ class TestPartitionPass2CategoryActions:
         assert original['action_applied'] == 'keep'
         assert original['was_cut'] is False
 
-    def test_pass1_keep_overlap_is_diverted_before_category_keep_partition(self):
+    def test_pass1_keep_overlap_is_dropped_before_category_keep_partition(self):
         ctx = types.SimpleNamespace(
             slug='pass2-actions', episode_id='ep1', podcast_id=1,
             podcast_name='Test Show', episode_title='Episode',
@@ -1138,9 +1187,11 @@ class TestPartitionPass2CategoryActions:
                 segment_actions=self.ACTIONS,
             )
 
+        # Dropped before the pass-2 category partition can stamp it: the
+        # pass-1 keep already settled this span.
         assert result[1] == []
-        assert result[3] == [original]
-        assert original['hold_reason'] == 'verification_kept_conflict'
+        assert result[3] == []
+        assert 'hold_reason' not in original
         assert 'action_applied' not in original
 
 
@@ -1163,11 +1214,9 @@ def test_dedupe_pass2_markers_leaves_distinct_spans_alone():
     assert processing._dedupe_pass2_markers(markers) == markers
 
 
-def test_kept_conflicts_are_disjoint_from_survivors():
-    """A conflict routes to the held list, so it must not also remain in the
-    surviving list. Overlap there saved the marker twice and rendered
-    duplicate review cards in the UI."""
-    kept = {'start': 500.0, 'end': 520.0}
+def test_a_finding_inside_a_kept_span_leaves_the_surviving_lists():
+    """Survivors stay paired: only the finding clear of the kept span goes on."""
+    kept = {'start': 500.0, 'end': 520.0, 'action_applied': 'keep'}
     proc_overlap = {'start': 504.0, 'end': 514.0, 'confidence': 0.95}
     orig_overlap = {'start': 504.0, 'end': 514.0, 'confidence': 0.95}
     proc_clear = {'start': 50.0, 'end': 60.0, 'confidence': 0.95}
@@ -1177,8 +1226,6 @@ def test_kept_conflicts_are_disjoint_from_survivors():
         surv_proc, surv_orig, conflicts = processing._exclude_kept_spans_from_verification(
             [proc_overlap, proc_clear], [orig_overlap, orig_clear], [kept], [])
 
-    assert conflicts == [orig_overlap]
     assert surv_orig == [orig_clear]
     assert surv_proc == [proc_clear]
-    for c in conflicts:
-        assert c not in surv_orig
+    assert conflicts == []

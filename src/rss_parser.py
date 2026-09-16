@@ -4,6 +4,8 @@ import logging
 import hashlib
 import os
 import re
+import threading
+import time
 from chapter_notes import append_chapters
 from datetime import datetime, timezone
 from email.utils import format_datetime, parsedate_to_datetime
@@ -112,6 +114,38 @@ def _get_rss_circuit_breaker(url: str) -> CircuitBreaker:
             f"rss-{host}", failure_threshold=5, recovery_timeout=60
         )
     return _rss_circuit_breakers[host]
+
+
+# Hosts whose gzip stream failed to decode. The plain retry recovers the body,
+# so ask this URL for identity encoding up front until the TTL expires rather
+# than transferring a multi-MB feed twice every cycle.
+_GZIP_BROKEN_TTL_SECONDS = 3600
+_gzip_broken_until: dict[str, float] = {}
+_gzip_broken_lock = threading.Lock()
+
+
+def _gzip_is_broken(url: str) -> bool:
+    """True while this URL is known to serve an undecodable gzip stream."""
+    with _gzip_broken_lock:
+        until = _gzip_broken_until.get(url)
+        if until is None:
+            return False
+        if time.monotonic() >= until:
+            del _gzip_broken_until[url]
+            return False
+        return True
+
+
+def _mark_gzip_broken(url: str) -> None:
+    with _gzip_broken_lock:
+        _gzip_broken_until[url] = time.monotonic() + _GZIP_BROKEN_TTL_SECONDS
+
+
+def _identity_headers(url: str, headers: dict) -> dict:
+    """Add Accept-Encoding: identity when this URL's gzip is known broken."""
+    if not _gzip_is_broken(url):
+        return headers
+    return {**headers, 'Accept-Encoding': 'identity'}
 
 
 # Podcasting 2.0 channel-tag dispositions. See docs/podcasting-2.0.md for the
@@ -304,7 +338,7 @@ class RSSParser:
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
-                headers={'User-Agent': feed_user_agent()},
+                headers=_identity_headers(url, {'User-Agent': feed_user_agent()}),
             )
             try:
                 response.raise_for_status()
@@ -343,6 +377,7 @@ class RSSParser:
         except requests.exceptions.ContentDecodingError as e:
             # Some servers claim gzip encoding but send malformed data
             # Retry without accepting compressed responses
+            _mark_gzip_broken(url)
             logger.warning(
                 "Gzip decompression failed, retrying without compression: "
                 "url=%s err=%s", safe_url_for_log(url), e)
@@ -404,7 +439,7 @@ class RSSParser:
             If feed not modified (304), returns (None, etag, last_modified)
             On error, returns (None, None, None)
         """
-        headers = {'User-Agent': feed_user_agent()}
+        headers = _identity_headers(url, {'User-Agent': feed_user_agent()})
         if etag:
             headers['If-None-Match'] = etag
         if last_modified:
@@ -471,18 +506,18 @@ class RSSParser:
 
         except requests.exceptions.ContentDecodingError as e:
             # Retry without accepting compressed responses
+            _mark_gzip_broken(url)
             logger.warning(
                 "Gzip decompression failed, retrying: url=%s err=%s",
                 safe_url_for_log(url), e)
             try:
-                headers['Accept-Encoding'] = 'identity'
                 response = safe_get(
                     url,
                     trust=_feed_trust(),
                     timeout=timeout,
                     max_redirects=HTTP_MAX_REDIRECTS_FEED,
                     stream=True,
-                    headers=headers,
+                    headers={**headers, 'Accept-Encoding': 'identity'},
                 )
                 if response.status_code == 304:
                     _get_rss_circuit_breaker(url).record_success()

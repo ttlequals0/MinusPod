@@ -31,6 +31,10 @@ logger = logging.getLogger(__name__)
 # Statements that wait this long on the lock, and write transactions held open
 # this long, are logged so a "database is locked" burst names its holder.
 SLOW_SQLITE_SECONDS = 5.0
+
+# How long a writer waits for the lock. 30s left almost no margin: ordinary
+# feed-refresh writes were observed holding it 28.4s under contention.
+BUSY_TIMEOUT_MS = 60000
 _sqlite_metrics_lock = threading.Lock()
 _sqlite_metrics = {
     'slowStatements': 0,
@@ -497,11 +501,11 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
             self._local.connection = sqlite3.connect(
                 str(self.db_path),
                 check_same_thread=False,
-                timeout=30.0,
+                timeout=BUSY_TIMEOUT_MS / 1000,
                 factory=TracedConnection,
             )
             self._local.connection.row_factory = sqlite3.Row
-            self._local.connection.execute("PRAGMA busy_timeout = 30000")
+            self._local.connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
             self._local.connection.execute("PRAGMA foreign_keys = ON")
             try:
                 self._local.connection.execute("PRAGMA journal_mode = WAL")

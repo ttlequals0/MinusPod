@@ -10,7 +10,7 @@ from config import (
     resolve_max_boundary_shift,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
-from utils.markers import BOUNDS_TOLERANCE_S, clip_merge_spans, spans_match
+from utils.markers import clip_merge_spans, find_marker_in_list
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
 from pattern_service import PatternService, compute_pattern_trust
@@ -907,7 +907,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
         return err
 
     markers = _load_markers(db, slug, episode_id) or []
-    marker = _find_marker_in_list(markers, original_start, original_end)
+    marker = find_marker_in_list(markers, original_start, original_end)
     if marker is None:
         return error_response('No marker matches those boundaries', 404)
 
@@ -1293,14 +1293,6 @@ def _load_markers(db, slug, episode_id):
     return _load_episode_markers(db, slug, episode_id)[1]
 
 
-def _find_marker_in_list(markers, start, end, tol=BOUNDS_TOLERANCE_S):
-    """Bounds match within tolerance against an already-loaded marker list."""
-    for m in markers or []:
-        if spans_match(m.get('start'), m.get('end'), start, end, tol):
-            return m
-    return None
-
-
 def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
     """Handle correction_type='recategorize': set one marker's category.
 
@@ -1315,7 +1307,7 @@ def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
     start = original_ad.get('start')
     end = original_ad.get('end')
     markers = _load_markers(db, slug, episode_id)
-    marker = _find_marker_in_list(markers, start, end) if markers else None
+    marker = find_marker_in_list(markers, start, end) if markers else None
     if marker is None:
         return error_response('No detected ad matches those boundaries', 404)
 
@@ -1589,7 +1581,7 @@ def submit_correction(slug, episode_id):
     # match ignores pending-review state: a keep-resolved marker clears its
     # hold, so a pending-review-scoped lookup would miss it.
     current_markers = _load_markers(db, slug, episode_id)
-    target_marker = _find_marker_in_list(
+    target_marker = find_marker_in_list(
         current_markers, original_start, original_end, 0.5)
     if (correction_type != 'recategorize'
             and target_marker is not None

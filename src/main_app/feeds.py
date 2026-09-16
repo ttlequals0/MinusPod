@@ -23,6 +23,7 @@ from chapter_notes import chapter_notes_for
 from local_feed_builder import rebuild_local_feed
 from recents_feed import rebuild_recents_feed
 from utils.http import safe_url_for_log
+from utils.retry import calculate_backoff
 from utils.time import parse_iso_utc, utc_now_iso
 
 from slugify import slugify
@@ -54,6 +55,11 @@ _feed_cache = TTLCache(ttl_seconds=30)
 # reprocess, API force-refresh) bypasses the skip but still stamps so
 # subsequent non-force calls within the window coalesce.
 _refresh_coalesce = TTLCache(ttl_seconds=30)
+
+# Unparseable-body backoff: a body that never parses used to force a full
+# refetch every cycle. Doubles per consecutive failure, cleared by a clean parse.
+PARSE_FAILURE_BACKOFF_BASE_SECONDS = 1800
+PARSE_FAILURE_BACKOFF_MAX_SECONDS = 6 * 3600
 
 
 @dataclass(frozen=True)
@@ -127,6 +133,65 @@ def _record_refresh_failure(slug: str, error_message: str, podcast=None):
         refresh_logger.exception(f"[{slug}] Failed to record refresh failure")
 
 
+def _rss_cache_stale(slug: str, podcast) -> bool:
+    """True when the served RSS is missing an episode we have already processed."""
+    cached_rss = storage.get_rss(slug)
+    return not cached_rss or any(
+        ep['episode_id'] not in cached_rss
+        for ep in db.get_processed_episodes_for_feed(podcast['id'])
+    )
+
+
+def _parse_backoff_seconds(failure_count: int) -> float:
+    """Exponential backoff for an unparseable feed body, capped."""
+    if failure_count <= 0:
+        return 0.0
+    return calculate_backoff(
+        failure_count - 1, base_delay=PARSE_FAILURE_BACKOFF_BASE_SECONDS,
+        max_delay=PARSE_FAILURE_BACKOFF_MAX_SECONDS, jitter=False)
+
+
+def _parse_backoff_remaining(podcast) -> float:
+    """Seconds left before an unparseable feed may be fully refetched again."""
+    count = (podcast or {}).get('parse_failure_count') or 0
+    last_at = parse_iso_utc((podcast or {}).get('last_parse_failure_at'))
+    if count <= 0 or last_at is None:
+        return 0.0
+    elapsed = (datetime.now(timezone.utc) - last_at).total_seconds()
+    return max(0.0, _parse_backoff_seconds(count) - elapsed)
+
+
+def _parse_backoff_skip(slug: str, backoff: float) -> RefreshOutcome:
+    """Hold a full refetch of a body that has not parsed, and say for how long."""
+    refresh_logger.info(
+        f"[{slug}] Last feed body did not parse; holding the full fetch "
+        f"for another {backoff / 60:.0f} min")
+    db.update_podcast(slug, last_checked_at=utc_now_iso())
+    status_service.complete_feed_refresh(slug, 0)
+    return RefreshOutcome(
+        False, 'parse_backoff',
+        error=f'Feed body did not parse; backing off for another '
+              f'{backoff / 60:.0f} min')
+
+
+def _record_parse_failure(slug: str, podcast=None) -> float:
+    """Bump the feed's consecutive unparseable-body counter and return the backoff now in effect.
+    Separate from the alerting refresh-failure counter: a fetch that never reached
+    the parser must not extend this one."""
+    try:
+        count = ((podcast or {}).get('parse_failure_count') or 0) + 1
+        db.update_podcast(slug, parse_failure_count=count,
+                          last_parse_failure_at=utc_now_iso())
+        backoff = _parse_backoff_seconds(count)
+        refresh_logger.warning(
+            f"[{slug}] Feed body unparseable {count} time(s) in a row; "
+            f"next forced full fetch in {backoff / 60:.0f} min")
+        return backoff
+    except Exception:
+        refresh_logger.exception(f"[{slug}] Failed to record parse failure")
+        return 0.0
+
+
 def _record_refresh_success(slug: str):
     """Clear failure state after a successful refresh (no-op when clean)."""
     try:
@@ -186,6 +251,11 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         podcast = db.get_podcast_row(slug)
         podcast_name = podcast.get('title', slug) if podcast else slug
 
+        # A body that never parses yields no discovery, so hold the fetches
+        # that re-download it whole. A conditional GET still runs: its 304
+        # costs nothing, and a changed body may parse. force is user-driven.
+        backoff = 0.0 if force else _parse_backoff_remaining(podcast)
+
         # Track feed refresh in status service
         status_service.start_feed_refresh(slug, podcast_name)
 
@@ -199,6 +269,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         # Skip conditional GET if force=True (cache was deleted, need full content)
         existing_etag = None if force else (podcast.get('etag') if podcast else None)
         existing_last_modified = None if force else (podcast.get('last_modified_header') if podcast else None)
+        if backoff > 0 and not existing_etag and not existing_last_modified:
+            return _parse_backoff_skip(slug, backoff)
 
         feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
             feed_url,
@@ -225,6 +297,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                     # Rows written before the raw-XML read can hold a live
                     # item's description or link (#596).
                     forced_reason = 'channel metadata never read from raw XML'
+                elif _rss_cache_stale(slug, podcast):
+                    forced_reason = 'RSS cache stale'
+                if forced_reason and backoff > 0:
+                    return _parse_backoff_skip(slug, backoff)
                 if forced_reason:
                     refresh_logger.info(
                         f"[{slug}] Feed unchanged (304) but {forced_reason}, forcing full fetch")
@@ -232,24 +308,13 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                         feed_url, etag=None, last_modified=None
                     )
                 else:
-                    cached_rss = storage.get_rss(slug)
-                    rss_stale = not cached_rss or any(
-                        ep['episode_id'] not in cached_rss
-                        for ep in db.get_processed_episodes_for_feed(podcast['id'])
-                    )
-                    if rss_stale:
-                        refresh_logger.info(
-                            f"[{slug}] Feed unchanged (304) but RSS cache stale, forcing full fetch"
-                        )
-                        feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                            feed_url, etag=None, last_modified=None
-                        )
-                    else:
-                        refresh_logger.debug(f"[{slug}] Feed unchanged (304), skipping refresh")
-                        db.update_podcast(slug, last_checked_at=utc_now_iso())
-                        _record_refresh_success(slug)
-                        status_service.complete_feed_refresh(slug, 0)
-                        return RefreshOutcome(True, 'not_modified')
+                    refresh_logger.debug(f"[{slug}] Feed unchanged (304), skipping refresh")
+                    db.update_podcast(slug, last_checked_at=utc_now_iso())
+                    _record_refresh_success(slug)
+                    status_service.complete_feed_refresh(slug, 0)
+                    return RefreshOutcome(True, 'not_modified')
+            elif backoff > 0:
+                return _parse_backoff_skip(slug, backoff)
             else:
                 refresh_logger.info(
                     f"[{slug}] Feed unchanged (304) but no episodes discovered yet, "
@@ -279,13 +344,20 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         if not parsed_feed or (not parsed_feed.feed and not parsed_feed.entries
                                and getattr(parsed_feed, 'bozo', False)):
             refresh_logger.error(f"[{slug}] Fetched feed could not be parsed as RSS")
+            parse_error = ('Fetched feed could not be parsed as RSS (the URL '
+                           'may be returning an error page)')
             if record_failure:
-                _record_refresh_failure(
-                    slug, 'Fetched feed could not be parsed as RSS (the URL may '
-                          'be returning an error page)', podcast=podcast)
+                backoff = _record_parse_failure(slug, podcast=podcast)
+                parse_error += f'; retrying a full fetch in {backoff / 60:.0f} min'
+                _record_refresh_failure(slug, parse_error, podcast=podcast)
             status_service.complete_feed_refresh(slug, 0)
             _refresh_coalesce.invalidate(slug)
-            return RefreshOutcome(False, 'parse_failed', error='Fetched feed could not be parsed as RSS')
+            return RefreshOutcome(False, 'parse_failed', error=parse_error)
+        # The body parsed, which is the only event that ends the backoff.
+        try:
+            db.clear_parse_failure_state(slug)
+        except Exception:
+            refresh_logger.exception(f"[{slug}] Failed to clear parse failure state")
         if parsed_feed and parsed_feed.feed:
             # feedparser flattens <podcast:liveItem> into the channel dict,
             # so read the raw children and fall back per field (#596).
@@ -532,15 +604,24 @@ def refresh_all_feeds(force: bool = False):
                     outcomes[slug] = RefreshOutcome(
                         False, 'internal_error', error='Internal refresh error')
 
+        # A parse_backoff is a deliberate skip, not a failure: counting it
+        # would freeze feeds_last_refresh_completed_at and, on a small
+        # instance, read as a shared outage.
+        skipped = sum(1 for outcome in outcomes.values()
+                      if not outcome.success and outcome.status == 'parse_backoff')
         succeeded = sum(1 for outcome in outcomes.values() if outcome.success)
-        failed = len(outcomes) - succeeded
         total = len(outcomes)
+        failed = total - succeeded - skipped
         refresh_logger.info(
-            f"RSS refresh complete: {succeeded} succeeded, {failed} failed")
+            f"RSS refresh complete: {succeeded} succeeded, {failed} failed, "
+            f"{skipped} in parse backoff")
 
+        # Judged over the feeds actually attempted: a batch mostly in parse
+        # backoff has no opinion on whether the network path is up.
+        attempted = total - skipped
         outage_detected = (
-            failed > 0 and total >= FEED_REFRESH_OUTAGE_MIN_FEEDS
-            and (failed / total) >= FEED_REFRESH_OUTAGE_FRACTION
+            failed > 0 and attempted >= FEED_REFRESH_OUTAGE_MIN_FEEDS
+            and (failed / attempted) >= FEED_REFRESH_OUTAGE_FRACTION
         )
         outage_info = {'detected': False, 'affectedCount': failed, 'nextRetryAt': None}
 
@@ -552,7 +633,7 @@ def refresh_all_feeds(force: bool = False):
             # not counting the failures. One jittered retry avoids every
             # instance hammering the same upstream host back-to-back.
             refresh_logger.warning(
-                f"RSS refresh: shared outage detected ({failed}/{total} feeds "
+                f"RSS refresh: shared outage detected ({failed}/{attempted} feeds "
                 "failed together) - skipping per-feed failure counting, "
                 "scheduling one jittered retry")
             retry_delay = (FEED_REFRESH_OUTAGE_RETRY_BASE_SECONDS
@@ -570,6 +651,8 @@ def refresh_all_feeds(force: bool = False):
             # Not an outage (or too few feeds to judge): count failures the
             # same way refresh_rss_feed would have inline.
             for slug, outcome in outcomes.items():
+                if outcome.status == 'parse_failed':
+                    _record_parse_failure(slug, podcast=db.get_podcast_row(slug))
                 if outcome.status in ('fetch_failed', 'parse_failed'):
                     _record_refresh_failure(slug, outcome.error or 'RSS refresh failed')
             if db.get_setting('feeds_refresh_outage_active') == '1':
@@ -601,7 +684,11 @@ def refresh_single_feed(slug: str) -> bool:
         return False
     try:
         outcome = refresh_rss_feed(slug, podcast['source_url'])
-        return outcome.success if isinstance(outcome, RefreshOutcome) else bool(outcome)
+        if not isinstance(outcome, RefreshOutcome):
+            return bool(outcome)
+        # A held full fetch is the backoff working as intended; the caller
+        # must not log it or count it as a failed refresh.
+        return outcome.success or outcome.status == 'parse_backoff'
     except Exception as e:
         refresh_logger.error(
             f"[{slug}] Single-feed refresh failed: {_scrub_query_strings(str(e))}")

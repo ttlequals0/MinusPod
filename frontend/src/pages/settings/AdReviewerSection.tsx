@@ -4,8 +4,10 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import PromptField from './PromptField';
 import NumberInput from '../../components/NumberInput';
 import CatalogStatus from '../../components/CatalogStatus';
+import RefreshModelsButton from './RefreshModelsButton';
+import type { ModelsRefresh } from '../../hooks/useModelsRefresh';
 import { formatModelLabel } from './settingsUtils';
-import { selectBase, focusRing } from '../../components/fieldStyles';
+import { selectBase } from '../../components/fieldStyles';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 
@@ -31,12 +33,10 @@ interface AdReviewerSectionProps {
   onResetPrompts: () => void;
   resetIsPending: boolean;
   catalog?: ModelCatalog;
-  /** Message from a failed Refresh, shown in place of the generic catalog line. */
-  modelsRefreshError?: string | null;
   // Re-fetches the review provider's model catalog (e.g. after changing the
   // secondary provider or its key), so the dropdown is not stuck on a cache.
-  onRefreshModels?: () => void;
-  refreshModelsIsPending?: boolean;
+  // Its error replaces the generic catalog line.
+  modelsRefresh?: ModelsRefresh;
   // Shows the Secondary option on the review provider select; a value stored
   // before the secondary provider was turned off still renders, marked off.
   secondaryProviderEnabled?: boolean;
@@ -54,9 +54,7 @@ function AdReviewerSection({
   onResetPrompts,
   resetIsPending,
   catalog,
-  modelsRefreshError = null,
-  onRefreshModels,
-  refreshModelsIsPending = false,
+  modelsRefresh,
   secondaryProviderEnabled = false,
   reviewPromptIsDefault,
   resurrectPromptIsDefault,
@@ -137,15 +135,12 @@ function AdReviewerSection({
                 <label htmlFor="reviewModel" className="block text-sm font-medium text-foreground">
                   Review model
                 </label>
-                {onRefreshModels && reviewer.provider !== SAME_AS_PASS && (
-                  <button
-                    type="button"
-                    onClick={onRefreshModels}
-                    disabled={refreshModelsIsPending}
-                    className={`text-sm text-primary hover:underline disabled:opacity-50 ${focusRing}`}
-                  >
-                    {refreshModelsIsPending ? 'Refreshing...' : 'Refresh models'}
-                  </button>
+                {modelsRefresh && reviewer.provider !== SAME_AS_PASS && (
+                  <RefreshModelsButton
+                    variant="link"
+                    onClick={modelsRefresh.refresh}
+                    isPending={modelsRefresh.isPending}
+                  />
                 )}
               </div>
               <select
@@ -168,7 +163,7 @@ function AdReviewerSection({
               <CatalogStatus
                 loading={catalog?.isLoading}
                 error={catalog?.isError}
-                refreshError={modelsRefreshError}
+                refreshError={modelsRefresh?.error ?? null}
               />
               <p className="mt-1 text-sm text-muted-foreground">
                 {reviewer.provider === SAME_AS_PASS

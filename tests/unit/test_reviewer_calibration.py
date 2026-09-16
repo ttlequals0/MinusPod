@@ -3,11 +3,14 @@ import json
 from dataclasses import dataclass
 from unittest.mock import MagicMock
 
+import pytest
+
 from tests.app_bootstrap import bootstrap, ensure_model_configured
 
 _data_dir = bootstrap('reviewer_calibration_test_')
 
 from database import Database  # noqa: E402
+from main_app import app  # noqa: E402
 from tools.reviewer_calibration import (  # noqa: E402
     CALIBRATION_AGREEMENT_THRESHOLD,
     CALIBRATION_CORPUS,
@@ -32,6 +35,29 @@ def _build_db():
     db = Database()
     ensure_model_configured(db)
     return db
+
+
+@pytest.fixture
+def client():
+    app.config['TESTING'] = True
+    with app.test_client() as c:
+        yield c
+
+
+@pytest.fixture
+def calibration_calls(monkeypatch):
+    """(old, new) pairs the settings save handed to the calibration hook."""
+    calls = []
+    monkeypatch.setattr(
+        'api.settings.maybe_trigger_reviewer_calibration',
+        lambda db_arg, old, new: calls.append((old, new)),
+    )
+    return calls
+
+
+def _save_settings(client, payload):
+    return client.put('/api/v1/settings/ad-detection',
+                      data=json.dumps(payload), content_type='application/json')
 
 
 # Canned responses, one per CALIBRATION_CORPUS case in order. Case 8
@@ -204,57 +230,73 @@ def test_reviewer_calibration_on_change_defaults_true():
     assert db.get_setting_bool('reviewer_calibration_on_change', True) is True
 
 
-def test_settings_api_review_model_change_invokes_hook(monkeypatch):
-    """_apply_review_fields wires reviewModel writes to the calibration hook
-    with the old and new values, per the settings API contract."""
-    from api.settings import _apply_review_fields
-
+def test_settings_save_calibrates_the_review_model_once(client, calibration_calls):
     db = _build_db()
     db.set_setting('review_model', 'old-model', is_default=False)
 
-    calls = []
-    monkeypatch.setattr(
-        'api.settings.maybe_trigger_reviewer_calibration',
-        lambda db_arg, old, new: calls.append((old, new)),
-    )
-    err = _apply_review_fields(db, {'reviewModel': 'new-model'})
-    assert err is None
-    assert calls == [('old-model', 'new-model')]
+    resp = _save_settings(client, {'reviewModel': 'new-model'})
+    assert resp.status_code == 200
+    assert calibration_calls == [('old-model', 'new-model')]
     assert db.get_setting('review_model') == 'new-model'
 
 
-def test_settings_api_claude_model_change_calibrates_when_review_is_same_as_pass(monkeypatch):
+def test_settings_save_calibrates_claude_model_when_review_is_same_as_pass(client, calibration_calls):
     # review_model 'same_as_pass' means the detection model is the effective
     # reviewer model, so changing it must calibrate.
-    from api.settings import _apply_model_fields
-
     db = _build_db()
     db.set_setting('review_model', 'same_as_pass', is_default=False)
     db.set_setting('claude_model', 'old-model', is_default=False)
 
-    calls = []
-    monkeypatch.setattr(
-        'api.settings.maybe_trigger_reviewer_calibration',
-        lambda db_arg, old, new: calls.append((old, new)),
-    )
-    _apply_model_fields(db, {'claudeModel': 'new-model'})
-    assert calls == [('old-model', 'new-model')]
+    resp = _save_settings(client, {'claudeModel': 'new-model'})
+    assert resp.status_code == 200
+    assert calibration_calls == [('old-model', 'new-model')]
 
 
-def test_settings_api_claude_model_change_skips_calibration_with_explicit_reviewer(monkeypatch):
-    from api.settings import _apply_model_fields
-
+def test_settings_save_skips_claude_calibration_with_explicit_reviewer(client, calibration_calls):
     db = _build_db()
     db.set_setting('review_model', 'reviewer-model', is_default=False)
     db.set_setting('claude_model', 'old-model', is_default=False)
 
-    calls = []
-    monkeypatch.setattr(
-        'api.settings.maybe_trigger_reviewer_calibration',
-        lambda db_arg, old, new: calls.append((old, new)),
-    )
-    _apply_model_fields(db, {'claudeModel': 'new-model'})
-    assert calls == []
+    resp = _save_settings(client, {'claudeModel': 'new-model'})
+    assert resp.status_code == 200
+    assert calibration_calls == []
+
+
+def test_a_saved_review_model_is_calibrated_even_when_a_later_phase_fails(
+        client, calibration_calls):
+    """Each phase commits as it runs, so a later field's 400 still leaves the
+    new review model persisted. Calibration follows its own phase to keep the
+    saved model and its self-test in step."""
+    db = _build_db()
+    db.set_setting('review_model', 'old-model', is_default=False)
+    db.set_setting('claude_model', 'old-claude', is_default=False)
+
+    # detectionProvider is validated in a phase after both model phases.
+    resp = _save_settings(client, {
+        'reviewModel': 'new-model',
+        'claudeModel': 'new-claude',
+        'detectionProvider': 'not-a-slot',
+    })
+
+    assert resp.status_code == 400
+    assert db.get_setting('review_model') == 'new-model'
+    assert calibration_calls == [('old-model', 'new-model')]
+
+
+def test_a_request_rejected_before_the_review_phase_calibrates_nothing(
+        client, calibration_calls):
+    """Nothing was saved, so there is nothing to self-test."""
+    db = _build_db()
+    db.set_setting('review_model', 'old-model', is_default=False)
+
+    resp = _save_settings(client, {
+        'reviewModel': 'new-model',
+        'adAddressingMode': 'not-a-mode',
+    })
+
+    assert resp.status_code == 400
+    assert db.get_setting('review_model') == 'old-model'
+    assert calibration_calls == []
 
 
 def test_calibration_routes_to_the_review_slot_not_the_global_client():

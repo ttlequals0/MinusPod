@@ -21,9 +21,11 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import json
+import logging
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 import differential_fetcher as df
 from ad_detector import AdDetector, dai_differential_ads
@@ -316,7 +318,7 @@ def test_fetch_and_diff_scans_refetch_and_builds_anchor_pairs(tmp_path):
         result = df.fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
                                    run_file, str(tmp_path),
                                    cue_scan=cue_scan,
-                                   primary_cues=primary_cues)
+                                   primary_cues=lambda: primary_cues)
 
     assert result['status'] == 'ok'
     assert result['refetch_cues'] == refetch_cues
@@ -340,7 +342,7 @@ def test_fetch_and_diff_cue_scan_failure_is_nonfatal(tmp_path):
         result = df.fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
                                    run_file, str(tmp_path),
                                    cue_scan=cue_scan,
-                                   primary_cues=[{'time': 1.0, 'template_id': 5}])
+                                   primary_cues=lambda: [{'time': 1.0, 'template_id': 5}])
 
     assert result['status'] == 'ok'
     assert result['refetch_cues'] == []
@@ -363,11 +365,63 @@ def test_fetch_and_diff_cue_scan_malformed_result_is_nonfatal(tmp_path):
         result = df.fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
                                    run_file, str(tmp_path),
                                    cue_scan=cue_scan,
-                                   primary_cues=[{'time': 1.0, 'template_id': 5}])
+                                   primary_cues=lambda: [{'time': 1.0, 'template_id': 5}])
 
     assert result['status'] == 'ok'
     assert result.get('refetch_cues', []) == []
     assert mock_align.call_args.kwargs['anchor_pairs'] == []
+
+
+def test_the_primary_cue_wait_starts_after_the_refetch_scan(tmp_path):
+    """Resolved after the local scan, so the wait for the primary cues overlaps
+    it instead of serializing in front of it."""
+    run_file = _run_file(tmp_path)
+    order = []
+
+    def cue_scan(path):
+        order.append('scan')
+        return [{'time': 12.5, 'template_id': 5}]
+
+    def primary_cues():
+        order.append('wait')
+        return [{'time': 10.0, 'template_id': 5}]
+
+    with patch('differential_fetcher.safe_get',
+               return_value=_FakeResponse([b'x' * 100])), \
+         patch('differential_fetcher.get_audio_duration', return_value=42.0), \
+         patch('differential_fetcher.align_and_diff',
+               return_value=_ALIGNED) as mock_align:
+        result = df.fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
+                                   run_file, str(tmp_path),
+                                   cue_scan=cue_scan, primary_cues=primary_cues)
+
+    assert order == ['scan', 'wait']
+    assert result['status'] == 'ok'
+    assert mock_align.call_args.kwargs['anchor_pairs'] == [(10.0, 12.5)]
+
+
+def test_a_primary_cue_wait_timeout_is_nonfatal(tmp_path, caplog):
+    run_file = _run_file(tmp_path)
+
+    def primary_cues():
+        raise TimeoutError('primary scan still running')
+
+    with caplog.at_level(logging.WARNING), \
+         patch('differential_fetcher.safe_get',
+               return_value=_FakeResponse([b'x' * 100])), \
+         patch('differential_fetcher.get_audio_duration', return_value=42.0), \
+         patch('differential_fetcher.align_and_diff',
+               return_value=_ALIGNED) as mock_align:
+        result = df.fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
+                                   run_file, str(tmp_path),
+                                   cue_scan=lambda path: [
+                                       {'time': 12.5, 'template_id': 5}],
+                                   primary_cues=primary_cues)
+
+    assert result['status'] == 'ok'
+    assert result['refetch_cues'] == []
+    assert mock_align.call_args.kwargs['anchor_pairs'] == []
+    assert caplog.text.count('Cue anchoring skipped') == 1
 
 
 def test_fetch_and_diff_without_scan_keeps_legacy_shape(tmp_path):
@@ -538,10 +592,10 @@ def test_pipeline_scans_refetch_persists_cues_and_removes_work_dir(tmp_path):
     assert result == fetch_result
     saved = json.loads(mock_save.call_args.args[2])
     assert saved['refetch_cues'] == [{'time': 12.5, 'template_id': 5}]
-    # The worker scanned the primary audio for anchor cues and handed the
-    # scan hook plus primary cues to fetch_and_diff.
+    # The worker handed fetch_and_diff the scan hook plus a lazy primary-cue
+    # getter, which falls back to scanning the primary audio itself.
     kwargs = mock_fetch.call_args.kwargs
-    assert kwargs['primary_cues'] == [{'time': 12.5, 'template_id': 5}]
+    assert kwargs['primary_cues']() == [{'time': 12.5, 'template_id': 5}]
     assert callable(kwargs['cue_scan'])
     assert kwargs['cue_scan']('/x/refetch') == [{'time': 12.5, 'template_id': 5}]
     assert not os.path.exists(str(work_dir))
@@ -567,7 +621,7 @@ def test_pipeline_primary_scan_failure_never_fails_differential(tmp_path):
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
 
     assert result == fetch_result
-    assert mock_fetch.call_args.kwargs['primary_cues'] == []
+    assert mock_fetch.call_args.kwargs['primary_cues']() == []
     assert not os.path.exists(str(work_dir))
 
 
@@ -585,7 +639,8 @@ def test_pipeline_without_matcher_passes_no_cue_hooks():
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     kwargs = mock_fetch.call_args.kwargs
     assert kwargs.get('cue_scan') is None
-    assert kwargs.get('primary_cues') in (None, [])
+    # Always a zero-arg callable, so fetch_and_diff never type-checks it.
+    assert kwargs['primary_cues']() == []
 
 
 def test_feed_cue_matcher_only_returns_template_matchers():
@@ -600,3 +655,35 @@ def test_feed_cue_matcher_only_returns_template_matchers():
                       side_effect=RuntimeError('db gone')):
         assert processing._feed_cue_matcher(7) is None
     assert processing._feed_cue_matcher(None) is None
+
+
+class TestPrimaryCuesMustBeCallable:
+    """The default used to be the bare `list` builtin. A caller passing the
+    cues themselves called a list, and the broad except turned that into
+    "no anchors" instead of a visible bug."""
+
+    def test_no_hook_at_all_still_scans_and_aligns(self, tmp_path):
+        run_file = _run_file(tmp_path)
+
+        with patch('differential_fetcher.safe_get',
+                   return_value=_FakeResponse([b'x' * 100])), \
+             patch('differential_fetcher.get_audio_duration', return_value=42.0), \
+             patch('differential_fetcher.align_and_diff',
+                   return_value=_ALIGNED) as mock_align:
+            result = df.fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
+                                       run_file, str(tmp_path),
+                                       cue_scan=lambda path: [
+                                           {'time': 12.5, 'template_id': 5}],
+                                       primary_cues=None)
+
+        assert result['status'] == 'ok'
+        assert mock_align.call_args.kwargs['anchor_pairs'] == []
+
+    def test_a_list_of_cues_is_refused_loudly(self, tmp_path):
+        run_file = _run_file(tmp_path)
+
+        with pytest.raises(TypeError):
+            df.fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
+                              run_file, str(tmp_path),
+                              cue_scan=lambda path: [],
+                              primary_cues=[{'time': 1.0, 'template_id': 5}])

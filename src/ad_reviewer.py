@@ -16,10 +16,12 @@ from config import (
     resolve_env_backed_default,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+    HOLD_REASON_REVIEWER_REJECT_CONFLICT,
     AUDIO_CUE_ROLE_DEFAULT,
     AUDIO_CUE_ROLE_NON_AD,
     AUDIO_CUE_TYPE_CONTENT_TRANSITION,
     is_template_cue,
+    measured_evidence,
     MIN_AD_DURATION_FOR_REMOVAL,
     coerce_bool_setting,
     resolve_max_boundary_shift,
@@ -27,10 +29,13 @@ from config import (
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
-from llm_route import Route, SAME_AS_PASS, SLOT_PRIMARY, resolve_review_route, resolve_route
+from llm_route import (
+    Route, SAME_AS_PASS, SLOT_PRIMARY, client_for_route, resolve_review_route,
+    resolve_route,
+)
 from run_context import route_for_phase, run_in_worker_thread
 from llm_client import (
-    get_client_for_provider, get_effective_provider,
+    get_effective_provider,
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
     ProviderRateLimitedError, StructuralRateLimitError,
 )
@@ -309,6 +314,12 @@ def _boundary_conflict_hold(ad: dict, verdict: "ReviewVerdict") -> dict:
     return held
 
 
+def reject_hold_evidence(ad: dict) -> str | None:
+    """What a reviewer reject would discard on this ad, or None when the
+    reviewer's own opinion is the only signal on the span."""
+    return ', '.join(measured_evidence(ad)) or None
+
+
 def is_contradiction_hold(verdict: str, reasoning: str | None,
                           structured_is_ad: bool | None = None) -> bool:
     """Single hold criterion shared by the reviewer pool split and both
@@ -509,6 +520,9 @@ class ReviewVerdict:
     # The model gave bounds and the clamp ruled on them; no prose-only
     # trim is pending.
     proposal_clamped: bool = False
+    # Set on a reject the evidence floor turned into a hold; the apply path
+    # stamps it as the marker's hold_reason instead of dropping the ad.
+    reject_hold_reason: str | None = None
 
 
 @dataclass
@@ -517,7 +531,8 @@ class ReviewResult:
 
     `accepted_after_review` is the post-reviewer cut list (adjustments applied,
     rejections removed, resurrections added). `verdicts` is the full audit
-    trail, one entry per ad the reviewer evaluated.
+    trail, one entry per ad the reviewer evaluated. The `held_*` lists are the
+    ads a human has to settle; they are never cut.
     """
     accepted_after_review: list[dict] = field(default_factory=list)
     rejected_by_reviewer: list[dict] = field(default_factory=list)
@@ -525,6 +540,7 @@ class ReviewResult:
     verdicts: list[ReviewVerdict] = field(default_factory=list)
     held_by_contradiction: list[dict] = field(default_factory=list)
     held_by_boundary_conflict: list[dict] = field(default_factory=list)
+    held_by_reject_evidence: list[dict] = field(default_factory=list)
 
 
 def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
@@ -792,13 +808,8 @@ class AdReviewer:
     def _llm_client(self):
         """Client for the in-progress review() call: an explicit override
         (tests, calibration) wins; otherwise the resolved route's client."""
-        if self._llm_client_override is not None:
-            return self._llm_client_override
-        if self._active_route is None:
-            return None
-        return get_client_for_provider(
-            self._active_route.provider_key, base_url=self._active_route.base_url,
-            credential_slot=self._active_route.credential_slot)
+        return client_for_route(self._active_route,
+                                override=self._llm_client_override)
 
     def review(
         self,
@@ -914,6 +925,29 @@ class AdReviewer:
                 slug=episode_meta.get('slug'),
                 episode_id=episode_meta.get('episode_id'))
             if verdict.verdict == "reject":
+                evidence = reject_hold_evidence(updated_ad)
+                if evidence:
+                    # Measured evidence outranks one model's opinion, so a
+                    # human rules on it. The apply path stamps the hold.
+                    verdict.reject_hold_reason = (
+                        HOLD_REASON_REVIEWER_REJECT_CONFLICT)
+                    logger.warning(
+                        f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
+                        f"Reviewer reject held @ "
+                        f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s: "
+                        f"span carries {evidence}"
+                    )
+                    held = dict(updated_ad)
+                    held["was_cut"] = False
+                    held["held_for_review"] = True
+                    held["hold_reason"] = HOLD_REASON_REVIEWER_REJECT_CONFLICT
+                    held["reviewer_verdict"] = "reject"
+                    held["reviewer_reasoning"] = verdict.reasoning
+                    held["reviewer_confidence"] = verdict.confidence
+                    held["reviewer_model"] = verdict.model_used
+                    held["source"] = "reviewer"
+                    result.held_by_reject_evidence.append(held)
+                    continue
                 marked = dict(updated_ad)
                 marked["was_cut"] = False
                 marked["reviewer_verdict"] = "reject"
@@ -1141,9 +1175,9 @@ class AdReviewer:
         window_label = f"reviewer-pass{pass_num}-{pool}"
 
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
-        max_tokens, temperature, reasoning = resolve_stage_tunables('reviewer')
-
         provider = self._active_route.provider_key if self._active_route else None
+        max_tokens, temperature, reasoning = resolve_stage_tunables(
+            'reviewer', provider=provider)
         credential_slot = self._active_route.credential_slot if self._active_route else 'primary'
         t0 = time.monotonic()
         response, error = call_llm_for_window(

@@ -86,6 +86,12 @@ class AudioAnalysisResult:
     errors: list[str] = field(default_factory=list)
     # Near-miss telemetry (#350). Advisory only -- never signals.
     cue_near_misses: list[dict[str, Any]] = field(default_factory=list)
+    # True when the template cue scan ran cleanly, so an empty cue list means
+    # "none present" rather than "never looked". Not serialized.
+    cue_scan_complete: bool = False
+    # Per-template {'id', 'label', 'peak_score', 'match_count', 'eff_threshold'}
+    # from the matcher pass. Not serialized; the cue_detections rows persist it.
+    cue_templates_debug: list[dict[str, Any]] = field(default_factory=list)
     # Silence spans from silencedetect (Phase B). Advisory only -- never signals.
     silence_spans: list[dict[str, Any]] = field(default_factory=list)
     # Resolved silence-snap tunables from the analyzer pass; set when silence

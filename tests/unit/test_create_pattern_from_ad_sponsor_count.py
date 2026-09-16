@@ -124,3 +124,29 @@ def test_create_pattern_rejected_when_sponsor_absent_from_text(db):
         episode_id='abc',
     )
     assert pattern_id is None
+
+
+class TestForeignBrandMentionsAreCountedOnWordBoundaries:
+    """A raw substring count made "cramped" a Ramp mention, so a clean
+    single-sponsor read was refused as multi-brand contaminated."""
+
+    AD_TEXT = ("ramp up your savings with BetterHelp, it felt cramped before. "
+               "BetterHelp matches you in 24 hours.")
+
+    def _matcher(self, db):
+        for name in ('Ramp', 'BetterHelp'):
+            if not db.get_known_sponsor_by_name(name):
+                db.create_known_sponsor(name=name)
+        return TextPatternMatcher(db=db)
+
+    def test_a_word_a_brand_hides_inside_is_not_a_mention(self, db):
+        matcher = self._matcher(db)
+
+        assert matcher._contaminating_brands(self.AD_TEXT, 'BetterHelp') == []
+
+    def test_two_real_mentions_of_another_brand_still_contaminate(self, db):
+        matcher = self._matcher(db)
+        text = ("BetterHelp matches you in 24 hours. Ramp cards cut expenses, "
+                "and Ramp is free to try.")
+
+        assert matcher._contaminating_brands(text, 'BetterHelp') == ['Ramp']

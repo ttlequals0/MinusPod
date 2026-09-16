@@ -11269,23 +11269,30 @@ components:
                 only when that pass lost at least one window.
               properties:
                 detection:
-                  type: object
-                  properties:
-                    failed:
-                      type: integer
-                    total:
-                      type:
-                        - integer
-                        - 'null'
+                  $ref: '#/components/schemas/IncompleteCoveragePass'
                 verification:
-                  type: object
-                  properties:
-                    failed:
-                      type: integer
-                    total:
-                      type:
-                        - integer
-                        - 'null'
+                  $ref: '#/components/schemas/IncompleteCoveragePass'
+
+    IncompleteCoveragePass:
+      type: object
+      description: Windows one pass of the latest completed run lost, with the causes recorded.
+      properties:
+        failed:
+          type: integer
+        total:
+          type:
+            - integer
+            - 'null'
+        failureClasses:
+          type:
+            - object
+            - 'null'
+          description: >
+            Lost windows by cause: rate_limit, server_error, connectivity,
+            reasoning_exhausted, output_truncated, empty_completion, other.
+            Absent on runs recorded before the classes were tracked.
+          additionalProperties:
+            type: integer
 
     LocalEpisodeEditFields:
       type: object
@@ -11731,6 +11738,14 @@ components:
                   type: integer
                 failed:
                   type: integer
+                failureClasses:
+                  type: object
+                  description: >
+                    Lost windows by cause: rate_limit, server_error, connectivity,
+                    reasoning_exhausted, output_truncated, empty_completion, other.
+                    Absent when no window was lost.
+                  additionalProperties:
+                    type: integer
             verificationWindows:
               type:
                 - object
@@ -11741,6 +11756,13 @@ components:
                   type: integer
                 failed:
                   type: integer
+                failureClasses:
+                  type: object
+                  description: >
+                    Lost verification windows by cause; same classes as
+                    windows.failureClasses. Absent when no window was lost.
+                  additionalProperties:
+                    type: integer
             stageHits:
               type:
                 - object
@@ -12023,8 +12045,8 @@ components:
         hold_reason:
           type: string
           nullable: true
-          enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, null]
-          description: Why the marker requires review. reviewer_boundary_conflict means a reviewer proposal crossed protected merged-ad evidence.
+          enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_reject_conflict, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, null]
+          description: Why the marker requires review. reviewer_boundary_conflict means a reviewer proposal crossed protected merged-ad evidence; reviewer_reject_conflict means the reviewer rejected a span backed by measured evidence or a confirmed sponsor.
         reviewer_reasoning:
           type: string
           nullable: true

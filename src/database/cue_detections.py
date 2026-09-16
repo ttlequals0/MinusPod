@@ -159,6 +159,45 @@ class CueDetectionMixin:
         out['unusedReasons'] = {r['unused_reason']: r['n'] for r in reason_rows}
         return out
 
+    def cue_template_episode_peaks(self, podcast_id: int, template_ids,
+                                   limit: int) -> dict[int, list]:
+        """Newest-first (best near-miss score, match count) per episode, for each
+        named template. An episode where a template produced no row comes back as
+        (None, 0), so a silent episode still breaks a near-miss streak."""
+        ids = sorted({int(t) for t in template_ids or []})
+        if not ids or limit <= 0:
+            return {}
+        conn = self.get_connection()
+        values = ','.join(['(?)'] * len(ids))
+        rows = conn.execute(
+            f"""WITH recent AS (
+                    SELECT episode_id, MAX(created_at) AS seen_at, MAX(id) AS seq
+                    FROM cue_detections
+                    WHERE podcast_id = ?
+                    GROUP BY episode_id
+                    ORDER BY seen_at DESC, seq DESC
+                    LIMIT ?
+                ), wanted(template_id) AS (VALUES {values})
+                SELECT w.template_id AS template_id,
+                       MAX(CASE WHEN d.outcome = 'below_threshold'
+                                THEN d.match_score END) AS best_near_miss,
+                       SUM(COALESCE({_ABOVE_THRESHOLD}, 0)) AS matches
+                FROM recent r
+                CROSS JOIN wanted w
+                LEFT JOIN cue_detections d
+                       ON d.episode_id = r.episode_id
+                      AND d.podcast_id = ?
+                      AND d.template_id = w.template_id
+                GROUP BY w.template_id, r.episode_id
+                ORDER BY r.seen_at DESC, r.seq DESC""",  # noqa: S608
+            (podcast_id, limit, *ids, podcast_id),
+        ).fetchall()
+        peaks: dict[int, list] = {tid: [] for tid in ids}
+        for row in rows:
+            peaks[row['template_id']].append(
+                (row['best_near_miss'], row['matches'] or 0))
+        return peaks
+
     def cue_labeled_scores(self, podcast_id: int) -> list[tuple[float, str]]:
         """Reviewed (score, verdict) pairs for the labeled threshold suggestion."""
         conn = self.get_connection()

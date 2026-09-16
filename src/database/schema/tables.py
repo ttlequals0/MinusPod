@@ -52,6 +52,11 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     last_refresh_error TEXT,
     last_refresh_error_at TEXT,
     last_refresh_failure_at TEXT,
+    -- Consecutive unparseable-body tracking; backs off the "304 but RSS
+    -- cache stale" forced full fetch so a broken body is not refetched
+    -- every cycle. Cleared on the first clean parse.
+    parse_failure_count INTEGER DEFAULT 0,
+    last_parse_failure_at TEXT,
     network_id TEXT,
     dai_platform TEXT,
     network_id_override TEXT,

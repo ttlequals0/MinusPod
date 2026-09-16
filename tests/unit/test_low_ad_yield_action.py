@@ -4,6 +4,8 @@ detection once per episode."""
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _data_dir = bootstrap('low_ad_yield_test_')
@@ -77,7 +79,9 @@ class TestLowAdYieldHeuristic:
 class TestResolveLowAdYieldAction:
     """Per-feed override wins over the global setting."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def _isolate_global_action(self, preserve_setting):
+        preserve_setting('low_ad_yield_action')
         self.db = Database()
         self.db.set_setting('low_ad_yield_action', 'nothing', is_default=True)
 

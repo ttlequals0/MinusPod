@@ -136,10 +136,14 @@ class TestNotifyQuietCueTemplates:
                 {'id': 1, 'label': 'ding', 'enabled': True},
                 {'id': 2, 'label': 'dong', 'enabled': True},
             ]
-            processing._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1,
-                                                    cue_templates=cue_templates)
+            processing._notify_quiet_cue_templates(
+                'show-a', 'Show A', podcast_id=1, cue_templates=cue_templates,
+                threshold_suggestions={1: 0.58})
 
-        fire.assert_called_once_with('show-a', 'Show A', 1, 'ding', '2026-01-01T00:00:00Z')
+        # The alert names the threshold the near-miss streak would have needed.
+        fire.assert_called_once_with('show-a', 'Show A', 1, 'ding',
+                                     '2026-01-01T00:00:00Z',
+                                     suggested_threshold=0.58)
 
     def test_disabled_quiet_template_not_fired(self):
         with patch.object(processing, 'db') as db, \

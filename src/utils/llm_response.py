@@ -6,6 +6,19 @@ import re
 logger = logging.getLogger(__name__)
 
 
+def json_object_is_blank(response_text: str | None) -> bool:
+    """True when the body is a JSON object that names no answer at all.
+    ``{}`` and ``{"ads": null}`` qualify; ``{"ads": []}`` does not, since an explicit
+    empty list is the model answering "nothing here"."""
+    try:
+        parsed = json.loads((response_text or "").strip())
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if not isinstance(parsed, dict):
+        return False
+    return not parsed or all(v is None for v in parsed.values())
+
+
 def find_json_array_candidates(text: str):
     """Yield each top-level ``[...]`` substring from ``text`` in left-to-right
     order.

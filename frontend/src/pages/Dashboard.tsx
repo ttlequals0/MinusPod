@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import DashboardControlsMenu from '../components/DashboardControlsMenu';
+import SegmentedToggle from '../components/SegmentedToggle';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
 import { feedsQueryOptions, feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
@@ -27,6 +28,11 @@ import { focusRing, inputBase } from '../components/fieldStyles';
 type DashboardView = 'podcasts' | 'episodes';
 const DASHBOARD_VIEW_KEY = 'dashboardView';
 const DASHBOARD_EPISODES_PER_PODCAST_KEY = 'dashboardEpisodesPerPodcast';
+
+const DASHBOARD_VIEW_OPTIONS = [
+  { value: 'podcasts' as const, label: 'Podcasts', title: 'Group by podcast' },
+  { value: 'episodes' as const, label: 'Episodes', title: 'Show latest episodes per podcast' },
+];
 
 // Boxed keyboard-shortcut badge, matching the mockup's shortcut hints.
 const kbdClass = 'rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground';
@@ -224,32 +230,13 @@ function Dashboard() {
           )}
         </div>
         <div className="w-full sm:w-auto flex gap-2 items-center justify-between sm:justify-start overflow-x-auto no-scrollbar sm:overflow-visible">
-          <div className="flex h-11 border border-border rounded overflow-hidden shrink-0" role="group" aria-label="Dashboard view">
-            <button
-              onClick={() => setDashboardView('podcasts')}
-              aria-pressed={dashboardView === 'podcasts'}
-              className={`inline-flex items-center justify-center px-2.5 sm:px-3 text-sm transition-colors ${
-                dashboardView === 'podcasts'
-                  ? 'bg-primary text-primary-foreground'
-                  : btnSecondary
-              } ${focusRing}`}
-              title="Group by podcast"
-            >
-              Podcasts
-            </button>
-            <button
-              onClick={() => setDashboardView('episodes')}
-              aria-pressed={dashboardView === 'episodes'}
-              className={`inline-flex items-center justify-center px-2.5 sm:px-3 text-sm transition-colors ${
-                dashboardView === 'episodes'
-                  ? 'bg-primary text-primary-foreground'
-                  : btnSecondary
-              } ${focusRing}`}
-              title="Show latest episodes per podcast"
-            >
-              Episodes
-            </button>
-          </div>
+          <SegmentedToggle
+            options={DASHBOARD_VIEW_OPTIONS}
+            value={dashboardView}
+            onChange={setDashboardView}
+            ariaLabel="Dashboard view"
+            variant="toolbar"
+          />
           <div className="flex gap-2 items-center shrink-0">
           <DashboardControlsMenu
             dashboardView={dashboardView}

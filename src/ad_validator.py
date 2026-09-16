@@ -36,7 +36,8 @@ from utils.markers import (
     note_fold,
 )
 from differential_fetcher import differential_region_overlapping
-from utils.text import extract_text_from_segments
+from utils.constants import NON_SPONSOR_LINK_DOMAINS, is_brand_token
+from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 
 logger = logging.getLogger(__name__)
@@ -196,6 +197,9 @@ class AdValidator:
         self.segments = segments or []
         self.episode_description = episode_description or ""
         self.description_sponsors = self._extract_sponsors_from_description()
+        # One alternation for the whole set: _is_sponsor_confirmed otherwise
+        # recompiled a regex per sponsor per ad.
+        self._description_sponsor_re = word_boundary_re(self.description_sponsors)
         self.false_positive_corrections = false_positive_corrections or []
         self.confirmed_corrections = confirmed_corrections or []
         self.min_cut_confidence = min_cut_confidence
@@ -248,15 +252,19 @@ class AdValidator:
         href_pattern = re.compile(r'href=["\']?(?:https?://)?(?:www\.)?([a-z0-9-]+)\.(?:com|io|co|net|org)', re.IGNORECASE)
         for match in href_pattern.finditer(self.episode_description):
             domain = match.group(1).lower()
-            # Skip common non-sponsor domains
-            if domain not in ('redcircle', 'twitter', 'instagram', 'youtube', 'facebook', 'apple', 'spotify'):
-                sponsors.add(domain)
+            # A description links to its host, its apps, and its socials next
+            # to its sponsors, and a short outlet token matches normal speech.
+            if domain in NON_SPONSOR_LINK_DOMAINS or not is_brand_token(domain):
+                continue
+            sponsors.add(domain)
 
-        # Check for known sponsor patterns in description text
-        if self.SPONSOR_PATTERNS.search(description):
-            for match in self.SPONSOR_PATTERNS.finditer(description):
-                sponsor = match.group(0).lower().replace(' ', '')
-                sponsors.add(sponsor)
+        # Check for known sponsor patterns in description text. Both the
+        # spoken form and the squashed one are kept, so "liquid iv" confirms
+        # against a transcript however the brand is written.
+        for match in self.SPONSOR_PATTERNS.finditer(description):
+            sponsor = match.group(0).lower()
+            sponsors.add(sponsor)
+            sponsors.add(sponsor.replace(' ', ''))
 
         if sponsors:
             logger.info(f"Extracted sponsors from description: {sponsors}")
@@ -264,11 +272,11 @@ class AdValidator:
         return sponsors
 
     def _registry_confirms(self, ad: dict) -> bool:
-        """Whether the ad's own audio names sponsors from the registry.
+        """Whether the ad's own audio names a sponsor from the registry.
 
-        The transcript is the evidence, not the model's reason. Two registry
-        mentions are required, across one brand or two: a single organic
-        mention inside a span of several minutes is not a read.
+        The transcript is the evidence, not the model's reason. One brand must
+        be named twice: a passing mention of two unrelated brands inside a span
+        of several minutes is conversation, not a read.
         """
         if not self.sponsor_service:
             return False
@@ -276,54 +284,56 @@ class AdValidator:
         if not ad_text:
             return False
         try:
-            found = self.sponsor_service.find_sponsor_in_text(ad_text)
-            if not found:
-                return False
-            mentions = self.sponsor_service.count_sponsor_mentions(ad_text)
+            offsets = self.sponsor_service.brand_mention_offsets(ad_text)
         except Exception as e:
             logger.debug(f"Sponsor registry lookup failed: {e}")
             return False
+        if not offsets:
+            return False
+        found = max(offsets, key=lambda name: (len(offsets[name]),
+                                               -offsets[name][0]))
+        mentions = len(offsets[found])
         if mentions < 2:
             logger.info(
-                f"Sponsor '{found}' mentioned once in "
-                f"{ad['start']:.1f}s-{ad['end']:.1f}s; not treating as confirmed")
+                f"No registry sponsor named twice in "
+                f"{ad['start']:.1f}s-{ad['end']:.1f}s ({len(offsets)} named once); "
+                f"not treating as confirmed")
             return False
         logger.info(
-            f"Registry sponsors named {mentions}x in the ad audio "
-            f"({ad['start']:.1f}s-{ad['end']:.1f}s), first '{found}'; "
-            f"treating as confirmed")
+            f"Registry sponsor '{found}' named {mentions}x in the ad audio "
+            f"({ad['start']:.1f}s-{ad['end']:.1f}s); treating as confirmed")
         return True
 
-    def _is_sponsor_confirmed(self, ad: dict) -> bool:
-        """Check if the ad's sponsor is confirmed in the episode description,
-        or failing that, named in the ad's own audio (see _registry_confirms).
-
-        Args:
-            ad: Ad marker with reason field
-
-        Returns:
-            True if sponsor name from ad matches a sponsor in description
+    def _sponsor_confirmation_source(self, ad: dict) -> str | None:
+        """Where the ad's sponsor was confirmed: 'transcript' (a description
+        sponsor is spoken in the span), 'registry' (see _registry_confirms),
+        'reason' (only the detection model's own prose names it), or None.
+        Prose is checked last: it is the one source the model wrote itself.
         """
-        if not self.description_sponsors:
-            return self._registry_confirms(ad)
+        if self._description_sponsor_re is not None:
+            named = self._description_sponsor_re.search(
+                self._get_text_in_range(ad['start'], ad['end']))
+            if named:
+                logger.info(f"Sponsor '{named.group(0)}' found in ad transcript, "
+                            f"confirmed in description")
+                return 'transcript'
 
-        # Extract sponsor from ad reason
-        reason = ad.get('reason', '').lower()
+        if self._registry_confirms(ad):
+            return 'registry'
 
-        # Check for direct matches with description sponsors
-        for sponsor in self.description_sponsors:
-            if sponsor in reason:
-                logger.info(f"Sponsor '{sponsor}' confirmed in description for ad: {ad.get('reason', '')[:50]}")
-                return True
+        if self._description_sponsor_re is not None:
+            named = self._description_sponsor_re.search(ad.get('reason', ''))
+            if named:
+                logger.info(f"Sponsor '{named.group(0)}' confirmed in description "
+                            f"for ad: {ad.get('reason', '')[:50]}")
+                return 'reason'
 
-        # Also check transcript text in ad range for sponsor mentions
-        ad_text = self._get_text_in_range(ad['start'], ad['end']).lower()
-        for sponsor in self.description_sponsors:
-            if sponsor in ad_text:
-                logger.info(f"Sponsor '{sponsor}' found in ad transcript, confirmed in description")
-                return True
+        return None
 
-        return self._registry_confirms(ad)
+    def _is_sponsor_confirmed(self, ad: dict) -> bool:
+        """Whether the ad names a confirmed sponsor at all; the duration
+        allowance takes any source, including the model's own reason."""
+        return self._sponsor_confirmation_source(ad) is not None
 
     def _overlaps_corrections(self, corrections: list[dict], start: float, end: float,
                                overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:
@@ -709,7 +719,8 @@ class AdValidator:
             flags.append(f"WARN: Short duration ({duration:.1f}s)")
 
         # Check if sponsor is confirmed in episode description
-        sponsor_confirmed = self._is_sponsor_confirmed(ad)
+        confirmation_source = self._sponsor_confirmation_source(ad)
+        sponsor_confirmed = confirmation_source is not None
         max_duration = (self.max_ad_duration_confirmed if sponsor_confirmed
                         else self.max_ad_duration)
 
@@ -747,7 +758,11 @@ class AdValidator:
             'adjusted_confidence': round(confidence, 3),
             'original_confidence': ad.get('confidence', 1.0),
             'flags': flags,
-            'corrections': corrections
+            'corrections': corrections,
+            # Read by the reviewer's reject floor: evidence only when the
+            # transcript or the registry named the sponsor. The detection
+            # model's own reason is not evidence against that same model.
+            'sponsor_confirmed': confirmation_source in ('transcript', 'registry'),
         }
 
         return ad

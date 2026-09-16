@@ -48,11 +48,17 @@ def test_kept_span_redetected_by_pass2_persists_once():
             'validation': {'decision': 'ACCEPT', 'adjusted_confidence': 0.95}}
     orig = {'start': 500.2, 'end': 519.8, 'confidence': 0.95, 'sponsor': 'Acme'}
     with patch.object(processing, 'get_replacement_duration', return_value=1.0):
-        _p, _o, conflicts = processing._exclude_kept_spans_from_verification(
+        surviving, _o, conflicts = processing._exclude_kept_spans_from_verification(
             [proc], [orig], keep_ads, PASS1_CUTS)
-    assert len(conflicts) == 1
+    # A category keep is a settled decision, so the re-detection is dropped.
+    assert surviving == []
+    assert conflicts == []
 
-    saved, folded = _seam(keep_ads, [], conflicts)
+    # The seam still has to collapse a kept-conflict marker an earlier release
+    # persisted for the same span.
+    legacy_conflict = dict(orig, held_for_review=True, was_cut=False,
+                           hold_reason=HOLD_REASON_VERIFICATION_KEPT_CONFLICT)
+    saved, folded = _seam(keep_ads, [], [legacy_conflict])
 
     assert folded == 1
     assert len(saved) == 1

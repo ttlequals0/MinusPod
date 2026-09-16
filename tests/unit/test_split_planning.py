@@ -1,15 +1,19 @@
 """Divider planning for a merged multi-sponsor marker (issue #563).
 
 Candidates come from AD_TRANSITION_PHRASES matches in the span's transcript,
-mapped back to the start of the transcript segment each match falls in.
+the member spans a merge recorded, a clean handoff from one brand to another,
+and measured cut times, each mapped back to a transcript segment start.
 """
+
+import re
 
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('split_planning_test_')
 
 from config import MIN_AD_DURATION  # noqa: E402
-from split_planning import build_split_candidates, build_split_pieces  # noqa: E402
+from split_planning import (  # noqa: E402
+    build_split_candidates, build_split_pieces, marker_split_sources)
 from utils.text import extract_timed_spans_in_range  # noqa: E402
 
 
@@ -150,3 +154,145 @@ class TestPieces:
         pieces = build_split_pieces([], 100.0, 190.0, [130.0])
         assert [(p['start'], p['end']) for p in pieces] == [(100.0, 130.0), (130.0, 190.0)]
         assert all(p['text'] == '' for p in pieces)
+
+
+# Two back-to-back reads with no handoff phrase between them: the shape that
+# produced no candidates at all, so a merged multi-brand block was never split.
+TWO_BRANDS_NO_PHRASE = _vtt(
+    (100.0, 130.0, 'Acme makes the thing you need. Acme is worth a look.'),
+    (130.0, 160.0, 'Beta Corp files your taxes fast. Beta Corp is easy.'),
+)
+
+
+class TestBrandCandidates:
+    def test_a_brand_handoff_is_a_divider_labeled_with_the_incoming_brand(self):
+        spans = _spans(TWO_BRANDS_NO_PHRASE, 100.0, 160.0)
+
+        found = build_split_candidates(spans, 100.0, 160.0,
+                                       brands=['Acme', 'Beta Corp'])
+
+        assert [(c['time'], c['phrase']) for c in found] == [(130.0, 'Beta Corp')]
+        # One brand is one read, however many times it is named.
+        assert build_split_candidates(spans, 100.0, 160.0, brands=['Acme']) == []
+
+    def test_interleaved_brands_are_not_a_handoff(self):
+        """Two brands talked about together are one read, not two."""
+        vtt = _vtt(
+            (0.0, 40.0, 'Acme and Beta Corp both make it.'),
+            (40.0, 90.0, 'Beta Corp buys from Acme every year.'),
+        )
+        assert build_split_candidates(_spans(vtt, 0.0, 90.0), 0.0, 90.0,
+                                      brands=['Acme', 'Beta Corp']) == []
+
+    def test_a_brand_inside_a_longer_word_is_not_a_mention(self):
+        vtt = _vtt(
+            (0.0, 40.0, 'Acme is the one we use every single day here.'),
+            (40.0, 90.0, 'Betacorporation was never mentioned by name.'),
+        )
+        assert build_split_candidates(_spans(vtt, 0.0, 90.0), 0.0, 90.0,
+                                      brands=['Acme', 'Beta Corp']) == []
+
+    def test_aliases_count_as_the_same_brand(self):
+        vtt = _vtt(
+            (0.0, 40.0, 'Acme is the one we use. Acme Co ships it fast.'),
+            (40.0, 90.0, 'Nothing else is advertised in this stretch at all.'),
+        )
+        rows = [{'name': 'Acme', 'aliases': '["Acme Co"]'}]
+        assert build_split_candidates(_spans(vtt, 0.0, 90.0), 0.0, 90.0,
+                                      brands=rows) == []
+
+
+class TestCompiledMatchersAreReused:
+    """SponsorService already holds one compiled matcher per registry brand;
+    split planning rebuilt them for every span it planned."""
+
+    def test_a_supplied_matcher_is_used_instead_of_a_fresh_one(self):
+        vtt = _vtt(
+            (0.0, 40.0, 'Acme is the one we use every single day here.'),
+            (40.0, 90.0, 'Their rival ships it faster for half the price.'),
+        )
+        spans = _spans(vtt, 0.0, 90.0)
+        # Deliberately matches a word the brand name does not: the candidate
+        # can only come from the supplied pattern.
+        compiled = {'Beta Corp': re.compile(r'rival', re.IGNORECASE)}
+
+        found = build_split_candidates(spans, 0.0, 90.0,
+                                       brands=['Acme', 'Beta Corp'],
+                                       compiled=compiled)
+
+        assert [(c['time'], c['phrase']) for c in found] == [(40.0, 'Beta Corp')]
+
+
+class TestMemberAndCutCandidates:
+    MEMBERS = [{'start': 100.0, 'end': 130.0, 'sponsor': 'Acme'},
+               {'start': 130.0, 'end': 190.0, 'sponsor': 'Beta Corp'}]
+
+    def test_a_member_boundary_is_a_divider_named_after_its_sponsor(self):
+        found = build_split_candidates([], 100.0, 190.0, members=self.MEMBERS)
+
+        # The first member's start opens the block; only 130.0 is interior.
+        assert [(c['time'], c['phrase']) for c in found] == [(130.0, 'Beta Corp')]
+
+    def test_a_member_without_a_sponsor_still_proposes_a_divider(self):
+        members = [{'start': 100.0, 'end': 130.0}, {'start': 130.0, 'end': 190.0}]
+        found = build_split_candidates([], 100.0, 190.0, members=members)
+        assert [c['time'] for c in found] == [130.0]
+
+    def test_a_measured_cut_is_a_divider(self):
+        found = build_split_candidates([], 100.0, 190.0, cuts=[145.0])
+        assert [(c['time'], c['phrase']) for c in found] == [(145.0, 'measured cut')]
+
+    def test_sources_agreeing_on_one_boundary_collapse_to_one_divider(self):
+        spans = _spans(THREE_ADS, 100.0, 190.0)
+        found = build_split_candidates(
+            spans, 100.0, 190.0,
+            members=[{'start': 100.0, 'end': 131.0},
+                     {'start': 131.0, 'end': 190.0}],
+            cuts=[129.0])
+        assert len([c for c in found if 125.0 <= c['time'] <= 135.0]) == 1
+
+    def test_candidates_from_every_source_stay_sorted(self):
+        spans = _spans(THREE_ADS, 100.0, 190.0)
+        times = [c['time'] for c in build_split_candidates(
+            spans, 100.0, 190.0, members=self.MEMBERS, cuts=[175.0])]
+        assert times == sorted(times)
+
+
+class TestMarkerSplitSources:
+    def test_member_spans_and_sponsors_are_read_from_the_marker(self):
+        members, cuts = marker_split_sources({'merged_member_spans': [
+            {'start': 130.0, 'end': 190.0, 'sponsor': 'Beta Corp'},
+            {'start': 100.0, 'end': 130.0, 'sponsor': 'Acme'},
+        ]})
+        assert [m['start'] for m in members] == [100.0, 130.0]
+        assert [m['sponsor'] for m in members] == ['Acme', 'Beta Corp']
+        assert cuts == []
+
+    def test_malformed_member_entries_are_dropped(self):
+        members, _ = marker_split_sources({'merged_member_spans': [
+            'not a dict', {'start': 'x', 'end': 1.0}, {'start': 5.0, 'end': 5.0},
+            {'start': 100.0, 'end': 130.0},
+        ]})
+        assert [(m['start'], m['end']) for m in members] == [(100.0, 130.0)]
+
+    def test_gaps_between_dai_core_spans_become_cuts(self):
+        _, cuts = marker_split_sources({'dai_core_spans': [
+            {'start': 100.0, 'end': 128.0}, {'start': 131.0, 'end': 190.0},
+        ]})
+        assert cuts == [131.0]
+
+    def test_a_marker_with_no_merge_record_yields_nothing(self):
+        assert marker_split_sources({}) == ([], [])
+
+
+class TestPiecesNamedByBrand:
+    def test_a_piece_is_credited_only_when_it_names_one_brand(self):
+        spans = _spans(TWO_BRANDS_NO_PHRASE, 100.0, 160.0)
+        brands = ['Acme', 'Beta Corp']
+
+        split = build_split_pieces(spans, 100.0, 160.0, [130.0], brands=brands)
+        whole = build_split_pieces(spans, 100.0, 160.0, [], brands=brands)
+
+        assert [p['sponsor'] for p in split] == ['Acme', 'Beta Corp']
+        # Two brands in one piece is ambiguous: the generic extractor answers.
+        assert whole[0]['sponsor'] is None

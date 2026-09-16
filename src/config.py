@@ -48,12 +48,17 @@ HOLD_REASON_NO_CUE = 'no_cue_evidence'
 HOLD_REASON_NO_SPLICE = 'no_splice_evidence'
 HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
 HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT = 'reviewer_boundary_conflict'
+# The reviewer rejected a span that carries measured evidence or a confirmed
+# sponsor: a human decides, the reject alone does not drop it.
+HOLD_REASON_REVIEWER_REJECT_CONFLICT = 'reviewer_reject_conflict'
 HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
 HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 # A standalone pass-2 detection that overlaps no pass-1 marker: too low a
 # confidence to auto-cut, too high to silently discard (see
 # _gate_verification_ads_by_confidence's fall-through in processing.py).
 HOLD_REASON_VERIFICATION_MISS = 'verification_miss'
+# No longer stamped: a pass-2 finding inside a kept span is dropped, not held.
+# Kept so markers persisted under the old rule still resolve their hold reason.
 HOLD_REASON_VERIFICATION_KEPT_CONFLICT = 'verification_kept_conflict'
 HOLD_REASON_CUE_TEMPLATE_UNPROVEN = 'cue_template_unproven'
 HOLD_REASON_CUE_LOW_CONFIDENCE = 'cue_low_confidence'
@@ -288,6 +293,30 @@ def is_cue_backed(ad) -> bool:
     """
     return (bool(ad.get('cue_snap'))
             or ad.get('detection_stage') in ('cue_pair', 'manual'))
+
+
+# Stages whose spans are measured from the audio or from matched transcript
+# text rather than proposed by a model. dai_differential is deliberately not
+# one: a cross-fetch diff earns KeepDifferentialOverride but never outranks a
+# reviewer reject by itself.
+MEASURED_EVIDENCE_STAGES = frozenset({
+    'fingerprint', 'cue_pair', 'text_pattern', 'manual',
+})
+
+
+def measured_evidence(ad) -> list[str]:
+    """Every measured signal backing an ad: its own stage, the measured stages
+    it merged in, a cue snap, and a validator-confirmed sponsor."""
+    # Lazy: utils/__init__ imports utils.audio, which imports this module.
+    from utils.markers import recorded_member_spans
+    stages = {ad.get('detection_stage')}
+    stages.update(span.get('stage') for span in recorded_member_spans(ad))
+    evidence = sorted(s for s in stages if s in MEASURED_EVIDENCE_STAGES)
+    if is_edge_cue_snapped(ad, 'start') or is_edge_cue_snapped(ad, 'end'):
+        evidence.append('cue_snap')
+    if (ad.get('validation') or {}).get('sponsor_confirmed'):
+        evidence.append('sponsor_confirmed')
+    return evidence
 
 
 def is_edge_cue_snapped(ad, edge: str) -> bool:
@@ -694,6 +723,11 @@ AUDIO_CUE_SUGGEST_MIN_GAP = 0.08        # smallest empty band that counts as cle
 AUDIO_CUE_SUGGEST_MIN_SIGNAL = 3        # occurrences above the gap needed to trust the signal cluster
 AUDIO_CUE_SUGGEST_BAND = (0.40, 0.95)   # suggested value must fall in this band
 AUDIO_CUE_SUGGEST_MARGIN = 0.02         # keep the suggestion off both cluster edges
+# A template peaking just under its threshold is mis-tuned, not absent. Both
+# bounds stay tight: fewer episodes fires on noise, a wider band proposes a
+# threshold down in the noise ceiling.
+AUDIO_CUE_SUGGEST_NEAR_MISS_EPISODES = 3
+AUDIO_CUE_SUGGEST_NEAR_MISS_BAND = 0.2
 # The confidence a cue must reach to affect anything downstream (LLM prompt
 # floor, hardcoded). Snap/pair use their own DB-settable floors; this is a
 # display/annotation mirror only -- do NOT rewire audio_enforcer from it here.
@@ -1674,7 +1708,13 @@ STAGE_TUNABLE_DEFAULTS = {
     # reviewer (applies to both reviewer pass 1 and reviewer pass 2)
     'reviewer_temperature': 0.0,
     'reviewer_max_tokens': 4096,
+    # Budget stays None: for Anthropic that means extended thinking off, which
+    # is already cheaper than the 1024-token floor the range allows.
     'reviewer_reasoning_budget': None,
+    # Unset: a default effort costs a rejected request plus a retry per
+    # reviewed ad on a non-reasoning model. Operators who want the reviewer to
+    # think set it in Settings, where 'low' caps a verdict that otherwise
+    # spent ~2k reasoning tokens on a 188-character answer.
     'reviewer_reasoning_level': None,
     # chapter generation: boundary detection
     'chapter_boundary_temperature': 0.1,
@@ -1922,17 +1962,20 @@ def resolve_chapter_geometry(settings: dict | None = None):
     return target, window, max_boundaries, min_duration
 
 
-def resolve_stage_tunables(prefix: str, settings: dict | None = None):
+def resolve_stage_tunables(prefix: str, settings: dict | None = None,
+                           provider: str | None = None):
     """Read (max_tokens, temperature, reasoning) for a stage prefix.
 
-    Reasoning picks the right key based on the active provider: numeric budget
-    for Anthropic, string-enum level for everyone else. Stage modules call this
-    once at LLM-call time; the underlying DB reads are cached.
+    Reasoning picks the right key based on ``provider``, the provider this
+    stage's call is actually routed to: numeric budget for Anthropic, string
+    enum level for everyone else. Omitted, it falls back to the global
+    effective provider, which is wrong for a stage routed elsewhere. Stage
+    modules call this once at LLM-call time; the DB reads are cached.
     """
     from llm_client import get_effective_provider  # lazy: llm_client imports config
     max_tokens = get_stage_tunable(f'{prefix}_max_tokens', settings=settings)
     temperature = get_stage_tunable(f'{prefix}_temperature', settings=settings)
-    if get_effective_provider() == PROVIDER_ANTHROPIC:
+    if (provider or get_effective_provider()) == PROVIDER_ANTHROPIC:
         reasoning = get_stage_tunable(f'{prefix}_reasoning_budget', settings=settings)
     else:
         reasoning = get_stage_tunable(f'{prefix}_reasoning_level', settings=settings)

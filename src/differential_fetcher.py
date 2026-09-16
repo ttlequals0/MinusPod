@@ -14,6 +14,7 @@ fingerprint and UA + natural time spacing is the only variation available.
 import logging
 import os
 import random
+from collections.abc import Callable
 
 import numpy as np
 
@@ -441,7 +442,7 @@ def match_cue_anchor_pairs(primary_cues: list, refetch_cues: list) -> list:
 
 def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
                    timeout_s: int = 300, cue_scan=None,
-                   primary_cues: list | None = None) -> dict:
+                   primary_cues: Callable[[], list] | None = None) -> dict:
     """Refetch the enclosure with a rotated podcast-client UA and diff it
     against the run file.
 
@@ -453,10 +454,16 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
     (refetch_path) -> [{'time', 'template_id'}] run after the download and
     BEFORE alignment, so the refetch's template cues can both persist in
     the result ('refetch_cues') and anchor the probe offsets of the same
-    alignment pass (paired against ``primary_cues`` by template_id and
-    order). A scan failure logs and degrades to no cues -- it never fails
-    the differential. The refetch file is still deleted here in all cases.
+    alignment pass (paired against ``primary_cues``, a zero-arg callable
+    resolved only here, after the refetch scan, so the caller can still be
+    computing them while this side scans). A failure on either side logs once
+    and degrades to no cues; it never fails the differential. The refetch file is still deleted here in
+    all cases.
     """
+    # Checked before the never-raises boundary below: a non-callable here is a
+    # caller bug, and swallowing it would silently drop every cue anchor.
+    if primary_cues is not None and not callable(primary_cues):
+        raise TypeError('primary_cues must be a zero-argument callable')
     ua = pick_refetch_user_agent(download_user_agent())
     meta = {'ua': ua, 'size': None, 'duration': None}
     refetch_path = os.path.join(work_dir, 'refetch_audio')
@@ -484,14 +491,15 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
         if cue_scan is not None:
             try:
                 refetch_cues = list(cue_scan(refetch_path))
-                anchor_pairs = match_cue_anchor_pairs(
-                    primary_cues or [], refetch_cues)
+                # Resolved after the scan, so the wait for the primary cues
+                # overlaps it instead of serializing in front of it.
+                primary = primary_cues() if primary_cues is not None else []
+                anchor_pairs = match_cue_anchor_pairs(primary or [], refetch_cues)
             except Exception as e:
-                # Covers both a scan hook raising and a scan hook returning
-                # malformed cue dicts (match_cue_anchor_pairs sorts/indexes
-                # on 'time'/'template_id'); either degrades to no anchors
-                # instead of failing the whole differential.
-                logger.warning('Refetch cue scan failed (non-fatal): %s', e)
+                # A scan hook raising, malformed cue dicts, or the primary-cue
+                # wait timing out: each degrades to no anchors rather than
+                # failing the whole differential.
+                logger.warning('Cue anchoring skipped (non-fatal): %s', e)
                 refetch_cues = []
                 anchor_pairs = []
         aligned = align_and_diff(run_file_path, refetch_path, work_dir,

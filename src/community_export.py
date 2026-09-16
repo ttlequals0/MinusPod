@@ -29,6 +29,7 @@ import urllib.parse
 import uuid
 from datetime import datetime, timezone
 
+from utils.text import word_boundary_re
 from utils.community_tags import (
     BUNDLE_FORMAT,
     BUNDLE_VERSION,
@@ -222,10 +223,11 @@ def find_foreign_sponsors(
         candidates = [name_l] + [a.lower() for a in normalize_aliases(s.get('aliases'))]
         if any(c in declared_names_lower for c in candidates):
             continue
-        for c in candidates:
-            if re.search(rf'\b{re.escape(c)}\b', text_l):
-                foreign.append(name)
-                break
+        # Lookarounds, not \b: a brand ending in punctuation ("Liquid I.V.")
+        # has no word boundary after it and \b would never match it.
+        pattern = word_boundary_re(candidates)
+        if pattern is not None and pattern.search(text_l):
+            foreign.append(name)
     return foreign
 
 

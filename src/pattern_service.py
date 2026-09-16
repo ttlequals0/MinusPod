@@ -849,7 +849,7 @@ class PatternService:
 
         # Load patterns once for all missed ads (avoid N+1 queries)
         patterns = self.get_patterns_for_podcast(slug)
-        matcher = self._get_text_pattern_matcher() if segments else None
+        matcher = self.text_pattern_matcher() if segments else None
 
         # Read at call time (not cached) so settings changes apply on the
         # next run without a restart.
@@ -892,14 +892,17 @@ class PatternService:
                 )
                 continue
 
-            if sanitize_sponsor_label(sponsor) is None:
+            clean_sponsor = sanitize_sponsor_label(sponsor, show_name=slug)
+            if clean_sponsor is None:
                 logger.info(
                     f"[{slug}:{episode_id}] Rejecting verification miss for "
                     f"'{sponsor}' (segment or structure name, not an advertiser)"
                 )
                 continue
 
-            sponsor = canonical_sponsor(sponsor)
+            # The normalized label is what is learned and what the registry row
+            # is named; the raw slot may still carry a credit lead-in.
+            sponsor = canonical_sponsor(clean_sponsor)
 
             try:
                 matched = False
@@ -957,6 +960,7 @@ class PatternService:
                     podcast_id=slug,
                     episode_id=episode_id,
                     category=ad.get('category'),
+                    ad=ad,
                 )
                 if pattern_ids:
                     logger.info(
@@ -974,8 +978,10 @@ class PatternService:
                     f"for '{sponsor}': {e}"
                 )
 
-    def _get_text_pattern_matcher(self) -> TextPatternMatcher:
-        """Lazily instantiate a TextPatternMatcher sharing our db."""
+    def text_pattern_matcher(self) -> TextPatternMatcher:
+        """The matcher this service shares, built once on first use. Callers
+        outside the pipeline use it rather than building a per-request one,
+        which would reload the whole sponsor registry."""
         if getattr(self, '_text_pattern_matcher', None) is None:
             self._text_pattern_matcher = TextPatternMatcher(db=self.db)
         return self._text_pattern_matcher

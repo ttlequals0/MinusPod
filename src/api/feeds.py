@@ -2184,6 +2184,15 @@ def delete_feed(slug):
         return error_response('Failed to delete feed', 500)
 
 
+def _refresh_message(outcome) -> str:
+    """What actually happened on a refresh, for the UI toast."""
+    if outcome.status == 'coalesced':
+        return 'Refresh already completed recently'
+    if outcome.status == 'parse_backoff':
+        return outcome.error or 'Feed is backing off after an unreadable body'
+    return 'Feed refreshed'
+
+
 @api.route('/feeds/<slug>/refresh', methods=['POST'])
 @limiter.limit("10 per minute")
 @log_request
@@ -2219,7 +2228,7 @@ def refresh_feed(slug):
     try:
         from main_app.feeds import refresh_rss_feed
         outcome = refresh_rss_feed(slug, podcast['source_url'], force=force)
-        if not outcome.success:
+        if not outcome.success and outcome.status != 'parse_backoff':
             status = 502 if outcome.status in ('fetch_failed', 'parse_failed') else 500
             return error_response(outcome.error or 'Feed refresh failed', status)
 
@@ -2230,8 +2239,7 @@ def refresh_feed(slug):
         logger.info(f"Refreshed feed: {slug}")
         return json_response({
             'slug': slug,
-            'message': ('Refresh already completed recently'
-                        if outcome.status == 'coalesced' else 'Feed refreshed'),
+            'message': _refresh_message(outcome),
             'outcome': outcome.to_dict(),
             'episodeCount': total,
             'lastRefreshed': podcast.get('last_checked_at'),

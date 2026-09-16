@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, setQueuePriority, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
+import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, setQueuePriority, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
 import type { PromptName } from '../api/settings';
-import { modelsQueryOptionsFor } from '../api/settings';
 import { useModelCatalog } from '../hooks/useModelCatalog';
+import { useModelsRefresh } from '../hooks/useModelsRefresh';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -80,17 +80,6 @@ function SettingsGroupHeader({ title }: { title: string }) {
 
 type SettingScalar = string | number | boolean;
 
-// Which catalog section a model refresh came from, so its pending and error
-// state stay in the section whose button started it.
-type CatalogScope = 'stages' | 'review';
-interface CatalogRefreshError {
-  scope: CatalogScope;
-  message: string;
-}
-interface CatalogTarget {
-  provider: string;
-  slot: ProviderSlot;
-}
 type StageKey = 'detection' | 'verification' | 'chapters' | 'review';
 
 // One registry row per Save-bar field. Hydration, the changed-field diff,
@@ -117,25 +106,6 @@ interface FieldSpec {
   // ...or a property patch collected into one of the nested state objects.
   obj?: 'reviewer' | 'audioCue' | 'whisperApi';
   prop?: string;
-}
-
-// One mutation per Refresh button: a shared instance drops the first click's
-// pending state as soon as the second click rebinds the observer.
-function useCatalogRefresh(
-  targets: CatalogTarget[],
-  onRebuilt: (targets: CatalogTarget[]) => void,
-  onFailed: (message: string) => void,
-) {
-  return useMutation({
-    mutationFn: async () => {
-      const slots = Array.from(new Set(targets.map((t) => t.slot)));
-      await Promise.all(slots.map((slot) => refreshModels(slot)));
-      return targets;
-    },
-    onSuccess: onRebuilt,
-    onError: (e: unknown) =>
-      onFailed(getErrorMessage(e, 'Could not refresh this provider\'s model list.')),
-  });
 }
 
 function fieldBaseline(settings: SettingsShape, f: FieldSpec): SettingScalar | undefined {
@@ -815,7 +785,6 @@ function Settings() {
   // defaults), and keying on identity alone would strand the flag as true,
   // where a later unrelated refetch would clobber genuinely-unsaved edits.
   const [rehydratePending, setRehydratePending] = useState(false);
-  const [modelsRefreshError, setModelsRefreshError] = useState<CatalogRefreshError | null>(null);
   const [seenSettingsUpdatedAt, setSeenSettingsUpdatedAt] = useState(0);
   const settingsJustFetched = settingsUpdatedAt !== seenSettingsUpdatedAt;
   if (settings && (settings !== settingsSnapshot || settingsJustFetched)) {
@@ -963,39 +932,16 @@ function Settings() {
     },
   });
 
-  const catalogTargets = (scope: CatalogScope): CatalogTarget[] => (scope === 'review'
-    ? [effectiveReviewProvider
-      ? { provider: effectiveReviewProvider, slot: reviewSlot }
-      // same_as_pass borrows detection's catalog, so that is the key to
-      // rebuild and invalidate; the review slot's own key has no subscriber.
-      : { provider: effectiveDetectionProvider, slot: detectionSlot }]
-    : [
-      { provider: effectiveDetectionProvider, slot: detectionSlot },
-      { provider: effectiveVerificationProvider, slot: verificationSlot },
-      { provider: effectiveChaptersProvider, slot: chaptersSlot },
-    ]);
-
-  const onCatalogsRebuilt = (scope: CatalogScope) => (targets: CatalogTarget[]) => {
-    setModelsRefreshError((prev) => (prev?.scope === scope ? null : prev));
-    // Only the rebuilt slots are stale; the ['models'] prefix would refetch
-    // catalogs this refresh never touched.
-    for (const target of targets) {
-      queryClient.invalidateQueries({
-        queryKey: modelsQueryOptionsFor(target.provider, target.slot).queryKey,
-      });
-    }
-  };
-  const onCatalogRefreshFailed = (scope: CatalogScope) => (message: string) =>
-    setModelsRefreshError({ scope, message });
-
-  const stagesRefresh = useCatalogRefresh(
-    catalogTargets('stages'), onCatalogsRebuilt('stages'), onCatalogRefreshFailed('stages'),
-  );
-  const reviewRefresh = useCatalogRefresh(
-    catalogTargets('review'), onCatalogsRebuilt('review'), onCatalogRefreshFailed('review'),
-  );
-  const refreshErrorFor = (scope: CatalogScope) =>
-    (modelsRefreshError?.scope === scope ? modelsRefreshError.message : null);
+  const stagesRefresh = useModelsRefresh([
+    { provider: effectiveDetectionProvider, slot: detectionSlot },
+    { provider: effectiveVerificationProvider, slot: verificationSlot },
+    { provider: effectiveChaptersProvider, slot: chaptersSlot },
+  ]);
+  const reviewRefresh = useModelsRefresh([effectiveReviewProvider
+    ? { provider: effectiveReviewProvider, slot: reviewSlot }
+    // same_as_pass borrows detection's catalog, so that is the key to
+    // rebuild and invalidate; the review slot's own key has no subscriber.
+    : { provider: effectiveDetectionProvider, slot: detectionSlot }]);
 
   const modelPricingMutation = useMutation({
     mutationFn: ({ modelId, override }: {
@@ -1276,7 +1222,7 @@ function Settings() {
         detectionCatalog={detectionCatalog}
         verificationCatalog={verificationCatalog}
         chaptersCatalog={chaptersCatalog}
-        refreshError={refreshErrorFor('stages')}
+        modelsRefresh={stagesRefresh}
         selectedModel={selectedModel}
         verificationModel={verificationModel}
         chaptersModel={chaptersModel}
@@ -1290,8 +1236,6 @@ function Settings() {
         onVerificationProviderChange={setVerificationProvider}
         onChaptersProviderChange={setChaptersProvider}
         secondaryProviderEnabled={secondaryProviderEnabled}
-        onRefresh={() => stagesRefresh.mutate()}
-        refreshIsPending={stagesRefresh.isPending}
         modelPricingOverrides={settings?.modelPricingOverrides?.value ?? {}}
         additionalModelIds={[
           reviewer.model && reviewer.model !== 'same_as_pass' ? reviewer.model : '',
@@ -1414,9 +1358,7 @@ function Settings() {
         resetIsPending={resetPromptsMutation.isPending}
         secondaryProviderEnabled={secondaryProviderEnabled}
         catalog={reviewCatalog}
-        modelsRefreshError={refreshErrorFor('review')}
-        onRefreshModels={() => reviewRefresh.mutate()}
-        refreshModelsIsPending={reviewRefresh.isPending}
+        modelsRefresh={reviewRefresh}
         reviewPromptIsDefault={settings?.reviewPrompt.isDefault}
         resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
         onResetReviewPrompt={() => resetPromptMutation.mutate('review')}

@@ -11,7 +11,7 @@ import { ExperimentalBadge } from '../../components/ExperimentalBadge';
 import { FeedTagsEditor } from '../../components/FeedTagsEditor';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import TriStateSelect from '../../components/TriStateSelect';
-import TriStateToggle from '../../components/TriStateToggle';
+import SegmentedToggle from '../../components/SegmentedToggle';
 import SegmentActionToggle from '../../components/SegmentActionToggle';
 import Checkbox from '../../components/Checkbox';
 import {
@@ -1364,7 +1364,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </span>
                 </div>
                 <div className="flex flex-col items-start sm:items-end gap-1">
-                  <TriStateToggle
+                  <SegmentedToggle
                     value={feed.detectShowSegments == null ? 'inherit' : feed.detectShowSegments ? 'on' : 'off'}
                     options={[
                       { value: 'inherit', label: 'Inherit' },

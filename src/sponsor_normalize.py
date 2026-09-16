@@ -7,7 +7,9 @@ All sponsor writes from the rest of the codebase flow through
 import re
 import string
 
-from utils.constants import is_non_brand_name, strip_apostrophe_suffixes
+from utils.constants import (
+    is_hosting_platform_name, is_non_brand_name, strip_apostrophe_suffixes,
+)
 
 
 _STRIP_CHARS = string.whitespace + '\'"`.,;:!?-'
@@ -69,7 +71,7 @@ def get_or_create_known_sponsor(db, name):
         return None
     if len(s) > _MAX_LENGTH:
         return None
-    if is_non_brand_name(s):
+    if is_non_brand_name(s) or is_hosting_platform_name(s):
         return None
     existing = db.get_known_sponsor_by_name(s)
     if existing:

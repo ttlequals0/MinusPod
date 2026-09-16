@@ -880,11 +880,26 @@ def update_ad_detection_settings():
     # model can carry entirely different limits (issue #747). Detect before
     # the phases persist the new values, lift the hold after they succeed.
     changed_stages = _changed_stage_models(db, data)
+    prev_review_model = db.get_setting('review_model')
+    prev_claude_model = db.get_setting('claude_model')
 
     for phase in phases:
         err = phase(db, data)
         if err is not None:
             return err
+        # Each phase commits as it runs, so calibration follows its own phase:
+        # a later field's 400 would otherwise leave a saved review model that
+        # was never self-tested.
+        if phase is _apply_review_fields and 'reviewModel' in data:
+            maybe_trigger_reviewer_calibration(
+                db, prev_review_model, data['reviewModel'])
+        elif phase is _apply_model_fields and 'claudeModel' in data:
+            # review_model defaults to same_as_pass, so the detection model is
+            # the reviewer model until an explicit reviewer model is set.
+            review_model = db.get_setting('review_model')
+            if not review_model or review_model == 'same_as_pass':
+                maybe_trigger_reviewer_calibration(
+                    db, prev_claude_model, data['claudeModel'])
 
     # Routes resolved after the phases, so a save that also moves a stage
     # lifts the hold on the account it now uses.
@@ -968,8 +983,8 @@ def _apply_prompt_fields(db, data):
 
 def _apply_review_fields(db, data):
     """Persist the LLM-reviewer toggle, model, and boundary-shift clamp."""
-    # Validate everything before any write, so a bad sibling field cannot leave
-    # review_model persisted with the calibration self-test skipped.
+    # Validate everything before any write, so a bad sibling field cannot
+    # leave review_model persisted.
     review_provider = None
     if 'reviewProvider' in data:
         review_provider = data['reviewProvider']
@@ -988,13 +1003,9 @@ def _apply_review_fields(db, data):
         db.set_setting('enable_ad_review', value, is_default=False)
         logger.info(f"Updated enable_ad_review to: {value}")
 
-    calibration_change = None
     if 'reviewModel' in data:
-        old_model = db.get_setting('review_model')
-        new_model = data['reviewModel']
-        db.set_setting('review_model', new_model, is_default=False)
-        logger.info(f"Updated review_model to: {new_model}")
-        calibration_change = (old_model, new_model)
+        db.set_setting('review_model', data['reviewModel'], is_default=False)
+        logger.info(f"Updated review_model to: {data['reviewModel']}")
 
     if review_provider is not None:
         db.set_setting('review_provider', review_provider, is_default=False)
@@ -1004,24 +1015,14 @@ def _apply_review_fields(db, data):
         db.set_setting('review_max_boundary_shift', str(boundary_shift), is_default=False)
         logger.info(f"Updated review_max_boundary_shift to: {boundary_shift}")
 
-    # Fire-and-forget after all review settings are persisted, so the
-    # background self-test reads the new provider slot, not a stale one.
-    if calibration_change is not None:
-        maybe_trigger_reviewer_calibration(db, *calibration_change)
     return None
 
 
 def _apply_model_fields(db, data):
     """Persist primary model selections; whisper change marks model for reload."""
     if 'claudeModel' in data:
-        old_claude = db.get_setting('claude_model')
         db.set_setting('claude_model', data['claudeModel'], is_default=False)
         logger.info(f"Updated Claude model to: {data['claudeModel']}")
-        # review_model defaults to same_as_pass, so the detection model IS the
-        # reviewer model until an explicit reviewer model is set.
-        review_model = db.get_setting('review_model')
-        if not review_model or review_model == 'same_as_pass':
-            maybe_trigger_reviewer_calibration(db, old_claude, data['claudeModel'])
 
     if 'verificationModel' in data:
         db.set_setting('verification_model', data['verificationModel'], is_default=False)

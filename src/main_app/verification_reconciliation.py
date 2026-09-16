@@ -14,11 +14,17 @@ from config import (
 )
 from database.settings import registry_get_default
 from utils.time import (
-    adjust_timestamp, overlap_ratio, overlap_seconds, ranges_overlap,
+    adjust_timestamp, merge_cut_spans, overlap_ratio, overlap_seconds,
+    ranges_overlap,
 )
 from verification_pass import _build_timestamp_map, _map_to_original
 
 audio_logger = logging.getLogger('podcast.audio')
+
+# How much of a pass-2 finding a kept span must cover before the keep settles
+# it. Below this the finding reaches well past the keep, and dropping it whole
+# would discard audio the operator never ruled on.
+KEPT_SPAN_CONTAINMENT_MIN = 0.9
 
 
 def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
@@ -147,13 +153,13 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
                                            verification_ads_original,
                                            pass1_kept_markers, pass1_cuts,
                                            false_positive_corrections=None):
-    """Divert pass-2 findings that overlap a kept pass-1 span into review
-    rather than cutting them.
+    """Settle pass-2 findings against the pass-1 spans the operator keeps.
 
-    A kept span reflects the operator's segment-action map, so pass 2 must
-    not cut through it. Silently discarding the finding hid a real
-    disagreement, so each one is stamped held_for_review and returned
-    separately for the pending-review queue.
+    A finding the keep contains carries action_applied == 'keep', so the
+    segment-action map or a user false-positive rejection already ruled on
+    that audio: it is logged and dropped. A finding that only clips the keep
+    is mostly new audio, so it is held for review instead of being discarded
+    with the keep.
 
     Runs before _gate_verification_ads_by_confidence so none of its
     autocut/hold/log branches ever see a finding inside a kept span.
@@ -166,23 +172,19 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     """
     if not pass1_kept_markers:
         return verification_ads_processed, verification_ads_original, []
-    kept_spans_processed = [
-        (marker['start'], marker['end'])
-        for marker in _pass2_keep_barriers_processed(
-            pass1_kept_markers, pass1_cuts)
-    ]
+    keep_barriers = _pass2_keep_barriers_processed(
+        pass1_kept_markers, pass1_cuts)
     surviving_processed = []
     surviving_original = []
     conflicts = []
     for ad, orig_ad in zip(verification_ads_processed, verification_ads_original, strict=True):
-        overlap = next(
-            (span for span in kept_spans_processed
-             if ranges_overlap(ad['start'], ad['end'], span[0], span[1])),
-            None)
-        if overlap is not None:
+        overlaps = [barrier for barrier in keep_barriers
+                    if ranges_overlap(ad['start'], ad['end'],
+                                      barrier['start'], barrier['end'])]
+        if overlaps:
+            overlap = min(overlaps, key=lambda barrier: barrier['start'])
             # This runs before validation, so screen against the user's
-            # false-positive rejections here: a span the user already ruled
-            # out must not resurface in the review queue as a kept-conflict.
+            # false-positive rejections here too.
             if _matches_false_positive_correction(
                     orig_ad, false_positive_corrections):
                 audio_logger.info(
@@ -191,10 +193,27 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
                     f"a user false-positive rejection; dropping it"
                 )
                 continue
+            # Against the union: a finding split across two adjacent keeps is
+            # as settled as one lying inside a single keep.
+            merged = merge_cut_spans([{'start': barrier['start'],
+                                       'end': barrier['end']}
+                                      for barrier in overlaps])
+            covered = sum(overlap_seconds(lo, hi, ad['start'], ad['end'])
+                          for lo, hi, *_ in merged)
+            span = ad['end'] - ad['start']
+            inside = min(1.0, covered / span) if span > 0 else 0.0
+            if inside >= KEPT_SPAN_CONTAINMENT_MIN:
+                audio_logger.info(
+                    f"Pass-2 finding {ad['start']:.1f}s-{ad['end']:.1f}s "
+                    f"(processed) lies inside a {overlap.get('category')!r} "
+                    f"span the category action keeps; dropping it"
+                )
+                continue
             audio_logger.info(
                 f"Pass-2 finding {ad['start']:.1f}s-{ad['end']:.1f}s "
-                f"(processed) contradicts kept span {overlap[0]:.1f}s-"
-                f"{overlap[1]:.1f}s: holding for review instead of cutting"
+                f"(processed) is only {inside:.0%} inside a kept "
+                f"{overlap.get('category')!r} span: holding for review "
+                f"instead of cutting"
             )
             orig_ad['held_for_review'] = True
             orig_ad['was_cut'] = False

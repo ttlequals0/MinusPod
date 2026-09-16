@@ -29,8 +29,8 @@ def finite_number(value) -> float | None:
 
 
 # Both-edges tolerance for treating two markers as the same span. Matches
-# _find_marker_in_list in api/patterns.py, the reject path, and the review
-# listing, so every consumer agrees on what one span means.
+# find_marker_in_list, the reject path, and the review listing, so every
+# consumer agrees on what one span means.
 BOUNDS_TOLERANCE_S = 0.5
 
 
@@ -40,6 +40,14 @@ def spans_match(a_start, a_end, b_start, b_end,
     if a_start is None or a_end is None or b_start is None or b_end is None:
         return False
     return abs(a_start - b_start) <= tol and abs(a_end - b_end) <= tol
+
+
+def find_marker_in_list(markers, start, end, tol: float = BOUNDS_TOLERANCE_S):
+    """Bounds match within tolerance against an already-loaded marker list."""
+    for marker in markers or []:
+        if spans_match(marker.get('start'), marker.get('end'), start, end, tol):
+            return marker
+    return None
 
 
 def _valid_spans(marker: dict, key: str, extra_field: str | None = None) -> list[dict]:
@@ -137,6 +145,9 @@ UNPROTECTED_MEMBER_STAGES = frozenset({'dai_differential', 'vad_gap'})
 COARSE_MEMBER_STAGES = frozenset({
     'claude', 'first_pass', 'verification', 'verification_miss',
     'heuristic_preroll', 'heuristic_postroll', 'language',
+    # Complement of an LLM content label, so its edges are as coarse as the
+    # label's.
+    'keep_content',
 })
 
 MERGED_MEMBER_SPANS = 'merged_member_spans'

@@ -124,34 +124,64 @@ def is_sponsor_reasoning_rationale(text) -> bool:
     return False
 
 
-def sanitize_sponsor_label(text, show_name: str | None = None) -> str | None:
-    """Reject an LLM-mislabeled sponsor slot before it reaches a marker.
+# Host lead-in before the advertiser ("our friends and sponsors at Acme").
+# The brand is what follows; rejecting the whole string loses it.
+_SPONSOR_LEAD_IN_RE = re.compile(
+    r'^(?:(?:our|their|the|his|her|its|my|your)\s+)?'
+    r'(?:friends?|partners?|sponsors?|supporters?)'
+    r'(?:\s+and\s+(?:friends?|partners?|sponsors?|supporters?))*'
+    r'\s+(?:at|from)\s+(.+)$', re.I)
 
-    Returns None when `text` is falsy, is reasoning prose caught by
-    is_sponsor_reasoning_rationale, is a bare segment name (Claude
-    sometimes echoes the show-segment title into the sponsor slot for one ad
-    read, e.g. 'Xbox segment' instead of the actual advertiser -- matched by
-    a trailing "segment" word, case-insensitive), is a bare segment category
-    name ('Outro', 'Recap'), or names the show itself.
-    Otherwise returns `text` unchanged. Used by
-    ad_detector._merge_detection_results to keep junk sponsor labels out of
-    merged markers.
-    """
+# Credit lead-in before the advertiser ("Sponsored by Acme"). The whole
+# phrase goes, preposition included, or the brand is stored as "by Acme".
+_CREDIT_LEAD_IN_RE = re.compile(
+    r'^(?:brought\s+to\s+you|sponsored|produced|presented|powered|hosted|'
+    r'edited|written)\s+by\b\s*(.*)$', re.I)
+
+# Possessives that precede either a brand ("Our Place") or junk ("our
+# sponsor"). Kept in the label; what follows decides.
+_POSSESSIVE_LEAD_WORDS = frozenset({
+    'our', 'their', 'his', 'her', 'its', 'my', 'your',
+})
+
+
+def sanitize_sponsor_label(text, show_name: str | None = None) -> str | None:
+    """The advertiser in an LLM sponsor slot, or None when it names none.
+    A host lead-in ("their friends and sponsors at Acme") and a credit lead-in
+    ("Sponsored by Acme") are stripped; prose, segment/structure labels and the
+    show's own name are rejected."""
     if not text:
         return None
-    if is_sponsor_reasoning_rationale(text):
+    label = str(text).strip()
+    if is_sponsor_reasoning_rationale(label):
         return None
-    if re.search(r'\bsegment$', str(text).strip(), re.I):
+    credit = _CREDIT_LEAD_IN_RE.match(label)
+    if credit:
+        label = credit.group(1).strip()
+        if not label:
+            return None
+    lead_in = _SPONSOR_LEAD_IN_RE.match(label)
+    if lead_in:
+        label = lead_in.group(1).strip()
+    if re.search(r'\bsegment$', label, re.I):
         return None
     # Imported lazily: this module is a leaf that most of src imports, and
     # config is the heavier one. A module-scope import here would make any
     # future utils import in config a cycle.
     from config import repair_segment_category
-    if repair_segment_category(text) or str(text).strip().lower() in SEGMENT_STRUCTURE_WORDS:
+    if (repair_segment_category(label) or is_non_brand_name(label)
+            or is_hosting_platform_name(label)):
         return None
-    if names_the_show(text, show_name):
+    head, _, rest = label.partition(' ')
+    # A possessive in front of junk is junk; in front of a real name it is
+    # filler the model added, and the name stays whole.
+    if head.lower() in _POSSESSIVE_LEAD_WORDS and (
+            not rest.strip() or is_non_brand_name(rest.strip())
+            or names_the_show(rest, show_name)):
         return None
-    return text
+    if names_the_show(label, show_name):
+        return None
+    return label
 
 
 def names_the_show(text, show_name: str | None) -> bool:
@@ -220,7 +250,7 @@ KNOWN_SHORT_BRANDS = frozenset({
     'deel', 'ramp', 'brex', 'lyft', 'uber', 'slack', 'zoom', 'asana',
     'figma', 'canva', 'miro', 'hinge', 'tonal', 'whoop',
     'noom', 'ipsy', 'lume',
-    'lmnt', 'acast',
+    'lmnt', 'ag1',
 })
 
 # Sponsor name aliases for common Whisper mishearings / spelling variants.
@@ -586,24 +616,123 @@ AUDIO_SIGNAL_WORDS = frozenset({
     'digital', 'deep', 'pair', 'cue', 'signal',
 })
 
+# Role, credit, and structural labels the model emits when the span has no
+# advertiser to name ("Produced", "Post-signoff", "Non-English"). A name made
+# only of these describes the segment, not a brand. Ad-shape words are listed
+# here rather than read from NON_BRAND_WORDS, which also holds ordinary words
+# real brands are built from ("The Gap", "Content Network", "Full Spot").
+STRUCTURAL_LABEL_WORDS = frozenset({
+    'produced', 'producer', 'producers', 'production', 'presented',
+    'presents', 'hosted', 'edited', 'written', 'narrated',
+    'material', 'final', 'signoff', 'sign', 'off', 'intro', 'outro',
+    'recap', 'credits', 'bumper', 'teaser', 'preview',
+    'non', 'english', 'language', 'self', 'cross',
+    'mid', 'pre', 'post', 'roll', 'promo',
+})
+
+# Podcast hosting, CDN, and DAI platforms. A domain label naming one of these
+# names the delivery platform, never the advertiser. pattern_service's
+# DAI_PLATFORMS holds the feed-signature domains and is not interchangeable: a
+# platform that also buys ads (Spotify) belongs there and not here.
+PODCAST_HOSTING_NAMES = frozenset({
+    'acast', 'megaphone', 'art19', 'omny', 'omnycontent', 'simplecast',
+    'spreaker', 'podbean', 'anchor', 'libsyn', 'buzzsprout', 'captivate',
+    'transistor', 'redcircle', 'blubrry', 'fireside', 'pinecast',
+    'tritondigital', 'podtrac', 'chartable', 'podsights', 'podscribe',
+    'audioboom', 'backtracks', 'soundcloud',
+})
+
+# Listening apps, storefronts, and social networks an episode description
+# links to alongside its sponsors. Harvest-only: several of these do buy ads,
+# so they are not junk sponsor names the way a hosting platform is.
+NON_SPONSOR_LINK_DOMAINS = PODCAST_HOSTING_NAMES | frozenset({
+    'apple', 'itunes', 'spotify', 'google', 'youtube', 'amazon', 'pandora',
+    'iheart', 'stitcher', 'overcast', 'pocketcasts', 'castbox', 'deezer',
+    'tunein', 'twitter', 'instagram', 'facebook', 'tiktok', 'threads',
+    'mastodon', 'bsky', 'bluesky', 'reddit', 'linkedin', 'discord', 'twitch',
+    'patreon', 'paypal', 'substack', 'github', 'linktr',
+})
+
+# Generic web words a URL or "dot com" harvest picks up as though they were
+# brands ("info" out of "example info dot com").
+GENERIC_WEB_WORDS = frozenset({
+    'info', 'www', 'web', 'website', 'site', 'online', 'home', 'index',
+    'page', 'pages', 'link', 'links', 'email', 'mail', 'blog', 'help',
+    'support', 'about', 'contact', 'privacy', 'terms', 'login', 'signin',
+    'signup', 'subscribe', 'download', 'store', 'shop', 'news', 'search',
+})
+
+# Shortest a domain-derived brand token may be; below this it matches ordinary
+# speech. KNOWN_SHORT_BRANDS is the exemption.
+MIN_BRAND_TOKEN_CHARS = 4
+
+# Shortest registry name or alias compiled into a brand matcher. Below it a
+# name matches ordinary speech wherever a span is scanned for advertisers.
+MIN_BRAND_MATCH_CHARS = 3
+
+# Articles and conjunctions that are no evidence either way; the words around
+# them decide.
+_LABEL_STOP_WORDS = frozenset({'the', 'a', 'an', 'of', 'and'})
+
+_SIGNAL_LABEL_WORDS = AUDIO_SIGNAL_WORDS | STRUCTURAL_LABEL_WORDS
+
+
+# Lead-in and trailing words a platform label carries ("Hosted on Acast",
+# "Acast ads", "Acast.com", "Anchor FM"); the platform is what is left.
+_HOSTING_LEAD_IN_RE = re.compile(r'^hosted\s+(?:on|at|by)\s+(.+)$', re.I)
+_HOSTING_TRAILING_WORDS = frozenset({'fm', 'ads', 'com', 'net', 'io'})
+
+
+def is_hosting_platform_name(name) -> bool:
+    """A podcast hosting, CDN, or DAI platform: it delivers the ad rather than
+    buying it. Screened when a new label is minted, never when a stored
+    registry row is compiled, where dropping it stops it matching at all."""
+    if not name:
+        return False
+    key = ' '.join(str(name).split()).lower()
+    lead_in = _HOSTING_LEAD_IN_RE.match(key)
+    if lead_in:
+        key = lead_in.group(1).strip()
+    words = key.replace('.', ' ').split()
+    while len(words) > 1 and words[-1] in _HOSTING_TRAILING_WORDS:
+        words.pop()
+    return ' '.join(words) in PODCAST_HOSTING_NAMES
+
 
 def is_non_brand_name(name: str) -> bool:
     """A sanitized name that is never a real advertiser: a known junk value, a
-    single common/structure word or contraction of one, or an audio-signal label."""
+    single common/structure/signal word or contraction of one, or a name made
+    only of audio-signal and structural labels."""
     if not name:
         return True
     key = ' '.join(str(name).split()).lower().replace('\u2019', "'")
     if key in INVALID_SPONSOR_VALUES:
         return True
-    words = key.replace('_', ' ').replace(':', ' ').split()
-    if words and all(word in AUDIO_SIGNAL_WORDS for word in words):
+    words = [word for word
+             in key.replace('_', ' ').replace(':', ' ').replace('-', ' ').split()
+             if word not in _LABEL_STOP_WORDS]
+    # Two signal words describe the segment; one behind an article reads as a
+    # name ("The Gap"), which the single-word check below rules on instead.
+    if len(words) > 1 and all(word in _SIGNAL_LABEL_WORDS for word in words):
         return True
     if ' ' in key:
         return False
-    if key in _SINGLE_WORD_NON_BRAND:
+    if key in _SINGLE_WORD_NON_BRAND or key in _SIGNAL_LABEL_WORDS:
         return True
     stems = strip_apostrophe_suffixes(key, _CONTRACTION_SUFFIXES)
     return any(stem in _SINGLE_WORD_NON_BRAND for stem in stems)
+
+
+def is_brand_token(token) -> bool:
+    """Whether a domain- or URL-derived token can stand as a brand name.
+    Harvested tokens reach boundary extension and description confirmation as
+    advertisers, where a generic web word matches ordinary speech and moves a cut."""
+    key = str(token or '').strip().lower()
+    if not key or key in GENERIC_WEB_WORDS or key in NON_BRAND_WORDS:
+        return False
+    if len(key) < MIN_BRAND_TOKEN_CHARS and key not in KNOWN_SHORT_BRANDS:
+        return False
+    return not (is_non_brand_name(key) or is_hosting_platform_name(key))
 
 # Vocabulary the model reaches for when describing an ad's shape or evidence,
 # plus the pronouns it quotes ("We'll be right back"). Read only by the

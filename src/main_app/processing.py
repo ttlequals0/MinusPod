@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import threading
 import time
+from concurrent.futures import Future, TimeoutError as FuturesTimeoutError
 from contextlib import contextmanager
 
 import requests
@@ -34,7 +35,9 @@ from ad_yield import low_ad_yield
 from ad_reviewer import (
     AdReviewer, is_contradiction_hold, split_resurrection_pool,
 )
+from audio_analysis.audio_analyzer import MIN_VOLUME_TIMEOUT
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
+from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
 from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import (
     ProcessingCancelled, ProcessingOwnershipLost, _check_cancel,
@@ -49,7 +52,7 @@ from differential_fetcher import (
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import (clip_dai_core_spans, clip_merge_spans,
                            fold_marker_pair, foldable_twin,
-                           invalidate_tail_provenance)
+                           invalidate_tail_provenance, spans_match)
 from utils.time import (
     adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now_iso,
@@ -64,6 +67,7 @@ from config import (
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_MERGED_DURATION,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
+    AUDIO_CUE_SUGGEST_NEAR_MISS_EPISODES,
     CORRECTION_MATCH_MIN_COVERAGE,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
@@ -148,7 +152,10 @@ from utils.constants import (
     REPROCESS_SOURCE_DEGRADED, REPROCESS_SOURCE_JIT, REPROCESS_SOURCE_POLICY,
 )
 from utils.episode_paths import episode_relative_path
-from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionTimeout
+from utils.errors import (
+    AudioExtractionTimeout, AudioNotReadyError, AudioTooLargeError,
+    ServiceUnavailableError,
+)
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.http import safe_url_for_log
 from utils.language import get_feed_language_override
@@ -578,10 +585,10 @@ def _download_episode_audio(episode_url):
         # Without the host the failure is unattributable: the download log
         # line below never runs on this path.
         audio_logger.warning(f"Audio unavailable at {url_for_log}: {cdn_error}")
-        raise Exception(cdn_error)
+        raise AudioNotReadyError(cdn_error)
     audio_path = transcriber.download_audio(episode_url, user_agent=user_agent)
     if not audio_path:
-        raise Exception("Failed to download audio")
+        raise AudioNotReadyError("Failed to download audio")
     return audio_path
 
 
@@ -844,8 +851,41 @@ def _template_cue_scan(matcher, path):
     ]
 
 
+def _template_cue_marks(audio_analysis_result):
+    """The analyzer's template cues in _template_cue_scan's shape."""
+    return [
+        {'time': float(s.start),
+         'template_id': (s.details or {}).get('template_id')}
+        for s in audio_analysis_result.get_signals_by_type('audio_cue')
+        if is_template_cue(s.details)
+    ]
+
+
+# The differential worker needs the primary cues only once its refetch has
+# downloaded, by which point audio analysis has normally finished. Bounded by
+# the analysis floor timeout so a stalled analysis cannot park the worker.
+PRIMARY_CUE_WAIT_SECONDS = float(MIN_VOLUME_TIMEOUT)
+
+
+def _publish_primary_cues(future, audio_analysis_result) -> None:
+    """Hand the original's template cues to the differential worker. A None
+    result tells it nothing usable came out of analysis and to scan itself."""
+    if future.done():
+        return
+    marks = None
+    if getattr(audio_analysis_result, 'cue_scan_complete', False):
+        # Called from a finally: a raise here would mask the original failure
+        # and leave the differential worker waiting out its whole timeout.
+        try:
+            marks = _template_cue_marks(audio_analysis_result)
+        except Exception as e:
+            audio_logger.warning(f"Could not publish primary cues: {e}")
+    future.set_result(marks)
+
+
 def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_id,
-                            dai_platform=None, podcast=None):
+                            dai_platform=None, podcast=None,
+                            primary_cue_future=None):
     """Pipeline stage: cross-fetch differential (Layer 3).
 
     Runs when the per-feed flag is on, or -- when the flag is unset -- when
@@ -880,23 +920,38 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
         audio_logger.info(
             f"[{slug}:{episode_id}] Differential fetch: starting"
             f"{' (auto: DAI-likely feed)' if explicit is None else ''}")
-        # Cue fusion (2.76.0): when the feed has cue templates, scan the
-        # primary audio here on the worker (audio analysis runs concurrently
-        # on the main thread, so its cue signals are not available yet) and
-        # hand fetch_and_diff a refetch scan hook. The refetch scan runs
-        # between download and alignment so the refetch cues both persist in
-        # the stored result (refetch_cues) and anchor the probe offsets of
-        # the same alignment pass. Both scans are non-fatal.
+        # Cue fusion (2.76.0): the refetch scan runs between download and alignment so its
+        # cues both persist in the stored result and anchor that pass's probe offsets;
+        # primary cues come from the concurrent analysis, so the file is scanned once per run.
         matcher = _feed_cue_matcher(podcast_id)
-        primary_cues = []
         cue_scan = None
-        if matcher is not None:
-            try:
-                primary_cues = _template_cue_scan(matcher, audio_path)
-            except Exception as e:
-                audio_logger.warning(
-                    f"[{slug}:{episode_id}] Primary cue scan failed "
-                    f"(non-fatal): {e}")
+        if matcher is None:
+            def primary_cues():
+                return []
+        else:
+            def primary_cues():
+                shared = None
+                if primary_cue_future is not None:
+                    try:
+                        shared = primary_cue_future.result(PRIMARY_CUE_WAIT_SECONDS)
+                    except FuturesTimeoutError:
+                        audio_logger.warning(
+                            f"[{slug}:{episode_id}] Audio analysis has not "
+                            f"produced cues in {PRIMARY_CUE_WAIT_SECONDS:.0f}s; "
+                            f"scanning the primary audio for cues")
+                if shared is not None:
+                    return shared
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] No shared cue scan available; "
+                    f"scanning the primary audio for cues")
+                try:
+                    return _template_cue_scan(matcher, audio_path)
+                except Exception as e:
+                    audio_logger.warning(
+                        f"[{slug}:{episode_id}] Primary cue scan failed "
+                        f"(non-fatal): {e}")
+                    return []
+
             def cue_scan(path):
                 return _template_cue_scan(matcher, path)
         work_dir = tempfile.mkdtemp(prefix='dai_diff_')
@@ -1146,14 +1201,61 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     return first_pass_ads, len(first_pass_ads), ad_result
 
 
+def _suggest_cue_thresholds(slug, episode_id, podcast_id, audio_analysis_result):
+    """Warn when a template keeps missing by a hair, naming the threshold that would
+    work. Returns {template_id: suggested}; advisory, nothing is applied."""
+    silent = [tpl for tpl in
+              getattr(audio_analysis_result, 'cue_templates_debug', None) or []
+              if not tpl.get('match_count')]
+    if not silent:
+        return {}
+    try:
+        peaks = db.cue_template_episode_peaks(
+            podcast_id, [tpl['id'] for tpl in silent],
+            AUDIO_CUE_SUGGEST_NEAR_MISS_EPISODES)
+    except Exception as e:
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Cue threshold suggestion skipped: {e}")
+        return {}
+    suggestions = {}
+    for tpl in silent:
+        episode_peaks = peaks.get(tpl['id']) or []
+        suggested = near_miss_streak_suggestion(
+            tpl.get('eff_threshold'), episode_peaks)
+        if suggested is None:
+            continue
+        suggestions[tpl['id']] = suggested
+        scores = ", ".join(
+            f"{best:.3f}"
+            for best, _ in episode_peaks[:AUDIO_CUE_SUGGEST_NEAR_MISS_EPISODES])
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Cue template {tpl['id']} ({tpl.get('label')!r}) "
+            f"peaked at {scores} across the last "
+            f"{AUDIO_CUE_SUGGEST_NEAR_MISS_EPISODES} episodes without ever "
+            f"clearing its {tpl['eff_threshold']:.3f} threshold; a threshold of "
+            f"{suggested:.2f} would have matched all of them")
+    return suggestions
+
+
+def _window_stats(total, failed, losses=None):
+    """Per-pass window coverage, plus what the lost windows were lost to."""
+    stats = {'total': total, 'failed': failed or 0}
+    if losses:
+        stats['failureClasses'] = dict(losses)
+    return stats
+
+
 def _quiet_templates_to_notify(activity, enabled_template_ids):
     """Quiet cue-template activity rows whose template is currently enabled."""
     return [a for a in activity if a['quiet'] and a['templateId'] in enabled_template_ids]
 
 
-def _notify_quiet_cue_templates(slug, podcast_name, podcast_id, cue_templates):
+def _notify_quiet_cue_templates(slug, podcast_name, podcast_id, cue_templates,
+                                threshold_suggestions=None):
     """Fire Cue Template Quiet for each enabled template gone quiet on this feed.
 
+    ``threshold_suggestions`` maps template id to the threshold its near-miss
+    streak would have needed, so the alert says what to change.
     Best-effort (issue #599): a notification failure must not break the run.
     """
     try:
@@ -1163,7 +1265,9 @@ def _notify_quiet_cue_templates(slug, podcast_name, podcast_id, cue_templates):
         for a in _quiet_templates_to_notify(activity, enabled_ids):
             fire_cue_template_quiet_event(
                 slug, podcast_name, a['templateId'],
-                templates.get(a['templateId'], {}).get('label'), a['lastMatchAt'])
+                templates.get(a['templateId'], {}).get('label'), a['lastMatchAt'],
+                suggested_threshold=(threshold_suggestions or {}).get(
+                    a['templateId']))
     except Exception as e:
         audio_logger.warning(f"[{slug}] Cue template quiet check skipped: {e}")
 
@@ -2197,6 +2301,14 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 ui_ad['was_cut'] = False
                 ui_ad['source'] = 'reviewer'
                 v_ads_for_ui.remove(ui_ad)
+            # Evidence floor (ad_reviewer.reject_hold_evidence): a reject over
+            # measured evidence is held for a human, not dropped.
+            if v.reject_hold_reason:
+                held_ad = ui_ad if ui_ad is not None else original_by_key.get(key)
+                if held_ad is not None:
+                    _apply_reviewer_verdict_to_ad(held_ad, v)
+                    if held_ad not in v_ads_held:
+                        v_ads_held.append(held_ad)
             continue
 
         if v.verdict == 'resurrect':
@@ -2310,9 +2422,27 @@ def _apply_reviewer_verdict_to_ad(ad, v):
     elif v.verdict == 'reject':
         ad['was_cut'] = False
         ad['source'] = 'reviewer'
+        # Evidence floor (ad_reviewer.reject_hold_evidence): a reject over
+        # measured evidence is a disagreement a human settles, not a drop.
+        if v.reject_hold_reason:
+            ad['held_for_review'] = True
+            ad['hold_reason'] = v.reject_hold_reason
     elif v.verdict == 'resurrect':
         ad['was_cut'] = True
         ad['source'] = 'reviewer'
+
+
+def _closest_unclaimed_marker(markers, start, end, claimed):
+    """The marker nearest [start, end] within bounds tolerance that no verdict
+    has claimed yet. Two snapped twins sit inside one tolerance window, so the
+    first match is not necessarily the right one."""
+    matches = [m for m in markers
+               if id(m) not in claimed
+               and spans_match(m.get('start'), m.get('end'), start, end)]
+    if not matches:
+        return None
+    return min(matches, key=lambda m: (abs(m['start'] - start)
+                                       + abs(m['end'] - end)))
 
 
 def _merge_reviewer_result(result, all_ads_with_validation):
@@ -2321,10 +2451,32 @@ def _merge_reviewer_result(result, all_ads_with_validation):
     """
     # Index by (start, end) so the verdict loop is O(V), not O(V*N).
     master_by_key = {(a.get('start'), a.get('end')): a for a in all_ads_with_validation}
+    claimed = set()
+    pairs = []
+    unmatched = []
+    # Exact keys first whatever the verdict order: a tolerance-only verdict
+    # sits in the same window and would take the marker an exact key owns.
     for v in result.verdicts:
         ad = master_by_key.get((v.original_start, v.original_end))
+        if ad is None or id(ad) in claimed:
+            unmatched.append(v)
+            continue
+        claimed.add(id(ad))
+        pairs.append((v, ad))
+    for v in unmatched:
+        # A boundary snap between the review call and here shifts the key by a
+        # fraction of a second; matching on tolerance keeps the verdict (a
+        # reject hold especially) attached to its marker.
+        ad = _closest_unclaimed_marker(
+            all_ads_with_validation, v.original_start, v.original_end, claimed)
         if ad is None:
             continue
+        claimed.add(id(ad))
+        pairs.append((v, ad))
+
+    # Applied only once every claim is settled: an adjust verdict moves a
+    # marker's bounds, and the tolerance pass reads those bounds live.
+    for v, ad in pairs:
         _apply_reviewer_verdict_to_ad(ad, v)
 
     for ad in result.resurrected:
@@ -3185,10 +3337,10 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         # Recorded before the status branch so a pass that lost windows still
         # reports how much of the output audio went unexamined.
         if run_stats is not None and verification_result.get('windows_total') is not None:
-            run_stats['verification_windows'] = {
-                'total': verification_result['windows_total'],
-                'failed': verification_result.get('windows_failed') or 0,
-            }
+            run_stats['verification_windows'] = _window_stats(
+                verification_result['windows_total'],
+                verification_result.get('windows_failed') or 0,
+                verification_result.get('windows_failure_classes'))
 
         v_status = verification_result.get('status')
         if v_status in ('no_segments', 'transcription_failed', 'detection_failed'):
@@ -4968,15 +5120,23 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     token_totals = get_episode_token_totals()
     audio_logger.info(f"[{slug}:{episode_id}] Token totals: in={token_totals['input_tokens']} out={token_totals['output_tokens']} cost=${token_totals['cost']:.6f}")
 
-    try:
-        # Partial stats: whatever the run gathered before failing.
-        _record_history_row(
-            db, slug, episode_id, episode_title, podcast_name,
-            status='failed', processing_time=processing_time,
-            ads_detected=0, token_totals=token_totals,
-            error_message=str(error), run_stats=run_stats)
-    except Exception as hist_err:
-        audio_logger.warning(f"[{slug}:{episode_id}] Failed to record history: {hist_err}")
+    # A retryable failure to even fetch the enclosure processed nothing, so it
+    # is not a run: the row would only inflate the reprocess number the real
+    # run is stamped with. The episode row still carries the error and retry.
+    if isinstance(error, AudioNotReadyError) and new_status == EpisodeStatus.FAILED.value:
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Audio was never fetched; not recording a "
+            f"processing run for this attempt")
+    else:
+        try:
+            # Partial stats: whatever the run gathered before failing.
+            _record_history_row(
+                db, slug, episode_id, episode_title, podcast_name,
+                status='failed', processing_time=processing_time,
+                ads_detected=0, token_totals=token_totals,
+                error_message=str(error), run_stats=run_stats)
+        except Exception as hist_err:
+            audio_logger.warning(f"[{slug}:{episode_id}] Failed to record history: {hist_err}")
 
     if new_status == EpisodeStatus.PERMANENTLY_FAILED:
         try:
@@ -5407,6 +5567,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         keep_override = KeepDifferentialOverride()
         diff_thread = None
         diff_outcome = {}
+        # Both stages want the original's template cues; audio analysis owns
+        # the scan and the differential waits for its result.
+        primary_cue_future = Future()
         if not skip_detection:
             # Stamp from the main thread BEFORE the worker starts: all status
             # stamps stay on the main thread, so the pass1 ordering 22 -> 25
@@ -5421,7 +5584,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         podcast_settings.get('id') if podcast_settings else None,
                         dai_platform=(podcast_settings.get('dai_platform')
                                       if podcast_settings else None),
-                        podcast=podcast_settings)
+                        podcast=podcast_settings,
+                        primary_cue_future=primary_cue_future)
                 except BaseException as e:
                     diff_outcome['error'] = e
 
@@ -5434,17 +5598,22 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 target=_diff_worker, daemon=True,
                 name=f"dai-diff-{slug}-{episode_id}")
             diff_thread.start()
-        _check_cancel(cancel_event, slug, episode_id)
 
         processed_path = None
+        audio_analysis_result = None
         try:
-            # Stage 2: Audio analysis (ad-cue detection; nothing to feed when
-            # detection is skipped)
-            audio_analysis_result = None
-            if not skip_detection:
-                audio_analysis_result = _run_audio_analysis(
-                    slug, episode_id, audio_path, segments,
-                    force_cue_detection=cue_only)
+            # Everything from the worker start on is covered: a cancel or an
+            # analysis crash must still release the waiting differential.
+            try:
+                _check_cancel(cancel_event, slug, episode_id)
+                # Stage 2: Audio analysis (ad-cue detection; nothing to feed
+                # when detection is skipped)
+                if not skip_detection:
+                    audio_analysis_result = _run_audio_analysis(
+                        slug, episode_id, audio_path, segments,
+                        force_cue_detection=cue_only)
+            finally:
+                _publish_primary_cues(primary_cue_future, audio_analysis_result)
             # Block on the differential fetch before its result is consumed.
             # No timeout: the serial call blocked until fetch_and_diff's own
             # internal timeouts resolved, and the join preserves that. An
@@ -5576,8 +5745,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 cue_templates_for_feed = []
                 if cue_only and podcast_id:
                     cue_templates_for_feed = db.list_cue_templates_for_feed_ui(podcast_id)
-                    _notify_quiet_cue_templates(slug, podcast_name, podcast_id,
-                                                cue_templates_for_feed)
+                    # Produced here, where it is consumed: the suggestion only
+                    # ever names a threshold in this notification.
+                    _notify_quiet_cue_templates(
+                        slug, podcast_name, podcast_id, cue_templates_for_feed,
+                        threshold_suggestions=_suggest_cue_thresholds(
+                            slug, episode_id, podcast_id, audio_analysis_result))
                     if cue_only_missing_roles(cue_templates_for_feed):
                         # Near-unreachable: the API guard blocks the mutation that
                         # would cause this. Belt-and-suspenders log only.
@@ -5587,10 +5760,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 _detection_stats = (ad_result or {}).get('detection_stats') or {}
                 if 'windows_total' in _detection_stats:
-                    run_stats['windows'] = {
-                        'total': _detection_stats['windows_total'],
-                        'failed': _detection_stats.get('windows_failed', 0),
-                    }
+                    run_stats['windows'] = _window_stats(
+                        _detection_stats['windows_total'],
+                        _detection_stats.get('windows_failed', 0),
+                        _detection_stats.get('windows_failure_classes'))
                 run_stats['stage_hits'] = {
                     'fingerprint': _detection_stats.get('fingerprint_matches', 0),
                     'text_pattern': _detection_stats.get('text_pattern_matches', 0),

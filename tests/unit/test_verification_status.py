@@ -142,7 +142,7 @@ def _verification_detection(*, failed_windows, num_windows):
     """run_verification_detection over a stubbed window pass."""
     detector = ad_detector.AdDetector(api_key='test-key')
     run_pass = MagicMock(return_value=([], [], failed_windows, None, 0, 0, 0,
-                                       ad_detector.AddressingStats()))
+                                       {}, ad_detector.AddressingStats()))
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
         p(detector, 'initialize_client')

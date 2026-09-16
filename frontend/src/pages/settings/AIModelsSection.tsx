@@ -5,7 +5,8 @@ import { SAME_AS_DETECTION, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import CatalogStatus from '../../components/CatalogStatus';
 import CollapsibleSection from '../../components/CollapsibleSection';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import RefreshModelsButton from './RefreshModelsButton';
+import type { ModelsRefresh } from '../../hooks/useModelsRefresh';
 import { formatModelLabel } from './settingsUtils';
 import { btnSecondary } from '../../components/buttonStyles';
 import { selectBase } from '../../components/fieldStyles';
@@ -18,8 +19,8 @@ interface AIModelsSectionProps {
   detectionCatalog: ModelCatalog;
   verificationCatalog: ModelCatalog;
   chaptersCatalog: ModelCatalog;
-  /** Message from a failed Refresh; one button covers all three stages. */
-  refreshError?: string | null;
+  /** The header Refresh: one button covers all three stages. */
+  modelsRefresh: ModelsRefresh;
   selectedModel: string;
   verificationModel: string;
   chaptersModel: string;
@@ -38,8 +39,6 @@ interface AIModelsSectionProps {
   // (and the select never stores 'secondary') while the secondary provider
   // is off.
   secondaryProviderEnabled?: boolean;
-  onRefresh: () => void;
-  refreshIsPending: boolean;
   modelPricingOverrides?: ModelPricingOverrides;
   additionalModelIds?: string[];
   onPricingOverrideUpdate?: (
@@ -53,7 +52,7 @@ function AIModelsSection({
   detectionCatalog,
   verificationCatalog,
   chaptersCatalog,
-  refreshError = null,
+  modelsRefresh,
   selectedModel,
   verificationModel,
   chaptersModel,
@@ -67,8 +66,6 @@ function AIModelsSection({
   onVerificationProviderChange,
   onChaptersProviderChange,
   secondaryProviderEnabled = false,
-  onRefresh,
-  refreshIsPending,
   modelPricingOverrides = {},
   additionalModelIds = [],
   onPricingOverrideUpdate,
@@ -233,28 +230,9 @@ function AIModelsSection({
     <CollapsibleSection
       title="AI Models"
       defaultOpen
-      headerRight={
-        <button
-          onClick={onRefresh}
-          disabled={refreshIsPending}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
-          title="Refresh model list from provider"
-        >
-          {refreshIsPending ? (
-            <>
-              <LoadingSpinner inline className="w-3.5 h-3.5" />
-              Refreshing...
-            </>
-          ) : (
-            <>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </>
-          )}
-        </button>
-      }
+      headerRight={(
+        <RefreshModelsButton onClick={modelsRefresh.refresh} isPending={modelsRefresh.isPending} />
+      )}
     >
       {!detectionCatalog.isLoading && detectionCatalog.models?.length === 0 && (
         <div className="mb-4 p-3 rounded-lg bg-warning/10 border border-warning/20">
@@ -265,7 +243,7 @@ function AIModelsSection({
       )}
 
       <div className="space-y-4">
-        <CatalogStatus refreshError={refreshError} />
+        <CatalogStatus refreshError={modelsRefresh.error} />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {renderProviderSelect({

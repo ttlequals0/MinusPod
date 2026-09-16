@@ -207,7 +207,7 @@ class TestPhasesUseTheirRoutedClientAndModel:
             calls.append(provider_key)
             return MagicMock()
 
-        monkeypatch.setattr('ad_detector.get_client_for_provider',
+        monkeypatch.setattr('llm_route.get_client_for_provider',
                             fake_get_client_for_provider)
 
         ctx = run_context.begin('mixed-provider-feed', 'ep-detect', run_id='r-detect')
@@ -243,7 +243,7 @@ class TestPhasesUseTheirRoutedClientAndModel:
             calls.append(provider_key)
             return fake_client
 
-        monkeypatch.setattr('ad_reviewer.get_client_for_provider',
+        monkeypatch.setattr('llm_route.get_client_for_provider',
                             fake_get_client_for_provider)
 
         reviewer = AdReviewer(db=db, sponsor_service=None)
@@ -273,7 +273,7 @@ class TestPhasesUseTheirRoutedClientAndModel:
             calls.append(provider_key)
             return MagicMock()
 
-        monkeypatch.setattr('chapters_generator.get_client_for_provider',
+        monkeypatch.setattr('llm_route.get_client_for_provider',
                             fake_get_client_for_provider)
 
         ctx = run_context.begin('mixed-provider-feed', 'ep-chapters', run_id='r-chapters')
@@ -317,7 +317,7 @@ def _patch_reviewer_client(monkeypatch, calls):
         calls.append(provider_key)
         return fake_client
 
-    monkeypatch.setattr('ad_reviewer.get_client_for_provider',
+    monkeypatch.setattr('llm_route.get_client_for_provider',
                         fake_get_client_for_provider)
 
 

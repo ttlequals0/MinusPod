@@ -37,8 +37,7 @@ function renderSection(overrides: Partial<Parameters<typeof AIModelsSection>[0]>
       onDetectionProviderChange={() => {}}
       onVerificationProviderChange={() => {}}
       onChaptersProviderChange={() => {}}
-      onRefresh={() => {}}
-      refreshIsPending={false}
+      modelsRefresh={{ refresh: () => {}, isPending: false, error: null }}
       modelPricingOverrides={{}}
       onPricingOverrideUpdate={vi.fn().mockResolvedValue(undefined)}
       {...overrides}

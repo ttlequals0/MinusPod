@@ -257,6 +257,15 @@ export interface DaiDifferential {
   error?: string | null;
 }
 
+// Windows the latest run lost in one pass, and what they were lost to
+// (rate_limit, server_error, connectivity, reasoning_exhausted,
+// output_truncated, empty_completion, other).
+export interface CoverageGap {
+  failed: number;
+  total: number | null;
+  failureClasses?: Record<string, number> | null;
+}
+
 export interface EpisodeDetail extends Episode {
   description?: string;
   // Local feeds only; absent on a subscribed feed's episodes. The
@@ -324,8 +333,8 @@ export interface EpisodeDetail extends Episode {
   // partialDetection: a run that answered most windows still completes, so
   // the skipped stretches were never examined for ads.
   incompleteCoverage?: {
-    detection?: { failed: number; total: number | null };
-    verification?: { failed: number; total: number | null };
+    detection?: CoverageGap;
+    verification?: CoverageGap;
   } | null;
   // Adjacent episodes in the same feed (newest-first order): `previous` is the
   // newer episode, `next` the older one. Either is null at a feed boundary.
@@ -396,8 +405,10 @@ export interface ProcessingRunStats {
   transcriptionSkipped?: boolean;
   downloadedDuration?: number | null;
   transcriptSegments?: number;
-  windows?: { total: number; failed: number } | null;
-  verificationWindows?: { total: number; failed: number } | null;
+  // failureClasses is absent when no window was lost; see CoverageGap for the
+  // class names.
+  windows?: { total: number; failed: number; failureClasses?: Record<string, number> } | null;
+  verificationWindows?: { total: number; failed: number; failureClasses?: Record<string, number> } | null;
   stageHits?: {
     fingerprint: number;
     textPattern: number;
@@ -537,6 +548,7 @@ export interface AdSegment {
     | 'uncorroborated_tail'
     | 'reviewer_contradiction'
     | 'reviewer_boundary_conflict'
+    | 'reviewer_reject_conflict'
     | 'no_splice_evidence'
     | 'verification_miss'
     | 'differential_uncorroborated'

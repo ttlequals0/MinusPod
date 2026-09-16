@@ -437,3 +437,62 @@ class TestPopulatedDatabaseUpgrade:
             assert detection.model_id == 'gpt-4o-mini'
         finally:
             Database._instance = previous_instance
+
+
+class TestClientForRoutePrecedence:
+    """override -> resolved route's client -> fallback."""
+
+    def test_override_wins_over_route_and_fallback(self):
+        override = object()
+        with patch.object(llm_route, 'route_for_phase',
+                          return_value={'provider_key': 'openrouter'}), \
+                patch.object(llm_route, 'get_client_for_provider') as get_client:
+            result = llm_route.client_for_route(
+                'detection', override=override,
+                fallback=lambda: pytest.fail('fallback must not run'))
+        assert result is override
+        get_client.assert_not_called()
+
+    def test_phase_name_resolves_run_snapshot_route(self):
+        client = object()
+        route = {'provider_key': 'openrouter', 'base_url': 'https://or/api/v1',
+                 'credential_slot': 'secondary'}
+        with patch.object(llm_route, 'route_for_phase', return_value=route) as lookup, \
+                patch.object(llm_route, 'get_client_for_provider',
+                             return_value=client) as get_client:
+            result = llm_route.client_for_route(
+                'chapters', fallback=lambda: pytest.fail('fallback must not run'))
+        assert result is client
+        lookup.assert_called_once_with('chapters')
+        get_client.assert_called_once_with(
+            'openrouter', base_url='https://or/api/v1', credential_slot='secondary')
+
+    def test_dict_route_defaults_credential_slot_to_primary(self):
+        with patch.object(llm_route, 'get_client_for_provider') as get_client:
+            llm_route.client_for_route({'provider_key': 'anthropic'})
+        get_client.assert_called_once_with(
+            'anthropic', base_url=None, credential_slot='primary')
+
+    def test_route_object_uses_its_own_fields(self):
+        route = Route(phase='review', provider_key='ollama', model_id='m',
+                      base_url='http://localhost:11434/v1', slot='primary',
+                      credential_slot='primary')
+        with patch.object(llm_route, 'get_client_for_provider') as get_client:
+            llm_route.client_for_route(route)
+        get_client.assert_called_once_with(
+            'ollama', base_url='http://localhost:11434/v1', credential_slot='primary')
+
+    def test_fallback_runs_only_when_no_route(self):
+        fallback_client = object()
+        with patch.object(llm_route, 'route_for_phase', return_value=None), \
+                patch.object(llm_route, 'get_client_for_provider') as get_client:
+            result = llm_route.client_for_route(
+                'detection', fallback=lambda: fallback_client)
+        assert result is fallback_client
+        get_client.assert_not_called()
+
+    def test_no_route_and_no_fallback_returns_none(self):
+        with patch.object(llm_route, 'route_for_phase', return_value=None), \
+                patch.object(llm_route, 'get_client_for_provider') as get_client:
+            assert llm_route.client_for_route('detection') is None
+        get_client.assert_not_called()

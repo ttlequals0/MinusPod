@@ -14,8 +14,32 @@ from config import (
     AUDIO_CUE_SUGGEST_MIN_SIGNAL,
     AUDIO_CUE_SUGGEST_BAND,
     AUDIO_CUE_SUGGEST_MARGIN,
+    AUDIO_CUE_SUGGEST_NEAR_MISS_BAND,
+    AUDIO_CUE_SUGGEST_NEAR_MISS_EPISODES,
     AUDIO_CUE_EFFECT_FLOOR,
 )
+
+
+def near_miss_streak_suggestion(
+    threshold: float,
+    episode_peaks: list,
+    min_episodes: int = AUDIO_CUE_SUGGEST_NEAR_MISS_EPISODES,
+    band: float = AUDIO_CUE_SUGGEST_NEAR_MISS_BAND,
+) -> float | None:
+    """Threshold that would have matched an unbroken run of near-misses.
+    ``episode_peaks`` is newest-first per-episode ``(best_near_miss, match_count)``; a match,
+    a silent episode, or a peak outside ``band`` breaks the streak and returns None."""
+    if threshold is None or len(episode_peaks) < min_episodes:
+        return None
+    peaks = []
+    for best, matches in episode_peaks[:min_episodes]:
+        if matches or best is None:
+            return None
+        if not (threshold - band <= float(best) < threshold):
+            return None
+        peaks.append(float(best))
+    suggested = round(min(peaks) - AUDIO_CUE_SUGGEST_MARGIN, 2)
+    return suggested if suggested > 0 else None
 
 
 def _unsupervised_suggest(

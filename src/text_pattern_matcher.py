@@ -17,10 +17,12 @@ from config import (
     SEGMENT_CATEGORIES,
 )
 from community_export import (
-    count_brand_occurrences, brand_match_candidates, first_brand_occurrence,
-    get_sponsor_row_or_stub)
+    count_brand_occurrences, brand_match_candidates,
+    declared_sponsor_names_lower, find_foreign_sponsors,
+    first_brand_occurrence, get_sponsor_row_or_stub)
 from utils.text import extract_text_from_segments, timed_spans_from_segments
 from sponsor_normalize import get_or_create_known_sponsor, segment_category_for
+from sponsor_service import SponsorService
 from utils.constants import (
     canonical_sponsor,
     INVALID_SPONSOR_VALUES,
@@ -28,6 +30,7 @@ from utils.constants import (
     LEARNING_MAX_PATTERN_DURATION,
     LEARNING_MIN_PATTERN_DURATION,
     LEARNING_SPLIT_DURATION_FACTOR,
+    is_non_brand_name,
     sanitize_sponsor_label,
 )
 from utils.community_tags import UNIVERSAL_TAG
@@ -1265,6 +1268,81 @@ class TextPatternMatcher:
         return (read('learning_min_pattern_duration', LEARNING_MIN_PATTERN_DURATION),
                 read('learning_max_pattern_duration', LEARNING_MAX_PATTERN_DURATION))
 
+    def _registry(self):
+        """The SponsorService backing brand lookups, built from db on first use."""
+        if self.sponsor_service is None and self.db is not None:
+            self.sponsor_service = SponsorService(self.db)
+        return self.sponsor_service
+
+    def _brand_rows(self) -> list[dict]:
+        """Registry rows usable as brand matchers, from SponsorService's compiled
+        cache so the length and junk-name filters are defined in one place."""
+        registry = self._registry()
+        if registry is None:
+            return []
+        try:
+            return registry.brand_rows()
+        except Exception as e:
+            logger.debug(f"Sponsor registry lookup failed: {e}")
+            return []
+
+    def brand_patterns(self) -> dict:
+        """The registry's compiled brand matchers, so split planning reuses them
+        instead of recompiling one regex per brand per call."""
+        registry = self._registry()
+        if registry is None:
+            return {}
+        try:
+            return registry.compiled_brand_patterns()
+        except Exception as e:
+            logger.debug(f"Sponsor registry lookup failed: {e}")
+            return {}
+
+    def _split_brands(self, sponsor: str, members: list[dict],
+                      rows: list[dict]) -> list[dict]:
+        """Brand matchers a split may cut on: the registry plus the names this
+        marker's own merge members were labeled with."""
+        brands = list(rows)
+        seen = {(row.get('name') or '').strip().lower() for row in brands}
+        for candidate in [sponsor] + [m.get('sponsor') for m in members]:
+            name = (candidate or '').strip()
+            if name and name.lower() not in seen and not is_non_brand_name(name):
+                brands.append(get_sponsor_row_or_stub(None, name))
+                seen.add(name.lower())
+        return brands
+
+    def _contaminating_brands(self, ad_text: str, sponsor: str,
+                              rows: list[dict] = None) -> list[str]:
+        """Registry brands other than `sponsor` that are read inside the span.
+        Two mentions is the validator's bar for a real read, so a single passing
+        name-drop does not block learning."""
+        rows = self._brand_rows() if rows is None else rows
+        if not rows:
+            return []
+        declared = (declared_sponsor_names_lower(self._get_sponsor_row(sponsor))
+                    if sponsor else set())
+        # split_planning imports this module, so the import stays local.
+        from split_planning import brand_mention_offsets
+
+        # Word-boundary hits, not substring counts: "cramped" is not a Ramp read.
+        mentions = brand_mention_offsets(ad_text, rows, self.brand_patterns())
+        return sorted(
+            name for name in find_foreign_sponsors(ad_text, declared, rows)
+            if len(mentions.get(name, ())) >= 2)
+
+    def split_sources(self, marker: dict, sponsor: str = None,
+                      rows: list[dict] = None) -> tuple[list[dict], list[float], list[dict]]:
+        """Everything a split of `marker` may cut on: its recorded merge members,
+        its measured DAI cut times, and the brands a divider may hand off between.
+        Shared by pattern learning and the split editor so both see one set."""
+        from split_planning import marker_split_sources
+
+        members, cuts = marker_split_sources(marker or {})
+        brands = self._split_brands(
+            sponsor or (marker or {}).get('sponsor'), members,
+            self._brand_rows() if rows is None else rows)
+        return members, cuts, brands
+
     def create_patterns_from_ad(
         self,
         segments: list[dict],
@@ -1276,17 +1354,23 @@ class TextPatternMatcher:
         network_id: str = None,
         episode_id: str = None,
         category: str = None,
+        ad: dict = None,
     ) -> list[dict]:
         """Learn from a detected span, splitting it when it holds several ads.
 
-        A span over the ceiling, or with more than one transition phrase, is
-        usually back-to-back reads, and dropping it whole taught nothing. Each
-        piece goes through create_pattern_from_ad, so every gate still runs.
-        Returns one {'id', 'start', 'end'} per pattern, so a caller storing an
-        audio fingerprint can key it to the piece the pattern actually covers.
+        A span over the ceiling, with more than one transition phrase, or
+        reading a second advertiser is usually back-to-back reads, and dropping
+        it whole taught nothing. Dividers come from the transcript and, when
+        `ad` is the source marker, from its recorded merge members and measured
+        DAI cuts. Each piece goes through create_pattern_from_ad, so every gate
+        still runs. Returns one {'id', 'start', 'end'} per pattern, so a caller
+        storing an audio fingerprint can key it to the piece it covers.
         """
         if not self.db:
             return []
+
+        # Local import: split_planning imports this module for its phrase list.
+        from split_planning import build_split_candidates, build_split_pieces
 
         def create(piece_start, piece_end, piece_sponsor,
                    from_split=False, piece_text=None):
@@ -1294,26 +1378,36 @@ class TextPatternMatcher:
                 segments, piece_start, piece_end, sponsor=piece_sponsor,
                 scope=scope, podcast_id=podcast_id, network_id=network_id,
                 episode_id=episode_id, category=category,
-                from_split=from_split, ad_text=piece_text)
+                from_split=from_split, ad_text=piece_text, brand_rows=rows)
             return ([{'id': pattern_id, 'start': piece_start, 'end': piece_end}]
                     if pattern_id else [])
 
         _, max_duration = self._pattern_duration_bounds()
         ad_text = self._get_text_around_time(segments, start, end)
+        # Registry rows once per span: every gate and divider source below
+        # matches against the same list.
+        rows = self._brand_rows()
+        members, cuts, brands = self.split_sources(ad or {}, sponsor, rows)
+        member_sponsors = {(m.get('sponsor') or '').strip().lower()
+                           for m in members if (m.get('sponsor') or '').strip()}
+        contaminated = (len(member_sponsors) > 1
+                        or bool(self._contaminating_brands(ad_text, sponsor, rows)))
         if (end - start <= max_duration
-                and len(find_transition_offsets(ad_text)) <= 1):
+                and len(find_transition_offsets(ad_text)) <= 1
+                and not contaminated):
             return create(start, end, sponsor)
 
-        # Local import: split_planning imports this module for its phrase list.
-        from split_planning import build_split_candidates, build_split_pieces
-
         spans = timed_spans_from_segments(segments, start, end)
-        times = [c['time'] for c in build_split_candidates(spans, start, end)]
+        patterns = self.brand_patterns()
+        times = [c['time'] for c in build_split_candidates(
+            spans, start, end, members=members, brands=brands, cuts=cuts,
+            compiled=patterns)]
         if not times:
             # Nothing to split on; create_pattern_from_ad logs why it declines.
             return create(start, end, sponsor)
 
-        pieces = build_split_pieces(spans, start, end, times)
+        pieces = build_split_pieces(spans, start, end, times, brands=brands,
+                                    compiled=patterns)
         logger.info(
             f"Splitting {end - start:.0f}s span into {len(pieces)} pieces "
             f"for pattern learning"
@@ -1346,7 +1440,8 @@ class TextPatternMatcher:
         episode_id: str = None,
         category: str = None,
         from_split: bool = False,
-        ad_text: str = None
+        ad_text: str = None,
+        brand_rows: list[dict] = None,
     ) -> int | None:
         """
         Create a new ad pattern from a detected ad segment.
@@ -1363,6 +1458,8 @@ class TextPatternMatcher:
             category: Segment category (#565) the source marker carried.
                 Normalized before storage; None stores NULL, which reads
                 back as 'sponsor'.
+            brand_rows: Registry brand rows the caller already resolved; None
+                looks them up.
 
         Returns:
             Pattern ID if created, None otherwise
@@ -1379,13 +1476,18 @@ class TextPatternMatcher:
         if sponsor_lower in self.INVALID_SPONSORS:
             logger.warning(f"Rejecting pattern: generic/invalid sponsor '{sponsor}'")
             return None
-        # Segment and show-structure words arrive here as sponsors when the
-        # model has no advertiser to name.
-        if sanitize_sponsor_label(sponsor) is None:
+        # Segment, structure, and show-name labels arrive here as sponsors when
+        # the model has no advertiser to name. podcast_id is the feed slug, and
+        # names_the_show compares with separators stripped, so it matches.
+        clean_sponsor = sanitize_sponsor_label(sponsor, show_name=podcast_id)
+        if clean_sponsor is None:
             logger.warning(
                 f"Rejecting pattern: '{sponsor}' is a segment or structure "
                 f"name, not an advertiser")
             return None
+        # The normalized label is what is stored: a lead-in the model left on
+        # ("Sponsored by Acme") would otherwise become the pattern's brand.
+        sponsor = clean_sponsor
 
         # Validate ad duration - reject contaminated multi-ad spans on the
         # upper end, and short spans on the lower end. Pattern #356 (Patreon,
@@ -1442,6 +1544,17 @@ class TextPatternMatcher:
             logger.warning(
                 f"Skipping pattern creation: found {transition_count} ad transitions - "
                 f"likely multi-ad contamination"
+            )
+            return None
+
+        # Duration alone missed the contaminated spans that fit under the
+        # ceiling: a second advertiser read inside the span makes the template
+        # match neither brand's ad.
+        foreign = self._contaminating_brands(ad_text, sponsor, brand_rows)
+        if foreign:
+            logger.warning(
+                f"Skipping pattern creation: span also reads "
+                f"{', '.join(foreign)} - multi-brand contamination"
             )
             return None
 

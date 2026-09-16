@@ -7,7 +7,9 @@ import threading
 from utils.constants import (
     INVALID_SPONSOR_VALUES,
     INVALID_SPONSOR_CAPTURE_WORDS,
+    MIN_BRAND_MATCH_CHARS,
     NON_BRAND_WORDS,
+    is_brand_token,
     is_non_brand_name,
     REASON_DESCRIPTION_WORDS,
     REASON_DESCRIPTION_MAX,
@@ -20,6 +22,8 @@ from utils.constants import (
     SEED_SPONSORS,
     SEED_NORMALIZATIONS,
 )
+from community_export import brand_match_candidates
+from utils.text import pattern_offsets, word_boundary_re
 from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
@@ -147,19 +151,20 @@ class SponsorService:
             compiled_patterns = {}
             for sponsor in cache_sponsors:
                 name = sponsor['name']
-                if len(name) < 3:
+                if len(name) < MIN_BRAND_MATCH_CHARS:
                     continue
                 # A junk row that predates the create-time gate must not match
                 # normal speech and force-confirm a false positive.
                 if is_non_brand_name(name):
                     continue
-                # Build pattern matching canonical name + all aliases
-                alternatives = [re.escape(name)]
-                for alias in self._parse_aliases(sponsor.get('aliases', '[]')):
-                    if len(alias) >= 3:
-                        alternatives.append(re.escape(alias))
-                pattern_str = r'\b(?:' + '|'.join(alternatives) + r')\b'
-                compiled_patterns[name] = re.compile(pattern_str, re.IGNORECASE)
+                # Name, aliases, and their whitespace-stripped forms, so a
+                # 'State Farm' row still matches 'statefarm'. Lookarounds, not
+                # \b, which never matches a brand ending in punctuation.
+                pattern = word_boundary_re(
+                    variant for variant in brand_match_candidates(sponsor)
+                    if len(variant) >= MIN_BRAND_MATCH_CHARS)
+                if pattern is not None:
+                    compiled_patterns[name] = pattern
 
             # Publish all caches, then flip the freshness flag last so no reader
             # ever observes a partially-built cache.
@@ -267,6 +272,29 @@ class SponsorService:
                 return name
 
         return None
+
+    def brand_rows(self) -> list[dict]:
+        """Registry rows usable as brand matchers: the ones the compiled cache
+        kept after the length and junk-name filters."""
+        self._refresh_cache_if_needed()
+        return [row for row in (self._cache_sponsors or [])
+                if row['name'] in self._compiled_patterns]
+
+    def compiled_brand_patterns(self) -> dict:
+        """The registry's compiled brand matchers by canonical name. Read-only:
+        callers that scan text themselves (split planning) reuse this cache
+        instead of recompiling a regex per brand per call."""
+        self._refresh_cache_if_needed()
+        return self._compiled_patterns
+
+    def brand_mention_offsets(self, text: str) -> dict[str, list[int]]:
+        """Offsets of each registry brand's mentions in text, by canonical name.
+        Brands absent from the text are left out, so len() is how many distinct
+        advertisers the text names."""
+        if not text:
+            return {}
+        self._refresh_cache_if_needed()
+        return pattern_offsets(text, self._compiled_patterns)
 
     def count_sponsor_mentions(self, text: str) -> int:
         """Total registry brand mentions in text, summed over every sponsor.
@@ -413,19 +441,19 @@ class SponsorService:
             text = ''
         text_lower = text.lower()
 
-        # Extract domain names from URLs (e.g., "vention" from "ventionteams.com")
+        # Extract domain names from URLs (e.g., "vention" from "ventionteams.com").
+        # is_brand_token, not a length floor: these tokens reach boundary
+        # extension as advertisers, where a generic web word moves a cut.
         url_pattern = r'(?:https?://)?(?:www\.)?([a-z0-9]+)(?:teams|\.com|\.tv|\.io|\.co|\.org)'
         for match in re.finditer(url_pattern, text_lower):
-            sponsor = match.group(1)
-            if len(sponsor) > 2:  # Skip very short matches
-                sponsors.add(sponsor)
+            if is_brand_token(match.group(1)):
+                sponsors.add(match.group(1))
 
         # Also look for explicit "dot com" mentions
         dotcom_pattern = r'([a-z]+)\s*(?:dot\s*com|\.com)'
         for match in re.finditer(dotcom_pattern, text_lower):
-            sponsor = match.group(1)
-            if len(sponsor) > 2:
-                sponsors.add(sponsor)
+            if is_brand_token(match.group(1)):
+                sponsors.add(match.group(1))
 
         # Brand named in the ad reason. Shares the labeler rather than keeping
         # a second pair of phrase patterns, which only matched the two

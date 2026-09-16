@@ -11,6 +11,7 @@ referencing 'secondary' while secondary_provider_enabled is false falls back
 to primary (fail-safe) and logs once per stage.
 """
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from config import (
@@ -20,9 +21,10 @@ from config import (
 )
 from database import Database
 from llm_client import (
-    get_effective_provider, get_effective_base_url,
-    _normalize_base_url_for_provider,
+    get_client_for_provider, get_effective_provider, get_effective_base_url,
+    LLMClient, _normalize_base_url_for_provider,
 )
+from run_context import route_for_phase
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,30 @@ class Route:
     base_url: str | None  # non-secret; never includes embedded credentials
     slot: str  # resolved primary/secondary, after inheritance and fallback
     credential_slot: str  # which secret to read: primary=type secret, secondary=secondary_provider_api_key
+
+
+def client_for_route(route: str | Route | dict | None, *,
+                      override: LLMClient | None = None,
+                      fallback: Callable[[], LLMClient | None] | None = None
+                      ) -> LLMClient | None:
+    """Override wins, then the route's provider client, then fallback().
+    `route` is a phase name, snapshot dict, Route, or None; fallback stays lazy."""
+    if override is not None:
+        return override
+    if isinstance(route, str):
+        route = route_for_phase(route)
+    if not route:
+        return fallback() if fallback is not None else None
+    if isinstance(route, Route):
+        provider_key = route.provider_key
+        base_url = route.base_url
+        credential_slot = route.credential_slot
+    else:
+        provider_key = route['provider_key']
+        base_url = route.get('base_url')
+        credential_slot = route.get('credential_slot', SLOT_PRIMARY)
+    return get_client_for_provider(provider_key, base_url=base_url,
+                                   credential_slot=credential_slot)
 
 
 def _warn_secondary_fallback_once(stage: str) -> None:

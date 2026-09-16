@@ -854,6 +854,20 @@ def _bearer_headers(api_key: str) -> dict[str, str]:
     return {'Authorization': f'Bearer {api_key}'} if api_key else {}
 
 
+def _warn_if_word_timestamps_missing(segments, whisper_settings) -> None:
+    """Warn once when a transcription that asked for word timestamps got none.
+    A 4xx on the word granularity is already reported; a 200 that simply omits the
+    words silently disabled boundary refinement."""
+    if not segments or any(seg.get('words') for seg in segments):
+        return
+    logger.warning(
+        "Whisper API returned no word timestamps (provider=%s model=%s); "
+        "boundary refinement will be skipped for this transcription",
+        safe_url_for_log(whisper_settings.get('api_base_url') or ''),
+        whisper_settings.get('api_model'),
+    )
+
+
 def _probe_wav_bytes(duration_s: float = 1.0, rate: int = 16000) -> bytes:
     """One second of 440 Hz tone as an in-memory WAV (mono, 16-bit).
 
@@ -2517,6 +2531,7 @@ class Transcriber:
             f"{len(all_segments)} segments, {duration_min:.1f} minutes "
             f"from {num_chunks} chunks"
         )
+        _warn_if_word_timestamps_missing(all_segments, whisper_settings)
         return all_segments
 
     def transcribe_chunked(

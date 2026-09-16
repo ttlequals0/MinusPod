@@ -51,6 +51,27 @@ def temp_db(temp_dir):
 
 
 @pytest.fixture
+def preserve_setting():
+    """Factory: snapshot a global setting's value and is_default, restore after.
+    A leaked global value decides another module's assertion."""
+    saved = []
+
+    def _preserve(key):
+        db = Database()
+        row = db.get_connection().execute(
+            "SELECT value, is_default FROM settings WHERE key = ?", (key,)).fetchone()
+        saved.append((db, key, row))
+
+    yield _preserve
+
+    for db, key, row in reversed(saved):
+        if row is None:
+            db.clear_setting(key)
+        else:
+            db.set_setting(key, row['value'], bool(row['is_default']))
+
+
+@pytest.fixture
 def sample_transcript():
     """Sample transcript with ad segments for testing."""
     return [

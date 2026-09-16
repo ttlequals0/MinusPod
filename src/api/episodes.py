@@ -49,6 +49,7 @@ from reprocess_modes import (
     clear_episode_for_mode, reset_episode_for_reprocess,
 )
 from split_planning import build_split_candidates, build_split_pieces
+from utils.markers import find_marker_in_list
 from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
@@ -599,6 +600,8 @@ def _incomplete_coverage(runs):
         failed = counts.get('failed') or 0
         if failed > 0:
             coverage[pass_name] = {'failed': failed, 'total': counts.get('total')}
+            if counts.get('failureClasses'):
+                coverage[pass_name]['failureClasses'] = counts['failureClasses']
     return coverage or None
 
 
@@ -1143,9 +1146,22 @@ def get_episode_split_candidates(slug, episode_id):
     transcript = db.get_transcript_for_timestamps(slug, episode_id)
     spans = extract_timed_spans_in_range(
         transcript or '', start_seconds, end_seconds)
-    candidates = build_split_candidates(spans, start_seconds, end_seconds)
+    # Same divider sources pattern learning splits on, so the editor never
+    # offers a different set than the automatic split would have taken.
+    marker = find_marker_in_list(
+        _markers_from_row(episode), start_seconds, end_seconds) or {}
+    # main_app owns the long-lived services; a module-level import here would
+    # be a cycle, and a per-request matcher reloads the sponsor registry.
+    from main_app import pattern_service
+    matcher = pattern_service.text_pattern_matcher()
+    members, cuts, brands = matcher.split_sources(marker)
+    patterns = matcher.brand_patterns()
+    candidates = build_split_candidates(
+        spans, start_seconds, end_seconds,
+        members=members, brands=brands, cuts=cuts, compiled=patterns)
     pieces = build_split_pieces(
-        spans, start_seconds, end_seconds, [c['time'] for c in candidates])
+        spans, start_seconds, end_seconds, [c['time'] for c in candidates],
+        brands=brands, compiled=patterns)
     return json_response({
         'episodeId': episode_id,
         'start': start_seconds,

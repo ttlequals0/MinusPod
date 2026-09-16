@@ -16,9 +16,10 @@ from utils.time import parse_timestamp, adjust_timestamp, span_inside_any_cut
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
-    get_llm_client, get_client_for_provider, get_api_key, LLMClient,
+    get_llm_client, get_api_key, LLMClient,
     get_llm_timeout, get_llm_max_retries, ProviderRateLimitedError,
 )
+from llm_route import client_for_route
 from run_context import route_for_phase
 from utils.llm_call import call_llm
 
@@ -211,16 +212,9 @@ class ChaptersGenerator:
         """Current LLM client: this run's chapters-route client, or the
         global client outside a run. Reads through on every access so a
         settings change takes effect without restarting the worker."""
-        if self._llm_client_override is not None:
-            return self._llm_client_override
-        route = route_for_phase('chapters')
-        if route:
-            return get_client_for_provider(
-                route['provider_key'], base_url=route.get('base_url'),
-                credential_slot=route.get('credential_slot', 'primary'))
-        if not self.api_key:
-            return None
-        return get_llm_client()
+        return client_for_route(
+            'chapters', override=self._llm_client_override,
+            fallback=lambda: get_llm_client() if self.api_key else None)
 
     @_llm_client.setter
     def _llm_client(self, value: LLMClient | None) -> None:
@@ -355,7 +349,8 @@ class ChaptersGenerator:
         )
 
         try:
-            max_tokens, temperature, reasoning = resolve_stage_tunables('chapter_boundary')
+            max_tokens, temperature, reasoning = resolve_stage_tunables(
+                'chapter_boundary', provider=self._chapters_provider())
             response, last_error = call_llm(
                 llm_client=self._llm_client,
                 model=get_chapters_model(),
@@ -541,7 +536,8 @@ class ChaptersGenerator:
 
         prompt = "\n".join(prompt_parts)
 
-        max_tokens, temperature, reasoning = resolve_stage_tunables('chapter_title')
+        max_tokens, temperature, reasoning = resolve_stage_tunables(
+            'chapter_title', provider=self._chapters_provider())
         response, last_error = call_llm(
             llm_client=self._llm_client,
             model=get_chapters_model(),

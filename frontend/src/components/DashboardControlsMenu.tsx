@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { usePopoverTabs } from '../hooks/usePopover';
 import Popover from './Popover';
+import SegmentedToggle from './SegmentedToggle';
 import { btnSecondary } from './buttonStyles';
 import { focusRing, selectBase } from './fieldStyles';
 import type { FeedSortBy } from '../utils/feedSort';
@@ -18,10 +19,14 @@ interface DashboardControlsMenuProps {
   perPodcastMax: number;
 }
 
-const segClass = (active: boolean) =>
-  `inline-flex items-center justify-center min-w-11 h-11 px-3 text-sm transition-colors ${
-    active ? 'bg-primary text-primary-foreground' : btnSecondary
-  } ${focusRing}`;
+const LAYOUT_OPTIONS = [
+  { value: 'grid' as const, label: 'Grid', title: 'Grid view' },
+  { value: 'list' as const, label: 'List', title: 'List view' },
+];
+const SORT_OPTIONS = [
+  { value: 'recent' as const, label: 'Recent', ariaLabel: 'Sort by recent', title: 'Sort by most recent episode' },
+  { value: 'title' as const, label: 'Title', ariaLabel: 'Sort by title', title: 'Sort alphabetically' },
+];
 
 // Layout, sort, and per-podcast collapse into one popover so the dashboard
 // toolbar stays a single row on a phone instead of wrapping or clipping.
@@ -63,18 +68,26 @@ function DashboardControlsMenu({
             {dashboardView === 'podcasts' && (
               <div className="space-y-1.5">
                 <span className="block text-xs font-medium text-muted-foreground">Layout</span>
-                <div className="flex h-11 border border-border rounded overflow-hidden w-full">
-                  <button onClick={() => onViewModeChange('grid')} className={`${segClass(viewMode === 'grid')} flex-1`} title="Grid view">Grid</button>
-                  <button onClick={() => onViewModeChange('list')} className={`${segClass(viewMode === 'list')} flex-1`} title="List view">List</button>
-                </div>
+                <SegmentedToggle
+                  options={LAYOUT_OPTIONS}
+                  value={viewMode}
+                  onChange={onViewModeChange}
+                  ariaLabel="Layout"
+                  variant="toolbar"
+                  fill
+                />
               </div>
             )}
             <div className="space-y-1.5">
               <span className="block text-xs font-medium text-muted-foreground">Sort</span>
-              <div className="flex h-11 border border-border rounded overflow-hidden w-full">
-                <button onClick={() => onSortChange('recent')} className={`${segClass(sortBy === 'recent')} flex-1`} aria-label="Sort by recent" title="Sort by most recent episode">Recent</button>
-                <button onClick={() => onSortChange('title')} className={`${segClass(sortBy === 'title')} flex-1`} aria-label="Sort by title" title="Sort alphabetically">Title</button>
-              </div>
+              <SegmentedToggle
+                options={SORT_OPTIONS}
+                value={sortBy}
+                onChange={onSortChange}
+                ariaLabel="Sort"
+                variant="toolbar"
+                fill
+              />
             </div>
             {dashboardView === 'episodes' && (
               <label className="block space-y-1.5">

@@ -135,7 +135,9 @@ def test_reasoning_exhaustion_retry_disables_reasoning(
         key: value for key, value in second.kwargs.items()
         if key != reasoning_key
     }
-    assert len(no_retry_wait) == 1
+    # Re-asking with reasoning off is a different request, not a transient
+    # failure, so it does not wait out a backoff first.
+    assert no_retry_wait == []
 
 
 def test_anthropic_reasoning_exhaustion_retry_omits_thinking(
@@ -177,7 +179,7 @@ def test_anthropic_reasoning_exhaustion_retry_omits_thinking(
         'type': 'enabled', 'budget_tokens': 2048,
     }
     assert 'thinking' not in second.kwargs
-    assert len(no_retry_wait) == 1
+    assert no_retry_wait == []
 
 
 def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
@@ -261,7 +263,7 @@ def test_reasoning_none_rejection_uses_pass_fallback_after_exhaustion(
     }]
     assert 'private-provider-detail' not in str(notices)
     assert 'private-provider-detail' not in caplog.text
-    assert len(no_retry_wait) == 1
+    assert no_retry_wait == []
 
 
 @pytest.mark.parametrize('message, expected', [
@@ -304,7 +306,9 @@ def test_secondary_reasoning_exhaustion_disables_final_retry(no_retry_wait):
     assert [call['reasoning_effort'] for call in client.call_kwargs] == [
         'high', 'high', 'none',
     ]
-    assert no_retry_wait == [2, 5]
+    # The reasoning retry rides inside per-window retry 1 rather than spending
+    # retry 2, so the window answers a backoff sooner.
+    assert no_retry_wait == [2]
 
 
 def test_empty_choices_with_full_reasoning_usage_uses_reasoning_fallback(
@@ -341,6 +345,8 @@ def test_empty_choices_with_full_reasoning_usage_uses_reasoning_fallback(
 
 
 def test_reasoning_fallback_failure_stays_a_failed_window(no_retry_wait):
+    """Two calls, not the whole retry ladder: with reasoning already off, another
+    attempt buys the same truncated answer."""
     exhausted = SimpleNamespace(
         content='', reasoning_present=True, finish_reason='max_tokens')
     client = _SequenceClient(exhausted)
@@ -349,11 +355,9 @@ def test_reasoning_fallback_failure_stays_a_failed_window(no_retry_wait):
 
     assert response is None
     assert isinstance(error, llm_call.ReasoningExhaustedError)
-    assert client.calls == 6
+    assert client.calls == 2
     assert client.call_kwargs[0]['reasoning_effort'] is None
-    assert all(
-        call['reasoning_effort'] == 'none' for call in client.call_kwargs[1:]
-    )
+    assert client.call_kwargs[1]['reasoning_effort'] == 'none'
 
 
 def test_nonempty_completion_does_not_change_request_or_retry(no_retry_wait):

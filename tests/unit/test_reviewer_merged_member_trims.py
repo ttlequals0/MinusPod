@@ -16,6 +16,7 @@ bootstrap('reviewer_merged_member_trims_test_')
 from ad_detector import AdDetector
 from ad_reviewer import AdReviewer, _clamp_overrode
 from config import HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+from ad_detector.boundaries import deduplicate_window_ads
 from utils.markers import mark_distinct_merge, note_fold
 
 
@@ -469,3 +470,57 @@ def test_inverted_proposal_still_reaches_prose_trim_recovery():
     # The recovered 2404.0 end floors back at the measured member's edge.
     assert (accepted['start'], accepted['end']) == (2211.3, 2406.5)
     assert not accepted.get('reviewer_moved')
+
+
+def _window_merged(second_stage):
+    """Two window detections merged the way deduplicate_window_ads merges
+    them: touching spans, so the merge records both as protected members."""
+    ads = [
+        {'start': 100.0, 'end': 200.0, 'confidence': 0.9,
+         'detection_stage': 'claude', 'reason': 'Acme read'},
+        {'start': 203.0, 'end': 260.0, 'confidence': 0.8,
+         'detection_stage': second_stage, 'reason': 'Acme code'},
+    ]
+    return deduplicate_window_ads(ads)[0]
+
+
+def test_llm_members_record_their_stage_through_window_dedup():
+    merged = _window_merged('claude')
+
+    assert [m['stage'] for m in merged['merged_member_spans']] == [
+        'claude', 'claude']
+
+
+def test_ten_second_trim_of_an_llm_member_merge_is_applied():
+    merged = _window_merged('claude')
+    reviewer = _build_reviewer()
+
+    result = _review(reviewer, merged, (100.0, 250.0))
+
+    assert result.held_by_boundary_conflict == []
+    accepted = result.accepted_after_review[0]
+    assert (accepted['start'], accepted['end']) == (100.0, 250.0)
+
+
+def test_the_same_trim_of_a_measured_member_is_held():
+    merged = _window_merged('fingerprint')
+    reviewer = _build_reviewer()
+
+    result = _review(reviewer, merged, (100.0, 250.0))
+
+    assert result.accepted_after_review == []
+    held = result.held_by_boundary_conflict[0]
+    assert held['hold_reason'] == HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+    assert (held['start'], held['end']) == (100.0, 260.0)
+
+
+def test_a_stageless_member_still_takes_the_legacy_union_rule():
+    """Markers persisted before the stage stamp keep their full protection."""
+    ad = _merged(
+        100.0, 260.0,
+        [{'start': 100.0, 'end': 200.0, 'stage': None},
+         {'start': 203.0, 'end': 260.0, 'stage': None}],
+    )
+
+    assert AdReviewer._proposal_conflicts_with_protection(
+        ad, 100.0, 250.0, 100.0, 260.0) is True

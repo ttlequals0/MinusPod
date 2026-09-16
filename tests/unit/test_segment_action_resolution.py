@@ -35,6 +35,13 @@ def db():
     return database.Database()
 
 
+@pytest.fixture(autouse=True)
+def isolated_global_actions(db, preserve_setting):
+    """Several tests here write the global map; none may leak into the next."""
+    preserve_setting('segment_category_actions')
+    db.clear_setting('segment_category_actions')
+
+
 @pytest.fixture
 def feed_slug(db):
     slug = 'segment-actions-test-feed'

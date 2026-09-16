@@ -577,12 +577,14 @@ def fire_update_available_event(version, channel, release_date, url):
 
 
 def fire_cue_template_quiet_event(slug, podcast_name, template_id, template_label,
-                                  last_match_at):
+                                  last_match_at, suggested_threshold=None):
     """Fire a cue-template-quiet webhook: a cue-only feed's template stopped
-    matching recent episodes. Deduped per template."""
+    matching recent episodes. ``suggested_threshold`` is the value its recent
+    near-misses would have needed, when one was derived. Deduped per template."""
     context = {
         'podcast': {'name': podcast_name, 'slug': slug},
-        'template': {'id': template_id, 'label': template_label},
+        'template': {'id': template_id, 'label': template_label,
+                     'suggested_threshold': suggested_threshold},
         'last_match_at': last_match_at,
     }
     return _fire_alert_event(EVENT_CUE_TEMPLATE_QUIET, context,

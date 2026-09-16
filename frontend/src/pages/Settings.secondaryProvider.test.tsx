@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Settings from './Settings';
 import type { Settings as SettingsShape, SettingValue } from '../api/types';
 import type { ModelCatalog } from '../hooks/useModelCatalog';
+import type { ModelsRefresh } from '../hooks/useModelsRefresh';
 import * as settingsApi from '../api/settings';
 
 vi.mock('react-router', () => ({
@@ -227,8 +228,8 @@ describe('Settings: secondary provider with no persisted type', () => {
     vi.mocked(settingsApi.refreshModels).mockResolvedValue({ models: [], count: 0 });
     renderSettings();
 
-    await waitFor(() => expect(captured.reviewer.onRefreshModels).toBeTruthy());
-    await act(async () => { (captured.reviewer.onRefreshModels as () => void)(); });
+    await waitFor(() => expect(captured.reviewer.modelsRefresh).toBeTruthy());
+    await act(async () => { reviewerRefresh().refresh(); });
 
     await waitFor(() => {
       expect(vi.mocked(settingsApi.refreshModels)).toHaveBeenCalledWith('primary');
@@ -269,6 +270,14 @@ function stageCatalog(prop: string): Partial<ModelCatalog> {
 
 function reviewCatalog(): Partial<ModelCatalog> {
   return (captured.reviewer.catalog as ModelCatalog | undefined) ?? {};
+}
+
+function stagesRefresh(): ModelsRefresh {
+  return captured.models.modelsRefresh as ModelsRefresh;
+}
+
+function reviewerRefresh(): ModelsRefresh {
+  return captured.reviewer.modelsRefresh as ModelsRefresh;
 }
 
 describe('Settings: stage catalog fetch state', () => {
@@ -321,8 +330,8 @@ describe('Settings: review catalog fetch state', () => {
     vi.mocked(settingsApi.refreshModels).mockResolvedValue({ models: [], count: 0 });
     renderSettings();
 
-    await waitFor(() => expect(captured.reviewer.onRefreshModels).toBeTruthy());
-    await act(async () => { (captured.reviewer.onRefreshModels as () => void)(); });
+    await waitFor(() => expect(captured.reviewer.modelsRefresh).toBeTruthy());
+    await act(async () => { reviewerRefresh().refresh(); });
 
     await waitFor(() => {
       expect(vi.mocked(settingsApi.refreshModels)).toHaveBeenCalledWith('secondary');
@@ -334,13 +343,13 @@ describe('Settings: review catalog fetch state', () => {
     vi.mocked(settingsApi.refreshModels).mockResolvedValue({ models: [], count: 0 });
     renderSettings();
 
-    await waitFor(() => expect(captured.reviewer.onRefreshModels).toBeTruthy());
+    await waitFor(() => expect(captured.reviewer.modelsRefresh).toBeTruthy());
     const detectionCalls = () => mockGetModels.mock.calls
       .filter((c) => c[0] === 'anthropic' && c[1] === 'primary').length;
     await waitFor(() => expect(detectionCalls()).toBeGreaterThan(0));
     const before = detectionCalls();
 
-    await act(async () => { (captured.reviewer.onRefreshModels as () => void)(); });
+    await act(async () => { reviewerRefresh().refresh(); });
 
     await waitFor(() => expect(detectionCalls()).toBeGreaterThan(before));
   });
@@ -360,18 +369,18 @@ describe('Settings: review catalog fetch state', () => {
       : Promise.resolve({ models: [], count: 0 })));
     renderSettings();
 
-    await waitFor(() => expect(captured.models.onRefresh).toBeTruthy());
-    await act(async () => { (captured.models.onRefresh as () => void)(); });
-    await waitFor(() => expect(captured.models.refreshIsPending).toBe(true));
+    await waitFor(() => expect(captured.models.modelsRefresh).toBeTruthy());
+    await act(async () => { stagesRefresh().refresh(); });
+    await waitFor(() => expect(stagesRefresh().isPending).toBe(true));
 
-    await act(async () => { (captured.reviewer.onRefreshModels as () => void)(); });
+    await act(async () => { reviewerRefresh().refresh(); });
     // The review refresh has settled; the stage refresh has not.
     await act(async () => { await new Promise((resolve) => { setTimeout(resolve, 0); }); });
 
-    expect(captured.reviewer.refreshModelsIsPending).toBe(false);
-    expect(captured.models.refreshIsPending).toBe(true);
+    expect(reviewerRefresh().isPending).toBe(false);
+    expect(stagesRefresh().isPending).toBe(true);
     await act(async () => { releaseSecondary(); });
-    await waitFor(() => expect(captured.models.refreshIsPending).toBe(false));
+    await waitFor(() => expect(stagesRefresh().isPending).toBe(false));
   });
 
   it('asks for the primary slot when the reviewer runs on the primary provider', async () => {
@@ -379,8 +388,8 @@ describe('Settings: review catalog fetch state', () => {
     vi.mocked(settingsApi.refreshModels).mockResolvedValue({ models: [], count: 0 });
     renderSettings();
 
-    await waitFor(() => expect(captured.reviewer.onRefreshModels).toBeTruthy());
-    await act(async () => { (captured.reviewer.onRefreshModels as () => void)(); });
+    await waitFor(() => expect(captured.reviewer.modelsRefresh).toBeTruthy());
+    await act(async () => { reviewerRefresh().refresh(); });
 
     await waitFor(() => {
       expect(vi.mocked(settingsApi.refreshModels)).toHaveBeenCalledWith('primary');
@@ -392,11 +401,11 @@ describe('Settings: review catalog fetch state', () => {
     vi.mocked(settingsApi.refreshModels).mockRejectedValue(new Error('No secondary provider configured'));
     renderSettings();
 
-    await waitFor(() => expect(captured.reviewer.onRefreshModels).toBeTruthy());
-    await act(async () => { (captured.reviewer.onRefreshModels as () => void)(); });
+    await waitFor(() => expect(captured.reviewer.modelsRefresh).toBeTruthy());
+    await act(async () => { reviewerRefresh().refresh(); });
 
     await waitFor(() => {
-      expect(captured.reviewer.modelsRefreshError).toBe('No secondary provider configured');
+      expect(reviewerRefresh().error).toBe('No secondary provider configured');
     });
   });
 });
@@ -414,8 +423,8 @@ describe('Settings: stage catalog refresh', () => {
     vi.mocked(settingsApi.refreshModels).mockResolvedValue({ models: [], count: 0 });
     renderSettings();
 
-    await waitFor(() => expect(captured.models.onRefresh).toBeTruthy());
-    await act(async () => { (captured.models.onRefresh as () => void)(); });
+    await waitFor(() => expect(captured.models.modelsRefresh).toBeTruthy());
+    await act(async () => { stagesRefresh().refresh(); });
 
     await waitFor(() => {
       expect(vi.mocked(settingsApi.refreshModels)).toHaveBeenCalledTimes(2);
@@ -429,10 +438,10 @@ describe('Settings: stage catalog refresh', () => {
     vi.mocked(settingsApi.refreshModels).mockRejectedValue(new Error('provider refused'));
     renderSettings();
 
-    await waitFor(() => expect(captured.models.onRefresh).toBeTruthy());
-    await act(async () => { (captured.models.onRefresh as () => void)(); });
+    await waitFor(() => expect(captured.models.modelsRefresh).toBeTruthy());
+    await act(async () => { stagesRefresh().refresh(); });
 
-    await waitFor(() => expect(captured.models.refreshError).toBe('provider refused'));
-    expect(captured.reviewer.modelsRefreshError).toBeNull();
+    await waitFor(() => expect(stagesRefresh().error).toBe('provider refused'));
+    expect(reviewerRefresh().error).toBeNull();
   });
 });

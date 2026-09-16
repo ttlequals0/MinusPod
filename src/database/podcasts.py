@@ -309,6 +309,7 @@ class PodcastMixin:
                 'last_modified_header', 'only_expose_processed_episodes',
                 'refresh_failure_count', 'last_refresh_error',
                 'last_refresh_error_at', 'last_refresh_failure_at',
+                'parse_failure_count', 'last_parse_failure_at',
                 'website_url', 'passthrough_enabled', 'skip_ad_detection',
                 'last_podping_at', 'podping_uses', 'podping_hive_accounts',
                 'podping_checked_at', 'channel_metadata_at',
@@ -349,20 +350,32 @@ class PodcastMixin:
         costs no lock at all. The UPDATE keeps its own guard, since a
         concurrent refresh may have written a failure since this read.
         """
-        conn = self.get_connection()
-        row = conn.execute(
-            "SELECT refresh_failure_count FROM podcasts WHERE slug = ?",
-            (slug,)
-        ).fetchone()
-        if not row or not row['refresh_failure_count']:
-            return
-        conn.execute(
+        self._clear_failure_columns(
+            slug, 'refresh_failure_count',
             """UPDATE podcasts
                SET refresh_failure_count = 0, last_refresh_error = NULL,
                    last_refresh_error_at = NULL, last_refresh_failure_at = NULL
-               WHERE slug = ? AND refresh_failure_count > 0""",
+               WHERE slug = ? AND refresh_failure_count > 0""")
+
+    def clear_parse_failure_state(self, slug: str):
+        """Reset the unparseable-body backoff. Only a body that actually parsed
+        clears it: a 304 refresh succeeds without parsing anything."""
+        self._clear_failure_columns(
+            slug, 'parse_failure_count',
+            """UPDATE podcasts
+               SET parse_failure_count = 0, last_parse_failure_at = NULL
+               WHERE slug = ? AND parse_failure_count > 0""")
+
+    def _clear_failure_columns(self, slug: str, count_column: str, sql: str):
+        """Run `sql` only when `count_column` is set; see clear_refresh_failure_state."""
+        conn = self.get_connection()
+        row = conn.execute(
+            f"SELECT {count_column} FROM podcasts WHERE slug = ?",  # noqa: S608
             (slug,)
-        )
+        ).fetchone()
+        if not row or not row[count_column]:
+            return
+        conn.execute(sql, (slug,))
         conn.commit()
 
     def get_podcast_tags(self, slug: str) -> dict[str, list[str]]:

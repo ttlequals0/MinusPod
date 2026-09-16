@@ -57,3 +57,7 @@ class AudioTooLargeError(Exception):
         if not message.endswith(self._HINT):
             message += self._HINT
         super().__init__(message)
+
+
+class AudioNotReadyError(Exception):
+    """The enclosure could not be fetched, so the run did no work at all."""

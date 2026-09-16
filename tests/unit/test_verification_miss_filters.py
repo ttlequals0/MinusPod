@@ -141,6 +141,27 @@ def test_real_ad_passes_all_filters(db):
     assert len(db.get_ad_patterns(active_only=True)) == 1
 
 
+def test_a_credit_lead_in_is_stripped_before_the_pattern_is_stored(db):
+    """The model leaves the credit on the label. Stored raw it mints a registry
+    row named "Sponsored by Acme Tools", which then matches nothing."""
+    svc = PatternService(db=db)
+    text = ('Acme Tools keeps your workshop running. Head to Acme Tools '
+            'dot com slash pod for twenty percent off your first order.')
+    svc.record_verification_misses(
+        'some-show', 'abc',
+        [{
+            'sponsor': 'Sponsored by Acme Tools', 'start': 0.0, 'end': 60.0,
+            'confidence': 0.95,
+            'reason': 'Acme Tools host-read',
+        }],
+        segments=_segments(text, end=60.0),
+    )
+    patterns = db.get_ad_patterns(active_only=True)
+    assert len(patterns) == 1
+    assert patterns[0]['sponsor'] == 'Acme Tools'
+    assert db.get_known_sponsor_by_name('Sponsored by Acme Tools') is None
+
+
 def test_existing_pattern_is_still_boosted_when_filters_pass(db):
     """If a pattern already exists for the sponsor and the verification miss
     passes the filters, boost confirmation_count instead of creating a new

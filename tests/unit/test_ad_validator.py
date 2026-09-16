@@ -2116,6 +2116,14 @@ def test_merge_preserves_vad_adjacency_extension_limit():
     assert merged[1]['start'] == 202.0
 
 
+def _all_offsets(text, needle):
+    """Every start offset of `needle` in `text`."""
+    pos = text.find(needle)
+    while pos != -1:
+        yield pos
+        pos = text.find(needle, pos + 1)
+
+
 class TestRegistryConfirmsLongAds:
     """A real multi-sponsor break was rejected on length alone.
 
@@ -2145,14 +2153,19 @@ class TestRegistryConfirmsLongAds:
         """Stands in for the seeded registry: both brands in ADS_TEXT are
         seed sponsors, and 'warbyparker.com' matches the spaced name too."""
 
-        def find_sponsor_in_text(self, text):
-            low = (text or '').lower()
-            return 'Wayfair' if 'wayfair' in low else None
+        VARIANTS = {'Wayfair': ('wayfair',),
+                    'Warby Parker': ('warby parker', 'warbyparker')}
 
-        def count_sponsor_mentions(self, text):
+        def brand_mention_offsets(self, text):
             low = (text or '').lower()
-            return (low.count('wayfair') + low.count('warby parker')
-                    + low.count('warbyparker'))
+            found = {}
+            for name, variants in self.VARIANTS.items():
+                offsets = sorted(
+                    pos for variant in variants
+                    for pos in _all_offsets(low, variant))
+                if offsets:
+                    found[name] = offsets
+            return found
 
     def test_long_break_is_held_without_the_registry(self):
         v = AdValidator(3700.0, self._segments(), episode_description='',
@@ -2300,11 +2313,9 @@ class TestRegistryNeedsMoreThanOneMention:
     brand mention; that is not a sponsor read."""
 
     class _Registry:
-        def find_sponsor_in_text(self, text):
-            return 'Acme' if 'acme' in (text or '').lower() else None
-
-        def count_sponsor_mentions(self, text):
-            return (text or '').lower().count('acme')
+        def brand_mention_offsets(self, text):
+            offsets = list(_all_offsets((text or '').lower(), 'acme'))
+            return {'Acme': offsets} if offsets else {}
 
     def _validator(self, ad_text):
         segments = [{'start': 0.0, 'end': 400.0, 'text': ad_text}]
@@ -2320,6 +2331,25 @@ class TestRegistryNeedsMoreThanOneMention:
         v = self._validator('Acme protects you. Go to Acme dot com slash pod '
                             'for twenty percent off your first order')
         assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is True
+
+    def test_one_mention_each_of_two_brands_does_not_confirm(self):
+        """Summed across brands, two name-drops in a long span read as a
+        sponsor read. One brand has to be named twice."""
+        class _TwoBrands:
+            def brand_mention_offsets(self, text):
+                found = {}
+                for name in ('Slack', 'Zoom'):
+                    offsets = list(_all_offsets((text or '').lower(), name.lower()))
+                    if offsets:
+                        found[name] = offsets
+                return found
+
+        segments = [{'start': 0.0, 'end': 400.0,
+                     'text': 'we moved the Slack thread into a Zoom call'}]
+        v = AdValidator(3600.0, segments, episode_description='',
+                        min_cut_confidence=0.80, sponsor_service=_TwoBrands())
+
+        assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is False
 
 
 class TestAdjustmentClampWithoutBypass:
@@ -2464,3 +2494,40 @@ class TestPlainConfirmMultiFragment:
         assert result.rejected == 0
         assert all(ad['validation']['user_confirmed'] is True
                    for ad in result.ads)
+
+
+class TestSponsorConfirmedIsEvidenceNotProse:
+    """The duration allowance takes any confirmation, including the detection
+    model's own reason. The stored sponsor_confirmed flag is read back by the
+    reviewer's reject floor, where one model's prose cannot outrank the other
+    model's verdict."""
+
+    def _validator(self, transcript):
+        from utils.text import word_boundary_re
+        segments = [{'start': 0.0, 'end': 60.0, 'text': transcript}]
+        v = AdValidator(3600.0, segments, episode_description='')
+        v.description_sponsors = {'acme'}
+        v._description_sponsor_re = word_boundary_re(v.description_sponsors)
+        return v
+
+    def _ad(self, reason):
+        return {'start': 0.0, 'end': 60.0, 'confidence': 0.9, 'reason': reason}
+
+    def test_a_reason_only_match_still_lifts_the_duration_ceiling(self):
+        v = self._validator('nothing promotional in this stretch at all')
+        ad = self._ad('Acme read, host delivered')
+
+        assert v._sponsor_confirmation_source(ad) == 'reason'
+        assert v._is_sponsor_confirmed(ad) is True
+
+    def test_a_reason_only_match_is_not_stored_as_confirmed(self):
+        v = self._validator('nothing promotional in this stretch at all')
+        ad = v._validate_ad(self._ad('Acme read, host delivered'))
+
+        assert ad['validation']['sponsor_confirmed'] is False
+
+    def test_a_transcript_match_is_stored_as_confirmed(self):
+        v = self._validator('go to Acme dot com for twenty percent off')
+        ad = v._validate_ad(self._ad('sponsor read'))
+
+        assert ad['validation']['sponsor_confirmed'] is True

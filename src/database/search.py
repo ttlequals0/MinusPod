@@ -162,7 +162,9 @@ class SearchMixin:
     """Full-text search (FTS5) methods."""
 
     def rebuild_search_index(self) -> int:
-        """Rebuild search under a process-shared single-writer lock."""
+        """Rebuild search under a process-shared single-writer lock.
+        A lost write-lock race propagates: the background caller backs off a
+        cycle rather than re-running the whole corpus while the lock is held."""
         shadow = f"{_SHADOW_PREFIX}_{os.getpid()}_{threading.get_ident()}"
         with _search_rebuild_lock(self.db_path):
             try:

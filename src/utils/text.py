@@ -16,6 +16,35 @@ from utils.time import parse_timestamp
 BOUNDARY_SNAP_TOLERANCE_S = 3.0
 
 
+def word_boundary_re(terms) -> re.Pattern | None:
+    """One case-insensitive alternation matching any of `terms` as whole words,
+    or None when nothing is left to match. Longest first so an alternative that
+    prefixes another cannot win the match.
+
+    Lookarounds, not \\b: a brand whose first or last character is not a word
+    character ("Liquid I.V.", "Yahoo!") has no word boundary there, and \\b
+    would never match it.
+    """
+    escaped = sorted({t.strip() for t in terms if t and t.strip()},
+                     key=len, reverse=True)
+    if not escaped:
+        return None
+    return re.compile(
+        r'(?<!\w)(?:' + '|'.join(re.escape(t) for t in escaped) + r')(?!\w)',
+        re.IGNORECASE)
+
+
+def pattern_offsets(text: str, patterns: dict) -> dict[str, list[int]]:
+    """Match offsets of each named pattern in `text`, by name. Names with no
+    match are left out, so len() counts the names the text carries."""
+    found: dict[str, list[int]] = {}
+    for name, pattern in patterns.items():
+        offsets = [match.start() for match in pattern.finditer(text)]
+        if offsets:
+            found[name] = offsets
+    return found
+
+
 def truncate(text: str, limit: int) -> str:
     """Cut text to limit characters, ellipsis included in the count."""
     if not text or len(text) <= limit:

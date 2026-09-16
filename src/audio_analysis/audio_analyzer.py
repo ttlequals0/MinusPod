@@ -353,6 +353,8 @@ class AudioAnalyzer:
         timeout_factor = n_components
 
         cue_near_misses: list[dict[str, Any]] = []
+        cue_templates_debug: list[dict[str, Any]] = []
+        cue_scan_complete = False
         silence_spans: list[dict[str, Any]] = []
         splice_evidence = None
 
@@ -434,6 +436,8 @@ class AudioAnalyzer:
                     cue_signals, cue_debug = cue_result
                     signals.extend(cue_signals)
                     cue_near_misses = cue_debug.get('near_misses', [])
+                    cue_templates_debug = cue_debug.get('templates', [])
+                    cue_scan_complete = True
                 else:
                     # The detector logs its own summary line (frames, baseline,
                     # peak vs threshold, cue count) including the zero-cue case,
@@ -470,6 +474,8 @@ class AudioAnalyzer:
 
         result.signals = signals
         result.cue_near_misses = cue_near_misses
+        result.cue_templates_debug = cue_templates_debug
+        result.cue_scan_complete = cue_scan_complete
         result.silence_spans = silence_spans
         # Expose the resolved silence tunables so processing.py can use them
         # for snap_ad_boundaries_to_silence without a second DB read.

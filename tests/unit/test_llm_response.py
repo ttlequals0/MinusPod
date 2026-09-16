@@ -1,10 +1,13 @@
 """Tests for utils.llm_response (extracted from ad_detector for reuse)."""
 
+import pytest
+
 from utils.llm_response import (
     extract_json_ads_array,
     extract_json_object,
     find_first_dict_with_key,
     find_json_array_candidates,
+    json_object_is_blank,
 )
 
 
@@ -256,3 +259,17 @@ def test_extract_json_ads_array_accepts_singular_ad_key():
     assert ads == [{"start": 964.0, "end": 1015.0, "sponsor": "Mr. Doodle"}]
     assert method == "json_object_ad_key"
 
+
+# ---------- json_object_is_blank ----------
+
+@pytest.mark.parametrize('body', ['{}', '  {}  ', '{"ads": null}',
+                                  '{"ads": null, "notes": null}'])
+def test_json_object_is_blank_accepts_an_object_naming_no_answer(body):
+    assert json_object_is_blank(body) is True
+
+
+@pytest.mark.parametrize('body', ['{"ads": []}', '[]',
+                                  '{"ads": [{"start": 1, "end": 2}]}',
+                                  'not json at all', '', None])
+def test_json_object_is_blank_rejects_anything_that_answers(body):
+    assert json_object_is_blank(body) is False

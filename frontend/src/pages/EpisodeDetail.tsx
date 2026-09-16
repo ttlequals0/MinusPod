@@ -63,6 +63,17 @@ const REDETECT_DISABLED_MODE_LABELS: Partial<Record<NonNullable<Feed['processing
   cue_only: 'cue-only',
 };
 
+// Why a window was lost, keyed by the backend's window loss class.
+const WINDOW_LOSS_LABELS: Record<string, string> = {
+  rate_limit: 'rate limited',
+  server_error: 'provider server error',
+  connectivity: 'connection error',
+  reasoning_exhausted: 'reasoning budget exhausted',
+  output_truncated: 'output cut off at max tokens',
+  empty_completion: 'empty reply',
+  other: 'other error',
+};
+
 const THINKING_NOTICE_PASS_LABELS: Record<ThinkingNoticePass, string> = {
   ad_detection_pass_1: 'ad detection',
   reviewer_pass_1: 'ad review',
@@ -626,9 +637,14 @@ function EpisodeDetail() {
     ['verification', episode.incompleteCoverage?.verification] as const,
   ]
     .filter(([, counts]) => counts)
-    .map(([pass, counts]) => (typeof counts!.total === 'number'
-      ? `${counts!.failed} of ${counts!.total} ${pass} windows failed`
-      : `${counts!.failed} ${pass} windows failed`));
+    .map(([pass, counts]) => {
+      const head = typeof counts!.total === 'number'
+        ? `${counts!.failed} of ${counts!.total} ${pass} windows failed`
+        : `${counts!.failed} ${pass} windows failed`;
+      const causes = Object.entries(counts!.failureClasses ?? {})
+        .map(([cls, n]) => `${n} ${WINDOW_LOSS_LABELS[cls] ?? cls}`);
+      return causes.length ? `${head} (${causes.join(', ')})` : head;
+    });
 
   const redetectDisabled = REDETECT_DISABLED_MODES.has(feed?.processingMode);
   const chaptersRegenerating = regenerateChaptersMutation.isPending
@@ -1455,6 +1471,8 @@ function EpisodeDetail() {
                 ? 'The reviewer disagreed with the detected boundaries'
                 : segment.hold_reason === 'reviewer_boundary_conflict'
                 ? 'The reviewer proposed a boundary that crosses protected ad evidence'
+                : segment.hold_reason === 'reviewer_reject_conflict'
+                ? 'The reviewer rejected a span that carries measured ad evidence'
                 : segment.hold_reason === 'no_splice_evidence'
                 ? 'No splice artifact found at either edge'
                 : segment.hold_reason === 'verification_miss'
@@ -1555,7 +1573,8 @@ function EpisodeDetail() {
                     </p>
                   )}
                   {(segment.hold_reason === 'reviewer_contradiction'
-                    || segment.hold_reason === 'reviewer_boundary_conflict')
+                    || segment.hold_reason === 'reviewer_boundary_conflict'
+                    || segment.hold_reason === 'reviewer_reject_conflict')
                     && segment.reviewer_reasoning && (
                     <p className="text-sm text-muted-foreground mt-1">
                       <span className="font-medium">Reviewer:</span>{' '}

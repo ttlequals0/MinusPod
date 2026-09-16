@@ -8,6 +8,7 @@ import run_context
 from llm_capabilities import supports_json_schema
 from llm_client import (
     is_retryable_error,
+    is_connectivity_error,
     is_rate_limit_error,
     classify_structural_rate_limit,
     classify_daily_quota_exhaustion,
@@ -30,6 +31,7 @@ from utils.time import parse_iso_utc, utc_now
 # database transitively). Keeping them out of this module's import-time
 # graph lets the offline benchmark in benchmarks/llm/ import
 # ad_detector -> utils.llm_call without pulling in jinja2/flask transitively.
+from utils.llm_response import json_object_is_blank
 from utils.retry import calculate_backoff
 
 logger = logging.getLogger(__name__)
@@ -90,25 +92,73 @@ class ReasoningExhaustedError(EmptyCompletionError):
     """The response budget was exhausted by reasoning before an answer."""
 
 
+class OutputTruncatedError(Exception):
+    """The output budget ran out with no reasoning to blame: the answer itself
+    was cut off. Terminal, not retryable, since the same budget and prompt
+    truncate again."""
+
+    def __init__(self, *args, response=None):
+        super().__init__(*args)
+        self.response = response
+
+
 def _completion_is_empty(response) -> bool:
     """True when the model returned no usable content (empty or whitespace)."""
     content = getattr(response, 'content', None)
     return not (content or "").strip()
 
 
-def _call_once(llm_client, llm_kwargs, model):
+def _reasoning_present(response) -> bool:
+    """True when the provider reported reasoning on this response."""
+    if (getattr(response, 'reasoning_exhausted', False)
+            or getattr(response, 'reasoning_present', False)):
+        return True
+    usage = getattr(response, 'usage', None)
+    return bool(isinstance(usage, dict) and usage.get('reasoning_tokens'))
+
+
+def _output_budget_spent(response, max_tokens) -> bool:
+    """True when the provider cut the output off at the configured budget."""
+    if getattr(response, 'finish_reason', None) in ('max_tokens', 'length'):
+        return True
+    usage = getattr(response, 'usage', None)
+    output_tokens = usage.get('output_tokens') if isinstance(usage, dict) else None
+    return (isinstance(max_tokens, int) and isinstance(output_tokens, (int, float))
+            and output_tokens >= max_tokens)
+
+
+def _call_once(llm_client, llm_kwargs, model, blank_json_is_failure=False):
     """One LLM call; raise EmptyCompletionError if it comes back content-less."""
     response = llm_client.messages_create(**llm_kwargs)
+    budget_spent = _output_budget_spent(response, llm_kwargs.get('max_tokens'))
     if _completion_is_empty(response):
-        if (getattr(response, 'reasoning_exhausted', False)
-                or (getattr(response, 'reasoning_present', False)
-                    and getattr(response, 'finish_reason', None) in ('max_tokens', 'length'))):
+        if _reasoning_present(response) and (
+                getattr(response, 'reasoning_exhausted', False) or budget_spent):
             raise ReasoningExhaustedError(
                 f"empty completion from {model} after reasoning exhausted the output budget",
                 response=response,
             )
+        if budget_spent:
+            raise OutputTruncatedError(
+                f"empty completion from {model} cut off at its output budget",
+                response=response,
+            )
         raise EmptyCompletionError(
             f"empty completion from {model} (no content returned)", response=response)
+    # A cut-off completion that names no answer ("{}") is a lost window: the
+    # extractor would otherwise read the blank object as "no ads". Only window
+    # calls opt in; a blank repair/chapters answer is not a coverage gap.
+    if (blank_json_is_failure and budget_spent
+            and json_object_is_blank(getattr(response, 'content', None))):
+        if _reasoning_present(response):
+            raise ReasoningExhaustedError(
+                f"{model} spent its output budget on reasoning without producing an answer",
+                response=response,
+            )
+        raise OutputTruncatedError(
+            f"{model} spent its output budget without producing an answer",
+            response=response,
+        )
     return response
 
 
@@ -135,7 +185,8 @@ def _invoking_pass_from_name(pass_name: str | None) -> int | None:
 
 
 def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass,
-                      provider_key, credential_slot, slug, episode_id, call_label):
+                      provider_key, credential_slot, slug, episode_id, call_label,
+                      blank_json_is_failure=False):
     """One ledger-tracked adapter dispatch.
 
     Begins an attempt before the network call and finalizes it after, so
@@ -159,7 +210,7 @@ def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass
         credential_slot=credential_slot,
     )
     try:
-        response = _call_once(llm_client, llm_kwargs, model)
+        response = _call_once(llm_client, llm_kwargs, model, blank_json_is_failure)
     except ProcessingCancelled:
         db.finalize_llm_attempt(attempt_id, state='cancelled')
         raise
@@ -185,10 +236,11 @@ def _finalize_attempt(db, attempt_id, state, response, ctx) -> None:
     ctx.tokens.add(usage.get('input_tokens') or 0, usage.get('output_tokens') or 0, cost)
 
 
-def _apply_reasoning_fallback(error, llm_kwargs, *, slug, episode_id, call_label):
-    """Disable reasoning after a truncated reasoning-only response."""
-    if (not isinstance(error, ReasoningExhaustedError)
-            or llm_kwargs.get('reasoning_effort') == 'none'):
+def _apply_reasoning_fallback(llm_kwargs, *, slug, episode_id, call_label) -> None:
+    """Turn reasoning off before the retry an exhausted budget earns. An unset
+    effort flips too: the model reasoned unasked, so 'none' is a different
+    request; an effort already at 'none' retries the same request."""
+    if llm_kwargs.get('reasoning_effort') in ('', 'none'):
         return
     llm_kwargs['reasoning_effort'] = 'none'
     logger.warning(
@@ -198,7 +250,63 @@ def _apply_reasoning_fallback(error, llm_kwargs, *, slug, episode_id, call_label
 
 
 def _is_retryable(error) -> bool:
+    # A truncated answer is terminal: the same budget truncates again.
+    if isinstance(error, OutputTruncatedError):
+        return False
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
+
+
+# Loss classes recorded when a window is given up on: a 5xx and a 429 both
+# leave the window unexamined, and the run stats used to report them alike.
+LOSS_RATE_LIMIT = 'rate_limit'
+LOSS_SERVER_ERROR = 'server_error'
+LOSS_CONNECTIVITY = 'connectivity'
+LOSS_REASONING_EXHAUSTED = 'reasoning_exhausted'
+LOSS_OUTPUT_TRUNCATED = 'output_truncated'
+LOSS_EMPTY_COMPLETION = 'empty_completion'
+LOSS_OTHER = 'other'
+
+
+def window_loss_class(error) -> str:
+    """Name the status class a window was lost to."""
+    if error is None:
+        return LOSS_OTHER
+    if isinstance(error, ReasoningExhaustedError):
+        return LOSS_REASONING_EXHAUSTED
+    if isinstance(error, OutputTruncatedError):
+        return LOSS_OUTPUT_TRUNCATED
+    if isinstance(error, EmptyCompletionError):
+        return LOSS_EMPTY_COMPLETION
+    if isinstance(error, (StructuralRateLimitError, ProviderRateLimitedError)):
+        return LOSS_RATE_LIMIT
+    if is_rate_limit_error(error):
+        return LOSS_RATE_LIMIT
+    status = getattr(error, 'status_code', None)
+    if isinstance(status, int) and 500 <= status < 600:
+        return LOSS_SERVER_ERROR
+    if is_connectivity_error(error):
+        return LOSS_CONNECTIVITY
+    return LOSS_OTHER
+
+
+def _lost_window(error, is_window, slug, episode_id, call_label):
+    """Log a lost detection/review window and hand the error back. Other call
+    sites (chapters, repairs) degrade on their own and are not coverage gaps."""
+    if is_window:
+        _log_window_loss(error, slug=slug, episode_id=episode_id,
+                         call_label=call_label)
+    return error
+
+
+def _log_window_loss(error, *, slug, episode_id, call_label):
+    """Log one window lost after every retry, named by status class."""
+    status = getattr(error, 'status_code', None)
+    detail = f" status={status}" if status else ""
+    # The error text is on the preceding per-attempt line; this names the class.
+    logger.warning(
+        f"[{slug}:{episode_id}] {call_label} lost after all retries "
+        f"({window_loss_class(error)}{detail})"
+    )
 
 
 def _shutdown_requested() -> bool:
@@ -378,6 +486,8 @@ def call_llm(
     response_format: dict | None = None,
     provider: str | None = None,
     credential_slot: str = 'primary',
+    blank_json_is_failure: bool = False,
+    is_window: bool = False,
 ) -> tuple[object | None, Exception | None]:
     """Call LLM with an in-loop retry then a per-window fallback retry.
 
@@ -397,6 +507,12 @@ def call_llm(
     ``phase_key`` labels this call in the llm_call_usage ledger ('detection',
     'verification', 'review', 'chapters'); every real dispatch (including
     each retry below) is recorded as its own billable ledger row.
+
+    ``blank_json_is_failure`` treats a budget-truncated blank JSON object as a
+    failed call; only window calls, where it means an unexamined span, opt in.
+
+    ``is_window`` marks a detection/review window, the only calls whose loss
+    is a coverage gap worth its own log line.
 
     Returns:
         Tuple of (response, last_error). response is None if all retries failed.
@@ -418,6 +534,31 @@ def call_llm(
     )
     response = None
     last_error = None
+    reasoning_retried = False
+
+    def dispatch():
+        """One dispatch, plus the single retry an exhausted reasoning budget
+        earns wherever in the ladder it lands. A ReasoningExhaustedError out of
+        here has already spent that retry and is terminal for the window."""
+        nonlocal reasoning_retried
+        call = dict(
+            phase_key=phase_key, invoking_pass=invoking_pass,
+            provider_key=provider_key, credential_slot=credential_slot,
+            slug=slug, episode_id=episode_id, call_label=call_label,
+            blank_json_is_failure=blank_json_is_failure)
+        try:
+            return _ledger_call_once(llm_client, llm_kwargs, model, **call)
+        except ReasoningExhaustedError:
+            if reasoning_retried:
+                logger.warning(
+                    f"[{slug}:{episode_id}] {call_label} exhausted its output "
+                    f"budget again; giving up"
+                )
+                raise
+            reasoning_retried = True
+            _apply_reasoning_fallback(llm_kwargs, slug=slug, episode_id=episode_id,
+                                      call_label=call_label)
+        return _ledger_call_once(llm_client, llm_kwargs, model, **call)
 
     for attempt in range(max_retries + 1):
         # Manual rate-limit backstop (#747): re-checked before every dispatch,
@@ -426,19 +567,14 @@ def call_llm(
         held = _manual_rate_limit_error(provider_key, credential_slot, slug,
                                         episode_id, phase=phase_key)
         if held is not None:
-            return None, held
+            return None, _lost_window(held, is_window, slug, episode_id, call_label)
         try:
-            response = _ledger_call_once(
-                llm_client, llm_kwargs, model, phase_key=phase_key,
-                invoking_pass=invoking_pass, provider_key=provider_key,
-                credential_slot=credential_slot,
-                slug=slug, episode_id=episode_id, call_label=call_label)
+            response = dispatch()
             return response, None
         except Exception as e:
             last_error = e
-            _apply_reasoning_fallback(
-                e, llm_kwargs, slug=slug, episode_id=episode_id,
-                call_label=call_label)
+            if isinstance(e, ReasoningExhaustedError):
+                break
             terminal = _terminal_error(
                 e, model=model, slug=slug, episode_id=episode_id,
                 call_label=call_label, provider=provider,
@@ -470,12 +606,13 @@ def call_llm(
             logger.warning(f"[{slug}:{episode_id}] {call_label} failed: {e}")
             break
 
-    if response is None and last_error is not None and _is_retryable(last_error):
+    if (response is None and last_error is not None and _is_retryable(last_error)
+            and not isinstance(last_error, ReasoningExhaustedError)):
         for retry_num, base_delay in enumerate([2, 5], 1):
             held = _manual_rate_limit_error(provider_key, credential_slot, slug,
                                             episode_id, phase=phase_key)
             if held is not None:
-                return None, held
+                return None, _lost_window(held, is_window, slug, episode_id, call_label)
             delay = _fallback_delay(last_error, base_delay, retry_num == 1)
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} per-window retry "
@@ -484,21 +621,15 @@ def call_llm(
             if not _sleep_before_retry(delay):
                 break
             try:
-                response = _ledger_call_once(
-                    llm_client, llm_kwargs, model, phase_key=phase_key,
-                    invoking_pass=invoking_pass, provider_key=provider_key,
-                    credential_slot=credential_slot,
-                    slug=slug, episode_id=episode_id, call_label=call_label)
+                response = dispatch()
                 logger.info(
                     f"[{slug}:{episode_id}] {call_label} succeeded on retry {retry_num}"
                 )
                 return response, None
             except Exception as e:
                 last_error = e
-                if retry_num < 2:
-                    _apply_reasoning_fallback(
-                        e, llm_kwargs, slug=slug, episode_id=episode_id,
-                        call_label=call_label)
+                if isinstance(e, ReasoningExhaustedError):
+                    break
                 terminal = _terminal_error(
                     e, model=model, slug=slug, episode_id=episode_id,
                     call_label=call_label, provider=provider,
@@ -510,7 +641,7 @@ def call_llm(
                     f"[{slug}:{episode_id}] {call_label} retry {retry_num} failed: {e}"
                 )
 
-    return None, last_error
+    return None, _lost_window(last_error, is_window, slug, episode_id, call_label)
 
 
 def call_llm_for_window(
@@ -520,10 +651,12 @@ def call_llm_for_window(
 
     ``response_format`` defaults to json_object; call sites with a defined
     response schema (#694) pass a json_schema dict when the capability gate
-    passes.
+    passes. A blank JSON answer at the output budget counts as a lost window.
     """
     return call_llm(
         call_label=window_label,
         response_format=response_format or {"type": "json_object"},
+        blank_json_is_failure=True,
+        is_window=True,
         **kwargs,
     )

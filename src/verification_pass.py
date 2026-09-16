@@ -156,6 +156,8 @@ class VerificationPass:
         window_counts = {
             'windows_total': verification_result.get('windows_total'),
             'windows_failed': verification_result.get('windows_failed'),
+            'windows_failure_classes': verification_result.get(
+                'windows_failure_classes'),
         }
         detection_error = verification_result.get('error')
         if verification_result.get('status') == 'failed' or detection_error:
