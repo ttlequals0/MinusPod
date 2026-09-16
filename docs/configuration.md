@@ -198,7 +198,7 @@ Saving a new key, or clearing one, takes effect without a container restart. Pro
 
 In practice:
 
-- Rotation is safe mid-run. A run in flight builds its next client against the new key.
+- A run in flight builds its next client against the new key. Only rotate keys this way when the provider account and endpoint remain the same.
 - Clearing a key really does disable that slot's calls. There is no grace period where the old key keeps working.
 - A rate-limit hold on that account is lifted by the same save, so the queue resumes as soon as the new key is in place.
 
@@ -207,6 +207,8 @@ In practice:
 Each run snapshots its routing when it starts: for every phase, the provider, the model, and the endpoint. The whole run then uses that snapshot, and it is stored with the run so a recovered run resumes on the same routes rather than silently re-resolving. Editing a stage's provider or model, or changing a base URL, therefore does not take effect on a run already underway; it applies to the next run. The ad reviewer freezes its own routing settings the same way, so a mid-run change cannot re-route review.
 
 Credentials are the deliberate exception, as described above: the snapshot holds endpoints and model ids, never keys, and keys resolve when a client is built. Rotating a key changes what an in-flight run authenticates with; changing an endpoint does not change where it sends.
+
+Changing a slot's provider or endpoint together with its key can therefore send the new key to the old endpoint from an active or recovered run. Until credentials are bound to the snapshot's account identity, finish or cancel affected runs before switching accounts. Pausing new work alone does not stop an active run.
 
 ### Budgets when a cost is unknown
 
@@ -478,7 +480,7 @@ Holds are scoped per credential, not just per provider type. If primary and seco
 
 ### Manual request-rate limits
 
-The rate-limit hold above reacts to a 429 after it happens. Manual request-rate limits keep you under a provider account's hard limits in the first place, so a low-tier account never sends the request that would be rejected. Both features share the same queue-hold machinery, so a manual limit pauses the queue exactly like a real 429 and resumes on its own. A manual hold clears only when its reset time passes, and is never cleared early by the usage probe (that probe sends a real request, which would burn the quota the cap protects).
+The rate-limit hold above reacts to a 429 after it happens. Manual request-rate limits check recent ledger usage before a tracked call. They are best-effort controls: concurrent calls can pass the check together, and adapter-internal compatibility retries are not recorded as separate requests. Token limits use recorded usage, not a reservation for the next request, so a call can cross the configured token limit. Both features share the same queue-hold machinery, so a manual limit pauses the queue exactly like a real 429 and resumes on its own. A manual hold clears only when its reset time passes, and is never cleared early by the usage probe (that probe sends a real request, which would burn the quota the cap protects).
 
 Limits are scoped to one provider account, meaning one credential slot on one provider type: primary and secondary count separately even when both point at the same provider. Counting comes from the LLM call ledger: requests in the last 60 seconds against the per-minute cap (RPM), input plus output tokens of finalized calls in the last 60 seconds against the tokens-per-minute cap (TPM), and requests since the last UTC midnight against the per-day cap (RPD). When any cap is reached, that account's queue is paused. A per-minute pause (RPM or TPM) lifts about 60 seconds after the oldest contributing call in the window; the per-day pause lifts at the next UTC midnight, which is the fixed reset boundary regardless of your server's timezone or the provider's own billing day. When more than one cap is over, the later reset wins.
 

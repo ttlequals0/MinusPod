@@ -5221,6 +5221,7 @@ def _admission_mode_rows(settings_db, slug: str, episode_id: str | None,
     if queue_row is not None:
         return ({'passthrough_enabled': queue_row.get('feed_passthrough_enabled'),
                  'skip_ad_detection': queue_row.get('skip_ad_detection'),
+                 'skip_second_pass': queue_row.get('skip_second_pass'),
                  'detection_mode': queue_row.get('detection_mode'),
                  'chapters_mode': queue_row.get('chapters_mode')},
                 {'passthrough_enabled': queue_row.get('episode_passthrough_enabled')})
@@ -5275,6 +5276,8 @@ def _required_providers_for_admission(slug: str, episode_id: str | None = None,
                              if phase == 'chapters'}
         if not gates['review']:
             active_phases.pop('review', None)
+        if resolve_skip_second_pass(podcast_row):
+            active_phases.pop('verification', None)
         if not _chapters_enabled_for_admission(gates['chapters_enabled'], podcast_row):
             active_phases.pop('chapters', None)
     except Exception as exc:
@@ -5305,7 +5308,8 @@ def _resolve_route_snapshot() -> dict | None:
         chapters = resolve_route('chapters')
         review = resolve_route(
             'review', pass_provider=detection.provider_key,
-            pass_model=detection.model_id)
+            pass_model=detection.model_id, pass_base_url=detection.base_url,
+            pass_credential_slot=detection.credential_slot)
         # Database(), not the module-level db: resolve_route above already
         # reads settings through its own fresh Database() singleton lookup,
         # and the gate must match that same source of truth.

@@ -81,6 +81,7 @@ function renderSection() {
 }
 
 beforeEach(() => {
+  localStorage.setItem('settings-section-scheduled-backups', 'true');
   vi.clearAllMocks();
   mockGet.mockResolvedValue(makeSettings());
   mockUpdate.mockResolvedValue(makeSettings());

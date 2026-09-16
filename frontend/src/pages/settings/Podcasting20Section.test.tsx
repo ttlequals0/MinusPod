@@ -1,7 +1,7 @@
 /**
  * Tests for the Chapter Density group in the Transcripts & Chapters section.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Podcasting20Section from './Podcasting20Section';
@@ -34,6 +34,10 @@ function Harness({
     />
   );
 }
+
+beforeEach(() => {
+  localStorage.setItem('settings-section-transcripts-&-chapters', 'true');
+});
 
 describe('chapter density controls', () => {
   const FIELDS: Array<[string, string, number]> = [

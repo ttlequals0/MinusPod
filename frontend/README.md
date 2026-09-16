@@ -32,11 +32,11 @@ npm run test
 
 - **React 19.2.8** - UI framework
 - **TypeScript 6.0.3** - Type safety
-- **Vite 8.2.2** - Build tool
+- **Vite 8.3.0** - Build tool
 - **TanStack Query 5.102.8** - Server state management
 - **Tailwind CSS 4.3.3** - Styling
 - **Lucide React 1.33.0** - Icons
-- **React Router 8.3.0** - Routing
+- **React Router 8.3.1** - Routing
 - **Fetch API** - HTTP client
 
 ## Project Structure

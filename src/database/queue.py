@@ -342,7 +342,7 @@ class QueueMixin:
             """SELECT q.episode_id, q.title, q.priority, q.created_at,
                       p.slug as podcast_slug, p.title as podcast_title,
                       p.passthrough_enabled as feed_passthrough_enabled,
-                      p.skip_ad_detection, p.detection_mode, p.chapters_mode,
+                      p.skip_ad_detection, p.skip_second_pass, p.detection_mode, p.chapters_mode,
                       e.passthrough_enabled as episode_passthrough_enabled,
                       COUNT(*) OVER () as total_pending
                FROM auto_process_queue q

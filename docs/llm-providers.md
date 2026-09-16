@@ -253,7 +253,7 @@ Each slot needs its own API key and, where relevant, base URL configured under S
 
 ### The slots are routes, not a failover chain
 
-Primary and Secondary are two independent accounts a stage can be pointed at. They are not a chain, and nothing at runtime moves a call from one to the other. When a call fails, it retries against the same slot it was routed to, with the same credentials and endpoint, and then gives up; the episode never spills onto the other provider. A rate-limit pause behaves the same way: the episode waits in the queue for that account's reset instead of rerouting.
+Primary and Secondary are two independent accounts a stage can be pointed at. They are not a chain, and nothing at runtime moves a call from one to the other. When a call fails, it retries against the same slot and endpoint, then gives up; the episode never spills onto the other provider. Credentials can change if a key is rotated between attempts; see [provider key rotation and active runs](configuration.md#rotating-or-clearing-a-provider-key). A rate-limit pause behaves the same way: the episode waits in the queue for that account's reset instead of rerouting.
 
 The one time a stage changes slot is at configuration time, not on failure. A stage set to Secondary while the secondary provider is disabled or has no type saved resolves to Primary, and logs a warning once. That is a fail-safe for an incomplete configuration, evaluated when the route is resolved, not a response to an error.
 

@@ -76,11 +76,11 @@ The server includes a web-based management UI at `/ui/`:
 
 The dashboard toolbar has a Podcasts / Episodes switch. Podcasts is the original view, one card or row per show, and it keeps the grid and list layouts and the sort control. Episodes reorganizes the same dashboard around recent work instead: one section per podcast, each with its cover, its title, its total episode count, a "View all episodes" link, and that show's newest episodes underneath.
 
-A "Per podcast" select next to the switch sets how many episodes each section shows, from 1 to 10, defaulting to 3. Both the chosen view and the chosen count are remembered in the browser, so the dashboard opens the way you left it.
+The View menu sets how many episodes each podcast section shows, from 1 to 10, defaulting to 3. Both the chosen view and the chosen count are remembered in the browser, so the dashboard opens the way you left it.
 
 Episode rows in this view are the same rows the feed page renders, with the same status badge, hold chip, pass-through indicator, and per-row action button, so nothing is lost by staying on the dashboard. The Recents feed is left out of the grouped view: its episodes belong to the shows they came from, so it would always render empty.
 
-The whole view is filled by one request per page of feeds rather than one request per show, so adding shows does not multiply the round trips. Feeds themselves are paginated; the projection travels with that page.
+One request loads the episode groups rather than one request per show. The feeds API supports pagination, but the dashboard currently requests all feeds; the response grows with the number of subscriptions.
 
 ### Episode actions and job state
 
@@ -235,7 +235,7 @@ Completed episodes also state the verification result under the header: whether 
 
 Expanding a run shows its per-phase cost breakdown: one row per pipeline phase with the provider it routed to, the model that answered, input and output tokens, and cost. Cache and reasoning token columns appear only when a run has them. A phase that retried onto a different model contributes more than one row, which is how a fallback becomes visible rather than being averaged away. Detection and verification are listed even when they did not run, labelled Skipped, Not applicable, or Unavailable, so a missing row is never ambiguous. A run recorded before the cost ledger existed, or a recut, shows "Breakdown unavailable" and keeps only its recorded total.
 
-The episode header carries up to three spend readouts: **Active run** while a run is in flight, updated from the ledger as it spends; **Latest run** for the most recent attempt, a failed one included; and **Total spend**, everything this episode has ever cost, which reads "Recorded so far" while processing. When some calls in a figure have no resolved price, the readout says "known spend" and an amber **Incomplete** chip marks it, because the amount is a floor rather than the real total. Setting a price for the model in question (Settings > AI & Processing > AI Models) clears it.
+The episode header carries up to three spend readouts: **Active run** while a run is in flight, updated from the ledger as it spends; **Latest run** for the most recent attempt, a failed one included; and **Total spend**, the episode's recorded ledger spend, which reads "Recorded so far" while processing. Historical calls made before the ledger existed are not included in that cumulative figure. When some calls in a figure have no resolved price, the readout says "known spend" and an amber **Incomplete** chip marks it, because the amount is a floor rather than the real total. Setting a price for the model in question (Settings > AI & Processing > AI Models) lets subsequent calls resolve their cost; it does not reprice already-finalized calls or clear their Incomplete status.
 
 ### LLM cost ledger
 

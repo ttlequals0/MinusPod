@@ -1,4 +1,4 @@
-import { Fragment, useState, useMemo } from 'react';
+import { Fragment, useState, useMemo, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import {
@@ -43,8 +43,8 @@ function ReviewerStatCard({ label, value }: { label: string; value: number | str
 // card inside a card.
 function Metric({ label, value }: { label: string; value: number | string }) {
   return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <div className="flex min-w-0 flex-col">
+      <p className="flex-1 text-xs text-muted-foreground">{label}</p>
       <p className="text-lg font-semibold text-foreground">{value}</p>
     </div>
   );
@@ -188,6 +188,28 @@ function ModelUsageTable({
       </div>
 
       <div className="sm:hidden space-y-3">
+        <div className="flex items-center gap-2">
+          <select
+            aria-label="Sort model usage by"
+            value={sortField}
+            onChange={(e) => onSort(e.target.value as ModelUsageSortField)}
+            className={`flex-1 min-w-0 min-h-11 ${selectBase}`}
+          >
+            <option value="provider">Provider</option>
+            <option value="model">Model</option>
+            <option value="calls">Calls</option>
+            <option value="knownCostUsd">Known spend</option>
+            <option value="unknownCostCount">Unpriced calls</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => onSort(sortField)}
+            aria-label={sortDir === 'asc' ? 'Sort model usage descending' : 'Sort model usage ascending'}
+            className={`min-h-11 min-w-11 inline-flex items-center justify-center rounded ${btnSecondary} transition-colors ${focusRing}`}
+          >
+            <span aria-hidden="true">{sortDir === 'asc' ? '\u2191' : '\u2193'}</span>
+          </button>
+        </div>
         {items.length === 0 ? (
           <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
             No model usage recorded for this filter
@@ -661,44 +683,37 @@ export default function StatsPage() {
           <StatCard
             label="Avg Time Saved"
             value={formatDuration(dashboard.avgTimeSavedSeconds)}
-            min={formatDuration(dashboard.minTimeSavedSeconds)}
-            max={formatDuration(dashboard.maxTimeSavedSeconds)}
+            details={<><span>Min: {formatDuration(dashboard.minTimeSavedSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxTimeSavedSeconds)}</span></>}
           />
           <StatCard
             label="Avg Ads Removed"
             value={dashboard.avgAdsRemoved.toFixed(1)}
-            min={String(dashboard.minAdsRemoved)}
-            max={String(dashboard.maxAdsRemoved)}
+            details={<><span>Min: {String(dashboard.minAdsRemoved)}</span>{' '}<span>Max: {String(dashboard.maxAdsRemoved)}</span></>}
           />
           <StatCard
             label="Avg Cost"
             value={formatCost(dashboard.avgCostPerEpisode)}
-            min={formatCost(dashboard.minCostPerEpisode)}
-            max={formatCost(dashboard.maxCostPerEpisode)}
+            details={<><span>Min: {formatCost(dashboard.minCostPerEpisode)}</span>{' '}<span>Max: {formatCost(dashboard.maxCostPerEpisode)}</span></>}
           />
           <StatCard
             label="Avg Processing Time"
             value={formatDuration(dashboard.avgProcessingTimeSeconds)}
-            min={formatDuration(dashboard.minProcessingTimeSeconds)}
-            max={formatDuration(dashboard.maxProcessingTimeSeconds)}
+            details={<><span>Min: {formatDuration(dashboard.minProcessingTimeSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxProcessingTimeSeconds)}</span></>}
           />
           <StatCard
             label="Avg Episode Length"
             value={formatDuration(dashboard.avgEpisodeLengthSeconds)}
-            min={formatDuration(dashboard.minEpisodeLengthSeconds)}
-            max={formatDuration(dashboard.maxEpisodeLengthSeconds)}
+            details={<><span>Min: {formatDuration(dashboard.minEpisodeLengthSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxEpisodeLengthSeconds)}</span></>}
           />
           <StatCard
             label="Avg Tokens/Run"
             value={formatTokenCount(dashboard.avgInputTokens + dashboard.avgOutputTokens)}
-            min={`In: ${formatTokenCount(dashboard.avgInputTokens)}`}
-            max={`Out: ${formatTokenCount(dashboard.avgOutputTokens)}`}
+            details={<><span>In: {formatTokenCount(dashboard.avgInputTokens)}</span>{' '}<span>Out: {formatTokenCount(dashboard.avgOutputTokens)}</span></>}
           />
           <StatCard
             label="Avg Audio Cues"
             value={dashboard.avgAudioCuesDetected.toFixed(1)}
-            min={String(dashboard.minAudioCuesDetected)}
-            max={String(dashboard.maxAudioCuesDetected)}
+            details={<><span>Min: {String(dashboard.minAudioCuesDetected)}</span>{' '}<span>Max: {String(dashboard.maxAudioCuesDetected)}</span></>}
           />
         </div>
       )}
@@ -1121,12 +1136,12 @@ export default function StatsPage() {
   );
 }
 
-function StatCard({ label, value, min, max }: { label: string; value: string; min: string; max: string }) {
+function StatCard({ label, value, details }: { label: string; value: string; details: ReactNode }) {
   return (
-    <div className="bg-card rounded-lg border border-border p-4">
+    <div className="row-span-3 grid grid-rows-subgrid gap-y-0 bg-card rounded-lg border border-border p-3 sm:p-4">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="text-xl font-bold text-foreground">{value}</p>
-      <p className="text-xs text-muted-foreground mt-1">Min: {min} / Max: {max}</p>
+      <p className="text-xl font-bold tabular-nums text-foreground">{value}</p>
+      <p className="flex flex-wrap content-start gap-x-2 text-xs text-muted-foreground mt-1 [&>span]:whitespace-nowrap">{details}</p>
     </div>
   );
 }

@@ -5,7 +5,7 @@
  * thresholds). Follows NotificationsSection.test.tsx conventions.
  */
 import { useState } from 'react';
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdDetectionSection from './AdDetectionSection';
@@ -85,6 +85,10 @@ function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
     </>
   );
 }
+
+beforeEach(() => {
+  localStorage.setItem('settings-section-ad-detection', 'true');
+});
 
 describe('AdDetectionSection: tunables render with defaults', () => {
   it('shows every new tunable at its default value', () => {

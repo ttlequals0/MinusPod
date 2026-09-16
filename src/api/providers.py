@@ -106,14 +106,11 @@ def update_provider(provider):
         api_key = body['apiKey']
         if api_key is not None and not isinstance(api_key, str):
             return error_response('apiKey must be a string or null', 400)
-        try:
-            set_or_clear_secret(db, cfg['secret'], api_key)
-        except SecretWriteRejected:
-            return error_response('provider_crypto_unavailable', 409)
-        credentials_changed = True
 
     if cfg['base_url'] and 'baseUrl' in body:
         url = body['baseUrl']
+        if url is not None and not isinstance(url, str):
+            return error_response('baseUrl must be a string or null', 400)
         if url:
             if provider in _LLM_PROVIDERS and url_has_userinfo(url):
                 return error_response(BASE_URL_USERINFO_ERROR, 400)
@@ -121,6 +118,17 @@ def update_provider(provider):
                 validate_base_url(url)
             except SSRFError:
                 return error_response('base URL failed SSRF validation', 400)
+
+    if 'apiKey' in body:
+        try:
+            set_or_clear_secret(db, cfg['secret'], body['apiKey'])
+        except SecretWriteRejected:
+            return error_response('provider_crypto_unavailable', 409)
+        credentials_changed = True
+
+    if cfg['base_url'] and 'baseUrl' in body:
+        url = body['baseUrl']
+        if url:
             db.set_setting(cfg['base_url'], url)
             credentials_changed = True
         # Empty baseUrl ignored; clear via DELETE /providers/<name>. Issue #235.

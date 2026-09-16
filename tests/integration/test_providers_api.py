@@ -99,6 +99,18 @@ def test_locked_when_crypto_unavailable(app_client, temp_db, monkeypatch, _auth)
     assert r2.status_code == 409
 
 
+def test_rejected_endpoint_does_not_replace_saved_key(app_client, temp_db, _auth):
+    temp_db.set_secret('openai_api_key', 'sk-existing')
+    temp_db.set_setting('openai_base_url', 'https://old.example/v1')
+    response = app_client.put('/api/v1/settings/providers/openai', json={
+        'apiKey': 'sk-replacement',
+        'baseUrl': 'https://user:pass@new.example/v1',
+    })
+    assert response.status_code == 400
+    assert temp_db.get_secret('openai_api_key') == 'sk-existing'
+    assert temp_db.get_setting('openai_base_url') == 'https://old.example/v1'
+
+
 class TestSecondaryModelListing:
     """GET /settings/models?provider=<type>&slot=secondary: a stage routed to
     the secondary slot needs to discover models with the secondary slot's

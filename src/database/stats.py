@@ -32,23 +32,25 @@ _PROCESSED_EPISODE_EXISTS_SQL = (
 def _ledger_row_is_billable(state: str, input_tokens, output_tokens, cost: float) -> bool:
     """Whether a finalized llm_call_usage row counts toward totals.
 
-    Single source of truth for finalize_llm_attempt's counter gate and the
-    run-scoped readers below: success, or a failure with tokens known (a
-    billed failure); excludes an all-zero row (unknown cost, no tokens).
+    Include successful calls with missing usage and failures with reported cost.
+    Explicit zero-token, zero-cost calls and unbilled failures are excluded.
     """
     tokens_known = input_tokens is not None and output_tokens is not None
-    if not (state == 'success' or (state == 'failure' and tokens_known)):
+    if not (state == 'success' or (state == 'failure' and (tokens_known or cost != 0))):
         return False
-    return (input_tokens or 0) > 0 or (output_tokens or 0) > 0 or cost != 0
+    return ((state == 'success' and not tokens_known)
+            or (input_tokens or 0) > 0 or (output_tokens or 0) > 0 or cost != 0)
 
 
 # SQL mirror of _ledger_row_is_billable, for GROUP BY aggregates that must
 # filter in SQL rather than materialising every ledger row in Python.
 _LEDGER_BILLABLE_SQL = (
-    "(state = 'success' OR (state = 'failure' AND input_tokens IS NOT NULL "
+    "((state = 'success' AND (input_tokens IS NULL OR output_tokens IS NULL)) "
+    "OR ((state = 'success' OR (state = 'failure' AND input_tokens IS NOT NULL "
     "AND output_tokens IS NOT NULL)) "
-    "AND (COALESCE(input_tokens, 0) > 0 OR COALESCE(output_tokens, 0) > 0 "
-    "OR (cost_usd IS NOT NULL AND CAST(cost_usd AS REAL) != 0))"
+    "AND (COALESCE(input_tokens, 0) > 0 OR COALESCE(output_tokens, 0) > 0)) "
+    "OR (state IN ('success', 'failure') AND cost_usd IS NOT NULL "
+    "AND CAST(cost_usd AS REAL) != 0))"
 )
 
 
@@ -464,10 +466,9 @@ class StatsMixin:
         ('estimated', or 'explicit_zero' when the resolved rate is 0/0);
         else 'unknown' with cost_usd left NULL. Counters (token_usage +
         global stats) are derived in this same transaction only when the
-        attempt is billable: state == 'success', or state == 'failure' with
-        tokens known (a billed failure), and either tokens or cost is
-        nonzero. 'cancelled' and unknown-token, zero-cost failures update
-        the ledger row only.
+        attempt meets _ledger_row_is_billable. Missing usage on success
+        remains visible as unknown cost; reported cost on failure still
+        counts. Cancelled and unbilled failures update the ledger row only.
         """
         conn = self.get_connection()
         row = conn.execute(

@@ -57,6 +57,7 @@ function renderSection(props: { isPasswordSet: boolean; cryptoReady?: boolean })
 }
 
 beforeEach(() => {
+  localStorage.setItem('settings-section-security', 'true');
   vi.clearAllMocks();
   mockGetSettings.mockResolvedValue(makeSettings());
   mockUpdateSettings.mockResolvedValue({ message: 'ok' });

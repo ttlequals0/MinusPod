@@ -26,6 +26,7 @@ from llm_client import invalidate_provider_cache  # noqa: E402
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
     for var in ('OPENAI_BASE_URL', 'OPENAI_API_KEY', 'OLLAMA_API_KEY',
+                'ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY',
                 'PODCAST_INDEX_API_KEY', 'PODCAST_INDEX_API_SECRET'):
         monkeypatch.delenv(var, raising=False)
     # get_effective_base_url reads through a 5s TTL cache; drop it so each

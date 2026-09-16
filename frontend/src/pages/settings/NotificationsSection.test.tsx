@@ -66,6 +66,7 @@ function renderSection() {
 }
 
 beforeEach(() => {
+  localStorage.setItem('settings-section-notifications', 'true');
   vi.clearAllMocks();
   mockGetEmail.mockResolvedValue(makeSettings());
   mockGetWebhooks.mockResolvedValue([

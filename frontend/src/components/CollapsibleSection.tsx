@@ -184,6 +184,7 @@ function CollapsibleSection({
 
       <div
         ref={contentRef}
+        inert={!expanded}
         style={{ maxHeight: contentMaxHeight }}
         className={`overflow-hidden ${!searching && maxHeight !== 'none' && maxHeight !== '0px' ? 'transition-[max-height] duration-300 ease-in-out' : ''}`}
       >

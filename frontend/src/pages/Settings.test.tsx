@@ -176,6 +176,8 @@ function renderSettings() {
 }
 
 beforeEach(() => {
+  localStorage.setItem('settings-section-prompts', 'true');
+  localStorage.setItem('settings-section-ad-reviewer', 'true');
   vi.clearAllMocks();
 });
 

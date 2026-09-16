@@ -558,6 +558,10 @@ def call_llm(
             reasoning_retried = True
             _apply_reasoning_fallback(llm_kwargs, slug=slug, episode_id=episode_id,
                                       call_label=call_label)
+        held = _manual_rate_limit_error(provider_key, credential_slot, slug,
+                                        episode_id, phase=phase_key)
+        if held is not None:
+            raise held
         return _ledger_call_once(llm_client, llm_kwargs, model, **call)
 
     for attempt in range(max_retries + 1):

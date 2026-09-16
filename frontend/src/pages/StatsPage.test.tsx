@@ -267,6 +267,21 @@ describe('StatsPage LLM cost ledger', () => {
     });
   });
 
+  it('sorts model usage from mobile controls and resets pagination', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole('combobox', { name: 'Sort model usage by' });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sort model usage by' }), 'calls');
+    await waitFor(() => {
+      expect(lastMainListParams()).toMatchObject({ page: 1, sortBy: 'calls', sortDir: 'desc' });
+    });
+    await user.click(screen.getByRole('button', { name: 'Sort model usage ascending' }));
+    await waitFor(() => {
+      expect(lastMainListParams()).toMatchObject({ sortBy: 'calls', sortDir: 'asc' });
+    });
+  });
+
   it('resets both ledger lists to page 1 when a filter changes', async () => {
     const user = userEvent.setup();
     renderPage();

@@ -7,7 +7,7 @@
  * their own card, SegmentActionsSection; see SegmentActionsSection.test.tsx.
  */
 import { useState } from 'react';
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GlobalDefaultsSection from './GlobalDefaultsSection';
@@ -74,6 +74,10 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
     </>
   );
 }
+
+beforeEach(() => {
+  localStorage.setItem('settings-section-global-defaults', 'true');
+});
 
 describe('GlobalDefaultsSection: Podping notifications toggle', () => {
   it('renders off by default', () => {
