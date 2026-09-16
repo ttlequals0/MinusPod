@@ -99,6 +99,18 @@ describe('DashboardEpisodeGroups', () => {
     expect(link.querySelector('span')?.getAttribute('class')).toContain('hidden sm:inline');
   });
 
+  it('leaves the group section unclipped so a row dropdown can overflow it', () => {
+    const feed: Feed = {
+      slug: 'show-g', title: 'Show G', sourceUrl: 'https://example.com/g.xml', feedUrl: 'https://example.com/g.xml',
+      episodeCount: 1, latestEpisodes: [episodeSummary({ id: 'e1' })],
+    };
+    renderGroups([feed]);
+    // overflow-hidden clipped the last row's dropdown menu on desktop.
+    const section = screen.getByRole('heading', { name: 'Show G' }).closest('section') as HTMLElement;
+    expect(section.getAttribute('aria-labelledby')).toBe('episode-group-heading-show-g');
+    expect(section.className).not.toContain('overflow-hidden');
+  });
+
   it('disables a queued row action while a sibling row stays actionable, keeping both action labels stable', () => {
     const feed: Feed = {
       slug: 'show-e', title: 'Show E', sourceUrl: 'https://example.com/e.xml', feedUrl: 'https://example.com/e.xml',

@@ -1,6 +1,7 @@
 """Run-scoped fences in the pipeline: a 429 with no provider key is scoped
 from the run's route snapshot, the transcriber's shared stats field is read
-atomically, and the ownership check runs before any output path is resolved.
+atomically, the ownership check runs before any output path is resolved, and
+an aborted run deletes the render it never published.
 """
 from contextlib import ExitStack
 from unittest.mock import patch
@@ -148,7 +149,7 @@ def _run_pipeline(stack, *, transcribe=None, owner_check=None, required=[]):
     p(processing, '_required_providers_for_admission', return_value=required)
     p(processing, 'get_effective_provider', return_value='provider-a')
     p(processing.shutil, 'move')
-    p(processing.os, 'unlink')
+    unlink = p(processing.os, 'unlink')
     p(processing.os.path, 'exists', return_value=False)
     if owner_check is not None:
         p(processing, '_require_publication_owner', side_effect=owner_check)
@@ -166,7 +167,7 @@ def _run_pipeline(stack, *, transcribe=None, owner_check=None, required=[]):
     local_ap.get_audio_duration.return_value = 100.0
     storage.get_episode_path.return_value = '/tmp/final.mp3'
     return {'storage': storage, 'finalize': finalize,
-            'audio_processor': local_ap, 'db': mock_db}
+            'audio_processor': local_ap, 'db': mock_db, 'unlink': unlink}
 
 
 class TestTranscriptionStatsReadAtomically:
@@ -223,3 +224,28 @@ class TestOwnershipFenceBeforePathResolution:
             with pytest.raises(ProcessingOwnershipLost):
                 processing.process_episode(SLUG, EP, 'https://example.com/e.mp3')
             mocks['storage'].get_episode_path.assert_not_called()
+
+
+class TestUnpublishedRenderIsCleanedUp:
+    def test_a_verification_hold_deletes_the_cut_render(self):
+        """A rate-limit hold aborts after the cut but before the move to
+        final_path, so the run owns the temp render on its way out."""
+        with ExitStack() as stack:
+            mocks = _run_pipeline(stack)
+            stack.enter_context(patch.object(
+                processing, '_run_verification_pass',
+                side_effect=ProviderRateLimitedError(
+                    'provider rate limit reached', retry_after_seconds=4499.0,
+                    phase='verification')))
+            stack.enter_context(patch.object(
+                processing.os.path, 'exists',
+                side_effect=lambda path: path in ('/tmp/cut.mp3', '/tmp/fences.mp3')))
+            assert processing.process_episode(
+                SLUG, EP, 'https://example.com/e.mp3') is False
+        mocks['unlink'].assert_any_call('/tmp/cut.mp3')
+
+    def test_a_published_render_is_not_deleted(self):
+        with ExitStack() as stack:
+            mocks = _run_pipeline(stack)
+            processing.process_episode(SLUG, EP, 'https://example.com/e.mp3')
+        mocks['unlink'].assert_not_called()

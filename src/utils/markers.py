@@ -17,6 +17,31 @@ def invalidate_tail_provenance(marker: dict, new_end: float) -> None:
         marker.pop('tail_splice_snap', None)
 
 
+def finite_number(value) -> float | None:
+    """Value as a finite float, or None when it is not one."""
+    if isinstance(value, bool):  # float(True) == 1.0, not a timestamp
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+# Both-edges tolerance for treating two markers as the same span. Matches
+# _find_marker_in_list in api/patterns.py, the reject path, and the review
+# listing, so every consumer agrees on what one span means.
+BOUNDS_TOLERANCE_S = 0.5
+
+
+def spans_match(a_start, a_end, b_start, b_end,
+                tol: float = BOUNDS_TOLERANCE_S) -> bool:
+    """Both edges within tol seconds."""
+    if a_start is None or a_end is None or b_start is None or b_end is None:
+        return False
+    return abs(a_start - b_start) <= tol and abs(a_end - b_end) <= tol
+
+
 def _valid_spans(marker: dict, key: str, extra_field: str | None = None) -> list[dict]:
     """Normalized {start, end} spans stored under `key`, dropping malformed
     entries; `extra_field` is carried through when the caller names one.
@@ -31,21 +56,34 @@ def _valid_spans(marker: dict, key: str, extra_field: str | None = None) -> list
     for raw in raw_spans:
         if not isinstance(raw, dict):
             continue
-        raw_start, raw_end = raw.get('start'), raw.get('end')
-        # bool is a subclass of int, and float(True) silently becomes 1.0, so
-        # boolean endpoints are malformed, not a span at the episode start.
-        if isinstance(raw_start, bool) or isinstance(raw_end, bool):
-            continue
-        try:
-            start, end = float(raw_start), float(raw_end)
-        except (OverflowError, TypeError, ValueError):
-            continue
-        if math.isfinite(start) and math.isfinite(end) and end > start:
+        start = finite_number(raw.get('start'))
+        end = finite_number(raw.get('end'))
+        if start is not None and end is not None and end > start:
             span = {'start': start, 'end': end}
             if extra_field is not None:
                 span[extra_field] = raw.get(extra_field)
             spans.append(span)
     return spans
+
+
+def _clip_spans(marker: dict, key: str, start: float, end: float,
+                extra_field: str | None = None,
+                keep_empty: bool = False) -> None:
+    """Clip the spans stored under `key` into [start, end], dropping collapsed
+    ones; `keep_empty` writes an empty list instead of removing the key."""
+    if keep_empty and key not in marker:
+        return
+    clipped = []
+    for span in _valid_spans(marker, key, extra_field):
+        lo = max(start, span['start'])
+        hi = min(end, span['end'])
+        if hi > lo:
+            span['start'], span['end'] = lo, hi
+            clipped.append(span)
+    if clipped or keep_empty:
+        marker[key] = clipped
+    else:
+        marker.pop(key, None)
 
 
 def _valid_dai_core_spans(marker: dict) -> list[dict[str, float]]:
@@ -70,35 +108,32 @@ def merge_dai_core_spans(target: dict, other: dict) -> None:
 
 def clip_dai_core_spans(marker: dict, start: float, end: float) -> None:
     """Clip a marker's DAI evidence to a newly split/clamped range."""
-    clipped = []
-    for span in _valid_dai_core_spans(marker):
-        lo = max(start, span['start'])
-        hi = min(end, span['end'])
-        if hi > lo:
-            clipped.append({'start': lo, 'end': hi})
-    if clipped:
-        marker[DAI_CORE_SPANS] = clipped
-    else:
-        marker.pop(DAI_CORE_SPANS, None)
+    _clip_spans(marker, DAI_CORE_SPANS, start, end)
 
 
-def dai_core_bounds(marker: dict) -> tuple[float | None, float | None]:
-    """Return the outer bounds of measured DAI evidence, if present."""
-    spans = _valid_dai_core_spans(marker)
+def span_bounds(spans) -> tuple[float | None, float | None]:
+    """Outer bounds of a span list, None/None when it holds nothing."""
     if not spans:
         return None, None
     return min(s['start'] for s in spans), max(s['end'] for s in spans)
 
+
+def dai_core_bounds(marker: dict) -> tuple[float | None, float | None]:
+    """Return the outer bounds of measured DAI evidence, if present."""
+    return span_bounds(_valid_dai_core_spans(marker))
+
 # Stages whose spans carry alignment-derived padding (especially tails)
 # rather than transcript- or splice-anchored bounds. Members from these
 # stages are trimmable by the reviewer; every other stage's span is
-# protected inside a merge. Blacklist (not whitelist) so a future stage
-# name fails conservative: unknown stages are protected.
+# protected inside a merge, except that a duration-estimated text-pattern
+# span protects only its matched text. Blacklist (not whitelist) so a future
+# stage name fails conservative: unknown stages are protected.
 UNPROTECTED_MEMBER_STAGES = frozenset({'dai_differential', 'vad_gap'})
 
 # LLM- or heuristic-derived edges carry padding the reviewer may trim, so a
 # proposal only has to keep overlapping such a member. Every other stage is
-# measured (fingerprint, cue_pair, text_pattern, manual) and must stay covered.
+# measured (fingerprint, cue_pair, text_pattern, manual) and must stay covered,
+# a duration-estimated text-pattern span only over its matched text.
 COARSE_MEMBER_STAGES = frozenset({
     'claude', 'first_pass', 'verification', 'verification_miss',
     'heuristic_preroll', 'heuristic_postroll', 'language',
@@ -108,8 +143,8 @@ MERGED_MEMBER_SPANS = 'merged_member_spans'
 
 # Merge bookkeeping a split fragment must drop: it describes the merged
 # span, not the narrower piece the split just carved out.
-MERGE_BOOKKEEPING_KEYS = ('merged_distinct_ads', 'merged_protected_start',
-                         'merged_protected_end', MERGED_MEMBER_SPANS)
+_MERGE_BOOKKEEPING_KEYS = ('merged_distinct_ads', 'merged_protected_start',
+                           'merged_protected_end', MERGED_MEMBER_SPANS)
 
 
 def _protected_bounds(marker: dict) -> tuple[float | None, float | None]:
@@ -122,6 +157,21 @@ def _protected_bounds(marker: dict) -> tuple[float | None, float | None]:
     if marker.get('detection_stage') not in UNPROTECTED_MEMBER_STAGES:
         return marker['start'], marker['end']
     return None, None
+
+
+def estimated_text_bounds(marker: dict) -> tuple[float, float] | None:
+    """Matched-text bounds of a duration-estimated span, clipped to the span."""
+    if not marker.get('span_estimated'):
+        return None
+    lo = finite_number(marker.get('text_start'))
+    hi = finite_number(marker.get('text_end'))
+    span_start = finite_number(marker.get('start'))
+    span_end = finite_number(marker.get('end'))
+    if lo is None or hi is None or span_start is None or span_end is None:
+        return None
+    lo = max(lo, span_start)
+    # Text recorded past the span claims no audio rather than an inverted range.
+    return lo, max(lo, min(hi, span_end))
 
 
 def recorded_member_spans(marker: dict) -> list[dict]:
@@ -152,15 +202,18 @@ def protected_member_spans(marker: dict, fallback_start=None,
 
 def clip_member_spans(marker: dict, start: float, end: float) -> None:
     """Clip recorded member spans to a range, dropping collapsed members."""
-    if MERGED_MEMBER_SPANS not in marker:
-        return
-    clipped = []
-    for span in recorded_member_spans(marker):
-        lo = max(start, span['start'])
-        hi = min(end, span['end'])
-        if hi > lo:
-            clipped.append({'start': lo, 'end': hi, 'stage': span['stage']})
-    marker[MERGED_MEMBER_SPANS] = clipped
+    # keep_empty: the key's presence is what marks a tracked merge.
+    _clip_spans(marker, MERGED_MEMBER_SPANS, start, end,
+                extra_field='stage', keep_empty=True)
+
+
+def clip_merge_spans(marker: dict, lo: float, hi: float) -> None:
+    """Clamp every merge record a marker carries into [lo, hi]."""
+    for key in ('merged_protected_start', 'merged_protected_end'):
+        bound = marker.get(key)
+        if bound is not None:
+            marker[key] = min(max(bound, lo), hi)
+    clip_member_spans(marker, lo, hi)
 
 
 def _member_spans(marker: dict) -> list[dict]:
@@ -178,11 +231,46 @@ def _member_spans(marker: dict) -> list[dict]:
     lo, hi = _protected_bounds(marker)
     if lo is None or hi is None:
         return []
+    text = estimated_text_bounds(marker)
+    if text is not None:
+        # An estimate protects only its matched text; a span holding none of
+        # it carries no evidence.
+        if text[1] <= text[0]:
+            return []
+        lo, hi = text
     return [{'start': lo, 'end': hi, 'stage': marker.get('detection_stage')}]
 
 
+def _coalesce_coarse_members(spans: list[dict]) -> list[dict]:
+    """Union overlapping same-stage coarse members: two LLM windows over one ad
+    are one member, not two the reviewer has to keep separately."""
+    merged: list[dict] = []
+    for span in spans:
+        stage = span.get('stage')
+        prior = next(
+            (m for m in merged if m.get('stage') == stage
+             and stage in COARSE_MEMBER_STAGES
+             and span['start'] <= m['end'] and span['end'] >= m['start']),
+            None) if stage in COARSE_MEMBER_STAGES else None
+        if prior is None:
+            merged.append(span)
+            continue
+        prior['start'] = min(prior['start'], span['start'])
+        prior['end'] = max(prior['end'], span['end'])
+    return merged
+
+
+def _widen(prior, new, pick):
+    """The wider of two bounds, or whichever one of them is set."""
+    if prior is None:
+        return new
+    if new is None:
+        return prior
+    return pick(prior, new)
+
+
 def note_merged_members(target: dict, other: dict) -> None:
-    """Record the protected members on a distinct-ad merge.
+    """Record the protected members on any merge, distinct or overlapping.
 
     Call BEFORE the merge mutates target's span or stage. Always writes
     merged_protected_start/end and merged_member_spans on target (None/None
@@ -190,18 +278,15 @@ def note_merged_members(target: dict, other: dict) -> None:
     merge from a legacy marker persisted by a pre-tracking release.
     """
     merge_dai_core_spans(target, other)
-    spans = _member_spans(target) + _member_spans(other)
-    if 'merged_protected_start' not in target:
-        target['merged_protected_start'], target['merged_protected_end'] = (
-            _protected_bounds(target))
+    spans = _coalesce_coarse_members(_member_spans(target) + _member_spans(other))
     target[MERGED_MEMBER_SPANS] = spans
-    o_lo, o_hi = _protected_bounds(other)
-    if o_lo is not None:
-        lo = target['merged_protected_start']
-        target['merged_protected_start'] = o_lo if lo is None else min(lo, o_lo)
-    if o_hi is not None:
-        hi = target['merged_protected_end']
-        target['merged_protected_end'] = o_hi if hi is None else max(hi, o_hi)
+    # A union already on the target only widens: a legacy bound has no member
+    # span backing it.
+    lo, hi = span_bounds(spans)
+    target['merged_protected_start'] = _widen(
+        target.get('merged_protected_start'), lo, min)
+    target['merged_protected_end'] = _widen(
+        target.get('merged_protected_end'), hi, max)
 
 
 def mark_distinct_merge(target: dict, other: dict) -> None:
@@ -213,21 +298,28 @@ def mark_distinct_merge(target: dict, other: dict) -> None:
     target['merged_distinct_ads'] = True
 
 
-# Both-edges tolerance for treating two markers as the same span. Matches
-# _find_marker_in_list in api/patterns.py, the reject path, and the review
-# listing, so every consumer agrees on what one span means.
-BOUNDS_TOLERANCE_S = 0.5
+def note_fold(target: dict, other: dict) -> None:
+    """Bookkeeping every fold owes: touching or gapped spans are distinct ads
+    and stay expand-only."""
+    if other['start'] >= target['end']:
+        mark_distinct_merge(target, other)
+    else:
+        note_merged_members(target, other)
+
+
+def carve_fragment(parent: dict, start: float, end: float) -> dict:
+    """Copy of parent narrowed to [start, end], minus the merge bookkeeping that
+    described the wider span."""
+    fragment = {k: v for k, v in parent.items()
+                if k not in _MERGE_BOOKKEEPING_KEYS}
+    fragment['start'] = start
+    fragment['end'] = end
+    clip_dai_core_spans(fragment, start, end)
+    return fragment
+
 
 # Verdict fields the winning record owns on a fold, absences included.
 _FOLD_VERDICT_FIELDS = ('action_applied', 'held_for_review', 'hold_reason')
-
-
-def spans_match(a_start, a_end, b_start, b_end,
-                tol: float = BOUNDS_TOLERANCE_S) -> bool:
-    """Both edges within tol seconds."""
-    if a_start is None or a_end is None or b_start is None or b_end is None:
-        return False
-    return abs(a_start - b_start) <= tol and abs(a_end - b_end) <= tol
 
 
 def _stayed_in_audio(marker: dict) -> bool:

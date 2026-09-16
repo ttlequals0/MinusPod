@@ -2,6 +2,8 @@ import os
 import sys
 import tempfile
 
+import pytest
+
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='mergemem_test_'))
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
@@ -11,8 +13,11 @@ from ad_detector.boundaries import (
     split_conflicting_action_span,
 )
 from utils.markers import (
+    carve_fragment,
     clip_dai_core_spans,
+    clip_merge_spans,
     dai_core_bounds,
+    estimated_text_bounds,
     mark_distinct_merge,
     merge_dai_core_spans,
     note_merged_members,
@@ -20,8 +25,13 @@ from utils.markers import (
 )
 
 
-def _ad(start, end, stage):
-    return {'start': start, 'end': end, 'detection_stage': stage}
+def _ad(start, end, stage, **extra):
+    return {'start': start, 'end': end, 'detection_stage': stage, **extra}
+
+
+def _estimated(start, end, text_start, text_end):
+    return _ad(start, end, 'text_pattern', span_estimated=True,
+               text_start=text_start, text_end=text_end)
 
 
 def test_claude_members_are_protected():
@@ -239,6 +249,131 @@ def test_legacy_merged_member_contributes_its_union_as_one_span():
     ]
 
 
+def test_estimated_text_pattern_member_records_only_its_matched_text():
+    # No outro matched, so the end is the pattern's average duration, not
+    # evidence.
+    base = _ad(649.4, 921.1, 'claude')
+    other = _estimated(831.75, 999.65, 831.75, 860.0)
+
+    note_merged_members(base, other)
+
+    assert base['merged_member_spans'] == [
+        {'start': 649.4, 'end': 921.1, 'stage': 'claude'},
+        {'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'},
+    ]
+    # The union follows the recorded members, not the estimated tail.
+    assert base['merged_protected_start'] == 649.4
+    assert base['merged_protected_end'] == 921.1
+
+
+@pytest.mark.parametrize('other', [
+    pytest.param(_ad(831.75, 999.65, 'text_pattern', span_estimated=False,
+                     text_start=831.75, text_end=860.0), id='measured'),
+    pytest.param(_ad(831.75, 999.65, 'text_pattern', span_estimated=True),
+                 id='no_text_bounds'),
+])
+def test_text_pattern_member_keeps_full_span(other):
+    # Measured, and estimated with no recorded text bounds: neither narrows.
+    base = _ad(649.4, 921.1, 'claude')
+
+    note_merged_members(base, other)
+
+    assert base['merged_member_spans'][1] == {
+        'start': 831.75, 'end': 999.65, 'stage': 'text_pattern'}
+
+
+@pytest.mark.parametrize('other', [
+    pytest.param(_estimated(831.75, 999.65, 700.0, 800.0), id='text_before_span'),
+    pytest.param(carve_fragment(_estimated(831.75, 999.65, 831.75, 860.0),
+                                900.0, 999.65),
+                 id='carved_estimated_tail'),
+])
+def test_estimate_holding_none_of_its_text_contributes_no_member(other):
+    base = _ad(649.4, 921.1, 'claude')
+
+    note_merged_members(base, other)
+
+    assert base['merged_member_spans'] == [
+        {'start': 649.4, 'end': 921.1, 'stage': 'claude'}]
+    assert base['merged_protected_end'] == 921.1
+
+
+def test_estimate_moved_by_a_snap_still_narrows_to_its_text():
+    # A snap that moved the end does not turn the estimated tail into evidence.
+    base = _ad(649.4, 700.0, 'claude')
+
+    note_merged_members(base, _estimated(831.75, 1000.05, 831.75, 860.0))
+
+    assert base['merged_member_spans'][1] == {
+        'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'}
+
+
+def test_a_promoted_estimate_flag_cannot_narrow_the_accumulator():
+    # Stage-priority promotion copies span_estimated and the text bounds onto
+    # an accumulator holding another member's audio. The fold already tracked
+    # it, so the next merge reads its recorded members, not the flag.
+    base = _ad(649.4, 921.1, 'claude')
+    note_merged_members(base, _estimated(831.75, 999.65, 831.75, 860.0))
+    base['end'] = 999.65
+    base['detection_stage'] = 'text_pattern'
+    base['span_estimated'] = True
+    base['text_start'], base['text_end'] = 831.75, 860.0
+    members = [{'start': 649.4, 'end': 921.1, 'stage': 'claude'},
+               {'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'}]
+    assert base['merged_member_spans'] == members
+
+    later = _ad(1100.0, 1200.0, 'claude')
+    note_merged_members(later, base)
+
+    assert later['merged_member_spans'][1:] == members
+
+
+@pytest.mark.parametrize('stage,expected', [
+    pytest.param('claude', [{'start': 100.0, 'end': 400.0, 'stage': 'claude'},
+                            {'start': 403.0, 'end': 500.0, 'stage': 'claude'}],
+                 id='coarse_coalesces'),
+    pytest.param('fingerprint',
+                 [{'start': 100.0, 'end': 300.0, 'stage': 'fingerprint'},
+                  {'start': 150.0, 'end': 400.0, 'stage': 'fingerprint'},
+                  {'start': 403.0, 'end': 500.0, 'stage': 'fingerprint'}],
+                 id='measured_stays_separate'),
+])
+def test_overlapping_same_stage_members(stage, expected):
+    # Two LLM windows over one ad are one member; two measured detections are
+    # two, and each still has to survive a trim.
+    base = _ad(100.0, 300.0, stage)
+    note_merged_members(base, _ad(150.0, 400.0, stage))
+    base['end'] = 400.0
+    note_merged_members(base, _ad(403.0, 500.0, stage))
+
+    assert base['merged_member_spans'] == expected
+
+
+def test_overlapping_members_of_different_stages_stay_separate():
+    base = _ad(100.0, 300.0, 'claude')
+
+    note_merged_members(base, _ad(150.0, 400.0, 'text_pattern'))
+
+    assert base['merged_member_spans'] == [
+        {'start': 100.0, 'end': 300.0, 'stage': 'claude'},
+        {'start': 150.0, 'end': 400.0, 'stage': 'text_pattern'}]
+
+
+def test_clip_merge_spans_narrows_the_union_and_its_members():
+    # What every hand-narrowing site (split piece, approved trim, boundary
+    # adjustment) owes the records the wider span left behind.
+    marker = _ad(100.0, 150.0, 'claude')
+    mark_distinct_merge(marker, _ad(160.0, 300.0, 'text_pattern'))
+    marker['end'] = 300.0
+
+    clip_merge_spans(marker, 100.0, 150.0)
+
+    assert marker['merged_member_spans'] == [
+        {'start': 100.0, 'end': 150.0, 'stage': 'claude'}]
+    assert (marker['merged_protected_start'],
+            marker['merged_protected_end']) == (100.0, 150.0)
+
+
 def test_protected_spans_prefer_recorded_members():
     tracked = {'merged_distinct_ads': True,
                'merged_protected_start': 100.0, 'merged_protected_end': 180.0,
@@ -324,3 +459,35 @@ def test_split_fragments_drop_stale_merge_bookkeeping():
                      shortened):
         for key in MERGE_KEYS:
             assert key not in fragment
+
+
+def test_recorded_union_widens_but_never_shrinks():
+    # A persisted union has no member span backing it, so a later merge may
+    # only extend it; replacing it would drop audio an earlier merge protected.
+    base = _ad(100.0, 400.0, 'claude')
+    base['merged_protected_start'] = 100.0
+    base['merged_protected_end'] = 400.0
+    base['merged_member_spans'] = [{'start': 100.0, 'end': 180.0,
+                                    'stage': 'claude'}]
+
+    note_merged_members(base, _ad(60.0, 70.0, 'claude'))
+
+    assert base['merged_protected_start'] == 60.0
+    assert base['merged_protected_end'] == 400.0
+
+
+def test_estimated_text_bounds_needs_finite_marker_bounds():
+    assert estimated_text_bounds(
+        {'span_estimated': True, 'text_start': 1.0, 'text_end': 2.0}) is None
+    assert estimated_text_bounds(
+        {'span_estimated': True, 'text_start': 1.0, 'text_end': 2.0,
+         'start': 'unset', 'end': float('nan')}) is None
+
+
+def test_estimated_text_bounds_never_inverts():
+    # Text recorded past the marker's end claims no audio rather than a
+    # negative range.
+    assert estimated_text_bounds(
+        {'span_estimated': True, 'start': 10.0, 'end': 20.0,
+         'text_start': 30.0, 'text_end': 40.0}) == (30.0, 30.0)
+

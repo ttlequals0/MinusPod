@@ -91,10 +91,18 @@ def test_merge_preserves_later_trusted_split_fragment():
     kept_proc, kept_orig = _run(processed, original)
 
     assert kept_proc[0]['_trusted_split_fragment'] is True
+    # The twin's span grew with the merge, so it records the same members.
     assert kept_orig[0] == {
         'start': 1100.0,
         'end': 1108.0,
         '_trusted_split_fragment': True,
+        'merged_distinct_ads': True,
+        'merged_protected_start': 1100.0,
+        'merged_protected_end': 1108.0,
+        'merged_member_spans': [
+            {'start': 1100.0, 'end': 1102.0, 'stage': None},
+            {'start': 1106.0, 'end': 1108.0, 'stage': None},
+        ],
     }
     applied = AudioProcessor().compute_applied_cuts(kept_proc, 600.0)
     assert [(cut['start'], cut['end']) for cut in applied] == [(100.0, 108.0)]

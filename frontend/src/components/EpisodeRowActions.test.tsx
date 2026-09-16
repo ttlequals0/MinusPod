@@ -68,14 +68,16 @@ describe('EpisodeRowActions: action label stays stable across run states', () =>
 });
 
 describe('EpisodeRowActions: equal-width trigger', () => {
-  it('applies the same min-width class to the trigger regardless of label', () => {
+  it('applies the same min-width floor to the trigger regardless of label', () => {
     const { unmount } = renderTrigger({ status: 'pending' });
     const processClass = triggerButton('Process').className;
     unmount();
     renderTrigger({ status: 'completed' });
     const reprocessClass = triggerButton('Reprocess').className;
     expect(processClass).toBe(reprocessClass);
-    expect(processClass).toMatch(/min-w-\[/);
+    // The floor only equalizes widths while the type stays text-xs.
+    expect(processClass).toMatch(/(^|\s)min-w-24(\s|$)/);
+    expect(processClass).toMatch(/(^|\s)text-xs(\s|$)/);
   });
 });
 
@@ -85,13 +87,6 @@ describe('EpisodeRowActions: accessible name', () => {
     const trigger = screen.getByRole('button', { name: 'Reprocess' });
     expect(trigger.getAttribute('title')).toBe('Reprocess episode');
     expect(trigger.getAttribute('aria-label')).toBeNull();
-  });
-});
-
-describe('EpisodeRowActions: touch target', () => {
-  it('takes the shared 44px row-action recipe', () => {
-    renderTrigger({ status: 'completed' });
-    expect(triggerButton('Reprocess').className).toContain('min-h-[44px]');
   });
 });
 

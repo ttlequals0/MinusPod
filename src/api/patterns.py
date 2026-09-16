@@ -10,7 +10,7 @@ from config import (
     resolve_max_boundary_shift,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
-from utils.markers import BOUNDS_TOLERANCE_S, spans_match
+from utils.markers import BOUNDS_TOLERANCE_S, clip_merge_spans, spans_match
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
 from pattern_service import PatternService, compute_pattern_trust
@@ -960,6 +960,8 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
             'reason': f"Split from {original_start:.1f}s-{original_end:.1f}s block",
             'pattern_id': piece_id,
         })
+        # Each piece is narrower than the span the merge records describe.
+        clip_merge_spans(split_marker, piece['start'], piece['end'])
         new_markers.append(split_marker)
 
         db.create_pattern_correction(
@@ -1389,6 +1391,7 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
                 m['reviewer_original_end'] = m.get('end')
                 m['start'] = new_start
                 m['end'] = new_end
+                clip_merge_spans(m, new_start, new_end)
             m['approved'] = True
             m['reviewer_moved'] = False
             changed = True

@@ -37,8 +37,9 @@ from llm_client import (
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import (
-    COARSE_MEMBER_STAGES, dai_core_bounds, invalidate_tail_provenance,
-    protected_member_spans,
+    COARSE_MEMBER_STAGES, dai_core_bounds, finite_number,
+    invalidate_tail_provenance, protected_member_spans, span_bounds,
+    spans_match,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -374,18 +375,43 @@ RESURRECT_BAND_WIDTH = 0.20
 _CONFIRMED_BOUNDARY_TOLERANCE_S = 0.1
 
 
+def _bounds_unchanged(start, end, original_start, original_end) -> bool:
+    """Whether both edges stay within the confirmed-boundary tolerance."""
+    return spans_match(start, end, original_start, original_end,
+                       tol=_CONFIRMED_BOUNDARY_TOLERANCE_S)
+
+
+def _clamp_overrode(new_start, new_end, original_start, original_end,
+                    clamped_start, clamped_end) -> bool:
+    """Whether a valid, moved proposal was ruled on by the clamp."""
+    return (new_end > new_start
+            and not _bounds_unchanged(new_start, new_end,
+                                      original_start, original_end)
+            and not _bounds_unchanged(clamped_start, clamped_end,
+                                      new_start, new_end))
+
+
+# How far a reviewer proposal may cut into a measured merge member before the
+# ad is held. Tuned on its own: matching BOUNDARY_SNAP_TOLERANCE_S is chance.
+_MEASURED_MEMBER_TOLERANCE_S = 3.0
+
+
 def _member_conflict(member: dict, start: float, end: float) -> bool:
     """Whether a proposal drops the evidence one merge member carries."""
-    # A coarse member only has to keep overlapping, since trimming its
-    # padding is the reviewer's job. A measured one must stay covered.
-    tol = _CONFIRMED_BOUNDARY_TOLERANCE_S
+    # A coarse member only has to keep overlapping, since trimming its padding
+    # is the reviewer's job. A measured one must stay covered.
+    retained = min(end, member['end']) - max(start, member['start'])
+    length = member['end'] - member['start']
     if member.get('stage') in COARSE_MEMBER_STAGES:
-        retained = min(end, member['end']) - max(start, member['start'])
         # A sliver is not a surviving member: what is left has to be long
         # enough to be an ad, and at most half of a member shorter than that.
-        return retained < min(MIN_AD_DURATION_FOR_REMOVAL,
-                              (member['end'] - member['start']) / 2)
-    return start - member['start'] > tol or member['end'] - end > tol
+        floor = min(MIN_AD_DURATION_FOR_REMOVAL, length / 2)
+    elif member.get('stage') is None:
+        # Legacy union of unknown composition: any real intrusion is a conflict.
+        floor = length - _CONFIRMED_BOUNDARY_TOLERANCE_S
+    else:
+        floor = max(length / 2, length - _MEASURED_MEMBER_TOLERANCE_S)
+    return retained < floor
 
 
 # Prose/number consistency check on adjust verdicts: warn when the reasoning
@@ -457,14 +483,8 @@ def _first_num(d: dict, keys: tuple, default: float) -> float:
     correction under a corrected_/adjusted_ key when start/end is absent.
     """
     for k in keys:
-        v = d.get(k)
-        if v is None or isinstance(v, bool):
-            continue
-        try:
-            f = float(v)
-        except (TypeError, ValueError):
-            continue
-        if math.isfinite(f):
+        f = finite_number(d.get(k))
+        if f is not None:
             return f
     return default
 
@@ -486,6 +506,9 @@ class ReviewVerdict:
     success: bool = True
     structured_is_ad: bool | None = None
     boundary_conflict: bool = False
+    # The model gave bounds and the clamp ruled on them; no prose-only
+    # trim is pending.
+    proposal_clamped: bool = False
 
 
 @dataclass
@@ -952,6 +975,7 @@ class AdReviewer:
                 result.held_by_contradiction.append(held)
             elif (verdict.verdict == "confirmed"
                   and pass_num == 1
+                  and not verdict.proposal_clamped
                   and reasoning_affirms_ad(verdict.reasoning)
                   and _TRIM_LANGUAGE_RE.search(verdict.reasoning or "")):
                 # Affirmed ad whose prose describes a trim the boundary
@@ -993,6 +1017,13 @@ class AdReviewer:
                         max_shift,
                         episode_meta.get('slug'),
                         episode_meta.get('episode_id'))
+                    if _bounds_unchanged(new_start, new_end,
+                                         verdict.original_start,
+                                         verdict.original_end):
+                        # Clamped back to the original: an adjust stamp
+                        # would misreport it as moved.
+                        result.accepted_after_review.append(updated_ad)
+                        continue
                     verdict.verdict = "adjust"
                     verdict.adjusted_start = new_start
                     verdict.adjusted_end = new_end
@@ -1243,13 +1274,15 @@ class AdReviewer:
             ad, new_start, new_end, original_start, original_end,
             max_shift, slug, episode_id)
 
+        proposal_clamped = _clamp_overrode(
+            new_start, new_end, original_start, original_end,
+            clamped_start, clamped_end)
+
         # Verdict is derived from the boundary delta, not from the LLM.
         delta_start = clamped_start - original_start
         delta_end = clamped_end - original_end
-        unchanged = (
-            abs(delta_start) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
-            and abs(delta_end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
-        )
+        unchanged = _bounds_unchanged(
+            clamped_start, clamped_end, original_start, original_end)
         # Log every non-zero LLM-proposed shift, even when rounded to
         # confirmed, so we can see the distribution of adjustments the model
         # is making vs the tolerance floor.
@@ -1314,6 +1347,7 @@ class AdReviewer:
                 reasoning=reason, confidence=confidence,
                 model_used=model, latency_ms=latency_ms, success=True,
                 structured_is_ad=structured_is_ad,
+                proposal_clamped=proposal_clamped,
             ),
             ad,
         )
@@ -1354,8 +1388,7 @@ class AdReviewer:
             # member would undo the trim just accepted.
             hard = [m for m in protected_member_spans(ad, original_start, original_end)
                     if m.get('stage') not in COARSE_MEMBER_STAGES]
-            p_start = min((m['start'] for m in hard), default=None)
-            p_end = max((m['end'] for m in hard), default=None)
+            p_start, p_end = span_bounds(hard)
             floor_start = (clamped_start if p_start is None
                            else min(clamped_start, p_start))
             floor_end = (clamped_end if p_end is None
@@ -1527,6 +1560,14 @@ class AdReviewer:
                 f"{o_start:.1f}-{o_end:.1f}s. Holding without bounds."
             )
             return None
+        if not protection_conflict and ad.get('merged_distinct_ads'):
+            # Same floor the boundary clamp applies: a stamped proposal must
+            # not cut into a measured member either.
+            hard = [m for m in protected_member_spans(ad, o_start, o_end)
+                    if m.get('stage') not in COARSE_MEMBER_STAGES]
+            p_start, p_end = span_bounds(hard)
+            if p_start is not None:
+                start, end = min(start, p_start), max(end, p_end)
         logger.info(
             f"[{slug}:{episode_id}] {call_label} recovered proposed trim "
             f"{start:.1f}-{end:.1f}s from span {o_start:.1f}-{o_end:.1f}s"

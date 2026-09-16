@@ -9,6 +9,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.4] - 2026-09-15
+
+### Fixed
+
+- The dashboard row Process/Reprocess control is back to the compact 96 px chip. The 44 px card button in 2.97.3 let "Reprocess" outgrow the width floor, so the two labels rendered at different sizes.
+- On desktop, the Process/Reprocess menu on the last episode of a dashboard group is no longer clipped by the group's border.
+- A merged ad is no longer held for review when the reviewer trims a text-pattern tail that was only estimated from the pattern's average duration. The matched text stays protected and the estimated remainder does not. A pattern with no outro match had extended a break by 79 s.
+- The reviewer tolerates up to 3 s of boundary disagreement with a measured member (fingerprint, cue, text pattern) before holding a merged ad. The cut is still clamped to the member's edge, so no evidence is lost. A 2.5 s trim had held a 195 s break.
+- The processing status bar fits a 360 px phone. The progress bar shrinks, and long hold labels truncate instead of pushing the expand chevron off screen. On phones a timed pause reads "Resumes 9:59 PM" and the running and queued count chips drop their word. The queued chip uses the purple queued color from the episode status palette.
+- A provider rate limit that fails every verification window now re-queues the episode to resume after the hold, the same as a first-pass limit. The verification wrapper had swallowed the hold, so the episode finalized with its first-pass cuts and none of the second pass.
+- A reviewer proposal that the boundary clamp rejected no longer triggers a second recovery call or marks the ad as moved.
+
 ## [2.97.3] - 2026-09-15
 
 ### Added

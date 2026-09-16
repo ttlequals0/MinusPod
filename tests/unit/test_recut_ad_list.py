@@ -67,6 +67,35 @@ def test_apply_boundary_adjustments_overrides_bounds(monkeypatch):
     assert ads[0]['dai_core_spans'] == [{'start': 105.0, 'end': 150.0}]
 
 
+def test_apply_boundary_adjustments_narrows_the_merge_records(monkeypatch):
+    ads = [{
+        'start': 100.0,
+        'end': 160.0,
+        'merged_distinct_ads': True,
+        'merged_protected_start': 100.0,
+        'merged_protected_end': 160.0,
+        'merged_member_spans': [
+            {'start': 100.0, 'end': 120.0, 'stage': 'claude'},
+            {'start': 140.0, 'end': 160.0, 'stage': 'claude'},
+        ],
+    }]
+    corrections = [{
+        'correction_type': 'boundary_adjustment',
+        'original_bounds': {'start': 100.0, 'end': 160.0},
+        'corrected_bounds': {'start': 105.0, 'end': 130.0},
+    }]
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
+
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+
+    assert ads[0]['merged_member_spans'] == [
+        {'start': 105.0, 'end': 120.0, 'stage': 'claude'}]
+    assert (ads[0]['merged_protected_start'],
+            ads[0]['merged_protected_end']) == (105.0, 130.0)
+
+
 def test_apply_boundary_adjustments_skips_unmatched(monkeypatch):
     ads = [{'start': 100.0, 'end': 160.0}]
     corrections = [{
@@ -188,6 +217,39 @@ def test_final_confirmed_bounds_uses_carried_span_after_large_extension(monkeypa
 
     assert marker['start'] == 101.0
     assert marker['end'] == 111.0
+
+
+def test_final_confirmed_bounds_narrows_the_merge_records(monkeypatch):
+    marker = {
+        'start': 100.0,
+        'end': 200.0,
+        'merged_distinct_ads': True,
+        'merged_protected_start': 100.0,
+        'merged_protected_end': 200.0,
+        'merged_member_spans': [
+            {'start': 100.0, 'end': 140.0, 'stage': 'claude'},
+            {'start': 160.0, 'end': 200.0, 'stage': 'claude'},
+        ],
+        'validation': {
+            'decision': 'ACCEPT',
+            'user_confirmed': True,
+            'confirmed_span': {'start': 100.0, 'end': 140.0},
+            'flags': [],
+        },
+    }
+    corrections = [{
+        'start': 100.0, 'end': 200.0,
+        'confirmed_span': {'start': 100.0, 'end': 140.0},
+    }]
+    monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
+
+    processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [marker], [marker], corrections)
+
+    assert (marker['start'], marker['end']) == (100.0, 140.0)
+    assert marker['merged_member_spans'] == [
+        {'start': 100.0, 'end': 140.0, 'stage': 'claude'}]
+    assert marker['merged_protected_end'] == 140.0
 
 
 def test_final_confirmed_bounds_does_not_restore_older_trim_after_new_plain_confirm(

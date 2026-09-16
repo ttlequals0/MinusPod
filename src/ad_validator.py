@@ -27,11 +27,13 @@ from config import (
     normalize_segment_category, DEFAULT_SEGMENT_ACTION,
 )
 from utils.markers import (
+    carve_fragment,
     clip_dai_core_spans,
-    clip_member_spans,
+    clip_merge_spans,
     dai_core_bounds,
     invalidate_tail_provenance,
     mark_distinct_merge,
+    note_fold,
 )
 from differential_fetcher import differential_region_overlapping
 from utils.text import extract_text_from_segments
@@ -489,13 +491,11 @@ class AdValidator:
                            (seen_end, ad['end'])):
                 if hi - lo < MIN_AD_DURATION:
                     continue
-                residue = {k: v for k, v in ad.items() if k not in (
-                    '_confirmed_correction',
-                    '_has_confirmed_correction_candidate',
-                    '_matches_false_positive_correction')}
-                residue['start'] = lo
-                residue['end'] = hi
-                clip_dai_core_spans(residue, lo, hi)
+                residue = carve_fragment(ad, lo, hi)
+                for key in ('_confirmed_correction',
+                            '_has_confirmed_correction_candidate',
+                            '_matches_false_positive_correction'):
+                    residue.pop(key, None)
                 residue['reason'] = (
                     f"{ad.get('reason', 'ad')} (beyond reviewed bounds)")
                 residue_ads.append(residue)
@@ -651,6 +651,7 @@ class AdValidator:
                     # keep it inside the approved span so the reviewer cannot
                     # later widen the marker back into user-kept content.
                     clip_dai_core_spans(ad, approved_start, approved_end)
+                    clip_merge_spans(ad, approved_start, approved_end)
             if auto_accept:
                 approved = span or confirmed
                 tolerance = 0.01
@@ -1158,19 +1159,11 @@ class AdValidator:
                 result.corrections.append(
                     f"Clamped end {original:.1f}s to duration {self.episode_duration:.1f}s"
                 )
-            # Protected merge bounds recorded before this clamp must not
-            # let the reviewer re-expand an edge past the file.
-            if (ad.get('merged_protected_start') is not None
-                    and ad['merged_protected_start'] < 0):
-                ad['merged_protected_start'] = 0.0
-            if (self.episode_duration > 0
-                    and ad.get('merged_protected_end') is not None
-                    and ad['merged_protected_end'] > self.episode_duration):
-                ad['merged_protected_end'] = self.episode_duration
-            # The reviewer reads the member list, so it needs the same clamp.
-            clip_member_spans(
-                ad, 0.0,
-                self.episode_duration if self.episode_duration > 0 else math.inf)
+            # Merge records written before this clamp must not let the
+            # reviewer re-expand an edge past the file.
+            file_end = (self.episode_duration if self.episode_duration > 0
+                        else math.inf)
+            clip_merge_spans(ad, 0.0, file_end)
             # Only the physical episode bounds may truncate measured evidence.
             clip_dai_core_spans(ad, ad['start'], ad['end'])
         return ads
@@ -1259,6 +1252,8 @@ class AdValidator:
             current_original = current.get('_orig_twin')
             if original is None or current_original is None:
                 return
+            # The twin's span grows the same way, so it owes the same members.
+            note_fold(original, current_original)
             original['start'] = min(original['start'], current_original['start'])
             original['end'] = max(original['end'], current_original['end'])
             if current.get('_trusted_split_fragment'):

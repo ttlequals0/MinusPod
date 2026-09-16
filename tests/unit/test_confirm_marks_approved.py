@@ -129,6 +129,25 @@ def test_confirm_trimmed_moves_marker_bounds_and_approves(temp_db):
     assert corrections[0]['confirmed_span'] == {'start': 130.0, 'end': 200.0}
 
 
+def test_confirm_trimmed_narrows_the_merge_records(temp_db):
+    # The approved span is narrower than the one those records describe.
+    marker = dict(_held(100.0, 200.0), merged_distinct_ads=True,
+                  merged_protected_start=100.0, merged_protected_end=200.0,
+                  merged_member_spans=[
+                      {'start': 100.0, 'end': 120.0, 'stage': 'claude'},
+                      {'start': 130.0, 'end': 200.0, 'stage': 'claude'}])
+    slug, eid = _seed(temp_db, [marker])
+
+    _confirm_trimmed(temp_db, slug, eid, 100.0, 200.0, 130.0, 200.0)
+
+    saved, _ = _markers(temp_db, slug, eid)
+    m = saved[0]
+    assert (m['start'], m['end']) == (130.0, 200.0)
+    assert m['merged_member_spans'] == [
+        {'start': 130.0, 'end': 200.0, 'stage': 'claude'}]
+    assert m['merged_protected_start'] == 130.0
+
+
 def test_newer_boundary_adjustment_overrides_older_trimmed_confirm(temp_db):
     episode_id = 'correction-order-test'
     temp_db.create_podcast('correction-order', 'https://example.com/feed.xml', 'Test')

@@ -47,8 +47,9 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import (clip_dai_core_spans, fold_marker_pair,
-                           foldable_twin, invalidate_tail_provenance)
+from utils.markers import (clip_dai_core_spans, clip_merge_spans,
+                           fold_marker_pair, foldable_twin,
+                           invalidate_tail_provenance)
 from utils.time import (
     adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now_iso,
@@ -2631,6 +2632,9 @@ def _finalize_user_confirmed_bounds(
             marker.get('end_extended_by_content', missing),
             marker.get('tail_splice_snap', missing),
             marker.get('dai_core_spans', missing),
+            marker.get('merged_member_spans', missing),
+            marker.get('merged_protected_start'),
+            marker.get('merged_protected_end'),
         )
         # Final human authority supersedes how an automatic tail happened to
         # reach even the same edge; do not let that stale provenance enable a
@@ -2639,6 +2643,7 @@ def _finalize_user_confirmed_bounds(
         marker.pop('tail_splice_snap', None)
         marker['start'], marker['end'] = target_start, target_end
         clip_dai_core_spans(marker, target_start, target_end)
+        clip_merge_spans(marker, target_start, target_end)
         flags = (marker.get('validation') or {}).get('flags')
         note_added = False
         if isinstance(flags, list):
@@ -2650,6 +2655,9 @@ def _finalize_user_confirmed_bounds(
             marker.get('end_extended_by_content', missing),
             marker.get('tail_splice_snap', missing),
             marker.get('dai_core_spans', missing),
+            marker.get('merged_member_spans', missing),
+            marker.get('merged_protected_start'),
+            marker.get('merged_protected_end'),
         )
         return (
             (old_start, old_end) != (target_start, target_end)
@@ -3384,6 +3392,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             audio_logger.info(f"[{slug}:{episode_id}] Verification: clean")
 
         verification_ok = not crosspass_rerender_failed
+    except ProviderRateLimitedError:
+        # The hold handler must see this: re-queue after the reset, not finalize unverified.
+        raise
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")
         # The pass did not complete; callers must not report a clean scan.
@@ -4372,6 +4383,7 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         # evidence inside the approved range so validation cannot restore a
         # stale automatic boundary over audio the user chose to preserve.
         clip_dai_core_spans(match, n_start, n_end)
+        clip_merge_spans(match, n_start, n_end)
         adjusted.add(id(match))
         applied += 1
     if applied:
@@ -5424,6 +5436,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             diff_thread.start()
         _check_cancel(cancel_event, slug, episode_id)
 
+        processed_path = None
         try:
             # Stage 2: Audio analysis (ad-cue detection; nothing to feed when
             # detection is skipped)
@@ -5983,6 +5996,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # shut down here.
             if os.path.exists(audio_path):
                 os.unlink(audio_path)
+            # Still present means the render was never moved to final_path.
+            if processed_path and os.path.exists(processed_path):
+                try:
+                    os.unlink(processed_path)
+                except OSError as e:
+                    audio_logger.warning(
+                        f"[{slug}:{episode_id}] Failed to remove the unpublished render: {e}")
 
     except ProcessingCancelled:
         _settle_provider_reservations()

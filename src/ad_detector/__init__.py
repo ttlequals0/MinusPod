@@ -29,9 +29,8 @@ from utils.language import get_pattern_language
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.markers import (
     DAI_CORE_SPANS,
-    mark_distinct_merge,
-    merge_dai_core_spans,
-    note_merged_members,
+    estimated_text_bounds,
+    note_fold,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -553,13 +552,14 @@ _MEMBER_STAGES = '_member_stages'
 
 
 def _label_reach(entry: dict) -> float:
-    """Audio a member's reason/sponsor label may claim: the full span, or
-    just the matched-text extent when the span is duration-estimated."""
+    """Audio a member's reason/sponsor label may claim: the full span, or just
+    the matched-text extent when the span is duration-estimated. The label claim
+    stays text-limited even after the span moves, unlike member protection,
+    which only narrows while the span is still the estimate."""
+    text = estimated_text_bounds(entry)
+    if text is not None:
+        return max(0.0, text[1] - text[0])
     if entry.get('span_estimated'):
-        text_start = entry.get('text_start')
-        text_end = entry.get('text_end')
-        if text_start is not None and text_end is not None:
-            return max(0.0, text_end - text_start)
         # No text bounds recorded: conservative half-span cap.
         return (entry['end'] - entry['start']) / 2
     return entry['end'] - entry['start']
@@ -2359,7 +2359,10 @@ class AdDetector:
         else:
             reason = f"Pattern #{match.pattern_id} ({evidence})"
 
-        all_ads.append({
+        # getattr: FingerprintMatch has no span-estimation fields (audio
+        # stage matches real audio, never estimates a boundary).
+        span_estimated = getattr(match, 'span_estimated', False)
+        entry = {
             'start': match.start,
             'end': match.end,
             'confidence': match.confidence,
@@ -2373,12 +2376,11 @@ class AdDetector:
             # getattr: FingerprintMatch has no 'defined' field (audio stage
             # predates the trust-tier split); treat it as not tier-1.
             'pattern_defined': getattr(match, 'defined', False),
-            # getattr: FingerprintMatch has no span-estimation fields (audio
-            # stage matches real audio, never estimates a boundary).
-            'span_estimated': getattr(match, 'span_estimated', False),
+            'span_estimated': span_estimated,
             'text_start': getattr(match, 'text_start', None),
             'text_end': getattr(match, 'text_end', None),
-        })
+        }
+        all_ads.append(entry)
         pattern_matched_regions.append({
             'start': match.start,
             'end': match.end,
@@ -2784,19 +2786,7 @@ class AdDetector:
                         and current['start'] >= last['end']):
                     merged.append(_with_category_span(current.copy()))
                     continue
-                merge_dai_core_spans(last, current)
-                # Non-overlapping spans (touching or gapped) are distinct ads,
-                # not the same ad overlapping across stages. Touch counts too
-                # (LLM breaks are often exactly contiguous). Keep these
-                # expand-only in the reviewer so a later inward pull can't drop
-                # a sub-ad; a true overlap (start < end) stays tightenable.
-                if current['start'] >= last['end']:
-                    mark_distinct_merge(last, current)
-                elif 'merged_protected_start' in last:
-                    # True overlap extending a tracked merge: fold the member
-                    # in so the protected union covers audio it adds past the
-                    # recorded end (else a later trim could sever it).
-                    note_merged_members(last, current)
+                note_fold(last, current)
                 # The label goes to the member classifying the most audio,
                 # ties to the incumbent. A member naming nothing, or naming
                 # something outside the vocabulary, displaces nothing.
@@ -2989,7 +2979,10 @@ class AdDetector:
                                or sanitize_sponsor_label(other.get('sponsor')))
 
                     combined = a.copy()
-                    merge_dai_core_spans(combined, b)
+                    note_fold(combined, b)
+                    # The flag is the reviewer's gate on member protection.
+                    if b.get('merged_distinct_ads'):
+                        combined['merged_distinct_ads'] = True
                     combined['start'] = min(a['start'], b['start'])
                     combined['end'] = max(a['end'], b['end'])
                     combined['confidence'] = max(a_conf, b_conf)

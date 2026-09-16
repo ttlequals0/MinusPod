@@ -6,7 +6,6 @@ import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import DropdownMenu from './DropdownMenu';
 import { btnPrimary } from './buttonStyles';
-import { cardActionBtn } from './rowActionStyles';
 
 interface EpisodeRowActionsProps {
   feedSlug: string;
@@ -59,12 +58,10 @@ function EpisodeRowActions({
         </span>
       )}
       <DropdownMenu
-        // A fixed min-width plus a flex-1 centered label keeps every row's
-        // button (and chevron) the same width and aligned, whether the label
-        // is "Process" or "Reprocess". Height comes from the shared 44px
-        // row-action recipe so the control fills a touch row.
+        // At text-xs both labels sit under the 6rem floor, so every row's chip
+        // and chevron line up; flex-1 centers the label inside that floor.
         triggerLabel={<span className="flex-1 text-center">{baseLabel}</span>}
-        triggerClassName={`${cardActionBtn} ${btnPrimary} disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[96px] gap-1`}
+        triggerClassName={`px-2 py-2 sm:py-1.5 text-xs rounded flex items-center gap-1 min-w-24 whitespace-nowrap touch-manipulation ${btnPrimary} disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
         chevronClassName="w-3 h-3"
         disabled={blocked}
         title={`${baseLabel} episode`}
