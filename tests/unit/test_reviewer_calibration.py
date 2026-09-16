@@ -1,5 +1,7 @@
 """Tests for the reviewer calibration self-test."""
 import json
+import threading
+import time
 from dataclasses import dataclass
 from unittest.mock import MagicMock
 
@@ -11,12 +13,14 @@ _data_dir = bootstrap('reviewer_calibration_test_')
 
 from database import Database  # noqa: E402
 from main_app import app  # noqa: E402
+import tools.reviewer_calibration as calib_mod  # noqa: E402
 from tools.reviewer_calibration import (  # noqa: E402
     CALIBRATION_AGREEMENT_THRESHOLD,
     CALIBRATION_CORPUS,
+    calibration_revision,
     main,
-    maybe_trigger_reviewer_calibration,
     run_calibration,
+    trigger_reviewer_calibration,
 )
 
 
@@ -44,15 +48,63 @@ def client():
         yield c
 
 
+def _wait_until(predicate, timeout=5.0):
+    """Poll until predicate() is true; returns whether it became true."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return False
+
+
+class _FakeCalibrationRunner:
+    """run_calibration stand-in that records routes and can block mid-run."""
+
+    def __init__(self):
+        self.routes = []
+        self.blocking = False
+        self.release = threading.Event()
+        self._lock = threading.Lock()
+
+    def __call__(self, llm_client=None, model=None, route=None):
+        with self._lock:
+            self.routes.append(route)
+        if self.blocking:
+            self.release.wait(timeout=5)
+        return {
+            'model': route.model_id if route is not None else model,
+            'provider': 'anthropic', 'cases': [], 'agreement': 0.9,
+            'structured_fraction': 0.5, 'ran_at': '2026-09-16T00:00:00Z',
+        }
+
+    @property
+    def runs(self):
+        with self._lock:
+            return len(self.routes)
+
+    @property
+    def models(self):
+        with self._lock:
+            return [r.model_id for r in self.routes if r is not None]
+
+    def wait_idle(self, timeout=5.0):
+        """Wait for the worker to finish and stop holding the running flag."""
+        return _wait_until(
+            lambda: not calib_mod._CALIBRATION_STATE['running'], timeout)
+
+
 @pytest.fixture
-def calibration_calls(monkeypatch):
-    """(old, new) pairs the settings save handed to the calibration hook."""
-    calls = []
-    monkeypatch.setattr(
-        'api.settings.maybe_trigger_reviewer_calibration',
-        lambda db_arg, old, new: calls.append((old, new)),
-    )
-    return calls
+def calibration_runs(monkeypatch):
+    """Fake calibration runner with the module scheduler state reset."""
+    runner = _FakeCalibrationRunner()
+    monkeypatch.setattr(calib_mod, 'run_calibration', runner)
+    calib_mod._CALIBRATION_STATE.update(revision=None, route=None, running=False)
+    Database().set_setting('reviewer_calibration_on_change', 'true', is_default=False)
+    yield runner
+    runner.release.set()
+    runner.wait_idle()
+    calib_mod._CALIBRATION_STATE.update(revision=None, route=None, running=False)
 
 
 def _save_settings(client, payload):
@@ -159,69 +211,55 @@ def test_calibration_agreement_threshold_is_075():
 
 # ---------- Settings auto-run hook ----------
 
-def test_maybe_trigger_calibration_persists_result_on_model_change():
+def test_trigger_calibration_persists_a_result_for_a_new_revision(calibration_runs):
     db = _build_db()
-    db.set_setting('reviewer_calibration_on_change', 'true', is_default=False)
-    canned = {
-        'model': 'new-model', 'provider': 'anthropic', 'cases': [],
-        'agreement': 0.9, 'structured_fraction': 0.5, 'ran_at': '2026-08-19T00:00:00Z',
-    }
-    import tools.reviewer_calibration as calib_mod
-    original = calib_mod.run_calibration
-    calib_mod.run_calibration = lambda **kw: canned
-    try:
-        thread = maybe_trigger_reviewer_calibration(db, 'old-model', 'new-model')
-        assert thread is not None
-        thread.join(timeout=5)
-        assert not thread.is_alive()
-    finally:
-        calib_mod.run_calibration = original
-
-    stored = db.get_setting('reviewer_calibration_last')
-    assert stored is not None
-    assert json.loads(stored) == canned
-
-
-def test_maybe_trigger_calibration_noop_when_model_unchanged():
-    db = _build_db()
-    db.set_setting('reviewer_calibration_on_change', 'true', is_default=False)
     db.clear_setting('reviewer_calibration_last')
-    thread = maybe_trigger_reviewer_calibration(db, 'same-model', 'same-model')
-    assert thread is None
+    # An explicit review slot is what makes review_model the route's model;
+    # same_as_pass inherits the pass model instead.
+    db.set_setting('review_provider', 'primary', is_default=False)
+    db.set_setting('review_model', 'new-model', is_default=False)
+
+    thread = trigger_reviewer_calibration(db, 'a-stale-revision')
+    assert thread is not None
+    thread.join(timeout=5)
+
+    stored = json.loads(db.get_setting('reviewer_calibration_last'))
+    assert stored['model'] == 'new-model'
+    assert stored['revision'] == calibration_revision()
+
+
+def test_trigger_calibration_noop_when_the_route_is_unchanged(calibration_runs):
+    db = _build_db()
+    db.clear_setting('reviewer_calibration_last')
+    assert trigger_reviewer_calibration(db, calibration_revision()) is None
+    assert calibration_runs.runs == 0
     assert db.get_setting('reviewer_calibration_last') is None
 
 
-def test_maybe_trigger_calibration_gated_off_by_setting():
+def test_trigger_calibration_gated_off_by_setting(calibration_runs):
     db = _build_db()
     db.set_setting('reviewer_calibration_on_change', 'false', is_default=False)
     db.clear_setting('reviewer_calibration_last')
-    thread = maybe_trigger_reviewer_calibration(db, 'old-model', 'new-model')
-    assert thread is None
+    assert trigger_reviewer_calibration(db, 'a-stale-revision') is None
+    assert calibration_runs.runs == 0
     assert db.get_setting('reviewer_calibration_last') is None
 
 
-def test_maybe_trigger_calibration_swallows_failure():
+def test_trigger_calibration_swallows_a_failing_run(calibration_runs, monkeypatch):
     db = _build_db()
-    db.set_setting('reviewer_calibration_on_change', 'true', is_default=False)
     db.clear_setting('reviewer_calibration_last')
-
-    import tools.reviewer_calibration as calib_mod
-    original = calib_mod.run_calibration
 
     def _boom(**kw):
         raise RuntimeError('llm unreachable')
 
-    calib_mod.run_calibration = _boom
-    try:
-        thread = maybe_trigger_reviewer_calibration(db, 'old-model', 'new-model')
-        assert thread is not None
-        thread.join(timeout=5)
-        assert not thread.is_alive()
-    finally:
-        calib_mod.run_calibration = original
+    monkeypatch.setattr(calib_mod, 'run_calibration', _boom)
+    thread = trigger_reviewer_calibration(db, 'a-stale-revision')
+    assert thread is not None
+    thread.join(timeout=5)
 
     # Failure never blocks/raises and never writes a stale/partial result.
     assert db.get_setting('reviewer_calibration_last') is None
+    assert calib_mod._CALIBRATION_STATE['running'] is False
 
 
 def test_reviewer_calibration_on_change_defaults_true():
@@ -230,44 +268,65 @@ def test_reviewer_calibration_on_change_defaults_true():
     assert db.get_setting_bool('reviewer_calibration_on_change', True) is True
 
 
-def test_settings_save_calibrates_the_review_model_once(client, calibration_calls):
+def test_settings_save_calibrates_the_committed_review_model_once(client, calibration_runs):
     db = _build_db()
+    db.set_setting('review_provider', 'primary', is_default=False)
     db.set_setting('review_model', 'old-model', is_default=False)
 
     resp = _save_settings(client, {'reviewModel': 'new-model'})
     assert resp.status_code == 200
-    assert calibration_calls == [('old-model', 'new-model')]
+    assert calibration_runs.wait_idle()
+    assert calibration_runs.models == ['new-model']
     assert db.get_setting('review_model') == 'new-model'
 
 
-def test_settings_save_calibrates_claude_model_when_review_is_same_as_pass(client, calibration_calls):
+def test_settings_save_calibrates_the_pass_model_when_review_is_same_as_pass(
+        client, calibration_runs):
     # review_model 'same_as_pass' means the detection model is the effective
     # reviewer model, so changing it must calibrate.
     db = _build_db()
+    db.clear_setting('review_provider')
     db.set_setting('review_model', 'same_as_pass', is_default=False)
     db.set_setting('claude_model', 'old-model', is_default=False)
 
     resp = _save_settings(client, {'claudeModel': 'new-model'})
     assert resp.status_code == 200
-    assert calibration_calls == [('old-model', 'new-model')]
+    assert calibration_runs.wait_idle()
+    assert calibration_runs.models == ['new-model']
 
 
-def test_settings_save_skips_claude_calibration_with_explicit_reviewer(client, calibration_calls):
+def test_settings_save_skips_calibration_when_the_review_route_is_unchanged(
+        client, calibration_runs):
     db = _build_db()
+    db.set_setting('review_provider', 'primary', is_default=False)
     db.set_setting('review_model', 'reviewer-model', is_default=False)
     db.set_setting('claude_model', 'old-model', is_default=False)
 
     resp = _save_settings(client, {'claudeModel': 'new-model'})
     assert resp.status_code == 200
-    assert calibration_calls == []
+    assert calibration_runs.wait_idle()
+    assert calibration_runs.runs == 0
 
 
-def test_a_saved_review_model_is_calibrated_even_when_a_later_phase_fails(
-        client, calibration_calls):
-    """Each phase commits as it runs, so a later field's 400 still leaves the
-    new review model persisted. Calibration follows its own phase to keep the
-    saved model and its self-test in step."""
+def test_changing_both_models_calibrates_exactly_once(client, calibration_runs):
+    """The reviewer inherits the pass model, so both fields are one revision."""
     db = _build_db()
+    db.clear_setting('review_provider')
+    db.set_setting('review_model', 'same_as_pass', is_default=False)
+    db.set_setting('claude_model', 'old-claude', is_default=False)
+
+    resp = _save_settings(client, {'claudeModel': 'new-claude',
+                                   'reviewModel': 'same_as_pass'})
+    assert resp.status_code == 200
+    assert calibration_runs.wait_idle()
+    assert calibration_runs.models == ['new-claude']
+
+
+def test_a_save_rejected_after_the_review_phase_calibrates_nothing(
+        client, calibration_runs):
+    """The payload rolls back whole, so there is no saved model to self-test."""
+    db = _build_db()
+    db.set_setting('review_provider', 'primary', is_default=False)
     db.set_setting('review_model', 'old-model', is_default=False)
     db.set_setting('claude_model', 'old-claude', is_default=False)
 
@@ -279,14 +338,17 @@ def test_a_saved_review_model_is_calibrated_even_when_a_later_phase_fails(
     })
 
     assert resp.status_code == 400
-    assert db.get_setting('review_model') == 'new-model'
-    assert calibration_calls == [('old-model', 'new-model')]
+    assert db.get_setting('review_model') == 'old-model'
+    assert db.get_setting('claude_model') == 'old-claude'
+    assert calibration_runs.wait_idle()
+    assert calibration_runs.runs == 0
 
 
 def test_a_request_rejected_before_the_review_phase_calibrates_nothing(
-        client, calibration_calls):
+        client, calibration_runs):
     """Nothing was saved, so there is nothing to self-test."""
     db = _build_db()
+    db.set_setting('review_provider', 'primary', is_default=False)
     db.set_setting('review_model', 'old-model', is_default=False)
 
     resp = _save_settings(client, {
@@ -296,7 +358,30 @@ def test_a_request_rejected_before_the_review_phase_calibrates_nothing(
 
     assert resp.status_code == 400
     assert db.get_setting('review_model') == 'old-model'
-    assert calibration_calls == []
+    assert calibration_runs.runs == 0
+
+
+def test_a_save_during_a_run_supersedes_that_run_result(client, calibration_runs):
+    """One worker per configuration: the superseded result is discarded."""
+    db = _build_db()
+    db.set_setting('review_provider', 'primary', is_default=False)
+    db.set_setting('review_model', 'old-model', is_default=False)
+    db.clear_setting('reviewer_calibration_last')
+    calibration_runs.blocking = True
+
+    assert _save_settings(client, {'reviewModel': 'first-model'}).status_code == 200
+    assert _wait_until(lambda: calibration_runs.runs == 1)
+
+    # The second save lands while the first run is still inside the barrier.
+    assert _save_settings(client, {'reviewModel': 'second-model'}).status_code == 200
+    assert calibration_runs.runs == 1
+
+    calibration_runs.release.set()
+    assert calibration_runs.wait_idle()
+    assert calibration_runs.models == ['first-model', 'second-model']
+    stored = json.loads(db.get_setting('reviewer_calibration_last'))
+    assert stored['model'] == 'second-model'
+    assert stored['revision'] == calibration_revision()
 
 
 def test_calibration_routes_to_the_review_slot_not_the_global_client():

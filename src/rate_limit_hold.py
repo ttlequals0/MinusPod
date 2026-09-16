@@ -55,6 +55,12 @@ HOLD_SINCE_KEY = 'rate_limit_hold_since'
 HOLD_MANUAL_KEY = 'rate_limit_hold_manual'
 RATE_LIMIT_PROBE_AT_KEY = 'rate_limit_probe_at'
 
+# Why a job is not admitted, as reported by the queue admission explanation.
+HOLD_REASON_MANUAL = 'manual_rate_limit'
+HOLD_REASON_PROVIDER = 'provider_rate_limit'
+HOLD_REASON_ACCOUNT_CHANGED = 'provider_account_changed'
+HOLD_REASON_PAUSED = 'processing_paused'
+
 # A provider reset farther out than this is treated as unusable reset info;
 # 24h covers the common per-minute and per-day windows.
 MAX_RESET_SECONDS = 24 * 3600
@@ -405,6 +411,23 @@ def is_queue_paused(db, provider_key: str | None = None,
     return get_active_hold(db, provider_key, credential_slot)[0] is not None
 
 
+def active_hold_reason(db, provider_key: str | None = None,
+                       credential_slot: str = 'primary'
+                       ) -> tuple[str | None, str | None]:
+    """(reason, resumes_at) for (provider, slot)'s active hold, else (None, None).
+
+    Reports which marker in the fallback chain is actually holding the pair,
+    so a manual cap and a provider 429 are distinguishable in the UI.
+    """
+    for suffix in _hold_chain(provider_key, credential_slot):
+        hold_until = get_hold_until(db, suffix)
+        if not hold_is_active(hold_until):
+            continue
+        manual = coerce_bool_setting(db.get_setting(_hold_manual_key(suffix)))
+        return (HOLD_REASON_MANUAL if manual else HOLD_REASON_PROVIDER), hold_until
+    return None, None
+
+
 def hold_message(hold_until: str | None, error) -> str:
     """error_message written on an episode a 429 sent back to the queue.
 
@@ -562,24 +585,81 @@ def _rate_limit_setting_keys(credential_slot: str) -> tuple[str, str, str]:
             'provider_tokens_per_min')
 
 
+def manual_rate_limit_caps(credential_slot: str = 'primary') -> dict:
+    """{rpm, rpd, tpm, minute_since, day_since} for one account slot.
+
+    The single definition of the manual caps and their windows, shared by the
+    pre-start evaluation and the atomic per-request reservation, so the two
+    can never disagree on what counts as "inside the window". All-zero caps
+    mean no manual limit is configured.
+    """
+    rpm_key, rpd_key, tpm_key = _rate_limit_setting_keys(credential_slot)
+    now = utc_now()
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return {
+        'rpm': get_env_backed_int(rpm_key, floor=0),
+        'rpd': get_env_backed_int(rpd_key, floor=0),
+        'tpm': get_env_backed_int(tpm_key, floor=0),
+        'minute_since': (now - timedelta(seconds=60)).strftime(ISO_FORMAT),
+        'day_since': midnight.strftime(ISO_FORMAT),
+    }
+
+
+def _cap_reset_iso(blocked: str, oldest: str | None) -> str:
+    """Reset time for the cap that refused a request reservation."""
+    now = utc_now()
+    if blocked == 'rpd':
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return _capped_reset_iso(midnight + timedelta(days=1))
+    oldest_dt = (parse_iso_utc(oldest) if oldest else None) or now
+    return _capped_reset_iso(oldest_dt + timedelta(seconds=60))
+
+
+def reserve_provider_request(db, provider_key: str,
+                             credential_slot: str = 'primary', *,
+                             attempt: dict) -> tuple[str | None, str | None]:
+    """Take one request slot for (provider, slot) by creating its ledger
+    attempt inside the cap check; returns (attempt_id, hold_until).
+
+    attempt_id is None when a manual cap refused the request, and hold_until
+    is then the pause this recorded. Unlike evaluate_provider_rate_limit,
+    counting and reserving are one transaction, so concurrent workers cannot
+    all pass the same check.
+    """
+    caps = manual_rate_limit_caps(credential_slot)
+    result = db.reserve_llm_attempt(provider_key=provider_key,
+                                    credential_slot=credential_slot,
+                                    caps=caps, **attempt)
+    if result['attempt_id'] is not None:
+        return result['attempt_id'], None
+    reset_iso = _cap_reset_iso(result['blocked'], result['oldest'])
+    hold_until, started = record_hold_until(
+        db, provider_key, reset_iso, credential_slot=credential_slot, manual=True)
+    if started:
+        logger.warning(f"Manual rate limit ({result['blocked']}): paused "
+                       f"{provider_key}:{credential_slot} until {hold_until}")
+    return None, hold_until
+
+
 def evaluate_provider_rate_limit(db, provider_key: str,
                                  credential_slot: str = 'primary') -> str | None:
     """Reset time when (provider_key, credential_slot) is at or over its
     manual RPM/RPD/TPM cap, else None (no side effects).
 
-    RPM: 60s after the oldest attempt in the last 60s. TPM: 60s after the
-    oldest token-contributing finalized row in the last 60s. RPD: next UTC
-    midnight. Returns the latest reset of whichever caps trip. 0 for a limit
-    disables it; all 0 short-circuits to None. Capped at MAX_HOLD.
+    RPM counts SDK dispatches in the last 60s and resets 60s after the oldest
+    of them; TPM counts reserved-or-actual tokens over the same window; RPD
+    resets at the next UTC midnight. Returns the latest reset of whichever
+    caps trip. 0 for a limit disables it; all 0 short-circuits to None.
+    Capped at MAX_HOLD. This is the pre-start check: the per-request
+    reservation in reserve_provider_request is what actually enforces a cap
+    against concurrent workers.
     """
-    rpm_key, rpd_key, tpm_key = _rate_limit_setting_keys(credential_slot)
-    rpm = get_env_backed_int(rpm_key, floor=0)
-    rpd = get_env_backed_int(rpd_key, floor=0)
-    tpm = get_env_backed_int(tpm_key, floor=0)
+    caps = manual_rate_limit_caps(credential_slot)
+    rpm, rpd, tpm = caps['rpm'], caps['rpd'], caps['tpm']
     if rpm <= 0 and rpd <= 0 and tpm <= 0:
         return None
     now = utc_now()
-    minute_since = (now - timedelta(seconds=60)).strftime(ISO_FORMAT)
+    minute_since = caps['minute_since']
     reset = None
     if rpm > 0:
         if db.count_recent_llm_attempts(provider_key, credential_slot, minute_since) >= rpm:
@@ -594,8 +674,7 @@ def evaluate_provider_rate_limit(db, provider_key: str,
             reset = max(reset, tpm_reset) if reset is not None else tpm_reset
     if rpd > 0:
         midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_since = midnight.strftime(ISO_FORMAT)
-        if db.count_recent_llm_attempts(provider_key, credential_slot, day_since) >= rpd:
+        if db.count_recent_llm_attempts(provider_key, credential_slot, caps['day_since']) >= rpd:
             next_midnight = midnight + timedelta(days=1)
             reset = max(reset, next_midnight) if reset is not None else next_midnight
     if reset is None:

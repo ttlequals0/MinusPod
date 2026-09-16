@@ -1,9 +1,12 @@
 import { Fragment, ReactNode, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { EpisodeProcessingRun, LLM_PROVIDER_LABELS, LlmProvider, RunPhaseUsage } from '../api/types';
 import { formatCost, formatDateTime } from '../utils/format';
 import { formatDuration, formatTokenCount, formatTokenRange } from '../pages/settings/settingsUtils';
 import DisclosureButton from './DisclosureButton';
+import CopyButton from './CopyButton';
 import CostAmount from './CostAmount';
+import { focusRing } from './fieldStyles';
 
 interface ProcessingRunsTableProps {
   runs: EpisodeProcessingRun[];
@@ -34,6 +37,35 @@ function rssDeltaNote(runs: EpisodeProcessingRun[], rssDuration?: number | null)
 function RunCost({ run }: { run: EpisodeProcessingRun }) {
   const unpriced = (run.phases ?? []).filter((p) => p.costUsd == null).length;
   return <CostAmount amount={run.llmCost} unpricedCount={unpriced} unit="phase group" />;
+}
+
+// The label is a real disclosure, so touch and keyboard reach the reason a
+// hover title used to hide, and the copy action lifts it out for a report.
+function RunResult({ run }: { run: EpisodeProcessingRun }) {
+  const [open, setOpen] = useState(false);
+  if (run.status !== 'failed') return <>completed</>;
+  if (!run.errorMessage) return <span className="text-destructive">failed</span>;
+  const panelId = `run-error-${run.runNumber}`;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        className={`inline-flex items-center gap-1 min-h-11 sm:min-h-0 text-destructive underline decoration-dotted underline-offset-2 ${focusRing}`}
+      >
+        failed
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      </button>
+      {open && (
+        <div id={panelId} className="w-full max-w-xs whitespace-normal break-words rounded border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+          <p className="mb-1">{run.errorMessage}</p>
+          <CopyButton text={run.errorMessage} label="Copy error" copiedLabel="Error copied" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 const HEADER_CLASS = 'py-2 pr-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
@@ -71,12 +103,7 @@ const COLUMNS: Column[] = [
     },
   },
   { label: 'When', render: (run) => formatDateTime(run.processedAt) },
-  {
-    label: 'Result',
-    render: (run) => (run.status === 'failed'
-      ? <span className="text-destructive cursor-help" title={run.errorMessage ?? undefined}>failed</span>
-      : 'completed'),
-  },
+  { label: 'Result', render: (run) => <RunResult run={run} /> },
   {
     label: 'Downloaded',
     title: 'Length of the downloaded copy this run processed',

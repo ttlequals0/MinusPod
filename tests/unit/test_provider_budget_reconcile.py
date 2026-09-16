@@ -1,6 +1,5 @@
 """Provider-budget reconciliation retains collected token totals."""
 
-import threading
 from contextlib import ExitStack
 from unittest.mock import patch
 
@@ -10,10 +9,7 @@ bootstrap('provider_budget_test_')
 
 import run_context
 from config import normalize_model_key
-from llm_client import (
-    get_episode_token_totals,
-    get_last_episode_token_totals,
-)
+from llm_client import get_episode_token_totals
 import main_app.processing as processing
 
 
@@ -66,24 +62,11 @@ def test_budget_reconcile_sees_history_totals():
         ctx.tokens.add(120, 30, 0.012)
         history = get_episode_token_totals()
         assert history['cost'] == 0.012
-        late = get_last_episode_token_totals()
+        late = ctx.tokens.last_totals()
         assert late == history
         assert late['cost'] == 0.012
     finally:
         run_context.end(ctx)
-
-
-def test_get_last_totals_without_context_returns_zeros():
-    results = {}
-
-    def fresh_thread():
-        results['totals'] = get_last_episode_token_totals()
-
-    t = threading.Thread(target=fresh_thread)
-    t.start()
-    t.join()
-    assert results['totals'] == {
-        'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
 
 
 def _enable_budget(db, *, limit=1_000_000, concurrency=1):

@@ -30,7 +30,8 @@ def test_detection_route_uses_settings_and_global_provider_default():
         route = resolve_route('detection')
     assert route == Route(phase='detection', provider_key='anthropic',
                            model_id='claude-sonnet-5', base_url=None,
-                           slot='primary', credential_slot='primary')
+                           slot='primary', credential_slot='primary',
+                           account_id=llm_route.account_identity('anthropic', None))
 
 
 def test_detection_route_raises_when_model_unconfigured():

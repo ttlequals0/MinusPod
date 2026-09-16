@@ -1950,6 +1950,45 @@ def retry_ad_detection(slug, episode_id):
 
 # ========== Processing Queue Endpoints ==========
 
+def _annotate_queue_admission(db, queued: list[dict], pending_rows: list[dict]) -> None:
+    """Stamp each waiting entry with why it is not starting.
+
+    Resolves the route snapshot and feature gates once for the page, and
+    memoizes each hold marker, so a long backlog costs one pass rather than
+    one settings read per row. Never raises: an unexplained entry reports
+    unblocked rather than failing the panel.
+    """
+    from main_app.processing import (
+        _admission_gates, _resolve_route_snapshot, admission_explanation,
+    )
+    from processing_queue import is_processing_paused
+    idle = {'blocked': False, 'phase': None, 'slot': None,
+            'reason': None, 'resumesAt': None}
+    if not queued:
+        return
+    try:
+        snapshot = _resolve_route_snapshot()
+        gates = _admission_gates(db)
+        paused = is_processing_paused(db)
+    except Exception as exc:
+        logger.warning("Could not resolve queue admission state: %s", exc)
+        for entry in queued:
+            entry['admission'] = dict(idle)
+        return
+    rows = {(row['podcast_slug'], row['episode_id']): row for row in pending_rows}
+    hold_cache: dict = {}
+    for entry in queued:
+        try:
+            entry['admission'] = admission_explanation(
+                db, entry['slug'], entry['episodeId'], snapshot=snapshot,
+                gates=gates, queue_row=rows.get((entry['slug'], entry['episodeId'])),
+                paused=paused, hold_cache=hold_cache)
+        except Exception as exc:
+            logger.warning("Could not explain admission for %s:%s: %s",
+                           entry['slug'], entry['episodeId'], exc)
+            entry['admission'] = dict(idle)
+
+
 @api.route('/episodes/processing', methods=['GET'])
 @log_request
 def get_processing_episodes():
@@ -1960,7 +1999,8 @@ def get_processing_episodes():
     queue for the backlog. Issue #236. The waiting list is paginated with the
     `offset`/`limit` query params (limit default 200, cap 1000); rows carry an
     offset-aware `queuePosition` so the panel can page through a long backlog
-    (#696).
+    (#696). Each waiting row also carries an `admission` object saying whether
+    it is blocked and, if so, by which phase and account.
     """
     db = get_database()
     conn = db.get_connection()
@@ -2059,6 +2099,8 @@ def get_processing_episodes():
             'priority': None,
             'stage': 'queued',
         })
+
+    _annotate_queue_admission(db, queued, pending_rows)
 
     # queueTotal is the whole backlog, not the page. Stamped on every entry,
     # active ones included, so a page whose rows all deduped away still

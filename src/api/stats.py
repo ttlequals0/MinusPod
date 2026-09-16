@@ -2,6 +2,7 @@
 import logging
 import math
 from datetime import datetime
+from decimal import Decimal
 
 from flask import request
 
@@ -9,6 +10,9 @@ from api import (
     api, error_response, log_request, json_response,
     get_database,
 )
+# The ledger's own billable predicate, so this endpoint lists exactly the rows
+# the totals are summed from rather than re-deriving the rule.
+from database.stats import _ledger_row_is_billable
 from utils.time import parse_iso_utc
 
 logger = logging.getLogger('podcast.api')
@@ -204,4 +208,88 @@ def get_ledger_filter_options():
     return json_response({
         'providers': sorted({p['provider'] for p in pairs}),
         'pairs': pairs,
+    })
+
+
+# One literal statement with named params, so optional scoping never
+# concatenates SQL.
+_SPEND_ATTEMPTS_SQL = """
+    SELECT attempt_id, phase_key, invoking_pass, provider_key, credential_slot,
+           configured_model, returned_model, state, input_tokens, output_tokens,
+           cost_usd, cost_source, created_at, finalized_at
+    FROM llm_call_usage
+    WHERE finalized_at IS NOT NULL
+      AND (:run_id = '' OR run_id = :run_id)
+      AND (:podcast_id < 0 OR (podcast_id = :podcast_id AND episode_id = :episode_id))
+      AND (:provider = '' OR provider_key = :provider)
+    ORDER BY created_at, attempt_id
+    LIMIT :limit
+"""
+
+_SPEND_ATTEMPTS_LIMIT = 200
+
+
+def _spend_attempt_json(row) -> dict:
+    return {
+        'attemptId': row['attempt_id'],
+        'phase': row['phase_key'],
+        'invokingPass': row['invoking_pass'],
+        'provider': row['provider_key'],
+        'credentialSlot': row['credential_slot'] or 'primary',
+        'model': row['configured_model'],
+        'returnedModel': row['returned_model'],
+        'status': row['state'],
+        'inputTokens': row['input_tokens'],
+        'outputTokens': row['output_tokens'],
+        'costUsd': row['cost_usd'],
+        'costSource': row['cost_source'],
+        'createdAt': row['created_at'],
+        'finalizedAt': row['finalized_at'],
+    }
+
+
+@api.route('/stats/spend/attempts', methods=['GET'])
+@log_request
+def get_spend_attempts():
+    """Ledger attempts behind one run's or episode's spend.
+
+    Backs the Incomplete chip, which needs to point at the attempt carrying
+    no price. Reuses the billable predicate the totals are summed with, so
+    the listed rows are exactly the contributing ones.
+    """
+    db = get_database()
+    run_id = request.args.get('runId') or ''
+    slug = request.args.get('slug')
+    episode_id = request.args.get('episodeId')
+    if not run_id and not (slug and episode_id):
+        return error_response('runId, or slug and episodeId, is required', 400)
+
+    podcast_id = -1
+    if slug and episode_id:
+        podcast = db.get_podcast_by_slug(slug)
+        if not podcast:
+            return error_response('Feed not found', 404)
+        podcast_id = podcast['id']
+
+    provider = request.args.get('provider') or ''
+    rows = db.get_connection().execute(_SPEND_ATTEMPTS_SQL, {
+        'run_id': run_id, 'podcast_id': podcast_id, 'episode_id': episode_id or '',
+        'provider': provider, 'limit': _SPEND_ATTEMPTS_LIMIT + 1,
+    }).fetchall()
+    truncated = len(rows) > _SPEND_ATTEMPTS_LIMIT
+    billable = [r for r in rows[:_SPEND_ATTEMPTS_LIMIT] if _ledger_row_is_billable(
+        r['state'], r['input_tokens'], r['output_tokens'],
+        float(r['cost_usd']) if r['cost_usd'] is not None else 0.0)]
+    known = sum((Decimal(r['cost_usd']) for r in billable if r['cost_usd'] is not None),
+                Decimal('0'))
+    return json_response({
+        'runId': run_id or None,
+        'episodeId': episode_id,
+        'provider': provider or None,
+        'attempts': [_spend_attempt_json(r) for r in billable],
+        'total': len(billable),
+        'unknownCostCount': sum(1 for r in billable if r['cost_usd'] is None),
+        'knownCostUsd': str(known),
+        # More attempts exist than the cap returns; the totals still cover them.
+        'truncated': truncated,
     })

@@ -258,3 +258,39 @@ describe('ProcessingRunsTable: wide-table layout', () => {
     expect(table.getByRole('columnheader', { name: 'Cost' }).className).not.toContain('hidden');
   });
 });
+
+describe('failed run error disclosure', () => {
+  const failedRun: EpisodeProcessingRun = {
+    runNumber: 4,
+    processedAt: '2026-07-18T10:00:00Z',
+    status: 'failed',
+    adsDetected: 0,
+    processingDurationSeconds: 12,
+    errorMessage: 'Whisper endpoint returned 503',
+    inputTokens: 0,
+    outputTokens: 0,
+    llmCost: 0,
+    stats: null,
+  };
+
+  it('hides the reason behind a focusable button rather than a hover title', () => {
+    render(<ProcessingRunsTable runs={[failedRun]} />);
+    const toggles = screen.getAllByRole('button', { name: /failed/i });
+    expect(toggles[0].getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByText('Whisper endpoint returned 503')).toBeNull();
+  });
+
+  it('reveals the error text and a copy action when expanded', () => {
+    render(<ProcessingRunsTable runs={[failedRun]} />);
+    fireEvent.click(screen.getAllByRole('button', { name: /failed/i })[0]);
+
+    expect(screen.getAllByText('Whisper endpoint returned 503').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Copy error' }).length).toBeGreaterThan(0);
+  });
+
+  it('renders a plain label when a failure carries no message', () => {
+    render(<ProcessingRunsTable runs={[{ ...failedRun, errorMessage: null }]} />);
+    expect(screen.queryByRole('button', { name: /failed/i })).toBeNull();
+    expect(screen.getAllByText('failed').length).toBeGreaterThan(0);
+  });
+});

@@ -975,6 +975,28 @@ _FEEDS_MAX_LIMIT = 200
 _LATEST_EPISODES_DEFAULT_PER_FEED = 3
 _LATEST_EPISODES_MAX_PER_FEED = 20
 
+# Dashboard sort options, with the direction each one reads as by default.
+_FEEDS_SORT_DEFAULT_DIR = {'recent': 'desc', 'title': 'asc'}
+_FEEDS_SORT_DIRS = ('asc', 'desc')
+
+
+def _feed_sort_title(podcast: dict) -> str:
+    """The name the UI renders, so the order matches the visible list."""
+    return (podcast.get('title_override') or podcast.get('title')
+            or podcast['slug']).casefold()
+
+
+def _sort_podcasts(podcasts: list[dict], sort_by: str, sort_dir: str) -> list[dict]:
+    """Order the whole feed list so a page is a slice of the sorted list.
+
+    Slug breaks every tie, so paging cannot duplicate or skip a feed.
+    """
+    reverse = sort_dir == 'desc'
+    if sort_by == 'title':
+        return sorted(podcasts, key=lambda p: (_feed_sort_title(p), p['slug']), reverse=reverse)
+    return sorted(podcasts, key=lambda p: (p.get('last_episode_date') or '', p['slug']),
+                  reverse=reverse)
+
 
 def _episode_summary_json(ep, *, slug, is_local, storage, job_states) -> dict:
     """Bounded per-feed episode projection for the /feeds listing.
@@ -1011,21 +1033,41 @@ def list_feeds():
 
     Bare (no page/limit) stays unbounded for existing all-feeds consumers.
     includeLatestEpisodes adds a per-feed episode projection via one
-    windowed query, not one request per feed.
+    windowed query, not one request per feed. sortBy orders the whole list
+    before it is sliced, so a page is never re-sorted by the caller.
     """
     db = get_database()
+
+    sort_by = request.args.get('sortBy')
+    if sort_by is not None and sort_by not in _FEEDS_SORT_DEFAULT_DIR:
+        return error_response(
+            f"sortBy must be one of {', '.join(sorted(_FEEDS_SORT_DEFAULT_DIR))}", 400)
+    sort_dir = request.args.get('sortDir') or (
+        _FEEDS_SORT_DEFAULT_DIR.get(sort_by or '', 'desc'))
+    if sort_dir not in _FEEDS_SORT_DIRS:
+        return error_response("sortDir must be 'asc' or 'desc'", 400)
 
     limit_param = request.args.get('limit', type=int)
     page_param = request.args.get('page', type=int)
     if limit_param is None and page_param is None:
         podcasts = db.get_all_podcasts()
+        if sort_by:
+            podcasts = _sort_podcasts(podcasts, sort_by, sort_dir)
         total = len(podcasts)
         limit = total
         page = 1
     else:
         limit = min(max(1, limit_param or _FEEDS_DEFAULT_LIMIT), _FEEDS_MAX_LIMIT)
         page = max(1, page_param or 1)
-        podcasts, total = db.get_podcasts_page(limit, (page - 1) * limit)
+        offset = (page - 1) * limit
+        if sort_by:
+            # The paged query orders by created_at only, so an explicit sort
+            # is applied to the full list and the page taken from that.
+            ordered = _sort_podcasts(db.get_all_podcasts(), sort_by, sort_dir)
+            total = len(ordered)
+            podcasts = ordered[offset:offset + limit]
+        else:
+            podcasts, total = db.get_podcasts_page(limit, offset)
 
     feed_auth_key = get_feed_auth_key(db)
     podping = _podping_context(db)

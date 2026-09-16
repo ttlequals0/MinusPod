@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity, ProviderSlot, SLOT_PRIMARY } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity, ProviderSlot, QueueAdmission, SLOT_PRIMARY } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -208,6 +208,8 @@ export interface ProcessingEpisode {
   /** Size of the whole backlog, which can exceed the rows the API returns. */
   queueTotal?: number;
   priority?: number | null;
+  /** Why the row is not admitted yet. Absent on builds that do not report it. */
+  admission?: QueueAdmission | null;
 }
 
 export async function getProcessingEpisodes(params?: {

@@ -9,8 +9,9 @@ CLI usage (see docs/llm-providers.md):
 
     PYTHONPATH=src python -m tools.reviewer_calibration
 
-Also auto-runs in a background thread on a reviewer model change, storing its
-result under the `reviewer_calibration_last` setting.
+Also auto-runs in a background thread when a settings save commits a
+different review route, storing its result under the
+`reviewer_calibration_last` setting.
 """
 from __future__ import annotations
 
@@ -290,7 +291,27 @@ def _verdict_agrees(verdict: str, expected: str) -> bool:
     return verdict == 'reject'
 
 
-def run_calibration(llm_client=None, model: str | None = None) -> dict:
+def resolve_calibration_route():
+    """Review route a calibration run uses.
+
+    The detection route is the pass fallback, so same_as_pass inherits
+    detection's actual slot and model instead of the primary. Sending the
+    review model to the wrong endpoint 404s and opens that endpoint's breaker.
+    """
+    from llm_route import resolve_route
+
+    try:
+        detection = resolve_route('detection')
+        return resolve_route(
+            'review', pass_provider=detection.provider_key,
+            pass_model=detection.model_id, pass_base_url=detection.base_url,
+            pass_credential_slot=detection.credential_slot)
+    except ValueError as e:
+        raise ValueError("No model configured for reviewer calibration: "
+                         "set review_model or claude_model first.") from e
+
+
+def run_calibration(llm_client=None, model: str | None = None, route=None) -> dict:
     """Run CALIBRATION_CORPUS through the production AdReviewer stack.
 
     Returns per-case verdicts, aggregate agreement, and structured_fraction.
@@ -299,26 +320,13 @@ def run_calibration(llm_client=None, model: str | None = None) -> dict:
     from ad_reviewer import AdReviewer
     from database import Database
     from llm_client import get_client_for_provider
-    from llm_route import resolve_route
     from utils.time import utc_now_iso
 
     db = Database()
     client = llm_client
     resolved_model = model
     if client is None or resolved_model is None:
-        # Resolve the review route the way a real run does: the detection route
-        # is the pass fallback, so same_as_pass inherits detection's actual slot
-        # and model instead of the primary. Sending the review model to the wrong
-        # endpoint 404s and opens that endpoint's breaker.
-        try:
-            detection = resolve_route('detection')
-            route = resolve_route(
-                'review', pass_provider=detection.provider_key,
-                pass_model=detection.model_id, pass_base_url=detection.base_url,
-                pass_credential_slot=detection.credential_slot)
-        except ValueError as e:
-            raise ValueError("No model configured for reviewer calibration: "
-                             "set review_model or claude_model first.") from e
+        route = route or resolve_calibration_route()
         client = client or get_client_for_provider(
             route.provider_key, base_url=route.base_url,
             credential_slot=route.credential_slot)
@@ -368,37 +376,95 @@ def run_calibration(llm_client=None, model: str | None = None) -> dict:
     }
 
 
-def maybe_trigger_reviewer_calibration(db, old_value: str | None,
-                                       new_value: str | None):
-    """Fire run_calibration() in a daemon thread when the reviewer model
-    setting actually changed and reviewer_calibration_on_change is enabled.
+UNRESOLVED_REVISION = 'unresolved'
 
-    Returns the started Thread, or None when not triggered. Never raises or
-    blocks: a calibration failure is logged and the settings write proceeds.
+# One worker at a time, always running the newest committed revision.
+_CALIBRATION_LOCK = threading.Lock()
+_CALIBRATION_STATE = {'revision': None, 'route': None, 'running': False}
+
+
+def _route_revision(route) -> str:
+    """Identity of the configuration a calibration result describes."""
+    if route is None:
+        return UNRESOLVED_REVISION
+    return '|'.join(str(part) for part in (
+        route.provider_key, route.model_id, route.base_url, route.credential_slot))
+
+
+def calibration_route_revision():
+    """(revision, route) for the currently stored settings; never raises."""
+    try:
+        route = resolve_calibration_route()
+    except Exception as e:
+        logger.debug("Reviewer calibration route unresolved: %s", e)
+        route = None
+    return _route_revision(route), route
+
+
+def calibration_revision() -> str:
+    """Revision of the currently stored settings; never raises."""
+    return calibration_route_revision()[0]
+
+
+def trigger_reviewer_calibration(db, previous_revision: str | None):
+    """Self-test the committed review route when it differs from previous_revision.
+
+    Returns the started Thread, or None when nothing was started. A run
+    already in flight adopts the new revision instead of queueing a second
+    job, so one committed configuration gets at most one calibration.
     """
-    if old_value == new_value:
+    revision, route = calibration_route_revision()
+    if revision == previous_revision or route is None:
         return None
     if not db.get_setting_bool('reviewer_calibration_on_change', True):
         return None
 
-    def _run():
+    with _CALIBRATION_LOCK:
+        _CALIBRATION_STATE['revision'] = revision
+        _CALIBRATION_STATE['route'] = route
+        if _CALIBRATION_STATE['running']:
+            return None
+        _CALIBRATION_STATE['running'] = True
+
+    thread = threading.Thread(target=_calibration_worker, args=(db,),
+                              daemon=True, name="reviewer-calibration")
+    thread.start()
+    return thread
+
+
+def _calibration_worker(db):
+    """Run the newest revision, discarding a result the config has moved past."""
+    while True:
+        with _CALIBRATION_LOCK:
+            revision = _CALIBRATION_STATE['revision']
+            route = _CALIBRATION_STATE['route']
+        result = None
         try:
-            result = run_calibration()
-            db.set_setting(
-                'reviewer_calibration_last', json.dumps(result), is_default=False)
-            agreement = result.get('agreement', 0.0)
-            msg = (f"Reviewer calibration after model change to "
-                   f"{new_value!r}: agreement={agreement:.3f}")
-            if agreement < CALIBRATION_AGREEMENT_THRESHOLD:
-                logger.warning(msg)
-            else:
-                logger.info(msg)
+            result = run_calibration(route=route)
+            result['revision'] = revision
         except Exception:
             logger.exception("Reviewer calibration self-test failed")
 
-    thread = threading.Thread(target=_run, daemon=True, name="reviewer-calibration")
-    thread.start()
-    return thread
+        with _CALIBRATION_LOCK:
+            superseded = _CALIBRATION_STATE['revision'] != revision
+            if not superseded:
+                _CALIBRATION_STATE['running'] = False
+        if superseded:
+            logger.info("Reviewer calibration result discarded: settings changed "
+                        "while it ran")
+            continue
+        if result is None:
+            return
+        db.set_setting('reviewer_calibration_last', json.dumps(result),
+                       is_default=False)
+        agreement = result.get('agreement', 0.0)
+        msg = (f"Reviewer calibration for {result.get('model')!r}: "
+               f"agreement={agreement:.3f}")
+        if agreement < CALIBRATION_AGREEMENT_THRESHOLD:
+            logger.warning(msg)
+        else:
+            logger.info(msg)
+        return
 
 
 def _print_table(cases: list[dict]) -> None:

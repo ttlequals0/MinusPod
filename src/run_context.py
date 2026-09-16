@@ -63,6 +63,25 @@ class TokenAccumulator:
 
 _FORBIDDEN_ROUTE_KEYS = {'api_key', 'apikey', 'authorization', 'headers', 'secret', 'token'}
 
+# Ledger attempt the calling thread is dispatching under, so a compatibility
+# retry inside a provider adapter can be counted against it.
+_dispatch = threading.local()
+
+
+def begin_dispatch(attempt_id: str) -> None:
+    """Mark `attempt_id` as the calling thread's active ledger attempt."""
+    _dispatch.attempt_id = attempt_id
+
+
+def end_dispatch() -> None:
+    """Clear the calling thread's active ledger attempt."""
+    _dispatch.attempt_id = None
+
+
+def current_dispatch_attempt() -> str | None:
+    """The calling thread's active ledger attempt, or None outside a dispatch."""
+    return getattr(_dispatch, 'attempt_id', None)
+
 
 class RunContext:
     def __init__(self, slug: str, episode_id: str, run_id: str | None = None):

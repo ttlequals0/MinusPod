@@ -2,7 +2,7 @@ import { apiRequest, buildQueryString } from './client';
 import {
   AddressingStats, DashboardStats, DayStats, EpisodeCostResponse, EpisodeCostSortField,
   EpisodeProcessingRun, LedgerFilterOptions, ModelUsageResponse, ModelUsageSortField,
-  PodcastStats, ReviewerStats,
+  PodcastStats, ReviewerStats, SpendAttemptsResponse,
 } from './types';
 
 // Shared page/filter params for the ledger list endpoints below. Mirrors
@@ -91,4 +91,21 @@ export async function getLedgerFilterOptions(
 ): Promise<LedgerFilterOptions> {
   const qs = buildQueryString({ ...scope });
   return apiRequest<LedgerFilterOptions>(`/stats/ledger-filter-options${qs}`);
+}
+
+// Scope: one run, or one episode across all its runs.
+export interface SpendAttemptsScope {
+  runId?: string;
+  slug?: string;
+  episodeId?: string;
+  provider?: string;
+}
+
+// The ledger rows a spend total was summed from, so an unknown cost points
+// at the attempt carrying no price rather than at a bare total.
+export async function getSpendAttempts(
+  scope: SpendAttemptsScope,
+): Promise<SpendAttemptsResponse> {
+  const qs = buildQueryString({ ...scope });
+  return apiRequest<SpendAttemptsResponse>(`/stats/spend/attempts${qs}`);
 }

@@ -23,6 +23,7 @@ import chapters_generator  # noqa: E402
 from chapters_generator import ChaptersGenerator  # noqa: E402
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2  # noqa: E402
 from llm_client import invalidate_provider_cache  # noqa: E402
+from llm_route import account_identity  # noqa: E402
 from main_app import processing  # noqa: E402
 from processing_queue import _pid_start_time  # noqa: E402
 
@@ -125,16 +126,20 @@ class TestRouteSnapshotResolutionAndPersistence:
 
         assert snapshot['detection'] == {
             'provider_key': 'anthropic', 'configured_model': 'claude-detect',
-            'base_url': None, 'credential_slot': 'primary'}
+            'base_url': None, 'credential_slot': 'primary',
+            'account_id': account_identity('anthropic', None)}
         assert snapshot['verification'] == {
             'provider_key': 'anthropic', 'configured_model': 'claude-detect',
-            'base_url': None, 'credential_slot': 'primary'}
+            'base_url': None, 'credential_slot': 'primary',
+            'account_id': account_identity('anthropic', None)}
         assert snapshot['chapters'] == {
             'provider_key': 'anthropic', 'configured_model': 'claude-detect',
-            'base_url': None, 'credential_slot': 'primary'}
+            'base_url': None, 'credential_slot': 'primary',
+            'account_id': account_identity('anthropic', None)}
         assert snapshot['review'] == {
             'provider_key': 'openrouter', 'configured_model': 'or-review-model',
             'base_url': 'https://openrouter.ai/api/v1', 'credential_slot': 'secondary',
+            'account_id': account_identity('openrouter', 'https://openrouter.ai/api/v1'),
             'gate': {'review_provider': 'secondary', 'review_model': 'or-review-model'}}
 
         raw = _persisted_snapshot_raw(db, run_row['run_id'])
@@ -157,7 +162,8 @@ class TestRouteSnapshotResolutionAndPersistence:
         first = processing._resolve_or_load_route_snapshot(run_row['run_id'])
         assert first['detection'] == {
             'provider_key': 'anthropic', 'configured_model': 'claude-detect',
-            'base_url': None, 'credential_slot': 'primary'}
+            'base_url': None, 'credential_slot': 'primary',
+            'account_id': account_identity('anthropic', None)}
 
         # A settings change mid-run must not retroactively alter an
         # already-persisted snapshot: recovery re-reads the row instead of
@@ -189,10 +195,12 @@ class TestProcessEpisodeWiresSnapshotAtRunStart:
                     slug, episode_id, 'https://example.com/ep.mp3', run_id=run_id)
             assert ctx.route_snapshot['detection'] == {
                 'provider_key': 'anthropic', 'configured_model': 'claude-detect',
-                'base_url': None, 'credential_slot': 'primary'}
+                'base_url': None, 'credential_slot': 'primary',
+                'account_id': account_identity('anthropic', None)}
             assert ctx.route_snapshot['review'] == {
                 'provider_key': 'openrouter', 'configured_model': 'or-review-model',
                 'base_url': 'https://openrouter.ai/api/v1', 'credential_slot': 'secondary',
+                'account_id': account_identity('openrouter', 'https://openrouter.ai/api/v1'),
                 'gate': {'review_provider': 'secondary', 'review_model': 'or-review-model'}}
         finally:
             run_context.end(ctx)

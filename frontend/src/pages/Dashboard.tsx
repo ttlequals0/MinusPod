@@ -1,9 +1,9 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useRef } from 'react';
 import DashboardControlsMenu from '../components/DashboardControlsMenu';
 import SegmentedToggle from '../components/SegmentedToggle';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
-import { feedsQueryOptions, feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
+import { feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import DropdownMenu from '../components/DropdownMenu';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
@@ -19,10 +19,11 @@ import type { SearchResultRow } from '../components/SearchResults';
 import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useOutsideClick } from '../hooks/useOutsideClick';
-import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
+import { feedSortDirection, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
+import { Pagination } from '../components/Pagination';
 import { deleteStopsProcessingMessage } from '../utils/feedTitle';
 import { formatDateTime } from '../utils/format';
-import { btnPrimary, btnSecondary } from '../components/buttonStyles';
+import { btnPrimary, btnSecondary, touchTarget } from '../components/buttonStyles';
 import { focusRing, inputBase } from '../components/fieldStyles';
 
 type DashboardView = 'podcasts' | 'episodes';
@@ -33,6 +34,10 @@ const DASHBOARD_VIEW_OPTIONS = [
   { value: 'podcasts' as const, label: 'Podcasts', title: 'Group by podcast' },
   { value: 'episodes' as const, label: 'Episodes', title: 'Show latest episodes per podcast' },
 ];
+
+// Feeds per dashboard page. Divides evenly into the 1/2/3-column grid so a
+// full page never leaves a ragged last row.
+const FEEDS_PER_PAGE = 24;
 
 // Boxed keyboard-shortcut badge, matching the mockup's shortcut hints.
 const kbdClass = 'rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground';
@@ -53,19 +58,42 @@ function Dashboard() {
   const [actionError, setActionError] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data, isLoading, error } = useQuery(feedsQueryOptions);
-  const feeds = data?.feeds;
-  const lastRefreshCompletedAt = data?.lastRefreshCompletedAt ?? null;
+  const [feedsPage, setFeedsPage] = useState(1);
+  const isEpisodesView = dashboardView === 'episodes';
+  // The server orders the whole list before slicing the page, so the browser
+  // must not re-sort what it receives.
+  const pageParams = {
+    page: feedsPage, limit: FEEDS_PER_PAGE,
+    sortBy: sortBy as FeedSortBy, sortDir: feedSortDirection(sortBy),
+  };
 
-  // Fetched only for the Episodes view; the base feeds query above stays
-  // unbounded and unprojected for the Podcasts (grid/list) view.
+  // Each view fetches only its own projection: the Podcasts grid never pays
+  // for the episode projection, and Episodes never fetches a second bare list.
+  const podcastsQuery = useQuery({
+    ...feedsQueryOptionsFor(pageParams),
+    enabled: !isEpisodesView,
+    placeholderData: keepPreviousData,
+  });
   const episodesQuery = useQuery({
-    ...feedsQueryOptionsFor({ includeLatestEpisodes: true, episodesPerFeed: episodesPerPodcast }),
-    enabled: dashboardView === 'episodes',
+    ...feedsQueryOptionsFor({
+      ...pageParams, includeLatestEpisodes: true, episodesPerFeed: episodesPerPodcast,
+    }),
+    enabled: isEpisodesView,
     // Changing the per-podcast count keeps the current groups until the new
     // ones land, instead of blanking the list under an open menu.
     placeholderData: keepPreviousData,
   });
+
+  const activeQuery = isEpisodesView ? episodesQuery : podcastsQuery;
+  const { data, isLoading, error } = activeQuery;
+  const feeds = data?.feeds;
+  const lastRefreshCompletedAt = data?.lastRefreshCompletedAt ?? null;
+  const totalFeeds = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 1;
+  // A shrinking list strands the pager past the last page, and only the
+  // response knows where the end now is. Adjusted during render, not in an
+  // effect, so the next fetch already uses the corrected page.
+  if (feedsPage > totalPages) setFeedsPage(totalPages);
 
   const refreshMutation = useMutation({
     mutationFn: ({ slug, options }: { slug: string; options?: { force?: boolean } }) =>
@@ -112,9 +140,7 @@ function Dashboard() {
     refreshMutation.mutate({ slug, options });
   };
 
-  const sortedFeeds = useMemo(() => (feeds ? sortFeeds(feeds, sortBy) : []), [feeds, sortBy]);
-  const groupFeeds = episodesQuery.data?.feeds;
-  const sortedGroupFeeds = useMemo(() => (groupFeeds ? sortFeeds(groupFeeds, sortBy) : []), [groupFeeds, sortBy]);
+  const pageFeeds = feeds ?? [];
 
   const navigate = useNavigate();
   const searchRootRef = useRef<HTMLDivElement>(null);
@@ -243,7 +269,7 @@ function Dashboard() {
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             sortBy={sortBy}
-            onSortChange={setSortBy}
+            onSortChange={(next) => { setSortBy(next); setFeedsPage(1); }}
             episodesPerPodcast={episodesPerPodcast}
             onEpisodesPerPodcastChange={(n) => setEpisodesPerPodcast(clampEpisodesPerPodcast(n))}
             perPodcastMin={MIN_EPISODES_PER_PODCAST}
@@ -290,12 +316,12 @@ function Dashboard() {
         </div>
       </div>
 
-      {!feeds || feeds.length === 0 ? (
+      {totalFeeds === 0 ? (
         <div className="text-center py-12 bg-card rounded-lg border border-border">
           <p className="text-muted-foreground mb-4">No feeds added yet</p>
           <Link
             to="/add"
-            className={`inline-block px-4 py-2 rounded ${btnPrimary} transition-colors ${focusRing}`}
+            className={`${touchTarget} px-4 py-2 rounded ${btnPrimary} transition-colors ${focusRing}`}
           >
             Add Your First Feed
           </Link>
@@ -320,11 +346,11 @@ function Dashboard() {
             <p className="text-sm text-muted-foreground mt-2">{(episodesQuery.error as Error).message}</p>
           </div>
         ) : (
-          <DashboardEpisodeGroups feeds={sortedGroupFeeds} episodesPerPodcast={episodesPerPodcast} />
+          <DashboardEpisodeGroups feeds={pageFeeds} episodesPerPodcast={episodesPerPodcast} />
         )
       ) : viewMode === 'grid' ? (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {sortedFeeds.map((feed) => (
+          {pageFeeds.map((feed) => (
             <FeedCard
               key={feed.slug}
               feed={feed}
@@ -336,7 +362,7 @@ function Dashboard() {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {sortedFeeds.map((feed) => (
+          {pageFeeds.map((feed) => (
             <FeedListItem
               key={feed.slug}
               feed={feed}
@@ -346,6 +372,15 @@ function Dashboard() {
             />
           ))}
         </div>
+      )}
+
+      {totalFeeds > 0 && (
+        <Pagination
+          page={feedsPage}
+          totalPages={totalPages}
+          total={totalFeeds}
+          onPage={setFeedsPage}
+        />
       )}
 
       {(deleteConfirm || actionError) && (

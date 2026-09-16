@@ -10,7 +10,7 @@ import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
-import type { BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, ProviderSlot, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
+import type { AffectedRunsAction, BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, ProviderSlot, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
 import { LLM_PROVIDERS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
@@ -300,6 +300,9 @@ function Settings() {
   // type select shows a placeholder while this is unset.
   const [secondaryProvider, setSecondaryProvider] = useState<LlmProvider | ''>('');
   const [secondaryProviderBaseUrl, setSecondaryProviderBaseUrl] = useState('');
+  // What happens to runs still bound to the old account when a slot's
+  // endpoint or provider type changes. Requeue keeps the work.
+  const [affectedRunsAction, setAffectedRunsAction] = useState<AffectedRunsAction>('requeue');
   // True once the user edits or clears the secondary base URL, so an inline key
   // save can send an intentional clear ('') while a pre-hydration '' is skipped.
   const [secondaryBaseUrlDirty, setSecondaryBaseUrlDirty] = useState(false);
@@ -854,12 +857,25 @@ function Settings() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setFormDirty(hasChanges); }, [hasChanges]);
 
+  // An endpoint or provider-type change moves in-flight work to a different
+  // account, so the save carries the operator's decision about that work.
+  const changedFields = computeChangedFields();
+  const primaryAccountChanged = 'llmProvider' in changedFields || 'openaiBaseUrl' in changedFields;
+  const secondaryAccountChanged =
+    'secondaryProvider' in changedFields || 'secondaryProviderBaseUrl' in changedFields;
+
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!settings) throw new Error('Settings not loaded yet');
       const payload = computeChangedFields();
       if (podcastIndexApiKey) payload.podcastIndexApiKey = podcastIndexApiKey;
       if (podcastIndexApiSecret) payload.podcastIndexApiSecret = podcastIndexApiSecret;
+      // Only when the preflight answered: a build without that endpoint
+      // cannot act on the field, so it is not sent one.
+      if ((primaryAccountChanged || secondaryAccountChanged)
+          && queryClient.getQueryData(['affected-runs', primaryAccountChanged ? SLOT_PRIMARY : SLOT_SECONDARY])) {
+        payload.affectedRunsAction = affectedRunsAction;
+      }
 
       const tasks: Promise<unknown>[] = [];
       // Skip a PUT with an empty payload (e.g. only the reviewer-pattern
@@ -1214,6 +1230,10 @@ function Settings() {
         onSecondaryProviderRequestsPerDayChange={setSecondaryProviderRequestsPerDay}
         providerTokensPerMin={providerTokensPerMin}
         onProviderTokensPerMinChange={setProviderTokensPerMin}
+        primaryAccountChanged={primaryAccountChanged}
+        secondaryAccountChanged={secondaryAccountChanged}
+        affectedRunsAction={affectedRunsAction}
+        onAffectedRunsActionChange={setAffectedRunsAction}
         secondaryProviderTokensPerMin={secondaryProviderTokensPerMin}
         onSecondaryProviderTokensPerMinChange={setSecondaryProviderTokensPerMin}
       />

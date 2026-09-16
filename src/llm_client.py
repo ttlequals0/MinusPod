@@ -604,6 +604,20 @@ def _log_temperature_omission(
     )
 
 
+def _record_extra_dispatch() -> None:
+    """Count one compatibility-retry SDK dispatch against the active ledger
+    attempt, so manual request caps see every outbound request, not just the
+    first one of an attempt."""
+    attempt_id = run_context.current_dispatch_attempt()
+    if attempt_id is None:
+        return
+    try:
+        from database import Database
+        Database().bump_llm_attempt_dispatches(attempt_id)
+    except Exception:
+        logger.warning("Could not record a compatibility-retry dispatch", exc_info=True)
+
+
 class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
@@ -701,6 +715,7 @@ class LLMClient(ABC):
                 # now on, so re-invoking send_fn here picks that up immediately.
                 _log_temperature_omission(provider_label, episode_id, pass_name, model, e)
                 mark_model_omits_temperature(model)
+                _record_extra_dispatch()
                 try:
                     response = send_fn(eff_max, eff_temp, eff_reasoning)
                 except Exception as e2:
@@ -722,6 +737,7 @@ class LLMClient(ABC):
             _record_reasoning_fallback_notice(
                 provider, model, episode_id, pass_name,
                 user_reasoning, e)
+            _record_extra_dispatch()
             try:
                 response = send_fn(defaults.max_tokens, defaults.temperature, defaults.reasoning_effort)
             except Exception as e2:
@@ -1055,6 +1071,7 @@ class OpenAICompatibleClient(LLMClient):
             token_value = kwargs.pop(token_param)
             kwargs[alt_param] = token_value
             self._token_param_cache[model] = alt_param
+            _record_extra_dispatch()
             return self._client.chat.completions.create(**kwargs)
 
     def messages_create(
@@ -1638,12 +1655,6 @@ def _get_circuit_breaker_for_provider(provider_key: str,
 # submitting thread's run, so totals aggregate per run, not per process.
 
 
-def _get_accumulator_active() -> bool:
-    """Return whether the calling thread's run has active token tracking."""
-    ctx = run_context.current()
-    return bool(ctx and ctx.tokens.is_active())
-
-
 def start_episode_token_tracking():
     """Reset and activate the calling run's token accumulator."""
     ctx = run_context.current()
@@ -1665,14 +1676,6 @@ def get_episode_token_totals() -> dict:
         f" cost=${totals['cost']:.6f} ({ctx.key})"
     )
     return totals
-
-
-def get_last_episode_token_totals() -> dict:
-    """Return the calling run's most recently collected token totals."""
-    ctx = run_context.current()
-    if ctx is None:
-        return {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
-    return ctx.tokens.last_totals()
 
 
 def get_client_for_provider(provider_key: str, base_url: str | None = None,
@@ -1982,6 +1985,10 @@ def is_retryable_error(error: Exception) -> bool:
     # would burn the pause the hold is meant to give the provider.
     if isinstance(error, ProviderRateLimitedError):
         return False
+    # An account change is fixed by re-resolving routes, which only a fresh
+    # attempt does; never permanent.
+    if isinstance(error, ProviderAccountChangedError):
+        return True
     # Spend/quota exhaustion is terminal until the operator adds credits or
     # raises the limit; no retry can succeed (#491).
     if is_limit_exceeded_error(error):
@@ -2268,6 +2275,26 @@ class ProviderRateLimitedError(Exception):
         # 429): the mid-run defer reads the recorded hold marker, not the
         # toggle-gated 429 path.
         self.manual = manual
+
+
+class ProviderAccountChangedError(Exception):
+    """A route's frozen provider account no longer matches the slot's
+    configuration, so its endpoint and the slot's current key belong to
+    different accounts.
+
+    Raised instead of building a client: sending the new credential to the
+    frozen endpoint would authenticate to the wrong destination. Processing
+    turns it into an explicit lifecycle decision (requeue or cancel).
+    """
+
+    def __init__(self, message: str, *, credential_slot: str = 'primary',
+                 phase: str | None = None, expected_account_id: str | None = None,
+                 current_account_id: str | None = None):
+        super().__init__(message)
+        self.credential_slot = credential_slot
+        self.phase = phase
+        self.expected_account_id = expected_account_id
+        self.current_account_id = current_account_id
 
 
 def extract_error_body(error: Exception) -> Any:

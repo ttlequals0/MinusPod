@@ -10,6 +10,7 @@ provider type: 'primary' resolves through the global llm_provider config,
 referencing 'secondary' while secondary_provider_enabled is false falls back
 to primary (fail-safe) and logs once per stage.
 """
+import hashlib
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -22,7 +23,8 @@ from config import (
 from database import Database
 from llm_client import (
     get_client_for_provider, get_effective_provider, get_effective_base_url,
-    LLMClient, _normalize_base_url_for_provider,
+    LLMClient, ProviderAccountChangedError, _get_cached_setting,
+    _normalize_base_url_for_provider,
 )
 from run_context import route_for_phase
 
@@ -49,6 +51,106 @@ class Route:
     base_url: str | None  # non-secret; never includes embedded credentials
     slot: str  # resolved primary/secondary, after inheritance and fallback
     credential_slot: str  # which secret to read: primary=type secret, secondary=secondary_provider_api_key
+    # Non-secret identity of the account this route was resolved against
+    # (provider type + endpoint). None only for routes built before this
+    # field existed; see account_identity_for_slot.
+    account_id: str | None = None
+
+
+class _CachedProviderSettings:
+    """Settings reader backed by llm_client's provider TTL cache.
+
+    Account identity must be read from the same source the credential is,
+    or a save seen by one and not the other reopens the mismatch this
+    identity exists to catch.
+    """
+
+    @staticmethod
+    def get_setting(key: str) -> str | None:
+        return _get_cached_setting(key)
+
+
+_CACHED_SETTINGS = _CachedProviderSettings()
+
+
+def account_identity(provider_key: str | None, base_url: str | None) -> str | None:
+    """Non-secret identity of a provider account: provider type + endpoint.
+
+    A key rotation within the same account leaves this unchanged, which is
+    what lets rotation keep working while a provider or endpoint switch
+    invalidates every route frozen against the old account.
+    """
+    if not provider_key:
+        return None
+    raw = f"{provider_key}|{base_url or ''}"
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]
+
+
+def account_identity_for_primary_provider(provider_key: str | None) -> str | None:
+    """Identity of the primary slot's account for one provider TYPE.
+
+    The primary slot keys its credential by provider type (anthropic_api_key,
+    openai_api_key, and so on), so a primary route's key follows the route's
+    own provider, not whichever type is globally selected. Only the
+    configurable endpoint can move that account.
+    """
+    if not provider_key:
+        return None
+    return account_identity(provider_key, _base_url_for_primary(provider_key))
+
+
+def account_identity_for_slot(credential_slot: str, db=None) -> str | None:
+    """The identity `credential_slot` points at right now, or None when the
+    slot has no provider type configured.
+
+    Read through the credential cache by default so it cannot disagree with
+    the key request-time code resolves. Deliberately skips
+    _resolve_slot_config's secondary-to-primary fallback: a secondary slot
+    that lost its provider type is a changed account, not primary's account
+    under another name.
+    """
+    db = db or _CACHED_SETTINGS
+    if credential_slot == SLOT_SECONDARY:
+        provider = db.get_setting('secondary_provider')
+        if not provider:
+            return None
+        return account_identity(provider, _base_url_for_secondary(db, provider))
+    return account_identity_for_primary_provider(get_effective_provider())
+
+
+def current_account_identity(provider_key: str | None,
+                             credential_slot: str) -> str | None:
+    """The account a call on (provider_key, credential_slot) would
+    authenticate as right now.
+
+    The secondary slot shares one key across every provider type it can hold,
+    so its identity follows the slot's own configuration; the primary slot's
+    follows the provider type being called.
+    """
+    if credential_slot == SLOT_SECONDARY:
+        return account_identity_for_slot(SLOT_SECONDARY)
+    return account_identity_for_primary_provider(provider_key)
+
+
+def route_account_mismatch(route: 'Route | dict') -> tuple[str, str | None] | None:
+    """(frozen_account_id, current_account_id) when `route` was resolved
+    against an account its credential no longer belongs to, else None.
+
+    A route with no account_id (resolved before this field existed) is not
+    checked: there is nothing to compare it against.
+    """
+    if isinstance(route, Route):
+        frozen = route.account_id
+        provider_key = route.provider_key
+        credential_slot = route.credential_slot
+    else:
+        frozen = route.get('account_id')
+        provider_key = route.get('provider_key')
+        credential_slot = route.get('credential_slot', SLOT_PRIMARY)
+    if not frozen:
+        return None
+    current = current_account_identity(provider_key, credential_slot)
+    return None if current == frozen else (frozen, current)
 
 
 def client_for_route(route: str | Route | dict | None, *,
@@ -56,7 +158,12 @@ def client_for_route(route: str | Route | dict | None, *,
                       fallback: Callable[[], LLMClient | None] | None = None
                       ) -> LLMClient | None:
     """Override wins, then the route's provider client, then fallback().
-    `route` is a phase name, snapshot dict, Route, or None; fallback stays lazy."""
+    `route` is a phase name, snapshot dict, Route, or None; fallback stays lazy.
+
+    Raises ProviderAccountChangedError when the route's frozen account no
+    longer matches its slot: building here would pair the slot's current key
+    with the route's frozen endpoint.
+    """
     if override is not None:
         return override
     if isinstance(route, str):
@@ -64,13 +171,24 @@ def client_for_route(route: str | Route | dict | None, *,
     if not route:
         return fallback() if fallback is not None else None
     if isinstance(route, Route):
+        phase = route.phase
         provider_key = route.provider_key
         base_url = route.base_url
         credential_slot = route.credential_slot
     else:
+        phase = route.get('phase')
         provider_key = route['provider_key']
         base_url = route.get('base_url')
         credential_slot = route.get('credential_slot', SLOT_PRIMARY)
+    mismatch = route_account_mismatch(route)
+    if mismatch is not None:
+        frozen, current = mismatch
+        raise ProviderAccountChangedError(
+            f"{credential_slot} provider account changed since this run "
+            f"resolved its routes; not sending the current key to the "
+            f"route's frozen endpoint",
+            credential_slot=credential_slot, phase=phase,
+            expected_account_id=frozen, current_account_id=current)
     return get_client_for_provider(provider_key, base_url=base_url,
                                    credential_slot=credential_slot)
 
@@ -263,7 +381,8 @@ def resolve_review_route(*, review_provider_setting: str | None,
         pass_model, pass_base_url, pass_credential_slot, db)
     return Route(phase='review', provider_key=provider, model_id=model,
                  base_url=base_url, slot=credential_slot,
-                 credential_slot=credential_slot)
+                 credential_slot=credential_slot,
+                 account_id=account_identity(provider, base_url))
 
 
 def resolve_route(phase: str, *, pass_model: str | None = None,
@@ -305,4 +424,6 @@ def resolve_route(phase: str, *, pass_model: str | None = None,
     # fallback in _resolve_slot_config), which may differ from
     # configured_slot when 'secondary' has no provider type configured.
     return Route(phase=phase, provider_key=provider, model_id=model,
-                 base_url=base_url, slot=credential_slot, credential_slot=credential_slot)
+                 base_url=base_url, slot=credential_slot,
+                 credential_slot=credential_slot,
+                 account_id=account_identity(provider, base_url))

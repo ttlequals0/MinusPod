@@ -13,7 +13,6 @@ import run_context
 from llm_client import (
     start_episode_token_tracking,
     get_episode_token_totals,
-    _get_accumulator_active,
     AnthropicClient,
     OpenAICompatibleClient,
 )
@@ -79,7 +78,7 @@ def test_get_totals_without_start_returns_zeros():
     results = {}
 
     def fresh_thread():
-        assert not _get_accumulator_active()
+        assert run_context.current() is None
         results["totals"] = get_episode_token_totals()
 
     t = threading.Thread(target=fresh_thread)
@@ -101,7 +100,7 @@ def test_accumulator_resets_after_get_totals():
 
         assert first["input_tokens"] == 500
         assert first["output_tokens"] == 250
-        assert not _get_accumulator_active()
+        assert not run_context.current().tokens.is_active()
 
         second = get_episode_token_totals()
         assert second["input_tokens"] == 0

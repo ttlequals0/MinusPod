@@ -26,3 +26,23 @@ describe('Layout header search', () => {
     expect(link.getAttribute('href')).toBe('/search');
   });
 });
+
+describe('Layout header hit targets', () => {
+  it('gives the header controls a 44px box on phones', () => {
+    render(
+      <MemoryRouter>
+        <Layout />
+      </MemoryRouter>,
+    );
+    const controls = [
+      screen.getByRole('link', { name: 'Search' }),
+      screen.getByRole('button', { name: 'Toggle theme' }),
+      screen.getByRole('button', { name: 'Toggle menu' }),
+    ];
+    for (const el of controls) {
+      // The rule sits on the interactive element itself, not on a wrapper.
+      expect(el.className).toContain('min-h-11');
+      expect(el.className).toContain('min-w-11');
+    }
+  });
+});

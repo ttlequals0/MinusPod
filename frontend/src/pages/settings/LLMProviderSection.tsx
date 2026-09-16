@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LlmProvider, StageTunables, UpdateSettingsPayload } from '../../api/types';
-import { LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS, LLM_PROVIDERS } from '../../api/types';
+import type { AffectedRunsAction, LlmProvider, StageTunables, UpdateSettingsPayload } from '../../api/types';
+import {
+  LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS, LLM_PROVIDERS, SLOT_PRIMARY, SLOT_SECONDARY,
+} from '../../api/types';
+import AccountSwitchPreflight from './AccountSwitchPreflight';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ConnectionTestButton from './ConnectionTestButton';
 import ProviderKeyField from './ProviderKeyField';
@@ -57,6 +60,12 @@ interface LLMProviderSectionProps {
   onProviderTokensPerMinChange: (value: number) => void;
   secondaryProviderTokensPerMin: number;
   onSecondaryProviderTokensPerMinChange: (value: number) => void;
+  // Set when the form's endpoint or provider type for that slot differs from
+  // what is saved, which is what moves in-flight work to another account.
+  primaryAccountChanged: boolean;
+  secondaryAccountChanged: boolean;
+  affectedRunsAction: AffectedRunsAction;
+  onAffectedRunsActionChange: (action: AffectedRunsAction) => void;
 }
 
 const RATE_LIMIT_MAX = 1_000_000;
@@ -303,6 +312,10 @@ function LLMProviderSection({
   onProviderTokensPerMinChange,
   secondaryProviderTokensPerMin,
   onSecondaryProviderTokensPerMinChange,
+  primaryAccountChanged,
+  secondaryAccountChanged,
+  affectedRunsAction,
+  onAffectedRunsActionChange,
 }: LLMProviderSectionProps) {
   const keyProvider = keyProviderFor(llmProvider);
   const status = keyProvider && providersState ? providersState[keyProvider] : NONE_STATUS;
@@ -345,6 +358,13 @@ function LLMProviderSection({
                   : 'openrouter',
             baseUrl,
           )}
+        />
+
+        <AccountSwitchPreflight
+          slot={SLOT_PRIMARY}
+          changed={primaryAccountChanged}
+          action={affectedRunsAction}
+          onActionChange={onAffectedRunsActionChange}
         />
 
         {llmProvider === LLM_PROVIDERS.OLLAMA && ollamaNumCtx && onOllamaNumCtxUpdate && (
@@ -427,6 +447,15 @@ function LLMProviderSection({
                 return { ok: result.ok, error: result.ok ? undefined : result.detail };
               }}
               onConnectionTest={(baseUrl) => onSecondaryConnectionTest(secondaryProvider, baseUrl)}
+            />
+          )}
+
+          {secondaryProviderEnabled && (
+            <AccountSwitchPreflight
+              slot={SLOT_SECONDARY}
+              changed={secondaryAccountChanged}
+              action={affectedRunsAction}
+              onActionChange={onAffectedRunsActionChange}
             />
           )}
 

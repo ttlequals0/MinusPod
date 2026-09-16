@@ -55,6 +55,7 @@ a:hover{text-decoration:underline}
     <a href="#cards" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Cards</a>
     <a href="#tables" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Tables</a>
     <a href="#nav" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Nav &amp; Tabs</a>
+    <a href="#components" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Components</a>
     <a href="#overlays" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Overlays</a>
     <a href="#rules" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Rules</a>
   </nav>
@@ -70,7 +71,7 @@ a:hover{text-decoration:underline}
 <section id="tokens" style="display:flex;flex-direction:column;gap:16px">
   <div>
     <h2 style="margin:0;font-size:18px;font-weight:600">Color tokens</h2>
-    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">HSL CSS variables, themed at runtime. Always paired: a surface token with its <span style="font-family:ui-monospace,monospace;font-size:13px">-foreground</span>. Never hardcode grays or brand hues.</p>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">HSL CSS variables, themed at runtime. Always paired: a surface token with its <span style="font-family:ui-monospace,monospace;font-size:13px">-foreground</span>. Never hardcode grays or brand hues. The values in this page&rsquo;s stylesheet are a copy of the default theme in <span style="font-family:ui-monospace,monospace;font-size:13px">frontend/src/index.css</span> and <span style="font-family:ui-monospace,monospace;font-size:13px">frontend/src/themes/</span>, kept only so this document renders standalone. Those files are the source: change a token there and re-copy it here, never the other way round.</p>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
     <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--background));color:hsl(var(--foreground));display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">background</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">page canvas + foreground</div></div></div>
@@ -224,7 +225,7 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
 <section id="badges" style="display:flex;flex-direction:column;gap:16px">
   <div>
     <h2 style="margin:0;font-size:18px;font-weight:600">Badges &amp; status</h2>
-    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">One shape everywhere: <span style="font-family:ui-monospace,monospace;font-size:13px">px-2 py-0.5 text-xs rounded</span> with a 20% tint fill. Status colors come from <span style="font-family:ui-monospace,monospace;font-size:13px">episodeStatus.ts</span> &mdash; the only place raw palette hues (blue, yellow, purple, teal) are allowed.</p>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">One shape everywhere: <span style="font-family:ui-monospace,monospace;font-size:13px">px-2 py-0.5 text-xs rounded</span> with a 20% tint fill. <span style="font-family:ui-monospace,monospace;font-size:13px">badgeStyles.ts</span> owns the shape and the reusable tints; <span style="font-family:ui-monospace,monospace;font-size:13px">episodeStatus.ts</span> owns which status maps to which hue. Raw palette hues belong in neither a call site nor this guide: import the tint, extend the status map. Full recipes are in <a href="#components">Shared components</a>.</p>
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:16px">
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
@@ -243,19 +244,19 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
       <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:rgba(245,158,11,.2);color:hsl(var(--warning-on-tint))">Incomplete</span>
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">&larr; cost coverage reuses the warning badge, no new hue</span>
     </div>
-    <div style="font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty"><strong style="color:hsl(var(--foreground))">Unknown cost.</strong> A spend figure whose calls were not all priced is a floor, not a total. Mark it with the existing warning badge and prefix the amount with &ldquo;known spend&rdquo;; the title attribute carries the why. Never style it as an error: nothing failed. In a table the same condition is a plain text column instead (&ldquo;Fully priced&rdquo; / &ldquo;3 of 12 unpriced&rdquo;), because a badge per row would be noise.</div>
+    <div style="font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty"><strong style="color:hsl(var(--foreground))">Unknown cost.</strong> A spend figure whose calls were not all priced is a floor, not a total. Mark it with the existing warning badge and prefix the amount with &ldquo;known spend&rdquo;; the title attribute carries the why. Never style it as an error: nothing failed. In a table the same condition is a plain text column instead (&ldquo;Fully priced&rdquo; / &ldquo;3 of 12 unpriced&rdquo;), because a badge per row would be noise. Where the contributing calls can be listed, the badge becomes the disclosure button that opens them, so the gap can be traced rather than only announced.</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
       <span style="font-size:12px;color:hsl(var(--warning))">Refresh failing</span>
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">&larr; inline warnings are plain text-warning, no fill</span>
     </div>
-    <div style="font-size:13px;color:hsl(var(--muted-foreground))">Big stat numbers reuse the same hues as text-only: <span style="color:hsl(var(--success));font-weight:700">128</span> <span style="color:var(--c-red);font-weight:700">4</span> <span style="color:var(--c-yellow);font-weight:700">2</span> &mdash; never introduce a new hue for a new state; extend <span style="font-family:ui-monospace,monospace;font-size:12px">episodeStatus.ts</span> instead.</div>
+    <div style="font-size:13px;color:hsl(var(--muted-foreground))">Big stat numbers reuse the same hues as text-only: <span style="color:hsl(var(--success));font-weight:700">128</span> <span style="color:var(--c-red);font-weight:700">4</span> <span style="color:var(--c-yellow);font-weight:700">2</span> &mdash; never introduce a new hue for a new state; extend <span style="font-family:ui-monospace,monospace;font-size:12px">episodeStatus.ts</span>, or add a tint to <span style="font-family:ui-monospace,monospace;font-size:12px">badgeStyles.ts</span> when it is reusable.</div>
   </div>
 </section>
 
 <section id="cards" style="display:flex;flex-direction:column;gap:16px">
   <div>
     <h2 style="margin:0;font-size:18px;font-weight:600">Cards</h2>
-    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Every panel is <span style="font-family:ui-monospace,monospace;font-size:13px">bg-card rounded-lg border border-border</span> &mdash; no shadows at rest (shadows mean overlay). Action footers sit on <span style="font-family:ui-monospace,monospace;font-size:13px">bg-secondary/50</span> with a top border.</p>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Every panel is <span style="font-family:ui-monospace,monospace;font-size:13px">bg-card rounded-lg border border-border</span> &mdash; no shadows at rest (shadows mean overlay). Action footers sit on <span style="font-family:ui-monospace,monospace;font-size:13px">bg-secondary/50</span> with a top border. Summary cards come in two named variants, below.</p>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
     <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden">
@@ -294,6 +295,36 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
       <button aria-label="Refresh" style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:none;cursor:pointer;background:hsl(var(--primary));color:hsl(var(--primary-foreground));flex-shrink:0" style-hover="background:hsl(var(--primary) / 0.9)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
     </div>
   </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:15px;font-weight:600">Two summary-card variants</div>
+    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">Both are legitimate; which one a screen uses follows from what the row is for. They share the panel recipe, the 12px/16px responsive padding, the 20px bold value and the 12px muted caption, so a page that mixes them still reads as one system.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+      <div>
+        <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px;text-align:center">
+          <div style="font-size:20px;font-weight:700">128</div>
+          <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:2px">Completed</div>
+        </div>
+        <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:6px"><b style="color:hsl(var(--foreground))">Counter</b>: value over a centered label. A dense row of same-shaped counts scanned as a set, as in <span style="font-family:ui-monospace,monospace;font-size:12px">FeedStatsCards</span>. The number leads because it is the content.</div>
+      </div>
+      <div>
+        <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px">
+          <div style="font-size:14px;color:hsl(var(--muted-foreground))">Avg Cost</div>
+          <div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">$0.0412</div>
+          <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:4px">Min: $0.0102&nbsp;&nbsp;Max: $0.1980</div>
+        </div>
+        <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:6px"><b style="color:hsl(var(--foreground))">Metric</b>: label over the value, left aligned, with an optional detail footer. Cards that answer different questions and can carry a breakdown, as in <span style="font-family:ui-monospace,monospace;font-size:12px">StatsPage</span>. The label leads because it is what distinguishes the cards.</div>
+      </div>
+    </div>
+    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word">shared     = bg-card rounded-lg border border-border p-3 sm:p-4
+value      = text-xl font-bold tabular-nums          caption = text-xs text-muted-foreground
+counter    = text-center; value first, caption mt-0.5
+metric     = label text-sm text-muted-foreground, then value, then details mt-1
+metric row = row-span-3 grid grid-rows-subgrid gap-y-0 on each card, so label,
+             value and footer share one track across the row and stay aligned
+             when a label wraps</div>
+    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">Numbers in either variant, and in any table column of amounts or counts, carry <span style="font-family:ui-monospace,monospace;font-size:12px">tabular-nums</span> so digits line up between rows. Never hard-code a card height to fix a wrapped label: give the row a shared subgrid instead.</p>
+  </div>
+
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px">
     <div onClick="{{ toggleCollapse }}" style="display:flex;align-items:flex-start;justify-content:space-between;padding:16px 20px;cursor:pointer">
       <div>
@@ -311,7 +342,7 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
 <section id="tables" style="display:flex;flex-direction:column;gap:16px">
   <div>
     <h2 style="margin:0;font-size:18px;font-weight:600">Tables &amp; lists</h2>
-    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Desktop: table inside a card, <span style="font-family:ui-monospace,monospace;font-size:13px">thead bg-muted/50</span>, uppercase 12px headers, rows divided by <span style="font-family:ui-monospace,monospace;font-size:13px">divide-border</span> with <span style="font-family:ui-monospace,monospace;font-size:13px">hover:bg-muted/50</span>. Below <span style="font-family:ui-monospace,monospace;font-size:13px">sm</span> the table is hidden and replaced by stacked cards &mdash; never a horizontally scrolled full table on phones. Low-priority columns drop at <span style="font-family:ui-monospace,monospace;font-size:13px">md</span>/<span style="font-family:ui-monospace,monospace;font-size:13px">lg</span> first.</p>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Desktop: table inside a card, <span style="font-family:ui-monospace,monospace;font-size:13px">thead bg-muted/50</span>, uppercase 12px headers, rows divided by <span style="font-family:ui-monospace,monospace;font-size:13px">divide-border</span> with <span style="font-family:ui-monospace,monospace;font-size:13px">hover:bg-muted/50</span>. Below <span style="font-family:ui-monospace,monospace;font-size:13px">sm</span> the table is hidden and replaced by stacked cards &mdash; never a horizontally scrolled full table on phones. Low-priority columns drop at <span style="font-family:ui-monospace,monospace;font-size:13px">md</span>/<span style="font-family:ui-monospace,monospace;font-size:13px">lg</span> first. A numeric column aligns its header the same way as its cells: pass <span style="font-family:ui-monospace,monospace;font-size:13px">align="right"</span> to <span style="font-family:ui-monospace,monospace;font-size:13px">SortHeader</span> and give the values <span style="font-family:ui-monospace,monospace;font-size:13px">tabular-nums</span>. Text and date columns stay left.</p>
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -398,6 +429,76 @@ tab&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= px-4 py-2 text-sm fon
   </div>
 </section>
 
+<section id="components" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Shared components</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Three primitives carry most of the app&rsquo;s interaction contracts. Every class string below is copied from the shipping component (<span style="font-family:ui-monospace,monospace;font-size:12px">Popover.tsx</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">usePopover.ts</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">SegmentedToggle.tsx</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">badgeStyles.ts</span>). Import the component; never restate its recipe in a new screen.</p>
+  </div>
+
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:15px;font-weight:600">Popover &amp; usePopoverTabs</div>
+    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">A panel portaled to <span style="font-family:ui-monospace,monospace;font-size:12px">document.body</span>, placed against its anchor and dismissed with it. The hooks mount with the panel, so build the children behind the same <span style="font-family:ui-monospace,monospace;font-size:12px">open</span>. <span style="font-family:ui-monospace,monospace;font-size:12px">style</span> is the placement hook&rsquo;s to write and is not a caller&rsquo;s prop.</p>
+    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word">panel = fixed [left-1/2 -translate-x-1/2 when centered] max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-lg overflow-y-auto z-40 [&amp;_:focus-visible]:ring-inset</div>
+    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8;color:hsl(var(--foreground))">
+      <li><b>Placement.</b> <span style="font-family:ui-monospace,monospace;font-size:12px">align</span> is <span style="font-family:ui-monospace,monospace;font-size:12px">left</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">right</span>, or <span style="font-family:ui-monospace,monospace;font-size:12px">auto</span> (flips to the edge that fits). The panel opens above its anchor when the space below cannot hold it, and caps its own height so it scrolls rather than overflowing. Fixed bars marked <span style="font-family:ui-monospace,monospace;font-size:12px">data-viewport-inset</span> are subtracted from that room.</li>
+      <li><b>Dismissal.</b> Escape, an outside click or tap, a <span style="font-family:ui-monospace,monospace;font-size:12px">focusin</span> outside the anchor and panel (a modal or palette stealing focus), and the anchor scrolling out of view. Escape is caught at <span style="font-family:ui-monospace,monospace;font-size:12px">document</span> and stopped there, so no window listener behind the panel also fires. Every close reports its reason: <span style="font-family:ui-monospace,monospace;font-size:12px">escape</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">outside</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">anchor-hidden</span>.</li>
+      <li><b>Focus movement.</b> The panel is portaled out of the tab order, so <span style="font-family:ui-monospace,monospace;font-size:12px">usePopoverTabs</span> routes it: Arrow&darr;/Arrow&uarr; on the trigger opens and focuses the first/last control, Tab moves into the panel, Shift+Tab closes and lets focus carry on backward, Tab off the last control closes and continues past the trigger, and <span style="font-family:ui-monospace,monospace;font-size:12px">closeAndRefocus()</span> returns focus to the trigger. Disabled and hidden controls are skipped.</li>
+      <li><b>Mobile placement.</b> Below 640px the panel centers on screen under the trigger&rsquo;s row: a toolbar that wraps on a phone leaves no side with room.</li>
+      <li><b>Layering.</b> <span style="font-family:ui-monospace,monospace;font-size:12px">z-40</span> clears the <span style="font-family:ui-monospace,monospace;font-size:12px">z-30</span> sticky header and stays under the fixed <span style="font-family:ui-monospace,monospace;font-size:12px">z-50</span> bars and modals. Focus rings inside are drawn inset, because the scroll box clips an outset ring.</li>
+    </ul>
+  </div>
+
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:15px;font-weight:600">SegmentedToggle</div>
+    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">One button group, one selected segment, two variants. <span style="font-family:ui-monospace,monospace;font-size:12px">settings</span> is the compact ARIA radio row; <span style="font-family:ui-monospace,monospace;font-size:12px">toolbar</span> is the 44px button group used in toolbars and popover rows.</p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden">
+        <span style="padding:6px 12px;font-size:14px;background:hsl(var(--primary) / 0.1);color:hsl(var(--primary));font-weight:500">Timestamps</span>
+        <span style="padding:6px 12px;font-size:14px;border-left:1px solid hsl(var(--border));background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))">Segment IDs</span>
+      </div>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">settings variant</span>
+      <div style="display:flex;height:44px;border:1px solid hsl(var(--border));border-radius:4px;overflow:hidden">
+        <span style="display:inline-flex;align-items:center;padding:0 12px;font-size:14px;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Podcasts</span>
+        <span style="display:inline-flex;align-items:center;padding:0 12px;font-size:14px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))">Episodes</span>
+      </div>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">toolbar variant</span>
+    </div>
+    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word">settings group   = inline-flex rounded-lg border border-border overflow-hidden
+settings segment = px-3 py-1.5 text-sm  (divided: border-l border-border from the second on)
+settings chosen  = bg-primary/10 text-primary font-medium   muted: bg-muted text-muted-foreground font-medium
+toolbar group    = flex h-11 rounded shrink-0 border border-border overflow-hidden
+toolbar segment  = inline-flex items-center justify-center h-11 px-2.5 sm:px-3 text-sm
+toolbar chosen   = bg-primary text-primary-foreground
+unchosen         = btnSecondary          every segment: transition-colors disabled:opacity-50 focusRing
+fill             = adds w-full to the group and flex-1 min-w-11 to each segment</div>
+    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8;color:hsl(var(--foreground))">
+      <li><b>Selected and disabled.</b> The settings variant is a real <span style="font-family:ui-monospace,monospace;font-size:12px">radiogroup</span>: <span style="font-family:ui-monospace,monospace;font-size:12px">role=radio</span> plus <span style="font-family:ui-monospace,monospace;font-size:12px">aria-checked</span>. The toolbar variant is a <span style="font-family:ui-monospace,monospace;font-size:12px">group</span> of buttons and carries <span style="font-family:ui-monospace,monospace;font-size:12px">aria-pressed</span> instead, so selection still reaches a screen reader outside the radio pattern. <span style="font-family:ui-monospace,monospace;font-size:12px">disabled</span> applies to every segment and renders at <span style="font-family:ui-monospace,monospace;font-size:12px">opacity-50</span>; arrow keys do nothing while disabled.</li>
+      <li><b>Focus movement.</b> Settings uses a roving tabindex: only the selected segment is tabbable, and Arrow&larr;/&uarr;/&rarr;/&darr; wrap through the options, Home and End jump to the ends. Selecting moves real DOM focus, since a re-render alone does not. The toolbar variant leaves every button in the tab order.</li>
+      <li><b>Mobile.</b> Toolbar segments are 44px tall at every width and size to their labels so a row of them fits a phone; <span style="font-family:ui-monospace,monospace;font-size:12px">fill</span> stretches them to a popover row instead. A portaled surface that needs <span style="font-family:ui-monospace,monospace;font-size:12px">ring-inset</span> applies it itself.</li>
+    </ul>
+  </div>
+
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:15px;font-weight:600">badgeStyles.ts</div>
+    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">The badge shape and the reusable tints. Each hue pairs with its own on-tint text token, solved for the worst backdrop a badge meets: a 30 percent hover fill inside a 10 percent panel of that hue.</p>
+    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word">badgeBase = px-2 py-0.5 text-xs rounded
+
+tint.neutral     = bg-muted text-secondary-foreground
+tint.secondary   = bg-secondary text-secondary-foreground
+tint.primary     = bg-primary/20 text-primary-on-tint
+tint.blue        = bg-c-blue/20 text-c-blue-on-tint
+tint.purple      = bg-c-purple/20 text-c-purple-on-tint
+tint.teal        = bg-c-teal/20 text-c-teal-on-tint
+tint.success     = bg-success/20 text-success-on-tint
+tint.warning     = bg-warning/20 text-warning-on-tint
+tint.destructive = bg-destructive/20 text-destructive-on-tint</div>
+    <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8;color:hsl(var(--foreground))">
+      <li><b>Ownership.</b> <span style="font-family:ui-monospace,monospace;font-size:12px">badgeStyles.ts</span> owns the shape and the tints; <span style="font-family:ui-monospace,monospace;font-size:12px">episodeStatus.ts</span> owns which status maps to which hue. A new status extends that map. A new reusable tint is added to <span style="font-family:ui-monospace,monospace;font-size:12px">badgeStyles.ts</span>. Neither belongs inline at a call site.</li>
+      <li><b>neutral vs secondary.</b> They differ in 19 of the 40 theme and mode pairs, so the neutral fill keeps its own token: <span style="font-family:ui-monospace,monospace;font-size:12px">muted-foreground</span> is too faint on it to pass AA.</li>
+    </ul>
+  </div>
+</section>
+
 <section id="overlays" style="display:flex;flex-direction:column;gap:16px">
   <div>
     <h2 style="margin:0;font-size:18px;font-weight:600">Overlays: modals, menus, toasts</h2>
@@ -445,9 +546,10 @@ tab&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= px-4 py-2 text-sm fon
         <li>Import button recipes from <span style="font-family:ui-monospace,monospace;font-size:12px">buttonStyles.ts</span>; add only sizing at the call site.</li>
         <li>Use token colors so every theme works; check dark + Obsidian before shipping.</li>
         <li>Build mobile-first: table &rarr; cards below <span style="font-family:ui-monospace,monospace;font-size:12px">sm</span>, labels &rarr; icons with <span style="font-family:ui-monospace,monospace;font-size:12px">aria-label</span>.</li>
-        <li>Reuse shared components: Modal, DropdownMenu, Checkbox, NumberInput, Pagination, CollapsibleSection, LoadingSpinner.</li>
+        <li>Reuse shared components: Modal, DropdownMenu, Popover, SegmentedToggle, Checkbox, NumberInput, Pagination, SortHeader, CollapsibleSection, LoadingSpinner.</li>
         <li>Give every interactive element <span style="font-family:ui-monospace,monospace;font-size:12px">transition-colors</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">disabled:opacity-50</span>, and <span style="font-family:ui-monospace,monospace;font-size:12px">focus:ring-2 ring-ring</span>.</li>
-        <li>Put error detail in <span style="font-family:ui-monospace,monospace;font-size:12px">title=</span> on a short badge/label.</li>
+        <li>Make failure detail reachable without a pointer: a focusable disclosure that expands the text inline, with a copy action. A <span style="font-family:ui-monospace,monospace;font-size:12px">title=</span> may repeat it, never carry it alone.</li>
+        <li>Give every interactive element a 44px box below <span style="font-family:ui-monospace,monospace;font-size:12px">sm</span>: import <span style="font-family:ui-monospace,monospace;font-size:12px">touchTarget</span> from <span style="font-family:ui-monospace,monospace;font-size:12px">buttonStyles.ts</span> and put it on the button or link itself.</li>
         <li>Add new statuses to <span style="font-family:ui-monospace,monospace;font-size:12px">episodeStatus.ts</span> / <span style="font-family:ui-monospace,monospace;font-size:12px">segmentCategory.ts</span> maps, not inline.</li>
       </ul>
     </div>
@@ -460,6 +562,8 @@ tab&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= px-4 py-2 text-sm fon
         <li>Mix badge shapes: it&rsquo;s always <span style="font-family:ui-monospace,monospace;font-size:12px">px-2 py-0.5 text-xs rounded</span> + 20% tint.</li>
         <li>Use more than one Primary action per card/row; pair it with Secondary or Ghost.</li>
         <li>Ship a desktop table without its mobile card variant.</li>
+        <li>Enlarge a tap target with surrounding <span style="font-family:ui-monospace,monospace;font-size:12px">gap</span> or padding on a wrapper. The clickable box is the element, not the space around it.</li>
+        <li>Leave a failure reason hover-only; touch and keyboard users never see a <span style="font-family:ui-monospace,monospace;font-size:12px">title</span>.</li>
         <li>Use <span style="font-family:ui-monospace,monospace;font-size:12px">rounded-full</span> pills, gradients, or new fonts &mdash; Roboto only.</li>
       </ul>
     </div>

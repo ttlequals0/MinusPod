@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import type { LlmProvider, WhisperHealthProbe } from './types';
+import type { LlmProvider, ProviderSlot, WhisperHealthProbe } from './types';
 
 // 'secondary' has no dedicated /settings/providers/secondary REST surface
 // (unlike the others): its key saves/clears through PUT /settings and its
@@ -48,6 +48,25 @@ export function clearProvider(name: ProviderName) {
   return apiRequest<ProviderStatus>(`/settings/providers/${name}`, {
     method: 'DELETE',
   });
+}
+
+// Work still bound to a slot's current account, read before a save that
+// changes that slot's endpoint or provider type.
+export interface AffectedRun {
+  id: string;
+  slug: string;
+  episodeId: string;
+  title: string;
+  state: string;
+}
+
+export interface AffectedRuns {
+  count: number;
+  runs: AffectedRun[];
+}
+
+export function getAffectedRuns(slot: ProviderSlot) {
+  return apiRequest<AffectedRuns>(`/settings/providers/${slot}/affected-runs`);
 }
 
 export function testProvider(name: ProviderName) {

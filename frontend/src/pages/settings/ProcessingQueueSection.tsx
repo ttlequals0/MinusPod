@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import type { ProcessingEpisode } from '../../api/settings';
+import type { QueueAdmission } from '../../api/types';
+import { formatDateTime } from '../../utils/format';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { Pagination } from '../../components/Pagination';
 import NumberInput from '../../components/NumberInput';
@@ -41,6 +43,23 @@ interface ProcessingQueueSectionProps {
 
 function episodeKey(episode: ProcessingEpisode): string {
   return `${episode.slug}:${episode.episodeId}`;
+}
+
+// Multi-stage routing makes a generic hold hard to diagnose, so a blocked row
+// names the phase, the account slot, the reason and when the block lifts.
+function AdmissionNote({ admission }: { admission?: QueueAdmission | null }) {
+  if (!admission?.blocked) return null;
+  const scope = [
+    admission.phase ? `${admission.phase} phase` : null,
+    admission.slot ? `${admission.slot} account` : null,
+  ].filter(Boolean).join(', ');
+  return (
+    <p className="mt-1 text-xs text-warning">
+      Held{scope ? ` on the ${scope}` : ''}
+      {admission.reason ? `: ${admission.reason}` : ''}
+      {admission.resumesAt ? `. Resumes ${formatDateTime(admission.resumesAt)}` : ''}
+    </p>
+  );
 }
 
 function ProcessingQueueSection({
@@ -208,6 +227,7 @@ function ProcessingQueueSection({
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{episode.title}</p>
                       <p className="text-xs text-muted-foreground truncate">{episode.podcast}</p>
+                      <AdmissionNote admission={episode.admission} />
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-2 shrink-0">

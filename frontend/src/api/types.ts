@@ -952,7 +952,14 @@ export interface Settings {
   };
 }
 
+// What to do with runs still bound to the old provider account when a save
+// changes a slot's endpoint or provider type.
+export type AffectedRunsAction = 'requeue' | 'cancel';
+
 export interface UpdateSettingsPayload {
+  // Sent only when the affected-runs preflight answered, so a build without
+  // that endpoint never receives a field it cannot act on.
+  affectedRunsAction?: AffectedRunsAction;
   systemPrompt?: string;
   verificationPrompt?: string;
   reviewPrompt?: string;
@@ -1526,6 +1533,47 @@ export interface EpisodeCostResponse {
 export interface LedgerFilterOptions {
   providers: string[];
   pairs: { provider: string; model: string }[];
+}
+
+// One llm_call_usage row behind a run's spend. A null costUsd is the row an
+// Incomplete total points at.
+export interface SpendAttempt {
+  attemptId: string;
+  phase: string;
+  invokingPass: number | null;
+  provider: string;
+  credentialSlot: string;
+  model: string;
+  returnedModel: string | null;
+  status: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  costUsd: string | null;
+  costSource: string | null;
+  createdAt: string;
+  finalizedAt: string | null;
+}
+
+export interface SpendAttemptsResponse {
+  runId: string | null;
+  episodeId: string | null;
+  provider: string | null;
+  attempts: SpendAttempt[];
+  total: number;
+  unknownCostCount: number;
+  knownCostUsd: string;
+  // More attempts exist than the cap returns; the totals still cover them.
+  truncated: boolean;
+}
+
+// Why a queued or held job is not admitted, from /episodes/processing.
+// Absent on builds that do not report it yet, so render it defensively.
+export interface QueueAdmission {
+  blocked: boolean;
+  phase: string | null;
+  slot: string | null;
+  reason: string | null;
+  resumesAt: string | null;
 }
 
 export interface ReleaseInfo {

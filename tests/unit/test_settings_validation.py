@@ -1,6 +1,7 @@
 """Unit tests for settings API validation (OpenRouter key format)."""
 import os
 import json
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 
@@ -28,7 +29,7 @@ def client():
 @pytest.fixture(autouse=True)
 def _disable_settings_background_jobs(monkeypatch):
     monkeypatch.setattr(
-        'api.settings.maybe_trigger_reviewer_calibration', lambda *args: None)
+        'api.settings.trigger_reviewer_calibration', lambda *args: None)
     monkeypatch.setattr('api.settings.force_refresh_pricing', lambda: None)
 
 
@@ -1903,3 +1904,127 @@ class TestProviderChangeLiftsRateLimitHold:
         assert resp.status_code == 200, resp.data
         assert held.get_setting('rate_limit_hold_until') == until
         mock_fire.assert_not_called()
+
+
+class TestSettingsSaveAtomicity:
+    """PUT /settings/ad-detection applies the whole payload or none of it."""
+
+    @pytest.fixture(autouse=True)
+    def _restore_touched_settings(self):
+        """The Database singleton is shared process-wide, so put it back."""
+        keys = ('review_max_boundary_shift', 'provider_requests_per_min',
+                'max_feed_episodes', 'openrouter_api_key')
+        db = database.Database()
+        before = {key: db.get_setting(key) for key in keys}
+        yield
+        for key, value in before.items():
+            if value is None:
+                db.clear_setting(key)
+            else:
+                db.set_setting(key, value, is_default=False)
+
+    def _put(self, client, payload):
+        return client.put('/api/v1/settings/ad-detection',
+                          data=json.dumps(payload),
+                          content_type='application/json')
+
+    def test_a_late_invalid_field_rolls_back_an_earlier_valid_one(self, client):
+        db = database.Database()
+        db.set_setting('review_max_boundary_shift', '60', is_default=False)
+
+        resp = self._put(client, {'reviewMaxBoundaryShift': 42,
+                                  'providerRequestsPerMin': -1})
+
+        assert resp.status_code == 400
+        assert db.get_setting('review_max_boundary_shift') == '60'
+
+    def test_a_late_invalid_field_rolls_back_a_saved_key(self, client):
+        db = database.Database()
+        db.clear_setting('openrouter_api_key')
+
+        resp = self._put(client, {'openrouterApiKey': 'sk-or-v1-rejected-save',
+                                  'providerRequestsPerMin': -1})
+
+        assert resp.status_code == 400
+        assert db.get_secret('openrouter_api_key') is None
+
+    def test_a_storage_failure_mid_apply_persists_nothing(self, client):
+        db = database.Database()
+        db.set_setting('review_max_boundary_shift', '60', is_default=False)
+        db.set_setting('provider_requests_per_min', '5', is_default=False)
+        original = database.Database.set_setting
+
+        def failing_set_setting(self, key, value, is_default=False):
+            if key == 'provider_requests_per_min':
+                raise sqlite3.OperationalError('disk I/O error')
+            return original(self, key, value, is_default)
+
+        with patch.object(database.Database, 'set_setting', failing_set_setting):
+            resp = self._put(client, {'reviewMaxBoundaryShift': 42,
+                                      'providerRequestsPerMin': 7})
+
+        assert resp.status_code == 500
+        assert db.get_setting('review_max_boundary_shift') == '60'
+        assert db.get_setting('provider_requests_per_min') == '5'
+
+    def test_an_accepted_payload_commits_every_phase(self, client):
+        db = database.Database()
+
+        resp = self._put(client, {'reviewMaxBoundaryShift': 42,
+                                  'providerRequestsPerMin': 7,
+                                  'maxFeedEpisodes': 25})
+
+        assert resp.status_code == 200
+        assert db.get_setting('review_max_boundary_shift') == '42'
+        assert db.get_setting('provider_requests_per_min') == '7'
+        assert db.get_setting('max_feed_episodes') == '25'
+
+
+class TestRetentionSaveAtomicity:
+    """PUT /settings/retention applies both fields or neither."""
+
+    @pytest.fixture(autouse=True)
+    def _restore_retention_settings(self):
+        """The Database singleton is shared process-wide, so put it back."""
+        keys = ('retention_days', 'original_retention_days')
+        db = database.Database()
+        before = {key: db.get_setting(key) for key in keys}
+        yield
+        for key, value in before.items():
+            if value is None:
+                db.clear_setting(key)
+            else:
+                db.set_setting(key, value, is_default=False)
+
+    def _put(self, client, payload):
+        return client.put('/api/v1/settings/retention',
+                          data=json.dumps(payload),
+                          content_type='application/json')
+
+    def test_a_late_invalid_field_rolls_back_an_earlier_valid_one(self, client):
+        db = database.Database()
+        db.set_setting('retention_days', '30', is_default=False)
+
+        resp = self._put(client, {'retentionDays': 45, 'originalRetentionDays': 0})
+
+        assert resp.status_code == 400
+        assert db.get_setting('retention_days') == '30'
+
+    def test_a_storage_failure_mid_apply_persists_nothing(self, client):
+        db = database.Database()
+        db.set_setting('retention_days', '30', is_default=False)
+        db.set_setting('original_retention_days', '7', is_default=False)
+        original = database.Database.set_setting
+
+        def failing_set_setting(self, key, value, is_default=False):
+            if key == 'original_retention_days':
+                raise sqlite3.OperationalError('disk I/O error')
+            return original(self, key, value, is_default)
+
+        with patch.object(database.Database, 'set_setting', failing_set_setting):
+            resp = self._put(client, {'retentionDays': 45,
+                                      'originalRetentionDays': 10})
+
+        assert resp.status_code == 500
+        assert db.get_setting('retention_days') == '30'
+        assert db.get_setting('original_retention_days') == '7'

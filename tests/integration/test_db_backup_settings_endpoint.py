@@ -1,6 +1,7 @@
 """Integration tests for scheduled DB backup endpoints (Task B465-2).
 
-Hits the real Flask app and the real filesystem (tmp dirs), no mocks.
+Hits the real Flask app and the real filesystem (tmp dirs); only the
+storage-failure case patches a write.
 
 - GET /settings/db-backup default shape.
 - PUT full + partial roundtrip.
@@ -8,18 +9,23 @@ Hits the real Flask app and the real filesystem (tmp dirs), no mocks.
   relative dest, dest == data dir).
 - POST /system/db-backup/run -> 200 + file exists, works with enabled=false.
 - POST failure -> 500 flat message + GET surfaces lastError.
-- PUT is all-or-nothing: a bad dest rolls back earlier valid fields.
+- PUT is all-or-nothing: a bad dest, or a failed write, rolls back
+  earlier valid fields.
 - New routes absent from the auth-exempt allowlist.
 """
 import os
+import sqlite3
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='db-backup-test-'))
+
+from database import Database
 
 
 DB_BACKUP_KEYS = (
@@ -140,6 +146,31 @@ def test_put_dest_is_data_dir(app_client, db):
     r = app_client.put('/api/v1/settings/db-backup', json={'dest': str(db.data_dir)})
     assert r.status_code == 400
     assert r.get_json()['error'] == 'destination must not be the data directory itself'
+
+
+def test_put_storage_failure_on_last_write_persists_nothing(app_client, db):
+    # A write failing partway must roll back the fields staged ahead of it.
+    dest = tempfile.mkdtemp(prefix='db-backup-dest-')
+    original = Database.set_setting
+
+    def failing_set_setting(self, key, value, is_default=False):
+        if key == 'db_backup_dest':
+            raise sqlite3.OperationalError('disk I/O error')
+        return original(self, key, value, is_default)
+
+    with patch.object(Database, 'set_setting', failing_set_setting):
+        r = app_client.put('/api/v1/settings/db-backup', json={
+            'enabled': True,
+            'cron': '0 4 * * *',
+            'keepCount': 9,
+            'dest': dest,
+        })
+    assert r.status_code == 500
+    got = app_client.get('/api/v1/settings/db-backup').get_json()
+    assert got['enabled'] is False
+    assert got['cron'] == '30 3 * * *'
+    assert got['keepCount'] == 1
+    assert got['dest'] == ''
 
 
 def test_put_all_or_nothing_on_bad_dest(app_client, db):

@@ -170,3 +170,39 @@ def test_latest_episode_projection_carries_hold_and_passthrough_signals(app_clie
     assert episode['error'] == 'boom'
     assert episode['processedAt'] == '2026-02-01T01:00:00Z'
     assert episode['hasBeenProcessed'] is True
+
+
+def _titles(body):
+    # The name the UI renders, which is what the sort orders on.
+    return [f.get('titleOverride') or f['title'] for f in body['feeds']]
+
+
+def test_sort_by_title_orders_the_whole_list_before_slicing(app_client, feeds):
+    page1 = app_client.get('/api/v1/feeds?sortBy=title&page=1&limit=2').get_json()
+    page2 = app_client.get('/api/v1/feeds?sortBy=title&page=2&limit=2').get_json()
+    everything = app_client.get('/api/v1/feeds?sortBy=title').get_json()
+
+    ordered = _titles(everything)
+    assert ordered == sorted(ordered, key=str.casefold)
+    # Each page is a slice of one globally sorted list, not a sorted slice.
+    assert _titles(page1) == ordered[:2]
+    assert _titles(page2) == ordered[2:4]
+
+
+def test_sort_dir_desc_reverses_the_title_order(app_client, feeds):
+    asc = _titles(app_client.get('/api/v1/feeds?sortBy=title').get_json())
+    desc = _titles(app_client.get('/api/v1/feeds?sortBy=title&sortDir=desc').get_json())
+    assert desc == list(reversed(asc))
+
+
+def test_sort_by_recent_puts_the_newest_episode_first(app_client, feeds):
+    db = feeds['db']
+    _seed_episode(db, feeds['slugs'][4], 'recent-ep', published_at='2026-06-01T00:00:00Z')
+
+    body = app_client.get('/api/v1/feeds?sortBy=recent&page=1&limit=1').get_json()
+    assert body['feeds'][0]['slug'] == feeds['slugs'][4]
+
+
+def test_unknown_sort_params_are_rejected(app_client, feeds):
+    assert app_client.get('/api/v1/feeds?sortBy=bogus').status_code == 400
+    assert app_client.get('/api/v1/feeds?sortBy=title&sortDir=sideways').status_code == 400

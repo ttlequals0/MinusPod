@@ -22,6 +22,10 @@ from llm_client import (
     get_effective_base_url, get_effective_secondary_provider_api_key,
     _normalize_base_url_for_provider, _opencode_headers,
 )
+from llm_route import (
+    SLOT_PRIMARY, VALID_SLOTS, account_identity_for_primary_provider,
+    account_identity_for_slot,
+)
 from rate_limit_hold import clear_hold_for_provider_change
 from secrets_crypto import is_available as crypto_available
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
@@ -55,6 +59,48 @@ _HOLD_PROVIDER_KEY = {
     'openrouter': PROVIDER_OPENROUTER,
     'ollama': PROVIDER_OLLAMA,
 }
+
+
+# What a save may do to runs frozen against the account it replaces.
+_AFFECTED_RUNS_ACTIONS = ('requeue', 'cancel')
+
+
+def _primary_account_identity(provider: str) -> str | None:
+    """Primary-slot account identity for this endpoint's provider type.
+
+    Keyed by the type being edited, not the globally selected one: a save
+    here moves the account of the type it writes, whichever type is active.
+    """
+    return account_identity_for_primary_provider(_HOLD_PROVIDER_KEY.get(provider))
+
+
+def _affected_runs(account_id: str | None, credential_slot: str) -> list[dict]:
+    """Active runs whose frozen routes still name this account."""
+    if not account_id:
+        return []
+    from main_app.processing import runs_for_account
+    return runs_for_account(account_id, credential_slot)
+
+
+def _apply_affected_runs_action(runs: list[dict], action: str) -> None:
+    """Detach or cancel the runs an account change stranded.
+
+    Both drop the frozen routes so a resumed run re-resolves; 'cancel' also
+    asks the owner to stop now rather than at its next provider call.
+    """
+    from cancel import request_cancellation
+    from main_app.processing import clear_route_snapshot
+    for run in runs:
+        clear_route_snapshot(run['runId'])
+        if action == 'cancel':
+            request_cancellation(run['slug'], run['episodeId'])
+
+
+def _affected_runs_payload(runs: list[dict], action: str | None = None) -> dict:
+    payload = {'count': len(runs), 'runs': runs}
+    if action is not None:
+        payload['action'] = action
+    return payload
 
 
 def _source_for(db, cfg) -> str:
@@ -102,6 +148,11 @@ def update_provider(provider):
     db = Database()
     credentials_changed = False
 
+    action = body.get('affectedRunsAction', 'requeue')
+    if action not in _AFFECTED_RUNS_ACTIONS:
+        return error_response(
+            f'affectedRunsAction must be one of: {", ".join(_AFFECTED_RUNS_ACTIONS)}', 400)
+
     if 'apiKey' in body:
         api_key = body['apiKey']
         if api_key is not None and not isinstance(api_key, str):
@@ -118,6 +169,8 @@ def update_provider(provider):
                 validate_base_url(url)
             except SSRFError:
                 return error_response('base URL failed SSRF validation', 400)
+
+    before_identity = _primary_account_identity(provider)
 
     if 'apiKey' in body:
         try:
@@ -137,10 +190,9 @@ def update_provider(provider):
         model = body['model'] or ''
         db.set_setting(cfg['model'], model)
 
-    # Drop the TTL-cached provider settings so the next read sees this write
-    # immediately (see issue #234: stale cache made Save Changes vanish).
-    from llm_client import invalidate_provider_cache
-    invalidate_provider_cache()
+    # Identity is read either side of the cache flush: before the write the
+    # cache is still current, and after it the next read is fresh.
+    payload = _finish_provider_write(db, provider, cfg, before_identity, action)
 
     if credentials_changed and provider in _LLM_PROVIDERS:
         clear_hold_for_provider_change(
@@ -148,7 +200,29 @@ def update_provider(provider):
             provider_key=_HOLD_PROVIDER_KEY.get(provider))
 
     logger.info("provider=%s updated source=%s", provider, _source_for(db, cfg))
-    return json_response(_provider_status(db, cfg), 200)
+    return json_response(payload, 200)
+
+
+def _finish_provider_write(db, provider: str, cfg: dict,
+                           before_identity: str | None, action: str) -> dict:
+    """Flush the provider cache, then report what the write did to the
+    primary slot's account identity and to runs frozen against the old one."""
+    # Drop the TTL-cached provider settings so the next read sees this write
+    # immediately (see issue #234: stale cache made Save Changes vanish).
+    from llm_client import invalidate_provider_cache
+    invalidate_provider_cache()
+    payload = _provider_status(db, cfg)
+    if provider not in _LLM_PROVIDERS:
+        return payload
+    if _primary_account_identity(provider) == before_identity:
+        return payload
+    runs = _affected_runs(before_identity, SLOT_PRIMARY)
+    _apply_affected_runs_action(runs, action)
+    payload['accountChanged'] = True
+    payload['affectedRuns'] = _affected_runs_payload(runs, action)
+    logger.info("provider=%s account identity changed; %d run(s) %sd",
+                provider, len(runs), action)
+    return payload
 
 
 @api.route('/settings/providers/<provider>', methods=['DELETE'])
@@ -157,18 +231,40 @@ def clear_provider(provider):
         return error_response('unknown provider', 404)
     cfg = _PROVIDERS[provider]
     db = Database()
+    action = (request.get_json(silent=True) or {}).get('affectedRunsAction', 'requeue')
+    if action not in _AFFECTED_RUNS_ACTIONS:
+        return error_response(
+            f'affectedRunsAction must be one of: {", ".join(_AFFECTED_RUNS_ACTIONS)}', 400)
+    before_identity = _primary_account_identity(provider)
     db.clear_secret(cfg['secret'])
     if cfg['base_url']:
         db.set_setting(cfg['base_url'], '')
-    from llm_client import invalidate_provider_cache
-    invalidate_provider_cache()
+    payload = _finish_provider_write(db, provider, cfg, before_identity, action)
     if provider in _LLM_PROVIDERS:
         # Lift even with no key left: the next run fails for its own reason.
         clear_hold_for_provider_change(
             db, f'{provider} credentials cleared',
             provider_key=_HOLD_PROVIDER_KEY.get(provider))
     logger.info("provider=%s cleared", provider)
-    return json_response(_provider_status(db, cfg), 200)
+    return json_response(payload, 200)
+
+
+@api.route('/settings/providers/<slot>/affected-runs', methods=['GET'])
+def account_affected_runs(slot):
+    """Runs a change to this account slot would strand, for a pre-save check.
+
+    Lists the active runs whose frozen routes still name the slot's current
+    account, so the UI can show what a provider or endpoint change is about
+    to interrupt before it writes anything.
+    """
+    if slot not in VALID_SLOTS:
+        return error_response('unknown provider slot', 404)
+    account_id = account_identity_for_slot(slot)
+    return json_response({
+        'slot': slot,
+        'accountId': account_id,
+        'affectedRuns': _affected_runs_payload(_affected_runs(account_id, slot)),
+    }, 200)
 
 
 def _resolve_key(db, cfg):

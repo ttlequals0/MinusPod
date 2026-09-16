@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter, useLocation } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import StatsPage from './StatsPage';
 import type {
   AddressingStats, DashboardStats, EpisodeCostResponse, Feed, LedgerFilterOptions,
@@ -15,7 +15,7 @@ const {
   DASHBOARD, REVIEWER_STATS, FEED, FILTER_OPTIONS,
   mockGetAddressingStats, mockGetDashboardStats, mockGetStatsByDay,
   mockGetModelUsageStats, mockGetEpisodeCostStats, mockGetLedgerFilterOptions,
-  mockGetEpisodeCostRuns, mockGetStatsByPodcast,
+  mockGetEpisodeCostRuns, mockGetStatsByPodcast, mockGetSpendAttempts,
 } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
@@ -97,6 +97,10 @@ const {
     mockGetLedgerFilterOptions: vi.fn().mockResolvedValue(filterOptions),
     mockGetEpisodeCostRuns: vi.fn().mockResolvedValue({ runs: [] }),
     mockGetStatsByPodcast: vi.fn().mockResolvedValue({ podcasts: [] }),
+    mockGetSpendAttempts: vi.fn().mockResolvedValue({
+      runId: null, episodeId: 'ep1', provider: null, attempts: [], total: 0,
+      unknownCostCount: 0, knownCostUsd: '0', truncated: false,
+    }),
   };
 });
 
@@ -110,6 +114,7 @@ vi.mock('../api/stats', () => ({
   getEpisodeCostStats: (...args: unknown[]) => mockGetEpisodeCostStats(...args),
   getEpisodeCostRuns: (...args: unknown[]) => mockGetEpisodeCostRuns(...args),
   getLedgerFilterOptions: (...args: unknown[]) => mockGetLedgerFilterOptions(...args),
+  getSpendAttempts: (...args: unknown[]) => mockGetSpendAttempts(...args),
 }));
 vi.mock('../api/cueDetections', () => ({
   getCueAggregateStats: vi.fn().mockResolvedValue({
@@ -122,12 +127,19 @@ vi.mock('../api/feeds', () => ({
   feedsQueryOptions: { queryKey: ['feeds'], queryFn: () => Promise.resolve({ feeds: [FEED] }) },
 }));
 
-function renderPage() {
+// Surfaces the in-memory router's query string, which window.location never
+// reflects under MemoryRouter.
+function LocationProbe() {
+  return <span data-testid="location-search">{useLocation().search}</span>;
+}
+
+function renderPage(initialEntries: string[] = ['/stats']) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>
         <StatsPage />
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -601,5 +613,129 @@ describe('StatsPage spend section: copy, labels and table chrome', () => {
     const header = within(table).getByRole('columnheader', { name: 'Episodes' });
     expect(header.getAttribute('aria-sort')).toBe('none');
     expect(within(header).getByRole('button', { name: 'Episodes' })).toBeTruthy();
+  });
+});
+
+// Populated ledger fixtures: the empty-state page hides the table chrome the
+// alignment, URL-state and attempts-panel behavior live in.
+const MODEL_USAGE_ROW = {
+  provider: 'anthropic', model: 'claude-sonnet', calls: 12, distinctEpisodes: 3,
+  inputTokens: 1000, outputTokens: 200, knownCostUsd: '1.25', unknownCostCount: 2,
+};
+const EPISODE_COST_ROW = {
+  podcastSlug: 'a-show', podcastTitle: 'A Show', episodeId: 'ep1', episodeTitle: 'Episode One',
+  modelsUsed: ['claude-sonnet'], topModel: 'claude-sonnet', runCount: 2,
+  latestRunCostUsd: '0.50', latestRunUnknownCount: 0, cumulativeCostUsd: '1.25',
+  lastActivityAt: '2026-09-01T10:00:00Z', unknownCostCount: 2, hasUnknownCost: true,
+};
+
+function populateLedger() {
+  mockGetModelUsageStats.mockResolvedValue({
+    items: [MODEL_USAGE_ROW], total: 1, totalPages: 1, page: 1, limit: 20,
+  });
+  mockGetEpisodeCostStats.mockResolvedValue({
+    items: [EPISODE_COST_ROW], total: 1, totalPages: 1, page: 1, limit: 20,
+  });
+  mockGetStatsByPodcast.mockResolvedValue({
+    podcasts: [{
+      podcastSlug: 'a-show', podcastTitle: 'A Show', episodeCount: 3, runCount: 4,
+      totalAds: 9, avgAds: 3, avgTimeSavedSeconds: 60, avgEpisodeLengthSeconds: 1800,
+      totalCost: 1.25, avgTokensPerEpisode: 400, totalInputTokens: 1000, totalOutputTokens: 200,
+    }],
+  });
+}
+
+function emptyLedger() {
+  mockGetModelUsageStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+  mockGetEpisodeCostStats.mockResolvedValue({ items: [], total: 0, totalPages: 1, page: 1, limit: 20 });
+  mockGetStatsByPodcast.mockResolvedValue({ podcasts: [] });
+}
+
+describe('StatsPage with populated spend data', () => {
+  beforeEach(() => populateLedger());
+  afterEach(() => emptyLedger());
+
+  it('offers a section index that reaches Spend directly', async () => {
+    const { container } = renderPage();
+    const index = await screen.findByRole('navigation', { name: 'Stats sections' });
+
+    const spend = within(index).getByRole('link', { name: 'Spend' });
+    expect(spend.getAttribute('href')).toBe('#stats-spend');
+    // Every listed anchor exists on the page.
+    for (const link of within(index).getAllByRole('link')) {
+      const id = (link.getAttribute('href') ?? '').slice(1);
+      expect(container.querySelector(`#${id}`)).not.toBeNull();
+    }
+  });
+
+  it('right-aligns the numeric headers of both ledger tables', async () => {
+    renderPage();
+    const usage = await screen.findByRole('table', { name: 'Provider and model usage' });
+    for (const label of ['Calls', 'Known Cost', 'Coverage']) {
+      expect(within(usage).getByRole('columnheader', { name: new RegExp(label, 'i') }).className)
+        .toContain('text-right');
+    }
+    const costs = screen.getByRole('table', { name: 'Episode costs' });
+    for (const label of ['Runs', 'Latest Run', 'Cumulative']) {
+      expect(within(costs).getByRole('columnheader', { name: new RegExp(label, 'i') }).className)
+        .toContain('text-right');
+    }
+  });
+
+  it('restores provider, sort and page from the URL query', async () => {
+    renderPage(['/stats?provider=anthropic&muPage=2&ecSort=runCount&ecDir=asc']);
+    await screen.findByRole('table', { name: 'Episode costs' });
+
+    expect(mockGetModelUsageStats).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'anthropic', page: 2 }));
+    expect(mockGetEpisodeCostStats).toHaveBeenCalledWith(
+      expect.objectContaining({ sortBy: 'runCount', sortDir: 'asc' }));
+  });
+
+  it('writes a sort change back to the URL query', async () => {
+    renderPage();
+    const usage = await screen.findByRole('table', { name: 'Provider and model usage' });
+    fireEvent.click(within(usage).getByRole('button', { name: /Calls/i }));
+
+    await waitFor(() => {
+      expect(mockGetModelUsageStats).toHaveBeenCalledWith(
+        expect.objectContaining({ sortBy: 'calls', sortDir: 'desc', page: 1 }));
+    });
+    expect(screen.getByTestId('location-search').textContent).toContain('muSort=calls');
+  });
+
+  it('opens the contributing calls behind an Incomplete cumulative amount', async () => {
+    mockGetSpendAttempts.mockResolvedValue({
+      runId: null, episodeId: 'ep1', provider: null, total: 2, unknownCostCount: 1,
+      knownCostUsd: '1.25', truncated: false,
+      attempts: [
+        {
+          attemptId: 'a1', phase: 'detection', invokingPass: 1, provider: 'anthropic',
+          credentialSlot: 'primary', model: 'claude-sonnet', returnedModel: null,
+          status: 'success', inputTokens: 900, outputTokens: 100, costUsd: '1.25',
+          costSource: 'catalog', createdAt: '2026-09-01T10:00:00Z',
+          finalizedAt: '2026-09-01T10:00:05Z',
+        },
+        {
+          attemptId: 'a2', phase: 'review', invokingPass: 1, provider: 'anthropic',
+          credentialSlot: 'primary', model: 'claude-haiku', returnedModel: null,
+          status: 'success', inputTokens: 100, outputTokens: 100, costUsd: null,
+          costSource: null, createdAt: '2026-09-01T10:01:00Z',
+          finalizedAt: '2026-09-01T10:01:02Z',
+        },
+      ],
+    });
+    renderPage();
+    const costs = await screen.findByRole('table', { name: 'Episode costs' });
+    const chip = within(costs).getAllByRole('button', { name: 'Incomplete' })[0];
+    expect(chip.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(chip);
+
+    expect((await screen.findAllByRole('table', { name: 'Contributing calls' })).length)
+      .toBeGreaterThan(0);
+    expect(mockGetSpendAttempts).toHaveBeenCalledWith({ slug: 'a-show', episodeId: 'ep1' });
+    expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/1 of 2 calls have no recorded price/).length).toBeGreaterThan(0);
   });
 });

@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { btnGhost, btnPrimary } from './buttonStyles';
+import { btnGhost, btnPrimary, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import UpdateBanner from './UpdateBanner';
 import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
@@ -108,7 +108,7 @@ function Layout() {
             <div className="flex items-center gap-2">
               <Link
                 to="/search"
-                className={`p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                className={`${touchTarget} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Search"
                 title="Search"
               >
@@ -118,7 +118,7 @@ function Layout() {
               </Link>
               <button
                 onClick={toggleTheme}
-                className={`p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                className={`${touchTarget} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Toggle theme"
               >
                 {theme === 'dark' ? (
@@ -144,7 +144,7 @@ function Layout() {
               {isPasswordSet && (
                 <button
                   onClick={handleLogout}
-                  className={`p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                  className={`${touchTarget} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                   aria-label="Log out"
                   title="Log out"
                 >
@@ -160,7 +160,7 @@ function Layout() {
               )}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className={`sm:hidden p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                className={`sm:hidden ${touchTarget} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Toggle menu"
               >
                 {mobileMenuOpen ? (

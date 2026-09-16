@@ -1,6 +1,6 @@
 import { Fragment, useState, useMemo, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -8,7 +8,7 @@ import {
 import {
   getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats,
   getModelUsageStats, getEpisodeCostStats, getEpisodeCostRuns, getLedgerFilterOptions,
-  ModelUsageQueryParams, EpisodeCostQueryParams,
+  getSpendAttempts, ModelUsageQueryParams, EpisodeCostQueryParams,
 } from '../api/stats';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import { getCueAggregateStats } from '../api/cueDetections';
@@ -25,7 +25,7 @@ import CostAmount from '../components/CostAmount';
 import { selectBase, inputBase, focusRing } from '../components/fieldStyles';
 import { btnSecondary } from '../components/buttonStyles';
 import { getErrorMessage } from '../api/client';
-import { EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat } from '../api/types';
+import { EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
@@ -33,7 +33,7 @@ function ReviewerStatCard({ label, value }: { label: string; value: number | str
   return (
     <div className="bg-secondary/50 rounded-md p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold text-foreground">{value}</p>
+      <p className="text-lg font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   );
 }
@@ -45,7 +45,7 @@ function Metric({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="flex min-w-0 flex-col">
       <p className="flex-1 text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold text-foreground">{value}</p>
+      <p className="text-lg font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   );
 }
@@ -63,6 +63,34 @@ function generateChartColors(primary: string, count: number): string[] {
 }
 
 const LEDGER_LIMIT = 20;
+
+// Spend filters, sort and page live in the URL so a cost investigation can be
+// reloaded or handed to someone else. Values equal to the default are left
+// out of the query rather than written into it.
+const STATS_PARAM_DEFAULTS = {
+  podcast: '', from: '', to: '', provider: '', model: '',
+  muSort: 'knownCostUsd', muDir: 'desc', muPage: '1',
+  ecSort: 'lastActivityAt', ecDir: 'desc', ecPage: '1',
+} as const;
+
+type StatsParam = keyof typeof STATS_PARAM_DEFAULTS;
+
+function useStatsParams() {
+  const [params, setParams] = useSearchParams();
+  const read = (key: StatsParam) => params.get(key) ?? STATS_PARAM_DEFAULTS[key];
+  // One patch per interaction: two separate setters in the same handler would
+  // each build from the pre-update query and the second would drop the first.
+  const write = (changes: Partial<Record<StatsParam, string>>) => {
+    const next = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(changes)) {
+      if (value && value !== STATS_PARAM_DEFAULTS[key as StatsParam]) next.set(key, value);
+      else next.delete(key);
+    }
+    setParams(next, { replace: true });
+  };
+  const readPage = (key: StatsParam) => Math.max(1, Number(read(key)) || 1);
+  return { read, readPage, write };
+}
 
 // Option list that always contains the current selection, so a filter whose
 // value has no data in the selected scope is still shown as selected.
@@ -140,9 +168,9 @@ function ModelUsageTable({
                 <th className="w-8 px-2" aria-hidden="true" />
                 <SortHeader field="provider" label="Provider" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="model" label="Model" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <SortHeader field="calls" label="Calls" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <SortHeader field="knownCostUsd" label="Known Cost" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <SortHeader field="unknownCostCount" label="Coverage" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="calls" label="Calls" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="knownCostUsd" label="Known Cost" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="unknownCostCount" label="Coverage" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -166,11 +194,11 @@ function ModelUsageTable({
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground">{stat.provider}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{stat.model}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">{stat.calls}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{stat.calls}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">
                         <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatCoverage(stat.calls, stat.unknownCostCount)}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{formatCoverage(stat.calls, stat.unknownCostCount)}</td>
                     </tr>
                     {isOpen && (
                       <tr className="bg-muted/20">
@@ -246,6 +274,82 @@ function ModelUsageTable({
   );
 }
 
+// Columns of the contributing-calls panel below. One definition drives the
+// table and the stacked rows so the two layouts cannot drift.
+const ATTEMPT_COLUMNS: {
+  label: string; align: 'left' | 'right'; render: (a: SpendAttempt) => ReactNode;
+}[] = [
+  { label: 'Phase', align: 'left',
+    render: (a) => `${a.phase}${a.invokingPass ? ` (pass ${a.invokingPass})` : ''}` },
+  { label: 'Provider', align: 'left', render: (a) => `${a.provider} / ${a.credentialSlot}` },
+  { label: 'Model', align: 'left', render: (a) => a.returnedModel ?? a.model },
+  { label: 'Status', align: 'left', render: (a) => a.status },
+  { label: 'Tokens', align: 'right',
+    render: (a) => formatTokenCount((a.inputTokens ?? 0) + (a.outputTokens ?? 0)) },
+  { label: 'Cost', align: 'right',
+    render: (a) => (a.costUsd == null ? 'Unknown' : formatCost(parseFloat(a.costUsd))) },
+  { label: 'When', align: 'left', render: (a) => formatDateTime(a.finalizedAt ?? a.createdAt) },
+];
+
+// The ledger rows one Incomplete amount was summed from, so an unpriced call
+// can be named rather than left as a gap in a total.
+function SpendAttemptsPanel({ slug, episodeId }: { slug: string; episodeId: string }) {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['spend-attempts', slug, episodeId],
+    queryFn: () => getSpendAttempts({ slug, episodeId }),
+  });
+  if (isLoading) return <p className="text-sm text-muted-foreground">Loading contributing calls...</p>;
+  if (isError || !data) {
+    return <QueryErrorPanel message="Could not load the contributing calls." onRetry={() => { void refetch(); }} />;
+  }
+  if (data.attempts.length === 0) {
+    return <p className="text-sm text-muted-foreground">No recorded calls for this episode.</p>;
+  }
+  const cell = (align: 'left' | 'right') =>
+    `py-1 pr-3 ${align === 'right' ? 'text-right tabular-nums' : 'text-left'}`;
+  return (
+    <div className="text-xs">
+      <p className="text-muted-foreground mb-2">
+        {data.unknownCostCount} of {data.total} calls have no recorded price. Known spend{' '}
+        {formatCost(parseFloat(data.knownCostUsd))}.
+        {data.truncated && ' Only the first 200 calls are listed; the totals cover them all.'}
+      </p>
+      <div className="hidden sm:block overflow-x-auto">
+        <table aria-label="Contributing calls" className="w-full">
+          <thead>
+            <tr className="text-muted-foreground">
+              {ATTEMPT_COLUMNS.map((c) => (
+                <th key={c.label} className={`font-medium ${cell(c.align)}`}>{c.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.attempts.map((a) => (
+              <tr key={a.attemptId} className="border-t border-border/40">
+                {ATTEMPT_COLUMNS.map((c) => (
+                  <td key={c.label} className={`${cell(c.align)} break-all`}>{c.render(a)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="sm:hidden space-y-2">
+        {data.attempts.map((a) => (
+          <dl key={a.attemptId} className="rounded border border-border/40 p-2 space-y-0.5">
+            {ATTEMPT_COLUMNS.map((c) => (
+              <div key={c.label} className="flex justify-between gap-2">
+                <dt className="text-muted-foreground shrink-0">{c.label}</dt>
+                <dd className={`break-all ${c.align === 'right' ? 'tabular-nums' : ''}`}>{c.render(a)}</dd>
+              </div>
+            ))}
+          </dl>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Collapsed row summary: the most-expensive model first, then a +N count of
 // the rest. Full list stays in the title tooltip.
 function ModelsSummary({ stat }: { stat: EpisodeCostStat }) {
@@ -304,6 +408,7 @@ function EpisodeCostTable({
   expanded: Set<string>;
   onToggle: (key: string) => void;
 }) {
+  const [attemptRows, toggleAttemptRows] = useExpandedKeys();
   return (
     <>
       <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
@@ -317,9 +422,9 @@ function EpisodeCostTable({
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Models Used
                 </th>
-                <SortHeader field="runCount" label="Runs" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <SortHeader field="latestRunCostUsd" label="Latest Run" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <SortHeader field="cumulativeCostUsd" label="Cumulative" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="runCount" label="Runs" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="latestRunCostUsd" label="Latest Run" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="cumulativeCostUsd" label="Cumulative" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="lastActivityAt" label="Last Activity" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
               </tr>
             </thead>
@@ -355,15 +460,28 @@ function EpisodeCostTable({
                       <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[160px]">
                         <ModelsSummary stat={stat} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">{stat.runCount}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{stat.runCount}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">
                         <CostAmount amount={parseFloat(stat.latestRunCostUsd)} unpriced={stat.latestRunUnknownCount > 0} unpricedCount={stat.latestRunUnknownCount} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right">
-                        <CostAmount amount={parseFloat(stat.cumulativeCostUsd)} unpriced={stat.hasUnknownCost} unpricedCount={stat.unknownCostCount} />
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">
+                        <CostAmount
+                          amount={parseFloat(stat.cumulativeCostUsd)}
+                          unpriced={stat.hasUnknownCost}
+                          unpricedCount={stat.unknownCostCount}
+                          onInspect={() => toggleAttemptRows(key)}
+                          inspectExpanded={attemptRows.has(key)}
+                        />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{formatDateTime(stat.lastActivityAt)}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap tabular-nums">{formatDateTime(stat.lastActivityAt)}</td>
                     </tr>
+                    {attemptRows.has(key) && (
+                      <tr className="bg-muted/20">
+                        <td colSpan={8} className="px-4 py-3">
+                          <SpendAttemptsPanel slug={stat.podcastSlug} episodeId={stat.episodeId} />
+                        </td>
+                      </tr>
+                    )}
                     {isOpen && (
                       <tr className="bg-muted/20">
                         <td colSpan={8} className="px-4 py-3">
@@ -422,9 +540,20 @@ function EpisodeCostTable({
             <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
               <span>{stat.runCount} runs</span>
               <span>Latest: <CostAmount amount={parseFloat(stat.latestRunCostUsd)} unpriced={stat.latestRunUnknownCount > 0} unpricedCount={stat.latestRunUnknownCount} /></span>
-              <span>Cumulative: <CostAmount amount={parseFloat(stat.cumulativeCostUsd)} unpriced={stat.hasUnknownCost} unpricedCount={stat.unknownCostCount} /></span>
+              <span>Cumulative: <CostAmount
+                amount={parseFloat(stat.cumulativeCostUsd)}
+                unpriced={stat.hasUnknownCost}
+                unpricedCount={stat.unknownCostCount}
+                onInspect={() => toggleAttemptRows(key)}
+                inspectExpanded={attemptRows.has(key)}
+              /></span>
               <span>{formatDateTime(stat.lastActivityAt)}</span>
             </div>
+            {attemptRows.has(key) && (
+              <div className="mt-2">
+                <SpendAttemptsPanel slug={stat.podcastSlug} episodeId={stat.episodeId} />
+              </div>
+            )}
             <div className="mt-2">
               <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
             </div>
@@ -559,25 +688,35 @@ export default function StatsPage() {
   );
 
   // Shared ledger filters (date interval, podcast, provider, model) drive both
-  // the model-usage and episode-cost lists below.
-  const [ledgerFrom, setLedgerFrom] = useState('');
-  const [ledgerTo, setLedgerTo] = useState('');
-  const [ledgerPodcast, setLedgerPodcast] = useState('');
-  const [ledgerProvider, setLedgerProvider] = useState('');
-  const [ledgerModel, setLedgerModel] = useState('');
+  // the model-usage and episode-cost lists below, and all of it round-trips
+  // through the URL.
+  const { read, readPage, write } = useStatsParams();
+  const ledgerFrom = read('from');
+  const ledgerTo = read('to');
+  const ledgerPodcast = read('podcast');
+  const ledgerProvider = read('provider');
+  const ledgerModel = read('model');
 
-  const [modelUsagePage, setModelUsagePage] = useState(1);
-  const { sortField: modelUsageSort, sortDirection: modelUsageDir, handleSort: handleModelUsageSort } =
-    useSortState<ModelUsageSortField>('knownCostUsd', 'desc', () => setModelUsagePage(1));
+  const modelUsagePage = readPage('muPage');
+  const modelUsageSort = read('muSort') as ModelUsageSortField;
+  const modelUsageDir = read('muDir') as 'asc' | 'desc';
+  const episodeCostPage = readPage('ecPage');
+  const episodeCostSort = read('ecSort') as EpisodeCostSortField;
+  const episodeCostDir = read('ecDir') as 'asc' | 'desc';
 
-  const [episodeCostPage, setEpisodeCostPage] = useState(1);
-  const { sortField: episodeCostSort, sortDirection: episodeCostDir, handleSort: handleEpisodeCostSort } =
-    useSortState<EpisodeCostSortField>('lastActivityAt', 'desc', () => setEpisodeCostPage(1));
+  // Same rule as useSortState: the active column flips direction, a new one
+  // resets to desc. Both reset the page, since the rows behind it change.
+  const handleModelUsageSort = (field: ModelUsageSortField) => write(
+    field === modelUsageSort
+      ? { muDir: modelUsageDir === 'asc' ? 'desc' : 'asc', muPage: '1' }
+      : { muSort: field, muDir: 'desc', muPage: '1' });
+  const handleEpisodeCostSort = (field: EpisodeCostSortField) => write(
+    field === episodeCostSort
+      ? { ecDir: episodeCostDir === 'asc' ? 'desc' : 'asc', ecPage: '1' }
+      : { ecSort: field, ecDir: 'desc', ecPage: '1' });
 
   const [expandedModels, toggleExpandedModel] = useExpandedKeys();
   const [expandedEpisodes, toggleExpandedEpisode] = useExpandedKeys();
-
-  const resetLedgerPages = () => { setModelUsagePage(1); setEpisodeCostPage(1); };
 
   // The bare YYYY-MM-DD from <input type="date"> goes through as-is: the
   // backend reads from/to as whole UTC days, both ends included.
@@ -654,6 +793,19 @@ export default function StatsPage() {
     return withSelection([...new Set(scoped.map((p) => p.model))].sort(), ledgerModel);
   }, [filterOptionsData, ledgerProvider, ledgerModel]);
 
+  // Built from the same conditions the sections render under, so a link never
+  // points at an anchor that is not on the page.
+  const sectionLinks = [
+    { id: 'stats-overview', label: 'Overview', show: !!dashboard },
+    { id: 'stats-charts', label: 'Charts', show: topPodcasts.length > 0 || !!byDay?.days },
+    { id: 'stats-reviewer', label: 'Reviewer', show: !!reviewer },
+    { id: 'stats-addressing', label: 'Addressing', show: !!addressing },
+    { id: 'stats-cues', label: 'Audio cues',
+      show: !!cueStats && (cueStats.total > 0 || cueStats.nearMissTotal > 0) },
+    { id: 'stats-spend', label: 'Spend', show: true },
+    { id: 'stats-podcasts', label: 'Podcasts', show: sortedPodcasts.length > 0 },
+  ].filter((entry) => entry.show);
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
@@ -674,6 +826,19 @@ export default function StatsPage() {
         </select>
       </div>
 
+      <nav aria-label="Stats sections" className="mb-6 flex gap-2 overflow-x-auto no-scrollbar">
+        {sectionLinks.map(({ id, label }) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className={`inline-flex items-center min-h-11 shrink-0 whitespace-nowrap rounded px-3 text-sm ${btnSecondary} transition-colors ${focusRing}`}
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
+
+      <section id="stats-overview" className="scroll-mt-28">
       {/* Summary Cards */}
       {dashLoading && (
         <SkeletonStatCards count={7} lines={3} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8" />
@@ -720,28 +885,28 @@ export default function StatsPage() {
 
       {/* Totals Row */}
       {dashLoading && (
-        <SkeletonStatCards count={6} className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8" />
+        <SkeletonStatCards count={6} className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8" />
       )}
       {dashboard && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Episodes</p>
-            <p className="text-xl font-bold text-foreground">{dashboard.totalEpisodesProcessed}</p>
+            <p className="text-xl font-bold tabular-nums text-foreground">{dashboard.totalEpisodesProcessed}</p>
             {dashboard.totalRuns !== dashboard.totalEpisodesProcessed && (
               <p className="text-xs text-muted-foreground mt-1">{dashboard.totalRuns} processing runs</p>
             )}
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Ads Removed</p>
-            <p className="text-xl font-bold text-foreground">{dashboard.totalAdsRemoved}</p>
+            <p className="text-xl font-bold tabular-nums text-foreground">{dashboard.totalAdsRemoved}</p>
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Audio Cues</p>
-            <p className="text-xl font-bold text-foreground">{dashboard.totalAudioCuesDetected}</p>
+            <p className="text-xl font-bold tabular-nums text-foreground">{dashboard.totalAudioCuesDetected}</p>
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Time Saved</p>
-            <p className="text-xl font-bold text-foreground">{formatDuration(dashboard.totalTimeSavedSeconds)}</p>
+            <p className="text-xl font-bold tabular-nums text-foreground">{formatDuration(dashboard.totalTimeSavedSeconds)}</p>
             {dashboard.episodesWithTimeSaved > 0 &&
               dashboard.episodesWithTimeSaved !== dashboard.totalEpisodesProcessed && (
                 <p className="text-xs text-muted-foreground mt-1">from {dashboard.episodesWithTimeSaved} episodes</p>
@@ -749,18 +914,20 @@ export default function StatsPage() {
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total LLM Cost</p>
-            <p className="text-xl font-bold text-foreground">{formatCost(dashboard.totalLlmCost)}</p>
+            <p className="text-xl font-bold tabular-nums text-foreground">{formatCost(dashboard.totalLlmCost)}</p>
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Tokens</p>
-            <p className="text-xl font-bold text-foreground">{formatTokenCount(dashboard.totalInputTokens + dashboard.totalOutputTokens)}</p>
+            <p className="text-xl font-bold tabular-nums text-foreground">{formatTokenCount(dashboard.totalInputTokens + dashboard.totalOutputTokens)}</p>
             <p className="text-xs text-muted-foreground mt-1">In: {formatTokenCount(dashboard.totalInputTokens)} / Out: {formatTokenCount(dashboard.totalOutputTokens)}</p>
           </div>
         </div>
       )}
 
+      </section>
+
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div id="stats-charts" className="scroll-mt-28 grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Top Podcasts by Ads */}
         {podLoading && <SkeletonChart />}
         {topPodcasts.length > 0 && (
@@ -814,7 +981,7 @@ export default function StatsPage() {
           counts are the visible signal that the reviewer is configured but
           has not yet run on any episode. */}
       {reviewer && (
-        <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+        <div id="stats-reviewer" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
           <h2 className="text-lg font-semibold text-foreground mb-4">Ad Reviewer Stats</h2>
           {reviewer.totalReviews === 0 && (
             <p className="text-sm text-muted-foreground mb-4">
@@ -838,7 +1005,7 @@ export default function StatsPage() {
       {/* Addressing modes. Renders whenever the query has loaded; all-zero
           counts are the visible signal that neither mode has run yet. */}
       {addressing && (
-        <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+        <div id="stats-addressing" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
           <h2 className="text-lg font-semibold text-foreground mb-1">Addressing modes</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Contract compliance and ad yield per addressing mode. Random-mode runs count toward whichever mode was drawn. Yield is recorded from 2.92.0 on, so its sample can lag the compliance sample.
@@ -885,7 +1052,7 @@ export default function StatsPage() {
           is any recorded cue (matches or near-misses). Below-threshold
           near-misses show as a distinct series -- they never affected cuts. */}
       {cueStats && (cueStats.total > 0 || cueStats.nearMissTotal > 0) && (
-        <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+        <div id="stats-cues" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
           <h2 className="text-lg font-semibold text-foreground mb-4">Audio Cue Telemetry</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <ReviewerStatCard label="Matches" value={cueStats.total} />
@@ -928,7 +1095,7 @@ export default function StatsPage() {
       {/* LLM cost ledger: provider/model usage and per-episode spend, both
           paginated and sorted server-side over the llm_call_usage ledger.
           Includes failed and cancelled runs that incurred cost. */}
-      <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+      <div id="stats-spend" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-semibold text-foreground mb-1">LLM spend</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Spend by provider, model, and episode, including failed or cancelled runs that incurred cost.
@@ -942,7 +1109,7 @@ export default function StatsPage() {
               type="date"
               id="spendFrom"
               value={ledgerFrom}
-              onChange={(e) => { setLedgerFrom(e.target.value); resetLedgerPages(); }}
+              onChange={(e) => write({ from: e.target.value, muPage: '1', ecPage: '1' })}
               className={`w-full sm:w-auto ${inputBase}`}
             />
           </div>
@@ -952,14 +1119,14 @@ export default function StatsPage() {
               type="date"
               id="spendTo"
               value={ledgerTo}
-              onChange={(e) => { setLedgerTo(e.target.value); resetLedgerPages(); }}
+              onChange={(e) => write({ to: e.target.value, muPage: '1', ecPage: '1' })}
               className={`w-full sm:w-auto ${inputBase}`}
             />
           </div>
           <select
             aria-label="Filter spend by podcast"
             value={ledgerPodcast}
-            onChange={(e) => { setLedgerPodcast(e.target.value); resetLedgerPages(); }}
+            onChange={(e) => write({ podcast: e.target.value, muPage: '1', ecPage: '1' })}
             className={`w-full sm:w-auto ${selectBase}`}
           >
             <option value="">All Podcasts</option>
@@ -972,7 +1139,7 @@ export default function StatsPage() {
           <select
             aria-label="Filter spend by provider"
             value={ledgerProvider}
-            onChange={(e) => { setLedgerProvider(e.target.value); setLedgerModel(''); resetLedgerPages(); }}
+            onChange={(e) => write({ provider: e.target.value, model: '', muPage: '1', ecPage: '1' })}
             className={`w-full sm:w-auto ${selectBase}`}
           >
             <option value="">All Providers</option>
@@ -985,7 +1152,7 @@ export default function StatsPage() {
           <select
             aria-label="Filter spend by model"
             value={ledgerModel}
-            onChange={(e) => { setLedgerModel(e.target.value); resetLedgerPages(); }}
+            onChange={(e) => write({ model: e.target.value, muPage: '1', ecPage: '1' })}
             className={`w-full sm:w-auto ${selectBase}`}
           >
             <option value="">All Models</option>
@@ -1027,7 +1194,7 @@ export default function StatsPage() {
               page={modelUsagePage}
               totalPages={modelUsageData.totalPages}
               total={modelUsageData.total}
-              onPage={setModelUsagePage}
+              onPage={(p) => write({ muPage: String(p) })}
             />
           </>
         )}
@@ -1054,13 +1221,14 @@ export default function StatsPage() {
               page={episodeCostPage}
               totalPages={episodeCostData.totalPages}
               total={episodeCostData.total}
-              onPage={setEpisodeCostPage}
+              onPage={(p) => write({ ecPage: String(p) })}
             />
           </>
         )}
       </div>
 
       {/* Podcast Stats Table */}
+      <div id="stats-podcasts" className="scroll-mt-28" />
       {/* Mobile Card Layout */}
       {sortedPodcasts.length > 0 && (
         <div className="sm:hidden space-y-3">
@@ -1070,21 +1238,21 @@ export default function StatsPage() {
               <p className="text-sm font-medium text-foreground mb-2">{p.podcastTitle}</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <span className="text-muted-foreground">Episodes</span>
-                <span className="text-foreground text-right">{p.episodeCount}</span>
+                <span className="text-foreground text-right tabular-nums">{p.episodeCount}</span>
                 <span className="text-muted-foreground">Runs</span>
-                <span className="text-foreground text-right">{p.runCount}</span>
+                <span className="text-foreground text-right tabular-nums">{p.runCount}</span>
                 <span className="text-muted-foreground">Total Ads</span>
-                <span className="text-foreground text-right">{p.totalAds}</span>
+                <span className="text-foreground text-right tabular-nums">{p.totalAds}</span>
                 <span className="text-muted-foreground">Avg Ads</span>
-                <span className="text-foreground text-right">{p.avgAds}</span>
+                <span className="text-foreground text-right tabular-nums">{p.avgAds}</span>
                 <span className="text-muted-foreground">Avg Time Saved</span>
-                <span className="text-foreground text-right">{formatDuration(p.avgTimeSavedSeconds)}</span>
+                <span className="text-foreground text-right tabular-nums">{formatDuration(p.avgTimeSavedSeconds)}</span>
                 <span className="text-muted-foreground">Avg Length</span>
-                <span className="text-foreground text-right">{formatDuration(p.avgEpisodeLengthSeconds)}</span>
+                <span className="text-foreground text-right tabular-nums">{formatDuration(p.avgEpisodeLengthSeconds)}</span>
                 <span className="text-muted-foreground">Total Cost</span>
-                <span className="text-foreground text-right">{formatCost(p.totalCost)}</span>
+                <span className="text-foreground text-right tabular-nums">{formatCost(p.totalCost)}</span>
                 <span className="text-muted-foreground">Tokens (In/Out)</span>
-                <span className="text-foreground text-right">{formatTokenCount(p.totalInputTokens)} / {formatTokenCount(p.totalOutputTokens)}</span>
+                <span className="text-foreground text-right tabular-nums">{formatTokenCount(p.totalInputTokens)} / {formatTokenCount(p.totalOutputTokens)}</span>
               </div>
             </div>
           ))}
@@ -1114,14 +1282,14 @@ export default function StatsPage() {
                 {sortedPodcasts.map((p) => (
                   <tr key={p.podcastSlug} className="hover:bg-muted/50">
                     <td className="px-4 py-3 text-sm text-foreground font-medium truncate max-w-[200px]">{p.podcastTitle}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.episodeCount}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{p.runCount}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.totalAds}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.avgAds}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatDuration(p.avgTimeSavedSeconds)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatDuration(p.avgEpisodeLengthSeconds)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatCost(p.totalCost)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{p.episodeCount}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{p.runCount}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{p.totalAds}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{p.avgAds}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{formatDuration(p.avgTimeSavedSeconds)}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{formatDuration(p.avgEpisodeLengthSeconds)}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{formatCost(p.totalCost)}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">
                       <span>{formatTokenCount(p.avgTokensPerEpisode)}</span>
                       <span className="text-xs text-muted-foreground ml-1">({formatTokenCount(p.totalInputTokens)}/{formatTokenCount(p.totalOutputTokens)})</span>
                     </td>

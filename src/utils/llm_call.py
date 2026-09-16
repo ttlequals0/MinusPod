@@ -22,7 +22,7 @@ from llm_client import (
 )
 from rate_limit_hold import (
     MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, enforce_provider_rate_limit,
-    is_rate_limit_hold_enabled,
+    is_rate_limit_hold_enabled, reserve_provider_request,
 )
 from utils.shutdown import shutdown_event
 from utils.time import parse_iso_utc, utc_now
@@ -184,31 +184,54 @@ def _invoking_pass_from_name(pass_name: str | None) -> int | None:
     return None
 
 
+# Rough provider-agnostic prompt estimate for the token reservation; the
+# attempt reconciles to real usage when it finalizes.
+_CHARS_PER_TOKEN = 4
+
+
+def _reserved_tokens(llm_kwargs) -> int:
+    """Tokens to reserve for one dispatch: a prompt estimate plus the whole
+    output budget, so a TPM cap sees a large call before it is billed."""
+    chars = len(llm_kwargs.get('system') or '')
+    for message in llm_kwargs.get('messages') or []:
+        content = message.get('content')
+        chars += len(content if isinstance(content, str) else str(content))
+    return chars // _CHARS_PER_TOKEN + int(llm_kwargs.get('max_tokens') or 0)
+
+
 def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass,
                       provider_key, credential_slot, slug, episode_id, call_label,
                       blank_json_is_failure=False):
     """One ledger-tracked adapter dispatch.
 
-    Begins an attempt before the network call and finalizes it after, so
-    every real dispatch (including each retry) is its own billable ledger
-    row: the single writer of token counters, replacing the retired
-    adapter usage callback.
+    Reserves the request by creating its attempt row before the network call
+    and finalizes it after, so every real dispatch (including each retry) is
+    its own billable ledger row: the single writer of token counters,
+    replacing the retired adapter usage callback. A manual cap refuses the
+    reservation and raises instead of dispatching.
     """
     from cancel import ProcessingCancelled
     from database import Database
     db = Database()
     ctx = run_context.current()
-    attempt_id = db.begin_llm_attempt(
-        run_id=ctx.run_id if ctx else None,
-        podcast_id=_resolve_podcast_id(slug),
-        episode_id=episode_id,
-        phase_key=phase_key,
-        invoking_pass=invoking_pass,
-        provider_key=provider_key,
-        configured_model=model,
-        window_label=call_label,
-        credential_slot=credential_slot,
+    attempt_id, hold_until = reserve_provider_request(
+        db, provider_key, credential_slot,
+        attempt=dict(
+            run_id=ctx.run_id if ctx else None,
+            podcast_id=_resolve_podcast_id(slug),
+            episode_id=episode_id,
+            phase_key=phase_key,
+            invoking_pass=invoking_pass,
+            configured_model=model,
+            window_label=call_label,
+            reserved_tokens=_reserved_tokens(llm_kwargs),
+        ),
     )
+    if attempt_id is None:
+        raise _reservation_refused(provider_key, credential_slot, hold_until,
+                                   slug, episode_id, call_label, phase_key)
+
+    run_context.begin_dispatch(attempt_id)
     try:
         response = _call_once(llm_client, llm_kwargs, model, blank_json_is_failure)
     except ProcessingCancelled:
@@ -219,9 +242,26 @@ def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass
         # provider billed; record it on the failed attempt instead of zero.
         _finalize_attempt(db, attempt_id, 'failure', getattr(e, 'response', None), ctx)
         raise
+    finally:
+        run_context.end_dispatch()
 
     _finalize_attempt(db, attempt_id, 'success', response, ctx)
     return response
+
+
+def _reservation_refused(provider_key, credential_slot, hold_until, slug,
+                         episode_id, call_label, phase_key):
+    """The typed error for a request a manual cap refused to reserve."""
+    reset_at = parse_iso_utc(hold_until) if hold_until else None
+    retry_after = max(0.0, (reset_at - utc_now()).total_seconds()) if reset_at else 0.0
+    logger.warning(
+        f"[{slug}:{episode_id}] {call_label} refused by the {provider_key} "
+        f"manual rate limit; holding queue {retry_after:.0f}s"
+    )
+    return ProviderRateLimitedError(
+        f"manual rate limit for {provider_key} resets in {retry_after:.0f}s",
+        retry_after_seconds=retry_after, provider_key=provider_key,
+        credential_slot=credential_slot, manual=True, phase=phase_key)
 
 
 def _finalize_attempt(db, attempt_id, state, response, ctx) -> None:
@@ -247,6 +287,11 @@ def _apply_reasoning_fallback(llm_kwargs, *, slug, episode_id, call_label) -> No
         f"[{slug}:{episode_id}] {call_label} reasoning exhausted the output budget; "
         "retrying with reasoning disabled"
     )
+
+
+def _is_manual_cap_error(error) -> bool:
+    """True for a refusal by a MinusPod-configured cap (not a provider 429)."""
+    return isinstance(error, ProviderRateLimitedError) and getattr(error, 'manual', False)
 
 
 def _is_retryable(error) -> bool:
@@ -579,6 +624,10 @@ def call_llm(
             last_error = e
             if isinstance(e, ReasoningExhaustedError):
                 break
+            # A cap that refused the reservation already recorded its hold;
+            # re-classifying it would only retry into the same refusal.
+            if _is_manual_cap_error(e):
+                return None, _lost_window(e, is_window, slug, episode_id, call_label)
             terminal = _terminal_error(
                 e, model=model, slug=slug, episode_id=episode_id,
                 call_label=call_label, provider=provider,
@@ -634,6 +683,9 @@ def call_llm(
                 last_error = e
                 if isinstance(e, ReasoningExhaustedError):
                     break
+                if _is_manual_cap_error(e):
+                    return None, _lost_window(e, is_window, slug, episode_id,
+                                              call_label)
                 terminal = _terminal_error(
                     e, model=model, slug=slug, episode_id=episode_id,
                     call_label=call_label, provider=provider,

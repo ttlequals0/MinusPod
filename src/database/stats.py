@@ -368,91 +368,191 @@ class StatsMixin:
 
     def begin_llm_attempt(self, *, run_id, podcast_id, episode_id, phase_key,
                           invoking_pass, provider_key, configured_model,
-                          window_label=None, credential_slot='primary') -> str:
+                          window_label=None, credential_slot='primary',
+                          reserved_tokens=None) -> str:
         """Insert an in_flight llm_call_usage row; return a new attempt_id."""
+        return self.reserve_llm_attempt(
+            run_id=run_id, podcast_id=podcast_id, episode_id=episode_id,
+            phase_key=phase_key, invoking_pass=invoking_pass,
+            provider_key=provider_key, configured_model=configured_model,
+            window_label=window_label, credential_slot=credential_slot,
+            reserved_tokens=reserved_tokens)['attempt_id']
+
+    def reserve_llm_attempt(self, *, run_id, podcast_id, episode_id, phase_key,
+                            invoking_pass, provider_key, configured_model,
+                            window_label=None, credential_slot='primary',
+                            reserved_tokens=None, caps=None) -> dict:
+        """Reserve one request against the manual caps by inserting its
+        in_flight ledger row, or refuse when a cap is already met.
+
+        The row IS the reservation: the window count and the insert share one
+        BEGIN IMMEDIATE transaction, so concurrent gunicorn workers cannot all
+        read room under the cap and then all dispatch. `caps` is
+        {rpm, rpd, tpm, minute_since, day_since}; omit it (the probe, tests)
+        to insert unconditionally. Returns
+        {'attempt_id', 'blocked', 'oldest'}, with attempt_id None when
+        blocked names the cap that refused it.
+        """
         attempt_id = str(uuid.uuid4())
-        conn = self.get_connection()
+        row = (attempt_id, run_id, podcast_id, episode_id, phase_key,
+               invoking_pass, window_label, provider_key, credential_slot,
+               configured_model, reserved_tokens)
+        # No cap configured means nothing to reserve against, so the write
+        # lock BEGIN IMMEDIATE takes up front would only add contention.
+        if not any((caps or {}).get(name, 0) > 0 for name in ('rpm', 'rpd', 'tpm')):
+            conn = self.get_connection()
+            self._insert_llm_attempt(conn, row)
+            conn.commit()
+            return {'attempt_id': attempt_id, 'blocked': None, 'oldest': None}
+        with self.transaction(immediate=True) as conn:
+            blocked, oldest = self._llm_cap_blocked(
+                conn, provider_key, credential_slot, caps)
+            if blocked is not None:
+                return {'attempt_id': None, 'blocked': blocked, 'oldest': oldest}
+            self._insert_llm_attempt(conn, row)
+        return {'attempt_id': attempt_id, 'blocked': None, 'oldest': None}
+
+    @staticmethod
+    def _insert_llm_attempt(conn, row: tuple) -> None:
         conn.execute(
             """INSERT INTO llm_call_usage
                    (attempt_id, run_id, podcast_id, episode_id, phase_key,
                     invoking_pass, window_label, provider_key, credential_slot,
-                    configured_model, state)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight')""",
-            (attempt_id, run_id, podcast_id, episode_id, phase_key,
-             invoking_pass, window_label, provider_key, credential_slot,
-             configured_model)
+                    configured_model, state, dispatch_count, reserved_tokens)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight', 1, ?)""",
+            row
         )
-        conn.commit()
-        return attempt_id
 
-    def count_recent_llm_attempts(self, provider_key: str, credential_slot: str,
-                                  since_iso: str) -> int:
-        """Ledger attempts for one (provider, slot) with created_at >= since_iso.
+    def _llm_cap_blocked(self, conn, provider_key: str, credential_slot: str,
+                         caps: dict | None) -> tuple[str | None, str | None]:
+        """(cap name, oldest contributing created_at) when a manual cap is
+        already met inside this transaction, else (None, None)."""
+        if not caps:
+            return None, None
+        minute_since = caps.get('minute_since')
+        if caps.get('rpm', 0) > 0 and minute_since:
+            if self._count_llm_dispatches(conn, provider_key, credential_slot,
+                                          minute_since) >= caps['rpm']:
+                return 'rpm', self._oldest_llm_attempt(
+                    conn, provider_key, credential_slot, minute_since)
+        if caps.get('tpm', 0) > 0 and minute_since:
+            if self._sum_llm_tokens(conn, provider_key, credential_slot,
+                                    minute_since) >= caps['tpm']:
+                return 'tpm', self._oldest_llm_token_attempt(
+                    conn, provider_key, credential_slot, minute_since)
+        day_since = caps.get('day_since')
+        if caps.get('rpd', 0) > 0 and day_since:
+            if self._count_llm_dispatches(conn, provider_key, credential_slot,
+                                          day_since) >= caps['rpd']:
+                return 'rpd', None
+        return None, None
 
-        NULL credential_slot (historical rows) reads as 'primary'. Backs the
-        manual per-provider RPM/RPD throttle.
-        """
-        conn = self.get_connection()
+    @staticmethod
+    def _count_llm_dispatches(conn, provider_key: str, credential_slot: str,
+                              since_iso: str) -> int:
         row = conn.execute(
-            """SELECT COUNT(*) AS n FROM llm_call_usage
+            """SELECT COALESCE(SUM(COALESCE(dispatch_count, 1)), 0) AS n
+               FROM llm_call_usage
                WHERE provider_key = ?
                  AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
                  AND created_at >= ?""",
             (provider_key, credential_slot, credential_slot, since_iso)
         ).fetchone()
         return int(row['n']) if row else 0
+
+    @staticmethod
+    def _oldest_llm_attempt(conn, provider_key: str, credential_slot: str,
+                            since_iso: str) -> str | None:
+        row = conn.execute(
+            """SELECT MIN(created_at) AS oldest FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return row['oldest'] if row and row['oldest'] else None
+
+    @staticmethod
+    def _sum_llm_tokens(conn, provider_key: str, credential_slot: str,
+                        since_iso: str) -> int:
+        row = conn.execute(
+            """SELECT COALESCE(SUM(CASE WHEN finalized_at IS NOT NULL
+                                        THEN COALESCE(input_tokens, 0)
+                                             + COALESCE(output_tokens, 0)
+                                        ELSE COALESCE(reserved_tokens, 0) END), 0) AS n
+               FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND created_at >= ?""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return int(row['n']) if row else 0
+
+    @staticmethod
+    def _oldest_llm_token_attempt(conn, provider_key: str, credential_slot: str,
+                                  since_iso: str) -> str | None:
+        row = conn.execute(
+            """SELECT MIN(created_at) AS oldest FROM llm_call_usage
+               WHERE provider_key = ?
+                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
+                 AND created_at >= ?
+                 AND ((finalized_at IS NOT NULL
+                       AND (input_tokens IS NOT NULL OR output_tokens IS NOT NULL))
+                      OR (finalized_at IS NULL AND reserved_tokens IS NOT NULL))""",
+            (provider_key, credential_slot, credential_slot, since_iso)
+        ).fetchone()
+        return row['oldest'] if row and row['oldest'] else None
+
+    def bump_llm_attempt_dispatches(self, attempt_id: str, delta: int = 1) -> None:
+        """Count another SDK dispatch (a provider-adapter compatibility retry)
+        against an in-flight attempt, so manual request caps see it."""
+        conn = self.get_connection()
+        conn.execute(
+            "UPDATE llm_call_usage SET dispatch_count = COALESCE(dispatch_count, 1) + ? "
+            "WHERE attempt_id = ?",
+            (delta, attempt_id)
+        )
+        conn.commit()
+
+    def count_recent_llm_attempts(self, provider_key: str, credential_slot: str,
+                                  since_iso: str) -> int:
+        """SDK dispatches for one (provider, slot) with created_at >= since_iso.
+
+        Counts dispatch_count, not rows: one ledger attempt can make several
+        outbound requests when a provider adapter retries for compatibility.
+        NULL credential_slot (historical rows) reads as 'primary'. Backs the
+        manual per-provider RPM/RPD throttle.
+        """
+        return self._count_llm_dispatches(
+            self.get_connection(), provider_key, credential_slot, since_iso)
 
     def oldest_recent_llm_attempt(self, provider_key: str, credential_slot: str,
                                   since_iso: str) -> str | None:
         """created_at of the oldest (provider, slot) attempt at or after
         since_iso, or None when the window holds none. NULL slot reads as
         'primary'."""
-        conn = self.get_connection()
-        row = conn.execute(
-            """SELECT MIN(created_at) AS oldest FROM llm_call_usage
-               WHERE provider_key = ?
-                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
-                 AND created_at >= ?""",
-            (provider_key, credential_slot, credential_slot, since_iso)
-        ).fetchone()
-        return row['oldest'] if row and row['oldest'] else None
+        return self._oldest_llm_attempt(
+            self.get_connection(), provider_key, credential_slot, since_iso)
 
     def sum_recent_llm_tokens(self, provider_key: str, credential_slot: str,
                               since_iso: str) -> int:
-        """Finalized input+output tokens for one (provider, slot) with
-        created_at >= since_iso. Only finalized rows carry token counts;
-        in-flight rows are unknown, the same approximation RPM accepts.
-        Backs the manual per-provider TPM throttle. NULL slot reads as
-        'primary'."""
-        conn = self.get_connection()
-        row = conn.execute(
-            """SELECT COALESCE(SUM(COALESCE(input_tokens, 0)
-                                   + COALESCE(output_tokens, 0)), 0) AS n
-               FROM llm_call_usage
-               WHERE provider_key = ?
-                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
-                 AND finalized_at IS NOT NULL
-                 AND created_at >= ?""",
-            (provider_key, credential_slot, credential_slot, since_iso)
-        ).fetchone()
-        return int(row['n']) if row else 0
+        """Tokens charged to one (provider, slot) with created_at >= since_iso.
+
+        Reservation-based: an in-flight row counts its dispatch-time estimate
+        (prompt + max_tokens) and a finalized row its actual usage, so a
+        single large call cannot cross the TPM cap unseen. NULL slot reads as
+        'primary'.
+        """
+        return self._sum_llm_tokens(
+            self.get_connection(), provider_key, credential_slot, since_iso)
 
     def oldest_recent_llm_token_attempt(self, provider_key: str,
                                         credential_slot: str,
                                         since_iso: str) -> str | None:
-        """created_at of the oldest token-contributing finalized (provider,
-        slot) row at or after since_iso, or None. Used for the TPM reset."""
-        conn = self.get_connection()
-        row = conn.execute(
-            """SELECT MIN(created_at) AS oldest FROM llm_call_usage
-               WHERE provider_key = ?
-                 AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
-                 AND finalized_at IS NOT NULL
-                 AND (input_tokens IS NOT NULL OR output_tokens IS NOT NULL)
-                 AND created_at >= ?""",
-            (provider_key, credential_slot, credential_slot, since_iso)
-        ).fetchone()
-        return row['oldest'] if row and row['oldest'] else None
+        """created_at of the oldest token-contributing (provider, slot) row at
+        or after since_iso, reserved or finalized, or None. TPM reset."""
+        return self._oldest_llm_token_attempt(
+            self.get_connection(), provider_key, credential_slot, since_iso)
 
     def finalize_llm_attempt(self, attempt_id: str, *, state: str,
                              returned_model=None, input_tokens=None,

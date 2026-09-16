@@ -11,7 +11,8 @@ EXPECTED_COLUMNS = {
     'provider_key', 'configured_model', 'returned_model', 'input_tokens',
     'output_tokens', 'cache_read_tokens', 'cache_write_tokens',
     'reasoning_tokens', 'cost_usd', 'cost_source', 'rate_snapshot',
-    'pricing_revision', 'state', 'credential_slot',
+    'pricing_revision', 'state', 'credential_slot', 'dispatch_count',
+    'reserved_tokens',
 }
 
 
@@ -76,12 +77,17 @@ def test_credential_slot_added_to_legacy_row_without_data_loss(tmp_path):
         cols = db._get_table_columns(conn, 'llm_call_usage')
         assert db._add_column_if_missing(
             conn, 'llm_call_usage', 'credential_slot', 'TEXT', cols)
+        assert db._add_column_if_missing(
+            conn, 'llm_call_usage', 'dispatch_count',
+            'INTEGER NOT NULL DEFAULT 1', cols)
 
         row = conn.execute(
-            "SELECT provider_key, credential_slot FROM llm_call_usage "
-            "WHERE attempt_id = 'a1'").fetchone()
+            "SELECT provider_key, credential_slot, dispatch_count "
+            "FROM llm_call_usage WHERE attempt_id = 'a1'").fetchone()
         assert row['provider_key'] == 'anthropic'
         assert row['credential_slot'] is None
+        # The backfilled default makes a legacy row one dispatch, not zero.
+        assert row['dispatch_count'] == 1
         assert db.count_recent_llm_attempts(
             'anthropic', 'primary', '2026-01-01T00:00:00Z') == 1
     finally:

@@ -10,3 +10,9 @@ export const btnSecondary = 'bg-secondary text-secondary-foreground hover:bg-sec
 export const btnOutline = btnSecondary;
 export const btnGhost = 'text-muted-foreground hover:text-foreground hover:bg-accent';
 export const btnDestructive = 'bg-destructive text-destructive-foreground hover:bg-destructive/90';
+
+// One mobile hit-target rule: 44px below `sm`, natural icon size from `sm` up.
+// Gap around a wrapper does not enlarge a clickable box, so this goes on the
+// button or link itself.
+export const touchTarget =
+  'inline-flex items-center justify-center min-h-11 min-w-11 sm:min-h-0 sm:min-w-0';

@@ -186,3 +186,34 @@ describe('ProcessingQueueSection', () => {
     expect(screen.getByRole('button', { name: 'Canceling...' })).toBeTruthy();
   });
 });
+
+describe('queue admission explanation', () => {
+  it('names the blocked phase, slot, reason and reset time', async () => {
+    renderSection([queued(1, {
+      admission: {
+        blocked: true, phase: 'detection', slot: 'secondary',
+        reason: 'rate limit reached', resumesAt: '2026-09-15T12:30:00Z',
+      },
+    })]);
+
+    const note = await screen.findByText(/Held on the detection phase, secondary account/);
+    expect(note.textContent).toContain('rate limit reached');
+    expect(note.textContent).toMatch(/Resumes/);
+  });
+
+  it('says nothing when a row reports no block', async () => {
+    renderSection([queued(1, {
+      admission: { blocked: false, phase: null, slot: null, reason: null, resumesAt: null },
+    })]);
+
+    await screen.findByText('Queued Episode 1');
+    expect(screen.queryByText(/^Held/)).toBeNull();
+  });
+
+  it('renders normally when the endpoint reports no admission at all', async () => {
+    renderSection([queued(1)]);
+
+    await screen.findByText('Queued Episode 1');
+    expect(screen.queryByText(/^Held/)).toBeNull();
+  });
+});

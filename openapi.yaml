@@ -285,6 +285,24 @@ paths:
             minimum: 1
             maximum: 20
             default: 3
+        - name: sortBy
+          in: query
+          description: >-
+            Orders the whole feed list before it is sliced into a page, so a
+            page is a slice of the sorted list rather than a sorted slice.
+            recent orders by the feed's newest episode, title alphabetically
+            (case-insensitive). Any other value is a 400.
+          schema:
+            type: string
+            enum: [recent, title]
+        - name: sortDir
+          in: query
+          description: >-
+            Sort direction. Defaults to desc for recent and asc for title.
+            Any other value is a 400.
+          schema:
+            type: string
+            enum: [asc, desc]
       responses:
         '200':
           description: List of feeds
@@ -314,6 +332,8 @@ paths:
                       - 'null'
                     format: date-time
                     description: When an all-feeds refresh pass last finished (15-minute scheduler or the manual Refresh All action). Null until the first pass completes.
+        '400':
+          description: Unknown sortBy or sortDir
     post:
       tags:
         - Feeds
@@ -2641,7 +2661,8 @@ paths:
       description: >-
         Returns the episodes currently processing across all feeds, followed by
         the pending queue in dequeue order (priority first, then age). Queued
-        entries carry stage=queued and a 1-based offset-aware queuePosition.
+        entries carry stage=queued, a 1-based offset-aware queuePosition, and
+        an `admission` object explaining why they are or are not starting.
         The waiting list is paginated:
         offset/limit page over the DB-backed rows, with display-only entries
         trailing after them.
@@ -3084,6 +3105,126 @@ paths:
         '400':
           $ref: '#/components/responses/LedgerDateBadRequest'
 
+  /stats/spend/attempts:
+    get:
+      tags:
+        - Stats
+      summary: List the ledger attempts behind a run's or episode's spend
+      description: |
+        The individual llm_call_usage rows a spend total was summed from,
+        which the Stats Incomplete chip links to so an unknown cost can be
+        traced to the attempt carrying no price. Scope it with runId, or with
+        slug plus episodeId to cover every run of one episode. Applies the
+        same billable predicate as the totals, so the listed rows are exactly
+        the contributing ones. Capped at 200 rows; truncated says when more
+        exist, and the totals still cover them.
+      operationId: getSpendAttempts
+      parameters:
+        - name: runId
+          in: query
+          description: The run whose attempts to list. Required unless slug and episodeId are given.
+          schema:
+            type: string
+        - name: slug
+          in: query
+          description: Feed slug, paired with episodeId to scope to one episode.
+          schema:
+            type: string
+        - name: episodeId
+          in: query
+          description: Episode id, paired with slug.
+          schema:
+            type: string
+        - name: provider
+          in: query
+          description: Limit the listing to one provider key.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Contributing attempts for the run
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempts, total, unknownCostCount, knownCostUsd, truncated]
+                properties:
+                  runId:
+                    type:
+                      - string
+                      - 'null'
+                  episodeId:
+                    type:
+                      - string
+                      - 'null'
+                  provider:
+                    type:
+                      - string
+                      - 'null'
+                  total:
+                    type: integer
+                    description: Number of attempts returned.
+                  unknownCostCount:
+                    type: integer
+                    description: Attempts with no recorded price.
+                  knownCostUsd:
+                    type: string
+                    description: Decimal string sum of the priced attempts.
+                  truncated:
+                    type: boolean
+                  attempts:
+                    type: array
+                    items:
+                      type: object
+                      required: [attemptId, phase, provider, model, status]
+                      properties:
+                        attemptId: { type: string }
+                        phase: { type: string }
+                        invokingPass:
+                          type:
+                            - integer
+                            - 'null'
+                        provider: { type: string }
+                        credentialSlot:
+                          type: string
+                          description: Account slot; a null column reads as primary.
+                        model: { type: string }
+                        returnedModel:
+                          type:
+                            - string
+                            - 'null'
+                        status:
+                          type: string
+                          description: Ledger state, e.g. success or failure.
+                        inputTokens:
+                          type:
+                            - integer
+                            - 'null'
+                        outputTokens:
+                          type:
+                            - integer
+                            - 'null'
+                        costUsd:
+                          type:
+                            - string
+                            - 'null'
+                          description: Decimal string, or null when the call was never priced.
+                        costSource:
+                          type:
+                            - string
+                            - 'null'
+                        createdAt:
+                          type: string
+                          format: date-time
+                        finalizedAt:
+                          type:
+                            - string
+                            - 'null'
+                          format: date-time
+        '400':
+          description: Neither runId nor slug plus episodeId was given
+        '404':
+          description: Feed not found
   /stats/ledger-filter-options:
     get:
       tags:
@@ -4779,9 +4920,23 @@ paths:
                 apiKey:  { type: string, nullable: true, description: 'Omit to leave unchanged; null or empty to clear' }
                 baseUrl: { type: string }
                 model:   { type: string }
+                affectedRunsAction:
+                  type: string
+                  enum: [requeue, cancel]
+                  default: requeue
+                  description: >-
+                    What to do with runs frozen against the old account when
+                    this save moves the account identity. Ignored when the
+                    identity is unchanged (a same-account key rotation).
       responses:
-        '200': { description: Updated status, content: { application/json: { schema: { $ref: '#/components/schemas/ProviderStatus' } } } }
-        '400': { description: Invalid input (e.g., baseUrl failed SSRF validation) }
+        '200':
+          description: >-
+            Updated status. Carries accountChanged and affectedRuns when the
+            save moved the slot's account identity.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProviderStatus' }
+        '400': { description: Invalid input (e.g., baseUrl failed SSRF validation, unknown affectedRunsAction) }
         '404': { description: Unknown provider }
         '409': { description: provider_crypto_unavailable (MINUSPOD_MASTER_PASSPHRASE unset) }
     delete:
@@ -4797,9 +4952,69 @@ paths:
           schema:
             type: string
             enum: [anthropic, openai, openrouter, whisper, ollama]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                affectedRunsAction:
+                  type: string
+                  enum: [requeue, cancel]
+                  default: requeue
+                  description: >-
+                    What to do with runs frozen against the cleared endpoint's
+                    account. Clearing a base URL moves the account identity.
       responses:
-        '200': { description: Cleared }
+        '200':
+          description: >-
+            Cleared. Carries accountChanged and affectedRuns when clearing the
+            endpoint moved the slot's account identity.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProviderStatus' }
+        '400': { description: Unknown affectedRunsAction }
         '404': { description: Unknown provider }
+  /settings/providers/{slot}/affected-runs:
+    get:
+      tags:
+        - Settings
+      summary: Runs a change to this account slot would strand
+      description: >-
+        Preflight for a provider or endpoint change: lists the active runs
+        whose frozen routes still name the slot's current account, so the UI
+        can show what a save is about to interrupt before writing anything.
+        A same-account key rotation strands nothing and needs no preflight.
+      operationId: getAccountAffectedRuns
+      parameters:
+        - in: path
+          name: slot
+          required: true
+          schema:
+            type: string
+            enum: [primary, secondary]
+      responses:
+        '200':
+          description: The slot's current account and the runs bound to it
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  slot:
+                    type: string
+                    enum: [primary, secondary]
+                  accountId:
+                    type:
+                      - string
+                      - 'null'
+                    description: >-
+                      Non-secret account identity (provider type plus
+                      endpoint); null when the slot has no provider configured
+                  affectedRuns:
+                    $ref: '#/components/schemas/AffectedRuns'
+        '404': { description: Unknown provider slot }
   /settings/providers/rotate-passphrase:
     post:
       tags:
@@ -5639,12 +5854,23 @@ paths:
                 providerTokensPerMin:
                   type: integer
                   minimum: 0
-                  description: Manual tokens-per-minute cap for the primary provider account. 0 means unlimited.
+                  description: >-
+                    Manual tokens-per-minute cap for the primary provider account. 0 means
+                    unlimited. Reservation-based, not recorded-usage-based: each dispatch
+                    reserves an estimate (prompt tokens plus max_tokens) before the request
+                    goes out and reconciles to actual usage when the call finishes, so a
+                    single large request cannot cross the cap unseen. The cost is that an
+                    over-estimated call holds more of the window than it spends until it
+                    completes.
                   example: 250000
                 secondaryProviderTokensPerMin:
                   type: integer
                   minimum: 0
-                  description: Manual tokens-per-minute cap for the secondary provider account. 0 means unlimited.
+                  description: >-
+                    Manual tokens-per-minute cap for the secondary provider account. 0 means
+                    unlimited. Reservation-based in the same way as providerTokensPerMin: an
+                    estimate is reserved at dispatch and reconciled to actual usage on
+                    completion.
                   example: 250000
                 detectionTemperature:
                   type: number
@@ -12218,6 +12444,47 @@ components:
           enum: [db, env, none]
         baseUrl: { type: string }
         model:   { type: string }
+        accountChanged:
+          type: boolean
+          description: >-
+            Present and true only when this save moved the slot's account
+            identity (provider type or endpoint), which strands every run
+            whose routes were frozen against the old account
+        affectedRuns:
+          $ref: '#/components/schemas/AffectedRuns'
+    AffectedRuns:
+      type: object
+      description: >-
+        Active runs whose frozen routes name a provider account. Returned by
+        the preflight, and by a save that moved the account identity.
+      properties:
+        count:
+          type: integer
+          description: Number of affected runs
+        action:
+          type: string
+          enum: [requeue, cancel]
+          description: >-
+            What the save did with them (absent from the preflight). requeue
+            drops their frozen routes so a resumed run re-resolves against the
+            new configuration; cancel also asks each owner to stop now.
+        runs:
+          type: array
+          items:
+            type: object
+            properties:
+              runId: { type: string }
+              slug: { type: string }
+              episodeId: { type: string }
+              state:
+                type: string
+                enum: [running, cancel_requested]
+              phases:
+                type: array
+                description: Pipeline phases of this run that name the account
+                items:
+                  type: string
+                  enum: [detection, review, verification, chapters]
     Settings:
       type: object
       properties:
@@ -13373,7 +13640,14 @@ components:
               type: boolean
         providerTokensPerMin:
           type: object
-          description: Manual tokens-per-minute cap for the primary provider account. 0 means unlimited.
+          description: >-
+            Manual tokens-per-minute cap for the primary provider account. 0 means
+            unlimited. Reservation-based, not recorded-usage-based: each dispatch
+            reserves an estimate (prompt tokens plus max_tokens) before the request
+            goes out and reconciles to actual usage when the call finishes, so a
+            single large request cannot cross the cap unseen. The cost is that an
+            over-estimated call holds more of the window than it spends until it
+            completes.
           properties:
             value:
               type: integer
@@ -13382,7 +13656,11 @@ components:
               type: boolean
         secondaryProviderTokensPerMin:
           type: object
-          description: Manual tokens-per-minute cap for the secondary provider account. 0 means unlimited.
+          description: >-
+            Manual tokens-per-minute cap for the secondary provider account. 0 means
+            unlimited. Reservation-based in the same way as providerTokensPerMin: an
+            estimate is reserved at dispatch and reconciled to actual usage on
+            completion.
           properties:
             value:
               type: integer
@@ -13858,6 +14136,58 @@ components:
           description: >-
             Dequeue priority of the queue row; null for a display-queue entry
             with no auto-process queue row (its reorder control is disabled)
+        admission:
+          $ref: '#/components/schemas/QueueAdmission'
+
+    QueueAdmission:
+      type: object
+      description: >-
+        Why a waiting job is or is not starting (queued entries only). Scored
+        from the same resolved phase set admission gates on, so a phase this
+        run will not execute (a feed that skips its second pass, chapters
+        turned off) never appears as the blocker.
+      properties:
+        blocked:
+          type: boolean
+          description: Whether this job is currently refused admission
+        phase:
+          type:
+            - string
+            - 'null'
+          enum: [detection, review, verification, chapters, null]
+          description: >-
+            Pipeline phase whose account is holding the job, or null when the
+            block is not phase-specific (processing paused, routes unresolved)
+        slot:
+          type:
+            - string
+            - 'null'
+          enum: [primary, secondary, null]
+          description: Credential slot of the blocking account
+        reason:
+          type:
+            - string
+            - 'null'
+          enum:
+            - manual_rate_limit
+            - provider_rate_limit
+            - provider_account_changed
+            - processing_paused
+            - null
+          description: >-
+            manual_rate_limit is a MinusPod-configured RPM/RPD/TPM cap;
+            provider_rate_limit is a provider 429 hold;
+            provider_account_changed means the run's frozen routes name an
+            account the operator has since replaced; processing_paused is the
+            global admission pause
+        resumesAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: >-
+            When the hold releases, or null when there is no timed reset
+            (an account change clears on the next attempt, not on a clock)
 
     Pattern:
       type: object

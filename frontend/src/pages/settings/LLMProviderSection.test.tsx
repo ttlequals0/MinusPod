@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LLMProviderSection from './LLMProviderSection';
 import type { ProvidersResponse } from '../../api/providers';
 
@@ -14,7 +15,9 @@ const providersState: ProvidersResponse = {
 };
 
 function renderSection(overrides: Partial<Parameters<typeof LLMProviderSection>[0]> = {}) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
+    <QueryClientProvider client={qc}>
     <LLMProviderSection
       llmProvider="anthropic"
       openaiBaseUrl=""
@@ -51,8 +54,13 @@ function renderSection(overrides: Partial<Parameters<typeof LLMProviderSection>[
       onProviderTokensPerMinChange={vi.fn()}
       secondaryProviderTokensPerMin={0}
       onSecondaryProviderTokensPerMinChange={vi.fn()}
+      primaryAccountChanged={false}
+      secondaryAccountChanged={false}
+      affectedRunsAction="requeue"
+      onAffectedRunsActionChange={vi.fn()}
       {...overrides}
-    />,
+    />
+    </QueryClientProvider>,
   );
 }
 

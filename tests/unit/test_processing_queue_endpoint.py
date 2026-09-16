@@ -238,3 +238,32 @@ def test_set_queue_row_priority_ignores_non_pending_rows(seeded_feed):
     slug = seeded_feed['slug']
     assert db.set_queue_row_priority(slug, 'ep-done', priority=10) is None
     assert db.set_queue_row_priority(slug, 'missing', priority=10) is None
+
+
+def test_queued_entries_carry_an_admission_explanation(app_client, seeded_feed):
+    """Every waiting entry says whether it is admissible and, when not, which
+    phase and account are holding it."""
+    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
+    _queue_row(db, podcast_id, 'ep-waiting')
+    _authed(app_client)
+
+    blocked = {'blocked': True, 'phase': 'detection', 'slot': 'primary',
+               'reason': 'manual_rate_limit', 'resumesAt': '2026-09-16T12:00:00Z'}
+    with patch('main_app.processing.admission_explanation', return_value=blocked):
+        queued = [e for e in app_client.get('/api/v1/episodes/processing').get_json()
+                  if e['stage'] == 'queued']
+    assert queued[0]['admission'] == blocked
+
+
+def test_admission_failure_reports_unblocked_instead_of_failing(app_client, seeded_feed):
+    db, podcast_id = seeded_feed['db'], seeded_feed['podcast_id']
+    _queue_row(db, podcast_id, 'ep-waiting')
+    _authed(app_client)
+
+    with patch('main_app.processing.admission_explanation',
+               side_effect=RuntimeError('settings unavailable')):
+        resp = app_client.get('/api/v1/episodes/processing')
+    assert resp.status_code == 200
+    queued = [e for e in resp.get_json() if e['stage'] == 'queued']
+    assert queued[0]['admission'] == {'blocked': False, 'phase': None, 'slot': None,
+                                      'reason': None, 'resumesAt': None}

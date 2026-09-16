@@ -57,22 +57,32 @@ const RECENTS_FEED: Feed = {
   latestEpisodes: [],
 };
 
+function page<T>(feeds: T[]) {
+  return { feeds, lastRefreshCompletedAt: null, total: feeds.length, totalPages: 1, page: 1, limit: 24 };
+}
+
 // Indirected through a mock so a test can leave the feeds query pending.
-const mockFeedsQueryFn = vi.fn(async () => ({ feeds: [FEED], lastRefreshCompletedAt: null }));
-const mockEpisodesQueryFn = vi.fn(async () => ({
-  feeds: [ZULU_FEED, ALPHA_FEED, RECENTS_FEED], lastRefreshCompletedAt: null,
-}));
+const mockFeedsQueryFn = vi.fn(async () => page([FEED]));
+const mockEpisodesQueryFn = vi.fn(async () => page([ZULU_FEED, ALPHA_FEED, RECENTS_FEED]));
 const mockReprocessEpisode = vi.fn(async () => ({ message: 'ok', mode: 'reprocess' as const }));
+// Params of every options build, so a test can assert what the server was asked for.
+const feedsQueryParams: Record<string, unknown>[] = [];
 
 vi.mock('../api/feeds', () => ({
   feedsQueryOptions: {
     queryKey: ['feeds'],
     queryFn: () => mockFeedsQueryFn(),
   },
-  feedsQueryOptionsFor: (params: unknown) => ({
-    queryKey: ['feeds', params],
-    queryFn: () => mockEpisodesQueryFn(),
-  }),
+  // Dispatches the way the real endpoint does: the projected request is a
+  // different query from the bare one, so the view gating is observable.
+  feedsQueryOptionsFor: (params: Record<string, unknown>) => {
+    feedsQueryParams.push(params);
+    return {
+      queryKey: ['feeds', params],
+      queryFn: () => (params.includeLatestEpisodes ? mockEpisodesQueryFn() : mockFeedsQueryFn()),
+    };
+  },
+  feedSortDirection: (sortBy: string) => (sortBy === 'title' ? 'asc' : 'desc'),
   refreshFeed: vi.fn(),
   refreshAllFeeds: vi.fn(),
   deleteFeed: vi.fn(),
@@ -205,13 +215,10 @@ describe('Dashboard search field', () => {
 
 describe('Dashboard delete confirmation', () => {
   it('warns that deleting stops the job when an episode is processing', async () => {
-    mockFeedsQueryFn.mockResolvedValueOnce({
-      feeds: [{
-        ...FEED,
-        statusCounts: { discovered: 0, pending: 0, processing: 1, completed: 0, failed: 0, permanently_failed: 0, deferred: 0 },
-      }],
-      lastRefreshCompletedAt: null,
-    });
+    mockFeedsQueryFn.mockResolvedValueOnce(page([{
+      ...FEED,
+      statusCounts: { discovered: 0, pending: 0, processing: 1, completed: 0, failed: 0, permanently_failed: 0, deferred: 0 },
+    }]));
     renderDashboard();
     await screen.findByText('Existing Feed');
 
@@ -301,24 +308,79 @@ describe('Dashboard Episodes view', () => {
     expect(screen.getByText('No episodes yet')).toBeTruthy();
   });
 
-  it('preserves sort when switching between Podcasts and Episodes views', async () => {
+  it('sends the sort to the server and renders the page in the order it came back', async () => {
     renderDashboard();
     await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Sort by title' }));
     await userEvent.click(screen.getByRole('button', { name: 'Episodes' }));
 
+    await screen.findByRole('heading', { name: 'Zulu Show' });
+    const projected = feedsQueryParams.filter((p) => p.includeLatestEpisodes);
+    expect(projected[projected.length - 1]).toMatchObject({ sortBy: 'title', sortDir: 'asc', page: 1 });
+    // Server order is kept verbatim: the page is not re-sorted in the browser.
     const headings = await screen.findAllByRole('heading', { level: 2 });
-    expect(headings.map((h) => h.textContent)).toEqual(['Alpha Show', 'Zulu Show']);
+    expect(headings.map((h) => h.textContent)).toEqual(['Zulu Show', 'Alpha Show']);
 
     await userEvent.click(screen.getByRole('button', { name: 'Podcasts' }));
     expect(JSON.parse(localStorage.getItem('dashboardSortBy') ?? '""')).toBe('title');
   });
 });
 
+describe('Dashboard feed pagination', () => {
+  beforeEach(() => {
+    mockFeedsQueryFn.mockClear();
+    mockEpisodesQueryFn.mockClear();
+    feedsQueryParams.length = 0;
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('dashboardView');
+    localStorage.removeItem('dashboardSortBy');
+    feedsQueryParams.length = 0;
+  });
+
+  it('requests a bounded page with the active sort', async () => {
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+
+    expect(feedsQueryParams.some((p) => p.limit === 24 && p.page === 1 && p.sortBy === 'recent'))
+      .toBe(true);
+  });
+
+  it('does not fetch the episode projection in Podcasts view', async () => {
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+
+    expect(mockEpisodesQueryFn).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch the bare feed list in Episodes view', async () => {
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+    mockFeedsQueryFn.mockClear();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Episodes' }));
+    await screen.findByRole('heading', { name: 'Zulu Show' });
+
+    expect(mockFeedsQueryFn).not.toHaveBeenCalled();
+  });
+
+  it('asks for the next page when the pager advances', async () => {
+    mockFeedsQueryFn.mockResolvedValue({ ...page([FEED]), total: 50, totalPages: 3 });
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    await waitFor(() => {
+      expect(feedsQueryParams.some((p) => p.page === 2)).toBe(true);
+    });
+    mockFeedsQueryFn.mockResolvedValue(page([FEED]));
+  });
+});
+
 describe('Dashboard episodes view: list continuity', () => {
-  const episodesResponse = {
-    feeds: [ZULU_FEED, ALPHA_FEED, RECENTS_FEED], lastRefreshCompletedAt: null,
-  };
+  const episodesResponse = page([ZULU_FEED, ALPHA_FEED, RECENTS_FEED]);
 
   afterEach(() => {
     localStorage.removeItem('dashboardView');

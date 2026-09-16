@@ -5,6 +5,7 @@ DATA_DIR and a master passphrase before importing main_app so the secrets
 store works.
 """
 import json
+import sqlite3
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +13,7 @@ import pytest
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('email_settings_test_', passphrase='email-settings-test-passphrase')
+import database
 from main_app import app
 
 BASE = '/api/v1/settings/notifications/email'
@@ -153,3 +155,35 @@ class TestEmailTestEndpoint:
         data = json.loads(response.data)
         assert data['success'] is False
         assert 'refused' in data['message']
+
+
+class TestEmailSaveAtomicity:
+    """PUT /settings/notifications/email applies the whole payload or none."""
+
+    def test_a_late_invalid_field_rolls_back_the_password(self, client):
+        _put(client, {'smtpPassword': ''})
+
+        response = _put(client, {'smtpPassword': 'hunter2', 'smtpPort': 0})
+
+        assert response.status_code == 400
+        assert json.loads(client.get(BASE).data)['smtpPasswordConfigured'] is False
+
+    def test_a_storage_failure_on_the_last_write_persists_nothing(self, client):
+        _put(client, {'smtpPassword': '', 'smtpHost': 'localhost', 'recipients': ''})
+        original = database.Database.set_setting
+
+        def failing_set_setting(self, key, value, is_default=False):
+            if key == 'email_recipients':
+                raise sqlite3.OperationalError('disk I/O error')
+            return original(self, key, value, is_default)
+
+        with patch.object(database.Database, 'set_setting', failing_set_setting):
+            response = _put(client, {'smtpPassword': 'hunter2',
+                                     'smtpHost': 'other-host',
+                                     'recipients': 'a@example.com'})
+
+        assert response.status_code == 500
+        data = json.loads(client.get(BASE).data)
+        assert data['smtpPasswordConfigured'] is False
+        assert data['smtpHost'] == 'localhost'
+        assert data['recipients'] == ''

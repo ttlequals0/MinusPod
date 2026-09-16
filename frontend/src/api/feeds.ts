@@ -141,6 +141,8 @@ export interface FeedsResponse {
   offset?: number;
 }
 
+export type FeedSortField = 'recent' | 'title';
+
 export interface GetFeedsParams {
   page?: number;
   limit?: number;
@@ -148,6 +150,10 @@ export interface GetFeedsParams {
   // query rather than one request per feed.
   includeLatestEpisodes?: boolean;
   episodesPerFeed?: number;
+  // Ordered server-side over the whole list before the page is sliced, so a
+  // page must never be re-sorted in the browser.
+  sortBy?: FeedSortField;
+  sortDir?: 'asc' | 'desc';
 }
 
 export async function getFeedsResponse(params?: GetFeedsParams): Promise<FeedsResponse> {
@@ -156,6 +162,8 @@ export async function getFeedsResponse(params?: GetFeedsParams): Promise<FeedsRe
     limit: params?.limit,
     includeLatestEpisodes: params?.includeLatestEpisodes,
     episodesPerFeed: params?.episodesPerFeed,
+    sortBy: params?.sortBy,
+    sortDir: params?.sortDir,
   });
   return apiRequest<FeedsResponse>(`/feeds${qs}`);
 }

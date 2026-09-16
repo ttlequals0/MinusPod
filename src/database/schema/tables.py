@@ -621,7 +621,13 @@ TABLE_DDL['llm_call_usage'] = """CREATE TABLE IF NOT EXISTS llm_call_usage (
     cost_source TEXT,
     rate_snapshot TEXT,
     pricing_revision TEXT,
-    state TEXT NOT NULL DEFAULT 'in_flight'
+    state TEXT NOT NULL DEFAULT 'in_flight',
+    -- SDK dispatches this attempt made, compatibility retries included, so
+    -- manual request caps count outbound requests rather than ledger rows.
+    dispatch_count INTEGER NOT NULL DEFAULT 1,
+    -- Tokens reserved at dispatch (prompt estimate + max_tokens); the TPM
+    -- cap reads this while the row is in flight and actual usage after.
+    reserved_tokens INTEGER
 )"""
 
 SCHEMA_SQL = """

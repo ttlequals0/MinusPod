@@ -3,6 +3,7 @@ import json
 import math
 import os
 import logging
+from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
 from dataclasses import dataclass
 from typing import Any
@@ -945,6 +946,46 @@ def iter_refreshable_defaults():
 class SettingsMixin:
     """Settings management methods."""
 
+    @contextmanager
+    def settings_transaction(self):
+        """Commit every settings write inside the block together, or none.
+
+        The writers below commit per call on the shared thread-local
+        connection; while this is open they join it instead, so a caller
+        applying a multi-field payload can roll the whole set back.
+        """
+        conn = self.get_connection()
+        if getattr(self._local, 'settings_txn', False):
+            yield conn
+            return
+        if conn.in_transaction:
+            logger.warning("Rolled back a leaked transaction before the settings transaction")
+            conn.rollback()
+        conn.execute("BEGIN IMMEDIATE")
+        self._local.settings_txn = True
+        try:
+            yield conn
+        except BaseException:
+            conn.rollback()
+            raise
+        else:
+            conn.commit()
+        finally:
+            self._local.settings_txn = False
+
+    def in_settings_transaction(self) -> bool:
+        """Whether this thread is inside settings_transaction()."""
+        return bool(getattr(self._local, 'settings_txn', False))
+
+    @contextmanager
+    def _settings_write(self):
+        """Connection for one settings write: the open settings transaction, else its own."""
+        if self.in_settings_transaction():
+            yield self.get_connection()
+            return
+        with self.transaction(immediate=True) as conn:
+            yield conn
+
     def get_setting(self, key: str) -> str | None:
         """Get a setting value."""
         conn = self.get_connection()
@@ -1082,12 +1123,13 @@ class SettingsMixin:
         """Set a setting value."""
         conn = self.get_connection()
         self._upsert_setting(conn, key, value, is_default)
-        conn.commit()
+        if not self.in_settings_transaction():
+            conn.commit()
 
     def get_or_create_setting(self, key: str, value: str,
                               is_default: bool = False) -> str:
         """Return the stored value, inserting ``value`` atomically if absent."""
-        with self.transaction(immediate=True) as conn:
+        with self._settings_write() as conn:
             row = conn.execute(
                 "SELECT value FROM settings WHERE key = ?", (key,)
             ).fetchone()
@@ -1099,7 +1141,7 @@ class SettingsMixin:
     def replace_setting_if_equal(self, key: str, expected: str,
                                  value: str) -> str:
         """Replace an expected value atomically and return the stored value."""
-        with self.transaction(immediate=True) as conn:
+        with self._settings_write() as conn:
             row = conn.execute(
                 "SELECT value FROM settings WHERE key = ?", (key,)
             ).fetchone()
@@ -1169,7 +1211,7 @@ class SettingsMixin:
         merging concurrently serialize instead of the second dropping the
         first's change. Returns the stored value.
         """
-        with self.transaction(immediate=True) as conn:
+        with self._settings_write() as conn:
             row = conn.execute(
                 "SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
             merged = merge_fn(row['value'] if row else None)
@@ -1180,7 +1222,8 @@ class SettingsMixin:
         """Delete a setting row outright so it reads as unset."""
         conn = self.get_connection()
         conn.execute("DELETE FROM settings WHERE key = ?", (key,))
-        conn.commit()
+        if not self.in_settings_transaction():
+            conn.commit()
 
     def clear_setting_if_equal(self, key: str, expected: str) -> bool:
         """Delete a setting row only while it still holds `expected`.

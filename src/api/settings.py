@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import os
+import sqlite3
 import threading
 import uuid
 from dataclasses import dataclass
@@ -86,7 +87,9 @@ from llm_route import (
     VALID_SLOTS, SAME_AS_DETECTION, SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY,
     resolved_stage_slot,
 )
-from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
+from tools.reviewer_calibration import (
+    calibration_revision, trigger_reviewer_calibration,
+)
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import modified_feed_url
 from utils.url import (
@@ -816,15 +819,75 @@ def get_settings():
     })
 
 
+class _PhaseRejected(Exception):
+    """A phase returned an error response; unwinds the settings transaction."""
+
+    def __init__(self, response):
+        super().__init__('settings phase rejected')
+        self.response = response
+
+
+# Post-commit ordering contract: caches are invalidated before holds lift, so
+# a resumed queue reads the configuration the save just committed.
+_POST_COMMIT_BUCKETS = ('side_effects', 'holds')
+_deferred = threading.local()
+
+
+def _after_commit(fn, bucket: str = 'side_effects'):
+    """Hold a phase side effect until the settings transaction commits.
+
+    Runs inline when no transaction is open, so a phase helper called
+    directly keeps its standalone behavior.
+    """
+    buckets = getattr(_deferred, 'buckets', None)
+    if buckets is None:
+        fn()
+        return
+    buckets[bucket].append(fn)
+
+
+def _run_post_commit(callbacks):
+    """Writes are already durable here, so a failing side effect must not 500."""
+    for fn in callbacks:
+        try:
+            fn()
+        except Exception:
+            logger.exception("Post-commit settings side effect failed")
+
+
+def _mark_whisper_for_reload():
+    """Next transcription reloads the Whisper model."""
+    try:
+        from transcriber import WhisperModelSingleton
+        WhisperModelSingleton.mark_for_reload()
+    except Exception as e:
+        logger.warning(f"Could not mark Whisper model for reload: {e}")
+
+
+def _refresh_whisper_pool():
+    """Pick up the committed pool/backend configuration."""
+    get_pool().refresh(force=True)
+
+
+def _rebuild_served_feeds():
+    """Re-render served feeds so a body-changing setting shows up now."""
+    from main_app.feeds import rebuild_all_served_feeds
+    try:
+        rebuild_all_served_feeds()
+    except Exception as e:
+        logger.warning(f"Served feed rebuild after a settings change failed: {e}")
+
+
 @api.route('/settings/ad-detection', methods=['PUT'])
 @log_request
 def update_ad_detection_settings():
     """Update ad detection settings.
 
-    Dispatches the payload through a sequence of phase helpers; each helper
-    handles a related slice of fields (prompts, model selection, numeric
-    clamps, provider gating, whisper config, etc.). Helpers return None on
-    success or a Flask response tuple to short-circuit with a 400/409.
+    Each phase helper applies a related slice of fields (prompts, model
+    selection, numeric clamps, provider gating, whisper config) and returns
+    None or a Flask error response. All phases run in one transaction, so a
+    rejection persists nothing; cache invalidation, hold clearing, and
+    reviewer calibration follow the commit.
     """
     data = request.get_json()
 
@@ -880,26 +943,28 @@ def update_ad_detection_settings():
     # model can carry entirely different limits (issue #747). Detect before
     # the phases persist the new values, lift the hold after they succeed.
     changed_stages = _changed_stage_models(db, data)
-    prev_review_model = db.get_setting('review_model')
-    prev_claude_model = db.get_setting('claude_model')
+    # Review route as stored now; the post-commit hook reruns the self-test
+    # only when this save moves it.
+    previous_calibration = calibration_revision()
 
-    for phase in phases:
-        err = phase(db, data)
-        if err is not None:
-            return err
-        # Each phase commits as it runs, so calibration follows its own phase:
-        # a later field's 400 would otherwise leave a saved review model that
-        # was never self-tested.
-        if phase is _apply_review_fields and 'reviewModel' in data:
-            maybe_trigger_reviewer_calibration(
-                db, prev_review_model, data['reviewModel'])
-        elif phase is _apply_model_fields and 'claudeModel' in data:
-            # review_model defaults to same_as_pass, so the detection model is
-            # the reviewer model until an explicit reviewer model is set.
-            review_model = db.get_setting('review_model')
-            if not review_model or review_model == 'same_as_pass':
-                maybe_trigger_reviewer_calibration(
-                    db, prev_claude_model, data['claudeModel'])
+    buckets = {name: [] for name in _POST_COMMIT_BUCKETS}
+    _deferred.buckets = buckets
+    try:
+        with db.settings_transaction():
+            for phase in phases:
+                err = phase(db, data)
+                if err is not None:
+                    raise _PhaseRejected(err)
+    except _PhaseRejected as rejected:
+        return rejected.response
+    except sqlite3.Error:
+        logger.exception("Settings save failed; no field was persisted")
+        return error_response('Settings could not be saved', 500)
+    finally:
+        _deferred.buckets = None
+
+    _run_post_commit(buckets['side_effects'])
+    _run_post_commit(buckets['holds'])
 
     # Routes resolved after the phases, so a save that also moves a stage
     # lifts the hold on the account it now uses.
@@ -912,6 +977,10 @@ def update_ad_detection_settings():
         clear_holds_for_provider_change(
             db, 'stage model changed', provider_keys,
             credential_slot=credential_slot)
+
+    # Last, so the self-test resolves its route from the committed settings
+    # rather than from a half-applied payload.
+    trigger_reviewer_calibration(db, previous_calibration)
 
     return json_response({'message': 'Settings updated'})
 
@@ -1031,12 +1100,7 @@ def _apply_model_fields(db, data):
     if 'whisperModel' in data:
         db.set_setting('whisper_model', data['whisperModel'], is_default=False)
         logger.info(f"Updated Whisper model to: {data['whisperModel']}")
-        # Trigger model reload on next transcription
-        try:
-            from transcriber import WhisperModelSingleton
-            WhisperModelSingleton.mark_for_reload()
-        except Exception as e:
-            logger.warning(f"Could not mark model for reload: {e}")
+        _after_commit(_mark_whisper_for_reload)
 
     if 'chaptersModel' in data:
         db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
@@ -1224,15 +1288,15 @@ def _apply_user_agent_fields(db, data):
             db.clear_setting(db_key)
             logger.info(f"Reset {db_key} to the default")
     if writes:
-        invalidate_user_agent_cache()
+        _after_commit(invalidate_user_agent_cache)
 
 
 def _clear_format_probes(db) -> None:
     """Forget every response_format probe answer, stored and in-process."""
     db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
     db.clear_setting(_JSON_SCHEMA_SETTING_KEY)
-    reset_schema_probe_memo()
-    invalidate_provider_cache()
+    _after_commit(reset_schema_probe_memo)
+    _after_commit(invalidate_provider_cache)
 
 
 def _apply_processing_flags(db, data):
@@ -1259,7 +1323,7 @@ def _apply_processing_flags(db, data):
         if changed:
             # Inheriting feeds 304-skip the rebuild that would hide or show
             # unprocessed episodes; force the next refresh to fetch in full.
-            db.clear_all_podcast_etags()
+            _after_commit(db.clear_all_podcast_etags)
         logger.info(f"Updated only-expose-processed default to: {value}")
 
     if 'detectShowSegments' in data:
@@ -1302,7 +1366,7 @@ def _apply_processing_flags(db, data):
         # The badge state is part of the cover URL token, and a steady feed
         # 304-skips the re-render that would move it, so apps would keep
         # fetching the old image. Same reason as the feed-auth clear below.
-        db.clear_all_podcast_etags()
+        _after_commit(db.clear_all_podcast_etags)
         logger.info(f"Updated artwork watermark to: {value}")
 
     if 'artworkBadgePosition' in data:
@@ -1311,7 +1375,7 @@ def _apply_processing_flags(db, data):
                 f'artworkBadgePosition must be one of: {", ".join(BADGE_POSITIONS)}', 400)
         db.set_setting('artwork_badge_position', data['artworkBadgePosition'],
                        is_default=False)
-        db.clear_all_podcast_etags()
+        _after_commit(db.clear_all_podcast_etags)
         logger.info(f"Updated artwork badge position to: {data['artworkBadgePosition']}")
 
     if 'lowAdYieldAction' in data:
@@ -1362,7 +1426,7 @@ def _apply_processing_flags(db, data):
             db.set_setting('feed_auth_enabled', value, is_default=False)
             # Clear conditional-GET validators so the scheduled refresher
             # cannot 304-skip re-rendering served feeds with the new state.
-            db.clear_all_podcast_etags()
+            _after_commit(db.clear_all_podcast_etags)
             logger.info(f"Updated feed auth to: {value}")
 
     if 'vttTranscriptsEnabled' in data:
@@ -1383,11 +1447,7 @@ def _apply_processing_flags(db, data):
         if changed:
             # Re-render now (local feeds included) rather than wait for a
             # scheduled refresh that would 304-skip the change.
-            from main_app.feeds import rebuild_all_served_feeds
-            try:
-                rebuild_all_served_feeds()
-            except Exception as e:
-                logger.warning(f"Served feed rebuild after chaptersInNotes change failed: {e}")
+            _after_commit(_rebuild_served_feeds)
 
     if 'omitTemperature' in data:
         value = 'true' if data['omitTemperature'] else 'false'
@@ -1717,7 +1777,7 @@ def _apply_transcribe_chunk_fields(db, data):
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
     if pool_touched:
-        get_pool().refresh(force=True)
+        _after_commit(_refresh_whisper_pool)
     return None
 
 
@@ -1742,10 +1802,10 @@ def _base_url_error(value, label):
 
 
 def _validate_provider_payload(data):
-    """Reject provider fields before any applier writes.
+    """Reject provider and endpoint fields before the settings transaction.
 
-    The secondary applier runs first, so a rejection inside the primary one
-    would leave the secondary block persisted and its hold lifted.
+    Endpoint checks resolve DNS, so they run here rather than in a phase:
+    the transaction holds the SQLite write lock while the phases run.
     """
     if 'llmProvider' in data and data['llmProvider'] not in VALID_LLM_PROVIDERS:
         return error_response(
@@ -1772,6 +1832,11 @@ def _validate_provider_payload(data):
             error = _base_url_error(value, 'secondary provider base URL')
             if error is not None:
                 return error
+    if data.get('whisperApiBaseUrl'):
+        # GET /settings echoes this URL back, so userinfo in it would leak.
+        error = _base_url_error(data['whisperApiBaseUrl'], 'whisper API base URL')
+        if error is not None:
+            return error
     return None
 
 
@@ -1823,79 +1888,89 @@ def _apply_provider_fields(db, data):
         credentials_changed = True
 
     if credentials_changed:
-        clear_holds_for_provider_change(
-            db, 'LLM provider settings changed', affected_providers)
+        _after_commit(
+            lambda: clear_holds_for_provider_change(
+                db, 'LLM provider settings changed', affected_providers),
+            bucket='holds')
 
     if provider_changed:
         # Clear the cached probe answers so the new endpoint gets re-probed:
         # a stored false against a model name the new endpoint also serves
         # would otherwise pin it to the fallback format forever.
         _clear_format_probes(db)
-        client = get_llm_client(force_new=True)
-        if hasattr(client, 'probe_json_format_support'):
-            client.probe_json_format_support()
-        threading.Thread(target=force_refresh_pricing, daemon=True).start()
-
-        # Prune saved model IDs that the new provider does not advertise so
-        # selections from a prior catalog (e.g. OpenRouter-style tags
-        # carrying into Ollama Cloud) do not survive the switch and fail at
-        # request time with not_found_error.
-        #
-        # The SDKs swallow auth 401, network 5xx, and unreachable-host
-        # errors and return []. Treating an empty list as "every prior
-        # model is invalid" wiped claude_model, verification_model, and
-        # chapters_model on any provider save with a misconfigured key.
-        try:
-            advertised = {m.id for m in client.list_models()}
-        except ValueError as e:
-            logger.info("Provider catalog unavailable after switch: %s", e)
-            advertised = set()
-        except Exception:
-            logger.exception("Failed to fetch model catalog after provider change")
-            advertised = set()
-        if advertised:
-            # An ID written by THIS request is operator intent, not stale
-            # carryover from the previous provider, and off-catalog IDs are
-            # exactly what the typed-model-ID entry exists for (proxies,
-            # private deployments). The prune only targets settings the
-            # request did not touch.
-            # Cleared review_model reads back as its registry default
-            # same_as_pass, so the reviewer falls back to the pass model.
-            explicit = {
-                'claude_model': ('claudeModel', 'detection'),
-                'verification_model': ('verificationModel', 'verification'),
-                'chapters_model': ('chaptersModel', 'chapters'),
-                'review_model': ('reviewModel', 'review'),
-            }
-            for setting_key, (json_key, stage) in explicit.items():
-                if json_key in data:
-                    continue
-                # advertised is the NEW global provider's catalog; a stage
-                # routed elsewhere by its own provider override never used
-                # that catalog, so its saved model must not be judged by it.
-                if not _stage_follows_global_provider(db, stage):
-                    continue
-                current = db.get_setting(setting_key)
-                # review_model's same_as_pass sentinel is never a catalog entry.
-                if current and current != 'same_as_pass' and current not in advertised:
-                    logger.info(
-                        "Clearing %s='%s' on provider change: not advertised by new provider",
-                        setting_key, current,
-                    )
-                    db.clear_setting(setting_key)
-        else:
-            logger.warning(
-                "Skipping model prune after provider change: new provider's "
-                "catalog probe returned empty (likely auth or network failure)"
-            )
+        _after_commit(lambda: _probe_and_prune_after_provider_change(db, data))
     # The TTL cache backing get_effective_base_url / get_effective_provider
     # lags writes by up to 5s. Without this invalidation, the GET /settings
     # response that fires right after this PUT returns the pre-write value,
     # the UI re-hydrates state to the stale value, hasChanges flips back to
-    # false, and the Save Changes button vanishes -- see issue #234.
-    from llm_client import invalidate_provider_cache
-    invalidate_provider_cache()
+    # false, and the Save Changes button vanishes (issue #234).
+    _after_commit(invalidate_provider_cache)
     return None
+
+
+def _probe_and_prune_after_provider_change(db, data):
+    """Re-probe the committed endpoint and drop models it does not advertise.
+
+    Runs after the transaction: the probe and catalog call must see the
+    provider, endpoint, and key this save committed, not the previous ones.
+    """
+    client = get_llm_client(force_new=True)
+    if hasattr(client, 'probe_json_format_support'):
+        client.probe_json_format_support()
+    threading.Thread(target=force_refresh_pricing, daemon=True).start()
+
+    # Prune saved model IDs that the new provider does not advertise so
+    # selections from a prior catalog (e.g. OpenRouter-style tags
+    # carrying into Ollama Cloud) do not survive the switch and fail at
+    # request time with not_found_error.
+    #
+    # The SDKs swallow auth 401, network 5xx, and unreachable-host
+    # errors and return []. Treating an empty list as "every prior
+    # model is invalid" wiped claude_model, verification_model, and
+    # chapters_model on any provider save with a misconfigured key.
+    try:
+        advertised = {m.id for m in client.list_models()}
+    except ValueError as e:
+        logger.info("Provider catalog unavailable after switch: %s", e)
+        advertised = set()
+    except Exception:
+        logger.exception("Failed to fetch model catalog after provider change")
+        advertised = set()
+    if advertised:
+        # An ID written by THIS request is operator intent, not stale
+        # carryover from the previous provider, and off-catalog IDs are
+        # exactly what the typed-model-ID entry exists for (proxies,
+        # private deployments). The prune only targets settings the
+        # request did not touch.
+        # Cleared review_model reads back as its registry default
+        # same_as_pass, so the reviewer falls back to the pass model.
+        explicit = {
+            'claude_model': ('claudeModel', 'detection'),
+            'verification_model': ('verificationModel', 'verification'),
+            'chapters_model': ('chaptersModel', 'chapters'),
+            'review_model': ('reviewModel', 'review'),
+        }
+        for setting_key, (json_key, stage) in explicit.items():
+            if json_key in data:
+                continue
+            # advertised is the NEW global provider's catalog; a stage
+            # routed elsewhere by its own provider override never used
+            # that catalog, so its saved model must not be judged by it.
+            if not _stage_follows_global_provider(db, stage):
+                continue
+            current = db.get_setting(setting_key)
+            # review_model's same_as_pass sentinel is never a catalog entry.
+            if current and current != 'same_as_pass' and current not in advertised:
+                logger.info(
+                    "Clearing %s='%s' on provider change: not advertised by new provider",
+                    setting_key, current,
+                )
+                db.clear_setting(setting_key)
+    else:
+        logger.warning(
+            "Skipping model prune after provider change: new provider's "
+            "catalog probe returned empty (likely auth or network failure)"
+        )
 
 
 def _apply_secondary_provider_fields(db, data):
@@ -1950,12 +2025,15 @@ def _apply_secondary_provider_fields(db, data):
         changed = True
 
     if changed:
-        invalidate_provider_cache()
+        _after_commit(invalidate_provider_cache)
         # No secondary type configured: nothing to lift, and a null provider
         # would target the unscoped blanket marker, which may be primary's.
-        clear_holds_for_provider_change(
-            db, 'secondary provider settings changed',
-            [p for p in affected_providers if p], credential_slot='secondary')
+        known = [p for p in affected_providers if p]
+        _after_commit(
+            lambda: clear_holds_for_provider_change(
+                db, 'secondary provider settings changed', known,
+                credential_slot='secondary'),
+            bucket='holds')
     return None
 
 
@@ -1969,17 +2047,10 @@ def _apply_whisper_fields(db, data):
             )
         db.set_setting('whisper_backend', data['whisperBackend'], is_default=False)
         logger.info(f"Updated whisper backend to: {data['whisperBackend']}")
-        get_pool().refresh(force=True)
+        _after_commit(_refresh_whisper_pool)
 
     if 'whisperApiBaseUrl' in data:
-        if data['whisperApiBaseUrl']:
-            # GET /settings echoes this URL back, so userinfo in it would leak.
-            if url_has_userinfo(data['whisperApiBaseUrl']):
-                return json_response({'error': BASE_URL_USERINFO_ERROR}, 400)
-            try:
-                validate_base_url(data['whisperApiBaseUrl'])
-            except SSRFError as e:
-                return json_response({'error': f'Invalid whisper API base URL: {e}'}, 400)
+        # Checked by _validate_provider_payload before the transaction opens.
         db.set_setting('whisper_api_base_url', data['whisperApiBaseUrl'], is_default=False)
         logger.info(f"Updated whisper API base URL to: {data['whisperApiBaseUrl']}")
 
@@ -2013,12 +2084,7 @@ def _apply_whisper_fields(db, data):
                 {'error': f'whisperComputeType must be one of: {", ".join(WHISPER_COMPUTE_TYPES)}'}, 400
             )
         db.set_setting('whisper_compute_type', ct_val, is_default=False)
-        # Trigger model reload on next transcription so the new compute type takes effect.
-        try:
-            from transcriber import WhisperModelSingleton
-            WhisperModelSingleton.mark_for_reload()
-        except Exception:
-            logger.exception("Failed to mark Whisper model for reload after compute_type change")
+        _after_commit(_mark_whisper_for_reload)
         logger.info(f"Updated whisper compute type to: {ct_val}")
 
     if 'skipFlacCompression' in data:
@@ -3013,26 +3079,36 @@ def update_retention_settings():
         return error_response('retentionDays is required', 400)
 
     days = data['retentionDays']
-    if not isinstance(days, int) or days < 0 or days > 3650:
+    if not isinstance(days, int) or isinstance(days, bool) or days < 0 or days > 3650:
         return error_response('retentionDays must be an integer between 0 and 3650', 400)
 
-    db = get_database()
-    db.set_setting('retention_days', str(days), is_default=False)
-    logger.info(f"Updated retention_days to {days}")
-
+    # Stage the whole payload before writing: a bad optional field must not
+    # leave retention_days persisted behind a 400.
+    staged = {'retention_days': str(days)}
     # original_retention_days is optional; absent => match retention_days.
     original_days = days  # response default
     if 'originalRetentionDays' in data:
         original = data['originalRetentionDays']
-        if not isinstance(original, int) or original < 1 or original > 3650:
+        if (not isinstance(original, int) or isinstance(original, bool)
+                or original < 1 or original > 3650):
             return error_response(
                 'originalRetentionDays must be an integer between 1 and 3650', 400
             )
         # Clamp; never let original outlive processed.
         original_days = _clamp_original_retention(days, original)
-        db.set_setting(
-            'original_retention_days', str(original_days), is_default=False
-        )
+        staged['original_retention_days'] = str(original_days)
+
+    db = get_database()
+    try:
+        with db.settings_transaction():
+            for key, value in staged.items():
+                db.set_setting(key, value, is_default=False)
+    except sqlite3.Error:
+        logger.exception("Retention save failed; no field was persisted")
+        return error_response('Settings could not be saved', 500)
+
+    logger.info(f"Updated retention_days to {days}")
+    if 'original_retention_days' in staged:
         logger.info(f"Updated original_retention_days to {original_days}")
 
     return json_response({
@@ -3581,8 +3657,8 @@ def update_email_notification_settings():
     """Update email notification settings.
 
     Partial body; smtpPassword is write-only (empty string clears it).
-    Two-phase staged validation so a late 400 never leaves earlier fields
-    persisted.
+    Validation stages every field first and one transaction applies them, so
+    neither a late 400 nor a failed write leaves part of the payload saved.
     """
     db = get_database()
     data = request.get_json() or {}
@@ -3655,15 +3731,25 @@ def update_email_notification_settings():
                 )
         staged['email_enabled'] = 'true' if enabled else 'false'
 
-    if 'smtpPassword' in data:
-        try:
-            set_or_clear_secret(db, 'email_smtp_password', data['smtpPassword'])
-        except SecretWriteRejected:
-            return error_response('provider_crypto_unavailable', 409)
-        logger.info("Updated SMTP password")
+    try:
+        with db.settings_transaction():
+            if 'smtpPassword' in data:
+                try:
+                    set_or_clear_secret(db, 'email_smtp_password', data['smtpPassword'])
+                except SecretWriteRejected:
+                    raise _PhaseRejected(
+                        error_response('provider_crypto_unavailable', 409)) from None
+            for key, value in staged.items():
+                db.set_setting(key, value, is_default=False)
+    except _PhaseRejected as rejected:
+        return rejected.response
+    except sqlite3.Error:
+        logger.exception("Email settings save failed; no field was persisted")
+        return error_response('Settings could not be saved', 500)
 
-    for key, value in staged.items():
-        db.set_setting(key, value, is_default=False)
+    if 'smtpPassword' in data:
+        logger.info("Updated SMTP password")
+    # Read back after the commit so the response reflects durable state.
     return _email_settings_response(db)
 
 
@@ -3898,9 +3984,8 @@ def update_db_backup_settings():
     db = get_database()
     data = request.get_json() or {}
 
-    # Two-phase: validate every present field into a staged dict first, so a
-    # later validation failure (e.g. a bad dest) never leaves earlier fields
-    # persisted while the response is a 400.
+    # Stage every present field first, then commit the set together: neither
+    # a late 400 nor a failed write may persist part of the payload.
     staged = {}
     if 'enabled' in data:
         staged['db_backup_enabled'] = 'true' if bool(data['enabled']) else 'false'
@@ -3926,8 +4011,15 @@ def update_db_backup_settings():
             return error_response(str(e), 400)
         staged['db_backup_dest'] = dest
 
-    for key, value in staged.items():
-        db.set_setting(key, value)
+    try:
+        with db.settings_transaction():
+            for key, value in staged.items():
+                db.set_setting(key, value)
+    except sqlite3.Error:
+        logger.exception("DB backup settings save failed; no field was persisted")
+        return error_response('Settings could not be saved', 500)
+
+    # Read back after the commit so the response reflects durable state.
     return get_db_backup_settings()
 
 

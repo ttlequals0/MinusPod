@@ -124,14 +124,15 @@ from llm_capabilities import (
 from llm_client import (
     is_retryable_error, is_llm_api_error, is_rate_limit_error,
     is_limit_exceeded_error, is_auth_error, LimitExceededError,
-    ProviderRateLimitedError,
+    ProviderAccountChangedError, ProviderRateLimitedError,
     start_episode_token_tracking, get_episode_token_totals,
     get_effective_provider,
 )
 from database.queue import compute_queue_priority
-from llm_route import resolve_route
+from llm_route import resolve_route, route_account_mismatch
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
+    HOLD_REASON_ACCOUNT_CHANGED, HOLD_REASON_PAUSED, active_hold_reason,
     enforce_provider_rate_limit, get_active_hold, hold_message,
     hold_queue_for_provider_limit, is_queue_paused, resolve_hold_scope,
 )
@@ -4971,13 +4972,13 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
 
 def _requeue_episode_after_hold(db, slug, episode_id, episode_title,
-                                episode_data, hold_until, error):
-    """Send a rate-limit-held episode back to PENDING, keeping its queue
-    position. Shared by real-429 and manual-cap defers (#696, #747)."""
+                                episode_data, hold_until, error, message=None):
+    """Send a held episode back to PENDING, keeping its queue position.
+    Shared by real-429, manual-cap, and account-change defers (#696, #747)."""
     db.upsert_episode(
         slug, episode_id,
         status=EpisodeStatus.PENDING.value,
-        error_message=hold_message(hold_until, error),
+        error_message=message or hold_message(hold_until, error),
     )
     # Release the claimed queue row in place so the episode keeps its
     # priority and position. A run started outside the queue processor
@@ -5021,6 +5022,23 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up GPU memory: {cleanup_err}")
 
     _publish_status('fail_job', slug, episode_id)
+
+    # Provider account change: this run's routes were frozen against an
+    # account the operator has since replaced, so its endpoint and the slot's
+    # current key no longer belong together. Requeue and drop the frozen
+    # routes; the next attempt resolves against the new configuration.
+    ctx = run_context.current()
+    account_changed = isinstance(error, ProviderAccountChangedError) or bool(
+        _stale_snapshot_phases(ctx.route_snapshot if ctx else None))
+    if account_changed:
+        clear_route_snapshot(ctx.run_id if ctx else None)
+        _requeue_episode_after_hold(
+            db, slug, episode_id, episode_title, episode_data, None, error,
+            message=f"Requeued ({HOLD_REASON_ACCOUNT_CHANGED}): {error}")
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Provider account changed mid-run; requeued "
+            f"to re-resolve routes")
+        return
 
     # Rate-limit hold (#696): a 429 with a reset sends the episode back to
     # the queue and pauses new starts until the reset. Runs before the
@@ -5254,6 +5272,26 @@ def _required_providers_for_admission(slug: str, episode_id: str | None = None,
     scanning many feeds in one pass pass `snapshot` and `gates` in, since
     neither varies by feed, and `queue_row` so the mode needs no lookup.
     """
+    active_phases = _active_phases_for_admission(
+        slug, episode_id, snapshot=snapshot, gates=gates, queue_row=queue_row)
+    if active_phases is None:
+        return None
+    return list({(route['provider_key'], route.get('credential_slot', 'primary'))
+                 for route in active_phases.values()})
+
+
+def _active_phases_for_admission(slug: str, episode_id: str | None = None,
+                                 snapshot: dict | None = None,
+                                 gates: dict | None = None,
+                                 queue_row: dict | None = None
+                                 ) -> dict | None:
+    """{phase: route} for the phases this run's configuration actually
+    enables, or None when the routes cannot be resolved.
+
+    The phase-keyed form of _required_providers_for_admission, so a caller
+    that must name the blocked phase (the queue admission explanation) reads
+    the same resolved set admission itself gates on.
+    """
     ctx = run_context.current()
     if snapshot is None:
         snapshot = (ctx.route_snapshot if ctx else None) or _resolve_route_snapshot()
@@ -5268,7 +5306,7 @@ def _required_providers_for_admission(slug: str, episode_id: str | None = None,
             settings_db, slug, episode_id, queue_row)
         mode = resolve_processing_mode(podcast_row, episode_row)
         if mode == PROCESSING_MODE_PASSTHROUGH:
-            return []
+            return {}
         if mode in (PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY):
             # Both modes skip detection, review and verification outright, so
             # chapters is the only phase left that can reach an LLM.
@@ -5285,8 +5323,62 @@ def _required_providers_for_admission(slug: str, episode_id: str | None = None,
         # provider as required is the safe direction, a crash here is not.
         audio_logger.warning(f"Could not resolve phase enablement for admission: {exc}")
         active_phases = dict(snapshot)
-    return list({(route['provider_key'], route.get('credential_slot', 'primary'))
-                 for route in active_phases.values()})
+    return active_phases
+
+
+# Pipeline order, so an explanation names the phase a run reaches first.
+_ADMISSION_PHASE_ORDER = ('detection', 'review', 'verification', 'chapters')
+
+
+def admission_explanation(settings_db, slug: str, episode_id: str | None = None,
+                          snapshot: dict | None = None, gates: dict | None = None,
+                          queue_row: dict | None = None, paused: bool | None = None,
+                          hold_cache: dict | None = None) -> dict:
+    """Why a queued job is or is not admissible right now.
+
+    {'blocked', 'phase', 'slot', 'reason', 'resumesAt'}: computed from the
+    same resolved phase set admission gates on, so a phase this run will not
+    run (a skipped verification, chapters turned off) never appears as the
+    blocker. `paused` and `hold_cache` let a caller scoring a whole page of
+    rows read each hold marker once instead of once per row.
+    """
+    idle = {'blocked': False, 'phase': None, 'slot': None,
+            'reason': None, 'resumesAt': None}
+    if paused if paused is not None else is_processing_paused(settings_db):
+        return {'blocked': True, 'phase': None, 'slot': None,
+                'reason': HOLD_REASON_PAUSED, 'resumesAt': None}
+
+    def hold_for(provider_key, slot):
+        if hold_cache is None:
+            return active_hold_reason(settings_db, provider_key, slot)
+        key = (provider_key, slot)
+        if key not in hold_cache:
+            hold_cache[key] = active_hold_reason(settings_db, provider_key, slot)
+        return hold_cache[key]
+
+    active_phases = _active_phases_for_admission(
+        slug, episode_id, snapshot=snapshot, gates=gates, queue_row=queue_row)
+    if active_phases is None:
+        # Routes unresolved: admission falls back to the unscoped marker, so
+        # report that same blanket hold rather than claiming a phase.
+        reason, resumes_at = hold_for(None, 'primary')
+        if reason is None:
+            return idle
+        return {'blocked': True, 'phase': None, 'slot': None,
+                'reason': reason, 'resumesAt': resumes_at}
+    for phase in _ADMISSION_PHASE_ORDER:
+        route = active_phases.get(phase)
+        if route is None:
+            continue
+        slot = route.get('credential_slot', 'primary')
+        if route_account_mismatch(route) is not None:
+            return {'blocked': True, 'phase': phase, 'slot': slot,
+                    'reason': HOLD_REASON_ACCOUNT_CHANGED, 'resumesAt': None}
+        reason, resumes_at = hold_for(route['provider_key'], slot)
+        if reason is not None:
+            return {'blocked': True, 'phase': phase, 'slot': slot,
+                    'reason': reason, 'resumesAt': resumes_at}
+    return idle
 
 
 def _resolve_route_snapshot() -> dict | None:
@@ -5325,11 +5417,97 @@ def _resolve_route_snapshot() -> dict | None:
         route.phase: {
             'provider_key': route.provider_key, 'configured_model': route.model_id,
             'base_url': route.base_url, 'credential_slot': route.credential_slot,
+            # Non-secret account identity (provider type + endpoint), so a
+            # later call can refuse to pair this endpoint with a key that now
+            # belongs to a different account.
+            'account_id': route.account_id,
         }
         for route in (detection, review, verification, chapters)
     }
     snapshot['review']['gate'] = review_gate
     return snapshot
+
+
+def _stale_snapshot_phases(snapshot: dict | None) -> list[tuple[str, str, str | None]]:
+    """(phase, credential_slot, current_account_id) for every phase whose
+    frozen account no longer matches its slot's configuration."""
+    stale = []
+    for phase, route in (snapshot or {}).items():
+        if not isinstance(route, dict):
+            continue
+        mismatch = route_account_mismatch(route)
+        if mismatch is not None:
+            stale.append((phase, route.get('credential_slot', 'primary'), mismatch[1]))
+    return stale
+
+
+def _assert_route_snapshot_current(snapshot: dict | None) -> None:
+    """Refuse to start or resume on routes frozen against a replaced account.
+
+    A recovered run reloads its persisted snapshot, so without this it would
+    spend calls pairing the old endpoint with the slot's new credential.
+    """
+    stale = _stale_snapshot_phases(snapshot)
+    if not stale:
+        return
+    phase, slot, current = stale[0]
+    raise ProviderAccountChangedError(
+        f"{slot} provider account changed since this run resolved its "
+        f"{phase} route",
+        credential_slot=slot, phase=phase,
+        expected_account_id=(snapshot or {}).get(phase, {}).get('account_id'),
+        current_account_id=current)
+
+
+def clear_route_snapshot(run_id: str | None) -> None:
+    """Drop a run's persisted routes so its next attempt resolves fresh."""
+    if not run_id:
+        return
+    try:
+        conn = db.get_connection()
+        conn.execute(
+            "UPDATE processing_runs SET route_snapshot_json = NULL WHERE run_id = ?",
+            (run_id,),
+        )
+        conn.commit()
+    except Exception as exc:
+        audio_logger.warning(f"Could not clear route snapshot for run {run_id}: {exc}")
+
+
+def runs_for_account(account_id: str, credential_slot: str) -> list[dict]:
+    """Active runs whose frozen routes name this (slot, account) pair.
+
+    The rows a provider-account change strands: their endpoint belongs to the
+    old account while the slot's key now belongs to the new one.
+    """
+    try:
+        rows = db.get_connection().execute(
+            """SELECT r.run_id, r.episode_id, r.state, r.route_snapshot_json,
+                      p.slug
+               FROM processing_runs r
+               JOIN podcasts p ON p.id = r.podcast_id
+               WHERE r.state IN ('running', 'cancel_requested')
+                 AND r.route_snapshot_json IS NOT NULL""",
+        ).fetchall()
+    except Exception as exc:
+        audio_logger.warning(f"Could not list runs for account {account_id}: {exc}")
+        return []
+    affected = []
+    for row in rows:
+        try:
+            snapshot = json.loads(row['route_snapshot_json'])
+        except (TypeError, ValueError):
+            continue
+        phases = sorted(
+            phase for phase, route in (snapshot or {}).items()
+            if isinstance(route, dict)
+            and route.get('account_id') == account_id
+            and route.get('credential_slot', 'primary') == credential_slot)
+        if phases:
+            affected.append({'runId': row['run_id'], 'slug': row['slug'],
+                             'episodeId': row['episode_id'],
+                             'state': row['state'], 'phases': phases})
+    return affected
 
 
 def _resolve_or_load_route_snapshot(run_id: str | None) -> dict | None:
@@ -5376,6 +5554,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         _check_cancel(cancel_event, slug, episode_id, run_id)
 
     route_snapshot = _resolve_or_load_route_snapshot(run_id)
+    _assert_route_snapshot_current(route_snapshot)
     if ctx is not None and route_snapshot is not None:
         ctx.set_route_snapshot(route_snapshot)
 

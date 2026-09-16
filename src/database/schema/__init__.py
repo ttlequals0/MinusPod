@@ -580,6 +580,13 @@ class SchemaMixin:
                 "CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_slot_created "
                 "ON llm_call_usage(provider_key, credential_slot, created_at DESC)"
             )
+        # dispatch_count/reserved_tokens: manual caps count SDK dispatches and
+        # reserve an in-flight token estimate (#747).
+        self._add_column_if_missing(
+            conn, 'llm_call_usage', 'dispatch_count',
+            'INTEGER NOT NULL DEFAULT 1', llm_usage_cols)
+        self._add_column_if_missing(
+            conn, 'llm_call_usage', 'reserved_tokens', 'INTEGER', llm_usage_cols)
         conn.commit()
         marker = 'scope_pattern_corrections_podcast_once'
         if (self._table_exists(conn, 'episodes')
