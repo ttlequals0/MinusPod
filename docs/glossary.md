@@ -118,6 +118,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Offline queue** - An opt-in hold that parks an episode when the LLM provider or Whisper endpoint is unreachable, probes the service every few minutes, and re-queues the episode once it answers. It does not stop the queue: everything not waiting on that service keeps processing. [Configuration > Offline Queue](configuration.md#offline-queue)
 
+**Opening window exclusion** - A global or per-feed number of seconds at the start of an episode during which ad markers are ignored, so a show's opening cue is not cut as an ad. [Configuration > Detection Tuning](configuration.md#opening-window-exclusion)
+
 **Outbound Requests** - The settings section holding the two User-Agent strings MinusPod sends: one for audio, artwork, and chapters, one for RSS. Editable so a host that starts refusing ours can be worked around without a new release. [Configuration > Outbound Requests](configuration.md#outbound-requests)
 
 ## P

@@ -105,6 +105,10 @@ A held standalone catch carries a `verification_miss` hold reason and shows a "V
 
 Raise the correlation ceiling if genuine ad swaps are being missed as alignment noise, or lower it if identical-content regions are surfacing as false differential candidates. Raise the hold minimum length if short re-roll noise is showing up as holds; lower it (or disable it) if a feed's shortest DAI fills are being dropped before you get a chance to review them. See [Cross-Fetch Differential](how-it-works.md#cross-fetch-differential) for how these gates fit into the stage, including how audio cue templates corroborate candidates independently of both settings.
 
+#### Opening window exclusion
+
+`adDetectionExcludeStartSeconds` (Settings > Ad Detection, 0 to 600 s, default 0) ignores any ad marker that begins inside the first N seconds of an episode, so a show's opening cue is not mistaken for an ad break. The exclusion applies to the first pass, cue pairs, and the verification pass. Each feed can inherit the global value, disable it with 0, or set its own 1 to 600 s window (`adDetectionExcludeStartOverride` in Feed Settings). A marker that starts inside the window is not cut; markers that start at or after the boundary are handled normally. The setting takes effect on the next process or reprocess.
+
 ### Tuning LLM behavior per stage
 
 Each LLM pass can be tuned independently from Settings. The five passes:

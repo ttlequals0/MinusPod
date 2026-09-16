@@ -899,6 +899,16 @@ paths:
                   minimum: 1.0
                   maximum: 3600.0
                   description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap (global MAX_AD_DURATION constants apply).
+                adDetectionExcludeStartOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 0.0
+                  maximum: 600.0
+                  description: >-
+                    Per-feed opening window in seconds during which ad markers are ignored.
+                    null inherits adDetectionExcludeStartSeconds, 0 disables it for the feed,
+                    1 to 600 sets the feed's own window.
                 maxAdDurationRejectOverride:
                   type:
                     - number
@@ -11105,6 +11115,16 @@ components:
           minimum: 1.0
           maximum: 3600.0
           description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap.
+        adDetectionExcludeStartOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 0.0
+          maximum: 600.0
+          description: >-
+            Per-feed opening window in seconds during which ad markers are ignored.
+            null inherits adDetectionExcludeStartSeconds, 0 disables it for the feed,
+            1 to 600 sets the feed's own window.
         maxAdDurationRejectOverride:
           type:
             - number
