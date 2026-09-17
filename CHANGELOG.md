@@ -9,10 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.97.6] - 2026-09-17
 
 ### Fixed
 
+- The low-ad-yield action also runs when a run ends through the pass-2 auto-approve recut. That exit returned before the yield check, so a run that auto-approved a corroborated hold never queued its rerun, however little it removed. One such run removed 121 s against a 563 s feed average and was skipped.
+- A hold placed because the reviewer's trim disagreed with a measured member (`reviewer_boundary_conflict`) is now auto-approved when pass 2 independently re-detects the span, the same as the other corroborated holds. Pass 2 had re-found two such spans at 0.98 and 0.9 confidence and dropped both as overlapping a held span, so the episode shipped with 2 of its 4 ads still in it. Only covering the held span corroborates this reason: the trim the hold recorded is the one that crossed the measured member, so a pass-2 ad agreeing with that trim does not release the hold.
+- A count that opens an ad reason ("Two consecutive cross-promotion ads") is no longer taken as the sponsor. One such reason created two patterns for a sponsor named "Two".
+- On the episode page the appended chapter list is rendered as its own block below the description. The blank-line join between the two never showed on the page: the description renderer treats whitespace between block tags as insignificant and collapsed it to a single line break.
 - Word timestamps from an OpenAI-compatible transcription server are read again. The verbose_json spec returns them in a top-level `words` array, but the remote parser only looked for them nested inside each segment, so a spec-compliant server (OpenVINO Model Server, OpenAI itself) returned a full transcript with the words dropped. Boundary refinement was then skipped with a "no word timestamps" warning. The words are now folded into the segment covering each one. The in-process faster-whisper path, which already nests them, is unchanged.
 
 ### Changed

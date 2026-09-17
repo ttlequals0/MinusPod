@@ -1046,11 +1046,16 @@ function EpisodeDetail() {
           </div>
         )}
 
-        {(episode.description || episode.chapterNotes) && (
+        {/* One block each: RichText collapses whitespace between block tags. */}
+        {episode.description?.trim() && (
           <RichText
-            html={[episode.description, episode.chapterNotes]
-              .filter((s): s is string => !!s && s.trim().length > 0)
-              .join('\n\n')}
+            html={episode.description}
+            className="mt-4 block text-muted-foreground wrap-break-word"
+          />
+        )}
+        {episode.chapterNotes?.trim() && (
+          <RichText
+            html={episode.chapterNotes}
             className="mt-4 block text-muted-foreground wrap-break-word"
           />
         )}

@@ -9,6 +9,7 @@ from config import (
     HOLD_REASON_VERIFICATION_MISS,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_PROPOSED_IOU,
+    PASS2_COVERAGE_ONLY_HOLD_REASONS,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
 )
@@ -64,7 +65,10 @@ def _proposed_span_agrees(hold, orig_ad):
     and the pass-2 ad names essentially the same audio (IoU of the two
     sub-spans at or above PASS2_AUTOAPPROVE_PROPOSED_IOU). Two independent
     signals agreeing on a sub-span corroborates regardless of how much of
-    the (padded) hold either one covers."""
+    the (padded) hold either one covers. Reasons in
+    PASS2_COVERAGE_ONLY_HOLD_REASONS never take this path."""
+    if hold.get('hold_reason') in PASS2_COVERAGE_ONLY_HOLD_REASONS:
+        return False
     p_start = hold.get('reviewer_proposed_start')
     p_end = hold.get('reviewer_proposed_end')
     if p_start is None or p_end is None or p_end <= p_start:

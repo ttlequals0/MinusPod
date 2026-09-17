@@ -19,6 +19,9 @@ from utils.constants import mentions_advertising  # noqa: E402
 # (reason, accepted answers). A tuple allows both the prose and the domain
 # spelling of a brand, which are equally defensible labels.
 CORPUS = [
+    ("Two consecutive cross-promotion ads: Kettering Foundation podcast "
+     "(host-read with URL) and This Guy Sucked podcast",
+     ('Kettering Foundation', 'Kettering')),
     ("Host self-promo block: Patreon.com/TheShow, TheShowStore.com, and "
      "HostName.com tour dates call to action", ('Patreon',)),
     ("Orphaned ad-break lead-in 'We'll be right back' immediately before a "
