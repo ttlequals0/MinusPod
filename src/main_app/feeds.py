@@ -602,8 +602,11 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
     try:
         refresh_logger.info(f"Refreshing {label}")
 
-        feed_map = get_feed_map()
-        candidates = list(feed_map.keys()) if slugs is None else slugs
+        # The force sweep enumerates every configured feed; the staggered tick
+        # passes the due slugs. Either way the fetch URL and feed_type come from
+        # the podcast row, so a due slug never has to round-trip through the
+        # slugify-keyed feed map.
+        candidates = slugs if slugs is not None else list(get_feed_map().keys())
 
         # Parallelize feed refresh with ThreadPoolExecutor. record_failure=False:
         # per-feed failure counting is deferred until the batch fraction is
@@ -611,16 +614,16 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {}
             for slug in candidates:
-                feed_info = feed_map.get(slug)
-                if feed_info is None:
-                    continue
-                # get_podcast_row, not get_podcast_by_slug: only feed_type is
-                # read here, so the episode-count aggregation is wasted per tick.
+                # get_podcast_row, not get_podcast_by_slug: only feed_type and
+                # source_url are read, so the episode aggregation is wasted.
                 row = db.get_podcast_row(slug)
-                if is_local_feed(row) or is_recents_feed(row):
+                if not row or is_local_feed(row) or is_recents_feed(row):
+                    continue
+                source_url = row.get('source_url')
+                if not source_url:
                     continue
                 futures[executor.submit(
-                    refresh_rss_feed, slug, feed_info['in'], force, False)] = slug
+                    refresh_rss_feed, slug, source_url, force, False)] = slug
             outcomes = {}
             for future in as_completed(futures):
                 slug = futures[future]

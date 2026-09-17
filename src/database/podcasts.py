@@ -187,6 +187,7 @@ class PodcastMixin:
         rows = self.get_connection().execute(
             """SELECT slug FROM podcasts
                WHERE feed_type NOT IN ('local', 'recents')
+                 AND source_url IS NOT NULL AND source_url != ''
                  AND (last_refresh_attempt_at IS NULL OR last_refresh_attempt_at < ?)
                ORDER BY last_refresh_attempt_at ASC
                LIMIT ?""",
@@ -198,7 +199,9 @@ class PodcastMixin:
         """Number of upstream-fetched feeds, used to size the staggered refresh
         batch so the whole set is covered within one interval."""
         return self.get_connection().execute(
-            "SELECT COUNT(*) FROM podcasts WHERE feed_type NOT IN ('local', 'recents')"
+            "SELECT COUNT(*) FROM podcasts "
+            "WHERE feed_type NOT IN ('local', 'recents') "
+            "AND source_url IS NOT NULL AND source_url != ''"
         ).fetchone()[0]
 
     def get_feeds_min_last_checked_at(self) -> str | None:

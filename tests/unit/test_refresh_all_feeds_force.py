@@ -20,13 +20,17 @@ class TestRefreshAllFeedsForce(unittest.TestCase):
     def setUp(self):
         _feeds_module._refresh_coalesce.invalidate()
 
+    @staticmethod
+    def _subscribed(slug):
+        return {'slug': slug, 'feed_type': 'subscribed',
+                'source_url': f'https://example.com/{slug}.rss'}
+
+    @patch('main_app.feeds.db')
     @patch('main_app.feeds.refresh_rss_feed')
     @patch('main_app.feeds.get_feed_map')
-    def test_default_call_passes_force_false(self, get_feed_map, refresh_rss_feed):
-        get_feed_map.return_value = {
-            'pod-a': {'in': 'https://example.com/a.rss'},
-            'pod-b': {'in': 'https://example.com/b.rss'},
-        }
+    def test_default_call_passes_force_false(self, get_feed_map, refresh_rss_feed, db):
+        get_feed_map.return_value = {'pod-a': {'in': 'x'}, 'pod-b': {'in': 'x'}}
+        db.get_podcast_row.side_effect = self._subscribed
         refresh_rss_feed.return_value = True
 
         refresh_all_feeds()
@@ -37,14 +41,13 @@ class TestRefreshAllFeedsForce(unittest.TestCase):
             # Executor invokes positionally: (slug, feed_url, force)
             self.assertEqual(args[2], False)
 
+    @patch('main_app.feeds.db')
     @patch('main_app.feeds.refresh_rss_feed')
     @patch('main_app.feeds.get_feed_map')
-    def test_force_true_propagates_to_every_feed(self, get_feed_map, refresh_rss_feed):
-        get_feed_map.return_value = {
-            'pod-a': {'in': 'https://example.com/a.rss'},
-            'pod-b': {'in': 'https://example.com/b.rss'},
-            'pod-c': {'in': 'https://example.com/c.rss'},
-        }
+    def test_force_true_propagates_to_every_feed(self, get_feed_map, refresh_rss_feed, db):
+        get_feed_map.return_value = {'pod-a': {'in': 'x'}, 'pod-b': {'in': 'x'},
+                                     'pod-c': {'in': 'x'}}
+        db.get_podcast_row.side_effect = self._subscribed
         refresh_rss_feed.return_value = True
 
         refresh_all_feeds(force=True)
