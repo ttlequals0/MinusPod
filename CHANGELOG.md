@@ -19,7 +19,7 @@ release notes.
 
 - Feed refreshes are staggered across the interval instead of refreshing every feed at once. The scheduler wakes on a short tick and refreshes only the feeds due that tick, oldest attempt first, sized so the whole set is covered once per interval. The old whole-corpus sweep produced a burst of concurrent writes that queued behind each other and, during a run, made the periodic search index rebuild wait out its lock timeout and fail. Due selection is keyed off the last refresh attempt, so a feed that keeps failing retries once per interval like any other rather than being tried every tick. Force Refresh All still refreshes every feed at once. The dashboard "all feeds fresh as of" time is now the oldest successful per-feed refresh, computed on read; a feed that has never succeeded is ignored rather than blanking it, and one that stopped refreshing holds it back to show the staleness.
 - The search index rebuild retries its final table swap on a lost write lock instead of discarding the whole rebuild. The corpus is already staged, so a busy database costs a short wait, not a full re-index.
-- Dependency updates: python-slugify 8.0.4 to 9.0.0 (#744), react and react-dom 19.2.8 to 19.3.0 with matching @types (#738). Slug output is unchanged across the python-slugify bump.
+- Dependency updates: python-slugify 8.0.4 to 9.0.0 (#744), react and react-dom 19.2.8 to 19.3.0 with matching @types (#738), and soupsieve 2.8.4 to 2.9 to clear CVE-2026-85999 and CVE-2026-86000. Slug output is unchanged across the python-slugify bump.
 
 ## [2.97.4] - 2026-09-15
 
