@@ -15,6 +15,10 @@ release notes.
 
 - Word timestamps from an OpenAI-compatible transcription server are read again. The verbose_json spec returns them in a top-level `words` array, but the remote parser only looked for them nested inside each segment, so a spec-compliant server (OpenVINO Model Server, OpenAI itself) returned a full transcript with the words dropped. Boundary refinement was then skipped with a "no word timestamps" warning. The words are now folded into the segment covering each one. The in-process faster-whisper path, which already nests them, is unchanged.
 
+### Changed
+
+- Dependency updates: python-slugify 8.0.4 to 9.0.0 (#744), react and react-dom 19.2.8 to 19.3.0 with matching @types (#738). Slug output is unchanged across the python-slugify bump.
+
 ## [2.97.4] - 2026-09-15
 
 ### Fixed
