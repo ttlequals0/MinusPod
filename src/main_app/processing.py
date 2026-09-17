@@ -5684,13 +5684,19 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             else:
                 db.release_provider_spend(rid)
 
-    def _fire_degraded_redetect():
+    def _fire_post_completion_actions():
         # Closes over this run's fixed identifiers; episode_data is the
         # pre-run snapshot captured above, so the transition-into-degraded
         # guard sees the row as it stood before this run.
         _maybe_enqueue_degraded_redetect(
             slug, episode_id, episode_url, episode_title, podcast_name,
             episode_description, episode_published_at, episode_data, run_stats)
+        # After finalize: the yield heuristic reads the durations this run
+        # just persisted.
+        _maybe_fire_low_ad_yield_action(
+            slug, episode_id, episode_url, episode_title, podcast_name,
+            episode_description, episode_published_at, episode_data, run_stats,
+            podcast_row=podcast_settings)
 
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
@@ -6330,7 +6336,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    progress=recut_progress,
                                    podcast_row=podcast_settings):
                     _reconcile_provider_actuals()
-                    _fire_degraded_redetect()
+                    _fire_post_completion_actions()
                     return True
                 if recut_progress.get('mutated'):
                     # The recut already replaced the markers and the audio, so
@@ -6357,13 +6363,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                run_stats=run_stats,
                                ads_held=held_count, ads_not_cut=not_cut_count)
 
-            _fire_degraded_redetect()
-            # After finalize: the heuristic reads the durations and history
-            # this run just persisted.
-            _maybe_fire_low_ad_yield_action(
-                slug, episode_id, episode_url, episode_title, podcast_name,
-                episode_description, episode_published_at, episode_data, run_stats,
-                podcast_row=podcast_settings)
+            _fire_post_completion_actions()
 
             _publish_status('complete_job', slug, episode_id)
             _reconcile_provider_actuals()

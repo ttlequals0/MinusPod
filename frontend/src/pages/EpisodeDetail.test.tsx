@@ -7,6 +7,7 @@
  *   - hasOriginalAudio=false: recut NOT called, confirm still submitted, note shown.
  *   - Dismiss: reject correction submitted, no recut.
  *   - EpisodeList chip renders when pendingReviewCount>0, absent at 0/undefined.
+ *   - Description and chapter notes render as separate blocks.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -152,6 +153,17 @@ function renderDetail(ep: EpisodeDetailType) {
 }
 
 // ---- EpisodeDetail tests ----
+
+describe('Description and chapter notes', () => {
+  it('renders the chapter list as its own block, not merged into the description', async () => {
+    renderDetail(makeEpisode({
+      description: '<p>Last word.</p>',
+      chapterNotes: '<p>Chapters</p><p>00:00 Intro</p>',
+    }));
+    await screen.findByText(/^Chapters\s+00:00 Intro$/);
+    expect(screen.getByText('Last word.').textContent).not.toContain('Chapters');
+  });
+});
 
 describe('Held for Review section: rendering', () => {
   beforeEach(() => {

@@ -9,6 +9,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- The low-ad-yield action also runs when a run ends through the pass-2 auto-approve recut. That exit returned before the yield check, so a run that auto-approved a corroborated hold never queued its rerun, however little it removed. One such run removed 121 s against a 563 s feed average and was skipped.
+- On the episode page the appended chapter list is rendered as its own block below the description. The blank-line join between the two never showed on the page: the description renderer treats whitespace between block tags as insignificant and collapsed it to a single line break.
+
 ## [2.97.4] - 2026-09-15
 
 ### Fixed

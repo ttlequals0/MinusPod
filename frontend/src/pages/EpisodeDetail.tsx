@@ -1046,14 +1046,16 @@ function EpisodeDetail() {
           </div>
         )}
 
-        {(episode.description || episode.chapterNotes) && (
-          <RichText
-            html={[episode.description, episode.chapterNotes]
-              .filter((s): s is string => !!s && s.trim().length > 0)
-              .join('\n\n')}
-            className="mt-4 block text-muted-foreground wrap-break-word"
-          />
-        )}
+        {/* One block each: RichText collapses whitespace between block tags. */}
+        {[episode.description, episode.chapterNotes]
+          .filter((s): s is string => !!s && s.trim().length > 0)
+          .map((html, i) => (
+            <RichText
+              key={i}
+              html={html}
+              className="mt-4 block text-muted-foreground wrap-break-word"
+            />
+          ))}
       </div>
 
       {feed?.feedType === 'local' && slug && episodeId && (

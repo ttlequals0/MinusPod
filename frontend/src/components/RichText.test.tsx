@@ -130,14 +130,6 @@ describe('RichText block handling', () => {
     const { container } = render(<RichText html={'A\nB'} />);
     expect(container.textContent).toBe('A\nB');
   });
-
-  it('separates description from chapter notes without merging or large gaps', () => {
-    const { container } = render(
-      <RichText html={'Last word.' + '\n\nChapters\n1. Intro'} />,
-    );
-    expect(container.textContent).toContain('Last word.\n\nChapters');
-    expect(container.textContent).not.toMatch(/\n\s*\n\s*\n/);
-  });
 });
 
 describe('RichText: table cells and relative links', () => {
