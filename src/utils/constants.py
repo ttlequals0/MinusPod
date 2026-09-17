@@ -55,6 +55,10 @@ INVALID_SPONSOR_VALUES = frozenset({
     # offered to pattern learning as a sponsor.
     'continues in next', 'continues from previous', 'continued',
     'continues', 'continuation',
+    # A count opening the reason ("Two consecutive cross-promotion ads")
+    # is the first capitalized run, and became the sponsor.
+    'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
+    'nine', 'ten', 'several', 'both',
 })
 
 # Claude occasionally returns a reasoning sentence in the `sponsor` slot

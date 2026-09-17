@@ -487,6 +487,21 @@ def test_non_releasable_hold_never_stamped():
     assert 'pass2_corroborated' not in hold
 
 
+def test_boundary_conflict_hold_is_stamped_by_a_corroborating_pass2_ad():
+    """A reviewer trim that lost to a measured member is settled by pass 2
+    re-finding the span on its own."""
+    proc = [_plain_proc(990.0, 1150.0)]
+    orig = [_orig(990.0, 1150.0, 'bconflict')]
+    hold = _held_marker(990.0, 1150.0, hold_reason='reviewer_boundary_conflict')
+
+    v_ads_to_cut, _ui, _held, _n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert v_ads_to_cut == []
+    assert hold['pass2_corroborated'] is True
+
+
 def test_ad_overlapping_two_pending_markers_does_not_stamp():
     proc = [_plain_proc(1000.0, 1160.0)]
     orig = [_orig(1000.0, 1160.0, 'twohold')]

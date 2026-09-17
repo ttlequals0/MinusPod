@@ -14,6 +14,8 @@ release notes.
 ### Fixed
 
 - The low-ad-yield action also runs when a run ends through the pass-2 auto-approve recut. That exit returned before the yield check, so a run that auto-approved a corroborated hold never queued its rerun, however little it removed. One such run removed 121 s against a 563 s feed average and was skipped.
+- A hold placed because the reviewer's trim disagreed with a measured member (`reviewer_boundary_conflict`) is now auto-approved when pass 2 independently re-detects the span, the same as the other corroborated holds. Pass 2 had re-found two such spans at 0.98 and 0.9 confidence and dropped both as overlapping a held span, so the episode shipped with 2 of its 4 ads still in it.
+- A count that opens an ad reason ("Two consecutive cross-promotion ads") is no longer taken as the sponsor. One such reason created two patterns for a sponsor named "Two".
 - On the episode page the appended chapter list is rendered as its own block below the description. The blank-line join between the two never showed on the page: the description renderer treats whitespace between block tags as insignificant and collapsed it to a single line break.
 
 ## [2.97.4] - 2026-09-15
