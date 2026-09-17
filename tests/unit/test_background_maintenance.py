@@ -45,15 +45,16 @@ def _run_refresh_loop(monkeypatch, results, passes):
     monkeypatch.setattr(background, '_run_tick', lambda fn, name: None)
     db = MagicMock()
     db.get_setting.return_value = '15'
+    db.count_subscribed_feeds.return_value = 3
     monkeypatch.setattr(background, 'db', db)
     calls = {'n': 0}
 
-    def _refresh_all_feeds():
+    def _refresh_due_feeds(*_args, **_kwargs):
         result = results[min(calls['n'], len(results) - 1)]
         calls['n'] += 1
         return result
 
-    monkeypatch.setattr('main_app.feeds.refresh_all_feeds', _refresh_all_feeds)
+    monkeypatch.setattr('main_app.feeds.refresh_due_feeds', _refresh_due_feeds)
     monkeypatch.setattr('pricing_fetcher.refresh_pricing_if_stale', lambda: None)
     background.background_rss_refresh()
     return event.waits, db
@@ -72,7 +73,9 @@ class TestSharedOutageBackoff:
         results = [_outage_result(True), _outage_result(True),
                    _outage_result(False), _outage_result(True)]
         waits, _ = _run_refresh_loop(monkeypatch, results, 4)
-        assert waits[2] == 900
+        # Recovery drops back to the normal tick, and the next outage backs off
+        # from the base delay again rather than continuing the doubling.
+        assert waits[2] == background.REFRESH_TICK_SECONDS
         assert waits[3] == pytest.approx(waits[0], abs=5)
 
 

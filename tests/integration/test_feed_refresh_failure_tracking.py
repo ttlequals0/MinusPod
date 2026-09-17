@@ -172,20 +172,23 @@ class TestRecordHelpers:
 
 
 class TestApiExposure:
-    def test_feeds_list_exposes_failure_fields_and_global_stamp(
+    def test_feeds_list_exposes_failure_fields_and_global_freshness(
             self, app_client, seeded_feed):
         db = seeded_feed['db']
         db.update_podcast(seeded_feed['slug'],
                           refresh_failure_count=FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
                           last_refresh_error='connection refused',
-                          last_refresh_error_at='2026-07-14T00:00:00Z')
-        db.set_setting('feeds_last_refresh_completed_at', '2026-07-14T00:15:00Z')
+                          last_refresh_error_at='2026-07-14T00:00:00Z',
+                          last_checked_at='2026-07-14T00:15:00Z')
 
         _authed(app_client)
         resp = app_client.get('/api/v1/feeds')
         assert resp.status_code == 200
         data = resp.get_json()
-        assert data['lastRefreshCompletedAt'] == '2026-07-14T00:15:00Z'
+        # lastRefreshCompletedAt is the computed "all feeds fresh as of T"
+        # (oldest last_checked_at); assert the list is wired to it. The value
+        # itself is unit-tested in test_staggered_refresh.
+        assert data['lastRefreshCompletedAt'] == db.get_feeds_min_last_checked_at()
         feed = next(f for f in data['feeds'] if f['slug'] == seeded_feed['slug'])
         assert feed['lastRefreshError'] == 'connection refused'
         assert feed['lastRefreshErrorAt'] == '2026-07-14T00:00:00Z'

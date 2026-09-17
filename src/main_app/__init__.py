@@ -853,10 +853,9 @@ def _startup():
             logger.debug("Background threads not started")
 
         # No inline initial RSS refresh here: background_rss_refresh (started
-        # above) calls refresh_all_feeds() immediately on its first loop
-        # iteration with a 5-worker pool, covering every feed in get_feed_map.
-        # A second sequential pass would mostly hit the 30s per-feed refresh
-        # coalesce window and only blocked leader boot for feeds x fetch time.
+        # above) begins staggering the due feeds on its first tick. On a fresh
+        # boot every feed is due, so the first ticks drain them a batch at a
+        # time. An inline sequential pass would only block leader boot.
 
         logger.info(f"Web UI available at: {base_url}/ui/")
     else:

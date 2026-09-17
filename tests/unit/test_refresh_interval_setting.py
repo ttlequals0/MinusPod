@@ -134,13 +134,16 @@ class TestGetRoundTrip:
 
 class TestBackgroundRefreshLoop:
     def test_refresh_loop_reads_interval(self, monkeypatch):
+        # The loop wakes on the fixed tick; the configured interval now sizes
+        # the staggered batch and passes to refresh_due_feeds, not the wait.
         main_db.set_setting('rss_refresh_interval_minutes', '30', is_default=False)
 
         import main_app.feeds as feeds_mod
         import pricing_fetcher
         import update_checker
 
-        monkeypatch.setattr(feeds_mod, 'refresh_all_feeds', MagicMock())
+        due = MagicMock(return_value={'outage': {'detected': False}})
+        monkeypatch.setattr(feeds_mod, 'refresh_due_feeds', due)
         monkeypatch.setattr(background_module, 'run_cleanup', MagicMock())
         monkeypatch.setattr(pricing_fetcher, 'refresh_pricing_if_stale', MagicMock())
         monkeypatch.setattr(update_checker, 'update_check_tick', MagicMock())
@@ -153,7 +156,8 @@ class TestBackgroundRefreshLoop:
 
         background_module.background_rss_refresh()
 
-        assert fake_event.wait_calls == [1800]
+        assert fake_event.wait_calls == [background_module.REFRESH_TICK_SECONDS]
+        assert due.call_args.args[1] == 30 * 60
 
     def test_refresh_loop_clamps_out_of_range_db_value(self, monkeypatch):
         # A stored value outside 5-1440 (e.g. left over from a prior schema
@@ -164,7 +168,8 @@ class TestBackgroundRefreshLoop:
         import pricing_fetcher
         import update_checker
 
-        monkeypatch.setattr(feeds_mod, 'refresh_all_feeds', MagicMock())
+        due = MagicMock(return_value={'outage': {'detected': False}})
+        monkeypatch.setattr(feeds_mod, 'refresh_due_feeds', due)
         monkeypatch.setattr(background_module, 'run_cleanup', MagicMock())
         monkeypatch.setattr(pricing_fetcher, 'refresh_pricing_if_stale', MagicMock())
         monkeypatch.setattr(update_checker, 'update_check_tick', MagicMock())
@@ -177,4 +182,6 @@ class TestBackgroundRefreshLoop:
         finally:
             main_db.set_setting('rss_refresh_interval_minutes', '15', is_default=False)
 
-        assert fake_event.wait_calls == [1440 * 60]
+        # Tick wait is fixed; the clamped interval (1440 min) drives due sizing.
+        assert fake_event.wait_calls == [background_module.REFRESH_TICK_SECONDS]
+        assert due.call_args.args[1] == 1440 * 60

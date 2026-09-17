@@ -1,11 +1,12 @@
 """Podcast CRUD mixin for MinusPod database."""
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 from config import (coerce_bool_setting, resolve_ad_chapter_categories_map,
                     resolve_segment_category_actions_map)
 from utils.constants import EpisodeStatus
-from utils.time import utc_now_iso
+from utils.time import ISO_FORMAT, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +173,46 @@ class PodcastMixin:
             "SELECT last_checked_at FROM podcasts WHERE slug = ?", (slug,)
         ).fetchone()
         return row['last_checked_at'] if row else None
+
+    def get_due_feed_slugs(self, interval_seconds: float, limit: int) -> list[str]:
+        """Subscribed feeds whose last refresh is older than interval_seconds,
+        oldest first, capped at limit. Never-refreshed feeds (NULL) sort first
+        so a fresh feed is picked up on the next tick. Local and recents feeds
+        are not fetched from upstream, so they are excluded. last_checked_at is
+        a fixed-width UTC ISO string, so the string compare is chronological."""
+        cutoff = (datetime.now(timezone.utc)
+                  - timedelta(seconds=interval_seconds)).strftime(ISO_FORMAT)
+        rows = self.get_connection().execute(
+            """SELECT slug FROM podcasts
+               WHERE feed_type NOT IN ('local', 'recents')
+                 AND (last_checked_at IS NULL OR last_checked_at < ?)
+               ORDER BY last_checked_at ASC
+               LIMIT ?""",
+            (cutoff, limit),
+        ).fetchall()
+        return [row['slug'] for row in rows]
+
+    def count_subscribed_feeds(self) -> int:
+        """Number of upstream-fetched feeds, used to size the staggered refresh
+        batch so the whole set is covered within one interval."""
+        return self.get_connection().execute(
+            "SELECT COUNT(*) FROM podcasts WHERE feed_type NOT IN ('local', 'recents')"
+        ).fetchone()[0]
+
+    def get_feeds_min_last_checked_at(self) -> str | None:
+        """Oldest last_checked_at across subscribed feeds, or None when any of
+        them has never been refreshed. Backs the dashboard's 'all feeds fresh
+        as of T' indicator: a feed not yet refreshed once means the set is not
+        fully fresh, so the indicator stays empty until the first cycle drains."""
+        row = self.get_connection().execute(
+            """SELECT MIN(last_checked_at) AS oldest,
+                      SUM(CASE WHEN last_checked_at IS NULL THEN 1 ELSE 0 END) AS unrefreshed,
+                      COUNT(*) AS total
+               FROM podcasts WHERE feed_type NOT IN ('local', 'recents')"""
+        ).fetchone()
+        if not row or row['total'] == 0 or row['unrefreshed']:
+            return None
+        return row['oldest']
 
     def get_podcast_slug(self, podcast_id: int) -> str | None:
         """Slug for a podcast id -- cheap single-column lookup."""

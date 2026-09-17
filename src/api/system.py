@@ -179,7 +179,7 @@ def get_system_status():
         # Informational only, never gates readiness (see /health above): a
         # shared refresh outage degrades feed freshness, not the process.
         'feedRefresh': {
-            'lastSuccessfulRefreshAt': db.get_setting('feeds_last_refresh_completed_at'),
+            'lastSuccessfulRefreshAt': db.get_feeds_min_last_checked_at(),
             'outageDegraded': db.get_setting('feeds_refresh_outage_active') == '1',
             'outageAffectedCount': int(db.get_setting('feeds_refresh_outage_affected_count') or 0),
             'nextRetryAt': db.get_setting('feeds_next_refresh_retry_at') or None,

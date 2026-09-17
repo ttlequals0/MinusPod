@@ -1,5 +1,6 @@
 """Background tasks: background_rss_refresh, background_queue_processor, run_cleanup, reset_stuck."""
 import logging
+import math
 import os
 import shutil
 import threading
@@ -9,8 +10,8 @@ from typing import Literal
 
 import run_log
 from config import (
-    MAX_EPISODE_RETRIES, resolve_episode_log_retention_days,
-    title_matches_skip_patterns,
+    FEED_REFRESH_OUTAGE_MIN_FEEDS, MAX_EPISODE_RETRIES,
+    resolve_episode_log_retention_days, title_matches_skip_patterns,
 )
 from database.queue import PENDING_QUEUE_LIMIT
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
@@ -30,6 +31,10 @@ IDLE_WAIT_SECONDS = 5.0
 # BLOCKED_SCAN_MAX_ROWS, so repeating it on the short tick is wasted work.
 HELD_IDLE_WAIT_SECONDS = 30.0
 MAINTENANCE_INTERVAL_SECONDS = 300.0
+# The refresh loop wakes on this short tick and refreshes only the feeds due
+# this tick, so feed writes spread across the interval instead of landing in
+# one whole-corpus burst that starves every other writer.
+REFRESH_TICK_SECONDS = 60.0
 # Shared-outage retry: each consecutive outage pass doubles the shortened
 # wait, up to the normal refresh interval.
 OUTAGE_RETRY_MAX_DOUBLINGS = 4
@@ -180,58 +185,75 @@ def run_cleanup():
         refresh_logger.error(f"Search index rebuild check failed: {e}")
 
 
-def background_rss_refresh():
-    """Background task to refresh RSS feeds on a configurable interval,
-    default 15 minutes.
+def _resolve_refresh_interval_seconds() -> float:
+    """The configured refresh interval in seconds, clamped 5-1440 minutes."""
+    try:
+        interval_minutes = int(db.get_setting('rss_refresh_interval_minutes') or 15)
+    except (TypeError, ValueError):
+        interval_minutes = 15
+    return min(max(interval_minutes, 5), 1440) * 60
 
-    Uses shutdown_event.wait() instead of time.sleep() to allow
-    graceful shutdown interruption.
+
+def _due_batch_size(interval_seconds: float, active_count: int) -> int:
+    """Per-tick cap on feeds refreshed, sized so the whole set is covered once
+    per interval. Floored at the outage sample size so a backlog (fresh boot or
+    a shared outage) still refreshes enough feeds at once for outage detection
+    to judge the batch; the due-filter keeps steady-state cadence to once per
+    interval regardless of this cap."""
+    ticks = max(interval_seconds / REFRESH_TICK_SECONDS, 1.0)
+    steady = math.ceil(active_count / ticks)
+    return max(steady, FEED_REFRESH_OUTAGE_MIN_FEEDS)
+
+
+def background_rss_refresh():
+    """Refresh RSS feeds on a short tick, staggering the due feeds across the
+    configured interval (default 15 minutes) so their writes do not contend in
+    one burst. Heavy maintenance runs behind its own timer, not every tick.
+
+    Uses shutdown_event.wait() instead of time.sleep() to allow graceful
+    shutdown interruption.
     """
-    from main_app.feeds import refresh_all_feeds
+    from main_app.feeds import refresh_due_feeds
     from pricing_fetcher import refresh_pricing_if_stale
     from community_sync import community_pattern_sync_tick
     from db_backup_service import db_backup_tick
     from update_checker import update_check_tick
     outage_passes = 0
+    last_maintenance = 0.0
     while not shutdown_event.is_set():
-        result = refresh_all_feeds()
-        run_cleanup()
-        refresh_pricing_if_stale()  # TTL-gated, fetches once per 24h
-        # Community pattern sync -- gated by settings.community_sync_enabled
-        # and the cron schedule; safe to call every tick.
-        _run_tick(community_pattern_sync_tick, 'community_pattern_sync_tick')
-        # Scheduled DB backup -- gated by settings.db_backup_enabled and the
-        # cron schedule; safe to call every tick.
-        _run_tick(db_backup_tick, 'db_backup_tick')
-        # Daily update check -- gated by settings.update_check_enabled and a
-        # 24h internal timer; safe to call every tick.
-        _run_tick(update_check_tick, 'update_check_tick')
-        # Guard point for issue #566: a tick that swallowed a write failure
-        # may have left a transaction open. Clear it before the long sleep
-        # so it cannot block other writers for the whole interval.
-        db.clear_leaked_transaction(refresh_logger, 'refresh loop')
-        try:
-            interval_minutes = int(db.get_setting('rss_refresh_interval_minutes') or 15)
-        except (TypeError, ValueError):
-            interval_minutes = 15
-        interval_minutes = min(max(interval_minutes, 5), 1440)
-        wait_seconds = interval_minutes * 60
+        interval_seconds = _resolve_refresh_interval_seconds()
+        batch = _due_batch_size(interval_seconds, db.count_subscribed_feeds())
+        result = refresh_due_feeds(batch, interval_seconds)
 
-        # A detected shared outage schedules one bounded, jittered retry
-        # sooner than the normal cadence instead of waiting a full interval
-        # (or every feed re-hitting the same host in lockstep next tick).
-        # Every pass re-arms nextRetryAt at the same base delay, so the
-        # doubling lives here or a long outage never backs off at all.
+        if time.monotonic() - last_maintenance >= MAINTENANCE_INTERVAL_SECONDS:
+            last_maintenance = time.monotonic()
+            run_cleanup()
+            refresh_pricing_if_stale()  # TTL-gated, fetches once per 24h
+            # Each of these is gated by its own setting and schedule, so it is
+            # safe to call on the maintenance cadence.
+            _run_tick(community_pattern_sync_tick, 'community_pattern_sync_tick')
+            _run_tick(db_backup_tick, 'db_backup_tick')
+            _run_tick(update_check_tick, 'update_check_tick')
+        # Guard point for issue #566: a tick that swallowed a write failure
+        # may have left a transaction open. Clear it before the wait so it
+        # cannot block other writers.
+        db.clear_leaked_transaction(refresh_logger, 'refresh loop')
+        wait_seconds = REFRESH_TICK_SECONDS
+
+        # The tick already retries far sooner than the interval, so a shared
+        # outage instead backs the wait off, doubling each consecutive pass up
+        # to the interval so a down host is not hit every tick. Recovery drops
+        # straight back to the tick.
         outage = result.get('outage') if isinstance(result, dict) else None
         if outage and outage.get('detected'):
             retry_at = parse_iso_utc(outage.get('nextRetryAt'))
             if retry_at:
-                remaining = (retry_at - datetime.now(timezone.utc)).total_seconds()
-                remaining *= 2 ** min(outage_passes, OUTAGE_RETRY_MAX_DOUBLINGS)
-                if 0 < remaining < wait_seconds:
-                    wait_seconds = remaining
+                backoff = (retry_at - datetime.now(timezone.utc)).total_seconds()
+                backoff *= 2 ** min(outage_passes, OUTAGE_RETRY_MAX_DOUBLINGS)
+                if backoff > 0:
+                    wait_seconds = max(wait_seconds, min(backoff, interval_seconds))
             outage_passes += 1
-            # refresh_all_feeds armed this setting at the base delay and the
+            # The refresh batch armed this setting at the base delay and the
             # system health panel renders it, so correct it to the attempt
             # this loop will actually make.
             try:

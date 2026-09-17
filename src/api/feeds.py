@@ -1113,10 +1113,9 @@ def list_feeds():
         'page': page,
         'limit': limit,
         'offset': (page - 1) * limit,
-        # Stamped whenever an all-feeds refresh pass finishes (15-minute
-        # scheduler or the manual Refresh All action); null until the
-        # first pass completes.
-        'lastRefreshCompletedAt': db.get_setting('feeds_last_refresh_completed_at'),
+        # "All feeds fresh as of T": the oldest last_checked_at across
+        # subscribed feeds, or null while any has never been refreshed.
+        'lastRefreshCompletedAt': db.get_feeds_min_last_checked_at(),
     })
 
 

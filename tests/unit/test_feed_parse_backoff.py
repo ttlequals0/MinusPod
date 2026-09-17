@@ -260,12 +260,17 @@ class TestASkippedFetchIsNotAFailedRefresh(SweepCase):
         assert result['succeeded'] == 1
         assert result['success'] is True
 
-    def test_the_sweep_stamps_its_completion(self):
-        self._sweep({'b': feeds.RefreshOutcome(False, 'parse_backoff')})
+    def test_a_backoff_only_sweep_completes_without_a_stamp(self):
+        # parse_backoff is a skip, not a failure, so the sweep completes. The
+        # dashboard freshness time is computed on read from MIN(last_checked_at)
+        # now, so the sweep writes no completion stamp.
+        result = self._sweep({'b': feeds.RefreshOutcome(False, 'parse_backoff')})
 
+        assert result['failed'] == 0
+        assert result['success'] is True
         stamped = [c for c in self.db.set_setting.call_args_list
                    if c.args and c.args[0] == 'feeds_last_refresh_completed_at']
-        assert len(stamped) == 1
+        assert stamped == []
 
     def test_a_real_failure_is_still_counted(self):
         result = self._sweep({

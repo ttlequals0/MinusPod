@@ -568,25 +568,48 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
 
 
 def refresh_all_feeds(force: bool = False):
-    """Refresh all RSS feeds in parallel.
+    """Refresh every subscribed feed in parallel.
 
     Args:
         force: If True, bypass each feed's ETag and 30s refresh-coalesce window
                so every feed is fully re-fetched. Used by the UI Force Refresh
-               All action; the 15-minute background scheduler always calls with
-               force=False.
+               All action; the background scheduler staggers instead (see
+               refresh_due_feeds).
     """
+    return _run_refresh_batch(force, label=f"all RSS feeds (force={force})")
+
+
+def refresh_due_feeds(batch_size: int, interval_seconds: float):
+    """Refresh only the subscribed feeds whose last refresh is older than
+    interval_seconds, oldest first, capped at batch_size. The scheduler calls
+    this on a short tick so feed writes spread across the interval instead of
+    contending in one whole-corpus burst."""
+    due = db.get_due_feed_slugs(interval_seconds, batch_size)
+    if not due:
+        return {'success': True, 'succeeded': 0, 'failed': 0, 'outcomes': {},
+                'outage': {'detected': False, 'affectedCount': 0, 'nextRetryAt': None}}
+    return _run_refresh_batch(False, slugs=due, label=f"{len(due)} due feed(s)")
+
+
+def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
+    """Refresh a set of feeds in parallel and judge a shared outage over the
+    batch. slugs=None means every feed in the map (the force sweep); a list
+    restricts it to those slugs (the staggered tick)."""
     try:
-        refresh_logger.info(f"Refreshing all RSS feeds (force={force})")
+        refresh_logger.info(f"Refreshing {label}")
 
         feed_map = get_feed_map()
+        candidates = list(feed_map.keys()) if slugs is None else slugs
 
         # Parallelize feed refresh with ThreadPoolExecutor. record_failure=False:
         # per-feed failure counting is deferred until the batch fraction is
         # known below, so a shared outage never marks healthy feeds broken.
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {}
-            for slug, feed_info in feed_map.items():
+            for slug in candidates:
+                feed_info = feed_map.get(slug)
+                if feed_info is None:
+                    continue
                 row = db.get_podcast_by_slug(slug)
                 if is_local_feed(row) or is_recents_feed(row):
                     continue
@@ -605,8 +628,7 @@ def refresh_all_feeds(force: bool = False):
                         False, 'internal_error', error='Internal refresh error')
 
         # A parse_backoff is a deliberate skip, not a failure: counting it
-        # would freeze feeds_last_refresh_completed_at and, on a small
-        # instance, read as a shared outage.
+        # would, on a small instance, read as a shared outage.
         skipped = sum(1 for outcome in outcomes.values()
                       if not outcome.success and outcome.status == 'parse_backoff')
         succeeded = sum(1 for outcome in outcomes.values() if outcome.success)
@@ -659,8 +681,8 @@ def refresh_all_feeds(force: bool = False):
                 db.set_setting('feeds_refresh_outage_active', '0')
                 db.set_setting('feeds_next_refresh_retry_at', '')
 
-        if failed == 0:
-            db.set_setting('feeds_last_refresh_completed_at', utc_now_iso())
+        # The dashboard "all feeds fresh as of T" indicator is computed on read
+        # from MIN(last_checked_at); no sweep-completion timestamp is written.
         return {
             'success': failed == 0,
             'succeeded': succeeded,

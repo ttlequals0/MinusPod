@@ -4,10 +4,18 @@ import fcntl
 import logging
 import os
 import re
+import sqlite3
 import threading
+import time
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
+
+# The corpus is already built in the shadow table when the final swap runs, so
+# a swap that loses the write lock retries a few times rather than discarding
+# the whole rebuild. The busy_timeout waits within each attempt.
+_SWAP_LOCK_RETRIES = 3
+_SWAP_LOCK_BACKOFF_SECONDS = 2.0
 
 # Grouped-search snippet delimiters: literal "<mark>" in indexed text must not read as a highlight.
 _HL_OPEN = '\x02'
@@ -209,14 +217,7 @@ class SearchMixin:
             for rows in self._search_source_chunks(conn):
                 with self.transaction(immediate=True) as tx:
                     tx.executemany(insert, rows)
-            with self.transaction(immediate=True) as tx:
-                self._replay_search_changes(tx, shadow, insert, start_seq)
-                applied_seq = tx.execute(
-                    "SELECT COALESCE(MAX(seq), 0) FROM search_index_changes"
-                ).fetchone()[0]
-                tx.execute("DELETE FROM search_index_changes WHERE seq <= ?", (applied_seq,))
-                tx.execute("DROP TABLE search_index")
-                tx.execute(f'ALTER TABLE "{shadow}" RENAME TO search_index')
+            self._swap_in_shadow(shadow, insert, start_seq)
         except Exception:
             conn.rollback()
             conn.execute(f'DROP TABLE IF EXISTS "{shadow}"')
@@ -226,6 +227,31 @@ class SearchMixin:
         count = conn.execute("SELECT COUNT(*) FROM search_index").fetchone()[0]
         logger.info(f"Search index rebuilt with {count} items")
         return count
+
+    def _swap_in_shadow(self, shadow, insert, start_seq):
+        """Replay pending changes into the shadow and swap it in as the live
+        index. Only this final swap retries on a lost write lock: the corpus is
+        already built, so a busy database costs a short wait, not a full
+        rebuild. A non-lock error, or the last attempt, propagates to the
+        caller's cleanup."""
+        for attempt in range(_SWAP_LOCK_RETRIES):
+            try:
+                with self.transaction(immediate=True) as tx:
+                    self._replay_search_changes(tx, shadow, insert, start_seq)
+                    applied_seq = tx.execute(
+                        "SELECT COALESCE(MAX(seq), 0) FROM search_index_changes"
+                    ).fetchone()[0]
+                    tx.execute("DELETE FROM search_index_changes WHERE seq <= ?", (applied_seq,))
+                    tx.execute("DROP TABLE search_index")
+                    tx.execute(f'ALTER TABLE "{shadow}" RENAME TO search_index')
+                return
+            except sqlite3.OperationalError as exc:
+                if 'locked' not in str(exc).lower() or attempt == _SWAP_LOCK_RETRIES - 1:
+                    raise
+                logger.warning(
+                    "Search index swap lost the write lock (attempt %d/%d); retrying",
+                    attempt + 1, _SWAP_LOCK_RETRIES)
+                time.sleep(_SWAP_LOCK_BACKOFF_SECONDS * (attempt + 1))
 
     @staticmethod
     def _search_source_chunks(conn):
