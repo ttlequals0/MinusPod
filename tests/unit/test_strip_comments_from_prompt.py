@@ -28,8 +28,12 @@ def test_strip_comments_from_prompt_removes_indented_multiline_comment():
 
     assert strip_comments_from_prompt(prompt) == '   '
 
-def test_strip_comments_from_prompt_ignores_indented_multiline_comment_with_more_than_three_spaces():
-    prompt = '    <!--\n foo -->'
+def test_strip_comments_from_prompt_does_not_remove_literal_comments():
+    prompt = (
+        '\n    <!-- not a sl comment (>3 spaces after BOL) -->'
+        '\n    <!-- not a ml comment\n(>3 spaces after BOL) -->'
+        '\nText <!--not a ml comment\n(text before comment) -->'
+    )
 
     assert strip_comments_from_prompt(prompt) == prompt
 

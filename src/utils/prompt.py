@@ -115,7 +115,7 @@ def strip_comments_from_prompt(prompt: str|None) -> str|None:
     """Remove HTML-style comments from the prompt following markdown
     conventions.
 
-    Multi-line comments can start at the beginning of a line (up to three
+    Multiline comments can start at the beginning of a line (up to three
     leading spaces allowed), and single-line comments can appear anywhere.
     If a ML comment ends with a line break, the line break is also removed.
 
@@ -123,16 +123,19 @@ def strip_comments_from_prompt(prompt: str|None) -> str|None:
     terminate the outer comment).
 
     Examples:
-        Fooo <!-- This is a single-line comment -->
+        Text <!-- This is a single-line comment -->
         <!--
-        This is a multi-line comment
+        This is a multiline comment
         -->
+           <!-- This is a [multiline] comment (<=3 spaces after BOL) -->
+            <!-- Not a comment (>3 spaces after BOL) -->
+        Text <!--
+            Not a comment (text before multiline comment)
+            -->
     """
     if not prompt:
-        return prompt
-    # A comment indented four or more spaces is markdown code and stays.
-    pattern = (r'^([ ]{0,3})<!--(?:.|\n)*?-->(?:\r?\n)?'
-               r'|^([ ]{4,}<!--.*?-->)'
-               r'|<!--.*?-->')
-    return re.sub(pattern, lambda m: m.group(1) or m.group(2) or '',
-                  prompt, flags=re.MULTILINE)
+        return ""
+    pattern = (r'^([ ]{0,3})<!--(?:.|\n)*?-->(?:\r?\n)?' # multiline (1 or more) comment
+               r'|^([ ]{4,}<!--.*?-->)' # keep literal single-line comment
+               r'|<!--.*?-->') # single-line comment (dot does NOT match newlines)
+    return re.sub(pattern, r'\1\2', prompt, flags=re.MULTILINE)
