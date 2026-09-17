@@ -254,15 +254,22 @@ def validate_ad_chapter_categories(value) -> str | None:
 # verification_miss stays out deliberately: pass 2 is the source of these
 # holds, and auto-approving them on a later pass-2 corroboration would let
 # pass 2 approve its own products with no independent second opinion.
-# reviewer_boundary_conflict is in: the hold records a reviewer trim that
-# disagreed with a measured member, and pass 2 independently re-detecting the
-# span is the second opinion that settles it.
+# reviewer_boundary_conflict is in: pass 2 re-detecting the span on its own
+# is the independent second opinion the hold was waiting for.
 PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_NO_SPLICE,
     HOLD_REASON_UNCORROBORATED_TAIL,
+})
+
+# Of those, the reasons a pass-2 ad may only corroborate by covering the held
+# span, never by agreeing with the reviewer's stored proposal. That proposal
+# is the trim the hold was created to block, so approving it would ship the
+# measured member the hold protects.
+PASS2_COVERAGE_ONLY_HOLD_REASONS = frozenset({
+    HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
 })
 
 # A pass-2 detection corroborates a differential hold (stamping it for

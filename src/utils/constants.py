@@ -55,8 +55,10 @@ INVALID_SPONSOR_VALUES = frozenset({
     # offered to pattern learning as a sponsor.
     'continues in next', 'continues from previous', 'continued',
     'continues', 'continuation',
-    # A count opening the reason ("Two consecutive cross-promotion ads")
-    # is the first capitalized run, and became the sponsor.
+    # Quantity words that open a reason ("Two consecutive cross-promotion
+    # ads") are the first capitalized run, and became the sponsor. Only a
+    # whole run is rejected, so "Five Guys" still labels. A stored registry
+    # row of one bare count word also stops matching, which is intended.
     'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
     'nine', 'ten', 'several', 'both',
 })

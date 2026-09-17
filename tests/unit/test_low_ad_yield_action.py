@@ -195,9 +195,11 @@ class TestCompletionPathWiring:
             p(processing, '_generate_assets')
             finalize = p(processing, '_finalize_episode')
             hook = p(processing, '_maybe_fire_low_ad_yield_action')
-            if approval_recut:
-                p(processing, '_file_corroborated_hold_approvals', return_value=1)
-                p(processing, '_recut_episode', return_value=True)
+            # Filing zero approvals is what keeps the normal runs off the
+            # recut exit, rather than a MagicMock's default truthiness.
+            p(processing, '_file_corroborated_hold_approvals',
+              return_value=1 if approval_recut else 0)
+            p(processing, '_recut_episode', return_value=True)
             p(processing.shutil, 'move')
             p(processing.os, 'unlink')
             p(processing.os.path, 'exists', return_value=False)
@@ -252,7 +254,7 @@ class TestCompletionPathWiring:
         result, finalize, hook, _ = self._run_pipeline(approval_recut=True)
 
         assert result is True
-        # The recut finalizes on the pipeline's behalf and returns early.
+        # Proves the recut exit was taken, not the normal finalize path.
         finalize.assert_not_called()
         hook.assert_called_once()
 

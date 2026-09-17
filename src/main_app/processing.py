@@ -5685,9 +5685,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 db.release_provider_spend(rid)
 
     def _fire_post_completion_actions():
-        # Closes over this run's fixed identifiers; episode_data is the
-        # pre-run snapshot captured above, so the transition-into-degraded
-        # guard sees the row as it stood before this run.
+        # Closes over this run's fixed identifiers. Both hooks decline runs
+        # that are not theirs, so both success exits call this unguarded.
+        # episode_data is the pre-run snapshot, so the degraded guard sees
+        # the row as it stood before this run.
         _maybe_enqueue_degraded_redetect(
             slug, episode_id, episode_url, episode_title, podcast_name,
             episode_description, episode_published_at, episode_data, run_stats)

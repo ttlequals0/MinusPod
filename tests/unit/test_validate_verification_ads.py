@@ -494,12 +494,32 @@ def test_boundary_conflict_hold_is_stamped_by_a_corroborating_pass2_ad():
     orig = [_orig(990.0, 1150.0, 'bconflict')]
     hold = _held_marker(990.0, 1150.0, hold_reason='reviewer_boundary_conflict')
 
-    v_ads_to_cut, _ui, _held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
     assert v_ads_to_cut == []
+    assert n == 1
     assert hold['pass2_corroborated'] is True
+
+
+def test_boundary_conflict_hold_is_not_stamped_by_the_rejected_trim():
+    """The stored proposal is the trim that crossed a measured member, so a
+    pass-2 ad agreeing with it must not release the hold: approving it would
+    ship the member the hold protects."""
+    proc = [_plain_proc(990.0, 1058.0)]
+    orig = [_orig(990.0, 1058.0, 'bconflict')]
+    hold = _held_marker(990.0, 1150.0, hold_reason='reviewer_boundary_conflict')
+    hold['reviewer_proposed_start'] = 990.0
+    hold['reviewer_proposed_end'] = 1060.0
+
+    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert v_ads_to_cut == []
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
 
 
 def test_ad_overlapping_two_pending_markers_does_not_stamp():
