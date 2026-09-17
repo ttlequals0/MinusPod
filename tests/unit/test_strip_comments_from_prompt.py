@@ -1,7 +1,7 @@
 from utils.prompt import strip_comments_from_prompt
 
 def test_strip_comments_from_prompt_preserves_edge_cases():
-    assert strip_comments_from_prompt(None) is None
+    assert strip_comments_from_prompt(None) == ''
     assert strip_comments_from_prompt('') == ''
     assert strip_comments_from_prompt('<!--') == '<!--'
     assert strip_comments_from_prompt('-->') == '-->'
