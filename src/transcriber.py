@@ -854,6 +854,33 @@ def _bearer_headers(api_key: str) -> dict[str, str]:
     return {'Authorization': f'Bearer {api_key}'} if api_key else {}
 
 
+def _attach_top_level_words(segments, words) -> None:
+    """Fold an OpenAI verbose_json top-level `words` array into its segments.
+
+    Spec-compliant servers return words top-level, not nested; place each in
+    the segment nearest its midpoint so boundary refinement finds them."""
+    if not segments or not words:
+        return
+    if any(seg.get('words') for seg in segments):
+        return
+    for w in words:
+        start, end = w.get('start'), w.get('end')
+        if start is None or end is None:
+            continue
+        mid = (start + end) / 2
+        target = next(
+            (s for s in segments if s['start'] <= mid <= s['end']), None)
+        if target is None:
+            target = min(segments, key=lambda s: min(
+                abs(s['start'] - mid), abs(s['end'] - mid)))
+        target.setdefault('words', []).append(
+            {'word': w.get('word', ''), 'start': start, 'end': end})
+    # A server may return the array unsorted; refinement scans words in order.
+    for s in segments:
+        if s.get('words'):
+            s['words'].sort(key=lambda x: x['start'])
+
+
 def _warn_if_word_timestamps_missing(segments, whisper_settings) -> None:
     """Warn once when a transcription that asked for word timestamps got none.
     A 4xx on the word granularity is already reported; a 200 that simply omits the
@@ -1642,6 +1669,10 @@ class Transcriber:
                     'text': text,
                     'words': words,
                 })
+
+            # Spec-compliant servers return words in a top-level array, not
+            # nested per segment; fold them in so boundary refinement sees them.
+            _attach_top_level_words(result, resp_json.get('words') or [])
 
             # response is a 200 here; non-200/None returned above
             if not result:

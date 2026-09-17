@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- Word timestamps from an OpenAI-compatible transcription server are read again. The verbose_json spec returns them in a top-level `words` array, but the remote parser only looked for them nested inside each segment, so a spec-compliant server (OpenVINO Model Server, OpenAI itself) returned a full transcript with the words dropped. Boundary refinement was then skipped with a "no word timestamps" warning. The words are now folded into the segment covering each one. The in-process faster-whisper path, which already nests them, is unchanged.
+
 ## [2.97.4] - 2026-09-15
 
 ### Fixed
