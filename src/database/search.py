@@ -230,10 +230,7 @@ class SearchMixin:
 
     def _swap_in_shadow(self, shadow, insert, start_seq):
         """Replay pending changes into the shadow and swap it in as the live
-        index. Only this final swap retries on a lost write lock: the corpus is
-        already built, so a busy database costs a short wait, not a full
-        rebuild. A non-lock error, or the last attempt, propagates to the
-        caller's cleanup."""
+        index, retrying the swap on a lost write lock (see the module note)."""
         for attempt in range(_SWAP_LOCK_RETRIES):
             try:
                 with self.transaction(immediate=True) as tx:

@@ -31,7 +31,7 @@ def test_refresh_all_feeds_excludes_local():
          patch.object(feeds, 'refresh_rss_feed') as rrf:
         gfm.return_value = {'arc': {'in': 'local://arc', 'out': '/arc'},
                             'sub': {'in': 'https://x/feed.xml', 'out': '/sub'}}
-        db.get_podcast_by_slug.side_effect = lambda s: (
+        db.get_podcast_row.side_effect = lambda s: (
             _local() if s == 'arc' else {'slug': 'sub', 'feed_type': 'subscribed'})
         feeds.refresh_all_feeds()
         called_slugs = {c.args[0] for c in rrf.call_args_list}

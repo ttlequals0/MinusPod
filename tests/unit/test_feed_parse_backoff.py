@@ -96,6 +96,26 @@ class SweepCase(unittest.TestCase):
             return feeds.refresh_all_feeds()
 
 
+class TestAttemptStamp(RefreshCase):
+    def test_a_failed_refresh_still_stamps_the_attempt(self):
+        # The attempt stamp is what keeps a failing feed from being re-selected
+        # every tick under staggered refresh; it must land even when the fetch
+        # raises, before last_checked_at (success-only) would be written.
+        self._rows()
+        self.rss_parser.fetch_feed_conditional.side_effect = RuntimeError('boom')
+
+        outcome = self._refresh()
+
+        assert outcome.success is False
+        stamped = [c for c in self.db.update_podcast.call_args_list
+                   if 'last_refresh_attempt_at' in c.kwargs]
+        assert len(stamped) == 1
+        assert stamped[0].kwargs['last_refresh_attempt_at'] is not None
+        # No success write on a failed refresh.
+        assert not [c for c in self.db.update_podcast.call_args_list
+                    if 'last_checked_at' in c.kwargs]
+
+
 class TestParseFailureRecording(RefreshCase):
     def test_unparseable_body_stamps_count_and_names_the_retry(self):
         self._rows(parse_failure_count=1)
@@ -185,10 +205,12 @@ class TestBackoffHoldsTheFullFetch(RefreshCase):
         self.assertFalse(outcome.success)
         self.assertEqual(outcome.status, 'parse_backoff')
         self.rss_parser.fetch_feed_conditional.assert_not_called()
+        # Attempt stamp up front, then last_checked_at on the deliberate skip.
         stamped = self.db.update_podcast.call_args_list
-        self.assertEqual(len(stamped), 1)
-        self.assertIn('last_checked_at', stamped[0].kwargs)
-        self.assertNotIn('parse_failure_count', stamped[0].kwargs)
+        self.assertEqual(len(stamped), 2)
+        self.assertIn('last_refresh_attempt_at', stamped[0].kwargs)
+        self.assertIn('last_checked_at', stamped[1].kwargs)
+        self.assertNotIn('parse_failure_count', stamped[1].kwargs)
 
     def test_force_refresh_ignores_the_backoff(self):
         self._rows(etag=None, last_modified_header=None, parse_failure_count=2,

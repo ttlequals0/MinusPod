@@ -419,6 +419,9 @@ class SchemaMixin:
             # databases created at 2.0.19 the column was INTEGER DEFAULT 0;
             # the conversion step below rewrites that to match.
             ('only_expose_processed_episodes', 'INTEGER'),
+            # Last refresh attempt (success or failure), so the staggered
+            # scheduler does not re-select a failing feed every tick.
+            ('last_refresh_attempt_at', 'TEXT'),
             # Feed refresh failure tracking (#516)
             ('refresh_failure_count', 'INTEGER DEFAULT 0'),
             ('last_refresh_error', 'TEXT'),

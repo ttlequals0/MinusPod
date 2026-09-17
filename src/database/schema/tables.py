@@ -45,6 +45,10 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- 1 = serve MinusPod episode ids. New feeds are created with 1.
     own_episode_guids INTEGER,
     last_checked_at TEXT,
+    -- Last refresh attempt, stamped on success and failure alike, so the
+    -- staggered scheduler retries a failing feed on the interval rather than
+    -- every tick. last_checked_at stays success-only for freshness.
+    last_refresh_attempt_at TEXT,
     -- Consecutive refresh-failure tracking (#516); cleared on success.
     -- last_refresh_error_at is the first failure of the current run,
     -- last_refresh_failure_at the most recent counted failure.

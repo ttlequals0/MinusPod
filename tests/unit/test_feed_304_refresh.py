@@ -47,11 +47,12 @@ class TestFeed304Refresh(unittest.TestCase):
         result = refresh_rss_feed('test-podcast', 'https://example.com/rss')
 
         self.assertTrue(result)
-        # last_checked_at must have been updated
-        db.update_podcast.assert_called_once()
-        call_kwargs = db.update_podcast.call_args
-        self.assertEqual(call_kwargs[0][0], 'test-podcast')
-        self.assertIn('last_checked_at', call_kwargs[1])
+        # last_checked_at must have been updated (alongside the up-front attempt
+        # stamp, so filter for the success write).
+        checked = [c for c in db.update_podcast.call_args_list
+                   if 'last_checked_at' in c.kwargs]
+        self.assertEqual(len(checked), 1)
+        self.assertEqual(checked[0][0][0], 'test-podcast')
         status_service.complete_feed_refresh.assert_called_once_with('test-podcast', 0)
 
     @patch('main_app.feeds.pattern_service')

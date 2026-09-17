@@ -16,17 +16,25 @@ def _iso_ago(seconds):
 
 
 class TestDueFeedSelection:
-    def test_only_feeds_older_than_the_interval_are_due(self, temp_db):
+    def test_only_feeds_attempted_before_the_interval_are_due(self, temp_db):
         temp_db.create_podcast('fresh', 'https://example.com/fresh.xml', title='Fresh')
-        temp_db.update_podcast('fresh', last_checked_at=_iso_ago(60))
+        temp_db.update_podcast('fresh', last_refresh_attempt_at=_iso_ago(60))
         temp_db.create_podcast('stale', 'https://example.com/stale.xml', title='Stale')
-        temp_db.update_podcast('stale', last_checked_at=_iso_ago(3600))
+        temp_db.update_podcast('stale', last_refresh_attempt_at=_iso_ago(3600))
 
         assert temp_db.get_due_feed_slugs(interval_seconds=900, limit=10) == ['stale']
 
-    def test_never_refreshed_feeds_are_due_first(self, temp_db):
+    def test_a_failed_feed_is_not_due_again_until_the_interval(self, temp_db):
+        # A feed that failed to refresh has an attempt stamp but no
+        # last_checked_at; it must still fall out of the due set for an interval.
+        temp_db.create_podcast('failing', 'https://example.com/f.xml', title='Failing')
+        temp_db.update_podcast('failing', last_refresh_attempt_at=_iso_ago(60))
+
+        assert temp_db.get_due_feed_slugs(interval_seconds=900, limit=10) == []
+
+    def test_never_attempted_feeds_are_due_first(self, temp_db):
         temp_db.create_podcast('old', 'https://example.com/old.xml', title='Old')
-        temp_db.update_podcast('old', last_checked_at=_iso_ago(3600))
+        temp_db.update_podcast('old', last_refresh_attempt_at=_iso_ago(3600))
         temp_db.create_podcast('new-feed', 'https://example.com/new.xml', title='New')
 
         due = temp_db.get_due_feed_slugs(interval_seconds=900, limit=10)
@@ -38,7 +46,7 @@ class TestDueFeedSelection:
         for i in range(5):
             slug = f'feed-{i}'
             temp_db.create_podcast(slug, f'https://example.com/{i}.xml', title=slug)
-            temp_db.update_podcast(slug, last_checked_at=_iso_ago(3600 + i))
+            temp_db.update_podcast(slug, last_refresh_attempt_at=_iso_ago(3600 + i))
 
         due = temp_db.get_due_feed_slugs(interval_seconds=900, limit=2)
 
@@ -54,15 +62,16 @@ class TestDueFeedSelection:
         assert temp_db.get_due_feed_slugs(interval_seconds=900, limit=10) == []
 
 
-class TestMinLastCheckedAt:
-    def test_none_while_any_feed_is_unrefreshed(self, temp_db):
+class TestFreshnessIndicators:
+    def test_min_ignores_feeds_that_never_succeeded(self, temp_db):
+        # A never-succeeded feed must not blank the dashboard for the rest.
         temp_db.create_podcast('a', 'https://example.com/a.xml', title='A')
         temp_db.update_podcast('a', last_checked_at=_iso_ago(60))
-        temp_db.create_podcast('b', 'https://example.com/b.xml', title='B')  # never refreshed
+        temp_db.create_podcast('b', 'https://example.com/b.xml', title='B')  # never succeeded
 
-        assert temp_db.get_feeds_min_last_checked_at() is None
+        assert temp_db.get_feeds_min_last_checked_at() == _iso_ago(60)
 
-    def test_oldest_once_all_feeds_are_fresh(self, temp_db):
+    def test_min_is_the_oldest_successful_refresh(self, temp_db):
         older = _iso_ago(600)
         temp_db.create_podcast('a', 'https://example.com/a.xml', title='A')
         temp_db.update_podcast('a', last_checked_at=older)
@@ -71,8 +80,19 @@ class TestMinLastCheckedAt:
 
         assert temp_db.get_feeds_min_last_checked_at() == older
 
-    def test_none_when_there_are_no_subscribed_feeds(self, temp_db):
+    def test_min_none_when_no_feed_has_succeeded(self, temp_db):
+        temp_db.create_podcast('b', 'https://example.com/b.xml', title='B')
         assert temp_db.get_feeds_min_last_checked_at() is None
+
+    def test_max_is_the_most_recent_successful_refresh(self, temp_db):
+        temp_db.create_podcast('a', 'https://example.com/a.xml', title='A')
+        temp_db.update_podcast('a', last_checked_at=_iso_ago(600))
+        temp_db.create_podcast('b', 'https://example.com/b.xml', title='B')
+        newest = _iso_ago(60)
+        temp_db.update_podcast('b', last_checked_at=newest)
+
+        # One stale feed does not blank the health-panel value.
+        assert temp_db.get_feeds_last_successful_refresh_at() == newest
 
 
 class TestRefreshDueFeeds:

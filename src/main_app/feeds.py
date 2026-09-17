@@ -245,6 +245,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         refresh_logger.debug(f"[{slug}] Skipping refresh (recent attempt within coalesce window)")
         return RefreshOutcome(True, 'coalesced')
     _refresh_coalesce.set(slug, True)
+    # Stamp the attempt up front, before any fetch can fail, so the staggered
+    # scheduler retries this feed on the interval instead of re-selecting it
+    # every tick while it keeps failing (last_checked_at is success-only).
+    db.update_podcast(slug, last_refresh_attempt_at=utc_now_iso())
 
     try:
         # Get podcast name and etag for conditional fetch
@@ -610,7 +614,9 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
                 feed_info = feed_map.get(slug)
                 if feed_info is None:
                     continue
-                row = db.get_podcast_by_slug(slug)
+                # get_podcast_row, not get_podcast_by_slug: only feed_type is
+                # read here, so the episode-count aggregation is wasted per tick.
+                row = db.get_podcast_row(slug)
                 if is_local_feed(row) or is_recents_feed(row):
                     continue
                 futures[executor.submit(
@@ -697,8 +703,8 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
 
 
 def refresh_single_feed(slug: str) -> bool:
-    """Refresh one feed by slug. Used by the podping listener; the
-    15-minute scheduler keeps using refresh_all_feeds."""
+    """Refresh one feed by slug. Used by the podping listener; the background
+    scheduler staggers feeds through refresh_due_feeds instead."""
     podcast = db.get_podcast_by_slug(slug)
     if not podcast or not podcast.get('source_url'):
         return False

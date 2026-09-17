@@ -175,18 +175,20 @@ class PodcastMixin:
         return row['last_checked_at'] if row else None
 
     def get_due_feed_slugs(self, interval_seconds: float, limit: int) -> list[str]:
-        """Subscribed feeds whose last refresh is older than interval_seconds,
-        oldest first, capped at limit. Never-refreshed feeds (NULL) sort first
-        so a fresh feed is picked up on the next tick. Local and recents feeds
-        are not fetched from upstream, so they are excluded. last_checked_at is
-        a fixed-width UTC ISO string, so the string compare is chronological."""
+        """Subscribed feeds not attempted within interval_seconds, oldest
+        attempt first, capped at limit. Keyed off last_refresh_attempt_at (not
+        last_checked_at) so a failing feed, which records no success, still
+        retries once per interval instead of monopolizing every tick. Never-
+        attempted feeds (NULL) sort first. Local and recents feeds are not
+        fetched from upstream, so they are excluded. The timestamp is a fixed-
+        width UTC ISO string, so the string compare is chronological."""
         cutoff = (datetime.now(timezone.utc)
                   - timedelta(seconds=interval_seconds)).strftime(ISO_FORMAT)
         rows = self.get_connection().execute(
             """SELECT slug FROM podcasts
                WHERE feed_type NOT IN ('local', 'recents')
-                 AND (last_checked_at IS NULL OR last_checked_at < ?)
-               ORDER BY last_checked_at ASC
+                 AND (last_refresh_attempt_at IS NULL OR last_refresh_attempt_at < ?)
+               ORDER BY last_refresh_attempt_at ASC
                LIMIT ?""",
             (cutoff, limit),
         ).fetchall()
@@ -200,19 +202,24 @@ class PodcastMixin:
         ).fetchone()[0]
 
     def get_feeds_min_last_checked_at(self) -> str | None:
-        """Oldest last_checked_at across subscribed feeds, or None when any of
-        them has never been refreshed. Backs the dashboard's 'all feeds fresh
-        as of T' indicator: a feed not yet refreshed once means the set is not
-        fully fresh, so the indicator stays empty until the first cycle drains."""
-        row = self.get_connection().execute(
-            """SELECT MIN(last_checked_at) AS oldest,
-                      SUM(CASE WHEN last_checked_at IS NULL THEN 1 ELSE 0 END) AS unrefreshed,
-                      COUNT(*) AS total
-               FROM podcasts WHERE feed_type NOT IN ('local', 'recents')"""
-        ).fetchone()
-        if not row or row['total'] == 0 or row['unrefreshed']:
-            return None
-        return row['oldest']
+        """Oldest successful refresh across subscribed feeds that have refreshed
+        at least once, or None when none have. Backs the dashboard's 'all feeds
+        fresh as of T' indicator. A feed that succeeded before but is now failing
+        keeps its old timestamp and holds this back (honest staleness); a feed
+        that never succeeded is ignored rather than pinning it to empty."""
+        return self.get_connection().execute(
+            "SELECT MIN(last_checked_at) FROM podcasts "
+            "WHERE feed_type NOT IN ('local', 'recents') AND last_checked_at IS NOT NULL"
+        ).fetchone()[0]
+
+    def get_feeds_last_successful_refresh_at(self) -> str | None:
+        """Most recent successful refresh across subscribed feeds, for the
+        health panel's 'is refresh working at all' signal. A max, so one stale
+        feed cannot blank it."""
+        return self.get_connection().execute(
+            "SELECT MAX(last_checked_at) FROM podcasts "
+            "WHERE feed_type NOT IN ('local', 'recents')"
+        ).fetchone()[0]
 
     def get_podcast_slug(self, podcast_id: int) -> str | None:
         """Slug for a podcast id -- cheap single-column lookup."""
@@ -336,7 +343,8 @@ class PodcastMixin:
         for key, value in kwargs.items():
             if key in (
                 'title', 'description', 'artwork_url', 'artwork_cached',
-                'last_checked_at', 'source_url', 'network_id', 'dai_platform',
+                'last_checked_at', 'last_refresh_attempt_at',
+                'source_url', 'network_id', 'dai_platform',
                 'network_id_override', 'audio_analysis_override', 'auto_process_override',
                 'language_override', 'title_override', 'detection_notes', 'detection_mode',
                 'chapters_mode', 'chapters_in_notes',

@@ -195,11 +195,9 @@ def _resolve_refresh_interval_seconds() -> float:
 
 
 def _due_batch_size(interval_seconds: float, active_count: int) -> int:
-    """Per-tick cap on feeds refreshed, sized so the whole set is covered once
-    per interval. Floored at the outage sample size so a backlog (fresh boot or
-    a shared outage) still refreshes enough feeds at once for outage detection
-    to judge the batch; the due-filter keeps steady-state cadence to once per
-    interval regardless of this cap."""
+    """Per-tick feed cap that covers the whole set once per interval, floored at
+    the outage sample size so a backlog still gives outage detection a batch to
+    judge. The due-filter keeps steady-state cadence to once per interval."""
     ticks = max(interval_seconds / REFRESH_TICK_SECONDS, 1.0)
     steady = math.ceil(active_count / ticks)
     return max(steady, FEED_REFRESH_OUTAGE_MIN_FEEDS)
@@ -225,7 +223,10 @@ def background_rss_refresh():
         batch = _due_batch_size(interval_seconds, db.count_subscribed_feeds())
         result = refresh_due_feeds(batch, interval_seconds)
 
-        if time.monotonic() - last_maintenance >= MAINTENANCE_INTERVAL_SECONDS:
+        # Maintenance keeps its old once-per-interval cadence rather than
+        # running on every short tick; run_cleanup's orphan-directory walk is
+        # not internally time-gated.
+        if time.monotonic() - last_maintenance >= interval_seconds:
             last_maintenance = time.monotonic()
             run_cleanup()
             refresh_pricing_if_stale()  # TTL-gated, fetches once per 24h
