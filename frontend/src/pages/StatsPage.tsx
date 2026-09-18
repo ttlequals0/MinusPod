@@ -1102,25 +1102,25 @@ export default function StatsPage() {
           The filters below apply to this section only, and dates select whole UTC days.
         </p>
 
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 mb-3">
-          <div className="w-full sm:w-auto min-w-0">
+        <div className="flex flex-wrap items-end gap-3 mb-3">
+          <div className="min-w-0">
             <label htmlFor="spendFrom" className="block text-xs font-medium text-muted-foreground mb-1">From</label>
             <input
               type="date"
               id="spendFrom"
               value={ledgerFrom}
               onChange={(e) => write({ from: e.target.value, muPage: '1', ecPage: '1' })}
-              className={`w-full min-w-0 sm:w-auto ${inputBase}`}
+              className={`min-w-0 ${inputBase}`}
             />
           </div>
-          <div className="w-full sm:w-auto min-w-0">
+          <div className="min-w-0">
             <label htmlFor="spendTo" className="block text-xs font-medium text-muted-foreground mb-1">To</label>
             <input
               type="date"
               id="spendTo"
               value={ledgerTo}
               onChange={(e) => write({ to: e.target.value, muPage: '1', ecPage: '1' })}
-              className={`w-full min-w-0 sm:w-auto ${inputBase}`}
+              className={`min-w-0 ${inputBase}`}
             />
           </div>
           <select

@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- On a phone, the LLM spend From and To date inputs no longer overrun the card. They now size to the date they hold and sit together on one line instead of stretching full width, which the native date control could push past the card edge.
+
 ## [2.97.7] - 2026-09-18
 
 ### Security
