@@ -311,10 +311,6 @@ A row of section links sits under the Stats heading and jumps straight to Overvi
 |---------|--------|
 | <img src="screenshots/settings-desktop.png" width="500"> | <img src="screenshots/settings-mobile.png" width="200"> |
 
-#### API Documentation
-
-<img src="screenshots/api-docs.png" width="600">
-
 ---
 
 [< Docs index](README.md) | [Project README](../README.md)
