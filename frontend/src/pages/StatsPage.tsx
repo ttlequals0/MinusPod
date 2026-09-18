@@ -248,9 +248,9 @@ function ModelUsageTable({
           const label = isOpen ? 'Hide usage detail' : 'Show usage detail';
           return (
             <div key={key} className="bg-card rounded-lg border border-border p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-foreground">{stat.provider} / {stat.model}</p>
-                <p className="text-sm text-muted-foreground">
+              <div className="mb-2">
+                <p className="text-sm font-medium text-foreground break-words">{stat.provider} / {stat.model}</p>
+                <p className="mt-1.5 text-sm text-muted-foreground text-right">
                   <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
                 </p>
               </div>
@@ -1103,24 +1103,24 @@ export default function StatsPage() {
         </p>
 
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 mb-3">
-          <div className="w-full sm:w-auto">
+          <div className="w-full sm:w-auto min-w-0">
             <label htmlFor="spendFrom" className="block text-xs font-medium text-muted-foreground mb-1">From</label>
             <input
               type="date"
               id="spendFrom"
               value={ledgerFrom}
               onChange={(e) => write({ from: e.target.value, muPage: '1', ecPage: '1' })}
-              className={`w-full sm:w-auto ${inputBase}`}
+              className={`w-full min-w-0 sm:w-auto ${inputBase}`}
             />
           </div>
-          <div className="w-full sm:w-auto">
+          <div className="w-full sm:w-auto min-w-0">
             <label htmlFor="spendTo" className="block text-xs font-medium text-muted-foreground mb-1">To</label>
             <input
               type="date"
               id="spendTo"
               value={ledgerTo}
               onChange={(e) => write({ to: e.target.value, muPage: '1', ecPage: '1' })}
-              className={`w-full sm:w-auto ${inputBase}`}
+              className={`w-full min-w-0 sm:w-auto ${inputBase}`}
             />
           </div>
           <select

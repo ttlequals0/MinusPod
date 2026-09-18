@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- On the LLM spend section, the From and To date inputs no longer overrun the card on a phone, and a long provider/model name no longer collides with its price. The model name gets its own line and the price sits below it.
+
 ## [2.97.6] - 2026-09-17
 
 ### Fixed
