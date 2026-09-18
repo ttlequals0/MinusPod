@@ -53,6 +53,7 @@ wheel>=0.48.0
 urllib3>=2.7.0                 # CVE-2026-44431, CVE-2026-44432 (pulled in by requests)
 idna>=3.17                     # CVE-2026-45409 (pulled in by requests)
 soupsieve>=2.9.0               # CVE-2026-85999, CVE-2026-86000 (pulled in by beautifulsoup4)
+anyio>=4.14.2                  # CVE-2026-63374, CVE-2026-64847 (pulled in by anthropic/httpx/openai)
 # jaraco.context needs this only on Python <3.12; the image, CI, and the
 # compile host all run 3.12, so the marker keeps it out of the lockfile
 # while staying correct if anything ever compiles or installs on 3.11.

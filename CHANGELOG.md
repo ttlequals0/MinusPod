@@ -11,6 +11,10 @@ release notes.
 
 ## [Unreleased]
 
+### Security
+
+- anyio 4.13.0 to 4.14.2 to clear CVE-2026-63374 and CVE-2026-64847 (pulled in by anthropic, httpx, and openai).
+
 ### Fixed
 
 - On the LLM spend section, the From and To date inputs no longer overrun the card on a phone, and a long provider/model name no longer collides with its price. The model name gets its own line and the price sits below it.
