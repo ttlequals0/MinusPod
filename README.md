@@ -4,6 +4,12 @@
 
 MinusPod is a self-hosted server that removes ads before you ever hit play. It transcribes episodes with Whisper, uses an LLM to detect and cut ad segments, and builds cross-episode ad patterns from your corrections so repeat sponsors get caught without re-asking the LLM. Bring your own LLM: Claude, Ollama, OpenRouter, or any OpenAI-compatible provider.
 
+<p align="center">
+  <img src="docs/screenshots/dashboard-desktop.png" alt="MinusPod dashboard on desktop" width="720" />
+  <br />
+  <img src="docs/screenshots/dashboard-mobile.png" alt="MinusPod dashboard on mobile" width="240" />
+</p>
+
 ## Contents
 
 - [Features](#features)
