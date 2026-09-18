@@ -17,6 +17,7 @@ release notes.
 
 ### Fixed
 
+- Editing an LLM provider's endpoint or type no longer crashes the Settings page. The pre-save preflight read the affected-runs count and list off the top of the response, but the API nests them under `affectedRuns`, so the count read as undefined, the empty-state guard was skipped, and the list render called `.map` on undefined. The client now unwraps the nested object.
 - On the LLM spend section, the From and To date inputs no longer overrun the card on a phone, and a long provider/model name no longer collides with its price. The model name gets its own line and the price sits below it.
 
 ## [2.97.6] - 2026-09-17

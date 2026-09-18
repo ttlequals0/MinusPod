@@ -65,8 +65,15 @@ export interface AffectedRuns {
   runs: AffectedRun[];
 }
 
-export function getAffectedRuns(slot: ProviderSlot) {
-  return apiRequest<AffectedRuns>(`/settings/providers/${slot}/affected-runs`);
+interface AffectedRunsResponse {
+  slot: ProviderSlot;
+  accountId: string | null;
+  affectedRuns?: AffectedRuns;
+}
+
+export async function getAffectedRuns(slot: ProviderSlot): Promise<AffectedRuns> {
+  const res = await apiRequest<AffectedRunsResponse>(`/settings/providers/${slot}/affected-runs`);
+  return res.affectedRuns ?? { count: 0, runs: [] };
 }
 
 export function testProvider(name: ProviderName) {
