@@ -80,6 +80,28 @@ def test_api_aliases_processed_status_to_completed():
     assert match['status'] == 'completed'
 
 
+def test_api_reads_live_status_after_status_only_transition():
+    live_db = get_database()
+    slug = f'live-status-{_eid()}'
+    live_db.create_podcast(slug, f'https://example.com/{slug}.xml', 'Example Show')
+    ep_id = _eid()
+    live_db.upsert_episode(
+        slug, ep_id, title='Mellifluous Status Episode', status='discovered')
+    client = _authed_client()
+
+    discovered = client.get('/api/v1/search?q=Mellifluous').get_json()
+    first = next(e for e in discovered['episodes']
+                 if e['feedSlug'] == slug and e['episodeId'] == ep_id)
+    assert first['status'] == 'discovered'
+
+    live_db.upsert_episode(slug, ep_id, status='processed')
+
+    completed = client.get('/api/v1/search?q=Mellifluous').get_json()
+    updated = next(e for e in completed['episodes']
+                   if e['feedSlug'] == slug and e['episodeId'] == ep_id)
+    assert updated['status'] == 'completed'
+
+
 def test_transcripts_group_honours_the_callers_limit():
     # The group hard-coded LIMIT 3, so the Advanced page could never reach past the
     # first three body-only matches however high a limit it asked for.
