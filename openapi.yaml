@@ -2680,13 +2680,10 @@ paths:
         - Processing
       summary: List processing and queued episodes
       description: >-
-        Returns the episodes currently processing across all feeds, followed by
-        the pending queue in dequeue order (priority first, then age). Queued
-        entries carry stage=queued, a 1-based offset-aware queuePosition, and
-        an `admission` object explaining why they are or are not starting.
-        The waiting list is paginated:
-        offset/limit page over the DB-backed rows, with display-only entries
-        trailing after them.
+        Returns active jobs, then waiting jobs in dequeue order. offset and
+        limit page the waiting list. Queued rows include queuePosition and
+        admission. queueTotal is the full waiting count and excludes active
+        jobs.
       operationId: listProcessingEpisodes
       parameters:
         - name: offset
@@ -6949,9 +6946,9 @@ paths:
         - System
       summary: Download database backup
       description: |
-        Returns an encrypted copy of the SQLite database. Encryption requires
-        the server's master passphrase. Set `encrypted=false` to explicitly
-        request a plaintext SQLite file. Rate limited to 6/hour.
+        Downloads encrypted SQLite by default. A missing master passphrase
+        returns 409, never plaintext. `encrypted=false` requests
+        plaintext; treat the file as sensitive. Limited to 6/hour.
       operationId: downloadBackup
       parameters:
         - in: query
@@ -6959,7 +6956,9 @@ paths:
           schema:
             type: boolean
             default: true
-          description: Encrypt the download. Set false only when another protection layer is in place.
+          description: >-
+            true encrypts without fallback. false explicitly requests a
+            plaintext database file.
       responses:
         '200':
           description: Database backup file download
@@ -6974,7 +6973,15 @@ paths:
                 type: string
                 format: binary
         '409':
-          description: Encrypted export is unavailable because no master passphrase is configured
+          description: Encrypted export unavailable because no master passphrase is configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: backup_encryption_unavailable
+        '500':
+          description: Backup creation or encryption failed
           content:
             application/json:
               schema:
@@ -8602,15 +8609,19 @@ paths:
                         node:                { type: string, example: https://api.hive.blog }
                         selected:            { type: boolean, description: Last node to complete a successful RPC call. }
                         consecutiveFailures: { type: integer }
-                        lastSuccessAt:       { type: [string, 'null'], format: date-time }
+                        lastSuccessAt:
+                          type: [string, 'null']
+                          format: date-time
+                          description: Last successful RPC response, shown as Last seen; null before success.
                         nextRetryAt:         { type: [string, 'null'], format: date-time }
                         lastFailureReason:   { type: [string, 'null'] }
                         httpStatus:
                           type: [integer, 'null']
-                          description: HTTP status from the latest response, or null when no response arrived.
+                          description: Latest HTTP status, including 200 with invalid_response; null if none arrived.
                         outcome:
                           type: [string, 'null']
                           enum: [healthy, http_error, invalid_response, unreachable, null]
+                          description: Latest RPC outcome; null before the first check.
 
   /feeds/{slug}/tags:
     get:
@@ -11006,16 +11017,13 @@ components:
             - null
           description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null follows the global chaptersMode setting.
         differentialFetchMode:
-          type:
-            - string
-            - 'null'
+          type: string
           enum:
             - inherit
             - auto
             - 'on'
             - 'off'
-            - null
-          description: Per-feed cross-fetch mode. 'inherit' follows the global default, 'auto' follows DAI detection, and 'on' or 'off' forces the stage.
+          description: Configured per-feed cross-fetch mode. 'inherit' follows the global default; other values select auto, on, or off.
         chaptersInNotes:
           type:
             - string
@@ -11980,6 +11988,7 @@ components:
           type:
             - number
             - 'null'
+          description: Total run wall-clock seconds; null when no duration was recorded.
         errorMessage:
           type:
             - string
@@ -12114,12 +12123,12 @@ components:
                 - object
                 - 'null'
               description: >-
-                Wall-clock seconds measured for each pipeline stage. Stages
-                that run concurrently can overlap, so these values do not sum
-                to processingDurationSeconds. ffmpegSeconds combines every
-                FFmpeg task in the run, including retries, and can overlap
-                with the stages that started those tasks. finalizeSeconds ends
-                before the history row is written and notifications are sent.
+                Wall-clock seconds by stage. Concurrent stages and
+                FFmpeg can overlap, so fields do not sum to
+                processingDurationSeconds. ffmpegSeconds includes every
+                FFmpeg task and retry. finalizeSeconds stops before history
+                persistence and notifications. Null means no measurement was
+                recorded for the object or field.
               properties:
                 downloadSeconds:
                   type:
@@ -12170,6 +12179,7 @@ components:
                   type:
                     - number
                     - 'null'
+                  description: Wall-clock seconds across FFmpeg tasks and retries; zero means none were observed.
             transcription:
               type: object
               description: >-
@@ -14196,6 +14206,7 @@ components:
                       - string
                       - 'null'
                     format: date-time
+                    description: Last successful RPC response, shown as Last seen; null before success.
                   nextRetryAt:
                     type:
                       - string
@@ -14209,12 +14220,13 @@ components:
                     type:
                       - integer
                       - 'null'
-                    description: HTTP status from the latest response, or null when no response arrived.
+                    description: Latest HTTP status, including 200 with invalid_response; null if none arrived.
                   outcome:
                     type:
                       - string
                       - 'null'
                     enum: [healthy, http_error, invalid_response, unreachable, null]
+                    description: Latest RPC outcome; null before the first check.
         transcriber:
           type: object
           description: >-
@@ -14281,6 +14293,7 @@ components:
 
     ProcessingEpisode:
       type: object
+      required: [episodeId, slug, title, podcast, startedAt, stage, queueTotal]
       properties:
         episodeId:
           type: string
@@ -14305,8 +14318,8 @@ components:
             - string
             - 'null'
           description: >-
-            Current pipeline stage for the active job, or "queued" for an
-            episode still waiting its turn
+            Active pipeline label, "queued" for a waiting episode, or null
+            when live stage detail is unavailable.
         queuedAt:
           type:
             - string
@@ -14319,9 +14332,7 @@ components:
         queueTotal:
           type: integer
           description: >-
-            Total pending episodes across the whole backlog, not just the
-            requested page. Stamped on every entry, active ones included, so
-            a page whose queued rows all deduped away still reports it.
+            Full waiting count across all pages, excluding active jobs.
         priority:
           type:
             - integer

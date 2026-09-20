@@ -132,13 +132,13 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Pattern** - Anything MinusPod has learned from confirmed ads and reapplies to new episodes: text patterns from transcripts and audio fingerprints. Patterns catch repeat ads without spending LLM tokens. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
-**Podping** - An opt-in listener that watches the Hive blockchain for publish notifications and refreshes a matching feed immediately instead of waiting for the next scheduled poll. Only some hosts send them; polling continues either way. [Podcasting 2.0 > Podping](podcasting-2.0.md#podping)
+**Podping** - An opt-in listener that watches the Hive blockchain for publish notifications and refreshes a matching feed immediately instead of waiting for the next scheduled poll. System Health reports each listener node's endpoint, latest HTTP status, and last successful response time. Only some hosts send notifications; polling continues either way. [Podcasting 2.0 > Podping](podcasting-2.0.md#podping)
 
 **Processing mode** - The per-feed preset that decides what the pipeline does with each episode: standard ad removal, keep-content detection, skip ad detection (transcripts and chapters only), pass-through, or cue-only (cuts from cue pairs and previously learned ad patterns, no LLM call). One select in Feed Settings; the REST API also accepts the underlying per-field flags. [How It Works](how-it-works.md)
 
-**Processing queue** - The line episodes wait in; one episode processes at a time. [How It Works > Processing Queue](how-it-works.md#processing-queue)
+**Processing queue** - The Queue page shows active jobs and the full waiting list, with controls for queue behavior and priority. [How It Works > Processing Queue](how-it-works.md#processing-queue)
 
-**Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified. [Web Interface > Processing stats](web-interface.md#processing-stats)
+**Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified, plus elapsed stage and FFmpeg timing when available. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
 ## Q
 

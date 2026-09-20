@@ -166,7 +166,9 @@ The SQLite backup files produced by `GET /api/v1/system/backup`, by the periodic
 - Webhook HMAC secrets
 - Password hash (scrypt)
 
-Treat the file like a credential. When `MINUSPOD_MASTER_PASSPHRASE` is set, downloadable backups use the versioned `MPBK02` envelope. Its authenticated header carries the PBKDF2 iteration count, random KDF salt, nonce, and plaintext size, so recovery does not require a live database. Decryption writes a private temporary file and publishes plaintext only after AES-GCM authentication succeeds. Legacy `MPBK01` files still require a database from the same instance for its salt. Scheduled snapshots remain plain SQLite files.
+Treat the file like a credential. `GET /api/v1/system/backup` requests an encrypted download by default. Encryption requires `MINUSPOD_MASTER_PASSPHRASE` and a restart after setting it. Without the passphrase the request returns HTTP 409 `backup_encryption_unavailable`; an encryption failure returns HTTP 500. Neither case falls back to plaintext. Plaintext requires an explicit `encrypted=false` query, and the web UI puts that download behind a separate warning and confirmation. The audit log records whether each download was encrypted.
+
+Encrypted downloads use the versioned `MPBK02` envelope. Its authenticated header carries the PBKDF2 iteration count, random KDF salt, nonce, and plaintext size, so recovery does not require a live database. Decryption writes a private temporary file and publishes plaintext only after AES-GCM authentication succeeds. Legacy `MPBK01` files still require a database from the same instance for its salt. Scheduled snapshots remain plain SQLite files.
 
 ### Scheduled database backups
 

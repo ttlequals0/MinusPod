@@ -57,17 +57,19 @@ The server includes a web-based management UI at `/ui/`:
 - Stats dashboard with charts: avg/min/max metrics, top podcasts by ads, episodes by day, token usage, sortable podcast table, and an addressing-modes card comparing contract compliance and ad yield per mode (see [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode))
 - JSON schema response format (Settings > LLM Provider): opt-in for OpenAI-compatible endpoints, probed per model, falling back to plain JSON mode where it is not supported (see [Configuration](configuration.md#json-schema-response-format))
 - Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost. Each customizable prompt has its own Reset button next to its label (visible but disabled at default), alongside the section-wide reset-all button
-- Scheduled database backups (Settings > Data & Security): cron schedule, destination, keep count, and a Back up now button that works even with the schedule off
-- Offline queue (Settings > Queue Control): optionally hold episodes while a self-hosted LLM or Whisper endpoint is down and process them automatically when it returns, with a configurable give-up window
+- Database backups (Settings > Data & Security): encrypted downloads and scheduled plain SQLite snapshots. Scheduled controls include the cron schedule, destination, keep count, and a Back up now button that works with the schedule off
+- Offline queue (Queue > Queue Control): optionally hold episodes while a self-hosted LLM or Whisper endpoint is down and process them automatically when it returns, with a configurable give-up window
 - Whisper pool (Settings > Transcription): optionally process several episodes at once on a remote Whisper backend, with a cap on requests in flight
-- Rate-limit hold (Settings > Queue Control): optionally pause the queue while the LLM provider reports a 429 with a reset time, instead of failing episodes
-- Processing Queue panel (Settings): the waiting list is paginated, and each row has a priority field with -/+ buttons that can raise or lower its place in the queue. A row the scheduler will not admit yet says why, naming the blocked phase, the account slot, the reason, and when the block lifts, so a multi-stage hold can be diagnosed instead of leaving a row that never starts
+- Rate-limit hold (Queue > Queue Control): optionally pause the queue while the LLM provider reports a 429 with a reset time, instead of failing episodes
+- Queue page: active jobs show progress and cancellation controls. The full waiting list is paginated, and each row has links and -/+ buttons that can raise or lower its priority. A row the scheduler will not admit yet says why, naming the blocked phase, the account slot, the reason, and when the block lifts
 - Provider account switch (Settings > LLM Provider): changing a slot's endpoint or provider type lists the runs still bound to the current account before you save, and asks whether to requeue them on the new account (the default) or cancel them, so in-flight work is never moved silently
 - Status bar showing processing progress across all pages through 2-second polling, with failure backoff up to 30 seconds. It also appears when the queue holds work with nothing running. The message names the provider reset time for a rate-limit pause or the unavailable service for an offline wait
 - Outbound Requests (Settings > Data & Security): the User-Agent MinusPod sends when it fetches feeds, audio, and artwork, editable per string with a Reset back to the default, plus a toggle for whether download logs include URL query strings
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button
-- Global Defaults group in settings (Auto-Process, Max Feed Episodes, Only Expose Processed) that every feed inherits, with per-feed overrides on each feed's settings page; Queue priority boosts live in the Queue Control group
+- Global Defaults group in settings: Auto-Process, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. New feeds use these defaults; each feed can inherit or set an explicit override
+- Chapter mode default in Settings > Transcripts & Chapters, with the same per-feed inheritance and override
+- Queue priority boosts in Queue > Queue Control
 - Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, and structural rate-limit hits, delivered by webhooks or native email (Settings > Notifications)
 - Podcast search via PodcastIndex.org
 - Search: start typing on any page, or press `/` or Ctrl+K, to open a keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
@@ -229,7 +231,9 @@ When the AI detection pass fails but pattern and cross-fetch evidence already pr
 
 ### Processing stats
 
-Every processing run records what it actually worked with, and the episode page shows it in a "Processing stats" section at the bottom, collapsed by default. One row per run: when it ran, the length of the downloaded copy, how many detection windows the LLM answered, hits per detection stage, the final cut / held / kept split, ad time removed, the second-scan result, and token cost. Recuts only carry the basic columns.
+Every processing run records what it actually worked with, and the episode page shows it in a "Processing stats" section at the bottom, collapsed by default. Each row shows when the run started, downloaded length, LLM detection window count, and hits per stage. It also reports the final cut / held / kept split, ad time removed, second-scan result, and token cost. Recuts omit detection details but retain timing for the work they perform.
+
+Durations use clock formatting (`M:SS` or `H:MM:SS`). The total is elapsed wall-clock time through saving the episode and feed. Stage times can overlap, and FFmpeg runs inside those stages, so the timing columns are not meant to be added together. The FFmpeg total sums every FFmpeg task in the run, including retries. Transcription, detection, or verification configured not to run says Skipped. A missing time in another measured run says Unavailable; a run saved before timing was recorded says Timing unavailable.
 
 Two things make this table earn its place. First, feeds with dynamic ad insertion serve a different copy per download: the Downloaded column shows it directly, and a note calls out when the copy differs from the duration the feed declares. Second, when a run removes far less ad time than the feed's recent average, the episode header shows an amber "Low ad yield" badge with the numbers, so a lightly-filled download does not read as a detection failure.
 

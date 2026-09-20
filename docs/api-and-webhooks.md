@@ -32,7 +32,7 @@ Key endpoints:
 - `GET /api/v1/podcast-search?q=query` - Search podcasts via PodcastIndex.org
 - `GET /api/v1/feeds/{slug}/episodes` - List episodes (supports `sort_by`, `sort_dir`, `status` filter, pagination). Each episode carries a `jobState` (`idle`, `queued`, or `processing`) alongside the lifecycle `status`; it is read from the live queue, so a `pending` episode with no queue row reports `idle` rather than `queued`.
 - `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, reprocess_llm, delete)
-- `GET /api/v1/feeds/{slug}/episodes/{id}` - Get episode detail with ad markers and transcript, including the same `jobState` field as the list endpoint
+- `GET /api/v1/feeds/{slug}/episodes/{id}` - Get episode detail with ad markers, transcript, live `jobState`, and processing-run statistics. New runs include elapsed totals, stage timings, and aggregate FFmpeg time; older runs can have no timing data. The elapsed total ends after the episode and feed are saved; history recording and notifications follow outside it
 - `GET /api/v1/feeds/{slug}/episodes/{id}/artwork` - Serve an episode's cover, fetching and caching it from the publisher on first request. Publishers block images requested with a cross-site Referer, so the web UI asks here instead of loading them directly. Redirects to the feed cover when the episode has none or the fetch is refused. The URL comes from the episode record, never from the caller
 - `POST /api/v1/episodes/{slug}/{id}/reprocess` - Reprocess an episode (body `mode`: reprocess/full/llm/recut; `llm` re-detects on the existing transcript and `recut` re-cuts from the saved ad list, both skipping transcription). See [Reprocessing](configuration.md#reprocessing) for the full mode reference. The older `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` ignores `mode` and always runs a full reprocess.
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cancel` - Cancel processing for a stuck episode
@@ -76,9 +76,9 @@ Key endpoints:
 - `POST /api/v1/system/model-pricing/refresh` - Force refresh pricing from provider source
 - `GET /api/v1/system/queue` - Auto-process queue status
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
-- `GET /api/v1/system/status` - System state including worker-scoped SQLite WAL, checkpoint, transaction, and busy diagnostics
+- `GET /api/v1/system/status` - System state including Podping node endpoint, latest HTTP status, and last successful response time, plus worker-scoped SQLite WAL, checkpoint, transaction, and busy diagnostics
 - `POST /api/v1/system/database/checkpoint` - Run a passive WAL checkpoint; returns 409 when active readers prevent completion
-- `GET /api/v1/system/backup` - Download SQLite database backup
+- `GET /api/v1/system/backup` - Download an encrypted SQLite backup by default. Returns 409 when encryption is unavailable; `encrypted=false` explicitly requests plaintext. See the [security guide](security-and-storage.md#database-backup-sensitivity)
 - `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running)
 - `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`)
 - `GET/PUT /api/v1/settings/provider-budget` - Read or update durable provider admission settings and current reserved/spent amounts

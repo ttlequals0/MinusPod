@@ -7,6 +7,7 @@
 ## Contents
 
 - [Configuration](#configuration)
+- [Global feed defaults](#global-feed-defaults)
 - [Experiments](#experiments)
 - [Reprocessing](#reprocessing)
 - [Community Patterns (Optional)](#community-patterns-optional)
@@ -24,6 +25,14 @@ All configuration is in the web UI or REST API. No config files needed.
 ### Adding Feeds
 
 Add a feed from the dashboard at `/ui/` (Add Feed, RSS URL, optional custom slug) or with `POST /api/v1/feeds` (see [API & Webhooks](api-and-webhooks.md#api)).
+
+### Global feed defaults
+
+Settings > Global Defaults controls verification and cross-fetch differential. Verification can run or be skipped. Cross-fetch can run automatically for feeds that look DAI-served, always run, or stay off. Settings > Transcripts & Chapters controls chapter mode: preserve upstream chapters automatically, always generate chapters, or turn chapters off. During normal processing, the mode is applied only when Generate Chapters is on.
+
+New feeds use each global choice. A feed set to Inherit continues using that choice; an explicit Feed Settings value overrides it. The same controls are available through `PUT /api/v1/settings/ad-detection` and `PATCH /api/v1/feeds/{slug}`; see the [OpenAPI specification](../openapi.yaml) for fields and accepted values.
+
+Upgrades preserve existing feed choices instead of switching them to inheritance. The earlier cross-fetch enabled flag becomes an explicit On or Off, while an unset legacy flag becomes explicit Auto.
 
 ### Ad Detection Settings
 
@@ -284,7 +293,7 @@ To apply a new map to an already-processed feed, use the **Re-render episodes wi
 
 Each feed has a **Queue priority**: High, Normal (default), or Low, set on the feed's settings page. High processes ahead of other queued episodes; Low runs only once nothing else is waiting.
 
-Three automatic boosts stack on top of a feed's base priority, and the size of each is a setting under **Settings > AI & Processing > Queue Control > Queue priority**:
+Three automatic boosts stack on top of a feed's base priority, and the size of each is a setting under **Queue > Queue Control > Queue priority**:
 
 | Boost | Default | When it applies |
 |---|---|---|
@@ -296,7 +305,7 @@ The defaults encode one rule: a request you make right now beats backlog work, a
 
 Automatic changes only ever raise a queued episode's priority: pressing play on an episode already sitting in the queue lifts it to the play boost, and background refreshes can never knock a boosted episode back down.
 
-You can override that by hand. The **Processing Queue** panel's waiting list gives each row a priority field with -/+ buttons beside it, which writes the row's priority directly and can lower it as well as raise it (`POST /api/v1/feeds/{slug}/episodes/{episodeId}/queue-priority`). Re-enqueueing the episode with a higher computed priority still overwrites a hand-set value, and so does a change to the feed's own Queue priority.
+You can override that by hand. Each row on the **Queue** page has -/+ buttons that can raise or lower its priority. The endpoint is `POST /api/v1/feeds/{slug}/episodes/{episodeId}/queue-priority`. Re-enqueueing the episode with a higher computed priority still overwrites a hand-set value, and so does a change to the feed's own Queue priority.
 
 Changing a feed's queue priority restamps every episode of that feed still pending in the queue with the new base priority. API: `queuePriority` on `PATCH /api/v1/feeds/{slug}` (`high`, `normal`, or `low`); the boost sizes are `queueManualBoost`, `queueFreshBoost`, and `queueBulkBoost` (0-100) and the toggle is `processNewEpisodesFirst`, all on `PUT /api/v1/settings`.
 
@@ -453,7 +462,7 @@ Turning it off gives up a safety net, so it suits a feed you have already watche
 
 If your LLM or Whisper server only runs part of the day (a desktop PC that hosts Ollama, for example), episodes that arrive while it is off normally retry a few times, trip the circuit breaker, and end up permanently failed until you reprocess them by hand. The offline queue changes that: an episode that fails because the endpoint is unreachable is parked with a "queued (offline)" status instead. Every few minutes MinusPod probes the endpoint, and once it answers again the parked episodes go back into the processing queue on their own.
 
-The feature is off by default. Configure it in **Settings > AI & Processing > Queue Control**.
+The feature is off by default. Configure it in **Queue > Queue Control**.
 
 | Setting | Default | Notes |
 |---|---|---|
@@ -466,7 +475,7 @@ Only connection-level failures qualify: connection refused, DNS errors, timeouts
 
 Hosted LLM providers answer a 429 with the time their limit resets. Without this feature an episode that hits one burns its retries against a provider that will not answer for another hour, and every episode behind it does the same. The rate-limit hold puts the episode back in the queue instead and stops the queue from claiming anything until the reset time passes, then carries on by itself.
 
-The feature is off by default. Configure it in **Settings > AI & Processing > Queue Control**.
+The feature is off by default. Configure it in **Queue > Queue Control**.
 
 | Setting | Default | Notes |
 |---|---|---|
