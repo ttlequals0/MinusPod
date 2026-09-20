@@ -319,8 +319,10 @@ class RSSParser:
 
     def fetch_feed(self, url: str, timeout: int = 30) -> str | None:
         """Fetch RSS feed from URL."""
+        breaker = _get_rss_circuit_breaker(url)
+        probe_token = None
         try:
-            _get_rss_circuit_breaker(url).check()
+            probe_token = breaker.check()
         except CircuitBreakerOpen as e:
             logger.debug(f"RSS fetch skipped: {e}")
             return None
@@ -347,7 +349,7 @@ class RSSParser:
                         "RSS fetch rejected on content-type: url=%s content_type=%r",
                         url, response.headers.get('Content-Type'),
                     )
-                    _get_rss_circuit_breaker(url).record_failure()
+                    breaker.record_failure(token=probe_token)
                     return None
                 max_bytes = _max_rss_bytes()
                 try:
@@ -357,21 +359,22 @@ class RSSParser:
                         "feed_size_cap_exceeded: url=%s max=%d",
                         safe_url_for_log(url), max_bytes,
                     )
-                    _get_rss_circuit_breaker(url).record_failure()
+                    breaker.record_failure(token=probe_token)
                     return None
                 except IncompleteResponseError as e:
                     logger.warning(
                         "feed_body_truncated: url=%s err=%s",
                         safe_url_for_log(url), e,
                     )
-                    _get_rss_circuit_breaker(url).record_failure()
+                    breaker.record_failure(token=probe_token)
                     return None
                 logger.info(f"Successfully fetched RSS feed, size: {len(body)} bytes")
-                _get_rss_circuit_breaker(url).record_success()
+                breaker.record_success(token=probe_token)
                 return body.decode('utf-8', errors='replace')
             finally:
                 response.close()
         except SSRFError as e:
+            breaker.release_probe(probe_token)
             logger.warning(f"SSRF blocked in fetch_feed: {e} (url={safe_url_for_log(url)})")
             return None
         except requests.exceptions.ContentDecodingError as e:
@@ -400,25 +403,25 @@ class RSSParser:
                 except ResponseTooLargeError:
                     logger.warning("feed_size_cap_exceeded: url=%s max=%d",
                                    safe_url_for_log(url), max_bytes)
-                    _get_rss_circuit_breaker(url).record_failure()
+                    breaker.record_failure(token=probe_token)
                     return None
                 except IncompleteResponseError as e:
                     logger.warning("feed_body_truncated: url=%s err=%s",
                                    safe_url_for_log(url), e)
-                    _get_rss_circuit_breaker(url).record_failure()
+                    breaker.record_failure(token=probe_token)
                     return None
                 finally:
                     response.close()
                 logger.info(f"Successfully fetched RSS feed (uncompressed), size: {len(body)} bytes")
-                _get_rss_circuit_breaker(url).record_success()
+                breaker.record_success(token=probe_token)
                 return body.decode('utf-8', errors='replace')
             except (requests.RequestException, SSRFError) as retry_e:
                 logger.error(f"Failed to fetch RSS feed (retry): {retry_e}")
-                _get_rss_circuit_breaker(url).record_failure()
+                breaker.record_failure(token=probe_token)
                 return None
         except requests.RequestException as e:
             logger.error(f"Failed to fetch RSS feed: {e}")
-            _get_rss_circuit_breaker(url).record_failure()
+            breaker.record_failure(token=probe_token)
             return None
 
     def fetch_feed_conditional(self, url: str, etag: str = None,
@@ -445,8 +448,10 @@ class RSSParser:
         if last_modified:
             headers['If-Modified-Since'] = last_modified
 
+        breaker = _get_rss_circuit_breaker(url)
+        probe_token = None
         try:
-            _get_rss_circuit_breaker(url).check()
+            probe_token = breaker.check()
         except CircuitBreakerOpen as e:
             logger.debug(f"RSS conditional fetch skipped: {e}")
             return None, None, None
@@ -463,7 +468,7 @@ class RSSParser:
 
             if response.status_code == 304:
                 logger.debug(f"Feed not modified (304): {safe_url_for_log(url)}")
-                _get_rss_circuit_breaker(url).record_success()
+                breaker.record_success(token=probe_token)
                 response.close()
                 return None, etag, last_modified
 
@@ -474,7 +479,7 @@ class RSSParser:
                     url, response.headers.get('Content-Type'),
                 )
                 response.close()
-                _get_rss_circuit_breaker(url).record_failure()
+                breaker.record_failure(token=probe_token)
                 return None, None, None
 
             new_etag = response.headers.get('ETag')
@@ -486,21 +491,22 @@ class RSSParser:
             except ResponseTooLargeError:
                 logger.warning("feed_size_cap_exceeded: url=%s max=%d",
                                safe_url_for_log(url), max_bytes)
-                _get_rss_circuit_breaker(url).record_failure()
+                breaker.record_failure(token=probe_token)
                 return None, None, None
             except IncompleteResponseError as e:
                 logger.warning("feed_body_truncated: url=%s err=%s",
                                safe_url_for_log(url), e)
-                _get_rss_circuit_breaker(url).record_failure()
+                breaker.record_failure(token=probe_token)
                 return None, None, None
             finally:
                 response.close()
 
             logger.debug(f"Fetched RSS feed, size: {len(body)} bytes")
-            _get_rss_circuit_breaker(url).record_success()
+            breaker.record_success(token=probe_token)
             return body.decode('utf-8', errors='replace'), new_etag, new_last_modified
 
         except SSRFError as e:
+            breaker.release_probe(probe_token)
             logger.warning(f"SSRF blocked in fetch_feed_conditional: {e} (url={safe_url_for_log(url)})")
             return None, None, None
 
@@ -520,7 +526,7 @@ class RSSParser:
                     headers={**headers, 'Accept-Encoding': 'identity'},
                 )
                 if response.status_code == 304:
-                    _get_rss_circuit_breaker(url).record_success()
+                    breaker.record_success(token=probe_token)
                     response.close()
                     return None, etag, last_modified
                 response.raise_for_status()
@@ -532,28 +538,28 @@ class RSSParser:
                 except ResponseTooLargeError:
                     logger.warning("feed_size_cap_exceeded: url=%s max=%d",
                                    safe_url_for_log(url), max_bytes)
-                    _get_rss_circuit_breaker(url).record_failure()
+                    breaker.record_failure(token=probe_token)
                     return None, None, None
                 except IncompleteResponseError as e:
                     logger.warning("feed_body_truncated: url=%s err=%s",
                                    safe_url_for_log(url), e)
-                    _get_rss_circuit_breaker(url).record_failure()
+                    breaker.record_failure(token=probe_token)
                     return None, None, None
                 finally:
                     response.close()
-                _get_rss_circuit_breaker(url).record_success()
+                breaker.record_success(token=probe_token)
                 return (
                     body.decode('utf-8', errors='replace'),
                     new_etag,
                     new_last_modified,
                 )
             except (SSRFError, requests.RequestException):
-                _get_rss_circuit_breaker(url).record_failure()
+                breaker.record_failure(token=probe_token)
                 return None, None, None
 
         except requests.RequestException as e:
             logger.error(f"Conditional fetch failed: {e}")
-            _get_rss_circuit_breaker(url).record_failure()
+            breaker.record_failure(token=probe_token)
             return None, None, None
 
     def parse_feed(self, feed_content: str, source: str = None) -> dict:

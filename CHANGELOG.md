@@ -9,6 +9,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.10] - 2026-09-20
+
+### Fixed
+
+- Podping checks every Hive node when the listener starts and every five minutes while it is enabled. System Health identifies the active node, refreshes while Settings is open, and has a Check now action that also works when the listener is off.
+- Reviewer inconclusive responses no longer count as provider outages, and retries wait for the circuit breaker recovery window.
+
 ## [2.97.9] - 2026-09-20
 
 ### Fixed

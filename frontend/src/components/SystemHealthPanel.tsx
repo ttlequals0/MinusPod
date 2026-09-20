@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { SystemStatus } from '../api/types';
+import { useQueryClient } from '@tanstack/react-query';
+import type { PodpingCheck, SystemStatus } from '../api/types';
+import { requestPodpingCheck } from '../api/settings';
 import { formatDateTime } from '../utils/format';
 import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
 import { badgeBase, tint } from './badgeStyles';
+import { btnSecondary, touchTarget } from './buttonStyles';
 
 const NODE_STALE_MS = 10 * 60 * 1000;
 
@@ -26,11 +29,30 @@ const LABEL: Record<Health, string> = {
   critical: 'Critical',
 };
 
-// A live listener with some, but not all, nodes failing. The rollup pill and
-// the Podping row both read degradation from this, so they cannot disagree.
-function podpingDegraded(p: SystemStatus['podping']): boolean {
-  return !!p?.listenerEnabled && !p.allNodesDown
-    && p.nodes.some((n) => n.consecutiveFailures > 0);
+function checking(check?: PodpingCheck): boolean {
+  return check?.status === 'pending' || check?.status === 'running';
+}
+
+function nodeFresh(node: NonNullable<SystemStatus['podping']>['nodes'][number], now: number): boolean {
+  if (node.consecutiveFailures > 0 || !node.lastSuccessAt) return false;
+  const lastSuccess = Date.parse(node.lastSuccessAt);
+  return Number.isFinite(lastSuccess) && now - lastSuccess <= NODE_STALE_MS;
+}
+
+function podpingHealth(p: SystemStatus['podping'], now = Date.now()): Health | 'neutral' {
+  if (!p) return 'neutral';
+  if (!p.listenerEnabled) return p.check?.status === 'error' ? 'warning' : 'neutral';
+  if (p.allNodesDown) return 'critical';
+  if (p.check?.status === 'error') return 'warning';
+  const active = p.nodes.find((node) => node.active);
+  if (!active) {
+    const observed = p.nodes.some((node) =>
+      node.lastSuccessAt || node.consecutiveFailures > 0 || node.outcome,
+    );
+    return observed ? 'warning' : 'neutral';
+  }
+  if (!nodeFresh(active, now)) return 'warning';
+  return p.nodes.some((node) => node !== active && nodeFresh(node, now)) ? 'healthy' : 'warning';
 }
 
 // Single rollup across the health signals: transcriber down or every Podping
@@ -40,8 +62,9 @@ export function rollupHealth(status: SystemStatus): Health {
   const t = status.transcriber;
   const p = status.podping;
   const f = status.feedRefresh;
-  if (t?.available === false || (p?.listenerEnabled && p.allNodesDown)) return 'critical';
-  if (f?.outageDegraded || podpingDegraded(p) || t?.lastOutcome?.status === 'failed') {
+  const podping = podpingHealth(p);
+  if (t?.available === false || podping === 'critical') return 'critical';
+  if (f?.outageDegraded || podping === 'warning' || t?.lastOutcome?.status === 'failed') {
     return 'warning';
   }
   return 'healthy';
@@ -76,16 +99,18 @@ function TranscriberRow({ t }: { t: NonNullable<SystemStatus['transcriber']> }) 
 }
 
 function PodpingRow({ p }: { p: NonNullable<SystemStatus['podping']> }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [submitting, setSubmitting] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, []);
-  if (!p.listenerEnabled) {
-    return <Row tone="neutral" label="Podping" detail="listener disabled" />;
-  }
-  const tone: Health = p.allNodesDown ? 'critical' : podpingDegraded(p) ? 'warning' : 'healthy';
+  const check = p.check;
+  const isChecking = submitting || checking(check);
+  const tone = podpingHealth(p, now);
   const nodeState = (node: NonNullable<SystemStatus['podping']>['nodes'][number]) => {
     if (node.consecutiveFailures > 0) {
       if (node.outcome === 'invalid_response') {
@@ -100,38 +125,73 @@ function PodpingRow({ p }: { p: NonNullable<SystemStatus['podping']> }) {
       };
     }
     if (!node.lastSuccessAt) return { label: 'Not checked', tone: 'neutral' as const };
-    const lastSuccess = Date.parse(node.lastSuccessAt);
     const label = node.httpStatus ? `HTTP ${node.httpStatus}` : 'Healthy';
-    if (!Number.isFinite(lastSuccess) || now - lastSuccess > NODE_STALE_MS) {
+    if (!nodeFresh(node, now)) {
       return { label, tone: 'neutral' as const };
     }
     return { label, tone: 'healthy' as const };
   };
   const healthy = p.nodes.filter((node) => nodeState(node).tone === 'healthy').length;
-  // The all-nodes-down flag is authoritative for the summary text; per-node
-  // counters only describe a partial outage.
-  let detail = p.allNodesDown
-    ? `all ${p.nodes.length} nodes down`
-    : `${healthy}/${p.nodes.length} nodes healthy`;
-  if (p.degradedSince) detail += `; degraded since ${formatDateTime(p.degradedSince)}`;
+  let detail: string;
+  if (isChecking) {
+    detail = 'checking nodes';
+  } else if (!p.listenerEnabled) {
+    detail = check?.status === 'completed'
+      && typeof check.healthyNodes === 'number' && typeof check.totalNodes === 'number'
+      ? `${check.healthyNodes}/${check.totalNodes} nodes healthy`
+      : 'listener disabled';
+  } else {
+    detail = p.allNodesDown
+      ? `all ${p.nodes.length} nodes down`
+      : `${healthy}/${p.nodes.length} nodes healthy`;
+  }
+  if (p.listenerEnabled && p.degradedSince) {
+    detail += `; degraded since ${formatDateTime(p.degradedSince)}`;
+  }
   if (p.listenerEnabled && p.allNodesDown) detail += '; RSS polling remains independent';
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        aria-controls="podping-node-details"
-        aria-label="Podping details"
-        className={`w-full min-h-[44px] flex items-center gap-2 text-sm text-left ${focusRing}`}
-      >
-        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${DOT[tone]}`} aria-hidden="true" />
-        <span className="min-w-0 flex-1">
-          <span className="text-foreground">Podping</span>
-          <span className="text-muted-foreground"> {detail}</span>
-        </span>
-        <ChevronCaret expanded={open} className="w-4 h-4 shrink-0" />
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          aria-controls="podping-node-details"
+          aria-label="Podping details"
+          className={`min-w-0 flex-1 min-h-[44px] flex items-center gap-2 text-sm text-left ${focusRing}`}
+        >
+          <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${DOT[tone]}`} aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="text-foreground">Podping</span>
+            <span className="text-muted-foreground"> {detail}</span>
+          </span>
+          <ChevronCaret expanded={open} className="w-4 h-4 shrink-0" />
+        </button>
+        <button
+          type="button"
+          disabled={isChecking}
+          onClick={async () => {
+            setRequestError(null);
+            setSubmitting(true);
+            try {
+              const result = await requestPodpingCheck();
+              queryClient.setQueryData<SystemStatus>(['status'], (current) => current?.podping
+                ? { ...current, podping: { ...current.podping, check: result } }
+                : current);
+              void queryClient.invalidateQueries({ queryKey: ['status'] });
+            } catch (error) {
+              setRequestError(error instanceof Error ? error.message : 'Check could not start.');
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+          className={`${touchTarget} shrink-0 p-0 ${focusRing} disabled:opacity-50`}
+        >
+          <span className={`px-2 py-1 rounded text-xs ${btnSecondary} transition-colors`}>
+            {isChecking ? 'Checking...' : 'Check now'}
+          </span>
+        </button>
+      </div>
       {open && (
         <div id="podping-node-details" className="min-w-0 ml-4 mt-2 space-y-2 border-l border-border pl-3">
           {p.nodes.map((node) => {
@@ -140,6 +200,7 @@ function PodpingRow({ p }: { p: NonNullable<SystemStatus['podping']> }) {
               <div key={node.node} className="min-w-0 max-w-full flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT[state.tone]}`} aria-hidden="true" />
                 <span className="font-medium text-foreground break-all">{node.node}</span>
+                {node.active && <span className={`${badgeBase} ${tint.primary}`}>Active</span>}
                 <span className={`${badgeBase} ${state.tone === 'healthy' ? tint.success : state.tone === 'warning' ? tint.warning : 'bg-muted text-muted-foreground'}`}>
                   {state.label}
                 </span>
@@ -149,6 +210,11 @@ function PodpingRow({ p }: { p: NonNullable<SystemStatus['podping']> }) {
               </div>
             );
           })}
+          {(requestError || check?.status === 'error') && (
+            <div role="alert" className="text-xs text-destructive">
+              {requestError || check?.message || 'Check failed.'}
+            </div>
+          )}
         </div>
       )}
     </div>

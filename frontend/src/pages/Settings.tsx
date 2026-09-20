@@ -10,7 +10,7 @@ import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
-import type { AffectedRunsAction, BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, ProviderSlot, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
+import type { AffectedRunsAction, BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, ProviderSlot, SystemStatus, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
 import { LLM_PROVIDERS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
@@ -62,6 +62,11 @@ import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '.
 import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils';
 import { btnPrimary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
+
+export function systemStatusRefetchInterval(status?: SystemStatus): number {
+  const check = status?.podping?.check;
+  return check?.status === 'pending' || check?.status === 'running' ? 2_000 : 30_000;
+}
 
 function SettingsGroupHeader({ title }: { title: string }) {
   // During an active settings search the group labels are noise (sections are
@@ -507,6 +512,9 @@ function Settings() {
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['status'],
     queryFn: getSystemStatus,
+    refetchInterval: (query) => systemStatusRefetchInterval(
+      query.state.data as SystemStatus | undefined,
+    ),
   });
 
   const { data: retention } = useQuery({

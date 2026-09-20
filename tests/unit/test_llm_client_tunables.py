@@ -46,9 +46,10 @@ def _make_openai_response(content="ok", finish_reason="stop"):
 
 
 class _FakeAPIError(Exception):
-    def __init__(self, status_code, message="rejected"):
+    def __init__(self, status_code, message="rejected", body=None):
         super().__init__(message)
         self.status_code = status_code
+        self.body = body
 
 
 class _ConcurrentReasoningAPI:
@@ -193,6 +194,100 @@ class TestAnthropicFallback:
 
         assert is_fallback_set("ep1", PASS_AD_DETECTION_1) is False
         assert mock_sdk.messages.create.call_count == 1
+
+    def test_review_inconclusive_does_not_count_as_breaker_failure(self):
+        from llm_client import AnthropicClient
+        from utils.circuit_breaker import CircuitBreaker
+
+        client = AnthropicClient(api_key="dummy")
+        breaker = CircuitBreaker("review", failure_threshold=1)
+        client.set_circuit_breaker(breaker)
+        mock_sdk = MagicMock()
+        error = _FakeAPIError(
+            422,
+            "Review is inconclusive",
+            body={"error": {"code": "jev_review_inconclusive"}},
+        )
+        mock_sdk.messages.create.side_effect = error
+        client._client = mock_sdk
+
+        with pytest.raises(_FakeAPIError):
+            client.messages_create(
+                model="claude-x",
+                max_tokens=4096,
+                system="sys",
+                messages=[{"role": "user", "content": "hi"}],
+                episode_id="ep1",
+                pass_name=PASS_REVIEWER_1,
+            )
+
+        assert breaker.state == CircuitBreaker.CLOSED
+        assert mock_sdk.messages.create.call_count == 1
+
+    @pytest.mark.parametrize("error", [
+        _FakeAPIError(
+            422,
+            "Review is inconclusive",
+            body={"error": {"code": "jev_review_inconclusive"}},
+        ),
+        _FakeAPIError(429, "rate limited"),
+    ])
+    def test_neutral_half_open_result_releases_probe_without_resetting_history(
+            self, error):
+        from llm_client import AnthropicClient
+        from utils.circuit_breaker import CircuitBreaker
+
+        client = AnthropicClient(api_key="dummy")
+        breaker = CircuitBreaker(
+            "review", failure_threshold=1, recovery_timeout=0)
+        breaker.record_failure(_FakeAPIError(503, "upstream down"))
+        client.set_circuit_breaker(breaker)
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = error
+        client._client = mock_sdk
+
+        with pytest.raises(_FakeAPIError):
+            client.messages_create(
+                model="claude-x",
+                max_tokens=4096,
+                system="sys",
+                messages=[{"role": "user", "content": "hi"}],
+                episode_id="ep1",
+                pass_name=PASS_REVIEWER_1,
+            )
+
+        assert breaker.state == CircuitBreaker.HALF_OPEN
+        breaker.check()
+        breaker.record_failure(_FakeAPIError(503, "still down"))
+        assert breaker.state == CircuitBreaker.HALF_OPEN
+
+    @pytest.mark.parametrize(
+        ("status", "code"),
+        [(422, "other_code"), (503, "jev_review_inconclusive")],
+    )
+    def test_other_provider_errors_still_count_against_breaker(self, status, code):
+        from llm_client import AnthropicClient
+        from utils.circuit_breaker import CircuitBreaker
+
+        client = AnthropicClient(api_key="dummy")
+        breaker = CircuitBreaker("review", failure_threshold=1)
+        client.set_circuit_breaker(breaker)
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = _FakeAPIError(
+            status, "provider failure", body={"error": {"code": code}})
+        client._client = mock_sdk
+
+        with pytest.raises(_FakeAPIError):
+            client.messages_create(
+                model="claude-x",
+                max_tokens=4096,
+                system="sys",
+                messages=[{"role": "user", "content": "hi"}],
+                episode_id="ep1",
+                pass_name=PASS_REVIEWER_1,
+            )
+
+        assert breaker.state == CircuitBreaker.OPEN
 
     def test_no_pass_name_no_fallback(self):
         client = self._build_client()

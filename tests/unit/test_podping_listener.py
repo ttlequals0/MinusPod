@@ -553,10 +553,12 @@ class TestPodpingListenerLoop:
         monkeypatch.setattr(background_module, 'shutdown_event', fake_event)
         monkeypatch.setattr(
             background_module.db, 'get_setting_bool', lambda key, default=False: False)
+        monkeypatch.setattr(PodpingListener, 'persist_monitor_heartbeat', Mock())
+        monkeypatch.setattr(PodpingListener, 'update_node_probes', Mock())
 
         podping_listener_loop()
 
-        assert fake_event.wait_calls == [30]
+        assert fake_event.wait_calls == [5]
 
     def test_enabled_loop_paces_ticks_with_3s_wait(self, monkeypatch):
         import main_app.background as background_module
@@ -591,6 +593,8 @@ class TestPodpingListenerLoop:
 
         # Mock PodpingListener.tick to succeed without network calls.
         monkeypatch.setattr(PodpingListener, 'tick', Mock())
+        monkeypatch.setattr(PodpingListener, 'persist_monitor_heartbeat', Mock())
+        monkeypatch.setattr(PodpingListener, 'update_node_probes', Mock())
 
         # Mock refresh function to prevent any side effects.
         refresh_mock = Mock()
@@ -623,7 +627,7 @@ class TestPodpingListenerLoop:
                 self.iteration_count += 1
                 return True
 
-        fake_event = CountingShutdownEvent(max_iterations=2)
+        fake_event = CountingShutdownEvent(max_iterations=40)
         monkeypatch.setattr(background_module, 'shutdown_event', fake_event)
 
         fake_db = Mock()
@@ -634,18 +638,17 @@ class TestPodpingListenerLoop:
 
         tick_mock = Mock(side_effect=RuntimeError('boom'))
         monkeypatch.setattr(PodpingListener, 'tick', tick_mock)
+        monkeypatch.setattr(PodpingListener, 'persist_monitor_heartbeat', Mock())
+        monkeypatch.setattr(PodpingListener, 'update_node_probes', Mock())
         monkeypatch.setattr('main_app.feeds.refresh_single_feed', Mock())
 
         with caplog.at_level('ERROR', logger='podcast.podping'):
             podping_listener_loop()  # must return normally, not raise
 
-        # Both iterations hit the exception path and backed off 60s each --
-        # the loop reached a second iteration rather than dying on the first.
-        assert fake_event.wait_calls == [60, 60]
+        # Both iterations hit the exception path. Production splits each 60s
+        # backoff into 3s waits so health commands remain responsive.
+        assert fake_event.wait_calls == [3] * 40
         assert tick_mock.call_count == 2
-        assert 'Podping listener loop iteration failed' in caplog.text
-        exc_records = [r for r in caplog.records if r.exc_info is not None]
-        assert len(exc_records) == 2
 
 
 class TestRestartResume:

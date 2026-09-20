@@ -595,7 +595,7 @@ MinusPod polls every feed's upstream RSS on a fixed schedule. Podping is an opt-
 | Setting | Default | Notes |
 |---|---|---|
 | Feed refresh interval | 15 minutes | Minutes between background RSS refresh passes for every feed. Range 5-1440. Settings > Global Defaults. A change applies after the wait already in progress finishes. |
-| Podping notifications | off | Opt-in listener that refreshes a feed immediately when its host sends a Podping notification. It also records which hosts send them, so each feed reports whether Podping covers it. Settings > Global Defaults. |
+| Podping notifications | off | Opt-in listener that refreshes a feed immediately when its host sends a Podping notification. While enabled, it checks every RPC node at startup and every five minutes. System Health can run the same check on demand while the listener is off. Settings > Global Defaults. |
 
 ---
 

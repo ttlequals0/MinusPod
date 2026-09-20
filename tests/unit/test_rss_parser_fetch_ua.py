@@ -9,16 +9,22 @@ auto-derive a slug from the URL.
 """
 import logging
 import re
+import threading
+import time
 
 import requests
+import pytest
 from unittest.mock import MagicMock, patch
 
 import defusedxml
 defusedxml.defuse_stdlib()
 
 from config import APP_USER_AGENT
+import rss_parser
 from rss_parser import RSSParser
+from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.http import safe_url_for_log
+from utils.url import SSRFError
 
 
 def _ok_response(body: bytes = b"<rss><channel><title>X</title></channel></rss>"):
@@ -99,3 +105,55 @@ class TestFetchFeedSendsAppUserAgent:
         # any message that merely contained it.
         logged_url = re.search(r'url=(\S+)', gzip_warnings[0]).group(1)
         assert logged_url == safe_url_for_log('https://feeds.example.com/show.xml')
+
+
+class TestRSSCircuitProbeRelease:
+    @pytest.mark.parametrize('method', ['fetch_feed', 'fetch_feed_conditional'])
+    def test_ssrf_result_releases_half_open_probe(self, method):
+        url = 'https://example.com/feed.xml'
+        breaker = CircuitBreaker(
+            'rss-example.com', failure_threshold=1, recovery_timeout=60)
+        breaker.record_failure()
+        breaker._last_failure_time = time.time() - 61
+        rss_parser._rss_circuit_breakers['example.com'] = breaker
+
+        with patch('rss_parser.safe_get', side_effect=SSRFError('blocked')):
+            result = getattr(RSSParser(), method)(url)
+
+        assert result is None or result == (None, None, None)
+        breaker.check()
+
+    @pytest.mark.parametrize('method', ['fetch_feed', 'fetch_feed_conditional'])
+    @pytest.mark.parametrize('outcome', ['success', 'failure'])
+    def test_expired_probe_cannot_complete_replacement_lease(self, method, outcome):
+        url = 'https://example.com/feed.xml'
+        breaker = CircuitBreaker(
+            'rss-example.com', failure_threshold=1, recovery_timeout=60)
+        breaker.record_failure()
+        breaker._last_failure_time = time.time() - 61
+        rss_parser._rss_circuit_breakers['example.com'] = breaker
+        entered = threading.Event()
+        release = threading.Event()
+
+        def fetch(*args, **kwargs):
+            entered.set()
+            release.wait(timeout=2)
+            if outcome == 'failure':
+                raise requests.RequestException('offline')
+            return _ok_response()
+
+        with patch('rss_parser.safe_get', side_effect=fetch), \
+             patch('rss_parser.read_response_capped', return_value=b'<rss/>'):
+            worker = threading.Thread(target=getattr(RSSParser(), method), args=(url,))
+            worker.start()
+            assert entered.wait(timeout=2)
+            with breaker._lock:
+                breaker._half_open_probe_started = time.time() - 61
+            current_token = breaker.check()
+            release.set()
+            worker.join(timeout=2)
+
+        assert not worker.is_alive()
+        with pytest.raises(CircuitBreakerOpen):
+            breaker.check()
+        breaker.release_probe(current_token)

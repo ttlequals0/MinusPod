@@ -1,7 +1,20 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import type { ReactElement } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SystemStatus } from '../api/types';
 import SystemHealthPanel, { rollupHealth } from './SystemHealthPanel';
+
+const requestPodpingCheck = vi.hoisted(() => vi.fn());
+
+vi.mock('../api/settings', () => ({ requestPodpingCheck }));
+
+function render(ui: ReactElement, queryClient = new QueryClient()) {
+  return {
+    ...rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>),
+    queryClient,
+  };
+}
 
 function status(over: Partial<SystemStatus>): SystemStatus {
   return {
@@ -41,7 +54,7 @@ describe('rollupHealth', () => {
     }))).toBe('warning');
   });
 
-  it('is warning when some Podping nodes are failing', () => {
+  it('warns when observed Podping nodes have no active connection', () => {
     expect(rollupHealth(status({
       podping: { listenerEnabled: true, allNodesDown: false, degradedSince: null, nodes: [
         { node: 'a', consecutiveFailures: 1, lastFailureReason: 'x', lastSuccessAt: null, nextRetryAt: null },
@@ -49,9 +62,48 @@ describe('rollupHealth', () => {
       ] },
     }))).toBe('warning');
   });
+
+  it('does not downgrade the rollup before any Podping node is observed', () => {
+    expect(rollupHealth(status({
+      podping: { listenerEnabled: true, allNodesDown: false, degradedSince: null, nodes: [
+        { node: 'a', consecutiveFailures: 0, lastFailureReason: null, lastSuccessAt: null, nextRetryAt: null },
+        { node: 'b', consecutiveFailures: 0, lastFailureReason: null, lastSuccessAt: null, nextRetryAt: null },
+      ] },
+    }))).toBe('healthy');
+  });
+
+  it('keeps an existing Podping outage critical while a node check is running', () => {
+    expect(rollupHealth(status({
+      podping: {
+        listenerEnabled: true, allNodesDown: true,
+        degradedSince: '2026-09-20T00:00:00Z', nodes: [],
+        check: {
+          checkId: 'check-1', status: 'running', requestedAt: '2026-09-20T00:00:00Z',
+          startedAt: '2026-09-20T00:00:01Z', completedAt: null,
+        },
+      },
+    }))).toBe('critical');
+  });
+
+  it('ignores historical Podping degradation while listening is disabled', () => {
+    expect(rollupHealth(status({
+      podping: {
+        listenerEnabled: false, allNodesDown: true,
+        degradedSince: '2026-09-20T00:00:00Z', nodes: [],
+      },
+    }))).toBe('healthy');
+  });
 });
 
 describe('SystemHealthPanel', () => {
+  beforeEach(() => {
+    requestPodpingCheck.mockReset();
+    requestPodpingCheck.mockResolvedValue({
+      checkId: 'check-1', status: 'pending', requestedAt: '2026-09-20T00:00:00Z',
+      startedAt: null, completedAt: null,
+    });
+  });
+
   it('renders nothing when no health fields are present', () => {
     const { container } = render(<SystemHealthPanel status={status({
       transcriber: undefined, podping: undefined, feedRefresh: undefined,
@@ -142,6 +194,139 @@ describe('SystemHealthPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /podping details/i }));
     expect(screen.getByText('Invalid response (HTTP 200)')).toBeDefined();
     expect(screen.queryByText('Healthy')).toBeNull();
+  });
+
+  it('keeps a healthy summary when the active node and a fallback are fresh', () => {
+    const lastSeen = new Date().toISOString();
+    const podping = {
+      listenerEnabled: true, allNodesDown: false, degradedSince: null, nodes: [
+        { node: 'active', active: true, consecutiveFailures: 0, lastFailureReason: null, lastSuccessAt: lastSeen, nextRetryAt: null, httpStatus: 200, outcome: 'healthy' as const },
+        { node: 'fallback', active: false, consecutiveFailures: 0, lastFailureReason: null, lastSuccessAt: lastSeen, nextRetryAt: null, httpStatus: 200, outcome: 'healthy' as const },
+        { node: 'down', active: false, consecutiveFailures: 2, lastFailureReason: 'offline', lastSuccessAt: null, nextRetryAt: null, outcome: 'unreachable' as const },
+      ],
+    };
+    expect(rollupHealth(status({ podping }))).toBe('healthy');
+
+    render(<SystemHealthPanel status={status({ podping })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    fireEvent.click(screen.getByRole('button', { name: /podping details/i }));
+    expect(screen.getByText('Active')).toBeDefined();
+  });
+
+  it('warns when the active node has no fresh fallback', () => {
+    const lastSeen = new Date().toISOString();
+    expect(rollupHealth(status({
+      podping: { listenerEnabled: true, allNodesDown: false, degradedSince: null, nodes: [
+        { node: 'active', active: true, consecutiveFailures: 0, lastFailureReason: null, lastSuccessAt: lastSeen, nextRetryAt: null, httpStatus: 200, outcome: 'healthy' },
+      ] },
+    }))).toBe('warning');
+  });
+
+  it('places the compact check action beside the Podping details trigger', () => {
+    render(<SystemHealthPanel status={status({})} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    const details = screen.getByRole('button', { name: /podping details/i });
+    const check = screen.getByRole('button', { name: 'Check now' });
+
+    expect(check.parentElement).toBe(details.parentElement);
+    expect(details.contains(check)).toBe(false);
+    expect(check.className).toContain('min-h-11');
+    expect(check.firstElementChild?.className).toContain('px-2 py-1');
+    expect(check.firstElementChild?.className).toContain('text-xs');
+  });
+
+  it('offers a manual check while automatic listening is disabled', async () => {
+    let finishRequest: ((value: Awaited<ReturnType<typeof requestPodpingCheck>>) => void) | undefined;
+    requestPodpingCheck.mockImplementationOnce(() => new Promise((resolve) => {
+      finishRequest = resolve;
+    }));
+    const current = status({});
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['status'], current);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    render(<SystemHealthPanel status={current} />, queryClient);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    fireEvent.click(screen.getByRole('button', { name: /podping details/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
+
+    expect(requestPodpingCheck).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Checking...' }).hasAttribute('disabled')).toBe(true);
+    finishRequest?.({
+      checkId: 'check-1', status: 'pending', requestedAt: '2026-09-20T00:00:00Z',
+      startedAt: null, completedAt: null,
+    });
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['status'] });
+      expect((queryClient.getQueryData<SystemStatus>(['status']))?.podping?.check?.checkId).toBe('check-1');
+    });
+  });
+
+  it('renders a newer authoritative check after its own request completes', async () => {
+    const first = status({});
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['status'], first);
+    const view = render(<SystemHealthPanel status={first} />, queryClient);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    fireEvent.click(screen.getByRole('button', { name: /podping details/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
+    await waitFor(() => expect(requestPodpingCheck).toHaveBeenCalledOnce());
+
+    const newer = status({
+      podping: {
+        listenerEnabled: false, allNodesDown: false, degradedSince: null, nodes: [],
+        check: {
+          checkId: 'check-2', status: 'error', requestedAt: '2026-09-20T00:01:00Z',
+          startedAt: null, completedAt: null, message: 'Newer check failed.',
+        },
+      },
+    });
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <SystemHealthPanel status={newer} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('alert').textContent).toBe('Newer check failed.');
+  });
+
+  it('summarizes a completed manual check while automatic listening is disabled', () => {
+    render(<SystemHealthPanel status={status({
+      podping: {
+        listenerEnabled: false, allNodesDown: true,
+        degradedSince: '2026-09-19T00:00:00Z', nodes: [],
+        check: {
+          checkId: 'check-1', status: 'completed', requestedAt: '2026-09-20T00:00:00Z',
+          startedAt: '2026-09-20T00:00:01Z', completedAt: '2026-09-20T00:00:02Z',
+          healthyNodes: 3, totalNodes: 4,
+        },
+      },
+    })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    expect(screen.getByText(/3\/4 nodes healthy/)).toBeDefined();
+    expect(screen.queryByText(/degraded since/i)).toBeNull();
+    expect(screen.queryByText(/all 0 nodes down/i)).toBeNull();
+  });
+
+  it('shows a backend check error without claiming success', () => {
+    render(<SystemHealthPanel status={status({
+      podping: {
+        listenerEnabled: false, allNodesDown: false, degradedSince: null, nodes: [],
+        check: { checkId: 'check-1', status: 'error', requestedAt: '2026-09-20T00:00:00Z', startedAt: null, completedAt: null, message: 'Leader unavailable.' },
+      },
+    })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    fireEvent.click(screen.getByRole('button', { name: /podping details/i }));
+    expect(screen.getByRole('alert').textContent).toBe('Leader unavailable.');
+    expect(screen.queryByText(/check complete/i)).toBeNull();
+  });
+
+  it('shows the request error returned when a manual check cannot start', async () => {
+    requestPodpingCheck.mockRejectedValue(new Error('Podping monitor leader is unavailable.'));
+    render(<SystemHealthPanel status={status({})} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    fireEvent.click(screen.getByRole('button', { name: /podping details/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Podping monitor leader is unavailable.');
   });
 });
 

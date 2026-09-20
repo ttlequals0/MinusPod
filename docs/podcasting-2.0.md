@@ -235,12 +235,15 @@ No Hive account, keys, or wallet are required. The listener only
 reads the public chain; it never writes to it. Requests go to a small,
 built-in list of public Hive API nodes over outbound HTTPS, roughly
 two requests every 3 seconds while the toggle is on (a head poll plus
-a block fetch each tick), and none while it is off. If a node is
-unreachable, the listener rotates to the next one and backs off.
+a block fetch each tick). If a node is unreachable, the listener
+rotates to the next one and backs off.
 
 Settings > System Health lists each node's endpoint, latest HTTP status,
-and last successful response time. The same summary is available from
-`GET /api/v1/system/status`.
+and last successful response time. It identifies the node carrying listener
+traffic. While the listener is enabled, MinusPod checks every node at startup
+and every five minutes. **Check now** runs the same check on demand, even when
+the listener is off. These checks do not change the active node. The same
+summary and check progress are available from `GET /api/v1/system/status`.
 
 Podping is an accelerator, not a replacement for polling. The
 scheduled RSS refresh (see [How It Works > Processing

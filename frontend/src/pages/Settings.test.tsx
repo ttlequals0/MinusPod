@@ -7,8 +7,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import Settings from './Settings';
-import type { Settings as SettingsShape, SettingValue } from '../api/types';
+import Settings, { systemStatusRefetchInterval } from './Settings';
+import type { Settings as SettingsShape, SettingValue, SystemStatus } from '../api/types';
 
 // The Reset button that belongs to one prompt textarea, found by its label
 // rather than by position, so reordering settings sections cannot break it.
@@ -316,5 +316,27 @@ describe('Settings loading placeholder', () => {
     renderSettings();
     await screen.findByLabelText('First Pass System Prompt');
     expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
+  });
+});
+
+describe('Settings system status polling', () => {
+  it('polls faster while a Podping node check is unfinished', () => {
+    const withCheck = (status: 'pending' | 'running' | 'completed') => ({
+      podping: {
+        listenerEnabled: true,
+        allNodesDown: false,
+        degradedSince: null,
+        nodes: [],
+        check: {
+          checkId: 'check-1', status,
+          requestedAt: '2026-09-20T00:00:00Z', startedAt: null, completedAt: null,
+        },
+      },
+    }) as unknown as SystemStatus;
+
+    expect(systemStatusRefetchInterval(withCheck('pending'))).toBe(2_000);
+    expect(systemStatusRefetchInterval(withCheck('running'))).toBe(2_000);
+    expect(systemStatusRefetchInterval(withCheck('completed'))).toBe(30_000);
+    expect(systemStatusRefetchInterval()).toBe(30_000);
   });
 });

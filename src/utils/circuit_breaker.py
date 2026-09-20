@@ -83,6 +83,9 @@ class CircuitBreaker:
         self._last_failure_time = 0.0
         self._cause: str | None = None
         self._auth_cause = False
+        self._half_open_probe_started = 0.0
+        self._half_open_probe_token = None
+        self._probe_generation = 0
         self._lock = threading.Lock()
 
     @property
@@ -109,18 +112,59 @@ class CircuitBreaker:
                 seconds_left = self.recovery_timeout - (time.time() - self._last_failure_time)
                 raise CircuitBreakerOpen(self.name, max(0, seconds_left),
                                           cause=self._cause, auth_cause=self._auth_cause)
+            if current_state == self.HALF_OPEN:
+                elapsed = time.time() - self._half_open_probe_started
+                if self._half_open_probe_started and elapsed < self.recovery_timeout:
+                    raise CircuitBreakerOpen(
+                        self.name, self.recovery_timeout - elapsed,
+                        cause=self._cause, auth_cause=self._auth_cause)
+                self._half_open_probe_started = time.time()
+                self._probe_generation += 1
+                self._half_open_probe_token = self._probe_generation
+                return self._half_open_probe_token
+            return None
 
-    def record_success(self):
+    def seconds_until_retry(self) -> float | None:
+        """Remaining open or half-open probe lease, else None."""
+        with self._lock:
+            current_state = self._evaluate_state()
+            if current_state == self.OPEN:
+                return max(
+                    0.0,
+                    self.recovery_timeout - (time.time() - self._last_failure_time),
+                )
+            if current_state == self.HALF_OPEN and self._half_open_probe_started:
+                return max(
+                    0.0,
+                    self.recovery_timeout
+                    - (time.time() - self._half_open_probe_started),
+                )
+            return None
+
+    def release_probe(self, token=None) -> None:
+        """Release a half-open probe without changing failure history."""
+        with self._lock:
+            if (self._state == self.HALF_OPEN
+                    and token is not None
+                    and token == self._half_open_probe_token):
+                self._half_open_probe_started = 0.0
+                self._half_open_probe_token = None
+
+    def record_success(self, token=None):
         """Record a successful call. Resets the circuit to CLOSED."""
         with self._lock:
+            if token is not None and token != self._half_open_probe_token:
+                return
             if self._state in (self.HALF_OPEN, self.OPEN):
                 logger.info(f"Circuit breaker '{self.name}': {self._state} -> CLOSED (success)")
             self._state = self.CLOSED
             self._failure_count = 0
             self._cause = None
             self._auth_cause = False
+            self._half_open_probe_started = 0.0
+            self._half_open_probe_token = None
 
-    def record_failure(self, error: Exception | None = None):
+    def record_failure(self, error: Exception | None = None, token=None):
         """Record a failed call. Opens the circuit after threshold failures.
 
         Callers must NOT invoke this for HTTP 429 / rate-limit errors --
@@ -132,8 +176,12 @@ class CircuitBreaker:
         so a later CircuitBreakerOpen still surfaces it (e.g. an auth outage).
         """
         with self._lock:
+            if token is not None and token != self._half_open_probe_token:
+                return
             self._failure_count += 1
             self._last_failure_time = time.time()
+            self._half_open_probe_started = 0.0
+            self._half_open_probe_token = None
 
             if self._state == self.HALF_OPEN:
                 self._state = self.OPEN
@@ -181,3 +229,5 @@ class CircuitBreaker:
             self._last_failure_time = 0.0
             self._cause = None
             self._auth_cause = False
+            self._half_open_probe_started = 0.0
+            self._half_open_probe_token = None

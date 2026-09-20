@@ -120,6 +120,60 @@ class TestCircuitBreakerCheck:
         # Should not raise - allows one probe in half_open
         cb.check()
 
+    @patch('utils.circuit_breaker.time.time', side_effect=_get_mock_time)
+    def test_only_one_half_open_probe_runs_at_a_time(self, mock_time):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()
+        _advance_time(61)
+
+        cb.check()
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+
+        assert exc_info.value.seconds_until_retry == 60
+
+    @patch('utils.circuit_breaker.time.time', side_effect=_get_mock_time)
+    def test_abandoned_half_open_probe_lease_expires(self, mock_time):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()
+        _advance_time(61)
+        cb.check()
+
+        _advance_time(60)
+
+        cb.check()
+
+    @patch('utils.circuit_breaker.time.time', side_effect=_get_mock_time)
+    def test_stale_probe_cannot_release_replacement_lease(self, mock_time):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()
+        _advance_time(61)
+        stale_token = cb.check()
+        _advance_time(60)
+        current_token = cb.check()
+
+        cb.release_probe(stale_token)
+
+        with pytest.raises(CircuitBreakerOpen):
+            cb.check()
+        cb.release_probe(current_token)
+        cb.check()
+
+    @patch('utils.circuit_breaker.time.time', side_effect=_get_mock_time)
+    def test_stale_probe_result_cannot_change_replacement_state(self, mock_time):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()
+        _advance_time(61)
+        stale_token = cb.check()
+        _advance_time(60)
+        current_token = cb.check()
+
+        cb.record_success(token=stale_token)
+        with pytest.raises(CircuitBreakerOpen):
+            cb.check()
+        cb.record_failure(Exception("probe failed"), token=current_token)
+        assert cb.state == CircuitBreaker.OPEN
+
     def test_exception_includes_name(self):
         cb = CircuitBreaker("my-service", failure_threshold=1, recovery_timeout=30)
         cb.record_failure()

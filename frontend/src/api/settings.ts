@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity, ProviderSlot, QueueAdmission, SLOT_PRIMARY } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity, ProviderSlot, QueueAdmission, PodpingCheck, SLOT_PRIMARY } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -159,6 +159,10 @@ export async function refreshModels(
 
 export async function getSystemStatus(): Promise<SystemStatus> {
   return apiRequest<SystemStatus>('/system/status');
+}
+
+export async function requestPodpingCheck(): Promise<PodpingCheck> {
+  return apiRequest<PodpingCheck>('/system/podping/check', { method: 'POST' });
 }
 
 export async function checkpointDatabase(): Promise<{

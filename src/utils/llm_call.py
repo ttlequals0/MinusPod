@@ -33,6 +33,7 @@ from utils.time import parse_iso_utc, utc_now
 # ad_detector -> utils.llm_call without pulling in jinja2/flask transitively.
 from utils.llm_response import json_object_is_blank
 from utils.retry import calculate_backoff
+from utils.circuit_breaker import CircuitBreakerOpen
 
 logger = logging.getLogger(__name__)
 
@@ -298,6 +299,8 @@ def _is_retryable(error) -> bool:
     # A truncated answer is terminal: the same budget truncates again.
     if isinstance(error, OutputTruncatedError):
         return False
+    if isinstance(error, CircuitBreakerOpen):
+        return True
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
 
 
@@ -383,6 +386,18 @@ def _fallback_delay(error, base_delay: float, honor_retry_after: bool) -> float:
         if retry_after is not None:
             return retry_after + random.uniform(0.0, 2.0)
     return base_delay
+
+
+def _breaker_retry_delay(llm_client, error, base_delay: float) -> float:
+    """Wait past the active breaker cooldown without shortening backoff."""
+    remaining = (error.seconds_until_retry
+                 if isinstance(error, CircuitBreakerOpen) else None)
+    if remaining is None:
+        retry_after = getattr(llm_client, 'circuit_retry_after', None)
+        remaining = retry_after() if callable(retry_after) else None
+    if remaining is None:
+        return base_delay
+    return max(base_delay, float(remaining)) + random.uniform(0.0, 0.25)
 
 
 def _fire_limit_exceeded_webhook(error, model, provider=None):
@@ -650,11 +665,13 @@ def call_llm(
                     )
                 else:
                     delay = calculate_backoff(attempt)
+                    delay = _breaker_retry_delay(llm_client, e, delay)
                     logger.warning(
                         f"[{slug}:{episode_id}] {call_label} API error: {e}. "
                         f"Retrying in {delay:.1f}s"
                     )
-                time.sleep(delay)
+                if not _sleep_before_retry(delay):
+                    break
                 continue
             logger.warning(f"[{slug}:{episode_id}] {call_label} failed: {e}")
             break
@@ -667,6 +684,7 @@ def call_llm(
             if held is not None:
                 return None, _lost_window(held, is_window, slug, episode_id, call_label)
             delay = _fallback_delay(last_error, base_delay, retry_num == 1)
+            delay = _breaker_retry_delay(llm_client, last_error, delay)
             logger.warning(
                 f"[{slug}:{episode_id}] {call_label} per-window retry "
                 f"{retry_num}/2 after {delay:.1f}s backoff"
@@ -692,6 +710,8 @@ def call_llm(
                     credential_slot=credential_slot, phase=phase_key)
                 if terminal is not None:
                     last_error = terminal
+                    break
+                if not _is_retryable(e):
                     break
                 logger.warning(
                     f"[{slug}:{episode_id}] {call_label} retry {retry_num} failed: {e}"

@@ -512,6 +512,24 @@ def _provider_error_kind(error: Exception) -> str:
     return f'{kind} HTTP {status}'
 
 
+def is_review_inconclusive_error(error: Exception) -> bool:
+    """True for the review service's explicit inconclusive response."""
+    try:
+        status = int(_provider_status_code(error))
+    except (TypeError, ValueError):
+        return False
+    if status != 422:
+        return False
+    body = extract_error_body(error)
+    if not isinstance(body, dict):
+        return False
+    code = body.get('code')
+    nested = body.get('error')
+    if code is None and isinstance(nested, dict):
+        code = nested.get('code')
+    return code == 'jev_review_inconclusive'
+
+
 def _safe_reasoning_value(value: Union[int, str] | None):
     """Keep only reasoning values accepted by the provider translators."""
     if isinstance(value, int) and not isinstance(value, bool):
@@ -623,6 +641,7 @@ class LLMClient(ABC):
 
     def __init__(self):
         self._circuit_breaker: CircuitBreaker | None = None
+        self._breaker_probe = threading.local()
         # Which account this client authenticates as; part of the model-list
         # cache identity so two accounts on one endpoint never share a list.
         self.credential_slot = 'primary'
@@ -646,16 +665,31 @@ class LLMClient(ABC):
 
     def _check_circuit_breaker(self):
         """Check circuit breaker before API call. Raises CircuitBreakerOpen if open."""
+        self._breaker_probe.token = None
         if self._circuit_breaker:
-            self._circuit_breaker.check()
+            self._breaker_probe.token = self._circuit_breaker.check()
 
     def _record_circuit_breaker(self, success: bool, error: Exception | None = None):
         """Record success/failure on the circuit breaker after API call."""
         if self._circuit_breaker:
+            token = getattr(self._breaker_probe, 'token', None)
             if success:
-                self._circuit_breaker.record_success()
+                self._circuit_breaker.record_success(token=token)
             else:
-                self._circuit_breaker.record_failure(error)
+                self._circuit_breaker.record_failure(error, token=token)
+            self._breaker_probe.token = None
+
+    def circuit_retry_after(self) -> float | None:
+        """Remaining breaker cooldown, when this route is unavailable."""
+        if self._circuit_breaker is None:
+            return None
+        return self._circuit_breaker.seconds_until_retry()
+
+    def _release_circuit_breaker_probe(self) -> None:
+        if self._circuit_breaker is not None:
+            token = getattr(self._breaker_probe, 'token', None)
+            self._circuit_breaker.release_probe(token=token)
+            self._breaker_probe.token = None
 
     def _warn_if_truncated(self, stop_indicator: str, max_tokens: int, model: str):
         """Log a warning if the LLM response was truncated due to max_tokens."""
@@ -719,16 +753,23 @@ class LLMClient(ABC):
                 try:
                     response = send_fn(eff_max, eff_temp, eff_reasoning)
                 except Exception as e2:
-                    if not is_rate_limit_error(e2):
+                    if (not is_rate_limit_error(e2)
+                            and not is_review_inconclusive_error(e2)):
                         self._record_circuit_breaker(success=False, error=e2)
+                    else:
+                        self._release_circuit_breaker_probe()
                     raise
                 return response, eff_max, eff_temp, eff_reasoning
 
             will_fallback = _should_fallback_retry(
                 e, pass_name, started_in_fallback)
-            if not is_rate_limit_error(e) and not will_fallback:
+            if (not is_rate_limit_error(e) and not will_fallback
+                    and not is_review_inconclusive_error(e)):
                 self._record_circuit_breaker(success=False, error=e)
             if not will_fallback:
+                if (is_rate_limit_error(e)
+                        or is_review_inconclusive_error(e)):
+                    self._release_circuit_breaker_probe()
                 raise
             _log_fallback(provider_label, episode_id, pass_name, model,
                           user_max, user_temp, user_reasoning, e)
@@ -741,8 +782,11 @@ class LLMClient(ABC):
             try:
                 response = send_fn(defaults.max_tokens, defaults.temperature, defaults.reasoning_effort)
             except Exception as e2:
-                if not is_rate_limit_error(e2):
+                if (not is_rate_limit_error(e2)
+                        and not is_review_inconclusive_error(e2)):
                     self._record_circuit_breaker(success=False, error=e2)
+                else:
+                    self._release_circuit_breaker_probe()
                 raise
             return response, defaults.max_tokens, defaults.temperature, defaults.reasoning_effort
 

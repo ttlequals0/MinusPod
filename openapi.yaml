@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.97.9
+  version: 2.97.10
   contact:
     name: MinusPod
   license:
@@ -6410,6 +6410,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SystemStatus'
+
+  /system/podping/check:
+    post:
+      tags:
+        - System
+      summary: Check every Podping RPC node
+      description: >-
+        Requests one leader-owned check of every configured node. The check
+        validates the head and a block response without changing the active
+        listener node. An unfinished request is reused. Follow progress through
+        podping.check in GET /system/status. This action also works while the
+        Podping listener is disabled.
+      operationId: checkPodpingNodes
+      responses:
+        '202':
+          description: Check accepted or already in progress
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PodpingNodeCheck'
+                  - type: object
+                    properties:
+                      accepted:
+                        type: boolean
+                        description: True when this request created the check.
+        '401':
+          description: Authentication required
+        '403':
+          description: CSRF validation failed
+        '503':
+          description: The background monitor is unavailable
 
   /system/database/checkpoint:
     post:
@@ -14172,6 +14204,9 @@ components:
             Podping listener health. Informational only, the same as
             feedRefresh: scheduled RSS polling remains the fallback, so an
             outage here delays notifications rather than stopping discovery.
+            While the listener is enabled, every configured node is checked at
+            startup and every five minutes. Manual checks also work while it is
+            disabled and do not change the active listener node.
             GET /podping/hosts reports the same node data for the Podping
             page.
           properties:
@@ -14181,12 +14216,15 @@ components:
               type: boolean
               description: >-
                 True only while every configured Hive RPC node is
-                unavailable. Any single node succeeding clears it.
+                unavailable to the enabled live listener. Any live listener
+                success clears it; a manual check does not change this field.
             degradedSince:
               type:
                 - string
                 - 'null'
               format: date-time
+            check:
+              $ref: '#/components/schemas/PodpingNodeCheck'
             nodes:
               type: array
               description: One entry per configured node, in the configured order.
@@ -14197,7 +14235,10 @@ components:
                     type: string
                   selected:
                     type: boolean
-                    description: Last node to complete a successful RPC call.
+                    description: Historical last node to complete a successful RPC call.
+                  active:
+                    type: boolean
+                    description: True while this node has the live listener connection.
                   consecutiveFailures:
                     type: integer
                     description: Failure streak, which survives a restart rather than resetting.
@@ -14275,6 +14316,52 @@ components:
               type: boolean
             plaintextSecretsCount:
               type: integer
+
+    PodpingNodeCheck:
+      type: object
+      required:
+        - checkId
+        - status
+        - requestedAt
+        - startedAt
+        - completedAt
+      properties:
+        checkId:
+          type:
+            - string
+            - 'null'
+        status:
+          type: string
+          enum: [idle, pending, running, completed, error]
+        requestedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        startedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        completedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        healthyNodes:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+        totalNodes:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+        message:
+          type:
+            - string
+            - 'null'
 
     ReleaseInfo:
       type: object

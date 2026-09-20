@@ -6,6 +6,7 @@ import pytest
 from ad_detector import AdDetector, WindowResult
 from llm_capabilities import PASS_AD_DETECTION_1
 from llm_client import LLMResponse, ProviderRateLimitedError
+from utils.circuit_breaker import CircuitBreakerOpen
 from utils.llm_call import (
     LOSS_CONNECTIVITY,
     LOSS_OTHER,
@@ -94,6 +95,80 @@ class TestLossClassification:
 
     def test_unknown_error_falls_back(self):
         assert window_loss_class(ValueError('nope')) == LOSS_OTHER
+
+
+class TestCircuitCooldownRetries:
+    def test_main_retry_waits_for_live_breaker_after_triggering_error(
+            self, run_ctx, monkeypatch):
+        waits = []
+        error = _ProviderError('upstream invalid response', 503)
+        client = _FakeLLMClient([
+            error,
+            LLMResponse(content='{"ads": []}', model='m'),
+        ])
+        client.circuit_retry_after = lambda: 47.0
+        monkeypatch.setattr('utils.llm_call.random.uniform', lambda a, b: 0.0)
+        monkeypatch.setattr(
+            'utils.llm_call._sleep_before_retry',
+            lambda delay: waits.append(delay) or True,
+        )
+
+        response, last_error = _window_call(client, max_retries=1)
+
+        assert last_error is None
+        assert response.content == '{"ads": []}'
+        assert waits == [47.0]
+
+    def test_fallback_retries_wait_for_open_breaker_and_remain_bounded(
+            self, run_ctx, monkeypatch):
+        waits = []
+        client = _FakeLLMClient([
+            _ProviderError('upstream invalid response', 503),
+            CircuitBreakerOpen('review', 41.0),
+            _ProviderError('upstream invalid response', 503),
+        ])
+        monkeypatch.setattr('utils.llm_call.random.uniform', lambda a, b: 0.0)
+        monkeypatch.setattr(
+            'utils.llm_call._sleep_before_retry',
+            lambda delay: waits.append(delay) or True,
+        )
+
+        response, last_error = _window_call(client, max_retries=0)
+
+        assert response is None
+        assert last_error.status_code == 503
+        assert waits == [2, 41.0]
+        assert client.calls == 3
+
+    def test_shutdown_during_breaker_wait_stops_retry(self, run_ctx, monkeypatch):
+        client = _FakeLLMClient([CircuitBreakerOpen('review', 60.0)])
+        monkeypatch.setattr('utils.llm_call._sleep_before_retry', lambda delay: False)
+
+        response, last_error = _window_call(client, max_retries=1)
+
+        assert response is None
+        assert isinstance(last_error, CircuitBreakerOpen)
+        assert client.calls == 1
+
+    def test_terminal_error_on_first_fallback_stops_retrying(
+            self, run_ctx, monkeypatch):
+        waits = []
+        inconclusive = _ProviderError('Review is inconclusive', 422)
+        client = _FakeLLMClient([
+            _ProviderError('upstream invalid response', 503),
+            inconclusive,
+        ])
+        monkeypatch.setattr(
+            'utils.llm_call._sleep_before_retry',
+            lambda delay: waits.append(delay) or True,
+        )
+
+        response, last_error = _window_call(client, max_retries=0)
+
+        assert response is None
+        assert last_error is inconclusive
+        assert waits == [2]
+        assert client.calls == 2
 
 
 def _windows(n):

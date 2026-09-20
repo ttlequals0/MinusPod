@@ -10,14 +10,15 @@ import json
 import logging
 import random
 import re
-
-from database.podcasts import has_upstream
 import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from urllib.parse import urlparse, urlunparse
 
 import requests
 
+from database.podcasts import has_upstream
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.podping')
@@ -47,6 +48,9 @@ NODE_HEALTH_SETTING = 'podping_node_health'
 SELECTED_NODE_SETTING = 'podping_selected_node'
 DEGRADED_SETTING = 'podping_all_nodes_down'
 DEGRADED_SINCE_SETTING = 'podping_degraded_since'
+ACTIVE_CONNECTION_SETTING = 'podping_active_connection'
+NODE_CHECK_SETTING = 'podping_node_check'
+MONITOR_HEARTBEAT_SETTING = 'podping_monitor_heartbeat'
 
 NODE_BACKOFF_BASE_SECONDS = 5
 NODE_BACKOFF_MAX_SECONDS = 300
@@ -56,6 +60,11 @@ NODE_BACKOFF_MAX_STEP = 6  # 5 * 2**6 = 320s, already past the 300s cap
 # A healthy node succeeds every tick; persist its last-success time no more
 # often than this so the status API stays current without writing per RPC.
 NODE_SUCCESS_PERSIST_SECONDS = 60
+NODE_HEALTH_PROBE_SECONDS = 300
+NODE_HEALTH_PROBE_TIMEOUT_SECONDS = 10
+ACTIVE_CONNECTION_STALE_SECONDS = 90
+MONITOR_HEARTBEAT_SECONDS = 15
+NODE_CHECK_LEASE_SECONDS = 60
 
 _QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
 
@@ -92,6 +101,18 @@ def get_node_health_summary(db) -> list[dict]:
         selected_node = db.get_setting(SELECTED_NODE_SETTING)
     except Exception:
         selected_node = None
+    active_node = None
+    try:
+        active_raw = db.get_setting(ACTIVE_CONNECTION_SETTING)
+        active = json.loads(active_raw) if active_raw else {}
+        observed_at = parse_iso_utc(active.get('observedAt'))
+        if (isinstance(active, dict) and active.get('node') in PODPING_NODES
+                and observed_at is not None
+                and (utc_now() - observed_at).total_seconds()
+                <= ACTIVE_CONNECTION_STALE_SECONDS):
+            active_node = active['node']
+    except (AttributeError, TypeError, ValueError):
+        pass
 
     summary = []
     for node in PODPING_NODES:
@@ -105,8 +126,30 @@ def get_node_health_summary(db) -> list[dict]:
             'httpStatus': entry.get('last_http_status'),
             'outcome': entry.get('last_outcome'),
             'selected': node == selected_node,
+            'active': node == active_node,
         })
     return summary
+
+
+def get_node_check_status(db) -> dict:
+    try:
+        raw = db.get_setting(NODE_CHECK_SETTING)
+        status = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        status = {}
+    if not isinstance(status, dict):
+        status = {}
+    state = status.get('status')
+    return {
+        'checkId': status.get('checkId'),
+        'status': state if state in {'pending', 'running', 'completed', 'error'} else 'idle',
+        'requestedAt': status.get('requestedAt'),
+        'startedAt': status.get('startedAt'),
+        'completedAt': status.get('completedAt'),
+        'healthyNodes': status.get('healthyNodes'),
+        'totalNodes': status.get('totalNodes'),
+        'message': status.get('message'),
+    }
 
 
 def _default_sleep_shutdown_aware(seconds):
@@ -271,16 +314,19 @@ class PodpingListener:
     """
 
     def __init__(self, rpc=None, db=None, refresh=None, sleep=None, rand=None,
-                 now=None):
+                 now=None, node_probe=None, monotonic=None):
         self.rpc = rpc or self._default_rpc
         self.db = db
         self.refresh = refresh
         self.sleep = sleep or _default_sleep_shutdown_aware
+        self._service_backoff = sleep is None
         # Injectable so backoff-jitter tests can assert exact values instead
         # of a range; defaults to real jitter in production.
         self.rand = rand or random.uniform
         # Injectable clock so backoff-deadline tests need no real sleeping.
         self.now = now or utc_now
+        self.node_probe = node_probe or self._default_node_probe
+        self.monotonic = monotonic or time.monotonic
 
         self.node_index = 0
         self._backoff_step = 0
@@ -294,6 +340,22 @@ class PodpingListener:
         # Node -> time its last success was written, for the persist cadence.
         self._success_persisted_at = {}
         self._last_rpc_status_code = None
+        self._last_health_probe_at = None
+        self._node_health_revision = {node: 0 for node in PODPING_NODES}
+        self._probe_executor = ThreadPoolExecutor(
+            max_workers=len(PODPING_NODES), thread_name_prefix='podping-health')
+        self._probe_futures = {}
+        self._probe_revisions = {}
+        self._probe_discard = False
+        self._probe_manual_id = None
+        self._probe_claim_id = None
+        self._monitoring_enabled = False
+        self._owner_id = uuid.uuid4().hex
+        self._active_node = None
+        self._active_persisted_at = None
+        self._active_raw = None
+        self._heartbeat_persisted_at = None
+        self._heartbeat_raw = None
 
         self.feed_map = {}
         self.feed_rules = {}
@@ -323,6 +385,213 @@ class PodpingListener:
             raise ValueError(f"Malformed jsonrpc response from {url}")
         return payload['result']
 
+    def _probe_request(self, node, method, params):
+        response = requests.post(
+            node,
+            json={'jsonrpc': '2.0', 'method': method, 'params': params, 'id': 1},
+            timeout=NODE_HEALTH_PROBE_TIMEOUT_SECONDS,
+        )
+        if response.status_code != 200:
+            return response.status_code, None, 'http_error', f"HTTP {response.status_code}"
+        try:
+            payload = response.json()
+        except (requests.JSONDecodeError, ValueError) as exc:
+            return response.status_code, None, 'invalid_response', str(exc)
+        if not isinstance(payload, dict) or 'result' not in payload:
+            return response.status_code, None, 'invalid_response', 'Malformed jsonrpc response'
+        return response.status_code, payload['result'], 'healthy', None
+
+    def _default_node_probe(self, node):
+        """Validate both RPC operations required by the listener."""
+        status, props, outcome, reason = self._probe_request(
+            node, 'condenser_api.get_dynamic_global_properties', [])
+        if outcome != 'healthy':
+            return status, outcome, reason
+        head = props.get('head_block_number') if isinstance(props, dict) else None
+        if not isinstance(head, int):
+            return status, 'invalid_response', 'Head response is missing head_block_number'
+        status, block, outcome, reason = self._probe_request(
+            node, 'condenser_api.get_block', [max(1, head - 1)])
+        if outcome != 'healthy':
+            return status, outcome, reason
+        if not isinstance(block, dict) or not isinstance(block.get('transactions'), list):
+            return status, 'invalid_response', 'Block response is missing transactions'
+        return status, 'healthy', None
+
+    def _apply_node_probe(self, node, status_code, outcome, reason):
+        entry = self._node_health.setdefault(node, _new_node_health_entry())
+        entry['last_http_status'] = status_code
+        entry['last_outcome'] = outcome
+        if outcome == 'healthy':
+            entry['consecutive_failures'] = 0
+            entry['last_success_at'] = self.now().strftime(ISO_FORMAT)
+            entry['next_retry_at'] = None
+            entry['last_failure_reason'] = None
+            self._node_health_revision[node] += 1
+            return
+        entry['consecutive_failures'] = entry.get('consecutive_failures', 0) + 1
+        entry['last_failure_reason'] = _sanitize_failure_reason(reason)
+        self._node_health_revision[node] += 1
+
+    def _start_node_probes(self, manual_id=None, claim_id=None):
+        self._last_health_probe_at = self.monotonic()
+        self._probe_revisions = dict(self._node_health_revision)
+        self._probe_manual_id = manual_id
+        self._probe_claim_id = claim_id
+        self._probe_discard = False
+        self._probe_futures = {
+            node: self._probe_executor.submit(self.node_probe, node)
+            for node in PODPING_NODES
+        }
+
+    def _finish_node_probes(self):
+        if not self._probe_futures or not all(
+                future.done() for future in self._probe_futures.values()):
+            return
+        error = None
+        healthy_nodes = 0
+        try:
+            if not self._probe_discard:
+                for node, future in self._probe_futures.items():
+                    try:
+                        result = future.result()
+                    except Exception as exc:
+                        result = (None, 'unreachable', str(exc))
+                    if result[1] == 'healthy':
+                        healthy_nodes += 1
+                    if self._node_health_revision[node] != self._probe_revisions[node]:
+                        continue
+                    self._apply_node_probe(node, *result)
+                if not self._persist_node_health():
+                    error = 'Node health results could not be saved.'
+        except Exception:
+            error = 'Node health results could not be saved.'
+            logger.exception("Podping node health check could not save results")
+        if self._probe_manual_id is not None and self.db is not None:
+            raw, current = self._manual_check_request()
+            if (current is not None
+                    and current.get('checkId') == self._probe_manual_id
+                    and current.get('claimId') == self._probe_claim_id
+                    and current.get('status') == 'running'):
+                completed = dict(current)
+                completed['status'] = 'error' if error else 'completed'
+                completed['completedAt'] = utc_now_iso()
+                completed['healthyNodes'] = healthy_nodes
+                completed['totalNodes'] = len(PODPING_NODES)
+                completed.pop('leaseUntil', None)
+                completed.pop('claimId', None)
+                if error:
+                    completed['message'] = error
+                self.db.replace_setting_if_equal(
+                    NODE_CHECK_SETTING, raw, json.dumps(completed))
+        self._probe_futures = {}
+        self._probe_manual_id = None
+        self._probe_claim_id = None
+        self._probe_discard = False
+
+    def _manual_check_request(self):
+        if self.db is None:
+            return None, None
+        try:
+            raw = self.db.get_setting(NODE_CHECK_SETTING)
+            request = json.loads(raw) if raw else {}
+        except (TypeError, ValueError):
+            return None, None
+        if not isinstance(request, dict) or request.get('status') not in {'pending', 'running'}:
+            return raw, None
+        return raw, request
+
+    def _claim_manual_check(self, raw, request):
+        if request.get('status') == 'running':
+            lease_until = parse_iso_utc(request.get('leaseUntil'))
+            if lease_until is not None and lease_until > self.now():
+                if (request.get('checkId') == self._probe_manual_id
+                        and request.get('claimId') == self._probe_claim_id):
+                    return request
+                return None
+        claimed = dict(request)
+        claimed['status'] = 'running'
+        claimed['startedAt'] = claimed.get('startedAt') or utc_now_iso()
+        claimed['claimId'] = uuid.uuid4().hex
+        claimed['leaseUntil'] = (
+            self.now() + timedelta(seconds=NODE_CHECK_LEASE_SECONDS)).strftime(ISO_FORMAT)
+        encoded = json.dumps(claimed)
+        stored = self.db.replace_setting_if_equal(NODE_CHECK_SETTING, raw, encoded)
+        return claimed if stored == encoded else None
+
+    def _renew_manual_check(self, raw, request):
+        if (request.get('checkId') != self._probe_manual_id
+                or request.get('claimId') != self._probe_claim_id):
+            return
+        renewed = dict(request)
+        renewed['leaseUntil'] = (
+            self.now() + timedelta(seconds=NODE_CHECK_LEASE_SECONDS)).strftime(ISO_FORMAT)
+        self.db.replace_setting_if_equal(
+            NODE_CHECK_SETTING, raw, json.dumps(renewed))
+
+    def update_node_probes(self, enabled):
+        """Harvest probes and schedule enabled or explicitly requested checks."""
+        if enabled != self._monitoring_enabled:
+            self._monitoring_enabled = enabled
+            if enabled:
+                self._last_health_probe_at = None
+            else:
+                self._clear_active_connection()
+                if self._probe_manual_id is None:
+                    self._probe_discard = True
+                    for future in self._probe_futures.values():
+                        future.cancel()
+        self._finish_node_probes()
+        raw, manual = self._manual_check_request()
+        manual_id = manual.get('checkId') if manual else None
+        if manual_id is not None and self._probe_futures and not self._probe_discard:
+            claimed = self._claim_manual_check(raw, manual)
+            if claimed is not None:
+                self._probe_manual_id = manual_id
+                self._probe_claim_id = claimed.get('claimId')
+                self._renew_manual_check(json.dumps(claimed), claimed)
+        if self._probe_futures:
+            return
+        if manual_id is not None:
+            claimed = self._claim_manual_check(raw, manual)
+            if claimed is not None:
+                self._start_node_probes(manual_id, claimed.get('claimId'))
+            return
+        now = self.monotonic()
+        if (enabled and (self._last_health_probe_at is None
+                         or now - self._last_health_probe_at >= NODE_HEALTH_PROBE_SECONDS)):
+            self._start_node_probes()
+
+    def close(self):
+        self._probe_discard = True
+        for future in self._probe_futures.values():
+            future.cancel()
+        self._probe_executor.shutdown(wait=False, cancel_futures=True)
+        self._clear_active_connection()
+        if self.db is not None and self._active_raw is not None:
+            self.db.clear_setting_if_equal(
+                ACTIVE_CONNECTION_SETTING, self._active_raw)
+        if self.db is not None and self._heartbeat_raw is not None:
+            self.db.clear_setting_if_equal(
+                MONITOR_HEARTBEAT_SETTING, self._heartbeat_raw)
+
+    def wait_with_monitor(self, seconds):
+        """Keep leader commands responsive during production backoff."""
+        if not self._service_backoff:
+            self.sleep(seconds)
+            return
+        import main_app.background as background_module
+        remaining = seconds
+        while remaining > 0 and not background_module.shutdown_event.is_set():
+            chunk = min(3, remaining)
+            self.sleep(chunk)
+            remaining -= chunk
+            try:
+                self.persist_monitor_heartbeat()
+                self.update_node_probes(self._monitoring_enabled)
+            except Exception:
+                logger.exception("Podping monitor service failed during backoff")
+
     def _load_node_health(self) -> dict:
         if self.db is None:
             return {}
@@ -340,11 +609,81 @@ class PodpingListener:
 
     def _persist_node_health(self):
         if self.db is None:
-            return
+            return True
         try:
             self.db.set_setting(NODE_HEALTH_SETTING, json.dumps(self._node_health))
         except Exception as exc:
             logger.debug("Could not persist podping node health: %s", exc)
+            return False
+        return True
+
+    def _persist_active_connection(self, node):
+        if self.db is None:
+            return
+        now = self.now()
+        if (self._active_node == node and self._active_persisted_at is not None
+                and (now - self._active_persisted_at).total_seconds() < 30):
+            return
+        try:
+            encoded = json.dumps({
+                'node': node,
+                'observedAt': now.strftime(ISO_FORMAT),
+                'owner': self._owner_id,
+            })
+            if self._active_raw is None:
+                self.db.set_setting(ACTIVE_CONNECTION_SETTING, encoded)
+            else:
+                stored = self.db.replace_setting_if_equal(
+                    ACTIVE_CONNECTION_SETTING, self._active_raw, encoded)
+                if stored != encoded:
+                    return
+            self._active_raw = encoded
+            self._active_node = node
+            self._active_persisted_at = now
+        except Exception as exc:
+            logger.debug("Could not persist active podping connection: %s", exc)
+
+    def _clear_active_connection(self):
+        self._active_node = None
+        self._active_persisted_at = None
+        if self.db is None:
+            return
+        try:
+            encoded = json.dumps({
+                'node': None,
+                'observedAt': self.now().strftime(ISO_FORMAT),
+                'owner': self._owner_id,
+            })
+            if self._active_raw is None:
+                self.db.set_setting(ACTIVE_CONNECTION_SETTING, encoded)
+            else:
+                stored = self.db.replace_setting_if_equal(
+                    ACTIVE_CONNECTION_SETTING, self._active_raw, encoded)
+                if stored != encoded:
+                    return
+            self._active_raw = encoded
+        except Exception as exc:
+            logger.debug("Could not clear active podping connection: %s", exc)
+
+    def persist_monitor_heartbeat(self):
+        now = self.now()
+        if (self._heartbeat_persisted_at is not None
+                and (now - self._heartbeat_persisted_at).total_seconds()
+                < MONITOR_HEARTBEAT_SECONDS):
+            return
+        encoded = json.dumps({
+            'owner': self._owner_id,
+            'observedAt': now.strftime(ISO_FORMAT),
+        })
+        if self._heartbeat_raw is None:
+            self.db.set_setting(MONITOR_HEARTBEAT_SETTING, encoded)
+        else:
+            stored = self.db.replace_setting_if_equal(
+                MONITOR_HEARTBEAT_SETTING, self._heartbeat_raw, encoded)
+            if stored != encoded:
+                return
+        self._heartbeat_raw = encoded
+        self._heartbeat_persisted_at = now
 
     def _load_selected_node(self):
         if self.db is None:
@@ -388,6 +727,7 @@ class PodpingListener:
         retry_at = self.now() + timedelta(
             seconds=self._backoff_seconds(node_step))
         entry['next_retry_at'] = retry_at.isoformat()
+        self._node_health_revision[node] += 1
         self._persist_node_health()
 
     def _record_node_success(self, node):
@@ -405,6 +745,7 @@ class PodpingListener:
         entry['next_retry_at'] = None
         entry['last_http_status'] = self._last_rpc_status_code
         entry['last_outcome'] = 'healthy'
+        self._node_health_revision[node] += 1
         written_at = self._success_persisted_at.get(node)
         due = (written_at is None
                or (now - written_at).total_seconds() >= NODE_SUCCESS_PERSIST_SECONDS)
@@ -417,6 +758,7 @@ class PodpingListener:
                 self._selected_node = node
             except Exception as exc:
                 logger.debug("Could not persist selected podping node: %s", exc)
+        self._persist_active_connection(node)
 
     def _log_outage_recovery(self, node):
         """Correlate a recovery with how long every node was down, so an
@@ -446,6 +788,8 @@ class PodpingListener:
         a success clears the state so the next total outage escalates again.
         """
         node = PODPING_NODES[self.node_index]
+        if self._active_node == node:
+            self._clear_active_connection()
         first_failure = node not in self._failed_nodes
         self._failed_nodes.add(node)
         all_down = len(self._failed_nodes) >= len(PODPING_NODES)
@@ -465,7 +809,7 @@ class PodpingListener:
         self.node_index = (self.node_index + 1) % len(PODPING_NODES)
         step = self._backoff_step
         self._backoff_step = min(self._backoff_step + 1, NODE_BACKOFF_MAX_STEP)
-        self.sleep(self._backoff_seconds(step))
+        self.wait_with_monitor(self._backoff_seconds(step))
 
     def _node_retry_at(self, node):
         """Persisted backoff deadline for a node, or None when it has none."""
@@ -652,6 +996,8 @@ class PodpingListener:
             self.current_block = head - 1
 
         while self.current_block < head:
+            self.persist_monitor_heartbeat()
+            self.update_node_probes(self._monitoring_enabled)
             next_block_num = self.current_block + 1
             block = self._call_rpc('condenser_api.get_block', [next_block_num])
             if block is None:
@@ -694,6 +1040,7 @@ def podping_listener_loop():
     from main_app.feeds import refresh_single_feed
 
     listener = PodpingListener(db=background_module.db, refresh=refresh_single_feed)
+    listener._clear_active_connection()
     was_enabled = False
 
     while not background_module.shutdown_event.is_set():
@@ -702,7 +1049,9 @@ def podping_listener_loop():
         # a failure may have left a transaction open.
         background_module.db.clear_leaked_transaction(logger, 'podping listener')
         try:
+            listener.persist_monitor_heartbeat()
             enabled = background_module.db.get_setting_bool('podping_enabled', False)
+            listener.update_node_probes(enabled)
             if enabled != was_enabled:
                 logger.info(
                     "Podping listener %s", 'enabled' if enabled else 'disabled')
@@ -712,12 +1061,13 @@ def podping_listener_loop():
                 listener.tick()
                 background_module.shutdown_event.wait(timeout=3)
             else:
-                background_module.shutdown_event.wait(timeout=30)
+                background_module.shutdown_event.wait(timeout=5)
         except Exception:
             logger.exception("Podping listener loop iteration failed")
-            background_module.shutdown_event.wait(timeout=60)
+            listener.wait_with_monitor(60)
 
     try:
         listener.final_flush()
     except Exception:
         logger.exception("Podping listener shutdown flush failed")
+    listener.close()

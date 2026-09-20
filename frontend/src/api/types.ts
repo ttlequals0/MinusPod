@@ -1214,6 +1214,17 @@ export interface WhisperModel {
   quality: string;
 }
 
+export interface PodpingCheck {
+  checkId: string | null;
+  status: 'idle' | 'pending' | 'running' | 'completed' | 'error';
+  requestedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  message?: string | null;
+  healthyNodes?: number | null;
+  totalNodes?: number | null;
+}
+
 export interface SystemStatus {
   status: string;
   version: string;
@@ -1259,9 +1270,11 @@ export interface SystemStatus {
     listenerEnabled: boolean;
     allNodesDown: boolean;
     degradedSince: string | null;
+    check?: PodpingCheck;
     nodes: {
       node: string;
       selected?: boolean;
+      active?: boolean;
       consecutiveFailures: number;
       lastFailureReason: string | null;
       lastSuccessAt: string | null;
