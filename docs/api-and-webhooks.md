@@ -76,7 +76,7 @@ Key endpoints:
 - `POST /api/v1/system/model-pricing/refresh` - Force refresh pricing from provider source
 - `GET /api/v1/system/queue` - Auto-process queue status
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
-- `GET /api/v1/system/status` - System state including the active Podping node, each node's latest HTTP status, and manual check progress, plus worker-scoped SQLite WAL, checkpoint, transaction, and busy diagnostics
+- `GET /api/v1/system/status` - Active Podping node, per-node HTTP status, and manual check progress. Includes worker-scoped SQLite WAL, checkpoint, transaction, and busy diagnostics
 - `POST /api/v1/system/podping/check` - Check every Podping RPC node without changing the listener's active node; the request is deduplicated while a check is running
 - `POST /api/v1/system/database/checkpoint` - Run a passive WAL checkpoint; returns 409 when active readers prevent completion
 - `GET /api/v1/system/backup` - Download an encrypted SQLite backup by default. Returns 409 when encryption is unavailable; `encrypted=false` explicitly requests plaintext. See the [security guide](security-and-storage.md#database-backup-sensitivity)
