@@ -51,6 +51,13 @@ def test_invalid_value_falls_back_to_auto():
     assert resolve_chapters_mode({'chapters_mode': 'bogus'}) == CHAPTERS_MODE_AUTO
 
 
+def test_null_feed_mode_uses_global_mode():
+    db = MagicMock()
+    db.get_setting.return_value = CHAPTERS_MODE_OFF
+    assert resolve_chapters_mode({'chapters_mode': None}, db=db) == CHAPTERS_MODE_OFF
+    assert resolve_chapters_mode({'chapters_mode': CHAPTERS_MODE_GENERATE}, db=db) == CHAPTERS_MODE_GENERATE
+
+
 # ---------- _generate_assets chapter block ----------
 
 def _db(chapters_mode=None, chapters_enabled=None, upstream_chapters_url=None):

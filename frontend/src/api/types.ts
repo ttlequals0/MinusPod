@@ -79,6 +79,7 @@ export interface Feed {
   detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
+  differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
   // Chapter list in served descriptions (#720): null follows the global setting.
   chaptersInNotes?: 'on' | 'off' | null;
   // Ad chapters: null follows the global setting.
@@ -106,8 +107,7 @@ export interface Feed {
   maxAdDurationRejectOverride?: number | null;
   adDetectionExcludeStartOverride?: number | null;
   cueGatedApproval?: boolean | null;
-  // Layer 3 cross-fetch differential. Null means auto: the stage runs when
-  // the feed looks DAI-served; an explicit true/false overrides that.
+  // Legacy Layer 3 cross-fetch flag. Use differentialFetchMode for new writes.
   differentialFetchEnabled?: boolean | null;
   // What the pipeline will actually do for this feed, resolved server-side
   // from the flag above plus the DAI signals. Feed detail only.
@@ -420,9 +420,27 @@ export interface ProcessingRunStats {
   markers?: { cut: number; held: number; notCut: number } | null;
   verificationAdsCut?: number | null;
   secondsRemoved?: number | null;
+  timings?: ProcessingRunTimings | null;
   // Present only when this run retried a rejected thinking setting with
   // pass defaults. The backend deliberately excludes the provider error.
   thinkingNotices?: ThinkingCompatibilityNotice[];
+}
+
+export interface ProcessingRunTimings {
+  // Stage values may overlap. FFmpeg is the combined elapsed time for all
+  // FFmpeg tasks in the run, including retries. Finalize ends before history.
+  downloadSeconds?: number | null;
+  transcriptionSeconds?: number | null;
+  differentialSeconds?: number | null;
+  audioAnalysisSeconds?: number | null;
+  detectionSeconds?: number | null;
+  refineValidateSeconds?: number | null;
+  cutSeconds?: number | null;
+  verificationSeconds?: number | null;
+  normalizationSeconds?: number | null;
+  assetsSeconds?: number | null;
+  finalizeSeconds?: number | null;
+  ffmpegSeconds?: number | null;
 }
 
 export type ThinkingNoticePass =
@@ -797,7 +815,10 @@ export interface Settings {
   daiDifferentialOverridesKeep: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
+  chaptersMode: SettingValue;
   chaptersInNotes: SettingValueBoolean;
+  skipSecondPass: SettingValueBoolean;
+  differentialFetchMode: SettingValue;
   adChaptersEnabled: SettingValueBoolean;
   adChapterCategories: { value: Record<SegmentCategory, boolean>; isDefault: boolean };
   adChaptersIncludeHeld: SettingValueBoolean;
@@ -874,7 +895,10 @@ export interface Settings {
     feedAuthEnabled: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
+    chaptersMode: string;
     adChaptersEnabled: boolean;
+    skipSecondPass: boolean;
+    differentialFetchMode: string;
     adChapterCategories: Record<SegmentCategory, boolean>;
     adChaptersIncludeHeld: boolean;
     adChapterTitleFormat: string;
@@ -1066,7 +1090,10 @@ export interface UpdateSettingsPayload {
   daiDifferentialOverridesKeep?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
+  chaptersMode?: 'auto' | 'generate' | 'off';
   chaptersInNotes?: boolean;
+  skipSecondPass?: boolean;
+  differentialFetchMode?: 'auto' | 'on' | 'off';
   adChaptersEnabled?: boolean;
   // Partial map, merged over the stored global map by the backend.
   adChapterCategories?: Partial<Record<SegmentCategory, boolean>>;
@@ -1234,10 +1261,13 @@ export interface SystemStatus {
     degradedSince: string | null;
     nodes: {
       node: string;
+      selected?: boolean;
       consecutiveFailures: number;
       lastFailureReason: string | null;
       lastSuccessAt: string | null;
       nextRetryAt: string | null;
+      httpStatus?: number | null;
+      outcome?: 'healthy' | 'http_error' | 'invalid_response' | 'unreachable' | null;
     }[];
   };
   feedRefresh?: {

@@ -966,12 +966,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapters:</span>
             <div className="flex flex-col gap-1 flex-1 min-w-0">
               <select
-                value={feed.chaptersMode || 'auto'}
-                onChange={(e) => updateMutation.mutate({ chaptersMode: e.target.value as 'auto' | 'generate' | 'off' })}
+                value={feed.chaptersMode ?? ''}
+                onChange={(e) => updateMutation.mutate({ chaptersMode: e.target.value === '' ? null : e.target.value as 'auto' | 'generate' | 'off' })}
                 disabled={updateMutation.isPending}
                 className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                 aria-label="Chapters"
               >
+                <option value="">Inherit global ({settings?.chaptersMode?.value ?? 'auto'})</option>
                 <option value="auto">Auto</option>
                 <option value="generate">Always generate</option>
                 <option value="off">Off</option>
@@ -1626,27 +1627,30 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </div>
               </div>
 
-              {/* Skip verification pass (#599): pass 1 still cuts, pass 2 does not run */}
+              {/* Per-feed verification mode (#599). */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Verification:</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <ToggleSwitch
-                      checked={cueOnlyActive || feed.skipSecondPass === true}
-                      onChange={(v) => updateMutation.mutate({ skipSecondPass: v })}
-                      disabled={updateMutation.isPending || cueOnlyActive}
-                      ariaLabel="Skip verification pass"
-                    />
-                    <span>Skip verification pass</span>
-                  </label>
+                  <select
+                    value={cueOnlyActive ? 'skip' : feed.skipSecondPass == null ? 'inherit' : feed.skipSecondPass ? 'skip' : 'run'}
+                    onChange={(e) => updateMutation.mutate({
+                      skipSecondPass: e.target.value === 'inherit' ? null : e.target.value === 'skip',
+                    })}
+                    disabled={updateMutation.isPending || cueOnlyActive}
+                    className={`self-start min-w-0 disabled:opacity-50 ${selectBase}`}
+                    aria-label="Verification pass"
+                  >
+                    <option value="inherit">Inherit global ({settings?.skipSecondPass?.value ? 'Skip' : 'Run'})</option>
+                    <option value="run">Run verification</option>
+                    <option value="skip">Skip verification</option>
+                  </select>
                   {cueOnlyActive ? (
                     <p className="text-xs text-muted-foreground">
-                      Forced on by cue-only mode.
+                      Verification is skipped in cue-only mode.
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      Skips the second detection sweep, roughly halving LLM spend. Turn it on
-                      for feeds where the first pass is already reliable.
+                      Verification scans the processed audio a second time. Skipping it reduces LLM use.
                     </p>
                   )}
                 </div>
@@ -1661,20 +1665,19 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <select
-                      value={feed.differentialFetchEnabled == null ? '' : String(feed.differentialFetchEnabled)}
+                      value={feed.differentialFetchMode ?? 'inherit'}
                       onChange={(e) => {
                         const v = e.target.value;
-                        updateMutation.mutate({
-                          differentialFetchEnabled: v === '' ? null : v === 'true',
-                        });
+                        updateMutation.mutate({ differentialFetchMode: v as 'inherit' | 'auto' | 'on' | 'off' });
                       }}
                       disabled={updateMutation.isPending}
                       className={`min-w-0 disabled:opacity-50 ${selectBase}`}
                       aria-label="Fetch each episode twice to find inserted ads"
                     >
-                      <option value="">Auto (on for dynamic-ad feeds)</option>
-                      <option value="true">On</option>
-                      <option value="false">Off</option>
+                      <option value="inherit">Inherit global ({settings?.differentialFetchMode?.value ?? 'auto'})</option>
+                      <option value="auto">Auto (on for dynamic-ad feeds)</option>
+                      <option value="on">On</option>
+                      <option value="off">Off</option>
                     </select>
                     <span
                       className={`${badgeBase} font-medium ${

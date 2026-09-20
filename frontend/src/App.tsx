@@ -20,6 +20,7 @@ const PatternsPage = lazy(() => import('./pages/PatternsPage'));
 const SponsorsPage = lazy(() => import('./pages/SponsorsPage'));
 const HistoryPage = lazy(() => import('./pages/HistoryPage'));
 const StatsPage = lazy(() => import('./pages/StatsPage'));
+const QueuePage = lazy(() => import('./pages/QueuePage'));
 const Login = lazy(() => import('./pages/Login'));
 const Search = lazy(() => import('./pages/Search'));
 
@@ -65,6 +66,7 @@ const router = createBrowserRouter(
             { path: 'sponsors', element: <SponsorsPage /> },
             { path: 'history', element: <HistoryPage /> },
             { path: 'stats', element: <StatsPage /> },
+            { path: 'queue', element: <QueuePage /> },
             { path: 'settings', element: <Settings /> },
             { path: '*', element: <Navigate to="/" replace /> },
           ],

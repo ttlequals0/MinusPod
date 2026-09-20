@@ -24,6 +24,10 @@ interface GlobalDefaultsSectionProps {
   onEpisodeLogLevelChange: (level: EpisodeLogLevel) => void;
   textRecurrenceHints: boolean;
   onTextRecurrenceHintsChange: (enabled: boolean) => void;
+  skipSecondPass: boolean;
+  onSkipSecondPassChange: (enabled: boolean) => void;
+  differentialFetchMode: 'auto' | 'on' | 'off';
+  onDifferentialFetchModeChange: (mode: 'auto' | 'on' | 'off') => void;
 }
 
 function GlobalDefaultsSection({
@@ -45,6 +49,10 @@ function GlobalDefaultsSection({
   onEpisodeLogLevelChange,
   textRecurrenceHints,
   onTextRecurrenceHintsChange,
+  skipSecondPass,
+  onSkipSecondPassChange,
+  differentialFetchMode,
+  onDifferentialFetchModeChange,
 }: GlobalDefaultsSectionProps) {
   return (
     <CollapsibleSection
@@ -52,6 +60,37 @@ function GlobalDefaultsSection({
       subtitle="Applied to every feed unless overridden on the feed's own settings."
     >
       <div className="space-y-6">
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="globalVerificationPass" className="block text-sm font-medium text-foreground mb-2">
+            Verification pass by default
+          </label>
+          <select
+            id="globalVerificationPass"
+            value={skipSecondPass ? 'skip' : 'run'}
+            onChange={(e) => onSkipSecondPassChange(e.target.value === 'skip')}
+            className={`w-full ${selectBase}`}
+          >
+            <option value="run">Run verification</option>
+            <option value="skip">Skip verification</option>
+          </select>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Verification scans the processed audio a second time. Feeds can override this setting.
+          </p>
+        </div>
+
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="differentialFetchMode" className="block text-sm font-medium text-foreground mb-2">
+            Cross-fetch differential default
+          </label>
+          <select id="differentialFetchMode" value={differentialFetchMode}
+            onChange={(e) => onDifferentialFetchModeChange(e.target.value as 'auto' | 'on' | 'off')}
+            className={`w-full ${selectBase}`}>
+            <option value="auto">Auto for dynamic-ad feeds</option>
+            <option value="on">On for every subscribed feed</option>
+            <option value="off">Off</option>
+          </select>
+          <p className="mt-2 text-sm text-muted-foreground">Feeds can inherit this default or choose their own mode.</p>
+        </div>
         {/* Auto-process new episodes */}
         <div>
           <label className="flex items-center gap-3 cursor-pointer">

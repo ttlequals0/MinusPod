@@ -421,6 +421,7 @@ export interface UpdateFeedPayload {
   detectionNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
+  differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
   chaptersInNotes?: 'on' | 'off' | null;
   adChaptersEnabled?: 'on' | 'off' | null;
   adChapterCategories?: Partial<Record<SegmentCategory, boolean>> | null;

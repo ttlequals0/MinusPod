@@ -1,6 +1,7 @@
 import { type ReactNode, useMemo } from 'react';
 import type { StageTunables, UpdateSettingsPayload } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { selectBase } from '../../components/fieldStyles';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { btnPrimary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
@@ -156,6 +157,8 @@ interface Podcasting20SectionProps {
   onVttTranscriptsEnabledChange: (enabled: boolean) => void;
   onChaptersEnabledChange: (enabled: boolean) => void;
   onChaptersInNotesChange: (enabled: boolean) => void;
+  chaptersMode: 'auto' | 'generate' | 'off';
+  onChaptersModeChange: (mode: 'auto' | 'generate' | 'off') => void;
   adChapters?: AdChaptersBlockProps;
   geometry?: ChapterGeometryProps;
 }
@@ -167,6 +170,8 @@ function Podcasting20Section({
   onVttTranscriptsEnabledChange,
   onChaptersEnabledChange,
   onChaptersInNotesChange,
+  chaptersMode,
+  onChaptersModeChange,
   adChapters,
   geometry,
 }: Podcasting20SectionProps) {
@@ -182,6 +187,19 @@ function Podcasting20Section({
           label="Generate Chapters">
           Create JSON chapters from ad boundaries and description timestamps
         </ToggleRow>
+
+        <div className="border-t border-border pt-4">
+          <label htmlFor="globalChaptersMode" className="block text-sm font-medium text-foreground mb-2">
+            Chapter mode for feeds that inherit the global setting
+          </label>
+          <select id="globalChaptersMode" value={chaptersMode}
+            onChange={(e) => onChaptersModeChange(e.target.value as 'auto' | 'generate' | 'off')}
+            className={`w-full ${selectBase}`}>
+            <option value="auto">Auto</option>
+            <option value="generate">Always generate</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
 
         {adChapters && <AdChaptersBlock {...adChapters} />}
 

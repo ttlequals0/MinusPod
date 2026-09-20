@@ -64,6 +64,7 @@ def _run_pipeline(skip_ad_detection):
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
         db.get_setting.return_value = 'false'
+        db.get_setting_bool.return_value = False
         db.get_all_settings.return_value = {}
         audio_processor.get_audio_duration.return_value = 100.0
         local_ap = local_ap_cls.return_value

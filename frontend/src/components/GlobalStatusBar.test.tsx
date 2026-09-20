@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import GlobalStatusBar from './GlobalStatusBar';
 
 class FakeEventSource {
@@ -68,9 +69,11 @@ function chip(text: string) {
 async function renderBar(status: unknown) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
-    <QueryClientProvider client={client}>
-      <GlobalStatusBar />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <GlobalStatusBar />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
   await FakeEventSource.instances[0].emit(status);
   return utils;

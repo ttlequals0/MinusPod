@@ -349,10 +349,11 @@ export async function exportOpml(mode: 'original' | 'modified' = 'original'): Pr
   downloadBlob(blob, filename);
 }
 
-export async function downloadBackup(): Promise<void> {
-  const { blob, filename } = await apiFileRequest('/system/backup', {
-    fallbackFilename: 'minuspod-backup.db',
-  });
+export async function downloadBackup(encrypted = true): Promise<void> {
+  const { blob, filename } = await apiFileRequest(
+    `/system/backup?encrypted=${encrypted ? 'true' : 'false'}`,
+    { fallbackFilename: encrypted ? 'minuspod-backup.db.enc' : 'minuspod-backup.db' },
+  );
   downloadBlob(blob, filename);
 }
 

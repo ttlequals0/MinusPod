@@ -404,13 +404,14 @@ class SchemaMixin:
             ('transition_snap_enabled', 'INTEGER'),
             # Layer 3 cross-fetch differential opt-in
             ('differential_fetch_enabled', 'INTEGER'),
+            ('differential_fetch_mode', 'TEXT'),
             # Phase C held-for-review per-feed settings
             ('max_ad_duration_override', 'REAL'),
             ('max_ad_duration_reject_override', 'REAL'),
             ('ad_detection_exclude_start_override', 'REAL'),
             ('splice_veto_enabled', 'INTEGER'),
             ('cue_gated_approval', 'INTEGER DEFAULT 0'),
-            ('skip_second_pass', 'INTEGER DEFAULT 0'),
+            ('skip_second_pass', 'INTEGER'),
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),
             ('last_modified_header', 'TEXT'),
@@ -1641,6 +1642,12 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"legacy skip_second_pass reset failed: {e}")
 
+        try:
+            self._run_feed_processing_defaults_migration(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"feed processing defaults migration failed: {e}")
+
         # Episodes a pre-2.96.2 rate-limit hold parked as deferred go back
         # to the queue they were claimed from.
         try:
@@ -2329,6 +2336,25 @@ class SchemaMixin:
             "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
             "('reset_legacy_skip_second_pass')"
         )
+        conn.commit()
+
+    def _run_feed_processing_defaults_migration(self, conn):
+        """Preserve legacy differential choices as per-feed modes (#763)."""
+        marker = 'feed_processing_defaults_763'
+        if conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)).fetchone():
+            return
+        # Preserve legacy NULL as explicit auto. New feeds retain NULL and inherit.
+        conn.execute(
+            """UPDATE podcasts
+               SET differential_fetch_mode = CASE
+                   WHEN differential_fetch_enabled = 0 THEN 'off'
+                   WHEN differential_fetch_enabled = 1 THEN 'on'
+                   ELSE 'auto'
+               END
+             WHERE differential_fetch_mode IS NULL"""
+        )
+        conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (marker,))
         conn.commit()
 
     def _run_backfill_credited_time_saved(self, conn):

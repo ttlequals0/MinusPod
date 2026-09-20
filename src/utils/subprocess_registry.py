@@ -9,6 +9,7 @@ leaving orphans. Thread-safe; prefer ``tracked_popen`` over bare
 from __future__ import annotations
 
 import logging
+import os
 import signal
 import subprocess
 import threading
@@ -16,10 +17,26 @@ import time
 from contextlib import contextmanager
 from collections.abc import Iterator
 
+import run_context
+
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
 _processes: set[subprocess.Popen] = set()
+
+
+def _is_ffmpeg_command(args) -> bool:
+    try:
+        executable = args if isinstance(args, (str, bytes, os.PathLike)) else args[0]
+        return os.path.basename(os.fsdecode(executable)) == 'ffmpeg'
+    except (IndexError, TypeError, ValueError):
+        return False
+
+
+def _record_ffmpeg_elapsed(started: float | None) -> None:
+    if started is None:
+        return
+    run_context.record_ffmpeg_elapsed(time.monotonic() - started)
 
 
 def register(proc: subprocess.Popen) -> None:
@@ -67,12 +84,16 @@ def terminate_all(timeout: float = 5.0) -> None:
 
 @contextmanager
 def tracked_popen(*args, **kwargs) -> Iterator[subprocess.Popen]:
+    command = args[0] if args else kwargs.get('args')
+    started = time.monotonic() if _is_ffmpeg_command(command) else None
     proc = subprocess.Popen(*args, **kwargs)
     register(proc)
     try:
         yield proc
     finally:
         unregister(proc)
+        if proc.poll() is not None:
+            _record_ffmpeg_elapsed(started)
 
 
 def tracked_run(
@@ -110,6 +131,7 @@ def tracked_run(
             raise ValueError("input may not be used with stdin")
         stdin = subprocess.PIPE
 
+    started = time.monotonic() if _is_ffmpeg_command(args) else None
     proc = subprocess.Popen(
         args,
         stdin=stdin,
@@ -144,3 +166,4 @@ def tracked_run(
         return completed
     finally:
         unregister(proc)
+        _record_ffmpeg_elapsed(started)

@@ -31,6 +31,7 @@ from config import (
     VALID_CHAPTERS_MODES,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     differential_fetch_effective,
+    resolve_differential_fetch_mode,
     resolve_feed_processing_mode,
     resolve_max_ad_duration_confirmed,
     PROCESSING_MODE_STANDARD,
@@ -868,6 +869,10 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'p20': _deserialize_p20_channel(podcast.get('p20_channel_json')),
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
+        'differentialFetchMode': (
+            podcast.get('differential_fetch_mode')
+            if podcast.get('differential_fetch_mode') in ('auto', 'on', 'off')
+            else 'inherit'),
         'chaptersInNotes': podcast.get('chapters_in_notes'),
         'adChaptersEnabled': podcast.get('ad_chapters_enabled_override'),
         'adChapterCategories': _deserialize_json_map(
@@ -1671,7 +1676,7 @@ def get_feed(slug):
         # recent episodes (#519). The pipeline evaluates each new episode's
         # own enclosure URL, so this is a prediction, not a guarantee.
         'differentialFetchEffective': differential_fetch_effective(
-            _deserialize_nullable_bool(podcast.get('differential_fetch_enabled')),
+            resolve_differential_fetch_mode(db, podcast['id']),
             dai_platform=podcast.get('dai_platform'),
             dai_likely=dai_likely,
         ),
@@ -1936,6 +1941,22 @@ def update_feed(slug):
             if err:
                 return error_response(err, 400)
             updates[db_col] = v
+
+    if 'differentialFetchMode' in data:
+        mode = data['differentialFetchMode']
+        if mode is None:
+            mode = 'inherit'
+        if mode not in ('inherit', 'auto', 'on', 'off'):
+            return error_response(
+                'differentialFetchMode must be inherit, auto, on, or off', 400)
+        updates['differential_fetch_mode'] = None if mode == 'inherit' else mode
+        updates['differential_fetch_enabled'] = {
+            'inherit': None, 'auto': None, 'on': 1, 'off': 0,
+        }[mode]
+    elif 'differentialFetchEnabled' in data:
+        legacy = updates.get('differential_fetch_enabled')
+        updates['differential_fetch_mode'] = (
+            'on' if legacy else 'off') if legacy is not None else 'auto'
 
     # Handle maxEpisodes
     if 'maxEpisodes' in data:

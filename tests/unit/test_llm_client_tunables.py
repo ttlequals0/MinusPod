@@ -174,6 +174,26 @@ class TestAnthropicFallback:
 
         assert is_fallback_set("ep1", PASS_AD_DETECTION_1) is False
 
+    def test_unrelated_422_does_not_retry_with_defaults(self):
+        client = self._build_client()
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = _FakeAPIError(
+            422, "System policy exceeds configured size limit")
+        client._client = mock_sdk
+
+        with pytest.raises(_FakeAPIError):
+            client.messages_create(
+                model="claude-x",
+                max_tokens=4096,
+                system="sys",
+                messages=[{"role": "user", "content": "hi"}],
+                episode_id="ep1",
+                pass_name=PASS_AD_DETECTION_1,
+            )
+
+        assert is_fallback_set("ep1", PASS_AD_DETECTION_1) is False
+        assert mock_sdk.messages.create.call_count == 1
+
     def test_no_pass_name_no_fallback(self):
         client = self._build_client()
         mock_sdk = MagicMock()
@@ -236,7 +256,7 @@ class TestAnthropicFallback:
         client = self._build_client()
         mock_sdk = MagicMock()
         mock_sdk.messages.create.side_effect = [
-            _FakeAPIError(400, "bad"),
+            _FakeAPIError(400, "max_tokens is invalid"),
             _make_anthropic_response(),
         ]
         client._client = mock_sdk
@@ -256,7 +276,7 @@ class TestAnthropicFallback:
         mock_sdk = MagicMock()
         # ep1 hits 400 + retries; ep2 happens later, uses user tunables.
         mock_sdk.messages.create.side_effect = [
-            _FakeAPIError(400, "bad"),
+            _FakeAPIError(400, "max_tokens is invalid"),
             _make_anthropic_response(),
             _make_anthropic_response(),  # ep2 call
         ]

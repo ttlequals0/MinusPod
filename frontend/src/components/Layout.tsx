@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { btnGhost, btnPrimary, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import UpdateBanner from './UpdateBanner';
 import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
+import { getProcessingStatus } from '../api/status';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Dashboard' },
@@ -14,6 +16,7 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/sponsors', label: 'Sponsors' },
   { to: '/history', label: 'History' },
   { to: '/stats', label: 'Stats' },
+  { to: '/queue', label: 'Queue' },
   { to: '/settings', label: 'Settings' },
 ];
 
@@ -22,9 +25,10 @@ interface NavLinkProps {
   label: string;
   active: boolean;
   onClick?: () => void;
+  count?: number;
 }
 
-function NavLink({ to, label, active, onClick }: NavLinkProps) {
+function NavLink({ to, label, active, onClick, count }: NavLinkProps) {
   return (
     <Link
       to={to}
@@ -36,6 +40,11 @@ function NavLink({ to, label, active, onClick }: NavLinkProps) {
       }`}
     >
       {label}
+      {count ? (
+        <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-primary/20 text-primary tabular-nums">
+          {count}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -51,6 +60,13 @@ function Layout() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchSeed, setSearchSeed] = useState<string | null>(null);
+  const queueActivity = useQuery({
+    queryKey: ['processing-status'],
+    queryFn: getProcessingStatus,
+    enabled: false,
+  });
+  const queueCount = (queueActivity.data?.queueLength ?? 0)
+    + (queueActivity.data?.jobs?.length ?? (queueActivity.data?.currentJob ? 1 : 0));
   const openSearch = useCallback((seed: string) => setSearchSeed(seed), []);
   const closeSearch = useCallback(() => setSearchSeed(null), []);
   useQuickSearchHotkey(openSearch);
@@ -101,6 +117,7 @@ function Layout() {
                     to={item.to}
                     label={item.label}
                     active={isPathActive(location.pathname, item.to)}
+                    count={item.to === '/queue' ? queueCount : undefined}
                   />
                 ))}
               </nav>
@@ -186,6 +203,7 @@ function Layout() {
                   label={item.label}
                   active={isPathActive(location.pathname, item.to)}
                   onClick={() => setMobileMenuOpen(false)}
+                  count={item.to === '/queue' ? queueCount : undefined}
                 />
               ))}
             </nav>

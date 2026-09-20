@@ -241,6 +241,12 @@ def get_settings():
     chapters_value = _setting_value(
         settings, 'chapters_enabled', registry_default('chapters_enabled'))
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
+    chapters_mode = _setting_value(
+        settings, 'chapters_mode', registry_default('chapters_mode'))
+    skip_second_pass = coerce_bool_setting(_setting_value(
+        settings, 'skip_second_pass', registry_default('skip_second_pass')))
+    differential_fetch_mode = _setting_value(
+        settings, 'differential_fetch_mode', registry_default('differential_fetch_mode'))
     chapters_in_notes = coerce_bool_setting(_setting_value(
         settings, 'chapters_in_notes', registry_default('chapters_in_notes')))
     only_expose_processed_value = _setting_value(
@@ -694,7 +700,11 @@ def get_settings():
         'opmlOriginalUrl': opml_original_url,
         'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
+        'chaptersMode': _sv('chapters_mode', chapters_mode),
         'chaptersInNotes': _sv('chapters_in_notes', chapters_in_notes),
+        'skipSecondPass': _sv('skip_second_pass', skip_second_pass),
+        'differentialFetchMode': _sv(
+            'differential_fetch_mode', differential_fetch_mode),
         'adChaptersEnabled': _sv('ad_chapters_enabled', ad_chapters_enabled),
         'adChapterCategories': _sv('ad_chapter_categories', ad_chapter_categories),
         'adChaptersIncludeHeld': _sv('ad_chapters_include_held', ad_chapters_include_held),
@@ -905,6 +915,10 @@ def update_ad_detection_settings():
             return error_response(
                 'adAddressingMode must be "timestamps", "segment_ids", or "random"', 400)
 
+    processing_error = _validate_processing_defaults_payload(data)
+    if processing_error is not None:
+        return processing_error
+
     provider_error = _validate_provider_payload(data)
     if provider_error is not None:
         return provider_error
@@ -987,6 +1001,21 @@ def update_ad_detection_settings():
     trigger_reviewer_calibration(db, previous_calibration)
 
     return json_response({'message': 'Settings updated'})
+
+
+def _validate_processing_defaults_payload(data):
+    """Validate global feed defaults before the settings transaction writes."""
+    if 'chaptersMode' in data:
+        value = str(data['chaptersMode'] or '').strip().lower()
+        if value not in ('auto', 'generate', 'off'):
+            return error_response('chaptersMode must be auto, generate, or off', 400)
+    if 'skipSecondPass' in data and not isinstance(data['skipSecondPass'], bool):
+        return error_response('skipSecondPass must be a boolean', 400)
+    if 'differentialFetchMode' in data:
+        value = str(data['differentialFetchMode'] or '').strip().lower()
+        if value not in ('auto', 'on', 'off'):
+            return error_response('differentialFetchMode must be auto, on, or off', 400)
+    return None
 
 
 # Stage models the rate-limit hold is scoped by; payload keys come from the
@@ -1442,6 +1471,25 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['chaptersEnabled'] else 'false'
         db.set_setting('chapters_enabled', value, is_default=False)
         logger.info(f"Updated chapters generation to: {value}")
+
+    if 'chaptersMode' in data:
+        value = str(data['chaptersMode'] or '').strip().lower()
+        if value not in ('auto', 'generate', 'off'):
+            return error_response('chaptersMode must be auto, generate, or off', 400)
+        db.set_setting('chapters_mode', value, is_default=False)
+
+    if 'skipSecondPass' in data:
+        if not isinstance(data['skipSecondPass'], bool):
+            return error_response('skipSecondPass must be a boolean', 400)
+        db.set_setting('skip_second_pass',
+                       'true' if data['skipSecondPass'] else 'false',
+                       is_default=False)
+
+    if 'differentialFetchMode' in data:
+        value = str(data['differentialFetchMode'] or '').strip().lower()
+        if value not in ('auto', 'on', 'off'):
+            return error_response('differentialFetchMode must be auto, on, or off', 400)
+        db.set_setting('differential_fetch_mode', value, is_default=False)
 
     if 'chaptersInNotes' in data:
         value = 'true' if data['chaptersInNotes'] else 'false'

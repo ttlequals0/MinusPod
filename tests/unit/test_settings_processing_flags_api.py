@@ -38,3 +38,55 @@ def test_only_expose_processed_default_change_clears_etags(app_client):
         assert resp.status_code == 200
         assert clear.call_count == 1
     assert db.get_setting('only_expose_processed_default') == 'true'
+
+
+def test_processing_defaults_round_trip_through_settings_api(app_client):
+    """The three global defaults use their stored values after a PUT."""
+    db = get_database()
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    response = app_client.put(
+        '/api/v1/settings/ad-detection',
+        json={'skipSecondPass': True, 'differentialFetchMode': 'off', 'chaptersMode': 'off'},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    settings = app_client.get('/api/v1/settings').get_json()
+    assert settings['skipSecondPass']['value'] is True
+    assert settings['differentialFetchMode']['value'] == 'off'
+    assert settings['chaptersMode']['value'] == 'off'
+
+    db.set_setting('skip_second_pass', 'false', is_default=False)
+    db.set_setting('differential_fetch_mode', 'auto', is_default=False)
+    db.set_setting('chapters_mode', 'auto', is_default=False)
+
+
+def test_skip_second_pass_rejects_non_boolean_without_changing_setting(app_client):
+    db = get_database()
+    db.set_setting('skip_second_pass', 'false', is_default=False)
+    _authed(app_client)
+
+    response = app_client.put(
+        '/api/v1/settings/ad-detection',
+        json={'skipSecondPass': 'true'},
+        headers=_csrf_headers(app_client),
+    )
+
+    assert response.status_code == 400
+    assert db.get_setting('skip_second_pass') == 'false'
+
+
+def test_processing_defaults_reject_mixed_payload_before_any_write(app_client):
+    db = get_database()
+    db.set_setting('chapters_mode', 'generate', is_default=False)
+    _authed(app_client)
+
+    response = app_client.put(
+        '/api/v1/settings/ad-detection',
+        json={'chaptersMode': 'off', 'skipSecondPass': 'true'},
+        headers=_csrf_headers(app_client),
+    )
+
+    assert response.status_code == 400
+    assert db.get_setting('chapters_mode') == 'generate'
+    db.set_setting('chapters_mode', 'auto', is_default=False)

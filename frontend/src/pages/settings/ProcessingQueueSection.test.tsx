@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event';
 import ProcessingQueueSection from './ProcessingQueueSection';
 import type { ProcessingEpisode } from '../../api/settings';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 
 const mockGetAdmission = vi.fn();
 const mockSetAdmission = vi.fn();
@@ -61,18 +62,20 @@ function renderSection(
   options: RenderOptions = {},
 ) {
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
-      <ProcessingQueueSection
-      processingEpisodes={episodes}
-      onCancel={onCancel}
-      cancelIsPending={options.cancelIsPending ?? false}
-      cancelingKey={options.cancelingKey}
-      queuePage={options.queuePage ?? 1}
-      onQueuePage={options.onQueuePage ?? vi.fn()}
-      onPriorityChange={options.onPriorityChange ?? vi.fn()}
-      priorityIsPending={options.priorityIsPending ?? false}
-      />
-    </QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+        <ProcessingQueueSection
+        processingEpisodes={episodes}
+        onCancel={onCancel}
+        cancelIsPending={options.cancelIsPending ?? false}
+        cancelingKey={options.cancelingKey}
+        queuePage={options.queuePage ?? 1}
+        onQueuePage={options.onQueuePage ?? vi.fn()}
+        onPriorityChange={options.onPriorityChange ?? vi.fn()}
+        priorityIsPending={options.priorityIsPending ?? false}
+        />
+      </QueryClientProvider>
+    </MemoryRouter>
   );
   return onCancel;
 }
@@ -96,7 +99,8 @@ describe('ProcessingQueueSection', () => {
 
   it('renders the active job with a human-readable stage', () => {
     renderSection([active()]);
-    expect(screen.getByText('Active Episode')).toBeTruthy();
+    const link = screen.getByRole('link', { name: 'Active Episode' });
+    expect(link.getAttribute('href')).toBe('/feeds/pod/episodes/ep-active');
     expect(screen.getByText(/Transcribing/)).toBeTruthy();
   });
 
@@ -104,7 +108,8 @@ describe('ProcessingQueueSection', () => {
     renderSection([active(), queued(1), queued(2), queued(3)]);
 
     expect(screen.getByText('Waiting (3)')).toBeTruthy();
-    expect(screen.getByText('Queued Episode 1')).toBeTruthy();
+    const link = screen.getByRole('link', { name: 'Queued Episode 1' });
+    expect(link.getAttribute('href')).toBe('/feeds/pod/episodes/ep-1');
     expect(screen.getByText('Queued Episode 3')).toBeTruthy();
     expect(screen.getByText('3')).toBeTruthy();
   });
@@ -134,7 +139,9 @@ describe('ProcessingQueueSection', () => {
 
     // Deltas, not priority+n: the list refetches every 5s, so a click made
     // against a stale value must still land on whatever the row now holds.
-    await user.click(screen.getByRole('button', { name: 'Raise priority for Queued Episode 1' }));
+    const raise = screen.getByRole('button', { name: 'Raise priority for Queued Episode 1' });
+    expect(raise.className).toContain('min-h-11');
+    await user.click(raise);
     expect(onPriorityChange).toHaveBeenCalledWith({
       slug: 'pod', episodeId: 'ep-1', delta: 5,
     });
@@ -170,6 +177,7 @@ describe('ProcessingQueueSection', () => {
     const onCancel = renderSection([active(), queued(1), queued(2)]);
 
     const cancelButtons = screen.getAllByRole('button', { name: 'Cancel' });
+    expect(cancelButtons[0].className).toContain('min-h-11');
     // [active, queued 1, queued 2]
     await user.click(cancelButtons[2]);
 

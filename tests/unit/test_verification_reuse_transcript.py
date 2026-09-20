@@ -2,6 +2,7 @@
 re-transcribing the processed audio (issue #349)."""
 import os
 import sys
+from copy import deepcopy
 from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
@@ -104,3 +105,70 @@ def test_category_kept_detection_is_learned_as_a_miss():
 
     learned = v.pattern_service.record_verification_misses.call_args.args[2]
     assert [ad['category'] for ad in learned] == ['self_promo', 'sponsor']
+
+
+def test_original_mapping_covers_nested_timestamp_metadata(monkeypatch):
+    monkeypatch.setattr('verification_pass.get_replacement_duration', lambda: 2.0)
+    v = _verifier()
+    v.transcriber.transcribe_chunked.return_value = [_seg(0.0, 90.0, 'content')]
+    processed = {
+        'start': 5.0,
+        'end': 42.0,
+        'text_start': 25.0,
+        'text_end': 42.0,
+        'merged_protected_start': 5.0,
+        'merged_protected_end': 25.0,
+        'merged_member_spans': [
+            {'start': 5.0, 'end': 25.0, 'stage': 'text_pattern'},
+        ],
+        'dai_core_spans': [{'start': 25.0, 'end': 42.0}],
+        'tuple_span': (44.0, 52.0),
+        'detection_metadata': '{"start": 44.0, "end": 52.0}',
+    }
+    before = deepcopy(processed)
+    v.ad_detector.run_verification_detection.return_value = {'ads': [processed]}
+    cuts = [
+        {'start': 10.0, 'end': 20.0, 'replacement_duration': 2.0},
+        {'start': 40.0, 'end': 60.0, 'replacement_duration': 5.0},
+    ]
+
+    result = v.verify(**_kwargs(pass1_cuts=cuts))
+
+    mapped = result['ads'][0]
+    assert mapped['start'] == 5.0
+    assert mapped['end'] == 65.0
+    assert (mapped['text_start'], mapped['text_end']) == (33.0, 65.0)
+    assert (mapped['merged_protected_start'],
+            mapped['merged_protected_end']) == (5.0, 33.0)
+    assert mapped['merged_member_spans'] == [
+        {'start': 5.0, 'end': 33.0, 'stage': 'text_pattern'},
+    ]
+    assert mapped['dai_core_spans'] == [{'start': 33.0, 'end': 65.0}]
+    assert mapped['tuple_span'] == (44.0, 52.0)
+    assert mapped['detection_metadata'] == '{"start": 44.0, "end": 52.0}'
+    assert result['ads_processed'][0] == {**before, 'detection_stage': 'verification'}
+    assert processed == {**before, 'detection_stage': 'verification'}
+    assert mapped['merged_member_spans'] is not processed['merged_member_spans']
+
+
+def test_no_cuts_deep_copies_nested_timestamp_metadata():
+    v = _verifier()
+    v.transcriber.transcribe_chunked.return_value = [_seg(0.0, 30.0, 'content')]
+    processed = {
+        'start': 5.0,
+        'end': 15.0,
+        'merged_member_spans': [
+            {'start': 6.0, 'end': 14.0, 'stage': 'verification'},
+        ],
+    }
+    v.ad_detector.run_verification_detection.return_value = {'ads': [processed]}
+
+    result = v.verify(**_kwargs(pass1_cuts=[]))
+
+    mapped = result['ads'][0]
+    processed_copy = result['ads_processed'][0]
+    assert mapped == processed_copy
+    assert mapped is not processed_copy
+    assert mapped['merged_member_spans'] is not processed_copy['merged_member_spans']
+    mapped['merged_member_spans'][0]['start'] = 1.0
+    assert processed_copy['merged_member_spans'][0]['start'] == 6.0

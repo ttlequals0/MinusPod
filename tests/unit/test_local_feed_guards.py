@@ -87,8 +87,8 @@ def test_differential_fetch_runs_when_podcast_missing_or_subscribed():
     """None (no row available) and a non-local row must both behave as
     before: the guard does not skip the stage."""
     from main_app import processing
-    with patch.object(processing, 'resolve_differential_fetch_setting',
-                      return_value=False) as resolve, \
+    with patch.object(processing, 'resolve_differential_fetch_mode',
+                      return_value='off') as resolve, \
          patch.object(processing, 'db'):
         assert processing._run_differential_fetch(
             'arc', 'ep1', 'https://example.com/ep1.mp3', '/tmp/ep1.mp3', 1) is None
@@ -96,7 +96,7 @@ def test_differential_fetch_runs_when_podcast_missing_or_subscribed():
             'sub', 'ep1', 'https://example.com/ep1.mp3', '/tmp/ep1.mp3', 1,
             podcast={'slug': 'sub', 'feed_type': 'subscribed'}) is None
     # Both calls reached the gate (proving neither was short-circuited as
-    # local); the gate itself turned them off via resolve_differential_fetch_setting.
+    # local); the gate itself turned them off via resolve_differential_fetch_mode.
     assert resolve.call_count == 2
 
 

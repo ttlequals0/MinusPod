@@ -55,6 +55,7 @@ SEED_SNAPSHOT = {
     'audio_normalize_intensity': 'normal',
     'auto_process_enabled': 'true',
     'chapters_enabled': 'true',
+    'chapters_mode': 'auto',
     'chapters_in_notes': 'false',
     'ad_chapters_enabled': 'false',
     'ad_chapter_categories': DEFAULT_AD_CHAPTER_CATEGORIES_JSON,
@@ -76,6 +77,8 @@ SEED_SNAPSHOT = {
     'dai_differential_overrides_keep': 'true',
     'differential_hold_min_seconds': '10',
     'differential_measured_corr_max': '0.60',
+    'differential_fetch_mode': 'auto',
+    'skip_second_pass': 'false',
     'enable_ad_review': 'false',
     'keep_original_audio': 'true',
     'learning_min_confidence': '0.85',
@@ -142,7 +145,8 @@ SEED_SNAPSHOT = {
 EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
-    'chapters_enabled', 'chapters_in_notes', 'chapters_model',
+    'chapters_enabled', 'chapters_mode', 'chapters_in_notes', 'chapters_model',
+    'skip_second_pass', 'differential_fetch_mode',
     'ad_chapters_enabled', 'ad_chapter_categories',
     'ad_chapters_include_held', 'ad_chapter_title_format',
     'ad_chapter_held_title_format', 'ad_chapter_resume_title',
@@ -492,7 +496,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 128
+        assert len(payload_keys) == 131
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

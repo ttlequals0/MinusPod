@@ -81,8 +81,10 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Boundary-snap opt-in flags (NULL/0 = off, 1 = on; no global to inherit)
     silence_snap_enabled INTEGER,
     transition_snap_enabled INTEGER,
-    -- Layer 3 cross-fetch differential opt-in (NULL/0 = off, 1 = on)
+    -- Legacy cross-fetch flag retained for API compatibility.
     differential_fetch_enabled INTEGER,
+    -- Per-feed cross-fetch mode; NULL means inherit the global mode.
+    differential_fetch_mode TEXT,
     -- Phase C held-for-review per-feed settings
     max_ad_duration_override REAL,
     max_ad_duration_reject_override REAL,
@@ -90,7 +92,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Splice-veto override (NULL = inherit the global, 0 = off, 1 = on)
     splice_veto_enabled INTEGER,
     cue_gated_approval INTEGER DEFAULT 0,
-    skip_second_pass INTEGER DEFAULT 0,
+    skip_second_pass INTEGER,
     skip_transcription INTEGER,
     cue_only_safety TEXT,
     -- Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low

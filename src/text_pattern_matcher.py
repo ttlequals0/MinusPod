@@ -10,6 +10,8 @@ import re
 from dataclasses import dataclass, field, replace
 import json
 
+from rapidfuzz import fuzz
+
 from config import (
     DEFAULT_AD_DURATION_ESTIMATE, LONG_AD_WARN,
     TFIDF_MATCH_THRESHOLD as TFIDF_THRESHOLD,
@@ -787,11 +789,6 @@ class TextPatternMatcher:
         matches = []
 
         try:
-            # Optional dependency: importing here lets the except ImportError
-            # below degrade gracefully when rapidfuzz is not installed. The
-            # actual fuzzy scoring runs inside self._fuzzy_find.
-            from rapidfuzz import fuzz  # noqa: F401
-
             full_text_lower = full_text.lower()
 
             for pattern in patterns:
@@ -801,13 +798,12 @@ class TextPatternMatcher:
                         continue
 
                     intro_lower = intro.lower()
-
-                    # Search for fuzzy matches
+                    required_score = required_fuzzy_score(len(intro_lower))
                     best_pos, best_score, matched = self._fuzzy_find(
-                        full_text_lower, intro_lower
+                        full_text_lower, intro_lower, required_score
                     )
 
-                    if best_score >= required_fuzzy_score(len(intro_lower)):
+                    if best_score >= required_score:
                         # Found intro - scan for paired outro or estimate from duration
                         start_time, intro_text_end = self._char_pos_to_time(
                             best_pos, best_pos + len(matched),
@@ -842,12 +838,12 @@ class TextPatternMatcher:
                         continue
 
                     outro_lower = outro.lower()
-
+                    required_score = required_fuzzy_score(len(outro_lower))
                     best_pos, best_score, matched = self._fuzzy_find(
-                        full_text_lower, outro_lower
+                        full_text_lower, outro_lower, required_score
                     )
 
-                    if best_score >= required_fuzzy_score(len(outro_lower)):
+                    if best_score >= required_score:
                         outro_text_start, end_time = self._char_pos_to_time(
                             best_pos, best_pos + len(matched),
                             segment_map, segments
@@ -875,45 +871,25 @@ class TextPatternMatcher:
                             text_end=end_time,
                         ))
 
-        except ImportError:
-            logger.warning("rapidfuzz not available for phrase matching")
         except Exception as e:
             logger.error(f"Phrase matching failed: {e}")
 
         return matches
 
-    def _fuzzy_find(self, text: str, pattern: str) -> tuple[int, float, str]:
-        """
-        Find best fuzzy match position for pattern in text.
-
-        Returns:
-            Tuple of (aligned position, score, matched text).
-        """
+    def _fuzzy_find(
+        self, text: str, pattern: str, score_cutoff: float = 0
+    ) -> tuple[int, float, str]:
+        """Return the best partial-ratio alignment meeting score_cutoff."""
         try:
-            from rapidfuzz import fuzz
+            if not text or not pattern or len(text) < len(pattern):
+                return 0, 0, ''
 
-            best_pos = 0
-            best_score = 0
-            best_window = ''
-
-            # Slide through text looking for best match
-            pattern_len = len(pattern)
-            for i in range(0, len(text) - pattern_len + 1, 50):  # Step by 50 chars
-                window = text[i:i + pattern_len + 50]  # Slight overshoot
-                score = fuzz.partial_ratio(pattern, window)
-                if score > best_score:
-                    best_score = score
-                    best_pos = i
-                    best_window = window
-
-            if best_window:
-                align = fuzz.partial_ratio_alignment(pattern, best_window)
-                if align:
-                    return (best_pos + align.dest_start, best_score,
-                            best_window[align.dest_start:align.dest_end])
-                return best_pos, best_score, best_window[:pattern_len]
-
-            return best_pos, best_score, ''
+            align = fuzz.partial_ratio_alignment(
+                pattern, text, score_cutoff=score_cutoff
+            )
+            if not align:
+                return 0, 0, ''
+            return align.dest_start, align.score, text[align.dest_start:align.dest_end]
 
         except Exception:
             return 0, 0, ''
@@ -932,8 +908,11 @@ class TextPatternMatcher:
             if len(phrase) < MIN_FUZZY_VARIANT_CHARS:
                 continue
             phrase_lower = phrase.lower()
-            pos, score, matched = self._fuzzy_find(search_region, phrase_lower)
-            if score >= required_fuzzy_score(len(phrase_lower)) and score > best_score:
+            required_score = required_fuzzy_score(len(phrase_lower))
+            pos, score, matched = self._fuzzy_find(
+                search_region, phrase_lower, required_score
+            )
+            if score >= required_score and score > best_score:
                 time = extract_time(search_start, pos, matched, segment_map, segments)
                 if time is not None:
                     best_time = time
@@ -1178,8 +1157,6 @@ class TextPatternMatcher:
         refined = []
 
         try:
-            from rapidfuzz import fuzz
-
             for match in matches:
                 # Find the pattern
                 pattern = next(

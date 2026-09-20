@@ -1,6 +1,7 @@
 """Unit tests for text_pattern_matcher helper functions and ad_detector region helpers."""
-import sys
+import json
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -680,6 +681,65 @@ class TestFuzzyFindReportsWhatMatched:
         pos, score, matched = self._matcher()._fuzzy_find(
             'short', 'a much longer phrase than the text')
         assert (pos, score, matched) == (0, 0, '')
+
+
+class TestFuzzyFindCutoff:
+    def test_fixture_transcript_keeps_misspelled_sponsor_variant(self):
+        with open('tests/fixtures/sn1071_transcript.json') as fixture_file:
+            fixture = json.load(fixture_file)
+        transcript = ' '.join(segment['text'] for segment in fixture['segments']).lower()
+        phrase_words = fixture['segments'][13]['text'].lower().split()[61:70]
+        variant = ' '.join(phrase_words)
+        misspelled_variant = f'{variant[:-3]}a{variant[-2:]}'
+        misspelled_transcript = transcript.replace(variant, misspelled_variant, 1)
+        required_score = required_fuzzy_score(len(variant))
+
+        pos, score, matched = TextPatternMatcher.__new__(TextPatternMatcher)._fuzzy_find(
+            misspelled_transcript, variant, required_score
+        )
+        unfiltered = TextPatternMatcher.__new__(TextPatternMatcher)._fuzzy_find(
+            misspelled_transcript, variant
+        )
+
+        assert score >= required_score
+        assert matched == misspelled_transcript[pos:pos + len(matched)]
+        assert misspelled_variant.split()[-1] in matched
+        assert (pos, score, matched) == unfiltered
+
+    def test_keeps_transcription_variant_without_exact_sponsor_text(self):
+        text = (
+            'this episode is brought to you by acmee for your support and '
+            'we appreciate your help'
+        )
+        variant = 'this episode is brought to you by acme for your support'
+        required_score = required_fuzzy_score(len(variant))
+
+        pos, score, matched = TextPatternMatcher.__new__(TextPatternMatcher)._fuzzy_find(
+            text, variant, required_score
+        )
+
+        assert score >= required_score
+        assert matched == text[pos:pos + len(matched)]
+
+    def test_cutoff_rejects_unrelated_phrase(self):
+        text = 'the host discusses the weather and the latest technology news'
+        variant = 'this episode is brought to you by acme for your support'
+
+        assert TextPatternMatcher.__new__(TextPatternMatcher)._fuzzy_find(
+            text, variant, required_fuzzy_score(len(variant))
+        ) == (0, 0, '')
+
+    def test_alignment_stays_within_full_transcript(self):
+        text = 'opening remarks ' + 'this is brought to you by Acmee today' + ' closing remarks'
+        pattern = 'this is brought to you by Acme today'
+
+        pos, score, matched = TextPatternMatcher.__new__(TextPatternMatcher)._fuzzy_find(
+            text, pattern
+        )
+
+        assert score > 90
+        assert text[pos:pos + len(matched)] == matched
+        assert text[pos:pos + 4] == 'this'
 
 
 def test_variants_shorter_than_the_floor_are_skipped():

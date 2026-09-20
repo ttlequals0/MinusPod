@@ -120,9 +120,22 @@ def status_payload(status=None) -> dict:
     hold state is merged here instead, where both the stream and the one-time
     GET pick it up from the same place.
     """
+    db = get_database()
     payload = get_status_service().to_dict(status)
+    queued = payload.get('queuedEpisodes', [])
+    queued_keys = {
+        (episode['slug'], episode['episodeId'])
+        for episode in queued
+    }
+    owned = db.get_episode_job_states(
+        list({episode_id for _, episode_id in queued_keys})
+    )
+    payload['queueLength'] = (
+        db.count_pending_queued_episodes()
+        + len(queued_keys - set(owned))
+    )
     payload['hold'] = hold_block()
-    payload['processingPaused'] = is_processing_paused(get_database())
+    payload['processingPaused'] = is_processing_paused(db)
     # This worker may not be the leader, so nothing else refreshes its pool.
     pool = get_pool()
     pool.refresh()

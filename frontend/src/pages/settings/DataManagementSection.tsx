@@ -58,15 +58,18 @@ function DataManagementSection({
     }
   };
 
-  const handleDownloadBackup = async () => {
+  const handleDownloadBackup = async (encrypted = true) => {
     setBackupStatus('loading', null);
     setBackupError('');
     try {
-      await downloadBackup();
+      await downloadBackup(encrypted);
       setBackupStatus('success');
     } catch (err) {
       setBackupStatus('error', 5000);
-      setBackupError(getErrorMessage(err, 'Backup failed'));
+      const message = getErrorMessage(err, 'Backup failed');
+      setBackupError(message === 'backup_encryption_unavailable'
+        ? 'Encrypted backup unavailable. Set MINUSPOD_MASTER_PASSPHRASE and restart, or download plaintext below.'
+        : message);
     }
   };
 
@@ -125,7 +128,7 @@ function DataManagementSection({
               </p>
             </div>
           </div>
-          <div className="flex gap-2 mt-auto">
+          <div className="grid grid-cols-2 items-stretch gap-2 mt-auto">
             {(['modified', 'original'] as const).map((mode) => {
               const url = mode === 'modified' ? settings?.opmlModifiedUrl : settings?.opmlOriginalUrl;
               const items: DropdownMenuItem[] = [];
@@ -142,10 +145,10 @@ function DataManagementSection({
                 onClick: () => handleExportOpml(mode),
               });
               return (
-                <div key={mode} className="flex-1">
+                <div key={mode} className="flex min-w-0 [&>div]:flex [&>div]:w-full">
                   <DropdownMenu
                     triggerLabel={mode === 'modified' ? 'Modified Feeds' : 'Original Feeds'}
-                    triggerClassName={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium`}
+                    triggerClassName={`min-h-[44px] h-full w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium`}
                     disabled={opmlStatus === 'loading'}
                     title={mode === 'modified' ? 'Export modified feeds' : 'Export original feeds'}
                     align={mode === 'modified' ? 'left' : 'right'}
@@ -171,17 +174,32 @@ function DataManagementSection({
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-semibold text-foreground">Database Backup</h4>
               <p className="text-xs text-muted-foreground mt-1">
-                Download a backup of feeds, episodes, patterns, sponsors, and settings.
+                Download feeds, episodes, patterns, sponsors, and settings. Encrypted download is the default.
               </p>
             </div>
           </div>
           <button
-            onClick={handleDownloadBackup}
+            onClick={() => handleDownloadBackup(true)}
             disabled={backupStatus === 'loading'}
-            className={`mt-auto w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
+            className={`mt-auto min-h-[44px] w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
           >
-            {backupStatus === 'loading' ? 'Preparing...' : 'Download Backup'}
+            {backupStatus === 'loading' ? 'Preparing...' : 'Download Encrypted Backup'}
           </button>
+          <div className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-3">
+            <p className="text-xs text-warning">
+              This downloads the full database without file encryption. Protect the downloaded file.
+            </p>
+            <div className="mt-2">
+              <ConfirmResetButton
+                label="Download plaintext"
+                ariaLabel="Download plaintext database backup"
+                disabled={backupStatus === 'loading'}
+                onConfirm={() => handleDownloadBackup(false)}
+                size="compact"
+                className="min-h-[44px]"
+              />
+            </div>
+          </div>
           {renderStatusIndicator(backupStatus, backupError)}
         </div>
       </div>

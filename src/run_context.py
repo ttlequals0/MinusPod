@@ -6,6 +6,9 @@ state (token totals, run log) is looked up by thread, not by process.
 """
 import copy
 import threading
+import time
+from collections import defaultdict
+from contextlib import contextmanager
 
 from utils.url import url_has_userinfo
 
@@ -61,6 +64,50 @@ class TokenAccumulator:
             return dict(self._last_totals)
 
 
+class RunTiming:
+    """Thread-safe wall-clock timing for one processing run."""
+
+    def __init__(self, clock=None):
+        self._lock = threading.Lock()
+        self._elapsed = defaultdict(float)
+        self._active = defaultdict(list)
+        self._clock = clock or time.monotonic
+
+    def add(self, name: str, seconds: float) -> None:
+        if seconds < 0:
+            return
+        with self._lock:
+            self._elapsed[name] += seconds
+
+    @contextmanager
+    def measure(self, name: str):
+        started = self._clock()
+        with self._lock:
+            self._active[name].append(started)
+        try:
+            yield
+        finally:
+            finished = self._clock()
+            with self._lock:
+                starts = self._active[name]
+                if started in starts:
+                    starts.remove(started)
+                self._elapsed[name] += finished - started
+                if not starts:
+                    del self._active[name]
+
+    def snapshot(self) -> dict[str, float]:
+        with self._lock:
+            result = dict(self._elapsed)
+            if not self._active:
+                return result
+            now = self._clock()
+            for name, starts in self._active.items():
+                result[name] = result.get(name, 0.0) + sum(
+                    max(0.0, now - started) for started in starts)
+            return result
+
+
 _FORBIDDEN_ROUTE_KEYS = {'api_key', 'apikey', 'authorization', 'headers', 'secret', 'token'}
 
 # Ledger attempt the calling thread is dispatching under, so a compatibility
@@ -91,6 +138,8 @@ class RunContext:
         self.run_id = run_id
         self.recorder = None
         self.tokens = TokenAccumulator()
+        self.timing = RunTiming()
+        self.timing.add('ffmpeg', 0.0)
         self.route_snapshot = None
         self._thinking_notices = {}
         self._thinking_notice_lock = threading.Lock()
@@ -151,6 +200,13 @@ def end(ctx: RunContext) -> None:
 def current() -> RunContext | None:
     with _lock:
         return _by_thread.get(threading.get_ident())
+
+
+def record_ffmpeg_elapsed(seconds: float) -> None:
+    """Add one ffmpeg subprocess's wall time to the current run."""
+    ctx = current()
+    if ctx is not None:
+        ctx.timing.add('ffmpeg', seconds)
 
 
 def route_for_phase(phase: str) -> dict | None:

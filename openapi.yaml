@@ -736,7 +736,7 @@ paths:
                     - generate
                     - 'off'
                     - null
-                  description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null resets to the default 'auto' behavior.
+                  description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null follows the global chaptersMode setting.
                 chaptersInNotes:
                   type:
                     - string
@@ -925,7 +925,7 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: Per-feed cross-fetch differential setting. When on, each episode is fetched a second time with a different podcast-client User-Agent and the two files are diffed to find dynamically inserted audio. Null means auto, which runs the stage on feeds that look DAI-served; false always disables it.
+                  description: Legacy per-feed cross-fetch flag. Use differentialFetchMode for new clients; null selects automatic DAI detection.
                 processingMode:
                   type: string
                   enum:
@@ -1003,7 +1003,18 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: When true, the pass-2 verification scan of the cut audio is skipped, which roughly halves the ad-detection LLM spend on feeds whose first pass is already reliable. Held differential detections that pass 2 would have confirmed then wait for a human. Null and false both mean the second pass runs.
+                  description: When true, the pass-2 verification scan of the cut audio is skipped. Null follows the global skipSecondPass setting.
+                differentialFetchMode:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - inherit
+                    - auto
+                    - 'on'
+                    - 'off'
+                    - null
+                  description: Per-feed cross-fetch mode. 'inherit' follows the global default, 'auto' follows DAI detection, and 'on' or 'off' forces the stage.
                 ownEpisodeGuids:
                   type:
                     - boolean
@@ -5677,6 +5688,17 @@ paths:
                   type: boolean
                   description: Generate podcast:chapters JSON for each processed episode.
                   example: true
+                chaptersMode:
+                  type: string
+                  enum: ['auto', 'generate', 'off']
+                  description: Default chapter mode for feeds that inherit this setting.
+                skipSecondPass:
+                  type: boolean
+                  description: When true, feeds that inherit this setting skip the pass-2 verification scan.
+                differentialFetchMode:
+                  type: string
+                  enum: ['auto', 'on', 'off']
+                  description: Default cross-fetch mode for feeds that inherit this setting.
                 chaptersInNotes:
                   type: boolean
                   description: Append the generated chapter list to served episode descriptions and the episode API description. Feeds can override per feed.
@@ -6927,8 +6949,17 @@ paths:
         - System
       summary: Download database backup
       description: |
-        Returns a copy of the SQLite database file for backup purposes. Rate limited to 6/hour.
+        Returns an encrypted copy of the SQLite database. Encryption requires
+        the server's master passphrase. Set `encrypted=false` to explicitly
+        request a plaintext SQLite file. Rate limited to 6/hour.
       operationId: downloadBackup
+      parameters:
+        - in: query
+          name: encrypted
+          schema:
+            type: boolean
+            default: true
+          description: Encrypt the download. Set false only when another protection layer is in place.
       responses:
         '200':
           description: Database backup file download
@@ -6936,12 +6967,18 @@ paths:
             Content-Disposition:
               schema:
                 type: string
-              description: 'Attachment filename, e.g. attachment; filename="minuspod-backup-2026-03-12.db"'
+              description: 'Attachment filename ending in .db.enc when encrypted or .db for an explicit plaintext export.'
           content:
             application/octet-stream:
               schema:
                 type: string
                 format: binary
+        '409':
+          description: Encrypted export is unavailable because no master passphrase is configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '429':
           description: Rate limit exceeded
           content:
@@ -8563,10 +8600,17 @@ paths:
                       type: object
                       properties:
                         node:                { type: string, example: https://api.hive.blog }
+                        selected:            { type: boolean, description: Last node to complete a successful RPC call. }
                         consecutiveFailures: { type: integer }
                         lastSuccessAt:       { type: [string, 'null'], format: date-time }
                         nextRetryAt:         { type: [string, 'null'], format: date-time }
                         lastFailureReason:   { type: [string, 'null'] }
+                        httpStatus:
+                          type: [integer, 'null']
+                          description: HTTP status from the latest response, or null when no response arrived.
+                        outcome:
+                          type: [string, 'null']
+                          enum: [healthy, http_error, invalid_response, unreachable, null]
 
   /feeds/{slug}/tags:
     get:
@@ -10960,7 +11004,18 @@ components:
             - generate
             - 'off'
             - null
-          description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null means not set, which resolves to 'auto'.
+          description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null follows the global chaptersMode setting.
+        differentialFetchMode:
+          type:
+            - string
+            - 'null'
+          enum:
+            - inherit
+            - auto
+            - 'on'
+            - 'off'
+            - null
+          description: Per-feed cross-fetch mode. 'inherit' follows the global default, 'auto' follows DAI detection, and 'on' or 'off' forces the stage.
         chaptersInNotes:
           type:
             - string
@@ -11141,13 +11196,13 @@ components:
           type:
             - boolean
             - 'null'
-          description: Per-feed opt-in for the cross-fetch differential. null and false both read as off.
+          description: Legacy per-feed cross-fetch flag. Use differentialFetchMode for new clients; null selects automatic DAI detection.
         daiLikely:
           type: boolean
           description: Hint that this feed likely uses dynamic ad insertion, based on recent enclosure URLs matching known DAI or prefix domains. Returned on the feed detail response.
         differentialFetchEffective:
           type: boolean
-          description: Whether the cross-fetch differential stage will run for this feed, resolved from the per-feed flag (null means auto) plus the DAI signals. Feed detail only.
+          description: Whether the cross-fetch differential stage will run for this feed, resolved from the per-feed mode, global default, and DAI signals. Feed detail only.
         websiteUrl:
           type:
             - string
@@ -11225,7 +11280,7 @@ components:
           type:
             - boolean
             - 'null'
-          description: Whether the pass-2 verification scan of the cut audio is skipped for this feed, which roughly halves the ad-detection LLM spend on feeds whose first pass is already reliable. Held differential detections that pass 2 would have confirmed then wait for a human. Null and false both mean the second pass runs.
+          description: Whether the pass-2 verification scan of the cut audio is skipped for this feed. Null follows the global skipSecondPass setting.
         latestEpisodes:
           type: array
           items:
@@ -12054,6 +12109,67 @@ components:
               description: Ads the second scan of the output audio found and cut. 0 means the scan ran and came back clean. Absent or null means the scan did not run, either because it was skipped (see verificationSkipped and detectionSkipped) or because it failed.
             secondsRemoved:
               type: number
+            timings:
+              type:
+                - object
+                - 'null'
+              description: >-
+                Wall-clock seconds measured for each pipeline stage. Stages
+                that run concurrently can overlap, so these values do not sum
+                to processingDurationSeconds. ffmpegSeconds combines every
+                FFmpeg task in the run, including retries, and can overlap
+                with the stages that started those tasks. finalizeSeconds ends
+                before the history row is written and notifications are sent.
+              properties:
+                downloadSeconds:
+                  type:
+                    - number
+                    - 'null'
+                transcriptionSeconds:
+                  type:
+                    - number
+                    - 'null'
+                differentialSeconds:
+                  type:
+                    - number
+                    - 'null'
+                audioAnalysisSeconds:
+                  type:
+                    - number
+                    - 'null'
+                detectionSeconds:
+                  type:
+                    - number
+                    - 'null'
+                refineValidateSeconds:
+                  type:
+                    - number
+                    - 'null'
+                cutSeconds:
+                  type:
+                    - number
+                    - 'null'
+                verificationSeconds:
+                  type:
+                    - number
+                    - 'null'
+                normalizationSeconds:
+                  type:
+                    - number
+                    - 'null'
+                assetsSeconds:
+                  type:
+                    - number
+                    - 'null'
+                finalizeSeconds:
+                  type:
+                    - number
+                    - 'null'
+                  description: Finalization work before history persistence and notifications.
+                ffmpegSeconds:
+                  type:
+                    - number
+                    - 'null'
             transcription:
               type: object
               description: >-
@@ -13454,6 +13570,32 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        chaptersMode:
+          type: object
+          description: Default chapter mode for feeds that inherit the global setting.
+          properties:
+            value:
+              type: string
+              enum: ['auto', 'generate', 'off']
+            isDefault:
+              type: boolean
+        skipSecondPass:
+          type: object
+          description: Skip the pass-2 verification scan by default for feeds that inherit this setting.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        differentialFetchMode:
+          type: object
+          description: Default cross-fetch mode for feeds that inherit the global setting.
+          properties:
+            value:
+              type: string
+              enum: ['auto', 'on', 'off']
+            isDefault:
+              type: boolean
         chaptersInNotes:
           type: object
           description: Append the generated chapter list to served episode descriptions and the episode API description.
@@ -14043,6 +14185,9 @@ components:
                 properties:
                   node:
                     type: string
+                  selected:
+                    type: boolean
+                    description: Last node to complete a successful RPC call.
                   consecutiveFailures:
                     type: integer
                     description: Failure streak, which survives a restart rather than resetting.
@@ -14060,6 +14205,16 @@ components:
                     type:
                       - string
                       - 'null'
+                  httpStatus:
+                    type:
+                      - integer
+                      - 'null'
+                    description: HTTP status from the latest response, or null when no response arrived.
+                  outcome:
+                    type:
+                      - string
+                      - 'null'
+                    enum: [healthy, http_error, invalid_response, unreachable, null]
         transcriber:
           type: object
           description: >-

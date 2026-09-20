@@ -11,6 +11,7 @@ coordinates for cutting.
 """
 
 import logging
+from copy import deepcopy
 
 from audio_processor import get_replacement_duration
 from transcript_generator import TranscriptGenerator
@@ -190,16 +191,15 @@ class VerificationPass:
         if pass1_cuts:
             timestamp_map = _build_timestamp_map(pass1_cuts)
             beep = get_replacement_duration()
-            for ad in processed_ads:
-                mapped = ad.copy()
-                mapped['start'] = _map_to_original(ad['start'], timestamp_map, beep)
-                mapped['end'] = _map_to_original(ad['end'], timestamp_map, beep)
-                original_ads.append(mapped)
+            original_ads = [
+                _map_ad_to_original(ad, timestamp_map, beep)
+                for ad in processed_ads
+            ]
             logger.info(f"[{slug}:{episode_id}] Verification: mapped {len(original_ads)} ads "
                        f"to original timestamps using {len(pass1_cuts)} pass 1 cuts")
         else:
             # No pass 1 cuts means no timestamp shift -- processed = original
-            original_ads = [ad.copy() for ad in processed_ads]
+            original_ads = deepcopy(processed_ads)
             logger.info(f"[{slug}:{episode_id}] Verification: no pass 1 cuts, "
                        f"timestamps are already original")
 
@@ -268,6 +268,37 @@ def _build_timestamp_map(pass1_cuts: list[dict]) -> list[tuple[float, float, flo
             cuts.append((start, duration, ad.get('replacement_duration')))
     cuts.sort(key=lambda x: x[0])
     return cuts
+
+
+_AD_TIMESTAMP_FIELDS = (
+    'start', 'end', 'text_start', 'text_end',
+    'merged_protected_start', 'merged_protected_end',
+)
+_AD_SPAN_FIELDS = ('merged_member_spans', 'dai_core_spans')
+
+
+def _map_ad_to_original(ad: dict, timestamp_map: list[tuple],
+                        replacement_duration: float) -> dict:
+    """Deep-copy an ad and map its processed-audio spans."""
+    mapped = deepcopy(ad)
+
+    def map_field(container, key):
+        value = container.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            container[key] = _map_to_original(
+                float(value), timestamp_map, replacement_duration)
+
+    for field in _AD_TIMESTAMP_FIELDS:
+        map_field(mapped, field)
+    for field in _AD_SPAN_FIELDS:
+        spans = mapped.get(field)
+        if not isinstance(spans, list):
+            continue
+        for span in spans:
+            if isinstance(span, dict):
+                map_field(span, 'start')
+                map_field(span, 'end')
+    return mapped
 
 
 def _cut_replacement(cut: tuple, default: float | None = None) -> float | None:

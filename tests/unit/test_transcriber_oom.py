@@ -3,10 +3,9 @@
 A GPU-OOM retry must (a) record the outcome (final batch size, retry count,
 device, retry-success) so it can ride beside the per-phase LLM breakdown in
 processing_stats_json, (b) release GPU memory between attempts and on
-exhaustion rather than leaking VRAM into the next episode, (c) never surface
-as a completed episode with no audio: exhaustion propagates as a failure
-that is_transient_error requeues, and get_local_transcriber_health() reports
-the transcriber unavailable instead of silently retrying forever,
+exhaustion rather than leaking VRAM into the next episode, (c) preserve the
+CUDA cause so the episode retry classifier stops futile retries while
+get_local_transcriber_health() reports the transcriber unavailable,
 (d) bound concurrent local CUDA transcriptions so two runs cannot
 double-allocate VRAM on the same device, and (e) reach /system/status from
 any gunicorn worker, which means the outcome lives in shared state and the
@@ -14,8 +13,13 @@ reading follows the configured backend.
 """
 
 import json
+import tempfile
 import threading
 import time
+import weakref
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from tests.app_bootstrap import bootstrap
 
@@ -99,6 +103,32 @@ def test_oom_reduction_then_success_records_batch_and_retry_stats(monkeypatch):
     assert stats['model'] == 'fake-model'
 
 
+def test_oom_releases_old_model_before_reload(monkeypatch):
+    _patch_common(monkeypatch, MagicMock())
+    monkeypatch.setattr(Transcriber, 'clear_cuda_cache', lambda self: None)
+    first_ref = None
+    loads = 0
+
+    def load_pipeline(cls):
+        nonlocal first_ref, loads
+        loads += 1
+        if loads == 1:
+            pipeline = _FakePipeline(failures=1)
+            first_ref = weakref.ref(pipeline)
+            return pipeline
+        assert first_ref() is None
+        return _FakePipeline(failures=0)
+
+    monkeypatch.setattr(
+        transcriber_mod.WhisperModelSingleton,
+        'get_batched_pipeline',
+        classmethod(load_pipeline),
+    )
+
+    assert _fresh().transcribe('/nonexistent/audio.mp3') == []
+    assert loads == 2
+
+
 def test_exhaustion_records_failed_outcome_and_releases_gpu_memory(monkeypatch):
     """All retries burn OOM: the outcome is recorded as failed (not a
     silent success), and GPU memory is released both between attempts and
@@ -121,12 +151,31 @@ def test_exhaustion_records_failed_outcome_and_releases_gpu_memory(monkeypatch):
     assert len(clear_calls) >= 3
 
 
-def test_exhausted_transcription_failure_is_transient_and_requeues():
-    """_download_and_transcribe raises "Failed to transcribe audio" when
-    transcribe_chunked exhausts; that message hits no permanent pattern in
-    is_transient_error, so it defaults to transient. The episode is
-    requeued, not marked permanently failed or left dangling."""
-    assert is_transient_error(Exception("Failed to transcribe audio")) is True
+def test_chunked_cuda_exhaustion_preserves_permanent_error(monkeypatch):
+    t = Transcriber.__new__(Transcriber)
+    t.get_audio_duration = MagicMock(return_value=3600.0)
+    t.transcribe = MagicMock(return_value=None)
+    t.filter_hallucinations = lambda segments: segments
+    t.last_transcription_stats = {'error': 'CUDA failed with error out of memory'}
+
+    def extract(*args, **kwargs):
+        handle = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        handle.close()
+        return handle.name
+
+    with patch('transcriber.calculate_optimal_chunk_duration',
+               return_value=(1800.0, 'test')), \
+            patch('transcriber.extract_audio_chunk', side_effect=extract), \
+            patch('transcriber._get_whisper_settings',
+                  return_value={'backend': 'local'}), \
+            patch('transcriber.clear_gpu_memory'), \
+            patch.object(transcriber_mod.WhisperModelSingleton,
+                         'get_batched_pipeline', return_value=MagicMock()), \
+            patch.object(transcriber_mod.WhisperModelSingleton, 'unload_model'):
+        with pytest.raises(RuntimeError, match='CUDA.*out of memory') as exc_info:
+            t.transcribe_chunked('/tmp/input.mp3')
+
+    assert is_transient_error(exc_info.value) is False
 
 
 def test_admission_guard_serializes_concurrent_cuda_transcriptions(monkeypatch):
@@ -340,4 +389,3 @@ def test_api_backend_health_uses_a_cached_probe_not_a_fresh_request(monkeypatch)
         transcriber_mod._health_cache.delete('http://whisper.invalid/v1')
         db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
         db.set_setting('whisper_api_base_url', '')
-

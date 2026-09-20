@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
+import { Link } from 'react-router';
 import type { ProcessingEpisode } from '../../api/settings';
 import type { QueueAdmission } from '../../api/types';
 import { formatDateTime } from '../../utils/format';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { Pagination } from '../../components/Pagination';
 import NumberInput from '../../components/NumberInput';
-import { btnDestructive, btnGhost } from '../../components/buttonStyles';
+import { btnDestructive, btnGhost, touchTarget } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 import { getStageLabel } from '../../utils/processingStage';
 import { getProcessingAdmission, setProcessingAdmission } from '../../api/settings';
@@ -28,6 +29,9 @@ const PRIORITY_STEP = 5;
 
 interface ProcessingQueueSectionProps {
   processingEpisodes: ProcessingEpisode[] | undefined;
+  showActive?: boolean;
+  defaultOpen?: boolean;
+  storageKey?: string;
   onCancel: (params: { slug: string; episodeId: string }) => void;
   cancelIsPending: boolean;
   /** `slug:episodeId` of the row a cancel is in flight for, if any. */
@@ -64,6 +68,9 @@ function AdmissionNote({ admission }: { admission?: QueueAdmission | null }) {
 
 function ProcessingQueueSection({
   processingEpisodes,
+  showActive = true,
+  defaultOpen,
+  storageKey,
   onCancel,
   cancelIsPending,
   cancelingKey,
@@ -83,11 +90,11 @@ function ProcessingQueueSection({
   const episodes = processingEpisodes ?? [];
   const active = episodes.filter((e) => e.stage !== 'queued');
   const queued = episodes.filter((e) => e.stage === 'queued');
-  const hasProcessing = episodes.length > 0;
+  const hasProcessing = showActive ? episodes.length > 0 : queued.length > 0;
 
   // Every entry carries the whole-backlog total, so a page whose rows all
   // deduped away still pages correctly instead of collapsing to one page.
-  const queueTotal = episodes[0]?.queueTotal ?? queued.length;
+  const queueTotal = episodes.find((episode) => episode.queueTotal != null)?.queueTotal ?? queued.length;
   const totalPages = Math.max(1, Math.ceil(queueTotal / QUEUE_PAGE_SIZE));
   const page = Math.min(queuePage, totalPages);
   // queueTotal only arrives with the response, so the host cannot clamp
@@ -114,7 +121,7 @@ function ProcessingQueueSection({
       <button
         onClick={() => onCancel({ slug: episode.slug, episodeId: episode.episodeId })}
         disabled={cancelIsPending}
-        className={`px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors shrink-0 ${focusRing}`}
+        className={`${touchTarget} px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors shrink-0 ${focusRing}`}
       >
         {isCanceling ? 'Canceling...' : 'Cancel'}
       </button>
@@ -134,7 +141,7 @@ function ProcessingQueueSection({
         onClick={() => step(delta)}
         disabled={priorityIsPending}
         aria-label={`${verb} priority for ${episode.title}`}
-        className={`h-8 w-8 inline-flex items-center justify-center rounded ${btnGhost} disabled:opacity-50 transition-colors ${focusRing}`}
+        className={`${touchTarget} h-8 w-8 rounded ${btnGhost} disabled:opacity-50 transition-colors ${focusRing}`}
       >
         <Icon className="w-4 h-4" />
       </button>
@@ -165,7 +172,8 @@ function ProcessingQueueSection({
   return (
     <CollapsibleSection
       title="Processing Queue"
-      storageKey={STORAGE_KEY}
+      defaultOpen={defaultOpen}
+      storageKey={storageKey ?? STORAGE_KEY}
       key={hasProcessing ? 'processing-active' : 'processing-idle'}
     >
       {admission.data ? (
@@ -173,9 +181,9 @@ function ProcessingQueueSection({
           <div>
             <h3 className="text-sm font-medium text-foreground">Processing admission</h3>
             <p className="text-xs text-muted-foreground">
-              {admission.data.paused
-                ? `${admission.data.activeRuns} active runs are draining. New work stays queued.`
-                : `${admission.data.activeRuns} active runs and ${admission.data.queuedEpisodes} queued episodes.`}
+            {admission.data.paused
+                ? `${admission.data.activeRuns} active ${admission.data.activeRuns === 1 ? 'run is' : 'runs are'} draining. New work stays queued.`
+                : `${admission.data.activeRuns} active ${admission.data.activeRuns === 1 ? 'run' : 'runs'} and ${admission.data.queuedEpisodes} queued ${admission.data.queuedEpisodes === 1 ? 'episode' : 'episodes'}.`}
             </p>
           </div>
           <button
@@ -190,7 +198,7 @@ function ProcessingQueueSection({
       ) : null}
       {hasProcessing ? (
         <div className="space-y-4">
-          {active.length > 0 && (
+          {showActive && active.length > 0 && (
             <div className="space-y-2">
               {active.map((episode) => (
                 <div
@@ -198,7 +206,12 @@ function ProcessingQueueSection({
                   className="bg-secondary/50 rounded-lg p-4 flex justify-between items-center gap-3"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground truncate">{episode.title}</p>
+                    <Link
+                      to={`/feeds/${episode.slug}/episodes/${episode.episodeId}`}
+                      className={`block font-medium text-primary hover:underline truncate ${focusRing}`}
+                    >
+                      {episode.title}
+                    </Link>
                     <p className="text-sm text-muted-foreground truncate">
                       {episode.podcast}
                       {episode.stage ? ` · ${getStageLabel(episode.stage)}` : ''}
@@ -225,7 +238,12 @@ function ProcessingQueueSection({
                       {episode.queuePosition}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{episode.title}</p>
+                      <Link
+                        to={`/feeds/${episode.slug}/episodes/${episode.episodeId}`}
+                        className={`block text-sm font-medium text-primary hover:underline truncate ${focusRing}`}
+                      >
+                        {episode.title}
+                      </Link>
                       <p className="text-xs text-muted-foreground truncate">{episode.podcast}</p>
                       <AdmissionNote admission={episode.admission} />
                     </div>
@@ -246,7 +264,9 @@ function ProcessingQueueSection({
           )}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">No episodes processing or queued</p>
+        <p className="text-sm text-muted-foreground">
+          {showActive ? 'No episodes processing or queued' : 'No queued episodes'}
+        </p>
       )}
     </CollapsibleSection>
   );

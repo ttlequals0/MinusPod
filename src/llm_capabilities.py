@@ -72,6 +72,9 @@ _REASONING_UNSUPPORTED = (
     re.compile(r'\b(?:unknown|unrecognized)\s+(?:parameter|field)\s*[: ]\s*'
                r'(?:reasoning[_ -]?effort|thinking)\b'),
 )
+_TUNABLE_FIELD = re.compile(
+    r'\b(?:max[_ -]?(?:completion[_ -]?)?tokens|temperature|top[_ -]?[pk]|'
+    r'reasoning(?:[_ -]?effort)?|thinking|budget[_ -]?tokens)\b')
 
 
 def set_fallback(episode_id: str, pass_name: str) -> None:
@@ -254,10 +257,7 @@ def is_temperature_rejection_error(error: Exception) -> bool:
 
 
 def is_fallback_eligible_error(error: Exception) -> bool:
-    """True for a 4xx (non-429) response, indicating the user's tunables were
-    rejected by the provider. False for 429, 5xx, network, timeout -- those go
-    through the existing retry path.
-    """
+    """True when a provider 4xx identifies a rejected request tunable."""
     status = getattr(error, 'status_code', None)
     if status is None:
         response = getattr(error, 'response', None)
@@ -265,15 +265,10 @@ def is_fallback_eligible_error(error: Exception) -> bool:
             status = getattr(response, 'status_code', None)
     if status is None:
         return False
-    if status == 429:
-        return False
     try:
         status_int = int(status)
     except (TypeError, ValueError):
         return False
-    # Auth (401/403) and model/resource not-found (404) are not tunable
-    # rejections; a retry with default tunables fails identically and would
-    # poison the pass via set_fallback. Route them through the normal error path.
-    if status_int in (401, 403, 404):
+    if status_int in (401, 403, 404, 408, 409, 425, 429):
         return False
-    return 400 <= status_int < 500
+    return 400 <= status_int < 500 and bool(_TUNABLE_FIELD.search(str(error).lower()))

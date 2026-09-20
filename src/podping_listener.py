@@ -43,6 +43,7 @@ LAST_BLOCK_SETTING = 'podping_last_block'
 # Durable per-node health (JSON blob keyed by node URL) and the all-nodes-down
 # degraded signal, both survive a restart via the settings table.
 NODE_HEALTH_SETTING = 'podping_node_health'
+SELECTED_NODE_SETTING = 'podping_selected_node'
 DEGRADED_SETTING = 'podping_all_nodes_down'
 DEGRADED_SINCE_SETTING = 'podping_degraded_since'
 
@@ -71,6 +72,8 @@ def _new_node_health_entry() -> dict:
         'last_success_at': None,
         'next_retry_at': None,
         'last_failure_reason': None,
+        'last_http_status': None,
+        'last_outcome': None,
     }
 
 
@@ -84,6 +87,10 @@ def get_node_health_summary(db) -> list[dict]:
         data = {}
     if not isinstance(data, dict):
         data = {}
+    try:
+        selected_node = db.get_setting(SELECTED_NODE_SETTING)
+    except Exception:
+        selected_node = None
 
     summary = []
     for node in PODPING_NODES:
@@ -94,6 +101,9 @@ def get_node_health_summary(db) -> list[dict]:
             'lastSuccessAt': entry.get('last_success_at'),
             'nextRetryAt': entry.get('next_retry_at'),
             'lastFailureReason': entry.get('last_failure_reason'),
+            'httpStatus': entry.get('last_http_status'),
+            'outcome': entry.get('last_outcome'),
+            'selected': node == selected_node,
         })
     return summary
 
@@ -279,8 +289,10 @@ class PodpingListener:
         # Durable per-node health, loaded once at start so a restart resumes
         # each node's failure streak instead of re-escalating from zero.
         self._node_health = self._load_node_health()
+        self._selected_node = self._load_selected_node()
         # Node -> time its last success was written, for the persist cadence.
         self._success_persisted_at = {}
+        self._last_rpc_status_code = None
 
         self.feed_map = {}
         self.feed_rules = {}
@@ -301,6 +313,7 @@ class PodpingListener:
             json={'jsonrpc': '2.0', 'method': method, 'params': params, 'id': 1},
             timeout=10,
         )
+        self._last_rpc_status_code = response.status_code
         if response.status_code != 200:
             raise requests.RequestException(
                 f"HTTP {response.status_code} from {url}")
@@ -332,6 +345,14 @@ class PodpingListener:
         except Exception as exc:
             logger.debug("Could not persist podping node health: %s", exc)
 
+    def _load_selected_node(self):
+        if self.db is None:
+            return None
+        try:
+            return self.db.get_setting(SELECTED_NODE_SETTING) or None
+        except Exception:
+            return None
+
     def _set_degraded(self, active: bool):
         """Non-fatal all-nodes-down signal for /system/status; never touches
         /health or feed refresh, which stay independent of Podping."""
@@ -356,10 +377,12 @@ class PodpingListener:
         jitter = base * NODE_BACKOFF_JITTER_FRACTION
         return max(0.0, base + self.rand(-jitter, jitter))
 
-    def _record_node_failure(self, node, message):
+    def _record_node_failure(self, node, message, outcome='unreachable'):
         entry = self._node_health.setdefault(node, _new_node_health_entry())
         entry['consecutive_failures'] = entry.get('consecutive_failures', 0) + 1
         entry['last_failure_reason'] = _sanitize_failure_reason(message)
+        entry['last_http_status'] = self._last_rpc_status_code
+        entry['last_outcome'] = outcome
         node_step = min(entry['consecutive_failures'] - 1, NODE_BACKOFF_MAX_STEP)
         retry_at = self.now() + timedelta(
             seconds=self._backoff_seconds(node_step))
@@ -379,12 +402,20 @@ class PodpingListener:
         entry['consecutive_failures'] = 0
         entry['last_success_at'] = now.strftime(ISO_FORMAT)
         entry['next_retry_at'] = None
+        entry['last_http_status'] = self._last_rpc_status_code
+        entry['last_outcome'] = 'healthy'
         written_at = self._success_persisted_at.get(node)
         due = (written_at is None
                or (now - written_at).total_seconds() >= NODE_SUCCESS_PERSIST_SECONDS)
         if is_transition or due:
             self._persist_node_health()
             self._success_persisted_at[node] = now
+        if self.db is not None and self._selected_node != node:
+            try:
+                self.db.set_setting(SELECTED_NODE_SETTING, node)
+                self._selected_node = node
+            except Exception as exc:
+                logger.debug("Could not persist selected podping node: %s", exc)
 
     def _log_outage_recovery(self, node):
         """Correlate a recovery with how long every node was down, so an
@@ -405,7 +436,7 @@ class PodpingListener:
             "normal feed refresh catches up any stale feeds",
             node, f"{duration_s:.0f}" if duration_s is not None else 'unknown')
 
-    def _node_failure(self, message):
+    def _node_failure(self, message, outcome='unreachable'):
         """Log, rotate to the next node, back off (exponential + jitter), and
         record durable per-node health.
 
@@ -426,7 +457,7 @@ class PodpingListener:
         else:
             logger.debug("Podping node %s failed again: %s", node, message)
 
-        self._record_node_failure(node, message)
+        self._record_node_failure(node, message, outcome)
         if all_down:
             self._set_degraded(True)
 
@@ -464,13 +495,21 @@ class PodpingListener:
         node rotated, backoff applied) and returns None."""
         self.node_index = self._select_node()
         node = PODPING_NODES[self.node_index]
+        self._last_rpc_status_code = None
         try:
             result = self.rpc(method, params)
         except Exception as exc:
-            self._node_failure(f"{method} failed: {exc}")
+            if self._last_rpc_status_code is None:
+                outcome = 'unreachable'
+            elif self._last_rpc_status_code == 200:
+                outcome = 'invalid_response'
+            else:
+                outcome = 'http_error'
+            self._node_failure(f"{method} failed: {exc}", outcome)
             return None
         if not isinstance(result, expected_type):
-            self._node_failure(f"{method} returned an invalid response shape")
+            self._node_failure(
+                f"{method} returned an invalid response shape", 'invalid_response')
             return None
         self._backoff_step = 0
         was_all_down = len(self._failed_nodes) >= len(PODPING_NODES)

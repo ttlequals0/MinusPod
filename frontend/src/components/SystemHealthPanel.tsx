@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SystemStatus } from '../api/types';
 import { formatDateTime } from '../utils/format';
 import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
 import { badgeBase, tint } from './badgeStyles';
+
+const NODE_STALE_MS = 10 * 60 * 1000;
 
 type Health = 'healthy' | 'warning' | 'critical';
 
@@ -74,18 +76,83 @@ function TranscriberRow({ t }: { t: NonNullable<SystemStatus['transcriber']> }) 
 }
 
 function PodpingRow({ p }: { p: NonNullable<SystemStatus['podping']> }) {
+  const [open, setOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   if (!p.listenerEnabled) {
     return <Row tone="neutral" label="Podping" detail="listener disabled" />;
   }
-  const healthy = p.nodes.filter((n) => n.consecutiveFailures === 0).length;
   const tone: Health = p.allNodesDown ? 'critical' : podpingDegraded(p) ? 'warning' : 'healthy';
+  const nodeState = (node: NonNullable<SystemStatus['podping']>['nodes'][number]) => {
+    if (node.consecutiveFailures > 0) {
+      if (node.outcome === 'invalid_response') {
+        return {
+          label: node.httpStatus ? `Invalid response (HTTP ${node.httpStatus})` : 'Invalid response',
+          tone: 'warning' as const,
+        };
+      }
+      return {
+        label: node.httpStatus ? `HTTP ${node.httpStatus}` : 'Unreachable',
+        tone: 'warning' as const,
+      };
+    }
+    if (!node.lastSuccessAt) return { label: 'Not checked', tone: 'neutral' as const };
+    const lastSuccess = Date.parse(node.lastSuccessAt);
+    const label = node.httpStatus ? `HTTP ${node.httpStatus}` : 'Healthy';
+    if (!Number.isFinite(lastSuccess) || now - lastSuccess > NODE_STALE_MS) {
+      return { label, tone: 'neutral' as const };
+    }
+    return { label, tone: 'healthy' as const };
+  };
+  const healthy = p.nodes.filter((node) => nodeState(node).tone === 'healthy').length;
   // The all-nodes-down flag is authoritative for the summary text; per-node
   // counters only describe a partial outage.
   let detail = p.allNodesDown
     ? `all ${p.nodes.length} nodes down`
     : `${healthy}/${p.nodes.length} nodes healthy`;
   if (p.degradedSince) detail += `; degraded since ${formatDateTime(p.degradedSince)}`;
-  return <Row tone={tone} label="Podping" detail={detail} />;
+  if (p.listenerEnabled && p.allNodesDown) detail += '; RSS polling remains independent';
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-controls="podping-node-details"
+        aria-label="Podping details"
+        className={`w-full min-h-[44px] flex items-center gap-2 text-sm text-left ${focusRing}`}
+      >
+        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${DOT[tone]}`} aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="text-foreground">Podping</span>
+          <span className="text-muted-foreground"> {detail}</span>
+        </span>
+        <ChevronCaret expanded={open} className="w-4 h-4 shrink-0" />
+      </button>
+      {open && (
+        <div id="podping-node-details" className="min-w-0 ml-4 mt-2 space-y-2 border-l border-border pl-3">
+          {p.nodes.map((node) => {
+            const state = nodeState(node);
+            return (
+              <div key={node.node} className="min-w-0 max-w-full flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT[state.tone]}`} aria-hidden="true" />
+                <span className="font-medium text-foreground break-all">{node.node}</span>
+                <span className={`${badgeBase} ${state.tone === 'healthy' ? tint.success : state.tone === 'warning' ? tint.warning : 'bg-muted text-muted-foreground'}`}>
+                  {state.label}
+                </span>
+                {node.lastSuccessAt && (
+                  <span className="text-muted-foreground">Last seen {formatDateTime(node.lastSuccessAt)}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FeedRefreshRow({ f }: { f: NonNullable<SystemStatus['feedRefresh']> }) {

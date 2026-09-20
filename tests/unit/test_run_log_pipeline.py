@@ -181,7 +181,11 @@ class TestThinkingNoticeHistory:
             run_context.end(ctx)
 
         stats = json.loads(_history_row(db)['processing_stats_json'])
-        assert stats == {'mode': 'auto', 'thinking_notices': [notice]}
+        assert stats == {
+            'mode': 'auto',
+            'thinking_notices': [notice],
+            'timings': {'ffmpeg': 0.0},
+        }
 
 
 class TestRecordHistoryRowUsesLedgerTotals:

@@ -17,7 +17,7 @@ import pytest
 
 import main_app.processing as processing
 from main_app.episode_context import EpisodeContext
-from llm_client import LimitExceededError
+from llm_client import LimitExceededError, ProviderRequestRejectedError
 from utils.errors import ServiceUnavailableError
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'}]
@@ -103,6 +103,20 @@ class TestDegradedContinue:
                      'detection_stats': {}}
         with pytest.raises(LimitExceededError):
             _call_detect(ad_result, {})
+
+    def test_provider_rejection_is_permanent_even_with_markers(self):
+        ad_result = {
+            'status': 'failed',
+            'error': 'All 4 detection windows failed (status=422)',
+            'ads': list(PATTERN_ADS),
+            'provider_rejected': True,
+            'last_error_status': 422,
+        }
+        with pytest.raises(ProviderRequestRejectedError) as exc_info:
+            _call_detect(ad_result, {})
+
+        assert exc_info.value.status_code == 422
+        assert processing.is_transient_error(exc_info.value) is False
 
     def test_auth_class_failure_defers_does_not_degrade(self):
         ad_result = {'status': 'failed',

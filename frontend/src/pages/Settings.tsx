@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router';
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, setQueuePriority, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getWhisperModels, getSystemStatus, runCleanup, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
 import type { PromptName } from '../api/settings';
 import { useModelCatalog } from '../hooks/useModelCatalog';
 import { useModelsRefresh } from '../hooks/useModelsRefresh';
@@ -20,7 +20,6 @@ import DatabaseStatsSection from './settings/DatabaseStatsSection';
 import NotificationsSection from './settings/NotificationsSection';
 import AuthenticatedFeedsSection from './settings/AuthenticatedFeedsSection';
 import SecuritySection from './settings/SecuritySection';
-import ProcessingQueueSection, { QUEUE_PAGE_SIZE } from './settings/ProcessingQueueSection';
 import ConfirmResetButton from './settings/ConfirmResetButton';
 import AppearanceSection from './settings/AppearanceSection';
 import PodcastIndexSection from './settings/PodcastIndexSection';
@@ -56,7 +55,6 @@ import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
 import PositionalPriorSection from './settings/PositionalPriorSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import DatabaseBackupSection from './settings/DatabaseBackupSection';
-import QueueControlSection from './settings/QueueControlSection';
 import OutboundRequestsSection from './settings/OutboundRequestsSection';
 import { Search, X } from 'lucide-react';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
@@ -249,9 +247,6 @@ function Settings() {
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
-  const [queueManualBoost, setQueueManualBoost] = useState(20);
-  const [queueFreshBoost, setQueueFreshBoost] = useState(5);
-  const [queueBulkBoost, setQueueBulkBoost] = useState(0);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
   const [artworkBadgePosition, setArtworkBadgePosition] = useState<BadgePosition>('bottom-right');
@@ -514,19 +509,6 @@ function Settings() {
     queryFn: getSystemStatus,
   });
 
-  // Page state lives here, not in ProcessingQueueSection: that panel remounts
-  // on idle<->active transitions, which would reset a local useState.
-  const [queuePage, setQueuePage] = useState(1);
-  const { data: processingEpisodes } = useQuery({
-    queryKey: ['processing-episodes', queuePage],
-    queryFn: () => getProcessingEpisodes({
-      queueOffset: (queuePage - 1) * QUEUE_PAGE_SIZE,
-      queueLimit: QUEUE_PAGE_SIZE,
-    }),
-    placeholderData: keepPreviousData,
-    refetchInterval: 5000,
-  });
-
   const { data: retention } = useQuery({
     queryKey: ['retention'],
     queryFn: getRetention,
@@ -590,24 +572,6 @@ function Settings() {
   const audioSettingsMutation = useMutation({
     mutationFn: (keep: boolean) => updateAudioSettings(keep),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['audio-settings'] }),
-  });
-
-  const cancelMutation = useMutation({
-    mutationFn: (params: { slug: string; episodeId: string }) =>
-      cancelProcessing(params.slug, params.episodeId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
-      queryClient.invalidateQueries({ queryKey: ['status'] });
-    },
-  });
-
-  const priorityMutation = useMutation({
-    mutationFn: ({ slug, episodeId, ...change }:
-      { slug: string; episodeId: string; priority?: number; delta?: number }) =>
-      setQueuePriority(slug, episodeId, change),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
-    },
   });
 
   const retentionMutation = useMutation({
@@ -719,9 +683,6 @@ function Settings() {
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
     { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
     { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },
-    { key: 'queueManualBoost', kind: 'val', useDefault: true, literal: 20, value: queueManualBoost, set: setQueueManualBoost },
-    { key: 'queueFreshBoost', kind: 'val', useDefault: true, literal: 5, value: queueFreshBoost, set: setQueueFreshBoost },
-    { key: 'queueBulkBoost', kind: 'val', useDefault: true, literal: 0, value: queueBulkBoost, set: setQueueBulkBoost },
     // Ad detection
     { key: 'minCutConfidence', kind: 'val', useDefault: true, value: minCutConfidence, set: setMinCutConfidence },
     { key: 'minContentBetweenAdsSeconds', kind: 'val', useDefault: true, literal: 12, value: minContentBetweenAdsSeconds, set: setMinContentBetweenAdsSeconds },
@@ -1058,19 +1019,6 @@ function Settings() {
         statusLoading={statusLoading}
       />
 
-      <ProcessingQueueSection
-        processingEpisodes={processingEpisodes}
-        onCancel={(params) => cancelMutation.mutate(params)}
-        cancelIsPending={cancelMutation.isPending}
-        cancelingKey={cancelMutation.variables
-          ? `${cancelMutation.variables.slug}:${cancelMutation.variables.episodeId}`
-          : null}
-        queuePage={queuePage}
-        onQueuePage={setQueuePage}
-        onPriorityChange={(params) => priorityMutation.mutate(params)}
-        priorityIsPending={priorityMutation.isPending}
-      />
-
       {/* Settings search: filters the configurable sections below by matching a
           section's title or any of its setting labels (client-side, no backend). */}
       <div className="relative">
@@ -1168,17 +1116,10 @@ function Settings() {
         onEpisodeLogLevelChange={setEpisodeLogLevel}
         textRecurrenceHints={settings?.textRecurrenceHints?.value ?? settings?.defaults?.textRecurrenceHints ?? false}
         onTextRecurrenceHintsChange={(v) => tunableMutation.mutate({ textRecurrenceHints: v })}
-      />
-
-      <QueueControlSection
-        processNewEpisodesFirst={settings?.processNewEpisodesFirst?.value ?? settings?.defaults?.processNewEpisodesFirst ?? true}
-        onProcessNewEpisodesFirstChange={(v) => tunableMutation.mutate({ processNewEpisodesFirst: v })}
-        queueManualBoost={queueManualBoost}
-        onQueueManualBoostChange={setQueueManualBoost}
-        queueFreshBoost={queueFreshBoost}
-        onQueueFreshBoostChange={setQueueFreshBoost}
-        queueBulkBoost={queueBulkBoost}
-        onQueueBulkBoostChange={setQueueBulkBoost}
+        skipSecondPass={settings?.skipSecondPass?.value ?? settings?.defaults?.skipSecondPass ?? false}
+        onSkipSecondPassChange={(v) => tunableMutation.mutate({ skipSecondPass: v })}
+        differentialFetchMode={(settings?.differentialFetchMode?.value ?? settings?.defaults?.differentialFetchMode ?? 'auto') as 'auto' | 'on' | 'off'}
+        onDifferentialFetchModeChange={(v) => tunableMutation.mutate({ differentialFetchMode: v })}
       />
 
       <SegmentActionsSection
@@ -1456,6 +1397,8 @@ function Settings() {
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
         onChaptersInNotesChange={setChaptersInNotes}
+        chaptersMode={(settings?.chaptersMode?.value ?? settings?.defaults?.chaptersMode ?? 'auto') as 'auto' | 'generate' | 'off'}
+        onChaptersModeChange={(v) => tunableMutation.mutate({ chaptersMode: v })}
         adChapters={{
           chaptersEnabled,
           enabled: adChaptersEnabled,

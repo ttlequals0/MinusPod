@@ -23,6 +23,8 @@ function Harness({
       onVttTranscriptsEnabledChange={() => {}}
       onChaptersEnabledChange={() => {}}
       onChaptersInNotesChange={onChaptersInNotesChange}
+      chaptersMode="auto"
+      onChaptersModeChange={() => {}}
       geometry={{
         tunables: baseTunables,
         defaults: baseDefaults,

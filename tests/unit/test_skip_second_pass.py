@@ -68,6 +68,7 @@ def _run_pipeline(skip_second_pass):
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
         db.get_setting.return_value = 'false'
+        db.get_setting_bool.return_value = False
         db.get_all_settings.return_value = {}
         audio_processor.get_audio_duration.return_value = 100.0
         local_ap = local_ap_cls.return_value
@@ -88,6 +89,11 @@ class TestResolveSkipSecondPass:
 
     def test_one_skips(self):
         assert resolve_skip_second_pass({'skip_second_pass': 1}) is True
+
+    def test_null_feed_value_uses_global_default(self):
+        db = SimpleNamespace(get_setting_bool=lambda key, default: True)
+        assert resolve_skip_second_pass({'skip_second_pass': None}, db=db) is True
+        assert resolve_skip_second_pass({'skip_second_pass': 0}, db=db) is False
 
 
 class TestSkipSecondPass:

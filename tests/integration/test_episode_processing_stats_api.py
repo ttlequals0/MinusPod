@@ -27,6 +27,20 @@ STATS_DB = {
     'markers': {'cut': 6, 'held': 4, 'not_cut': 5},
     'verification_ads_cut': 1,
     'seconds_removed': 609.0,
+    'timings': {
+        'download': 42.0,
+        'transcription': 180.0,
+        'differential': 3.5,
+        'audio_analysis': 8.0,
+        'detection': 120.0,
+        'refine_validate': 4.0,
+        'cut': 8.0,
+        'verification': 20.0,
+        'normalization': 0.0,
+        'assets': 2.0,
+        'finalize': 1.0,
+        'ffmpeg': 31.0,
+    },
     'thinking_notices': [{
         'pass': 'ad_detection_pass_1',
         'provider': 'openai-compatible',
@@ -56,6 +70,20 @@ STATS_API = {
     'markers': {'cut': 6, 'held': 4, 'notCut': 5},
     'verificationAdsCut': 1,
     'secondsRemoved': 609.0,
+    'timings': {
+        'downloadSeconds': 42.0,
+        'transcriptionSeconds': 180.0,
+        'differentialSeconds': 3.5,
+        'audioAnalysisSeconds': 8.0,
+        'detectionSeconds': 120.0,
+        'refineValidateSeconds': 4.0,
+        'cutSeconds': 8.0,
+        'verificationSeconds': 20.0,
+        'normalizationSeconds': 0.0,
+        'assetsSeconds': 2.0,
+        'finalizeSeconds': 1.0,
+        'ffmpegSeconds': 31.0,
+    },
     'thinkingNotices': [{
         'pass': 'ad_detection_pass_1',
         'provider': 'openai-compatible',
@@ -122,6 +150,46 @@ def test_episode_exposes_processing_runs_and_rss_duration(app_client, seeded):
     assert runs[0]['stats'] is None
     assert runs[1]['stats'] == STATS_API
     assert runs[1]['adsDetected'] == 6
+
+
+def test_failed_run_preserves_partial_stage_timings(app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('faced1234567', original=3305.7, new=None)
+    partial = {
+        'mode': 'auto',
+        'timings': {
+            'download': 42.0,
+            'transcription': 180.0,
+            'ffmpeg': 7.5,
+        },
+    }
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='faced1234567', episode_title='Failed', status='failed',
+        error_message='cut failed', processing_stats=partial)
+
+    _authed(app_client)
+    response = app_client.get(f'/api/v1/feeds/{slug}/episodes/faced1234567')
+    assert response.status_code == 200, response.get_json()
+    data = response.get_json()
+    assert 'processingRuns' in data, data
+    run = data['processingRuns'][0]
+    assert run['status'] == 'failed'
+    assert run['errorMessage'] == 'cut failed'
+    assert run['stats']['timings'] == {
+        'downloadSeconds': 42.0,
+        'transcriptionSeconds': 180.0,
+        'differentialSeconds': None,
+        'audioAnalysisSeconds': None,
+        'detectionSeconds': None,
+        'refineValidateSeconds': None,
+        'cutSeconds': None,
+        'verificationSeconds': None,
+        'normalizationSeconds': None,
+        'assetsSeconds': None,
+        'finalizeSeconds': None,
+        'ffmpegSeconds': 7.5,
+    }
 
 
 def test_low_ad_yield_flags_light_copy(app_client, seeded):

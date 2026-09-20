@@ -364,6 +364,15 @@ def backup_database():
     """Create and download a backup of the SQLite database."""
     from flask import after_this_request
 
+    encrypt_requested = request.args.get('encrypted', 'true').lower() != 'false'
+    passphrase = os.environ.get('MINUSPOD_MASTER_PASSPHRASE')
+    if encrypt_requested and not passphrase:
+        logger.warning(
+            "Encrypted database backup refused: encryption is unavailable ip=%s",
+            request.remote_addr,
+        )
+        return error_response('backup_encryption_unavailable', 409)
+
     db = get_database()
     tmp_path = None
     try:
@@ -381,24 +390,20 @@ def backup_database():
         backup_size = os.path.getsize(tmp_path)
         timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
 
-        # If MINUSPOD_MASTER_PASSPHRASE is set, encrypt the backup so an
-        # exported copy doesn't leak plaintext provider secrets that
-        # predate the 2.0 crypto migration. Operators can opt out with
-        # ?encrypted=false when they have another protection layer (e.g.
-        # per-download GPG wrap).
-        encrypt_param = request.args.get('encrypted', 'true').lower() != 'false'
-        if encrypt_param and crypto_available():
+        encrypted_on_disk = False
+        if encrypt_requested:
             try:
                 encrypted_path = f'{tmp_path}.enc'
                 try:
                     encrypt_backup_file(
                         tmp_path, encrypted_path,
-                        os.environ['MINUSPOD_MASTER_PASSPHRASE'],
+                        passphrase,
                     )
                     os.replace(encrypted_path, tmp_path)
                 finally:
                     Path(encrypted_path).unlink(missing_ok=True)
                 filename = f"minuspod-backup-{timestamp}.db.enc"
+                encrypted_on_disk = True
                 logger.info(
                     "Database backup encrypted: %s -> %s bytes (AES-GCM)",
                     backup_size, os.path.getsize(tmp_path),
@@ -408,16 +413,14 @@ def backup_database():
                 return error_response('Backup encryption failed', 500)
         else:
             filename = f"minuspod-backup-{timestamp}.db"
-            if encrypt_param and not crypto_available():
-                logger.warning(
-                    "Database backup downloaded UNENCRYPTED: "
-                    "set MINUSPOD_MASTER_PASSPHRASE to enable AES-GCM wrap"
-                )
+            logger.warning(
+                "Plaintext database backup explicitly requested: ip=%s",
+                request.remote_addr,
+            )
 
         # WARN-level audit log so backup downloads are visible in
         # operator dashboards filtering WARN-and-above. Records the
         # caller IP and whether the download was AES-GCM-wrapped.
-        encrypted_on_disk = encrypt_param and crypto_available()
         logger.warning(
             "Database backup downloaded: size=%d bytes ip=%s encrypted=%s",
             backup_size,

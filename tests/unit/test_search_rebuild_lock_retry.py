@@ -1,6 +1,7 @@
 """Characterization tests of the search index rebuild: one locked attempt,
 chunked corpus writes, shadow-table cleanup, shared busy timeout."""
 import sqlite3
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -67,6 +68,75 @@ def test_rebuild_writes_the_corpus_in_bounded_chunks(temp_db, monkeypatch):
     # cannot satisfy it.
     chunks = -(-rows // search._REBUILD_TX_ROWS)
     assert len(opened) >= chunks + 2
+
+
+def test_rebuild_retries_a_transient_chunk_lock(temp_db, monkeypatch):
+    real = temp_db.transaction
+    attempts = {'count': 0}
+
+    class _Context:
+        def __init__(self, ctx):
+            self.ctx = ctx
+
+        def __enter__(self):
+            attempts['count'] += 1
+            if attempts['count'] == 2:
+                raise sqlite3.OperationalError('database is locked')
+            return self.ctx.__enter__()
+
+        def __exit__(self, *args):
+            return self.ctx.__exit__(*args)
+
+    monkeypatch.setattr(temp_db, 'transaction',
+                        lambda immediate=False: _Context(real(immediate=immediate)))
+    monkeypatch.setattr(search.time, 'sleep', lambda _seconds: None)
+    assert temp_db.rebuild_search_index() >= 0
+    assert attempts['count'] >= 4
+
+
+def test_rebuild_allows_a_commit_between_source_batches(temp_db, monkeypatch):
+    """A source read must not leave a stale snapshot for the batch write."""
+    monkeypatch.setattr(search, '_REBUILD_TX_ROWS', 1)
+    temp_db.create_podcast('initial-feed', 'https://example.com/initial.xml', title='Initial')
+    temp_db.create_podcast('second-feed', 'https://example.com/second.xml', title='Second')
+    real_run = temp_db._run_rebuild_write
+    write_attempts = {'count': 0}
+    writer_errors = []
+
+    def run_with_concurrent_writer(operation):
+        write_attempts['count'] += 1
+        if write_attempts['count'] != 2:
+            return real_run(operation)
+
+        def write_feed():
+            conn = sqlite3.connect(str(temp_db.db_path), timeout=5)
+            try:
+                conn.execute(
+                    "INSERT INTO podcasts (slug, source_url, title, own_episode_guids, feed_type) "
+                    "VALUES (?, ?, ?, 1, ?)",
+                    ('concurrent-feed', 'https://example.com/concurrent.xml', 'Concurrent', 'subscribed'),
+                )
+                conn.commit()
+            except Exception as exc:
+                writer_errors.append(exc)
+            finally:
+                conn.close()
+
+        writer = threading.Thread(target=write_feed)
+        writer.start()
+        writer.join(timeout=5)
+        assert not writer.is_alive()
+        assert writer_errors == []
+        return real_run(operation)
+
+    monkeypatch.setattr(temp_db, '_run_rebuild_write', run_with_concurrent_writer)
+    assert temp_db.rebuild_search_index() >= 3
+    conn = temp_db.get_connection()
+    assert conn.execute(
+        "SELECT COUNT(*) FROM search_index WHERE content_type = 'podcast' "
+        "AND content_id = 'concurrent-feed'"
+    ).fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM search_index_changes").fetchone()[0] == 0
 
 
 def _build_shadow(temp_db):

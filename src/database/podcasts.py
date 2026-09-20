@@ -282,9 +282,9 @@ class PodcastMixin:
         'cue_gated_approval',
     )
 
-    # Layer 3 cross-fetch differential opt-in (NULL/0 = off, 1 = on).
+    # Cross-fetch mode plus the legacy nullable boolean API field.
     _DIFFERENTIAL_COLS = (
-        'differential_fetch_enabled',
+        'differential_fetch_enabled', 'differential_fetch_mode',
     )
 
     def get_podcast_cue_settings_overrides(self, podcast_id: int) -> dict:
@@ -326,8 +326,10 @@ class PodcastMixin:
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            """INSERT INTO podcasts (slug, source_url, title, own_episode_guids, feed_type)
-               VALUES (?, ?, ?, 1, ?)""",
+            """INSERT INTO podcasts
+               (slug, source_url, title, own_episode_guids, feed_type,
+                skip_second_pass, differential_fetch_mode)
+               VALUES (?, ?, ?, 1, ?, NULL, NULL)""",
             (slug, source_url, title, feed_type)
         )
         conn.commit()

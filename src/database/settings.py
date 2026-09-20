@@ -469,9 +469,19 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'chapters_enabled': SettingSpec(
         default='true', seeded=True, in_ad_reset=True,
         payload_key='chaptersEnabled', payload_kind='bool'),
+    'chapters_mode': SettingSpec(
+        default='auto', seeded=True, in_ad_reset=True,
+        payload_key='chaptersMode', validator=_one_of('auto', 'generate', 'off')),
     'chapters_in_notes': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='chaptersInNotes', payload_kind='bool'),
+    'skip_second_pass': SettingSpec(
+        default='false', seeded=True, in_ad_reset=True,
+        payload_key='skipSecondPass', payload_kind='bool'),
+    'differential_fetch_mode': SettingSpec(
+        default='auto', seeded=True, in_ad_reset=True,
+        payload_key='differentialFetchMode',
+        validator=_one_of('auto', 'on', 'off')),
     # Ad chapters: publish kept or held segments as skippable chapters.
     'ad_chapters_enabled': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,

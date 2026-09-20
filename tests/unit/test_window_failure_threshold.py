@@ -6,6 +6,8 @@ the episode as retryable instead of publishing with unexamined gaps.
 """
 from unittest.mock import patch
 
+import pytest
+
 import ad_detector
 from ad_detector import AdDetector, WindowResult
 from llm_capabilities import PASS_AD_DETECTION_1
@@ -40,9 +42,11 @@ def _window_result(idx, *, failed):
     )
 
 
-def _run_pass(detector, num_windows, failed_idxs, **extra):
+def _run_pass(detector, num_windows, failed_idxs, window_results=None, **extra):
     windows = _make_windows(num_windows)
-    results = [_window_result(i, failed=i in failed_idxs) for i in range(num_windows)]
+    results = window_results or [
+        _window_result(i, failed=i in failed_idxs) for i in range(num_windows)
+    ]
     with patch.object(detector, '_run_windows', return_value=results):
         return detector._run_detection_pass(
             windows,
@@ -121,6 +125,54 @@ class TestWindowFailureThreshold:
 
         assert failure is not None
         assert 'All 3 detection windows failed' in failure['error']
+
+    def test_provider_rejection_survives_later_circuit_breaker_errors(self):
+        detector = AdDetector(api_key='test-key')
+        provider_error = RuntimeError('System policy exceeds configured size limit')
+        provider_error.status_code = 422
+        results = [
+            WindowResult(0, 0.0, 60.0, [], None, True, provider_error),
+            WindowResult(1, 60.0, 120.0, [], None, True,
+                         RuntimeError('circuit breaker is open')),
+        ]
+        (*_, failure, _cm, _ct, _cr, _losses, _addressing) = _run_pass(
+            detector, 2, set(), window_results=results)
+
+        assert failure['last_error_status'] == 422
+        assert failure['provider_rejected'] is True
+        assert failure['retryable'] is False
+
+    @pytest.mark.parametrize('later_status', [408, 409, 425, 429])
+    def test_provider_rejection_survives_later_transient_4xx(self, later_status):
+        detector = AdDetector(api_key='test-key')
+        permanent = RuntimeError('System policy exceeds configured size limit')
+        permanent.status_code = 422
+        transient = RuntimeError('temporary request rejection')
+        transient.status_code = later_status
+        results = [
+            WindowResult(0, 0.0, 60.0, [], None, True, permanent),
+            WindowResult(1, 60.0, 120.0, [], None, True, transient),
+        ]
+
+        (*_, failure, _cm, _ct, _cr, _losses, _addressing) = _run_pass(
+            detector, 2, set(), window_results=results)
+
+        assert failure['last_error_status'] == 422
+        assert failure['provider_rejected'] is True
+
+    @pytest.mark.parametrize('status', [408, 409, 425])
+    def test_transient_4xx_remains_retryable(self, status):
+        detector = AdDetector(api_key='test-key')
+        transient = RuntimeError('temporary request rejection')
+        transient.status_code = status
+        results = [WindowResult(0, 0.0, 60.0, [], None, True, transient)]
+
+        (*_, failure, _cm, _ct, _cr, _losses, _addressing) = _run_pass(
+            detector, 1, set(), window_results=results)
+
+        assert failure['last_error_status'] == status
+        assert failure['provider_rejected'] is False
+        assert failure['retryable'] is True
 
 
 class TestResolveMaxFailedWindowRatio:

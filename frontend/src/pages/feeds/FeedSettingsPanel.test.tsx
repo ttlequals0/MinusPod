@@ -145,30 +145,30 @@ describe('FeedSettingsPanel cross-fetch differential control', () => {
     mockUpdateFeed.mockResolvedValue(makeFeed());
   });
 
-  it('renders Auto when differentialFetchEnabled is unset', () => {
+  it('renders Inherit when differentialFetchMode is unset', () => {
     renderPanel(makeFeed());
     const select = screen.getByRole('combobox', { name: SELECT_NAME }) as HTMLSelectElement;
-    expect(select.value).toBe('');
+    expect(select.value).toBe('inherit');
   });
 
-  it('selecting On fires updateFeed with differentialFetchEnabled true', async () => {
+  it('selecting On fires updateFeed with differentialFetchMode on', async () => {
     renderPanel(makeFeed());
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: SELECT_NAME }), 'true');
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { differentialFetchEnabled: true });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: SELECT_NAME }), 'on');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { differentialFetchMode: 'on' });
   });
 
   it('selecting Off fires updateFeed with differentialFetchEnabled false', async () => {
-    renderPanel(makeFeed({ differentialFetchEnabled: true }));
+    renderPanel(makeFeed({ differentialFetchMode: 'on' }));
     const select = screen.getByRole('combobox', { name: SELECT_NAME }) as HTMLSelectElement;
-    expect(select.value).toBe('true');
-    await userEvent.selectOptions(select, 'false');
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { differentialFetchEnabled: false });
+    expect(select.value).toBe('on');
+    await userEvent.selectOptions(select, 'off');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { differentialFetchMode: 'off' });
   });
 
-  it('selecting Auto restores null so DAI feeds auto-enable again', async () => {
-    renderPanel(makeFeed({ differentialFetchEnabled: false }));
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: SELECT_NAME }), '');
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { differentialFetchEnabled: null });
+  it('selecting Inherit clears the per-feed mode', async () => {
+    renderPanel(makeFeed({ differentialFetchMode: 'off' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: SELECT_NAME }), 'inherit');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { differentialFetchMode: 'inherit' });
   });
 
   it('shows the effective state resolved by the server', () => {
@@ -196,10 +196,10 @@ describe('FeedSettingsPanel chapters mode control', () => {
     mockUpdateFeed.mockResolvedValue(makeFeed());
   });
 
-  it('renders Auto when chaptersMode is unset', () => {
+  it('renders Inherit when chaptersMode is unset', () => {
     renderPanel(makeFeed());
     const select = screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME }) as HTMLSelectElement;
-    expect(select.value).toBe('auto');
+    expect(select.value).toBe('');
   });
 
   it('renders the current value when chaptersMode is set', () => {
@@ -220,10 +220,10 @@ describe('FeedSettingsPanel chapters mode control', () => {
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersMode: 'off' });
   });
 
-  it('selecting Auto fires updateFeed with chaptersMode auto', async () => {
+  it('selecting Inherit clears the chapters mode', async () => {
     renderPanel(makeFeed({ chaptersMode: 'off' }));
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME }), 'auto');
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersMode: 'auto' });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME }), '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersMode: null });
   });
 });
 
@@ -604,7 +604,7 @@ describe('FeedSettingsPanel episode GUIDs toggle (#598)', () => {
 });
 
 describe('FeedSettingsPanel skip verification toggle (#599)', () => {
-  const TOGGLE_NAME = 'Skip verification pass';
+  const TOGGLE_NAME = 'Verification pass';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -612,35 +612,35 @@ describe('FeedSettingsPanel skip verification toggle (#599)', () => {
     mockUpdateFeed.mockResolvedValue(makeFeed());
   });
 
-  it('renders off when skipSecondPass is unset', () => {
+  it('renders Inherit when skipSecondPass is unset', () => {
     renderPanel(makeFeed());
-    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
-    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    const select = screen.getByRole('combobox', { name: TOGGLE_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('inherit');
   });
 
   it('renders on when skipSecondPass is true', () => {
     renderPanel(makeFeed({ skipSecondPass: true }));
-    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    const select = screen.getByRole('combobox', { name: TOGGLE_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('skip');
   });
 
   it('enabling fires updateFeed with skipSecondPass true', async () => {
     renderPanel(makeFeed());
-    await userEvent.click(screen.getByRole('switch', { name: TOGGLE_NAME }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: TOGGLE_NAME }), 'skip');
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { skipSecondPass: true });
   });
 
   it('disabling fires skipSecondPass false', async () => {
     renderPanel(makeFeed({ skipSecondPass: true }));
-    await userEvent.click(screen.getByRole('switch', { name: TOGGLE_NAME }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: TOGGLE_NAME }), 'run');
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { skipSecondPass: false });
   });
 
   it('is checked and disabled under cue_only, with a forced-on note', async () => {
     renderPanel(makeFeed({ processingMode: 'cue_only' }));
-    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByText('Forced on by cue-only mode.')).toBeDefined();
+    const toggle = screen.getByRole('combobox', { name: TOGGLE_NAME });
+    expect((toggle as HTMLSelectElement).value).toBe('skip');
+    expect(screen.getByText('Verification is skipped in cue-only mode.')).toBeDefined();
     // Disabled: a click must not fire a PATCH.
     await userEvent.click(toggle);
     expect(mockUpdateFeed).not.toHaveBeenCalled();

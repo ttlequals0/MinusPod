@@ -17,6 +17,7 @@ interface ConfirmResetButtonProps {
   confirmHint?: string;
   // Accessible name, for pages carrying more than one "Reset" button.
   ariaLabel?: string;
+  className?: string;
 }
 
 // Two-click destructive reset (issue #513): the first click arms the button
@@ -25,7 +26,7 @@ interface ConfirmResetButtonProps {
 // secondary-background text.
 function ConfirmResetButton({
   label, isPending = false, onConfirm, size = 'default', disabled = false, title,
-  confirmHint, ariaLabel,
+  confirmHint, ariaLabel, className = '',
 }: ConfirmResetButtonProps) {
   const [armed, setArmed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -56,7 +57,7 @@ function ConfirmResetButton({
         armed
           ? 'border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/80'
           : 'border-destructive/40 text-destructive hover:bg-destructive/10'
-      } ${focusRing}`}
+      } ${focusRing} ${className}`}
     >
       {isPending ? 'Resetting...' : armed ? 'Click again to confirm' : label}
     </button>

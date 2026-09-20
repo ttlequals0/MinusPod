@@ -36,6 +36,10 @@ function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
         onEpisodeLogLevelChange={() => {}}
         textRecurrenceHints={false}
         onTextRecurrenceHintsChange={() => {}}
+        skipSecondPass={false}
+        onSkipSecondPassChange={() => {}}
+        differentialFetchMode="auto"
+        onDifferentialFetchModeChange={() => {}}
       />
       <button onClick={() => onCommit(minutes)}>Commit</button>
     </>
@@ -69,6 +73,10 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onEpisodeLogLevelChange={() => {}}
         textRecurrenceHints={false}
         onTextRecurrenceHintsChange={() => {}}
+        skipSecondPass={false}
+        onSkipSecondPassChange={() => {}}
+        differentialFetchMode="auto"
+        onDifferentialFetchModeChange={() => {}}
       />
       <button onClick={() => onCommit({ podpingEnabled })}>Commit</button>
     </>
@@ -146,6 +154,10 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onEpisodeLogLevelChange={() => {}}
         textRecurrenceHints={false}
         onTextRecurrenceHintsChange={() => {}}
+        skipSecondPass={false}
+        onSkipSecondPassChange={() => {}}
+        differentialFetchMode="auto"
+        onDifferentialFetchModeChange={() => {}}
       />
       <button onClick={() => onCommit({ lowAdYieldAction })}>Commit</button>
     </>
@@ -207,6 +219,10 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onEpisodeLogLevelChange={setLevel}
         textRecurrenceHints={false}
         onTextRecurrenceHintsChange={() => {}}
+        skipSecondPass={false}
+        onSkipSecondPassChange={() => {}}
+        differentialFetchMode="auto"
+        onDifferentialFetchModeChange={() => {}}
       />
       <button onClick={() => onCommit({ retentionDays, level })}>Commit</button>
     </>
@@ -271,6 +287,10 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
         onEpisodeLogLevelChange={() => {}}
         textRecurrenceHints={textRecurrenceHints}
         onTextRecurrenceHintsChange={setTextRecurrenceHints}
+        skipSecondPass={false}
+        onSkipSecondPassChange={() => {}}
+        differentialFetchMode="auto"
+        onDifferentialFetchModeChange={() => {}}
       />
       <button onClick={() => onCommit({ textRecurrenceHints })}>Commit</button>
     </>

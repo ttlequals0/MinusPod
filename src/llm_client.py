@@ -1969,6 +1969,20 @@ def _provider_status_code(error) -> int | None:
     return getattr(error, 'status_code', None)
 
 
+_PERMANENT_REQUEST_REJECTION_STATUSES = frozenset({
+    400, 402, 405, 406, 410, 411, 412, 413, 414, 415, 416, 417, 418,
+    422, 426, 428, 431, 451,
+})
+
+
+def is_permanent_request_rejection_status(status) -> bool:
+    """True for provider 4xx statuses that retrying unchanged cannot fix."""
+    try:
+        return int(status) in _PERMANENT_REQUEST_REJECTION_STATUSES
+    except (TypeError, ValueError):
+        return False
+
+
 def is_retryable_error(error: Exception) -> bool:
     """Check if an error is retryable (transient).
 
@@ -1976,6 +1990,8 @@ def is_retryable_error(error: Exception) -> bool:
     """
     # Unconfigured model never self-resolves; no LLM call was even attempted.
     if isinstance(error, ModelNotConfiguredError):
+        return False
+    if isinstance(error, ProviderRequestRejectedError):
         return False
     # Structural 429s are never retryable -- the request itself exceeds the
     # provider's per-minute cap, no amount of backoff will help.
@@ -2247,6 +2263,14 @@ class LimitExceededError(Exception):
     ``is_retryable_error``.
     """
     pass
+
+
+class ProviderRequestRejectedError(ValueError):
+    """A provider rejected the request with a non-retryable 4xx response."""
+
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class ProviderRateLimitedError(Exception):

@@ -25,8 +25,8 @@ _RESULT = {'status': 'ok',
 
 def test_gate_off_skips_fetch():
     mock_fetch = MagicMock()
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=False), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='off'), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
         result = processing._run_differential_fetch(
@@ -49,11 +49,20 @@ class TestDifferentialFetchEffective:
         assert eff(None, dai_likely=True) is True
 
 
+def test_mode_read_failure_fails_closed():
+    from config import resolve_differential_fetch_mode
+
+    db = MagicMock()
+    db.get_podcast_cue_settings_overrides.side_effect = RuntimeError('database unavailable')
+
+    assert resolve_differential_fetch_mode(db, 7) == 'off'
+
+
 def test_flag_unset_non_dai_feed_skips_fetch():
     """Tri-state gate (#519): unset flag + no DAI signal = stage stays off."""
     mock_fetch = MagicMock()
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=None), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='auto'), \
          patch('main_app.processing.is_likely_dai_feed', return_value=False), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
@@ -67,8 +76,8 @@ def test_flag_unset_non_dai_feed_skips_fetch():
 def test_flag_unset_dai_url_auto_enables():
     """Unset flag + DAI-prefix enclosure URL runs the stage (#519)."""
     mock_fetch = MagicMock(return_value=_RESULT)
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=None), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='auto'), \
          patch('main_app.processing.is_likely_dai_feed', return_value=True), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
@@ -81,8 +90,8 @@ def test_flag_unset_dai_url_auto_enables():
 def test_flag_unset_dai_platform_auto_enables():
     """Unset flag + detected DAI platform on the feed runs the stage (#519)."""
     mock_fetch = MagicMock(return_value=_RESULT)
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=None), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='auto'), \
          patch('main_app.processing.is_likely_dai_feed', return_value=False), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
@@ -96,8 +105,8 @@ def test_flag_unset_dai_platform_auto_enables():
 def test_explicit_off_beats_dai_signal():
     """A per-feed 0 opts out even when the feed looks DAI-served (#519)."""
     mock_fetch = MagicMock()
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=False), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='off'), \
          patch('main_app.processing.is_likely_dai_feed', return_value=True), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
@@ -111,8 +120,8 @@ def test_explicit_off_beats_dai_signal():
 
 def test_gate_on_fetches_and_persists():
     mock_fetch = MagicMock(return_value=_RESULT)
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=True), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='on'), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
@@ -133,8 +142,8 @@ def test_unreliable_reencode_status_persists_with_zero_regions():
     unreliable = {'status': 'unreliable_reencode', 'regions': [],
                   'refetch_meta': {'ua': 'Overcast/3.0'}, 'error': None}
     mock_fetch = MagicMock(return_value=unreliable)
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=True), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='on'), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
@@ -148,8 +157,8 @@ def test_unreliable_reencode_status_persists_with_zero_regions():
 
 
 def test_unexpected_error_recorded_not_raised():
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=True), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='on'), \
          patch('main_app.processing.fetch_and_diff',
                side_effect=RuntimeError('decoder exploded')), \
          patch.object(processing.status_service, 'update_job_stage'), \
@@ -164,8 +173,8 @@ def test_unexpected_error_recorded_not_raised():
 
 def test_store_failure_is_nonfatal():
     mock_fetch = MagicMock(return_value=_RESULT)
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=True), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='on'), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential',
@@ -176,7 +185,7 @@ def test_store_failure_is_nonfatal():
 
 
 def test_flag_read_failure_is_nonfatal():
-    with patch('main_app.processing.resolve_differential_fetch_setting',
+    with patch('main_app.processing.resolve_differential_fetch_mode',
                side_effect=RuntimeError('db gone')), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
         result = processing._run_differential_fetch(

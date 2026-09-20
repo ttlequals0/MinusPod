@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { storeLoginRedirect } from '../utils/loginRedirect';
 import { getStageLabel } from '../utils/processingStage';
@@ -7,6 +8,7 @@ import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
 import { tint } from './badgeStyles';
+import ProcessingJobProgress, { formatJobDuration } from './ProcessingJobProgress';
 
 interface ProcessingJob {
   slug: string;
@@ -133,15 +135,6 @@ function jobElapsed(job: ProcessingJob, now: number, receivedAt: number): number
   return job.elapsed + (now - receivedAt) / 1000;
 }
 
-function formatDuration(seconds: number): string {
-  if (seconds < 60) {
-    return `${Math.floor(seconds)}s`;
-  }
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}m ${secs}s`;
-}
-
 const STATUS_POLL_MS = 2000;
 const STATUS_RETRY_MAX_MS = 30000;
 
@@ -185,6 +178,7 @@ function GlobalStatusBar() {
 
     const applyStatus = (data: StatusData) => {
       setStatus(data);
+      queryClient.setQueryData(['processing-status'], data);
       setNow(Date.now());
       setReceivedAt(Date.now());
       const prev = prevStatusRef.current;
@@ -304,7 +298,7 @@ function GlobalStatusBar() {
 
             {/* Elapsed time */}
             <span className="text-xs text-muted-foreground shrink-0 w-14 text-right tabular-nums">
-              {formatDuration(jobElapsed(currentJob, now, receivedAt))}
+              {formatJobDuration(jobElapsed(currentJob, now, receivedAt))}
             </span>
           </>
         ) : (
@@ -349,21 +343,14 @@ function GlobalStatusBar() {
         <div className="px-4 pb-3 border-t border-border/50 bg-accent/20 max-h-[min(70vh,26rem)] overflow-y-auto">
           {/* Running jobs, oldest first */}
           {jobs.map((j) => (
-            <div key={`${j.slug}-${j.episodeId}`} data-testid="status-job" className="py-2 border-b border-border/30">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{j.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{j.podcastName}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-medium text-primary">{getStageLabel(j.stage)}</p>
-                  <p className="text-xs text-muted-foreground">{formatDuration(jobElapsed(j, now, receivedAt))}</p>
-                </div>
-              </div>
-              <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${j.progress}%` }} />
-              </div>
-            </div>
+            <ProcessingJobProgress
+              key={`${j.slug}-${j.episodeId}`}
+              job={j}
+              elapsed={jobElapsed(j, now, receivedAt)}
+              testId="status-job"
+              compact
+              className="py-2 border-b border-border/30"
+            />
           ))}
 
           {/* Queue holds: why work is not moving, and when it resumes */}
@@ -442,6 +429,12 @@ function GlobalStatusBar() {
               </ul>
             </div>
           )}
+
+          <div className="pt-2 mt-1 border-t border-border/30">
+            <Link to="/queue" className={`text-xs text-primary hover:underline ${focusRing}`}>
+              View queue
+            </Link>
+          </div>
         </div>
       )}
     </div>

@@ -19,6 +19,7 @@ from llm_client import (
     get_llm_client, get_api_key, LLMClient,
     is_connectivity_error, is_retryable_error, is_not_found_error,
     is_rate_limit_error, is_limit_exceeded_error,
+    is_permanent_request_rejection_status,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
     StructuralRateLimitError, ProviderRateLimitedError,
@@ -349,11 +350,17 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
     # Held 429 (#696): the provider reported a reset time; processing raises
     # a typed error so the episode defers and the queue pauses until then.
     rate_limited_hold = isinstance(last_error, ProviderRateLimitedError)
+    provider_rejected = is_permanent_request_rejection_status(last_err_status)
     return {
         "ads": [],
         "status": "failed",
         "error": "".join(parts),
-        "retryable": not not_found_hint and not limit_exceeded and not rate_limited_hold,
+        "retryable": (
+            not not_found_hint
+            and not limit_exceeded
+            and not rate_limited_hold
+            and not provider_rejected
+        ),
         # Lets processing raise a typed LimitExceededError so the episode
         # fails permanently instead of re-queuing on the 429 string (#491).
         "limit_exceeded": limit_exceeded,
@@ -372,6 +379,7 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
         "connectivity": is_connectivity_error(last_error) if last_error else False,
         "last_error_type": last_err_type,
         "last_error_status": last_err_status,
+        "provider_rejected": provider_rejected,
         # Per-run stats (#519): "0/N answered" is the failure signal.
         "windows_total": num_windows,
         "windows_failed": failed_windows,
@@ -1443,6 +1451,7 @@ class AdDetector:
         failed_windows = 0
         window_losses = {}
         last_error = None
+        provider_error = None
         llm_timeout = get_llm_timeout()
         max_retries = get_llm_max_retries()
 
@@ -1493,6 +1502,10 @@ class AdDetector:
                 loss = result.loss_class or window_loss_class(result.last_error)
                 window_losses[loss] = window_losses.get(loss, 0) + 1
                 last_error = result.last_error
+                status = getattr(result.last_error, 'status_code', None)
+                if (provider_error is None
+                        and is_permanent_request_rejection_status(status)):
+                    provider_error = result.last_error
                 # A held 429 in ANY window defers the whole episode (#696):
                 # proceeding with the surviving windows would silently skip
                 # the throttled span from ad coverage.
@@ -1550,7 +1563,7 @@ class AdDetector:
                 failure_ratio > _resolve_max_failed_window_ratio()):
             failure = _windows_failed_response(
                 pass_label.lower(), failed_windows, len(windows),
-                last_error, model, window_losses)
+                provider_error or last_error, model, window_losses)
             return ([], all_raw_responses, failed_windows, failure,
                     0, 0, 0, window_losses, AddressingStats())
 

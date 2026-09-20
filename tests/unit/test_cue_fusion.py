@@ -578,8 +578,8 @@ def test_pipeline_scans_refetch_persists_cues_and_removes_work_dir(tmp_path):
                     'refetch_meta': {'ua': 'AntennaPod/3.4.0'}, 'error': None,
                     'refetch_cues': [{'time': 12.5, 'template_id': 5}]}
     mock_fetch = MagicMock(return_value=fetch_result)
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=True), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='on'), \
          patch('main_app.processing._feed_cue_matcher', return_value=matcher), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.tempfile, 'mkdtemp',
@@ -609,8 +609,8 @@ def test_pipeline_primary_scan_failure_never_fails_differential(tmp_path):
     fetch_result = {'status': 'ok', 'regions': [],
                     'refetch_meta': {}, 'error': None, 'refetch_cues': []}
     mock_fetch = MagicMock(return_value=fetch_result)
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=True), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='on'), \
          patch('main_app.processing._feed_cue_matcher', return_value=matcher), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.tempfile, 'mkdtemp',
@@ -629,8 +629,8 @@ def test_pipeline_without_matcher_passes_no_cue_hooks():
     mock_fetch = MagicMock(return_value={'status': 'no_differential',
                                          'regions': [], 'refetch_meta': {},
                                          'error': None})
-    with patch('main_app.processing.resolve_differential_fetch_setting',
-               return_value=True), \
+    with patch('main_app.processing.resolve_differential_fetch_mode',
+               return_value='on'), \
          patch('main_app.processing._feed_cue_matcher', return_value=None), \
          patch('main_app.processing.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \

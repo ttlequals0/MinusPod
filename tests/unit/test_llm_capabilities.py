@@ -131,13 +131,15 @@ class TestTranslateReasoningEffort:
 
 
 class _StatusError(Exception):
-    def __init__(self, status_code):
+    def __init__(self, status_code, message="max_tokens is invalid"):
+        super().__init__(message)
         self.status_code = status_code
 
 
 class _ResponseError(Exception):
     """Some SDKs put status_code on .response, not on the exception."""
-    def __init__(self, status_code):
+    def __init__(self, status_code, message="temperature is unsupported"):
+        super().__init__(message)
         self.response = type("R", (), {"status_code": status_code})()
 
 
@@ -154,6 +156,12 @@ class TestErrorClassifier:
 
     def test_429_is_not_eligible(self):
         assert is_fallback_eligible_error(_StatusError(429)) is False
+        assert is_fallback_eligible_error(_StatusError('429')) is False
+
+    @pytest.mark.parametrize('status', [408, 409, 425])
+    def test_transient_4xx_is_not_eligible(self, status):
+        error = _StatusError(status, 'max_tokens is temporarily unavailable')
+        assert is_fallback_eligible_error(error) is False
 
     @pytest.mark.parametrize("status", [500, 502, 503, 504, 529])
     def test_5xx_is_not_eligible(self, status):
@@ -161,6 +169,10 @@ class TestErrorClassifier:
 
     def test_unknown_status_is_not_eligible(self):
         assert is_fallback_eligible_error(Exception("network blip")) is False
+
+    def test_unrelated_422_is_not_eligible(self):
+        error = _StatusError(422, "System policy exceeds configured size limit")
+        assert is_fallback_eligible_error(error) is False
 
     def test_status_on_response_attribute(self):
         assert is_fallback_eligible_error(_ResponseError(400)) is True

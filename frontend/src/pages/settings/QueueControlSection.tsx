@@ -28,6 +28,7 @@ import { getErrorMessage } from '../../api/client';
 const STORAGE_KEY = 'settings-section-queue-control';
 
 interface QueueControlSectionProps {
+  storageKey?: string;
   processNewEpisodesFirst: boolean;
   onProcessNewEpisodesFirstChange: (enabled: boolean) => void;
   queueManualBoost: number;
@@ -364,6 +365,7 @@ function QueueHoldBlock<
 }
 
 function QueueControlSection({
+  storageKey = STORAGE_KEY,
   processNewEpisodesFirst,
   onProcessNewEpisodesFirstChange,
   queueManualBoost,
@@ -375,8 +377,8 @@ function QueueControlSection({
 }: QueueControlSectionProps) {
   // Both hold blocks read their own endpoint, each of which counts deferred
   // episodes; skip that until the section is on screen.
-  const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);
-  const visible = useSectionVisible(STORAGE_KEY, open);
+  const [open, setOpen] = useCollapsibleOpen(storageKey);
+  const visible = useSectionVisible(storageKey, open);
   const providerBudget = useQuery({
     queryKey: ['provider-budget'], queryFn: getProviderBudget, enabled: visible,
   });
@@ -384,7 +386,7 @@ function QueueControlSection({
     <CollapsibleSection
       title="Queue Control"
       subtitle="How episodes move through the processing queue and when they wait."
-      storageKey={STORAGE_KEY}
+      storageKey={storageKey}
       onToggle={setOpen}
     >
       <div className="space-y-6">
@@ -430,6 +432,7 @@ function QueueControlSection({
                 max={100}
                 step={1}
                 fallback={20}
+                commitOn="blur"
                 onCommit={onQueueManualBoostChange}
               />
               <p className="mt-2 text-sm text-muted-foreground">
@@ -447,6 +450,7 @@ function QueueControlSection({
                 max={100}
                 step={1}
                 fallback={5}
+                commitOn="blur"
                 onCommit={onQueueFreshBoostChange}
               />
               <p className="mt-2 text-sm text-muted-foreground">
@@ -464,6 +468,7 @@ function QueueControlSection({
                 max={100}
                 step={1}
                 fallback={0}
+                commitOn="blur"
                 onCommit={onQueueBulkBoostChange}
               />
               <p className="mt-2 text-sm text-muted-foreground">

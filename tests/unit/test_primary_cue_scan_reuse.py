@@ -62,8 +62,8 @@ class TestDifferentialReusesTheAnalyzerScan(unittest.TestCase):
     def _run(self, future, matcher, tmp_path):
         mock_fetch = MagicMock(return_value={
             'status': 'ok', 'regions': [], 'refetch_meta': {}, 'error': None})
-        with patch('main_app.processing.resolve_differential_fetch_setting',
-                   return_value=True), \
+        with patch('main_app.processing.resolve_differential_fetch_mode',
+                   return_value='on'), \
              patch('main_app.processing._feed_cue_matcher', return_value=matcher), \
              patch('main_app.processing.fetch_and_diff', mock_fetch), \
              patch.object(processing.tempfile, 'mkdtemp', return_value=str(tmp_path)), \

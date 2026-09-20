@@ -2161,8 +2161,17 @@ class Transcriber:
             # Retry logic for CUDA OOM errors
             max_retries = 3
             retry_count = 0
+            reload_model = False
+            segments_generator = None
 
             while retry_count < max_retries:
+                if reload_model:
+                    segments_generator = None
+                    model = None
+                    WhisperModelSingleton.unload_model()
+                    clear_gpu_memory()
+                    model = WhisperModelSingleton.get_batched_pipeline()
+                    reload_model = False
                 try:
                     # Clear CUDA cache before each attempt
                     if device == "cuda":
@@ -2316,7 +2325,7 @@ class Transcriber:
                                 f"CUDA error (attempt {retry_count}/{max_retries}), "
                                 f"retrying at batch size {batch_size}: {inner_e}"
                             )
-                        self.clear_cuda_cache()
+                        reload_model = True
                         continue
                     # Non-OOM error or max retries reached
                     raise
@@ -2722,6 +2731,10 @@ class Transcriber:
                     )
 
                     if chunk_segments is None:
+                        error = (self.last_transcription_stats or {}).get('error', '')
+                        if 'cuda' in error.lower() or 'out of memory' in error.lower():
+                            raise RuntimeError(
+                                f"Local CUDA transcription failed: {error}")
                         failed_chunks.append((chunk_start, chunk_end_with_overlap))
                         logger.error(
                             f"Chunk {chunk_num + 1} transcription failed "

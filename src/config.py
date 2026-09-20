@@ -928,13 +928,14 @@ def resolve_episode_log_storage(db, podcast_row) -> bool:
     return (podcast_row or {}).get('episode_logs') != EPISODE_LOGS_OFF
 
 
-def resolve_skip_second_pass(podcast_row):
-    """Whether the feed opts out of the pass-2 verification scan (issue #599).
-
-    Per-feed only: there is no global default that could silently disable
-    verification everywhere. NULL/0 runs pass 2.
-    """
-    return bool(podcast_row and podcast_row.get('skip_second_pass'))
+def resolve_skip_second_pass(podcast_row, db=None):
+    """Resolve the verification-pass opt-out, with a global fallback."""
+    value = (podcast_row or {}).get('skip_second_pass')
+    if value is not None:
+        return bool(value)
+    if not db:
+        return False
+    return db.get_setting_bool('skip_second_pass', False)
 
 
 CUE_ONLY_SAFETY_HOLD_NEW = 'hold_new'
@@ -970,17 +971,13 @@ VALID_CHAPTERS_MODES = frozenset({CHAPTERS_MODE_AUTO, CHAPTERS_MODE_GENERATE, CH
 MIN_PRESERVED_CHAPTERS = 2
 
 
-def resolve_chapters_mode(podcast_row):
-    """Effective per-feed chapters mode from an already-fetched podcasts row.
-
-    NULL/absent column or an unrecognized value resolves to 'auto', which
-    matches the pre-#560 default behavior (generate chapters) while also
-    preferring intact publisher chapters when enough of them survive the cut.
-    """
-    if not podcast_row:
-        return CHAPTERS_MODE_AUTO
-    mode = podcast_row.get('chapters_mode')
-    return mode if mode in VALID_CHAPTERS_MODES else CHAPTERS_MODE_AUTO
+def resolve_chapters_mode(podcast_row, db=None):
+    """Resolve the feed chapter mode, falling back to the global mode."""
+    mode = (podcast_row or {}).get('chapters_mode')
+    if mode in VALID_CHAPTERS_MODES:
+        return mode
+    global_mode = db.get_setting('chapters_mode') if db else None
+    return global_mode if global_mode in VALID_CHAPTERS_MODES else CHAPTERS_MODE_AUTO
 
 
 # Chapter list in served descriptions (#720): per-feed 'on'/'off', NULL
@@ -1135,15 +1132,40 @@ def resolve_differential_fetch_setting(db, podcast_id):
     return False
 
 
+DIFFERENTIAL_FETCH_MODE_AUTO = 'auto'
+DIFFERENTIAL_FETCH_MODE_ON = 'on'
+DIFFERENTIAL_FETCH_MODE_OFF = 'off'
+DIFFERENTIAL_FETCH_MODE_INHERIT = 'inherit'
+VALID_DIFFERENTIAL_FETCH_MODES = frozenset({
+    DIFFERENTIAL_FETCH_MODE_AUTO,
+    DIFFERENTIAL_FETCH_MODE_ON,
+    DIFFERENTIAL_FETCH_MODE_OFF,
+})
+
+
+def resolve_differential_fetch_mode(db, podcast_id):
+    """Resolve the per-feed mode, with the global mode as its fallback."""
+    try:
+        overrides = db.get_podcast_cue_settings_overrides(podcast_id)
+        mode = overrides.get('differential_fetch_mode')
+        if mode in VALID_DIFFERENTIAL_FETCH_MODES:
+            return mode
+        legacy = overrides.get('differential_fetch_enabled')
+        if legacy is not None:
+            return DIFFERENTIAL_FETCH_MODE_ON if legacy else DIFFERENTIAL_FETCH_MODE_OFF
+        global_mode = db.get_setting('differential_fetch_mode')
+        return global_mode if global_mode in VALID_DIFFERENTIAL_FETCH_MODES else DIFFERENTIAL_FETCH_MODE_AUTO
+    except Exception:
+        _tunable_logger.warning('differential fetch mode read failed; differential stage off')
+        return DIFFERENTIAL_FETCH_MODE_OFF
+
+
 def differential_fetch_effective(explicit, dai_platform=None, dai_likely=False):
-    """One rule for whether the cross-fetch differential stage runs (#519):
-    an explicit per-feed True/False wins; unset auto-enables on feeds that
-    look DAI-served (a detected platform or DAI-prefix enclosure URLs).
-    Shared by the pipeline gate (which passes the episode's own URL signal)
-    and the feeds API (which passes the recent-episodes heuristic, so its
-    answer is a prediction of what the pipeline will do)."""
-    if explicit is not None:
-        return bool(explicit)
+    """Return the differential stage decision for a resolved mode."""
+    if explicit in (DIFFERENTIAL_FETCH_MODE_ON, True):
+        return True
+    if explicit in (DIFFERENTIAL_FETCH_MODE_OFF, False):
+        return False
     return bool(dai_platform or dai_likely)
 
 

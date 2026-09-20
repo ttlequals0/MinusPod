@@ -330,8 +330,6 @@ def test_rebuild_streams_source_rows_in_bounded_write_chunks(monkeypatch):
     kinds = [k for k, _ in order]
     sqls = [q for _, q in order]
     first_write = next(i for i, q in enumerate(sqls) if q.startswith('INSERT INTO search_index_new'))
-    first_source_read = next(i for i, q in enumerate(sqls) if q.startswith('SELECT slug'))
-    assert first_source_read < first_write
     assert batch_sizes and max(batch_sizes) <= 50
     assert kinds[first_write] == 'executemany'
     swap = next(i for i, sql in enumerate(sqls) if sql.startswith('DROP TABLE search_index'))

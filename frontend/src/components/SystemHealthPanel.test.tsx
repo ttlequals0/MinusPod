@@ -76,7 +76,7 @@ describe('SystemHealthPanel', () => {
     })} />);
     fireEvent.click(screen.getByRole('button', { name: /system health/i }));
     expect(screen.getByText('Transcriber')).toBeDefined();
-    expect(screen.getByText(/1\/1 nodes healthy/)).toBeDefined();
+    expect(screen.getByText(/0\/1 nodes healthy/)).toBeDefined();
     expect(screen.getByText('Feed refresh')).toBeDefined();
   });
 
@@ -98,6 +98,50 @@ describe('SystemHealthPanel', () => {
       transcriber: { available: false, backend: 'openai-api', device: null, lastOutcome: null },
     })} />);
     expect(screen.getByText('Critical')).toBeDefined();
+  });
+
+  it('shows only endpoint, status, and last seen in Podping details', () => {
+    const lastSeen = new Date().toISOString();
+    render(<SystemHealthPanel status={status({
+      podping: { listenerEnabled: true, allNodesDown: false, degradedSince: null, nodes: [
+        { node: 'api.one', selected: true, consecutiveFailures: 0, lastFailureReason: null, lastSuccessAt: lastSeen, nextRetryAt: null, httpStatus: 200, outcome: 'healthy' },
+        { node: 'api.two', selected: false, consecutiveFailures: 0, lastFailureReason: null, lastSuccessAt: null, nextRetryAt: null },
+      ] },
+    })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    fireEvent.click(screen.getByRole('button', { name: /podping details/i }));
+    expect(screen.getByText('api.one')).toBeDefined();
+    expect(screen.getByText('HTTP 200')).toBeDefined();
+    expect(screen.getByText(/Last seen/)).toBeDefined();
+    expect(screen.getByText('Not checked')).toBeDefined();
+    expect(screen.queryByText('Last connected')).toBeNull();
+    expect(screen.getByRole('button', { name: /podping details/i }).getAttribute('aria-controls')).toBe('podping-node-details');
+  });
+
+  it('hides raw Podping diagnostics and retry details', () => {
+    const reason = 'HTTPSConnectionPool(host=example.invalid):MaxRetriesExceededWithoutBreaks';
+    render(<SystemHealthPanel status={status({
+      podping: { listenerEnabled: true, allNodesDown: true, degradedSince: null, nodes: [
+        { node: 'example.invalid', consecutiveFailures: 1, lastFailureReason: reason, lastSuccessAt: null, nextRetryAt: null },
+      ] },
+    })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    fireEvent.click(screen.getByRole('button', { name: /podping details/i }));
+    expect(screen.getByText('Unreachable')).toBeDefined();
+    expect(screen.queryByText(reason)).toBeNull();
+    expect(screen.queryByText(/Retry/)).toBeNull();
+  });
+
+  it('does not call a malformed HTTP 200 response healthy', () => {
+    render(<SystemHealthPanel status={status({
+      podping: { listenerEnabled: true, allNodesDown: true, degradedSince: null, nodes: [
+        { node: 'example.invalid', consecutiveFailures: 1, lastFailureReason: 'bad json', lastSuccessAt: null, nextRetryAt: null, httpStatus: 200, outcome: 'invalid_response' },
+      ] },
+    })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    fireEvent.click(screen.getByRole('button', { name: /podping details/i }));
+    expect(screen.getByText('Invalid response (HTTP 200)')).toBeDefined();
+    expect(screen.queryByText('Healthy')).toBeNull();
   });
 });
 

@@ -7,7 +7,7 @@ import tempfile
 import threading
 import time
 from concurrent.futures import Future, TimeoutError as FuturesTimeoutError
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 
 import requests
 import requests.exceptions
@@ -105,7 +105,7 @@ from config import (
     resolve_episode_log_storage,
     LOW_AD_YIELD_ACTION_MODES,
     differential_fetch_effective,
-    resolve_differential_fetch_setting,
+    resolve_differential_fetch_mode,
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
     resolve_splice_veto_enabled,
@@ -126,6 +126,7 @@ from llm_client import (
     is_retryable_error, is_llm_api_error, is_rate_limit_error,
     is_limit_exceeded_error, is_auth_error, LimitExceededError,
     ProviderAccountChangedError, ProviderRateLimitedError,
+    ProviderRequestRejectedError,
     start_episode_token_tracking, get_episode_token_totals,
     get_effective_provider,
 )
@@ -207,6 +208,17 @@ def _publish_status(method: str, slug: str, episode_id: str, *args):
     if run_id:
         return getattr(status_service, method)(slug, episode_id, *args, run_id=run_id)
     return getattr(status_service, method)(slug, episode_id, *args)
+
+
+@contextmanager
+def _measure_run_stage(name: str):
+    """Measure one stage when the caller is bound to a processing run."""
+    ctx = run_context.current()
+    if ctx is None:
+        yield
+        return
+    with ctx.timing.measure(name):
+        yield
 
 
 def get_min_cut_confidence() -> float:
@@ -564,34 +576,34 @@ CDN_BLOCKED_MESSAGE = 'CDN blocked the request (403) with both User-Agents'
 def _download_episode_audio(episode_url):
     """Check CDN availability and download the enclosure. Returns the temp
     audio path; raises on either failure."""
-    url_for_log = safe_url_for_log(
-        episode_url, keep_path=True, keep_query=log_download_query_enabled())
-    user_agent = None
-    available, cdn_error = transcriber.check_audio_availability(episode_url)
-    if not available and cdn_error.startswith(CDN_REFUSED_PREFIX):
-        # A 403 is either a User-Agent floor, which answers the same way on
-        # every retry, or a block that ignores the identifier and lifts on its
-        # own. One probe with the other configured string tells them apart.
-        alternate = feed_user_agent()
-        accepted, _ = transcriber.check_audio_availability(episode_url, user_agent=alternate)
-        if accepted:
-            audio_logger.warning(
-                f"Host at {url_for_log} refuses the download User-Agent "
-                f"'{download_user_agent()}' but accepts the feed User-Agent "
-                f"'{alternate}'. Downloading with the feed string. Update the "
-                f"download User-Agent in Settings > Outbound Requests.")
-            available, cdn_error, user_agent = True, None, alternate
-        else:
-            cdn_error = CDN_BLOCKED_MESSAGE
-    if not available:
-        # Without the host the failure is unattributable: the download log
-        # line below never runs on this path.
-        audio_logger.warning(f"Audio unavailable at {url_for_log}: {cdn_error}")
-        raise AudioNotReadyError(cdn_error)
-    audio_path = transcriber.download_audio(episode_url, user_agent=user_agent)
-    if not audio_path:
-        raise AudioNotReadyError("Failed to download audio")
-    return audio_path
+    with _measure_run_stage('download'):
+        url_for_log = safe_url_for_log(
+            episode_url, keep_path=True, keep_query=log_download_query_enabled())
+        user_agent = None
+        available, cdn_error = transcriber.check_audio_availability(episode_url)
+        if not available and cdn_error.startswith(CDN_REFUSED_PREFIX):
+            # A 403 may be a permanent User-Agent refusal or a transient block.
+            # Probe the alternate configured agent to distinguish them.
+            alternate = feed_user_agent()
+            accepted, _ = transcriber.check_audio_availability(episode_url, user_agent=alternate)
+            if accepted:
+                audio_logger.warning(
+                    f"Host at {url_for_log} refuses the download User-Agent "
+                    f"'{download_user_agent()}' but accepts the feed User-Agent "
+                    f"'{alternate}'. Downloading with the feed string. Update the "
+                    f"download User-Agent in Settings > Outbound Requests.")
+                available, cdn_error, user_agent = True, None, alternate
+            else:
+                cdn_error = CDN_BLOCKED_MESSAGE
+        if not available:
+            # Without the host the failure is unattributable: the download log
+            # line below never runs on this path.
+            audio_logger.warning(f"Audio unavailable at {url_for_log}: {cdn_error}")
+            raise AudioNotReadyError(cdn_error)
+        audio_path = transcriber.download_audio(episode_url, user_agent=user_agent)
+        if not audio_path:
+            raise AudioNotReadyError("Failed to download audio")
+        return audio_path
 
 
 def _next_processed_version(episode_data):
@@ -703,8 +715,9 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         else:
             audio_path = _download_episode_audio(episode_url)
         language_override = get_feed_language_override(db, slug)
-        segments, tail_added = _retranscribe_tail_no_vad(
-            slug, episode_id, audio_path, segments, language_override)
+        with _measure_run_stage('transcription'):
+            segments, tail_added = _retranscribe_tail_no_vad(
+                slug, episode_id, audio_path, segments, language_override)
         if tail_added:
             # save_original_* stores are write-once records of the first
             # pre-cut transcription (database/episodes.py:410-431 COALESCE);
@@ -731,9 +744,10 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         _publish_status('update_job_stage', slug, episode_id, "pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
         language_override = get_feed_language_override(db, slug)
-        segments = transcriber.transcribe_chunked(
-            audio_path, language_override=language_override,
-        )
+        with _measure_run_stage('transcription'):
+            segments = transcriber.transcribe_chunked(
+                audio_path, language_override=language_override,
+            )
         if not segments:
             raise Exception("Failed to transcribe audio")
 
@@ -753,8 +767,9 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         duration_min = segments[-1]['end'] / 60
         audio_logger.info(f"[{slug}:{episode_id}] Transcription complete: {len(segments)} segments, {duration_min:.1f} min")
 
-        segments, _tail_added = _retranscribe_tail_no_vad(
-            slug, episode_id, audio_path, segments, language_override)
+        with _measure_run_stage('transcription'):
+            segments, _tail_added = _retranscribe_tail_no_vad(
+                slug, episode_id, audio_path, segments, language_override)
 
         transcript_text = transcriber.segments_to_text(segments)
         if force_transcription:
@@ -914,7 +929,7 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
             f"[{slug}:{episode_id}] Differential fetch skipped: local feed")
         return None
     try:
-        explicit = resolve_differential_fetch_setting(db, podcast_id)
+        explicit = resolve_differential_fetch_mode(db, podcast_id)
         if not differential_fetch_effective(
                 explicit, dai_platform=dai_platform,
                 dai_likely=is_likely_dai_feed([episode_url])):
@@ -958,9 +973,10 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
                 return _template_cue_scan(matcher, path)
         work_dir = tempfile.mkdtemp(prefix='dai_diff_')
         try:
-            result = fetch_and_diff(episode_url, audio_path, work_dir,
-                                    cue_scan=cue_scan,
-                                    primary_cues=primary_cues)
+            with _measure_run_stage('differential'):
+                result = fetch_and_diff(episode_url, audio_path, work_dir,
+                                        cue_scan=cue_scan,
+                                        primary_cues=primary_cues)
         except Exception as e:
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
@@ -1069,6 +1085,11 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             # A bare Exception would default to transient and burn the retry
             # ladder. error_msg is already the exact resolver message.
             typed = ModelNotConfiguredError('claude_model', error_msg)
+        elif ad_result.get('provider_rejected'):
+            typed = ProviderRequestRejectedError(
+                f"Ad detection failed: {error_msg}",
+                status_code=ad_result.get('last_error_status'),
+            )
         if typed is not None:
             db.upsert_episode(slug, episode_id, ad_detection_status='failed')
             raise typed
@@ -3950,7 +3971,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
         elif chapters_enabled is None or chapters_enabled.lower() == 'true':
             if podcast_row is None:
                 podcast_row = db.get_podcast_by_slug(slug)
-            chapters_mode = resolve_chapters_mode(podcast_row)
+            chapters_mode = resolve_chapters_mode(podcast_row, db=db)
             if chapters_mode == CHAPTERS_MODE_OFF:
                 audio_logger.info(f"[{slug}:{episode_id}] Chapters mode 'off'; skipping chapter step")
                 return
@@ -4382,6 +4403,9 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
         notices = ctx.thinking_notices(ctx.run_id)
         if notices:
             stats['thinking_notices'] = notices
+        timings = ctx.timing.snapshot()
+        if timings:
+            stats['timings'] = timings
         # Persisted totals come from the ledger, not the in-process
         # accumulator: a pool worker that finishes after collection would
         # otherwise silently drop its tokens/cost from this run's row.
@@ -4465,23 +4489,26 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
                        processed_version=0, audio_cue_detections=0,
                        run_stats=None, ads_held=0, ads_not_cut=0):
     """Pipeline stage: Update DB, record history, refresh RSS."""
-    _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
-                            first_pass_count, original_duration, new_duration,
-                            processed_version,
-                            detection_degraded=(run_stats or {}).get('detection_degraded'),
-                            run_started_iso=epoch_to_iso(start_time))
-    _refresh_rss_for_slug(slug, episode_id)
+    # Stop this timer before history snapshots it. The history write and event
+    # happen afterward, so finalizeSeconds has one stable, documented bound.
+    with _measure_run_stage('finalize'):
+        _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
+                                first_pass_count, original_duration, new_duration,
+                                processed_version,
+                                detection_degraded=(run_stats or {}).get('detection_degraded'),
+                                run_started_iso=epoch_to_iso(start_time))
+        _refresh_rss_for_slug(slug, episode_id)
 
-    processing_time = time.time() - start_time
+        processing_time = time.time() - start_time
 
-    token_totals = _log_completion_summary(
-        slug, episode_id, pass1_cut_count,
-        verification_count=verification_count,
-        original_duration=original_duration,
-        new_duration=new_duration,
-        processing_time=processing_time,
-        db=db,
-    )
+        token_totals = _log_completion_summary(
+            slug, episode_id, pass1_cut_count,
+            verification_count=verification_count,
+            original_duration=original_duration,
+            new_duration=new_duration,
+            processing_time=processing_time,
+            db=db,
+        )
 
     _record_history_and_event(
         slug, episode_id, episode_title, podcast_name,
@@ -4875,8 +4902,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # Kept markers barrier the render so the <1s-gap merge and the
         # end-of-episode extension cannot swallow kept audio (same
         # protection the pass-2 recut threads through).
-        result = local_audio_processor.process_episode(
-            work_path, audio_segments, cut_barriers=keep_ads)
+        with _measure_run_stage('cut'):
+            result = local_audio_processor.process_episode(
+                work_path, audio_segments, cut_barriers=keep_ads)
         if not result:
             raise Exception("FFMPEG processing failed during recut")
         processed_path, applied_cuts = result
@@ -4921,14 +4949,15 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # applied_cuts). None (episode rendered before applied_cuts_json was
         # persisted) makes the remap a safe no-op rather than a wrong guess.
         previous_cuts = storage.get_applied_cuts(slug, episode_id)
-        _generate_assets(slug, episode_id, segments, applied_cuts,
-                          episode_description, podcast_name, episode_title,
-                          regenerate_chapters=False,
-                          audio_path=final_path, audio_duration=new_duration,
-                          previous_cuts=previous_cuts,
-                          original_duration=original_duration,
-                          markers=all_ads_with_validation,
-                          podcast_row=podcast_row)
+        with _measure_run_stage('assets'):
+            _generate_assets(slug, episode_id, segments, applied_cuts,
+                              episode_description, podcast_name, episode_title,
+                              regenerate_chapters=False,
+                              audio_path=final_path, audio_duration=new_duration,
+                              previous_cuts=previous_cuts,
+                              original_duration=original_duration,
+                              markers=all_ads_with_validation,
+                              podcast_row=podcast_row)
 
         pass1_cut_count = sum(
             1 for ad in ads_to_remove
@@ -5234,7 +5263,7 @@ def _admission_gates(settings_db) -> dict:
             'chapters_enabled': settings_db.get_setting('chapters_enabled')}
 
 
-def _chapters_enabled_for_admission(chapters_enabled, podcast_row) -> bool:
+def _chapters_enabled_for_admission(chapters_enabled, podcast_row, settings_db) -> bool:
     """Whether this run's chapter step could call the chapters LLM at all.
 
     Mirrors the two settings that turn chapters off outright: the global
@@ -5244,7 +5273,7 @@ def _chapters_enabled_for_admission(chapters_enabled, podcast_row) -> bool:
     """
     if chapters_enabled is not None and chapters_enabled.lower() != 'true':
         return False
-    return resolve_chapters_mode(podcast_row) != CHAPTERS_MODE_OFF
+    return resolve_chapters_mode(podcast_row, db=settings_db) != CHAPTERS_MODE_OFF
 
 
 def _admission_mode_rows(settings_db, slug: str, episode_id: str | None,
@@ -5329,9 +5358,10 @@ def _active_phases_for_admission(slug: str, episode_id: str | None = None,
                              if phase == 'chapters'}
         if not gates['review']:
             active_phases.pop('review', None)
-        if resolve_skip_second_pass(podcast_row):
+        if resolve_skip_second_pass(podcast_row, db=settings_db):
             active_phases.pop('verification', None)
-        if not _chapters_enabled_for_admission(gates['chapters_enabled'], podcast_row):
+        if not _chapters_enabled_for_admission(
+                gates['chapters_enabled'], podcast_row, settings_db):
             active_phases.pop('chapters', None)
     except Exception as exc:
         # Fail open to the full (unfiltered) phase set: overcounting a
@@ -5618,7 +5648,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     # Skip verification (#599): pass 1 still runs and cuts, the second LLM
     # sweep over its output does not.
-    skip_second_pass = resolve_skip_second_pass(podcast_settings)
+    skip_second_pass = resolve_skip_second_pass(podcast_settings, db=db)
 
     # Cue-only preset: skip the LLM and pass 2; skip transcription too if
     # the feed also opts into that.
@@ -5800,7 +5830,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # daemon thread never blocks interpreter/SIGTERM shutdown the way
             # concurrent.futures' atexit join of non-daemon workers would.
             diff_thread = threading.Thread(
-                target=_diff_worker, daemon=True,
+                target=run_context.run_in_worker_thread(_diff_worker), daemon=True,
                 name=f"dai-diff-{slug}-{episode_id}")
             diff_thread.start()
 
@@ -5814,9 +5844,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # Stage 2: Audio analysis (ad-cue detection; nothing to feed
                 # when detection is skipped)
                 if not skip_detection:
-                    audio_analysis_result = _run_audio_analysis(
-                        slug, episode_id, audio_path, segments,
-                        force_cue_detection=cue_only)
+                    with _measure_run_stage('audio_analysis'):
+                        audio_analysis_result = _run_audio_analysis(
+                            slug, episode_id, audio_path, segments,
+                            force_cue_detection=cue_only)
             finally:
                 _publish_primary_cues(primary_cue_future, audio_analysis_result)
             # Block on the differential fetch before its result is consumed.
@@ -5929,24 +5960,25 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # Stage 3: First-pass detection
                 _reserve_provider()
                 provider_attempted = True
-                first_pass_ads, first_pass_count, ad_result = _detect_ads_first_pass(
-                    ctx, segments, audio_path,
-                    skip_patterns, audio_analysis_result,
-                    detection_progress_callback,
-                    cancel_event=cancel_event,
-                    positional_prior_hint=format_prior_hint(positional_prior,
-                                                            episode_duration),
-                    recurrence_spans=recurrence_spans,
-                    dai_differential=dai_differential,
-                    # None = resolve fresh from the DB at detection time, so a
-                    # detection_mode toggle during download/transcription is honored.
-                    keep_content=None,
-                    skip_llm=cue_only,
-                    force_create_from_pairs=cue_only,
-                    strict_pair_roles=cue_only,
-                    episode_duration=episode_duration,
-                    run_stats=run_stats,
-                )
+                with _measure_run_stage('detection'):
+                    first_pass_ads, first_pass_count, ad_result = _detect_ads_first_pass(
+                        ctx, segments, audio_path,
+                        skip_patterns, audio_analysis_result,
+                        detection_progress_callback,
+                        cancel_event=cancel_event,
+                        positional_prior_hint=format_prior_hint(positional_prior,
+                                                                episode_duration),
+                        recurrence_spans=recurrence_spans,
+                        dai_differential=dai_differential,
+                        # None = resolve fresh from the DB at detection time, so a
+                        # detection_mode toggle during download/transcription is honored.
+                        keep_content=None,
+                        skip_llm=cue_only,
+                        force_create_from_pairs=cue_only,
+                        strict_pair_roles=cue_only,
+                        episode_duration=episode_duration,
+                        run_stats=run_stats,
+                    )
                 _check_cancel(cancel_event, slug, episode_id)
 
                 first_pass_ads = _exclude_opening_ads(first_pass_ads, opening_exclusion_seconds)
@@ -6011,20 +6043,21 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                             and counts.get(t['id'], 0) < CUE_ONLY_PROVEN_EPISODES}
 
                 # Stage 4: Refine and validate
-                ads_to_remove, all_ads_with_validation = _refine_and_validate(
-                    slug, episode_id, all_ads, segments, audio_path,
-                    episode_description, episode_duration, min_cut_confidence, podcast_name,
-                    skip_patterns=skip_patterns, positional_prior=positional_prior,
-                    max_ad_duration_override=max_ad_duration_override,
-                    cue_gate_enabled=cue_gate_enabled,
-                    audio_analysis=_val_audio_analysis,
-                    podcast_id=podcast_id,
-                    keep_ads=keep_ads,
-                    cue_only_safety=cue_only_safety,
-                    cue_unproven_template_ids=cue_unproven_ids,
-                    apply_heuristic_rolls=not cue_only,
-                    segment_actions=segment_actions,
-                )
+                with _measure_run_stage('refine_validate'):
+                    ads_to_remove, all_ads_with_validation = _refine_and_validate(
+                        slug, episode_id, all_ads, segments, audio_path,
+                        episode_description, episode_duration, min_cut_confidence, podcast_name,
+                        skip_patterns=skip_patterns, positional_prior=positional_prior,
+                        max_ad_duration_override=max_ad_duration_override,
+                        cue_gate_enabled=cue_gate_enabled,
+                        audio_analysis=_val_audio_analysis,
+                        podcast_id=podcast_id,
+                        keep_ads=keep_ads,
+                        cue_only_safety=cue_only_safety,
+                        cue_unproven_template_ids=cue_unproven_ids,
+                        apply_heuristic_rolls=not cue_only,
+                        segment_actions=segment_actions,
+                    )
 
                 # Late keep partition: _refine_and_validate's heuristic
                 # pre/post-roll and VAD-gap markers are synthesized after the
@@ -6047,16 +6080,17 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             all_ads_with_validation = _exclude_opening_ads(all_ads_with_validation, opening_exclusion_seconds)
 
             if not cue_only:
-                ads_to_remove, all_ads_with_validation = _run_ad_reviewer(
-                    slug, episode_id, podcast_id, ads_to_remove,
-                    all_ads_with_validation, segments, podcast_name,
-                    episode_title, episode_description, podcast_description,
-                    min_cut_confidence, pass_num=1,
-                    pass_model=ad_detector.get_model(),
-                    pass_provider=ad_detector.get_provider(),
-                    audio_analysis=audio_analysis_result,
-                    cue_gate_enabled=cue_gate_enabled,
-                )
+                with _measure_run_stage('refine_validate'):
+                    ads_to_remove, all_ads_with_validation = _run_ad_reviewer(
+                        slug, episode_id, podcast_id, ads_to_remove,
+                        all_ads_with_validation, segments, podcast_name,
+                        episode_title, episode_description, podcast_description,
+                        min_cut_confidence, pass_num=1,
+                        pass_model=ad_detector.get_model(),
+                        pass_provider=ad_detector.get_provider(),
+                        audio_analysis=audio_analysis_result,
+                        cue_gate_enabled=cue_gate_enabled,
+                    )
             _check_cancel(cancel_event, slug, episode_id)
 
             # Fold keep-action markers back into the saved marker list now
@@ -6136,8 +6170,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                               for ad in ads_to_remove]
             # keep_ads barrier the render for the same reason as on the
             # pass-2 and manual recut paths.
-            result = local_audio_processor.process_episode(
-                audio_path, audio_segments, cut_barriers=keep_ads)
+            with _measure_run_stage('cut'):
+                result = local_audio_processor.process_episode(
+                    audio_path, audio_segments, cut_barriers=keep_ads)
             if not result:
                 raise Exception(
                     f"FFMPEG processing failed for {len(ads_to_remove)} ad segments "
@@ -6182,28 +6217,31 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 m for m in all_ads_with_validation
                 if m.get('action_applied') == 'keep'
             ]
+            verification_skipped = skip_detection or skip_second_pass or cue_only
             if skip_second_pass and not skip_detection:
                 audio_logger.info(
-                    f"[{slug}:{episode_id}] Verification pass skipped (per-feed setting)")
-            verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count = _run_verification_pass(
-                ctx, processed_path, applied_cuts,
-                skip_patterns, min_cut_confidence,
-                local_audio_processor, detection_progress_callback,
-                original_segments=segments,
-                # LLM-only reprocess maps the saved transcript through the cuts
-                # for pass 2 instead of re-transcribing (issue #349).
-                reuse_transcript=(reprocess_mode == 'llm'),
-                max_ad_duration_override=max_ad_duration_override,
-                cue_gate_enabled=cue_gate_enabled,
-                pass1_held_markers=pass1_held_markers,
-                pass1_kept_markers=pass1_kept_markers,
-                skip_verification=skip_detection or skip_second_pass or cue_only,
-                segment_actions=segment_actions,
-                differential_override=keep_override,
-                run_stats=run_stats,
-                original_audio_path=audio_path,
-                pass1_markers=ads_to_remove,
-            )
+                    f"[{slug}:{episode_id}] Verification pass skipped (configured setting)")
+            with (_measure_run_stage('verification')
+                  if not verification_skipped else nullcontext()):
+                verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count = _run_verification_pass(
+                    ctx, processed_path, applied_cuts,
+                    skip_patterns, min_cut_confidence,
+                    local_audio_processor, detection_progress_callback,
+                    original_segments=segments,
+                    # LLM-only reprocess maps the saved transcript through the cuts
+                    # for pass 2 instead of re-transcribing (issue #349).
+                    reuse_transcript=(reprocess_mode == 'llm'),
+                    max_ad_duration_override=max_ad_duration_override,
+                    cue_gate_enabled=cue_gate_enabled,
+                    pass1_held_markers=pass1_held_markers,
+                    pass1_kept_markers=pass1_kept_markers,
+                    skip_verification=verification_skipped,
+                    segment_actions=segment_actions,
+                    differential_override=keep_override,
+                    run_stats=run_stats,
+                    original_audio_path=audio_path,
+                    pass1_markers=ads_to_remove,
+                )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and
             # intentionally counts twice.
@@ -6217,9 +6255,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             normalize_raw = db.get_setting('audio_normalize_enabled')
             if (normalize_raw or 'false').lower() == 'true':
                 intensity = db.get_setting('audio_normalize_intensity') or 'normal'
-                normalized_path = local_audio_processor.normalize_audio(
-                    processed_path, intensity=intensity,
-                )
+                with _measure_run_stage('normalization'):
+                    normalized_path = local_audio_processor.normalize_audio(
+                        processed_path, intensity=intensity,
+                    )
                 if normalized_path:
                     if os.path.exists(processed_path):
                         try:
@@ -6287,13 +6326,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if skip_detection:
                 _reserve_provider()
                 provider_attempted = True
-            _generate_assets(slug, episode_id, segments, all_cuts_for_assets,
-                              episode_description, podcast_name, episode_title,
-                              audio_path=final_path, audio_duration=new_duration,
-                              podcast_row=podcast_settings,
-                              original_duration=original_duration,
-                              run_stats=run_stats,
-                              markers=all_ads_with_validation)
+            with _measure_run_stage('assets'):
+                _generate_assets(slug, episode_id, segments, all_cuts_for_assets,
+                                  episode_description, podcast_name, episode_title,
+                                  audio_path=final_path, audio_duration=new_duration,
+                                  podcast_row=podcast_settings,
+                                  original_duration=original_duration,
+                                  run_stats=run_stats,
+                                  markers=all_ads_with_validation)
 
             # Stage 8: Finalize. ads_removed accounting counts the cuts that
             # exist in the audio: an ad merged into a covering span still

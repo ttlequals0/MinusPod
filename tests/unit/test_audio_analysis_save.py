@@ -58,7 +58,7 @@ def test_differential_store_failure_clears_a_leaked_transaction(monkeypatch):
     monkeypatch.setattr(processing, 'fetch_and_diff',
                         lambda *a, **k: {'status': 'ok', 'regions': [], 'refetch_meta': {}})
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'resolve_differential_fetch_setting', lambda db, pid: True)
+    monkeypatch.setattr(processing, 'resolve_differential_fetch_mode', lambda db, pid: 'on')
     monkeypatch.setattr(processing, 'differential_fetch_effective', lambda *a, **k: True)
     processing._run_differential_fetch('example-podcast', 'a1b2c3d4e5f6',
                                        'https://example.com/ep.mp3', '/nonexistent.mp3', 1)

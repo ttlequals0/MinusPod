@@ -90,6 +90,48 @@ class TestRequiredProvidersHonorsMode:
         finally:
             db.set_setting('chapters_enabled', 'true')
 
+    def test_global_skip_verification_removes_verification_provider(self, feed):
+        db.set_setting('skip_second_pass', 'true')
+        try:
+            required = _required_providers_for_admission(
+                SLUG, EP, snapshot=FULL_SNAPSHOT)
+            assert ('provider-a', 'primary') in required
+            assert ('provider-b', 'primary') in required
+            assert len(required) == 2
+        finally:
+            db.set_setting('skip_second_pass', 'false')
+
+    def test_feed_can_run_verification_when_global_default_skips(self, feed):
+        snapshot = _snapshot(detection='provider-a', review='provider-a',
+                             verification='provider-c', chapters='provider-b')
+        db.set_setting('skip_second_pass', 'true')
+        db.update_podcast(SLUG, skip_second_pass=0)
+        try:
+            required = _required_providers_for_admission(
+                SLUG, EP, snapshot=snapshot)
+            assert ('provider-c', 'primary') in required
+        finally:
+            db.set_setting('skip_second_pass', 'false')
+
+    def test_global_chapter_mode_off_removes_chapters_provider(self, feed):
+        db.set_setting('chapters_mode', 'off')
+        try:
+            required = _required_providers_for_admission(
+                SLUG, EP, snapshot=FULL_SNAPSHOT)
+            assert required == [('provider-a', 'primary')]
+        finally:
+            db.set_setting('chapters_mode', 'auto')
+
+    def test_feed_can_generate_chapters_when_global_default_is_off(self, feed):
+        db.set_setting('chapters_mode', 'off')
+        db.update_podcast(SLUG, chapters_mode='generate')
+        try:
+            required = _required_providers_for_admission(
+                SLUG, EP, snapshot=FULL_SNAPSHOT)
+            assert ('provider-b', 'primary') in required
+        finally:
+            db.set_setting('chapters_mode', 'auto')
+
 
 class TestBlockedQueueEntries:
     def _queue(self, episode_id):

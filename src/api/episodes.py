@@ -417,6 +417,7 @@ def _run_stats_to_api(stats):
         return None
     stage_hits = stats.get('stage_hits')
     markers = stats.get('markers')
+    timings = stats.get('timings')
     result = {
         'mode': stats.get('mode'),
         'detectionSkipped': stats.get('detection_skipped'),
@@ -441,6 +442,20 @@ def _run_stats_to_api(stats):
         } if markers else None,
         'verificationAdsCut': stats.get('verification_ads_cut'),
         'secondsRemoved': stats.get('seconds_removed'),
+        'timings': {
+            'downloadSeconds': timings.get('download'),
+            'transcriptionSeconds': timings.get('transcription'),
+            'differentialSeconds': timings.get('differential'),
+            'audioAnalysisSeconds': timings.get('audio_analysis'),
+            'detectionSeconds': timings.get('detection'),
+            'refineValidateSeconds': timings.get('refine_validate'),
+            'cutSeconds': timings.get('cut'),
+            'verificationSeconds': timings.get('verification'),
+            'normalizationSeconds': timings.get('normalization'),
+            'assetsSeconds': timings.get('assets'),
+            'finalizeSeconds': timings.get('finalize'),
+            'ffmpegSeconds': timings.get('ffmpeg'),
+        } if timings is not None else None,
     }
     transcription = stats.get('transcription')
     if transcription:
@@ -473,15 +488,7 @@ def _run_stats_to_api(stats):
 
 
 def _processing_runs(db, episode, run_totals=None):
-    """Per-run history rows for the episode page's Processing stats section
-    (#519). ``stats`` is the pipeline's per-run JSON blob; null for runs
-    recorded before 2.53.0 and for recuts.
-
-    ``phases`` is the ledger's per-run phase/provider/model breakdown;
-    ``breakdownAvailable`` is false for a run with no ledger rows (legacy,
-    pre-ledger, or outside a bound run context), which keeps only its
-    known processing_history total.
-    """
+    """Serialize run history, retaining totals for runs without ledger rows."""
     podcast_id = episode['podcast_id']
     episode_id = episode['episode_id']
     phase_usage = db.get_episode_phase_usage(podcast_id, episode_id)

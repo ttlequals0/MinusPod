@@ -18,6 +18,21 @@ interface ProcessingRunsTableProps {
 // few seconds; only a gap of minutes signals varying DAI fill.
 const RSS_DELTA_NOTE_SECONDS = 120;
 
+const TIMING_STAGES = [
+  ['downloadSeconds', 'Download'],
+  ['transcriptionSeconds', 'Transcription'],
+  ['differentialSeconds', 'Differential'],
+  ['audioAnalysisSeconds', 'Audio analysis'],
+  ['detectionSeconds', 'Detection'],
+  ['refineValidateSeconds', 'Refine and validate'],
+  ['cutSeconds', 'Cut'],
+  ['verificationSeconds', 'Verification'],
+  ['normalizationSeconds', 'Normalization'],
+  ['assetsSeconds', 'Assets'],
+  ['finalizeSeconds', 'Save episode and feed'],
+  ['ffmpegSeconds', 'FFmpeg'],
+] as const;
+
 function rssDeltaNote(runs: EpisodeProcessingRun[], rssDuration?: number | null): string | null {
   // Most recent run that actually downloaded audio: recuts and early
   // failures carry no blob and must not hide the DAI signal.
@@ -68,6 +83,42 @@ function RunResult({ run }: { run: EpisodeProcessingRun }) {
   );
 }
 
+function timingValue(run: EpisodeProcessingRun, key: typeof TIMING_STAGES[number][0]): string {
+  const timings = run.stats?.timings;
+  if (key === 'transcriptionSeconds' && run.stats?.transcriptionSkipped) return 'Skipped';
+  if (key === 'detectionSeconds' && run.stats?.detectionSkipped) return 'Skipped';
+  if (key === 'verificationSeconds' && run.stats?.verificationSkipped) return 'Skipped';
+  if ((key === 'detectionSeconds' || key === 'verificationSeconds') && run.stats?.cueOnly) {
+    return 'Not applicable';
+  }
+  const value = timings?.[key];
+  if (value != null) return formatDuration(value);
+  if (!timings) return 'Timing unavailable';
+  return 'Unavailable';
+}
+
+function TimingBreakdown({ run }: { run: EpisodeProcessingRun }) {
+  if (!run.stats?.timings) {
+    return <p className="mt-3 border-t border-border/40 pt-2 text-xs text-muted-foreground">Timing unavailable for this run</p>;
+  }
+  return (
+    <div className="mt-3 w-full border-t border-border/40 pt-2 sm:w-[calc(100cqw-1.5rem)]">
+      <h4 className="text-xs font-medium text-muted-foreground">Elapsed by stage</h4>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Stage times can overlap. FFmpeg runs inside stages and totals every FFmpeg task in the run, including retries.
+      </p>
+      <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-xs tabular-nums sm:grid-cols-2 lg:grid-cols-3">
+        {TIMING_STAGES.map(([key, label]) => (
+          <div key={key} className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="text-right">{timingValue(run, key)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 const HEADER_CLASS = 'py-2 pr-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
 
 interface Column {
@@ -104,6 +155,13 @@ const COLUMNS: Column[] = [
   },
   { label: 'When', render: (run) => formatDateTime(run.processedAt) },
   { label: 'Result', render: (run) => <RunResult run={run} /> },
+  {
+    label: 'Duration',
+    title: 'Wall-clock time for the whole run',
+    lowPriority: true,
+    render: (run) => (run.processingDurationSeconds != null
+      ? formatDuration(run.processingDurationSeconds) : '-'),
+  },
   {
     label: 'Downloaded',
     title: 'Length of the downloaded copy this run processed',
@@ -336,7 +394,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
     <div>
       {note && <p className="text-sm text-muted-foreground mb-3">{note}</p>}
 
-      <div className="hidden sm:block overflow-x-auto">
+      <div className="hidden sm:block overflow-x-auto" style={{ containerType: 'inline-size' }}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
@@ -380,6 +438,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
                         <div className="overflow-x-auto">
                           <PhaseBreakdown run={run} layout="table" />
                         </div>
+                        <TimingBreakdown run={run} />
                       </td>
                     </tr>
                   )}
@@ -414,6 +473,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
               {expanded && (
                 <div className="mt-2">
                   <PhaseBreakdown run={run} layout="cards" />
+                  <TimingBreakdown run={run} />
                 </div>
               )}
             </div>

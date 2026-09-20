@@ -51,7 +51,7 @@ class AdChapterConfig:
 
 def resolve_ad_chapter_config(db, podcast_row, slug=None) -> AdChapterConfig:
     """Effective config for one feed; disabled when the feed writes no chapters."""
-    if resolve_chapters_mode(podcast_row) == CHAPTERS_MODE_OFF:
+    if resolve_chapters_mode(podcast_row, db=db) == CHAPTERS_MODE_OFF:
         return AdChapterConfig.disabled()
     if not db.get_setting_bool('chapters_enabled', True):
         return AdChapterConfig.disabled()

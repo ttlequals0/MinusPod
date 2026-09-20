@@ -23,6 +23,12 @@ const statsRun: EpisodeProcessingRun = {
     markers: { cut: 6, held: 4, notCut: 5 },
     verificationAdsCut: 0,
     secondsRemoved: 609,
+    timings: {
+      downloadSeconds: 42,
+      transcriptionSeconds: 180,
+      cutSeconds: 8,
+      ffmpegSeconds: 12,
+    },
   },
 };
 
@@ -67,6 +73,7 @@ const skipVerificationRun: EpisodeProcessingRun = {
     verificationSkipped: true,
     downloadedDuration: 3305.7,
     transcriptSegments: 132,
+    timings: { verificationSeconds: 0.01, ffmpegSeconds: 0 },
     markers: { cut: 3, held: 0, notCut: 1 },
     secondsRemoved: 180,
   },
@@ -158,6 +165,17 @@ describe('ProcessingRunsTable', () => {
     expect(table.getAllByText('-')).toHaveLength(5);
   });
 
+  it('shows elapsed stage timings when the run has them', () => {
+    const table = renderTable([statsRun]);
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #2/i }));
+    expect(table.getByText('Elapsed by stage')).toBeTruthy();
+    expect(table.getByText('Elapsed by stage').parentElement?.className).toContain('sm:w-[calc(100cqw-1.5rem)]');
+    expect(table.getByText(/Stage times can overlap/)).toBeTruthy();
+    expect(table.getByText('0:42')).toBeTruthy();
+    expect(table.getByText('0:12')).toBeTruthy();
+    expect(table.getAllByText('Unavailable').length).toBeGreaterThan(0);
+  });
+
   it('marks a skip-detection run instead of showing zero stage hits', () => {
     const table = renderTable([skipDetectionRun]);
     expect(table.getByText('(no ad detection)')).toBeTruthy();
@@ -172,6 +190,9 @@ describe('ProcessingRunsTable', () => {
     expect(table.getByText('(no verification)')).toBeTruthy();
     expect(table.getByText('3 cut / 0 held / 1 kept')).toBeTruthy();
     expect(table.queryByText('clean')).toBeNull();
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #4/i }));
+    expect(table.getByText('Skipped')).toBeTruthy();
+    expect(table.getByText('0:00')).toBeTruthy();
   });
 
   it('marks a cue-only run with no transcript', () => {
@@ -226,6 +247,7 @@ describe('ProcessingRunsTable: phase breakdown', () => {
     const table = renderTable([legacyRun]);
     fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #1/i }));
     expect(table.getByText('Breakdown unavailable')).toBeTruthy();
+    expect(table.getByText('Timing unavailable for this run')).toBeTruthy();
   });
 });
 

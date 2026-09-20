@@ -4,6 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './Layout';
 
 vi.mock('../context/ThemeContext', () => ({
@@ -14,13 +15,20 @@ vi.mock('../context/AuthContext', () => ({
 }));
 vi.mock('./UpdateBanner', () => ({ default: () => null }));
 
-describe('Layout header search', () => {
-  it('links the magnifier to /search instead of opening the palette', () => {
-    render(
+function renderLayout() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
       <MemoryRouter>
         <Layout />
-      </MemoryRouter>,
-    );
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+describe('Layout header search', () => {
+  it('links the magnifier to /search instead of opening the palette', () => {
+    renderLayout();
     const link = screen.getByRole('link', { name: 'Search' });
     expect(link.tagName).toBe('A');
     expect(link.getAttribute('href')).toBe('/search');
@@ -29,11 +37,7 @@ describe('Layout header search', () => {
 
 describe('Layout header hit targets', () => {
   it('gives the header controls a 44px box on phones', () => {
-    render(
-      <MemoryRouter>
-        <Layout />
-      </MemoryRouter>,
-    );
+    renderLayout();
     const controls = [
       screen.getByRole('link', { name: 'Search' }),
       screen.getByRole('button', { name: 'Toggle theme' }),

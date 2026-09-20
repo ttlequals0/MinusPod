@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 # the whole rebuild. The busy_timeout waits within each attempt.
 _SWAP_LOCK_RETRIES = 3
 _SWAP_LOCK_BACKOFF_SECONDS = 2.0
+_REBUILD_LOCK_RETRIES = 3
+_REBUILD_LOCK_BACKOFF_SECONDS = 1.0
 
 # Grouped-search snippet delimiters: literal "<mark>" in indexed text must not read as a highlight.
 _HL_OPEN = '\x02'
@@ -178,12 +180,17 @@ class SearchMixin:
             try:
                 return self._rebuild_search_index_locked()
             finally:
-                conn = self.get_connection()
-                if conn.execute(
-                        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-                        (shadow,)).fetchone():
-                    conn.execute(f'DROP TABLE IF EXISTS "{shadow}"')
-                    conn.commit()
+                try:
+                    conn = self.get_connection()
+                    if conn.execute(
+                            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                            (shadow,)).fetchone():
+                        conn.execute(f'DROP TABLE IF EXISTS "{shadow}"')
+                        conn.commit()
+                except Exception as exc:
+                    # Preserve the rebuild failure. A later rebuild removes a
+                    # leftover shadow while holding the same process lock.
+                    logger.warning("Search index shadow cleanup failed: %s", exc)
 
     def _rebuild_search_index_locked(self) -> int:
         """Rebuild the FTS5 search index from scratch.
@@ -199,7 +206,7 @@ class SearchMixin:
         conn = self.get_connection()
         self._drop_stale_shadows(conn)
         shadow = f"{_SHADOW_PREFIX}_{os.getpid()}_{threading.get_ident()}"
-        with self.transaction(immediate=True) as tx:
+        def create_shadow(tx):
             active = [row['name'] for row in tx.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name GLOB ?",
                 (f'{_SHADOW_PREFIX}_[0-9]*_[0-9]*',),
@@ -210,23 +217,40 @@ class SearchMixin:
             start_seq = tx.execute(
                 "SELECT COALESCE(MAX(seq), 0) FROM search_index_changes"
             ).fetchone()[0]
+            return start_seq
+
+        start_seq = self._run_rebuild_write(create_shadow)
 
         insert = (f"INSERT INTO {shadow} (content_type, content_id, podcast_slug, title, body, metadata) "  # noqa: S608
                   "VALUES (?, ?, ?, ?, ?, ?)")
+        source_chunks = self._search_source_chunks()
         try:
-            for rows in self._search_source_chunks(conn):
-                with self.transaction(immediate=True) as tx:
-                    tx.executemany(insert, rows)
+            for rows in source_chunks:
+                self._run_rebuild_write(lambda tx, rows=rows: tx.executemany(insert, rows))
             self._swap_in_shadow(shadow, insert, start_seq)
         except Exception:
             conn.rollback()
-            conn.execute(f'DROP TABLE IF EXISTS "{shadow}"')
-            conn.commit()
             raise
+        finally:
+            source_chunks.close()
 
         count = conn.execute("SELECT COUNT(*) FROM search_index").fetchone()[0]
         logger.info(f"Search index rebuilt with {count} items")
         return count
+
+    def _run_rebuild_write(self, operation):
+        """Run one rebuild write transaction, retrying transient contention."""
+        for attempt in range(_REBUILD_LOCK_RETRIES):
+            try:
+                with self.transaction(immediate=True) as tx:
+                    return operation(tx)
+            except sqlite3.OperationalError as exc:
+                if 'locked' not in str(exc).lower() or attempt == _REBUILD_LOCK_RETRIES - 1:
+                    raise
+                logger.warning(
+                    "Search index rebuild write was locked (attempt %d/%d); retrying",
+                    attempt + 1, _REBUILD_LOCK_RETRIES)
+                time.sleep(_REBUILD_LOCK_BACKOFF_SECONDS * (attempt + 1))
 
     def _swap_in_shadow(self, shadow, insert, start_seq):
         """Replay pending changes into the shadow and swap it in as the live
@@ -250,8 +274,12 @@ class SearchMixin:
                     attempt + 1, _SWAP_LOCK_RETRIES)
                 time.sleep(_SWAP_LOCK_BACKOFF_SECONDS * (attempt + 1))
 
-    @staticmethod
-    def _search_source_chunks(conn):
+    def _search_source_chunks(self):
+        # Keep the source snapshot off the connection that writes the shadow.
+        # Change-journal replay covers commits made during this read pass.
+        read_conn = sqlite3.connect(str(self.db_path), timeout=60)
+        read_conn.row_factory = sqlite3.Row
+        read_conn.execute('PRAGMA busy_timeout = 60000')
         sources = (
             ("SELECT slug, title, description FROM podcasts",
              lambda r: ('podcast', r['slug'], r['slug'], r['title'],
@@ -270,10 +298,13 @@ class SearchMixin:
              lambda r: ('sponsor', str(r['id']), 'global', r['name'],
                         r['aliases'] or '', '')),
         )
-        for sql, shape in sources:
-            cursor = conn.execute(sql)
-            while batch := cursor.fetchmany(_REBUILD_TX_ROWS):
-                yield [shape(row) for row in batch]
+        try:
+            for sql, shape in sources:
+                cursor = read_conn.execute(sql)
+                while batch := cursor.fetchmany(_REBUILD_TX_ROWS):
+                    yield [shape(row) for row in batch]
+        finally:
+            read_conn.close()
 
     @staticmethod
     def _replay_search_changes(conn, shadow, insert, start_seq):

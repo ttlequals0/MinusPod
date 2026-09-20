@@ -193,6 +193,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                 lambda key, *a, **k: 'true' if key == 'enable_ad_review' else 'false')
         else:
             db.get_setting.return_value = 'false'
+        db.get_setting_bool.return_value = False
         db.get_all_settings.return_value = {}
         db.cue_template_paired_episode_counts.return_value = cue_template_counts or {}
         db.list_cue_templates_for_feed_ui.return_value = cue_templates or []
