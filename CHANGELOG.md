@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- Podping failover replaces the unavailable `hived.emre.sh` endpoint with `api.deathwing.me` and adds `techcoderx.com` as another fallback.
+- The Queue navigation badge keeps readable contrast when Queue is selected.
+- OPML export actions now sit below their description instead of leaving a large blank gap beside the taller backup card.
+
 ## [2.97.8] - 2026-09-20
 
 ### Added

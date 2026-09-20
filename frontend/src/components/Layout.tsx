@@ -41,7 +41,11 @@ function NavLink({ to, label, active, onClick, count }: NavLinkProps) {
     >
       {label}
       {count ? (
-        <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-primary/20 text-primary tabular-nums">
+        <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full tabular-nums ${
+          active
+            ? 'bg-primary-foreground/20 text-primary-foreground'
+            : 'bg-primary/20 text-primary'
+        }`}>
           {count}
         </span>
       ) : null}

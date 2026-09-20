@@ -16,10 +16,12 @@ class TestConstants:
 
     def test_podping_nodes_defined(self):
         """PODPING_NODES should be a list of strings."""
-        assert isinstance(PODPING_NODES, list)
-        assert len(PODPING_NODES) >= 3
-        assert all(isinstance(node, str) for node in PODPING_NODES)
-        assert {'https://api.hive.blog', 'https://api.openhive.network', 'https://hived.emre.sh'}.issubset(set(PODPING_NODES))
+        assert PODPING_NODES == [
+            'https://api.hive.blog',
+            'https://api.openhive.network',
+            'https://api.deathwing.me',
+            'https://techcoderx.com',
+        ]
 
     def test_actionable_reasons(self):
         """ACTIONABLE_REASONS should contain update and live."""

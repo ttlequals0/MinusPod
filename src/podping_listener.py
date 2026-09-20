@@ -25,7 +25,8 @@ logger = logging.getLogger('podcast.podping')
 PODPING_NODES = [
     'https://api.hive.blog',
     'https://api.openhive.network',
-    'https://hived.emre.sh'
+    'https://api.deathwing.me',
+    'https://techcoderx.com',
 ]
 
 ACTIONABLE_REASONS = {'update', 'live'}

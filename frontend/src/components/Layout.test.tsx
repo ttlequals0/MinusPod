@@ -15,11 +15,15 @@ vi.mock('../context/AuthContext', () => ({
 }));
 vi.mock('./UpdateBanner', () => ({ default: () => null }));
 
-function renderLayout() {
+function renderLayout(path = '/', queueCount = 0) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(['processing-status'], {
+    queueLength: queueCount,
+    jobs: [],
+  });
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>
         <Layout />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -48,5 +52,15 @@ describe('Layout header hit targets', () => {
       expect(el.className).toContain('min-h-11');
       expect(el.className).toContain('min-w-11');
     }
+  });
+});
+
+describe('Layout queue badge', () => {
+  it('keeps the count readable when Queue is selected', () => {
+    renderLayout('/queue', 2);
+
+    const badge = screen.getByText('2');
+    expect(badge.classList.contains('bg-primary-foreground/20')).toBe(true);
+    expect(badge.classList.contains('text-primary-foreground')).toBe(true);
   });
 });

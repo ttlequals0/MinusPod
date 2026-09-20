@@ -110,7 +110,7 @@ function DataManagementSection({
 
   return (
     <CollapsibleSection title="Data Management" storageKey="settings-section-data-management">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
         {/* OPML Export Card */}
         <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
           <div className="flex items-start gap-3 mb-3">
@@ -128,7 +128,7 @@ function DataManagementSection({
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 items-stretch gap-2 mt-auto">
+          <div className="grid grid-cols-2 items-stretch gap-2">
             {(['modified', 'original'] as const).map((mode) => {
               const url = mode === 'modified' ? settings?.opmlModifiedUrl : settings?.opmlOriginalUrl;
               const items: DropdownMenuItem[] = [];
