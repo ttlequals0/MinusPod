@@ -212,12 +212,14 @@ def test_ffmpeg_time_isolated_between_concurrent_runs(monkeypatch):
     )
     contexts = []
     contexts_lock = threading.Lock()
+    workers_ready = threading.Barrier(2)
 
     def run_bound(episode_id):
         ctx = run_context.begin('example-podcast', episode_id)
         with contexts_lock:
             contexts.append(ctx)
         try:
+            workers_ready.wait(timeout=2)
             subprocess_registry.tracked_run(['ffmpeg', '-i', 'input.mp3'])
         finally:
             run_context.end(ctx)
