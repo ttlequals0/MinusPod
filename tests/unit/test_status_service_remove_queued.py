@@ -29,6 +29,11 @@ class TestRemoveQueuedEpisode:
         assert status_service.remove_queued_episode('pod', 'ep1') is True
         assert status_service.get_status().queued_episodes == []
 
+    def test_accepts_run_id_kwarg(self, status_service):
+        # Bound run contexts call queue_episode with run_id; must not raise.
+        status_service.queue_episode('pod', 'ep1', 'Title', 'Pod', run_id='abc')
+        assert status_service.get_status().queued_episodes[0]['episode_id'] == 'ep1'
+
     def test_returns_false_when_absent(self, status_service):
         assert status_service.remove_queued_episode('pod', 'missing') is False
 

@@ -361,7 +361,8 @@ class StatusService:
         self._notify_subscribers()
         return True
 
-    def queue_episode(self, slug: str, episode_id: str, title: str, podcast_name: str):
+    def queue_episode(self, slug: str, episode_id: str, title: str, podcast_name: str,
+                      run_id: str = None):
         """Add an episode to the queue."""
         with self._status_transaction():
             status = self._load()
