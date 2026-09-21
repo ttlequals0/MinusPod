@@ -439,6 +439,7 @@ export interface ProcessingRunTimings {
   verificationSeconds?: number | null;
   normalizationSeconds?: number | null;
   assetsSeconds?: number | null;
+  chaptersSeconds?: number | null;
   finalizeSeconds?: number | null;
   ffmpegSeconds?: number | null;
 }

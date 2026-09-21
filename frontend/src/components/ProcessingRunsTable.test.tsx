@@ -176,6 +176,24 @@ describe('ProcessingRunsTable', () => {
     expect(table.getAllByText('Unavailable').length).toBeGreaterThan(0);
   });
 
+  it('shows the Chapters row with a value, and Unavailable when absent', () => {
+    const withChapters: EpisodeProcessingRun = {
+      ...statsRun,
+      runNumber: 8,
+      stats: {
+        ...statsRun.stats!,
+        timings: { ...statsRun.stats!.timings, chaptersSeconds: 5 },
+      },
+    };
+    const withValue = renderTable([withChapters]);
+    fireEvent.click(withValue.getByRole('button', { name: /show phase breakdown for run #8/i }));
+    expect(withValue.getByText('Chapters').nextSibling?.textContent).toBe('0:05');
+
+    const withoutValue = renderTable([statsRun]);
+    fireEvent.click(withoutValue.getByRole('button', { name: /show phase breakdown for run #2/i }));
+    expect(withoutValue.getByText('Chapters').nextSibling?.textContent).toBe('Unavailable');
+  });
+
   it('marks a skip-detection run instead of showing zero stage hits', () => {
     const table = renderTable([skipDetectionRun]);
     expect(table.getByText('(no ad detection)')).toBeTruthy();

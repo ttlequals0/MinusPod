@@ -364,3 +364,51 @@ def test_recut_records_cut_and_asset_stages():
     assert ctx.timing.snapshot() == {
         'ffmpeg': 0.0, 'cut': 2.0, 'assets': 3.0,
     }
+
+
+def _stub_chapters_assets_io(monkeypatch, counters, chapters_enabled=True):
+    import chapters_generator
+    monkeypatch.setattr(
+        chapters_generator.ChaptersGenerator, 'generate_chapters',
+        lambda self, *a, **k: counters.__setitem__(
+            'generated', counters.get('generated', 0) + 1) or {'chapters': []})
+    monkeypatch.setattr(
+        processing.db, 'get_setting',
+        lambda k: ('true' if chapters_enabled else 'false') if k == 'chapters_enabled' else 'true')
+    monkeypatch.setattr(processing.storage, 'save_final_segments', lambda *a, **k: None)
+    monkeypatch.setattr(processing.storage, 'save_transcript_vtt', lambda *a, **k: None)
+    monkeypatch.setattr(processing.db, 'save_episode_details', lambda *a, **k: None)
+    monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts', lambda *a, **k: None)
+    monkeypatch.setattr(processing.storage, 'save_chapters_json', lambda *a, **k: None)
+    monkeypatch.setattr(processing, 'get_audio_duration', lambda p: None)
+    monkeypatch.setattr(processing, 'embed_chapters', lambda *a, **k: True)
+    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 2.0)
+
+
+_CHAPTERS_SEGMENTS = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
+
+
+def test_generate_assets_records_chapters_stage(monkeypatch):
+    counters = {}
+    _stub_chapters_assets_io(monkeypatch, counters)
+    ctx = run_context.begin('example-podcast', 'chapters-on')
+    try:
+        processing._generate_assets(
+            'example-podcast', 'chapters-on', _CHAPTERS_SEGMENTS, [], '', 'Pod', 'Title')
+    finally:
+        run_context.end(ctx)
+    assert counters.get('generated', 0) == 1
+    assert 'chapters' in ctx.timing.snapshot()
+
+
+def test_generate_assets_chapters_disabled_leaves_chapters_unrecorded(monkeypatch):
+    counters = {}
+    _stub_chapters_assets_io(monkeypatch, counters, chapters_enabled=False)
+    ctx = run_context.begin('example-podcast', 'chapters-off')
+    try:
+        processing._generate_assets(
+            'example-podcast', 'chapters-off', _CHAPTERS_SEGMENTS, [], '', 'Pod', 'Title')
+    finally:
+        run_context.end(ctx)
+    assert counters.get('generated', 0) == 0
+    assert 'chapters' not in ctx.timing.snapshot()

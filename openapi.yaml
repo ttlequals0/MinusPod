@@ -12202,6 +12202,11 @@ components:
                   type:
                     - number
                     - 'null'
+                chaptersSeconds:
+                  type:
+                    - number
+                    - 'null'
+                  description: Chapter generation. Included in assetsSeconds.
                 finalizeSeconds:
                   type:
                     - number
