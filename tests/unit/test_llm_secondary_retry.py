@@ -26,6 +26,7 @@ from llm_capabilities import (
 )
 from tests.unit.provider_error_fakes import FakeProviderError, FakeResponse, call_window
 from utils import llm_call
+from utils.circuit_breaker import CircuitBreakerOpen
 
 
 class _SequenceClient:
@@ -600,6 +601,60 @@ def test_secondary_auth_webhook_failure_does_not_escape(monkeypatch, no_retry_wa
     assert error is auth
     assert client.calls == 2
     assert no_retry_wait == [2]
+
+
+def test_breaker_retry_delay_adds_margin_past_the_cooldown():
+    """Jitter alone (0-0.25s) is why a retry landed 1s inside a 60s cooldown."""
+    error = CircuitBreakerOpen('llm-api:test', seconds_until_retry=59.0)
+
+    delay = llm_call._breaker_retry_delay(None, error, base_delay=5.0)
+
+    floor = 59.0 + llm_call.BREAKER_RETRY_MARGIN_SECONDS
+    assert floor <= delay <= floor + 0.25
+
+
+def test_final_fallback_attempt_gets_one_more_after_breaker_cooldown(
+        no_retry_wait, caplog):
+    breaker_open = CircuitBreakerOpen('llm-api:test', seconds_until_retry=5.0)
+    answered = SimpleNamespace(content='[]')
+    client = _SequenceClient(breaker_open, breaker_open, breaker_open, answered)
+
+    with caplog.at_level('WARNING'):
+        response, error = call_window(client, max_retries=0)
+
+    assert error is None
+    assert response is answered
+    assert client.calls == 4
+    assert 'per-window retry 3/3 after breaker cooldown' in caplog.text
+
+
+def test_final_fallback_attempt_skipped_past_the_wait_cap(no_retry_wait, caplog):
+    """A cooldown longer than the 90s cap gives up as before, no extra attempt."""
+    breaker_open = CircuitBreakerOpen('llm-api:test', seconds_until_retry=95.0)
+    client = _SequenceClient(breaker_open, breaker_open, breaker_open)
+
+    with caplog.at_level('WARNING'):
+        response, error = call_window(client, max_retries=0)
+
+    assert response is None
+    assert error is breaker_open
+    assert client.calls == 3
+    assert 'per-window retry 3/3' not in caplog.text
+
+
+def test_final_fallback_attempt_only_follows_circuit_breaker_open(
+        no_retry_wait, caplog):
+    """A non-breaker error never earns the extra attempt."""
+    transient = FakeProviderError('503 unavailable', status_code=503)
+    client = _SequenceClient(transient, transient, transient)
+
+    with caplog.at_level('WARNING'):
+        response, error = call_window(client, max_retries=0)
+
+    assert response is None
+    assert error is transient
+    assert client.calls == 3
+    assert 'per-window retry 3/3' not in caplog.text
 
 
 def test_empty_completion_carries_usage_for_the_ledger(monkeypatch):
