@@ -332,10 +332,63 @@ def test_rebuild_streams_source_rows_in_bounded_write_chunks(monkeypatch):
     first_write = next(i for i, q in enumerate(sqls) if q.startswith('INSERT INTO search_index_new'))
     assert batch_sizes and max(batch_sizes) <= 50
     assert kinds[first_write] == 'executemany'
-    swap = next(i for i, sql in enumerate(sqls) if sql.startswith('DROP TABLE search_index'))
-    assert sqls[swap + 1].startswith('ALTER TABLE')
-    assert sqls[swap + 1].endswith('RENAME TO search_index')
-    assert sqls[swap + 2] == 'SELECT COUNT(*) FROM search_index'
+    swap = next(i for i, sql in enumerate(sqls)
+               if sql.startswith('ALTER TABLE search_index RENAME TO'))
+    assert sqls[swap + 1].startswith('ALTER TABLE') and sqls[swap + 1].endswith('RENAME TO search_index')
+    # The final count runs after the swap (and its retired-table purge).
+    count = next(i for i, sql in enumerate(sqls) if sql == 'SELECT COUNT(*) FROM search_index')
+    assert count > swap
+
+
+def _leftover_search_tables(conn):
+    import database.search as search_mod
+    return [r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND "
+        "sql LIKE 'CREATE VIRTUAL TABLE%USING fts5%' AND "
+        "(name GLOB 'search_index_new_*' OR name GLOB 'search_index_retired_*')")
+        if search_mod._SHADOW_NAME_RE.fullmatch(r['name'])
+        or search_mod._RETIRED_NAME_RE.fullmatch(r['name'])]
+
+
+def test_rebuild_leaves_no_shadow_or_retired_table_and_search_still_works():
+    slug = _feed('rebuild-cleanup')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, original_url='https://example.com/a.mp3',
+                      title='Cleanup Episode', status='processed')
+
+    assert db.rebuild_search_index() > 0
+
+    conn = db.get_connection()
+    assert _leftover_search_tables(conn) == []
+    rows = db.search_grouped('Cleanup')['episodes']
+    assert _episode_hit(rows, ep_id)
+
+
+def test_a_purge_failure_after_a_committed_swap_is_cleaned_up_by_the_next_rebuild(monkeypatch):
+    """A crash between the swap commit and the purge finishing must not lose
+    the swap or fail the rebuild; the retired table is picked up next time."""
+    import database.search as search_mod
+
+    slug = _feed('rebuild-crash-purge')
+    ep_id = _eid()
+    db.upsert_episode(slug, ep_id, original_url='https://example.com/a.mp3',
+                      title='Crash Purge Episode', status='processed')
+
+    monkeypatch.setattr(search_mod.SearchMixin, '_purge_retired_shadow',
+                        lambda self, name: (_ for _ in ()).throw(RuntimeError('boom')))
+    assert db.rebuild_search_index() > 0
+
+    conn = db.get_connection()
+    retired = _leftover_search_tables(conn)
+    assert len(retired) == 1
+    assert search_mod._RETIRED_NAME_RE.fullmatch(retired[0])
+    # The swap itself still landed despite the purge failure.
+    rows = db.search_grouped('Crash Purge')['episodes']
+    assert _episode_hit(rows, ep_id)
+
+    monkeypatch.undo()
+    assert db.rebuild_search_index() > 0
+    assert _leftover_search_tables(conn) == []
 
 
 def test_rebuild_still_indexes_every_content_type(monkeypatch):

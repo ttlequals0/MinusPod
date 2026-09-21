@@ -45,6 +45,11 @@ SEARCH_INDEX_DDL = """CREATE VIRTUAL TABLE IF NOT EXISTS {name} USING fts5(
 )"""
 _SHADOW_PREFIX = 'search_index_new'
 _SHADOW_NAME_RE = re.compile(r'^search_index_new_[0-9]+_[0-9]+$')
+# The old index is renamed aside rather than dropped in the swap transaction
+# (an FTS5 DROP walks and deletes the whole corpus); it is purged afterwards.
+_RETIRED_PREFIX = 'search_index_retired'
+_RETIRED_NAME_RE = re.compile(r'^search_index_retired_[0-9]+_[0-9]+$')
+_PURGE_CHUNK_ROWS = 500
 
 
 @contextmanager
@@ -254,7 +259,11 @@ class SearchMixin:
 
     def _swap_in_shadow(self, shadow, insert, start_seq):
         """Replay pending changes into the shadow and swap it in as the live
-        index, retrying the swap on a lost write lock (see the module note)."""
+        index, retrying the swap on a lost write lock (see the module note).
+        The outgoing table is renamed aside (metadata-only) rather than
+        dropped here, so the write lock is held briefly; the actual FTS5
+        full-content drop runs after, in _purge_retired_shadow."""
+        retired = f"{_RETIRED_PREFIX}_{os.getpid()}_{threading.get_ident()}"
         for attempt in range(_SWAP_LOCK_RETRIES):
             try:
                 with self.transaction(immediate=True) as tx:
@@ -263,8 +272,16 @@ class SearchMixin:
                         "SELECT COALESCE(MAX(seq), 0) FROM search_index_changes"
                     ).fetchone()[0]
                     tx.execute("DELETE FROM search_index_changes WHERE seq <= ?", (applied_seq,))
-                    tx.execute("DROP TABLE search_index")
+                    tx.execute(f'ALTER TABLE search_index RENAME TO "{retired}"')
                     tx.execute(f'ALTER TABLE "{shadow}" RENAME TO search_index')
+                try:
+                    self._purge_retired_shadow(retired)
+                except Exception as exc:
+                    # The swap already committed; a purge failure must not be
+                    # reported as a failed rebuild. The next rebuild's
+                    # _drop_stale_shadows finishes the cleanup.
+                    logger.warning("Search index retired-table purge failed for %s: %s",
+                                   retired, exc)
                 return
             except sqlite3.OperationalError as exc:
                 if 'locked' not in str(exc).lower() or attempt == _SWAP_LOCK_RETRIES - 1:
@@ -273,6 +290,23 @@ class SearchMixin:
                     "Search index swap lost the write lock (attempt %d/%d); retrying",
                     attempt + 1, _SWAP_LOCK_RETRIES)
                 time.sleep(_SWAP_LOCK_BACKOFF_SECONDS * (attempt + 1))
+
+    def _purge_retired_shadow(self, name: str) -> None:
+        """Empty a renamed-aside index in short transactions, then drop it.
+
+        Raises on failure; the caller (_swap_in_shadow, or _drop_stale_shadows
+        cleaning up after a prior crash) is responsible for not letting that
+        fail the rebuild, since a table left behind is picked up next time.
+        """
+        while True:
+            with self.transaction(immediate=True) as tx:
+                cur = tx.execute(
+                    f'DELETE FROM "{name}" WHERE rowid IN '  # noqa: S608
+                    f'(SELECT rowid FROM "{name}" LIMIT {_PURGE_CHUNK_ROWS})')
+                if cur.rowcount <= 0:
+                    break
+        with self.transaction(immediate=True) as tx:
+            tx.execute(f'DROP TABLE IF EXISTS "{name}"')
 
     def _search_source_chunks(self):
         # Keep the source snapshot off the connection that writes the shadow.
@@ -352,7 +386,8 @@ class SearchMixin:
         return tuple(row) if row is not None else None
 
     def _drop_stale_shadows(self, conn) -> None:
-        """Remove shadows while the caller holds the exclusive rebuild lock."""
+        """Remove shadows while the caller holds the exclusive rebuild lock,
+        and finish purging any retired table a crash left mid-swap."""
         names = [r['name'] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name GLOB ? "
             "AND sql LIKE 'CREATE VIRTUAL TABLE%USING fts5%'",
@@ -365,6 +400,18 @@ class SearchMixin:
         if dropped:
             conn.commit()
             logger.warning(f"Dropped {dropped} stale search index shadow table(s)")
+
+        retired_names = [r['name'] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name GLOB ? "
+            "AND sql LIKE 'CREATE VIRTUAL TABLE%USING fts5%'",
+            (f"{_RETIRED_PREFIX}_[0-9]*_[0-9]*",))
+            if _RETIRED_NAME_RE.fullmatch(r['name'])]
+        for name in retired_names:
+            logger.warning(f"Purging retired search index table left by a previous rebuild: {name}")
+            try:
+                self._purge_retired_shadow(name)
+            except Exception as exc:
+                logger.warning("Search index retired-table purge failed for %s: %s", name, exc)
 
     def index_episode(self, episode_id: str, slug: str) -> bool:
         """Index or re-index a single episode in the search index."""

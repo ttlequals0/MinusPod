@@ -190,11 +190,17 @@ def test_the_swap_retries_on_a_locked_database_then_commits(temp_db, monkeypatch
 
     temp_db._swap_in_shadow(shadow, insert, 0)
 
-    assert n['i'] == 2  # locked once, then committed
+    # 1 locked attempt + 1 committed swap, then the retired-table purge opens
+    # its own short transactions (one empty delete, one drop).
+    assert n['i'] == 4
     # The shadow (carrying swap-feed) is now the live index.
     assert conn.execute(
         "SELECT COUNT(*) FROM search_index WHERE content_id = 'swap-feed'"
     ).fetchone()[0] == 1
+    # The renamed-aside original is fully purged, not left behind.
+    assert conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name GLOB ?",
+        (f"{search._RETIRED_PREFIX}_[0-9]*_[0-9]*",)).fetchone() is None
 
 
 def test_the_swap_gives_up_after_exhausting_its_retries(temp_db, monkeypatch):
