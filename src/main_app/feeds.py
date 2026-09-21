@@ -347,9 +347,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         # counts as success.
         parsed_feed = rss_parser.parse_feed(feed_content, source=slug)
         if parsed_feed is None:
-            # A cut-mid-document body is usually a one-off transfer glitch; one
-            # unconditional refetch clears it before falling back to backoff.
-            refresh_logger.info(f"[{slug}] Feed document truncated; refetching once")
+            # One immediate refetch usually clears a body cut in transfer before falling back to backoff.
+            refresh_logger.info(f"[{slug}] Feed body failed to parse; refetching once")
             feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
                 feed_url, etag=None, last_modified=None
             )

@@ -258,11 +258,9 @@ class SearchMixin:
                 time.sleep(_REBUILD_LOCK_BACKOFF_SECONDS * (attempt + 1))
 
     def _swap_in_shadow(self, shadow, insert, start_seq):
-        """Replay pending changes into the shadow and swap it in as the live
-        index, retrying the swap on a lost write lock (see the module note).
-        The outgoing table is renamed aside (metadata-only) rather than
-        dropped here, so the write lock is held briefly; the actual FTS5
-        full-content drop runs after, in _purge_retired_shadow."""
+        """Replay changes into the shadow and swap it in, retrying on a lost write lock.
+        The outgoing table is renamed aside (metadata-only, so the lock is held briefly);
+        the FTS5 drop that actually holds the lock runs after, in _purge_retired_shadow."""
         retired = f"{_RETIRED_PREFIX}_{os.getpid()}_{threading.get_ident()}"
         for attempt in range(_SWAP_LOCK_RETRIES):
             try:
@@ -293,11 +291,7 @@ class SearchMixin:
 
     def _purge_retired_shadow(self, name: str) -> None:
         """Empty a renamed-aside index in short transactions, then drop it.
-
-        Raises on failure; the caller (_swap_in_shadow, or _drop_stale_shadows
-        cleaning up after a prior crash) is responsible for not letting that
-        fail the rebuild, since a table left behind is picked up next time.
-        """
+        Raises on failure; callers must not let that fail the rebuild, since a table left behind is purged by the next rebuild."""
         while True:
             with self.transaction(immediate=True) as tx:
                 cur = tx.execute(

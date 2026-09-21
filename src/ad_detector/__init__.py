@@ -1402,16 +1402,9 @@ class AdDetector:
 
     def _sweep_lost_windows(self, *, windows, lost_results, worker_kwargs,
                             slug, episode_id):
-        """Retry windows lost to a transient outage once the breaker clears.
-
-        Only server_error/connectivity losses call this; other loss classes
-        would just fail the same retry again. Returns
-        ``(recovered, hold_error)``: ``recovered`` is the WindowResults that
-        came back non-failed (callers merge those in and adjust their
-        tallies); ``hold_error`` is set when a window hit a rate-limit hold
-        mid-sweep, matching the main loop's rule that a held 429 defers the
-        whole episode rather than degrading it.
-        """
+        """Retries windows lost to a transient outage after the breaker clears.
+        Returns ``(recovered, hold_error)``: ``recovered`` is the WindowResults
+        that came back non-failed; ``hold_error`` is a rate-limit hold met mid-sweep."""
         total_windows = len(windows)
         client = self._client_for_pass(worker_kwargs['pass_name'])
         retry_after = getattr(client, 'circuit_retry_after', None)
@@ -1551,9 +1544,29 @@ class AdDetector:
         addressing = AddressingStats()
 
         def _merge_window_result(result):
-            """Fold one non-failed WindowResult's addressing stats, raw
-            response, and ads into the pass totals. Shared by the main loop
-            and the sweep so the two merges cannot drift apart."""
+            """Repair missing categories (if enabled), then fold a non-failed WindowResult into the pass totals."""
+            nonlocal category_repaired, hold_error
+            if category_repair_enabled:
+                # _repair_window_categories no-ops when nothing here is
+                # missing a category; checking first would just scan `ads`
+                # twice for the same answer.
+                window_label = f"{window_label_prefix} {result.window_idx + 1}"
+                try:
+                    category_repaired += self._repair_window_categories(
+                        ads=result.ads,
+                        transcript_excerpt=result.transcript_excerpt,
+                        model=model,
+                        llm_timeout=llm_timeout,
+                        max_retries=max_retries,
+                        slug=slug,
+                        episode_id=episode_id,
+                        window_label=window_label,
+                        pass_name=pass_name,
+                    )
+                except ProviderRateLimitedError as e:
+                    # Same rule as a held window: the hold defers the episode.
+                    hold_error = e
+                    return
             if result.compliant is not None:
                 addressing.windows_judged += 1
                 if result.compliant:
@@ -1583,28 +1596,10 @@ class AdDetector:
                 if isinstance(result.last_error, ProviderRateLimitedError):
                     hold_error = result.last_error
                 continue
-            if category_repair_enabled:
-                # _repair_window_categories no-ops when nothing here is
-                # missing a category; checking first would just scan `ads`
-                # twice for the same answer.
-                window_label = f"{window_label_prefix} {result.window_idx + 1}"
-                try:
-                    category_repaired += self._repair_window_categories(
-                        ads=result.ads,
-                        transcript_excerpt=result.transcript_excerpt,
-                        model=model,
-                        llm_timeout=llm_timeout,
-                        max_retries=max_retries,
-                        slug=slug,
-                        episode_id=episode_id,
-                        window_label=window_label,
-                        pass_name=pass_name,
-                    )
-                except ProviderRateLimitedError as e:
-                    # Same rule as a held window: the hold defers the episode.
-                    hold_error = e
-                    break
+            was_holding = hold_error
             _merge_window_result(result)
+            if hold_error is not None and was_holding is None:
+                break
 
         # A window lost to a transient outage (5xx/connectivity) is worth one
         # more try once the breaker clears; other loss classes would not.
@@ -1638,6 +1633,8 @@ class AdDetector:
                     if window_losses[old_loss] == 0:
                         del window_losses[old_loss]
                     _merge_window_result(result)
+                    if hold_error is not None:
+                        break
                 if sweep_hold_error is not None:
                     hold_error = sweep_hold_error
 

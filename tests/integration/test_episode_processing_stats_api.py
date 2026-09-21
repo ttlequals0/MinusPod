@@ -81,6 +81,7 @@ STATS_API = {
         'verificationSeconds': 20.0,
         'normalizationSeconds': 0.0,
         'assetsSeconds': 2.0,
+        'chaptersSeconds': None,
         'finalizeSeconds': 1.0,
         'ffmpegSeconds': 31.0,
     },
@@ -187,6 +188,7 @@ def test_failed_run_preserves_partial_stage_timings(app_client, seeded):
         'verificationSeconds': None,
         'normalizationSeconds': None,
         'assetsSeconds': None,
+        'chaptersSeconds': None,
         'finalizeSeconds': None,
         'ffmpegSeconds': 7.5,
     }

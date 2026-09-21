@@ -1,6 +1,6 @@
 """A lost detection window is recorded by what lost it; a reasoning-truncated reply counts as a loss."""
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -496,3 +496,28 @@ class TestLostWindowSweep:
         assert failure['rate_limited_hold'] is True
         assert failure['retry_after_seconds'] == 900.0
         assert 'recovered0' in raw
+
+    def test_sweep_recovered_windows_get_category_repair(self):
+        """A swept window must go through the same repair as the main loop's results."""
+        results = [_failed_window(0, _ProviderError('bad gateway', 502))]
+        results += [_answered_window(i) for i in range(1, 3)]
+        detector = AdDetector(api_key='test-key')
+        repair_mock = MagicMock(side_effect=lambda **kw: 0)
+
+        def stub(*, window_idx, window, total_windows, **_kwargs):
+            return _recovered_window(window_idx)
+
+        with patch.object(detector, '_run_windows', return_value=results), \
+             patch.object(detector, '_client_for_pass', return_value=SimpleNamespace()), \
+             patch.object(detector, '_process_single_window', side_effect=stub), \
+             patch.object(detector, '_repair_window_categories', repair_mock):
+            detector._run_detection_pass(
+                _windows(len(results)), pass_label='Detection', model='x',
+                system_prompt='x', description_section='x', podcast_name='p',
+                episode_title='e', audio_analysis=None, progress_callback=None,
+                progress_base=0, progress_range=100, slug='s', episode_id='1',
+                pass_name=PASS_AD_DETECTION_1, window_label_prefix='Window',
+                validate_timestamps=False, category_repair_enabled=True)
+
+        repaired_labels = [c.kwargs['window_label'] for c in repair_mock.call_args_list]
+        assert 'Window 1' in repaired_labels
