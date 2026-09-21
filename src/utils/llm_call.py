@@ -43,6 +43,12 @@ logger = logging.getLogger(__name__)
 FALLBACK_RETRY_AFTER_CAP_SECONDS = float(MIN_HOLD_RESET_SECONDS)
 # Slice that wait so a container stop is not sat out.
 RETRY_SLEEP_SLICE_SECONDS = 5.0
+# Headroom past the breaker's reported cooldown so jitter never lands a
+# retry back inside the cooldown window.
+BREAKER_RETRY_MARGIN_SECONDS = 1.0
+# Longest a per-window retry will wait out a breaker cooldown; past this the
+# outage is treated as ongoing and the window is given up on as before.
+BREAKER_WAIT_CAP_SECONDS = 90.0
 
 
 def json_schema_format(name: str, schema: dict, description: str | None = None) -> dict:
@@ -397,7 +403,8 @@ def _breaker_retry_delay(llm_client, error, base_delay: float) -> float:
         remaining = retry_after() if callable(retry_after) else None
     if remaining is None:
         return base_delay
-    return max(base_delay, float(remaining)) + random.uniform(0.0, 0.25)
+    return (max(base_delay, float(remaining) + BREAKER_RETRY_MARGIN_SECONDS)
+            + random.uniform(0.0, 0.25))
 
 
 def _fire_limit_exceeded_webhook(error, model, provider=None):
@@ -716,6 +723,39 @@ def call_llm(
                 logger.warning(
                     f"[{slug}:{episode_id}] {call_label} retry {retry_num} failed: {e}"
                 )
+
+    # The breaker rejected every retry above without the provider ever being
+    # asked; once its cooldown clears, spend one real attempt before giving up.
+    if isinstance(last_error, CircuitBreakerOpen):
+        wait = last_error.seconds_until_retry + BREAKER_RETRY_MARGIN_SECONDS
+        if wait <= BREAKER_WAIT_CAP_SECONDS:
+            held = _manual_rate_limit_error(provider_key, credential_slot, slug,
+                                            episode_id, phase=phase_key)
+            if held is not None:
+                return None, _lost_window(held, is_window, slug, episode_id, call_label)
+            logger.warning(
+                f"[{slug}:{episode_id}] {call_label} per-window retry 3/3 after "
+                f"breaker cooldown ({wait:.1f}s)"
+            )
+            if _sleep_before_retry(wait):
+                try:
+                    response = dispatch()
+                    logger.info(
+                        f"[{slug}:{episode_id}] {call_label} succeeded on retry 3"
+                    )
+                    return response, None
+                except Exception as e:
+                    last_error = e
+                    if not isinstance(e, ReasoningExhaustedError):
+                        if _is_manual_cap_error(e):
+                            return None, _lost_window(e, is_window, slug, episode_id,
+                                                      call_label)
+                        terminal = _terminal_error(
+                            e, model=model, slug=slug, episode_id=episode_id,
+                            call_label=call_label, provider=provider,
+                            credential_slot=credential_slot, phase=phase_key)
+                        if terminal is not None:
+                            last_error = terminal
 
     return None, _lost_window(last_error, is_window, slug, episode_id, call_label)
 

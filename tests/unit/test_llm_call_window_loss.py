@@ -1,4 +1,5 @@
 """A lost detection window is recorded by what lost it; a reasoning-truncated reply counts as a loss."""
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -117,7 +118,8 @@ class TestCircuitCooldownRetries:
 
         assert last_error is None
         assert response.content == '{"ads": []}'
-        assert waits == [47.0]
+        # The margin past the breaker's 47.0s cooldown is why the wait is 48.0s.
+        assert waits == [48.0]
 
     def test_fallback_retries_wait_for_open_breaker_and_remain_bounded(
             self, run_ctx, monkeypatch):
@@ -137,7 +139,8 @@ class TestCircuitCooldownRetries:
 
         assert response is None
         assert last_error.status_code == 503
-        assert waits == [2, 41.0]
+        # The margin past the breaker's 41.0s cooldown is why the wait is 42.0s.
+        assert waits == [2, 42.0]
         assert client.calls == 3
 
     def test_shutdown_during_breaker_wait_stops_retry(self, run_ctx, monkeypatch):
@@ -391,3 +394,105 @@ class TestExhaustedOutputBudget:
 
         assert isinstance(error, ReasoningExhaustedError)
         assert client.calls == 2
+
+
+def _recovered_window(idx):
+    return WindowResult(
+        window_idx=idx, window_start=idx * 60.0, window_end=idx * 60.0 + 60.0,
+        ads=[{'start': idx * 60.0 + 10.0, 'end': idx * 60.0 + 30.0,
+              'confidence': 0.9, 'sponsor': f'recovered-{idx}'}],
+        raw_response=f'recovered{idx}', failed=False, last_error=None)
+
+
+class TestLostWindowSweep:
+    """A window lost to a transient outage gets one sequential retry pass
+    once the main loop finishes, but only when every loss is the kind an
+    outage causes."""
+
+    def _run(self, results, *, sweep_calls=None):
+        detector = AdDetector(api_key='test-key')
+        sweep_calls = sweep_calls if sweep_calls is not None else []
+
+        def stub(*, window_idx, window, total_windows, **_kwargs):
+            sweep_calls.append(window_idx)
+            return _recovered_window(window_idx)
+
+        with patch.object(detector, '_run_windows', return_value=results), \
+             patch.object(detector, '_client_for_pass', return_value=SimpleNamespace()), \
+             patch.object(detector, '_process_single_window', side_effect=stub):
+            return detector._run_detection_pass(
+                _windows(len(results)), pass_label='Detection', model='x',
+                system_prompt='x', description_section='x', podcast_name='p',
+                episode_title='e', audio_analysis=None, progress_callback=None,
+                progress_base=0, progress_range=100, slug='s', episode_id='1',
+                pass_name=PASS_AD_DETECTION_1, window_label_prefix='Window',
+                validate_timestamps=False)
+
+    def test_sweep_recovers_a_server_error_window(self):
+        results = [_failed_window(0, _ProviderError('bad gateway', 502))]
+        results += [_answered_window(i) for i in range(1, 4)]
+        sweep_calls = []
+
+        (ads, _raw, failed_windows, failure, _cm, _ct, _cr, losses, _a) = self._run(
+            results, sweep_calls=sweep_calls)
+
+        assert sweep_calls == [0]
+        assert failure is None
+        assert failed_windows == 0
+        assert losses == {}
+        assert any(ad['sponsor'] == 'recovered-0' for ad in ads)
+
+    def test_sweep_skipped_when_a_lost_window_is_rate_limit(self):
+        held = ProviderRateLimitedError('reset in 60s', retry_after_seconds=60)
+        results = [_failed_window(0, _ProviderError('bad gateway', 502)),
+                   _failed_window(1, held)]
+        results += [_answered_window(i) for i in range(2, 8)]
+        sweep_calls = []
+
+        (_ads, _raw, failed_windows, _failure, _cm, _ct, _cr, losses, _a) = self._run(
+            results, sweep_calls=sweep_calls)
+
+        assert sweep_calls == []
+        assert failed_windows == 2
+        assert losses == {LOSS_SERVER_ERROR: 1, LOSS_RATE_LIMIT: 1}
+
+    def test_sweep_skipped_when_all_windows_failed(self):
+        results = [_failed_window(i, _ProviderError('bad gateway', 502))
+                   for i in range(3)]
+        sweep_calls = []
+
+        self._run(results, sweep_calls=sweep_calls)
+
+        assert sweep_calls == []
+
+    def test_sweep_hold_defers_instead_of_crashing(self):
+        """A rate limit hit mid-sweep must defer the episode like a held
+        window in the main loop, not raise out of the pass. Whatever the
+        sweep already recovered before the hold still gets merged in."""
+        held = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
+        results = [_failed_window(0, _ProviderError('bad gateway', 502)),
+                   _failed_window(1, _ProviderError('bad gateway', 502))]
+        results += [_answered_window(i) for i in range(2, 5)]
+        detector = AdDetector(api_key='test-key')
+
+        def stub(*, window_idx, window, total_windows, **_kwargs):
+            if window_idx == 0:
+                return _recovered_window(0)
+            raise held
+
+        with patch.object(detector, '_run_windows', return_value=results), \
+             patch.object(detector, '_client_for_pass', return_value=SimpleNamespace()), \
+             patch.object(detector, '_process_single_window', side_effect=stub):
+            (_ads, raw, _fw, failure, _cm, _ct, _cr, _losses, _a) = (
+                detector._run_detection_pass(
+                    _windows(len(results)), pass_label='Detection', model='x',
+                    system_prompt='x', description_section='x', podcast_name='p',
+                    episode_title='e', audio_analysis=None, progress_callback=None,
+                    progress_base=0, progress_range=100, slug='s', episode_id='1',
+                    pass_name=PASS_AD_DETECTION_1, window_label_prefix='Window',
+                    validate_timestamps=False))
+
+        assert failure is not None
+        assert failure['rate_limited_hold'] is True
+        assert failure['retry_after_seconds'] == 900.0
+        assert 'recovered0' in raw

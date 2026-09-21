@@ -29,7 +29,9 @@ from run_context import route_for_phase, run_in_worker_thread
 from sponsor_normalize import segment_category_for
 from utils.language import get_pattern_language
 from utils.llm_call import (
-    call_llm, call_llm_for_window, schema_format_for, window_loss_class,
+    BREAKER_RETRY_MARGIN_SECONDS, BREAKER_WAIT_CAP_SECONDS, LOSS_CONNECTIVITY,
+    LOSS_SERVER_ERROR, _sleep_before_retry, call_llm, call_llm_for_window,
+    schema_format_for, window_loss_class,
 )
 from utils.markers import (
     DAI_CORE_SPANS,
@@ -1398,6 +1400,57 @@ class AdDetector:
                     break
         return ordered
 
+    def _sweep_lost_windows(self, *, windows, lost_results, worker_kwargs,
+                            slug, episode_id):
+        """Retry windows lost to a transient outage once the breaker clears.
+
+        Only server_error/connectivity losses call this; other loss classes
+        would just fail the same retry again. Returns
+        ``(recovered, hold_error)``: ``recovered`` is the WindowResults that
+        came back non-failed (callers merge those in and adjust their
+        tallies); ``hold_error`` is set when a window hit a rate-limit hold
+        mid-sweep, matching the main loop's rule that a held 429 defers the
+        whole episode rather than degrading it.
+        """
+        total_windows = len(windows)
+        client = self._client_for_pass(worker_kwargs['pass_name'])
+        retry_after = getattr(client, 'circuit_retry_after', None)
+        remaining = retry_after() if callable(retry_after) else None
+        if remaining is not None and remaining > 0:
+            if remaining > BREAKER_WAIT_CAP_SECONDS:
+                logger.warning(
+                    f"[{slug}:{episode_id}] Sweep skipped: breaker cooldown "
+                    f"{remaining:.0f}s exceeds the {BREAKER_WAIT_CAP_SECONDS:.0f}s cap"
+                )
+                return [], None
+            if not _sleep_before_retry(remaining + BREAKER_RETRY_MARGIN_SECONDS):
+                return [], None
+
+        recovered = []
+        for lost in lost_results:
+            idx = lost.window_idx
+            try:
+                result = self._process_single_window(
+                    window_idx=idx, window=windows[idx], total_windows=total_windows,
+                    **worker_kwargs)
+            except ProviderRateLimitedError as e:
+                logger.warning(
+                    f"[{slug}:{episode_id}] Sweep: window {idx + 1}/{total_windows} "
+                    "hit a rate-limit hold; deferring the episode"
+                )
+                return recovered, e
+            if not result.failed:
+                logger.info(
+                    f"[{slug}:{episode_id}] Window {idx + 1}/{total_windows} "
+                    "recovered on sweep"
+                )
+                recovered.append(result)
+        logger.warning(
+            f"[{slug}:{episode_id}] Sweep: {len(recovered)} of "
+            f"{len(lost_results)} lost windows recovered"
+        )
+        return recovered, None
+
     def _run_detection_pass(self, windows, *, pass_label, model, system_prompt,
                             description_section, podcast_name, episode_title,
                             audio_analysis, progress_callback,
@@ -1496,6 +1549,24 @@ class AdDetector:
         category_repaired = 0
         hold_error = None
         addressing = AddressingStats()
+
+        def _merge_window_result(result):
+            """Fold one non-failed WindowResult's addressing stats, raw
+            response, and ads into the pass totals. Shared by the main loop
+            and the sweep so the two merges cannot drift apart."""
+            if result.compliant is not None:
+                addressing.windows_judged += 1
+                if result.compliant:
+                    addressing.windows_compliant += 1
+                addressing.ads_proposed += result.ads_proposed
+                addressing.ads_kept += len(result.ads)
+                addressing.dropped_invalid_ref += result.dropped_invalid_ref
+                addressing.dropped_out_of_window += result.dropped_out_of_window
+                addressing.dropped_too_long += result.dropped_too_long
+            if result.raw_response:
+                all_raw_responses.append(result.raw_response)
+            all_window_ads.extend(result.ads)
+
         for result in window_results:
             if result.failed:
                 failed_windows += 1
@@ -1512,15 +1583,6 @@ class AdDetector:
                 if isinstance(result.last_error, ProviderRateLimitedError):
                     hold_error = result.last_error
                 continue
-            if result.compliant is not None:
-                addressing.windows_judged += 1
-                if result.compliant:
-                    addressing.windows_compliant += 1
-                addressing.ads_proposed += result.ads_proposed
-                addressing.ads_kept += len(result.ads)
-                addressing.dropped_invalid_ref += result.dropped_invalid_ref
-                addressing.dropped_out_of_window += result.dropped_out_of_window
-                addressing.dropped_too_long += result.dropped_too_long
             if category_repair_enabled:
                 # _repair_window_categories no-ops when nothing here is
                 # missing a category; checking first would just scan `ads`
@@ -1542,9 +1604,42 @@ class AdDetector:
                     # Same rule as a held window: the hold defers the episode.
                     hold_error = e
                     break
-            if result.raw_response:
-                all_raw_responses.append(result.raw_response)
-            all_window_ads.extend(result.ads)
+            _merge_window_result(result)
+
+        # A window lost to a transient outage (5xx/connectivity) is worth one
+        # more try once the breaker clears; other loss classes would not.
+        if hold_error is None and 0 < failed_windows < len(windows):
+            lost_results = [r for r in window_results if r.failed]
+            lost_losses = {
+                r.window_idx: (r.loss_class or window_loss_class(r.last_error))
+                for r in lost_results
+            }
+            if all(loss in (LOSS_SERVER_ERROR, LOSS_CONNECTIVITY)
+                  for loss in lost_losses.values()):
+                worker_kwargs = dict(
+                    model=model, system_prompt=system_prompt,
+                    description_section=description_section,
+                    podcast_name=podcast_name, episode_title=episode_title,
+                    audio_enforcer=audio_enforcer, audio_analysis=audio_analysis,
+                    llm_timeout=llm_timeout, max_retries=max_retries,
+                    slug=slug, episode_id=episode_id, pass_name=pass_name,
+                    window_label_prefix=window_label_prefix,
+                    validate_timestamps=validate_timestamps,
+                    recurrence_spans=recurrence_spans,
+                    addressing_mode=addressing_mode,
+                )
+                recovered_results, sweep_hold_error = self._sweep_lost_windows(
+                    windows=windows, lost_results=lost_results,
+                    worker_kwargs=worker_kwargs, slug=slug, episode_id=episode_id)
+                for result in recovered_results:
+                    failed_windows -= 1
+                    old_loss = lost_losses[result.window_idx]
+                    window_losses[old_loss] -= 1
+                    if window_losses[old_loss] == 0:
+                        del window_losses[old_loss]
+                    _merge_window_result(result)
+                if sweep_hold_error is not None:
+                    hold_error = sweep_hold_error
 
         if failed_windows > 0:
             logger.warning(
