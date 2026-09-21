@@ -9,6 +9,22 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.11] - 2026-09-21
+
+### Added
+
+- Processing run history shows chapter generation as its own timing row. It is included in the assets stage total, and reads "Unavailable" when chapters were not generated.
+
+### Fixed
+
+- Detection and verification windows lost to a provider outage are retried once the circuit breaker recovers. The breaker wait now adds a 1 s margin so a retry cannot land just inside the cooldown, a final retry that only hit an open breaker gets one more attempt, and after a pass any windows lost to server errors or connectivity are swept once more. A run previously finished with part of the episode unexamined when a provider returned 500s for a minute.
+- The Ollama context window setting (`num_ctx`) is now sent. Ollama's OpenAI-compatible endpoint cannot accept it, so when the setting is on the Ollama client uses the native chat API, which honors it (#780).
+- LLM answers shaped `{"ad_segments": [...]}` are now parsed; they previously counted as zero ads (#780).
+- The low ad yield rerun no longer fails to publish its queue entry. The status publisher passes the run id to every status method, and the queue method did not accept it.
+- A feed body that fails to parse is refetched once before the feed enters parse backoff. A host serving a body cut mid-document usually returns a complete one on the next request, so the 30 minute backoff no longer delays new episodes for a one-off glitch.
+- A feed whose episodes are all processed no longer forces a full fetch on every refresh. The unchanged-feed path counted only unprocessed episodes to decide whether the feed had been discovered.
+- The search index rebuild holds the write lock for milliseconds instead of about 10 s during the swap. The old FTS5 table is renamed aside and purged in small batches after the swap instead of being dropped inside the swap transaction.
+
 ## [2.97.10] - 2026-09-20
 
 ### Fixed
