@@ -453,6 +453,7 @@ def _run_stats_to_api(stats):
             'verificationSeconds': timings.get('verification'),
             'normalizationSeconds': timings.get('normalization'),
             'assetsSeconds': timings.get('assets'),
+            'chaptersSeconds': timings.get('chapters'),
             'finalizeSeconds': timings.get('finalize'),
             'ffmpegSeconds': timings.get('ffmpeg'),
         } if timings is not None else None,

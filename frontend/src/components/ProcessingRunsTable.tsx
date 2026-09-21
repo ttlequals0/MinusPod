@@ -29,6 +29,7 @@ const TIMING_STAGES = [
   ['verificationSeconds', 'Verification'],
   ['normalizationSeconds', 'Normalization'],
   ['assetsSeconds', 'Assets'],
+  ['chaptersSeconds', 'Chapters'],
   ['finalizeSeconds', 'Save episode and feed'],
   ['ffmpegSeconds', 'FFmpeg'],
 ] as const;
