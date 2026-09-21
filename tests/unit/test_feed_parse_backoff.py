@@ -163,6 +163,62 @@ class TestParseFailureRecording(RefreshCase):
         self.db.clear_parse_failure_state.assert_called_once_with('example-podcast')
 
 
+class TestTruncatedBodyRefetch(RefreshCase):
+    """A body that fails to parse gets one immediate refetch before backoff."""
+
+    def test_truncated_then_good_body_succeeds_without_a_backoff_stamp(self):
+        self._rows(parse_failure_count=0)
+        self.rss_parser.fetch_feed_conditional.side_effect = [
+            ('<rss><trunc', 'e1', None),
+            ('<rss/>', 'e2', None),
+        ]
+        self.rss_parser.parse_feed.side_effect = [
+            None,
+            MagicMock(feed={'title': 'Example Show'}, entries=[], bozo=False),
+        ]
+        self.rss_parser.find_channel_element.return_value = None
+        self.rss_parser.resolve_channel_fields.return_value = {
+            'title': 'Example Show', 'description': '', 'link': '',
+            'language': 'en', 'author': '', 'categories': []}
+        self.rss_parser.extract_podcast_artwork_url.return_value = None
+        self.rss_parser.extract_podping_declaration.return_value = {
+            'uses_podping': None, 'hive_accounts': []}
+        self.rss_parser.extract_episodes.return_value = []
+        self.db.bulk_upsert_discovered_episodes.return_value = 0
+        self.db.get_episode_statuses_for_podcast.return_value = ({}, {})
+        self.db.is_auto_process_enabled_for_podcast.return_value = False
+
+        with patch.object(feeds, '_build_and_save_served_rss'):
+            outcome = self._refresh()
+
+        self.assertTrue(outcome.success)
+        self.assertEqual(self.rss_parser.fetch_feed_conditional.call_count, 2)
+        retry_kwargs = self.rss_parser.fetch_feed_conditional.call_args_list[1].kwargs
+        self.assertIsNone(retry_kwargs['etag'])
+        self.assertIsNone(retry_kwargs['last_modified'])
+        self.assertEqual([c for c in self.db.update_podcast.call_args_list
+                          if 'parse_failure_count' in c.kwargs], [])
+
+    def test_truncated_twice_records_one_failure_and_backs_off(self):
+        self._rows(parse_failure_count=0)
+        self.rss_parser.fetch_feed_conditional.side_effect = [
+            ('<rss><trunc', 'e1', None),
+            ('<rss><trunc-again', 'e2', None),
+        ]
+        self.rss_parser.parse_feed.side_effect = [None, None]
+
+        outcome = self._refresh()
+
+        self.assertFalse(outcome.success)
+        self.assertEqual(outcome.status, 'parse_failed')
+        self.assertEqual(self.rss_parser.fetch_feed_conditional.call_count, 2)
+        stamped = [c for c in self.db.update_podcast.call_args_list
+                  if 'parse_failure_count' in c.kwargs]
+        self.assertEqual(len(stamped), 1)
+        self.assertEqual(stamped[0].kwargs['parse_failure_count'], 1)
+        self.assertIn('retrying a full fetch in', outcome.error)
+
+
 class TestBackoffHoldsTheFullFetch(RefreshCase):
     def test_stale_cache_refetch_waits_for_the_backoff(self):
         self._rows(parse_failure_count=1,
