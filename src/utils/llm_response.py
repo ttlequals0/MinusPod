@@ -122,13 +122,14 @@ def extract_json_ads_array(
                 # Include singular "ad": local models (e.g. qwen2.5 via Ollama)
                 # often return {"ad": [...]} instead of {"ads": [...]}.
                 for key in ['ads_detected', 'ads', 'ad', 'advertisement_segments',
-                            'ads_and_sponsorships', 'segments']:
+                            'ads_and_sponsorships', 'ad_segments', 'segments']:
                     if key in window and isinstance(window[key], list):
                         ads = window[key]
                         if key == 'segments':
                             ads = _segment_entries_to_ads(ads)
                         return ads, f"json_object_window_{key}"
-            ad_keys = ['ads', 'ad', 'ads_detected', 'advertisement_segments', 'ads_and_sponsorships']
+            ad_keys = ['ads', 'ad', 'ads_detected', 'advertisement_segments',
+                      'ads_and_sponsorships', 'ad_segments']
             for key in ad_keys:
                 if key in parsed and isinstance(parsed[key], list):
                     return parsed[key], f"json_object_{key}_key"

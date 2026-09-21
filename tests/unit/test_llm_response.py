@@ -260,6 +260,24 @@ def test_extract_json_ads_array_accepts_singular_ad_key():
     assert method == "json_object_ad_key"
 
 
+def test_extract_json_ads_array_accepts_top_level_ad_segments_key():
+    """Issue #780: a window answered with {"ad_segments": [...]} and was
+    logged as 0 ads because the key wasn't in the top-level allowlist."""
+    ads, method = extract_json_ads_array(
+        '{"ad_segments":[{"start_time":16.0,"end_time":37.5}]}'
+    )
+    assert ads == [{"start_time": 16.0, "end_time": 37.5}]
+    assert method == "json_object_ad_segments_key"
+
+
+def test_extract_json_ads_array_accepts_window_ad_segments_key():
+    ads, method = extract_json_ads_array(
+        '{"window":{"ad_segments":[{"start_time":16.0,"end_time":37.5}]}}'
+    )
+    assert ads == [{"start_time": 16.0, "end_time": 37.5}]
+    assert method == "json_object_window_ad_segments"
+
+
 # ---------- json_object_is_blank ----------
 
 @pytest.mark.parametrize('body', ['{}', '  {}  ', '{"ads": null}',

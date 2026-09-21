@@ -47,6 +47,19 @@ def test_parse_ads_from_response_module_level_basic():
     assert ads[0]['end'] == 160.0
 
 
+def test_parse_ads_from_response_accepts_ad_segments_key():
+    # Issue #780: {"ad_segments": [...]} was logged as 0 ads because the key
+    # wasn't recognized; the fuzzy start/end matcher already accepts
+    # start_time/end_time once the entries are extracted.
+    response = json.dumps({"ad_segments": [
+        {"start_time": 16.0, "end_time": 37.5, "confidence": 0.9},
+    ]})
+    ads = parse_ads_from_response(response)
+    assert len(ads) == 1
+    assert ads[0]['start'] == 16.0
+    assert ads[0]['end'] == 37.5
+
+
 def test_parse_ads_from_response_flattens_ad_break_envelope():
     # The model intermittently wraps ads in {"ad_break_index": N, "ads": [...]}
     # instead of emitting them flat (observed in prod 2026-06-18). The envelope
