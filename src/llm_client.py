@@ -1063,9 +1063,10 @@ class OllamaNativeChatError(Exception):
     """A non-2xx response from Ollama's native /api/chat endpoint; carries
     status_code so the shared classifiers recognize it without an SDK type."""
 
-    def __init__(self, message: str, status_code: int | None = None):
+    def __init__(self, message: str, status_code: int | None = None, response=None):
         super().__init__(message)
         self.status_code = status_code
+        self.response = response
 
 
 class OpenAICompatibleClient(LLMClient):
@@ -1691,7 +1692,9 @@ class OllamaNativeClient(OpenAICompatibleClient):
                 body["format"] = "json"
         normalized_reasoning = translate_reasoning_effort(
             PROVIDER_OLLAMA, reasoning_effort).get("reasoning_effort")
-        body["think"] = normalized_reasoning not in (None, "none")
+        body["think"] = (
+            False if normalized_reasoning in (None, "none") else normalized_reasoning
+        )
         return body
 
     def _send_ollama_native_request(self, body: dict, timeout: float) -> dict:
@@ -1724,7 +1727,7 @@ class OllamaNativeClient(OpenAICompatibleClient):
             message = f"Ollama native chat rate limit (429): {detail}"
         else:
             message = f"Ollama native chat failed ({status}): {detail}"
-        return OllamaNativeChatError(message, status_code=status)
+        return OllamaNativeChatError(message, status_code=status, response=resp)
 
     def _map_ollama_native_response(self, data: dict, model: str, max_tokens: int) -> LLMResponse:
         """Map a native /api/chat JSON body into LLMResponse."""

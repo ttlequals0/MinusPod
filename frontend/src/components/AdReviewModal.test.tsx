@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -59,7 +59,7 @@ function renderModal(over: Partial<React.ComponentProps<typeof AdReviewModal>> =
   const onSubmit = vi.fn();
   const onSkip = vi.fn();
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
+  const view = render(
     <QueryClientProvider client={qc}>
       <AdReviewModal
         item={ITEM}
@@ -71,7 +71,7 @@ function renderModal(over: Partial<React.ComponentProps<typeof AdReviewModal>> =
       />
     </QueryClientProvider>,
   );
-  return { onClose, onSubmit, onSkip };
+  return { onClose, onSubmit, onSkip, ...view };
 }
 
 beforeEach(() => {
@@ -199,5 +199,26 @@ describe('AdReviewModal set-edge-at-playhead buttons', () => {
     expect(start.value).toBe('0:00.0');
     expect(end.value).toBe('0:01.0');
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdReviewModal waveform wheel zoom', () => {
+  it('cancels vertical page scrolling while preserving horizontal wheel input', async () => {
+    const { container } = renderModal();
+    const waveform = container.querySelector('div.overflow-hidden');
+    if (!waveform) throw new Error('waveform wrapper not rendered');
+    const zoom = screen.getByTitle('Zoom') as HTMLInputElement;
+    const initialZoom = zoom.value;
+
+    const vertical = new WheelEvent('wheel', {
+      deltaY: -100, clientX: 100, cancelable: true,
+    });
+    expect(waveform.dispatchEvent(vertical)).toBe(false);
+    await waitFor(() => expect(zoom.value).not.toBe(initialZoom));
+
+    const horizontal = new WheelEvent('wheel', {
+      deltaX: 100, deltaY: 1, clientX: 100, cancelable: true,
+    });
+    expect(waveform.dispatchEvent(horizontal)).toBe(true);
   });
 });

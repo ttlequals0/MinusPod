@@ -153,6 +153,7 @@ function AdReviewModal({
   const cursorRef = useRef<HTMLDivElement>(null);      // playhead, position-updated from RAF
   const scrubberRef = useRef<HTMLDivElement>(null);    // full-episode play scrubber (seeks audio)
   const windowScrubberRef = useRef<HTMLDivElement>(null); // full-episode pan scrubber (pans zoomed window)
+  const waveformScrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   // The timeupdate listener that stops "Play selection" at the ad END. Held in
   // a ref so togglePlay/stopPlayback can cancel it, otherwise a stale listener
@@ -681,18 +682,24 @@ function AdReviewModal({
   // Mouse-wheel zoom on the waveform, anchored on the time under the cursor.
   // The rendered view IS the window, so there's no horizontal scroll to
   // re-anchor -- setZoom recenters the window on the cursor time directly.
-  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    // Only act on vertical wheel (deltaY); leave horizontal wheel alone.
-    if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
-    e.preventDefault();
-    const overlay = overlayRef.current;
-    if (!overlay) return;
-    const rect = overlay.getBoundingClientRect();
-    const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const cursorTime = windowStart + frac * windowDuration;
-    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    setZoom(+(zoom * factor).toFixed(3), cursorTime);
-  };
+  useEffect(() => {
+    const waveform = waveformScrollRef.current;
+    if (!waveform) return undefined;
+    const onWheel = (e: WheelEvent) => {
+      // Only act on vertical wheel (deltaY); leave horizontal wheel alone.
+      if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      const overlay = overlayRef.current;
+      if (!overlay) return;
+      const rect = overlay.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const cursorTime = windowStart + frac * windowDuration;
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      setZoom(+(zoom * factor).toFixed(3), cursorTime);
+    };
+    waveform.addEventListener('wheel', onWheel, { passive: false });
+    return () => waveform.removeEventListener('wheel', onWheel);
+  }, [peaks, windowStart, windowDuration, zoom, setZoom]);
 
   // ------------------------------------------------------------------
   // Submission -- the host owns the actual API call (so it can also
@@ -1073,7 +1080,7 @@ function AdReviewModal({
               <p className="text-sm text-muted-foreground">Loading waveform…</p>
             ) : (
               <div
-                onWheel={onWheel}
+                ref={waveformScrollRef}
                 className="overflow-hidden"
               >
                 <div className="relative w-full" ref={overlayRef}>

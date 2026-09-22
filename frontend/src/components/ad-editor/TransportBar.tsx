@@ -6,12 +6,8 @@ import { focusRing } from '../../components/fieldStyles';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 import { tint } from '../badgeStyles';
 
-// Shared playback transport bar for the audio-editor modals (AdReviewModal and
-// CueMarkModal). Purely presentational: the host owns the <audio> element, the
-// playhead loop, and all handlers. Rendering from one component keeps the two
-// modals' controls identical. All controls (transport, the optional amber
-// "play selection" icon, and the speed selector) sit on one row that never
-// wraps, even on a phone; the selection readout is centered below.
+// Shared editor controls; the host owns audio, playhead, and handlers.
+// Wrap only when controls cannot fit on one row.
 interface TransportBarProps {
   isPlaying: boolean;
   onTogglePlay: () => void;
@@ -69,7 +65,7 @@ function TransportBar({
           tall on a wide screen. The transport cluster keeps the speed control
           grouped beside it at any width. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center sm:gap-4">
-        <div className="flex flex-nowrap items-center justify-center gap-0.5">
+        <div className="flex flex-wrap items-center justify-center gap-0.5">
           <button type="button" onClick={onSeekToStart} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Jump to START pin">
             <SkipBack className="w-4 h-4" />
           </button>

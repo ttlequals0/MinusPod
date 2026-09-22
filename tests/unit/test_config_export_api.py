@@ -17,7 +17,11 @@ def seeded_feed(app_client):
     db = get_database()
     slug = 'config-export-api-feed'
     prior = {key: db.get_setting(key) for key in ('feed_auth_enabled', 'feed_auth_key', 'webhooks')}
-    db.create_podcast(slug, 'https://user:pass@example.com/feed.xml?key=upstream-secret', 'Config Export API Test')
+    db.create_podcast(
+        slug,
+        'https://user:pass@example.com/private/sentinel-feed.xml?key=upstream-secret',
+        'Config Export API Test',
+    )
     db.set_setting('feed_auth_enabled', 'true')
     db.set_setting('feed_auth_key', 'super-secret-feed-key')
     db.set_setting('webhooks', json.dumps([{
@@ -79,6 +83,7 @@ def test_authenticated_export_is_redacted_json_attachment(app_client, seeded_fee
     assert 'user:pass@' not in body_text
     assert 'wh-secret' not in body_text
     assert 'upstream-secret' not in body_text
+    assert 'sentinel-feed.xml' not in body_text
     assert '@' not in body_text
 
     data = response.get_json()
@@ -88,13 +93,14 @@ def test_authenticated_export_is_redacted_json_attachment(app_client, seeded_fee
     assert data['system']['exportedAt']
 
     feed = next(feed for feed in data['feeds'] if feed['slug'] == seeded_feed['slug'])
-    assert feed['sourceFeedUrl'] == 'https://example.com/feed.xml'
+    assert feed['sourceFeedUrl'] == 'https://example.com'
+    assert feed['sourceUrl'] == 'https://example.com'
     assert 'author' not in feed
     assert 'p20' not in feed
 
     base_host = urlsplit(os.environ.get('BASE_URL', 'http://localhost:8000')).hostname
     assert base_host not in body_text
-    assert feed['feedUrl'].startswith('https://<domain>/') or feed['feedUrl'].startswith('http://<domain>/')
+    assert feed['feedUrl'] in ('https://<domain>', 'http://<domain>')
 
     assert isinstance(data['webhooks'], list)
     assert data['webhooks']

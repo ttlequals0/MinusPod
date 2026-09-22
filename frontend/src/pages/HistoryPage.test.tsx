@@ -45,13 +45,13 @@ function makeEntry(overrides: Partial<ProcessingHistoryEntry> = {}): ProcessingH
   };
 }
 
-function renderPage(entries: ProcessingHistoryEntry[]) {
+function renderPage(entries: ProcessingHistoryEntry[], avgProcessingTimeSeconds = 12.5) {
   mockGetProcessingHistory.mockResolvedValue({
     history: entries, total: entries.length, page: 1, limit: 20, totalPages: 1,
   });
   mockGetProcessingHistoryStats.mockResolvedValue({
     totalProcessed: entries.length, completedCount: entries.length, failedCount: 0,
-    avgProcessingTimeSeconds: 12.5, totalAdsDetected: 2, reprocessCount: 0,
+    avgProcessingTimeSeconds, totalAdsDetected: 2, reprocessCount: 0,
     uniqueEpisodes: entries.length, totalInputTokens: 0, totalOutputTokens: 0, totalLlmCost: 0,
   });
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -102,6 +102,15 @@ describe('HistoryPage: Version column', () => {
         expect.objectContaining({ sortBy: 'app_version', sortDir: 'desc' }),
       );
     });
+  });
+});
+
+describe('HistoryPage: duration formatting', () => {
+  it('carries rounded seconds into the minute field', async () => {
+    renderPage([makeEntry()], 1_079.6);
+
+    expect(await screen.findByText('Avg processing time: 18m 0s')).toBeDefined();
+    expect(screen.queryByText('Avg processing time: 17m 60s')).toBeNull();
   });
 });
 

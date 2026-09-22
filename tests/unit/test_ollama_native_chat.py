@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import requests
 
+from llm_client import OllamaNativeChatError, extract_retry_after
 from utils.llm_call import LOSS_SERVER_ERROR, window_loss_class
 
 
@@ -116,7 +117,7 @@ class TestOpenAICompatibleClientNativeOllamaChat(unittest.TestCase):
         self.assertIs(body['stream'], False)
         self.assertEqual(body['messages'][0], {"role": "system", "content": "sys prompt"})
         self.assertEqual(body['format'], 'json')
-        self.assertIs(body['think'], True)
+        self.assertEqual(body['think'], 'high')
         self.assertEqual(result.content, "hello")
         self.assertEqual(result.usage, {'input_tokens': 120, 'output_tokens': 40})
         self.assertEqual(result.model, "qwen3")
@@ -178,7 +179,7 @@ class TestOpenAICompatibleClientNativeOllamaChat(unittest.TestCase):
             )
         self.assertIs(mock_post.call_args.kwargs['json']['think'], False)
 
-    def test_think_true_for_low_medium_high(self):
+    def test_think_preserves_low_medium_high_levels(self):
         client = self._make_client(num_ctx=8192)
         native = _native_resp(200, {
             "message": {"content": "ok"}, "done_reason": "stop",
@@ -187,11 +188,26 @@ class TestOpenAICompatibleClientNativeOllamaChat(unittest.TestCase):
         for level in ("low", "medium", "high"):
             with patch('utils.safe_http.safe_post', return_value=native) as mock_post:
                 client.messages_create(
-                    model="qwen3", max_tokens=100, system="s",
+                    model="gpt-oss", max_tokens=100, system="s",
                     messages=[{"role": "user", "content": "hi"}],
                     reasoning_effort=level,
                 )
-            self.assertIs(mock_post.call_args.kwargs['json']['think'], True, level)
+            self.assertEqual(mock_post.call_args.kwargs['json']['think'], level)
+
+    def test_think_false_for_none_and_omitted(self):
+        client = self._make_client(num_ctx=8192)
+        native = _native_resp(200, {
+            "message": {"content": "ok"}, "done_reason": "stop",
+            "prompt_eval_count": 1, "eval_count": 1,
+        })
+        for reasoning_effort in (None, "none"):
+            with patch('utils.safe_http.safe_post', return_value=native) as mock_post:
+                client.messages_create(
+                    model="qwen3", max_tokens=100, system="s",
+                    messages=[{"role": "user", "content": "hi"}],
+                    reasoning_effort=reasoning_effort,
+                )
+            self.assertIs(mock_post.call_args.kwargs['json']['think'], False)
 
     def test_done_reason_length_sets_finish_reason_length(self):
         client = self._make_client(num_ctx=8192)
@@ -262,6 +278,21 @@ class TestOpenAICompatibleClientNativeOllamaChat(unittest.TestCase):
                 messages=[{"role": "user", "content": "hi"}],
             )
         self.assertIsNone(mock_post.call_args.kwargs['headers'])
+
+    def test_rate_limit_error_preserves_response_headers(self):
+        client = self._make_client(num_ctx=8192)
+        native = _native_resp(429, text="busy")
+        native.headers = {"Retry-After": "120"}
+
+        with patch('utils.safe_http.safe_post', return_value=native):
+            with self.assertRaises(Exception) as ctx:
+                client.messages_create(
+                    model="qwen3", max_tokens=100, system="s",
+                    messages=[{"role": "user", "content": "hi"}],
+                )
+
+        self.assertIsInstance(ctx.exception, OllamaNativeChatError)
+        self.assertEqual(extract_retry_after(ctx.exception), 120.0)
 
 
 class TestBuildClientOllamaNumCtx(unittest.TestCase):

@@ -89,8 +89,9 @@ function HistoryPage() {
     if (seconds < 60) {
       return `${seconds.toFixed(1)}s`;
     }
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.round(seconds % 60);
+    const roundedSeconds = Math.round(seconds);
+    const mins = Math.floor(roundedSeconds / 60);
+    const secs = roundedSeconds % 60;
     return `${mins}m ${secs}s`;
   };
 

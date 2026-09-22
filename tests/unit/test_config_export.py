@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from utils.config_export import DomainIdentity, redact_config
+from utils.config_export import DomainIdentity, build_domain_identity, redact_config
 
 
 def test_drops_known_secret_keys():
@@ -47,13 +47,53 @@ def test_keeps_configured_booleans_even_with_matching_names():
 def test_strips_key_query_param_from_feed_url():
     doc = {'feedUrl': 'https://podsrv.example.com/my-show?key=abc123'}
     result = redact_config(doc)
-    assert result == {'feedUrl': 'https://podsrv.example.com/my-show'}
+    assert result == {'feedUrl': 'https://podsrv.example.com'}
+
+
+def test_strips_url_fragments():
+    doc = {'feedUrl': 'https://example.com/feed.xml?x=1#private-fragment'}
+    assert redact_config(doc) == {'feedUrl': 'https://example.com'}
+
+
+def test_redacts_feed_key_patterns_in_source_path():
+    key = '0123456789abcdef' * 4
+    doc = {'sourceFeedUrl': f'https://example.com/feeds/{key}/rss.xml'}
+    assert redact_config(doc) == {
+        'sourceFeedUrl': 'https://example.com'
+    }
+
+
+def test_source_feed_url_drops_opaque_path_and_query():
+    doc = {
+        'sourceFeedUrl': 'https://feeds.example.com/private/sentinel.xml?token=secret#x'
+    }
+    assert redact_config(doc) == {'sourceFeedUrl': 'https://feeds.example.com'}
+
+
+def test_source_feed_url_keeps_known_public_provider_path():
+    doc = {'sourceFeedUrl': 'https://api.podcastindex.org/api/1.0/podcasts/byfeedurl'}
+    assert redact_config(doc) == {'sourceFeedUrl': 'https://api.podcastindex.org'}
+
+
+def test_settings_section_drops_unknown_provider_path_tokens():
+    doc = {'settings': {'llmApiUrl': 'https://api.openai.com/private/api-secret/v1'}}
+    assert redact_config(doc) == {'settings': {'llmApiUrl': 'https://api.openai.com'}}
+
+
+def test_url_redaction_drops_userinfo_and_paths_outside_settings():
+    doc = {'websiteUrl': 'https://user:secret@example.com/private/path?token=x#fragment'}
+    assert redact_config(doc) == {'websiteUrl': 'https://example.com'}
+
+
+def test_settings_url_redaction_drops_userinfo_before_allowlisting_path():
+    doc = {'settings': {'llmApiUrl': 'https://user:secret@api.openai.com/v1'}}
+    assert redact_config(doc) == {'settings': {'llmApiUrl': 'https://api.openai.com/v1'}}
 
 
 def test_strips_userinfo_from_url():
     doc = {'sourceUrl': 'https://user:pass@example.com/feed.xml'}
     result = redact_config(doc)
-    assert result == {'sourceUrl': 'https://example.com/feed.xml'}
+    assert result == {'sourceUrl': 'https://example.com'}
 
 
 def test_reduces_webhook_url_to_origin():
@@ -75,6 +115,19 @@ def test_reduces_webhook_url_to_origin():
     }
 
 
+def test_omits_webhook_template_but_preserves_configuration_state():
+    doc = {'webhooks': [{
+        'url': 'https://hooks.example.com',
+        'events': ['episode.processed'],
+        'payloadTemplate': '{{ secret }}',
+    }]}
+    assert redact_config(doc) == {'webhooks': [{
+        'url': 'https://hooks.example.com',
+        'events': ['episode.processed'],
+        'payloadTemplateConfigured': True,
+    }]}
+
+
 def test_leaves_models_prompts_and_thresholds_untouched():
     doc = {
         'systemPrompt': {'value': 'Detect ads.', 'isDefault': True},
@@ -87,25 +140,25 @@ def test_leaves_models_prompts_and_thresholds_untouched():
 def test_redacts_instance_host_to_placeholder_keeping_scheme_and_path():
     doc = {'feedUrl': 'https://feeds.example.com/example-podcast?key=abc'}
     result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
-    assert result == {'feedUrl': 'https://<domain>/example-podcast'}
+    assert result == {'feedUrl': 'https://<domain>'}
 
 
 def test_redacts_instance_host_keeps_http_scheme():
     doc = {'feedUrl': 'http://feeds.example.com/example-podcast'}
     result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
-    assert result == {'feedUrl': 'http://<domain>/example-podcast'}
+    assert result == {'feedUrl': 'http://<domain>'}
 
 
 def test_third_party_host_untouched_by_instance_redaction():
     doc = {'sourceFeedUrl': 'https://other-host.example.com/feed.xml'}
     result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
-    assert result == doc
+    assert result == {'sourceFeedUrl': 'https://other-host.example.com'}
 
 
 def test_default_instance_hosts_is_empty_and_leaves_urls_alone():
     doc = {'feedUrl': 'https://feeds.example.com/example-podcast?key=abc'}
     result = redact_config(doc)
-    assert result == {'feedUrl': 'https://feeds.example.com/example-podcast'}
+    assert result == {'feedUrl': 'https://feeds.example.com'}
 
 
 def test_settings_section_keeps_known_public_provider_hosts():
@@ -133,19 +186,19 @@ def test_settings_section_masks_unknown_public_host_as_private_host():
 def test_settings_section_still_redacts_instance_host_to_domain():
     doc = {'settings': {'opmlModifiedUrl': 'https://feeds.example.com/opml/modified.opml?key=abc'}}
     result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
-    assert result == {'settings': {'opmlModifiedUrl': 'https://<domain>/opml/modified.opml'}}
+    assert result == {'settings': {'opmlModifiedUrl': 'https://<domain>'}}
 
 
 def test_feeds_section_third_party_host_unaffected_by_provider_allowlist():
     doc = {'feeds': [{'sourceFeedUrl': 'https://feeds.megaphone.fm/example-podcast.xml'}]}
     result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
-    assert result == {'feeds': [{'sourceFeedUrl': 'https://feeds.megaphone.fm/example-podcast.xml'}]}
+    assert result == {'feeds': [{'sourceFeedUrl': 'https://feeds.megaphone.fm'}]}
 
 
 def test_private_host_masked_outside_settings_too():
     doc = {'feeds': [{'sourceFeedUrl': 'http://localhost:9000/feed.xml'}]}
     result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
-    assert result == {'feeds': [{'sourceFeedUrl': 'http://<private-host>/feed.xml'}]}
+    assert result == {'feeds': [{'sourceFeedUrl': 'http://<private-host>'}]}
 
 
 def test_masks_email_in_settings_value():
@@ -167,7 +220,7 @@ def test_masks_domain_host_mention_outside_url():
     assert result == {'feeds': [{'detectionNotes': 'Hosted by <domain>'}]}
 
 
-def test_masks_bare_registrable_domain():
+def test_masks_bare_registrable_domain_when_identity_is_explicit():
     doc = {'feeds': [{'author': 'example.com'}]}
     identity = DomainIdentity(host='feeds.example.com', registrable_domain='example.com')
     result = redact_config(doc, domain_identity=identity)
@@ -188,6 +241,42 @@ def test_short_first_label_not_masked():
     assert result == {'feeds': [{'author': 'ab'}]}
 
 
+def test_domain_identity_does_not_guess_public_suffixes():
+    for host, registrable in (
+        ('pod.example.co.uk', 'example.co.uk'),
+        ('pod.example.blogspot.com', 'example.blogspot.com'),
+        ('pod.example.github.io', 'example.github.io'),
+    ):
+        identity = build_domain_identity(host)
+        assert identity is not None
+        assert identity.host == host
+        assert identity.registrable_domain == registrable
+
+
+def test_domain_identity_keeps_ip_and_single_label_hosts_exact():
+    assert build_domain_identity('192.168.1.5') is None
+    identity = build_domain_identity('localhost')
+    assert identity is not None
+    assert identity.host == 'localhost'
+    assert identity.registrable_domain is None
+
+
+def test_domain_identity_masks_siblings_without_masking_unrelated_text():
+    identity = build_domain_identity('app.example.co.uk')
+    result = redact_config({
+        'notes': 'foo.example.co.uk other.example.co.uk notexample.co.uk',
+    }, domain_identity=identity)
+    assert result == {'notes': 'foo.<domain> other.<domain> notexample.co.uk'}
+
+
+def test_domain_identity_masks_private_suffix_tenants_without_overmatching():
+    identity = build_domain_identity('app.tenant.github.io')
+    result = redact_config({
+        'notes': 'tenant.github.io other.tenant.github.io tenant.github.iox',
+    }, domain_identity=identity)
+    assert result == {'notes': '<domain> other.<domain> tenant.github.iox'}
+
+
 def test_handles_nested_lists():
     doc = {
         'feeds': [
@@ -198,7 +287,7 @@ def test_handles_nested_lists():
     result = redact_config(doc)
     assert result == {
         'feeds': [
-            {'slug': 'a', 'feedUrl': 'https://host.example.com/a'},
-            {'slug': 'b', 'feedUrl': 'https://host.example.com/b'},
+            {'slug': 'a', 'feedUrl': 'https://host.example.com'},
+            {'slug': 'b', 'feedUrl': 'https://host.example.com'},
         ]
     }

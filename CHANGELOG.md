@@ -9,6 +9,20 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.14] - 2026-09-22
+
+### Changed
+
+- README now documents the MinusPodJev experiment and its limited support scope.
+
+### Fixed
+
+- History duration summaries no longer display impossible values such as `17m 60s` when rounded seconds reach the next minute.
+- Audio editor transport controls remain reachable at narrow viewport widths, and zooming the waveform no longer also scrolls the editor.
+- Configuration exports now remove URL queries, fragments, opaque paths, and webhook templates while preserving only known provider endpoint paths in settings.
+- Configuration exports use the bundled public suffix list when masking instance-domain mentions.
+- Ollama native chat requests preserve configured thinking levels and retain rate-limit response headers for retry timing.
+
 ## [2.97.13] - 2026-09-22
 
 ### Fixed
