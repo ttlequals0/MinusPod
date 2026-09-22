@@ -6,9 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DataManagementSection from './DataManagementSection';
 
 const mockDownloadBackup = vi.fn();
+const mockDownloadConfig = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   downloadBackup: (...args: unknown[]) => mockDownloadBackup(...args),
+  downloadConfig: (...args: unknown[]) => mockDownloadConfig(...args),
   exportOpml: vi.fn(),
   getSettings: vi.fn().mockResolvedValue({}),
 }));
@@ -35,6 +37,7 @@ describe('DataManagementSection backup export', () => {
     vi.clearAllMocks();
     localStorage.setItem('settings-section-data-management', 'true');
     mockDownloadBackup.mockResolvedValue(undefined);
+    mockDownloadConfig.mockResolvedValue(undefined);
   });
 
   it('requests encryption from the primary backup action', async () => {
@@ -66,5 +69,39 @@ describe('DataManagementSection backup export', () => {
     expect(await screen.findByText(
       'Encrypted backup unavailable. Set MINUSPOD_MASTER_PASSPHRASE and restart, or download plaintext below.',
     )).toBeDefined();
+  });
+});
+
+describe('DataManagementSection configuration export', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('settings-section-data-management', 'true');
+    mockDownloadConfig.mockResolvedValue(undefined);
+  });
+
+  it('downloads the configuration once and shows the busy state', async () => {
+    let resolveDownload: () => void = () => {};
+    mockDownloadConfig.mockReturnValue(new Promise<void>((resolve) => { resolveDownload = resolve; }));
+    renderSection();
+    const button = screen.getByRole('button', { name: 'Download configuration' });
+
+    await userEvent.click(button);
+
+    expect(mockDownloadConfig).toHaveBeenCalledOnce();
+    expect(button.textContent).toBe('Preparing download');
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+
+    resolveDownload();
+    await waitFor(() => expect(button.textContent).toBe('Download configuration'));
+    expect(mockDownloadConfig).toHaveBeenCalledOnce();
+  });
+
+  it('shows an error toast when the export fails', async () => {
+    mockDownloadConfig.mockRejectedValue(new Error('boom'));
+    renderSection();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Download configuration' }));
+
+    expect(await screen.findByText('boom')).toBeDefined();
   });
 });
