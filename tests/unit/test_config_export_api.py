@@ -1,7 +1,9 @@
 """API integration tests for GET /system/config-export (issue #781)."""
+import json
 import os
 import sys
 import tempfile
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -14,9 +16,18 @@ def seeded_feed(app_client):
     from api import get_database
     db = get_database()
     slug = 'config-export-api-feed'
-    db.create_podcast(slug, 'https://user:pass@example.com/feed.xml', 'Config Export API Test')
+    db.create_podcast(slug, 'https://user:pass@example.com/feed.xml?key=upstream-secret', 'Config Export API Test')
     db.set_setting('feed_auth_enabled', 'true')
     db.set_setting('feed_auth_key', 'super-secret-feed-key')
+    db.set_setting('webhooks', json.dumps([{
+        'id': 'wh1',
+        'url': 'https://api.pushover.net/1/messages.json?token=wh-secret-token',
+        'events': ['episode.processed'],
+        'secret': 'wh-secret',
+        'enabled': True,
+        'payloadTemplate': None,
+        'contentType': 'application/json',
+    }]))
     yield {'slug': slug, 'db': db}
     db.delete_podcast(slug)
 
@@ -58,9 +69,21 @@ def test_authenticated_export_is_redacted_json_attachment(app_client, seeded_fee
     assert 'feedAuthKey' not in body_text
     assert 'super-secret-feed-key' not in body_text
     assert 'user:pass@' not in body_text
+    assert 'wh-secret' not in body_text
+    assert 'upstream-secret' not in body_text
 
     data = response.get_json()
-    assert set(data.keys()) == {'settings', 'feeds', 'system'}
+    assert set(data.keys()) == {'settings', 'feeds', 'webhooks', 'system'}
     assert any(feed['slug'] == seeded_feed['slug'] for feed in data['feeds'])
     assert data['system']['version']
     assert data['system']['exportedAt']
+
+    feed = next(feed for feed in data['feeds'] if feed['slug'] == seeded_feed['slug'])
+    assert feed['sourceFeedUrl'] == 'https://example.com/feed.xml'
+
+    assert isinstance(data['webhooks'], list)
+    assert data['webhooks']
+    for webhook in data['webhooks']:
+        parts = urlsplit(webhook['url'])
+        assert not parts.path
+        assert not parts.query

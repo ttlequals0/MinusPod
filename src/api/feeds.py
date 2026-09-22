@@ -987,6 +987,9 @@ def get_feeds_export_list(db) -> list[dict]:
             **_podcast_base_json(podcast, feed_url),
             **_podcast_listing_fields(podcast, podping),
             'lastEpisodeDate': podcast.get('last_episode_date'),
+            # Upstream RSS URL the instance polls, explicit for bug reports
+            # about a host serving bad RSS (redact_config strips credentials).
+            'sourceFeedUrl': podcast.get('source_url'),
         })
     return feeds
 

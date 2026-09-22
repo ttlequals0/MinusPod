@@ -7031,10 +7031,11 @@ paths:
         - System
       summary: Download instance configuration
       description: |
-        Downloads settings and feed configuration as pretty-printed JSON,
-        ready to attach to a bug report. A redaction pass drops secret-shaped
-        keys (API keys, passwords, tokens, the feed auth key) and strips
-        credentials and tracking query params from URLs. Limited to 6/hour.
+        Downloads settings, feed, and webhook configuration as pretty-printed
+        JSON, ready to attach to a bug report. A redaction pass drops
+        secret-shaped keys (API keys, passwords, tokens, the feed auth key,
+        webhook secrets), strips credentials and tracking query params from
+        URLs, and reduces each webhook URL to scheme + host. Limited to 6/hour.
       operationId: exportConfig
       responses:
         '200':
@@ -7052,6 +7053,10 @@ paths:
                   settings:
                     type: object
                   feeds:
+                    type: array
+                    items:
+                      type: object
+                  webhooks:
                     type: array
                     items:
                       type: object

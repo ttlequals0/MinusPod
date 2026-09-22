@@ -512,12 +512,14 @@ def export_config():
     from api.settings import _build_settings_payload
     from utils.config_export import redact_config
     from utils.gpu import get_gpu_device_name
+    from webhook_service import load_webhooks
 
     db = get_database()
     whisper = _effective_whisper_config(db)
     document = {
         'settings': _build_settings_payload(),
         'feeds': get_feeds_export_list(db),
+        'webhooks': load_webhooks(db),
         'system': {
             'version': _get_version(),
             'exportedAt': utc_now_iso(),
