@@ -9,6 +9,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.12] - 2026-09-22
+
+### Changed
+
+- The configuration export hides this instance's own host as `<domain>` and any provider or transcription endpoint that is not a well-known public service as `<private-host>`, keeping the scheme and path so a bug report still shows how the instance is wired.
+
+### Fixed
+
+- System Status shows LLM input and output tokens on two lines instead of wrapping mid-phrase on a phone.
+- The cue and ad editor transport controls stay on one row with the speed selector on phones instead of wrapping.
+
 ## [2.97.11] - 2026-09-21
 
 ### Added

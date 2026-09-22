@@ -55,7 +55,8 @@ function SystemStatusSection({
           <div>
             <p className="text-sm text-muted-foreground">LLM Tokens</p>
             <p className="font-medium text-foreground">
-              {formatTokenCount(status.stats?.totalInputTokens ?? 0)} in / {formatTokenCount(status.stats?.totalOutputTokens ?? 0)} out
+              <span className="block">{formatTokenCount(status.stats?.totalInputTokens ?? 0)} in</span>
+              <span className="block">{formatTokenCount(status.stats?.totalOutputTokens ?? 0)} out</span>
             </p>
           </div>
           <div>

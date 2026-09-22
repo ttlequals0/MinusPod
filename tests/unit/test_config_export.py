@@ -84,17 +84,81 @@ def test_leaves_models_prompts_and_thresholds_untouched():
     assert redact_config(doc) == doc
 
 
+def test_redacts_instance_host_to_placeholder_keeping_scheme_and_path():
+    doc = {'feedUrl': 'https://feeds.example.com/example-podcast?key=abc'}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'feedUrl': 'https://<domain>/example-podcast'}
+
+
+def test_redacts_instance_host_keeps_http_scheme():
+    doc = {'feedUrl': 'http://feeds.example.com/example-podcast'}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'feedUrl': 'http://<domain>/example-podcast'}
+
+
+def test_third_party_host_untouched_by_instance_redaction():
+    doc = {'sourceFeedUrl': 'https://other-host.example.com/feed.xml'}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == doc
+
+
+def test_default_instance_hosts_is_empty_and_leaves_urls_alone():
+    doc = {'feedUrl': 'https://feeds.example.com/example-podcast?key=abc'}
+    result = redact_config(doc)
+    assert result == {'feedUrl': 'https://feeds.example.com/example-podcast'}
+
+
+def test_settings_section_keeps_known_public_provider_hosts():
+    doc = {'settings': {'llmApiUrl': 'https://api.openai.com/v1/chat/completions'}}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'settings': {'llmApiUrl': 'https://api.openai.com/v1/chat/completions'}}
+
+    doc = {'settings': {'llmApiUrl': 'https://openrouter.ai/api/v1'}}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'settings': {'llmApiUrl': 'https://openrouter.ai/api/v1'}}
+
+
+def test_settings_section_masks_lan_ip_as_private_host():
+    doc = {'settings': {'ollamaBaseUrl': 'http://192.168.1.5:11434/v1'}}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'settings': {'ollamaBaseUrl': 'http://<private-host>/v1'}}
+
+
+def test_settings_section_masks_unknown_public_host_as_private_host():
+    doc = {'settings': {'llmApiUrl': 'https://llm.example.org/v1'}}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'settings': {'llmApiUrl': 'https://<private-host>/v1'}}
+
+
+def test_settings_section_still_redacts_instance_host_to_domain():
+    doc = {'settings': {'opmlModifiedUrl': 'https://feeds.example.com/opml/modified.opml?key=abc'}}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'settings': {'opmlModifiedUrl': 'https://<domain>/opml/modified.opml'}}
+
+
+def test_feeds_section_third_party_host_unaffected_by_provider_allowlist():
+    doc = {'feeds': [{'sourceFeedUrl': 'https://feeds.megaphone.fm/example-podcast.xml'}]}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'feeds': [{'sourceFeedUrl': 'https://feeds.megaphone.fm/example-podcast.xml'}]}
+
+
+def test_private_host_masked_outside_settings_too():
+    doc = {'feeds': [{'sourceFeedUrl': 'http://localhost:9000/feed.xml'}]}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'feeds': [{'sourceFeedUrl': 'http://<private-host>/feed.xml'}]}
+
+
 def test_handles_nested_lists():
     doc = {
         'feeds': [
-            {'slug': 'a', 'feedUrl': 'https://host/a?key=1&auth=y'},
-            {'slug': 'b', 'feedUrl': 'https://host/b'},
+            {'slug': 'a', 'feedUrl': 'https://host.example.com/a?key=1&auth=y'},
+            {'slug': 'b', 'feedUrl': 'https://host.example.com/b'},
         ]
     }
     result = redact_config(doc)
     assert result == {
         'feeds': [
-            {'slug': 'a', 'feedUrl': 'https://host/a'},
-            {'slug': 'b', 'feedUrl': 'https://host/b'},
+            {'slug': 'a', 'feedUrl': 'https://host.example.com/a'},
+            {'slug': 'b', 'feedUrl': 'https://host.example.com/b'},
         ]
     }

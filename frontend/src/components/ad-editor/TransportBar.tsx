@@ -10,8 +10,8 @@ import { tint } from '../badgeStyles';
 // CueMarkModal). Purely presentational: the host owns the <audio> element, the
 // playhead loop, and all handlers. Rendering from one component keeps the two
 // modals' controls identical. All controls (transport, the optional amber
-// "play selection" icon, and the speed selector) sit on one centered row that
-// wraps as a unit on narrow screens; the selection readout is centered below.
+// "play selection" icon, and the speed selector) sit on one row that never
+// wraps, even on a phone; the selection readout is centered below.
 interface TransportBarProps {
   isPlaying: boolean;
   onTogglePlay: () => void;
@@ -69,7 +69,7 @@ function TransportBar({
           tall on a wide screen. The transport cluster keeps the speed control
           grouped beside it at any width. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center sm:gap-4">
-        <div className="flex flex-wrap items-center justify-center gap-0.5">
+        <div className="flex flex-nowrap items-center justify-center gap-0.5">
           <button type="button" onClick={onSeekToStart} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Jump to START pin">
             <SkipBack className="w-4 h-4" />
           </button>
@@ -101,11 +101,11 @@ function TransportBar({
           <button type="button" onClick={onStop} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Stop (pause + return to START)">
             <Square className="w-4 h-4" />
           </button>
-          <div className="relative ml-1" ref={speedRef}>
+          <div className="relative ml-0.5" ref={speedRef}>
             <button
               type="button"
               onClick={() => setSpeedOpen((o) => !o)}
-              className={`h-8 px-2 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} focus:outline-hidden focus:ring-2 focus:ring-ring`}
+              className={`h-8 px-1.5 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} focus:outline-hidden focus:ring-2 focus:ring-ring`}
               title="Playback speed"
               aria-expanded={speedOpen}
               aria-label="Playback speed"

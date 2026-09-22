@@ -89,6 +89,10 @@ def test_authenticated_export_is_redacted_json_attachment(app_client, seeded_fee
     feed = next(feed for feed in data['feeds'] if feed['slug'] == seeded_feed['slug'])
     assert feed['sourceFeedUrl'] == 'https://example.com/feed.xml'
 
+    base_host = urlsplit(os.environ.get('BASE_URL', 'http://localhost:8000')).hostname
+    assert base_host not in body_text
+    assert feed['feedUrl'].startswith('https://<domain>/') or feed['feedUrl'].startswith('http://<domain>/')
+
     assert isinstance(data['webhooks'], list)
     assert data['webhooks']
     for webhook in data['webhooks']:

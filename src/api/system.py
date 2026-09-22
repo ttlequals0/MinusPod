@@ -508,11 +508,16 @@ def backup_database():
 def export_config():
     """Download instance settings and feed configuration as redacted JSON."""
     import platform
+    from urllib.parse import urlsplit
+
     from api.feeds import get_feeds_export_list
     from api.settings import _build_settings_payload
     from utils.config_export import redact_config
     from utils.gpu import get_gpu_device_name
     from webhook_service import load_webhooks
+
+    base_host = (urlsplit(os.environ.get('BASE_URL', 'http://localhost:8000')).hostname or '').lower()
+    instance_hosts = frozenset({h for h in (base_host, 'localhost') if h})
 
     db = get_database()
     whisper = _effective_whisper_config(db)
@@ -530,7 +535,7 @@ def export_config():
             'platform': platform.machine(),
         },
     }
-    redacted = redact_config(document)
+    redacted = redact_config(document, instance_hosts=instance_hosts)
 
     timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     filename = f"minuspod-config-{timestamp}.json"
