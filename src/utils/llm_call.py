@@ -394,6 +394,19 @@ def _fallback_delay(error, base_delay: float, honor_retry_after: bool) -> float:
     return base_delay
 
 
+def _wait_past_breaker_cooldown(remaining_seconds: float) -> bool:
+    """Sleep past a breaker cooldown plus margin; False without sleeping when
+    that wait exceeds BREAKER_WAIT_CAP_SECONDS."""
+    wait = remaining_seconds + BREAKER_RETRY_MARGIN_SECONDS
+    if wait > BREAKER_WAIT_CAP_SECONDS:
+        logger.warning(
+            f"Breaker cooldown wait {wait:.1f}s exceeds the "
+            f"{BREAKER_WAIT_CAP_SECONDS:.0f}s cap; giving up"
+        )
+        return False
+    return _sleep_before_retry(wait)
+
+
 def _breaker_retry_delay(llm_client, error, base_delay: float) -> float:
     """Wait past the active breaker cooldown without shortening backoff."""
     remaining = (error.seconds_until_retry
@@ -685,19 +698,35 @@ def call_llm(
 
     if (response is None and last_error is not None and _is_retryable(last_error)
             and not isinstance(last_error, ReasoningExhaustedError)):
-        for retry_num, base_delay in enumerate([2, 5], 1):
+        # A CircuitBreakerOpen on the last fixed rung earns one more rung once
+        # its cooldown clears, appended here rather than pre-planned: no other
+        # error qualifies for it.
+        rungs = [2, 5]
+        retry_num = 0
+        while retry_num < len(rungs):
+            retry_num += 1
             held = _manual_rate_limit_error(provider_key, credential_slot, slug,
                                             episode_id, phase=phase_key)
             if held is not None:
                 return None, _lost_window(held, is_window, slug, episode_id, call_label)
-            delay = _fallback_delay(last_error, base_delay, retry_num == 1)
-            delay = _breaker_retry_delay(llm_client, last_error, delay)
-            logger.warning(
-                f"[{slug}:{episode_id}] {call_label} per-window retry "
-                f"{retry_num}/2 after {delay:.1f}s backoff"
-            )
-            if not _sleep_before_retry(delay):
-                break
+            rung = rungs[retry_num - 1]
+            if rung == 'breaker':
+                if not _wait_past_breaker_cooldown(last_error.seconds_until_retry):
+                    break
+                wait = last_error.seconds_until_retry + BREAKER_RETRY_MARGIN_SECONDS
+                logger.warning(
+                    f"[{slug}:{episode_id}] {call_label} per-window retry "
+                    f"{retry_num}/{len(rungs)} after breaker cooldown ({wait:.1f}s)"
+                )
+            else:
+                delay = _fallback_delay(last_error, rung, retry_num == 1)
+                delay = _breaker_retry_delay(llm_client, last_error, delay)
+                logger.warning(
+                    f"[{slug}:{episode_id}] {call_label} per-window retry "
+                    f"{retry_num}/{len(rungs)} after {delay:.1f}s backoff"
+                )
+                if not _sleep_before_retry(delay):
+                    break
             try:
                 response = dispatch()
                 logger.info(
@@ -723,39 +752,9 @@ def call_llm(
                 logger.warning(
                     f"[{slug}:{episode_id}] {call_label} retry {retry_num} failed: {e}"
                 )
-
-    # The breaker rejected every retry above without the provider ever being
-    # asked; once its cooldown clears, spend one real attempt before giving up.
-    if isinstance(last_error, CircuitBreakerOpen):
-        wait = last_error.seconds_until_retry + BREAKER_RETRY_MARGIN_SECONDS
-        if wait <= BREAKER_WAIT_CAP_SECONDS:
-            held = _manual_rate_limit_error(provider_key, credential_slot, slug,
-                                            episode_id, phase=phase_key)
-            if held is not None:
-                return None, _lost_window(held, is_window, slug, episode_id, call_label)
-            logger.warning(
-                f"[{slug}:{episode_id}] {call_label} per-window retry 3/3 after "
-                f"breaker cooldown ({wait:.1f}s)"
-            )
-            if _sleep_before_retry(wait):
-                try:
-                    response = dispatch()
-                    logger.info(
-                        f"[{slug}:{episode_id}] {call_label} succeeded on retry 3"
-                    )
-                    return response, None
-                except Exception as e:
-                    last_error = e
-                    if not isinstance(e, ReasoningExhaustedError):
-                        if _is_manual_cap_error(e):
-                            return None, _lost_window(e, is_window, slug, episode_id,
-                                                      call_label)
-                        terminal = _terminal_error(
-                            e, model=model, slug=slug, episode_id=episode_id,
-                            call_label=call_label, provider=provider,
-                            credential_slot=credential_slot, phase=phase_key)
-                        if terminal is not None:
-                            last_error = terminal
+                if (retry_num == len(rungs) and rungs[-1] != 'breaker'
+                        and isinstance(last_error, CircuitBreakerOpen)):
+                    rungs = rungs + ['breaker']
 
     return None, _lost_window(last_error, is_window, slug, episode_id, call_label)
 

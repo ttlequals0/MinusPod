@@ -29,9 +29,8 @@ from run_context import route_for_phase, run_in_worker_thread
 from sponsor_normalize import segment_category_for
 from utils.language import get_pattern_language
 from utils.llm_call import (
-    BREAKER_RETRY_MARGIN_SECONDS, BREAKER_WAIT_CAP_SECONDS, LOSS_CONNECTIVITY,
-    LOSS_SERVER_ERROR, _sleep_before_retry, call_llm, call_llm_for_window,
-    schema_format_for, window_loss_class,
+    LOSS_CONNECTIVITY, LOSS_SERVER_ERROR, _wait_past_breaker_cooldown,
+    call_llm, call_llm_for_window, schema_format_for, window_loss_class,
 )
 from utils.markers import (
     DAI_CORE_SPANS,
@@ -1402,42 +1401,67 @@ class AdDetector:
 
     def _sweep_lost_windows(self, *, windows, lost_results, worker_kwargs,
                             slug, episode_id):
-        """Retries windows lost to a transient outage after the breaker clears.
+        """Retries windows lost to a transient outage after the breaker clears,
+        dispatched through the same parallel path the main pass uses.
         Returns ``(recovered, hold_error)``: ``recovered`` is the WindowResults
         that came back non-failed; ``hold_error`` is a rate-limit hold met mid-sweep."""
         total_windows = len(windows)
         client = self._client_for_pass(worker_kwargs['pass_name'])
         retry_after = getattr(client, 'circuit_retry_after', None)
         remaining = retry_after() if callable(retry_after) else None
-        if remaining is not None and remaining > 0:
-            if remaining > BREAKER_WAIT_CAP_SECONDS:
-                logger.warning(
-                    f"[{slug}:{episode_id}] Sweep skipped: breaker cooldown "
-                    f"{remaining:.0f}s exceeds the {BREAKER_WAIT_CAP_SECONDS:.0f}s cap"
-                )
-                return [], None
-            if not _sleep_before_retry(remaining + BREAKER_RETRY_MARGIN_SECONDS):
-                return [], None
+        if remaining is not None and remaining > 0 and not _wait_past_breaker_cooldown(remaining):
+            return [], None
 
         recovered = []
-        for lost in lost_results:
-            idx = lost.window_idx
+        hold_error = None
+
+        def _sweep_one(idx):
+            return self._process_single_window(
+                window_idx=idx, window=windows[idx], total_windows=total_windows,
+                **worker_kwargs)
+
+        def _handle(idx, fetch_result):
+            nonlocal hold_error
             try:
-                result = self._process_single_window(
-                    window_idx=idx, window=windows[idx], total_windows=total_windows,
-                    **worker_kwargs)
+                result = fetch_result()
             except ProviderRateLimitedError as e:
                 logger.warning(
                     f"[{slug}:{episode_id}] Sweep: window {idx + 1}/{total_windows} "
                     "hit a rate-limit hold; deferring the episode"
                 )
-                return recovered, e
+                if hold_error is None:
+                    hold_error = e
+                return
             if not result.failed:
                 logger.info(
                     f"[{slug}:{episode_id}] Window {idx + 1}/{total_windows} "
                     "recovered on sweep"
                 )
                 recovered.append(result)
+
+        max_workers = min(_resolve_parallel_windows(), len(lost_results))
+        if max_workers <= 1:
+            for lost in lost_results:
+                idx = lost.window_idx
+                _handle(idx, lambda idx=idx: _sweep_one(idx))
+                if hold_error is not None:
+                    break
+        else:
+            # All lost windows are already dispatched once submitted, so a
+            # hold surfacing on one future does not stop the others that are
+            # in flight; whatever they recover is still collected below.
+            with ThreadPoolExecutor(max_workers=max_workers,
+                                    thread_name_prefix='addet-sweep') as executor:
+                futures = {
+                    executor.submit(run_in_worker_thread(_sweep_one), lost.window_idx):
+                        lost.window_idx
+                    for lost in lost_results
+                }
+                for fut in as_completed(futures):
+                    _handle(futures[fut], fut.result)
+
+        if hold_error is not None:
+            return recovered, hold_error
         logger.warning(
             f"[{slug}:{episode_id}] Sweep: {len(recovered)} of "
             f"{len(lost_results)} lost windows recovered"
@@ -1544,7 +1568,9 @@ class AdDetector:
         addressing = AddressingStats()
 
         def _merge_window_result(result):
-            """Repair missing categories (if enabled), then fold a non-failed WindowResult into the pass totals."""
+            """Repair missing categories (if enabled), then fold a non-failed
+            WindowResult into the pass totals. Returns True when repair hit a
+            rate-limit hold, so the caller stops merging further results."""
             nonlocal category_repaired, hold_error
             if category_repair_enabled:
                 # _repair_window_categories no-ops when nothing here is
@@ -1566,7 +1592,7 @@ class AdDetector:
                 except ProviderRateLimitedError as e:
                     # Same rule as a held window: the hold defers the episode.
                     hold_error = e
-                    return
+                    return True
             if result.compliant is not None:
                 addressing.windows_judged += 1
                 if result.compliant:
@@ -1580,11 +1606,13 @@ class AdDetector:
                 all_raw_responses.append(result.raw_response)
             all_window_ads.extend(result.ads)
 
+        loss_by_idx = {}
         for result in window_results:
             if result.failed:
                 failed_windows += 1
                 loss = result.loss_class or window_loss_class(result.last_error)
                 window_losses[loss] = window_losses.get(loss, 0) + 1
+                loss_by_idx[result.window_idx] = loss
                 last_error = result.last_error
                 status = getattr(result.last_error, 'status_code', None)
                 if (provider_error is None
@@ -1596,21 +1624,15 @@ class AdDetector:
                 if isinstance(result.last_error, ProviderRateLimitedError):
                     hold_error = result.last_error
                 continue
-            was_holding = hold_error
-            _merge_window_result(result)
-            if hold_error is not None and was_holding is None:
+            if _merge_window_result(result):
                 break
 
         # A window lost to a transient outage (5xx/connectivity) is worth one
         # more try once the breaker clears; other loss classes would not.
         if hold_error is None and 0 < failed_windows < len(windows):
             lost_results = [r for r in window_results if r.failed]
-            lost_losses = {
-                r.window_idx: (r.loss_class or window_loss_class(r.last_error))
-                for r in lost_results
-            }
             if all(loss in (LOSS_SERVER_ERROR, LOSS_CONNECTIVITY)
-                  for loss in lost_losses.values()):
+                  for loss in loss_by_idx.values()):
                 worker_kwargs = dict(
                     model=model, system_prompt=system_prompt,
                     description_section=description_section,
@@ -1628,12 +1650,11 @@ class AdDetector:
                     worker_kwargs=worker_kwargs, slug=slug, episode_id=episode_id)
                 for result in recovered_results:
                     failed_windows -= 1
-                    old_loss = lost_losses[result.window_idx]
+                    old_loss = loss_by_idx[result.window_idx]
                     window_losses[old_loss] -= 1
                     if window_losses[old_loss] == 0:
                         del window_losses[old_loss]
-                    _merge_window_result(result)
-                    if hold_error is not None:
+                    if _merge_window_result(result):
                         break
                 if sweep_hold_error is not None:
                     hold_error = sweep_hold_error
