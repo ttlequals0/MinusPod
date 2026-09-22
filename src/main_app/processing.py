@@ -1,4 +1,5 @@
 """Processing pipeline: _process_episode_background, all pipeline stages."""
+import inspect
 import json
 import logging
 import os
@@ -205,9 +206,10 @@ def _require_publication_owner(slug: str, episode_id: str) -> None:
 def _publish_status(method: str, slug: str, episode_id: str, *args):
     _require_publication_owner(slug, episode_id)
     run_id = getattr(run_context.current(), 'run_id', None)
-    if run_id:
-        return getattr(status_service, method)(slug, episode_id, *args, run_id=run_id)
-    return getattr(status_service, method)(slug, episode_id, *args)
+    fn = getattr(status_service, method)
+    if run_id and 'run_id' in inspect.signature(fn).parameters:
+        return fn(slug, episode_id, *args, run_id=run_id)
+    return fn(slug, episode_id, *args)
 
 
 @contextmanager

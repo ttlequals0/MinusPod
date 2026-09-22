@@ -141,6 +141,16 @@ class EpisodeMixin:
         episodes = [dict(row) for row in cursor.fetchall()]
         return episodes, total
 
+    def has_episodes(self, slug: str) -> bool:
+        """Whether a podcast has any episode rows at all, of any status."""
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return False
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "SELECT 1 FROM episodes WHERE podcast_id = ? LIMIT 1", (podcast['id'],))
+        return cursor.fetchone() is not None
+
     def get_latest_episodes_for_podcasts(self, podcast_ids: list[int],
                                          per_feed_limit: int) -> dict[int, list[dict]]:
         """Latest `per_feed_limit` episodes for each of `podcast_ids`, newest first.

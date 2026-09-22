@@ -2,7 +2,7 @@
 global/per-feed action resolution, and the pipeline hook that reruns
 detection once per episode."""
 from contextlib import ExitStack
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, create_autospec, patch
 
 import pytest
 
@@ -480,3 +480,49 @@ class TestFireLowAdYieldAction:
             processing._maybe_fire_low_ad_yield_action(
                 'a-feed', 'ep1', 'https://example.com/ep1.mp3', 'Ep Title',
                 'A Podcast', 'desc', None, {}, {'mode': 'auto'})
+
+
+class TestPublishStatusRunIdForwarding:
+    """_publish_status forwards run_id only to a target method whose
+    signature accepts it, so queue_episode (which never took it) is called
+    plainly instead of the hook raising (this is what queue_episode's own
+    run_id parameter used to work around)."""
+
+    def test_queue_episode_is_called_without_run_id_and_still_writes(
+            self, tmp_path, monkeypatch):
+        import run_context
+        import status_service as status_service_mod
+        monkeypatch.setattr(status_service_mod, '_get_soft_timeout', lambda: 3600)
+        status_service_mod.StatusService._instance = None
+        monkeypatch.setenv('DATA_DIR', str(tmp_path))
+        real_status_service = status_service_mod.StatusService()
+
+        ctx = run_context.begin('a-feed', 'ep1', run_id='run-1')
+        try:
+            with patch.object(processing, 'status_service', real_status_service), \
+                 patch.object(processing, '_require_publication_owner'):
+                processing._publish_status(
+                    'queue_episode', 'a-feed', 'ep1', 'Ep Title', 'A Podcast')
+        finally:
+            run_context.end(ctx)
+            status_service_mod.StatusService._instance = None
+
+        assert (real_status_service.get_status().queued_episodes[0]['episode_id']
+                == 'ep1')
+
+    def test_complete_job_still_receives_run_id(self):
+        import run_context
+        import status_service as status_service_mod
+        mock_status_service = create_autospec(status_service_mod.StatusService,
+                                              instance=True)
+
+        ctx = run_context.begin('a-feed', 'ep1', run_id='run-2')
+        try:
+            with patch.object(processing, 'status_service', mock_status_service), \
+                 patch.object(processing, '_require_publication_owner'):
+                processing._publish_status('complete_job', 'a-feed', 'ep1')
+        finally:
+            run_context.end(ctx)
+
+        mock_status_service.complete_job.assert_called_once_with(
+            'a-feed', 'ep1', run_id='run-2')

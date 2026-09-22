@@ -1083,16 +1083,12 @@ class OpenAICompatibleClient(LLMClient):
         api_key: str | None = None,
         default_model: str | None = None,
         extra_headers: dict[str, str] | None = None,
-        ollama_num_ctx: int | None = None,
     ):
         super().__init__()
         self.base_url = base_url or os.environ.get('OPENAI_BASE_URL', DEFAULT_OPENAI_BASE_URL)
         self.api_key = api_key or get_effective_openai_api_key()
         self.default_model = default_model or os.environ.get('OPENAI_MODEL')
         self.extra_headers = extra_headers or {}
-        # Set only for an Ollama client with num_ctx configured (#780); routes
-        # messages_create to native /api/chat, the only endpoint honoring it.
-        self._ollama_num_ctx = ollama_num_ctx
         self._client = None
         # Cache which token parameter each model accepts: "max_completion_tokens" or "max_tokens"
         # Per-instance to avoid cross-contamination between clients with different base_urls
@@ -1151,12 +1147,6 @@ class OpenAICompatibleClient(LLMClient):
         pass_name: str | None = None,
     ) -> LLMResponse:
         self._check_circuit_breaker()
-
-        if self._ollama_num_ctx:
-            return self._native_ollama_chat(
-                model, max_tokens, system, messages, temperature, timeout,
-                response_format, reasoning_effort, episode_id, pass_name,
-            )
 
         self._ensure_client()
 
@@ -1353,142 +1343,6 @@ class OpenAICompatibleClient(LLMClient):
                 f" len={len(content)}"
             )
 
-        return llm_response
-
-    def _native_ollama_chat(
-        self,
-        model: str,
-        max_tokens: int,
-        system: str,
-        messages: list[dict],
-        temperature: float,
-        timeout: float,
-        response_format: dict[str, str] | None,
-        reasoning_effort: Union[int, str] | None,
-        episode_id: str | None,
-        pass_name: str | None,
-    ) -> LLMResponse:
-        """Ollama-only path: send via native /api/chat so num_ctx is honored,
-        since the OpenAI-compatible endpoint silently ignores it (#780)."""
-        all_messages = [{"role": "system", "content": system}] + messages
-
-        eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
-            episode_id, pass_name, max_tokens, temperature, reasoning_effort
-        )
-        self._log_messages("Ollama native", system, messages, model, eff_temp, eff_max)
-
-        def _send(tok, tmp, reasoning):
-            body = self._build_ollama_native_request(
-                model, all_messages, tok, tmp, reasoning, response_format)
-            return self._send_ollama_native_request(body, timeout)
-
-        data, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
-            "Ollama native", PROVIDER_OLLAMA, model,
-            eff_max, eff_temp, eff_reasoning,
-            max_tokens, temperature, reasoning_effort,
-            episode_id, pass_name,
-            started_in_fallback,
-            _send,
-        )
-        self._record_circuit_breaker(success=True)
-        return self._map_ollama_native_response(data, model, eff_max)
-
-    def _build_ollama_native_request(
-        self, model: str, all_messages: list[dict], max_tokens: int,
-        temperature: float, reasoning_effort: Union[int, str] | None,
-        response_format: dict[str, str] | None,
-    ) -> dict:
-        """Build the native /api/chat request body."""
-        body = {
-            "model": model,
-            "messages": all_messages,
-            "stream": False,
-            "options": {
-                "num_ctx": self._ollama_num_ctx,
-                "temperature": temperature,
-                "num_predict": max_tokens,
-            },
-        }
-        if response_format:
-            rf_type = response_format.get('type')
-            if rf_type == 'json_schema':
-                schema = (response_format.get('json_schema') or {}).get('schema')
-                if schema:
-                    body["format"] = schema
-            elif rf_type == 'json_object':
-                body["format"] = "json"
-        normalized_reasoning = translate_reasoning_effort(
-            PROVIDER_OLLAMA, reasoning_effort).get("reasoning_effort")
-        body["think"] = normalized_reasoning not in (None, "none")
-        return body
-
-    def _send_ollama_native_request(self, body: dict, timeout: float) -> dict:
-        """POST body to the native /api/chat root and return the parsed JSON.
-        Root derivation and auth header mirror _try_ollama_native_list."""
-        from utils.safe_http import URLTrust, safe_post
-        url = f"{self._ollama_native_root()}/api/chat"
-        headers = {}
-        if self.api_key and self.api_key != 'not-needed':
-            headers['Authorization'] = f'Bearer {self.api_key}'
-        resp = safe_post(
-            url,
-            trust=URLTrust.OPERATOR_CONFIGURED,
-            timeout=timeout,
-            json=body,
-            headers=headers or None,
-            max_redirects=HTTP_MAX_REDIRECTS_API,
-        )
-        if not resp.ok:
-            raise self._ollama_native_status_error(resp)
-        return resp.json()
-
-    @staticmethod
-    def _ollama_native_status_error(resp) -> OllamaNativeChatError:
-        """Translate a non-2xx native response into an error the shared
-        classifiers recognize by status_code and message wording."""
-        status = resp.status_code
-        detail = (resp.text or '')[:300]
-        if status == 429:
-            message = f"Ollama native chat rate limit (429): {detail}"
-        else:
-            message = f"Ollama native chat failed ({status}): {detail}"
-        return OllamaNativeChatError(message, status_code=status)
-
-    def _map_ollama_native_response(self, data: dict, model: str, max_tokens: int) -> LLMResponse:
-        """Map a native /api/chat JSON body into LLMResponse."""
-        message = data.get('message') or {}
-        content = message.get('content') or ""
-        finish_reason = data.get('done_reason')
-        self._warn_if_truncated(finish_reason, max_tokens, model)
-
-        input_tokens = data.get('prompt_eval_count')
-        output_tokens = data.get('eval_count')
-        usage = None
-        if input_tokens is not None and output_tokens is not None:
-            usage = {'input_tokens': input_tokens, 'output_tokens': output_tokens}
-
-        reasoning_present = bool(message.get('thinking'))
-
-        llm_response = LLMResponse(
-            content=content,
-            model=model,
-            usage=usage,
-            finish_reason=finish_reason,
-            reasoning_present=reasoning_present,
-            reasoning_exhausted=(
-                not content.strip() and reasoning_present and finish_reason == 'length'
-            ),
-            returned_model=data.get('model'),
-        )
-
-        _log_content("Ollama native response", content)
-        if llm_response.usage:
-            io_logger.info(
-                f"Ollama native response: model={llm_response.model}"
-                f" in={llm_response.usage['input_tokens']}"
-                f" out={llm_response.usage['output_tokens']}"
-                f" len={len(content)}"
-            )
         return llm_response
 
     def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
@@ -1746,6 +1600,168 @@ class OpenAICompatibleClient(LLMClient):
         except Exception as e:
             logger.debug(f"Ollama native /api/tags fallback failed: {e}")
             return []
+
+
+class OllamaNativeClient(OpenAICompatibleClient):
+    """Ollama client routed through native /api/chat instead of the
+    OpenAI-compatible endpoint, the only one that honors num_ctx (#780)."""
+
+    def __init__(self, *, ollama_num_ctx: int, **kwargs):
+        super().__init__(**kwargs)
+        self._ollama_num_ctx = ollama_num_ctx
+
+    def messages_create(
+        self,
+        model: str,
+        max_tokens: int,
+        system: str,
+        messages: list[dict],
+        temperature: float = 0.0,
+        timeout: float = 120.0,
+        response_format: dict[str, str] | None = None,
+        reasoning_effort: Union[int, str] | None = None,
+        episode_id: str | None = None,
+        pass_name: str | None = None,
+    ) -> LLMResponse:
+        self._check_circuit_breaker()
+        return self._native_ollama_chat(
+            model, max_tokens, system, messages, temperature, timeout,
+            response_format, reasoning_effort, episode_id, pass_name,
+        )
+
+    def _native_ollama_chat(
+        self,
+        model: str,
+        max_tokens: int,
+        system: str,
+        messages: list[dict],
+        temperature: float,
+        timeout: float,
+        response_format: dict[str, str] | None,
+        reasoning_effort: Union[int, str] | None,
+        episode_id: str | None,
+        pass_name: str | None,
+    ) -> LLMResponse:
+        all_messages = [{"role": "system", "content": system}] + messages
+
+        eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
+            episode_id, pass_name, max_tokens, temperature, reasoning_effort
+        )
+        self._log_messages("Ollama native", system, messages, model, eff_temp, eff_max)
+
+        def _send(tok, tmp, reasoning):
+            body = self._build_ollama_native_request(
+                model, all_messages, tok, tmp, reasoning, response_format)
+            return self._send_ollama_native_request(body, timeout)
+
+        data, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
+            "Ollama native", PROVIDER_OLLAMA, model,
+            eff_max, eff_temp, eff_reasoning,
+            max_tokens, temperature, reasoning_effort,
+            episode_id, pass_name,
+            started_in_fallback,
+            _send,
+        )
+        self._record_circuit_breaker(success=True)
+        return self._map_ollama_native_response(data, model, eff_max)
+
+    def _build_ollama_native_request(
+        self, model: str, all_messages: list[dict], max_tokens: int,
+        temperature: float, reasoning_effort: Union[int, str] | None,
+        response_format: dict[str, str] | None,
+    ) -> dict:
+        """Build the native /api/chat request body."""
+        body = {
+            "model": model,
+            "messages": all_messages,
+            "stream": False,
+            "options": {
+                "num_ctx": self._ollama_num_ctx,
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            },
+        }
+        if response_format:
+            rf_type = response_format.get('type')
+            if rf_type == 'json_schema':
+                schema = (response_format.get('json_schema') or {}).get('schema')
+                if schema:
+                    body["format"] = schema
+            elif rf_type == 'json_object':
+                body["format"] = "json"
+        normalized_reasoning = translate_reasoning_effort(
+            PROVIDER_OLLAMA, reasoning_effort).get("reasoning_effort")
+        body["think"] = normalized_reasoning not in (None, "none")
+        return body
+
+    def _send_ollama_native_request(self, body: dict, timeout: float) -> dict:
+        """POST body to the native /api/chat root and return the parsed JSON.
+        Root derivation and auth header mirror _try_ollama_native_list."""
+        from utils.safe_http import URLTrust, safe_post
+        url = f"{self._ollama_native_root()}/api/chat"
+        headers = {}
+        if self.api_key and self.api_key != 'not-needed':
+            headers['Authorization'] = f'Bearer {self.api_key}'
+        resp = safe_post(
+            url,
+            trust=URLTrust.OPERATOR_CONFIGURED,
+            timeout=timeout,
+            json=body,
+            headers=headers or None,
+            max_redirects=HTTP_MAX_REDIRECTS_API,
+        )
+        if not resp.ok:
+            raise self._ollama_native_status_error(resp)
+        return resp.json()
+
+    @staticmethod
+    def _ollama_native_status_error(resp) -> OllamaNativeChatError:
+        """Translate a non-2xx native response into an error the shared
+        classifiers recognize by status_code and message wording."""
+        status = resp.status_code
+        detail = (resp.text or '')[:300]
+        if status == 429:
+            message = f"Ollama native chat rate limit (429): {detail}"
+        else:
+            message = f"Ollama native chat failed ({status}): {detail}"
+        return OllamaNativeChatError(message, status_code=status)
+
+    def _map_ollama_native_response(self, data: dict, model: str, max_tokens: int) -> LLMResponse:
+        """Map a native /api/chat JSON body into LLMResponse."""
+        message = data.get('message') or {}
+        content = message.get('content') or ""
+        finish_reason = data.get('done_reason')
+        self._warn_if_truncated(finish_reason, max_tokens, model)
+
+        input_tokens = data.get('prompt_eval_count')
+        output_tokens = data.get('eval_count')
+        usage = None
+        if input_tokens is not None and output_tokens is not None:
+            usage = {'input_tokens': input_tokens, 'output_tokens': output_tokens}
+
+        reasoning_present = bool(message.get('thinking'))
+
+        llm_response = LLMResponse(
+            content=content,
+            model=model,
+            usage=usage,
+            finish_reason=finish_reason,
+            reasoning_present=reasoning_present,
+            reasoning_exhausted=(
+                not content.strip() and reasoning_present and finish_reason == 'length'
+            ),
+            returned_model=data.get('model'),
+        )
+
+        _log_content("Ollama native response", content)
+        if llm_response.usage:
+            io_logger.info(
+                f"Ollama native response: model={llm_response.model}"
+                f" in={llm_response.usage['input_tokens']}"
+                f" out={llm_response.usage['output_tokens']}"
+                f" len={len(content)}"
+            )
+        return llm_response
 
 
 # =============================================================================
@@ -2024,7 +2040,6 @@ def _build_client(provider: str, base_url: str | None = None,
     elif provider in PROVIDERS_NON_ANTHROPIC:
         raw_base_url = base_url or get_effective_base_url()
         normalized_base_url = _normalize_base_url_for_provider(provider, raw_base_url)
-        ollama_num_ctx = None
         if provider == PROVIDER_OLLAMA:
             if normalized_base_url != raw_base_url:
                 logger.info(f"Ollama provider: normalized base_url to {safe_url_for_log(normalized_base_url)}")
@@ -2033,12 +2048,15 @@ def _build_client(provider: str, base_url: str | None = None,
             ollama_num_ctx = get_effective_ollama_num_ctx()
             if ollama_num_ctx:
                 logger.info(f"Ollama provider: num_ctx={ollama_num_ctx}, using native /api/chat")
+                return OllamaNativeClient(
+                    base_url=normalized_base_url, api_key=api_key,
+                    extra_headers=_opencode_headers(normalized_base_url),
+                    ollama_num_ctx=ollama_num_ctx)
         else:
             api_key = (get_effective_secondary_provider_api_key() if secondary
                        else get_effective_openai_api_key()) or 'not-needed'
         return OpenAICompatibleClient(base_url=normalized_base_url, api_key=api_key,
-                                      extra_headers=_opencode_headers(normalized_base_url),
-                                      ollama_num_ctx=ollama_num_ctx)
+                                      extra_headers=_opencode_headers(normalized_base_url))
     return None
 
 

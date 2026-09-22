@@ -56,13 +56,20 @@ def _native_resp(status_code=200, json_body=None, text=""):
 
 class TestOpenAICompatibleClientNativeOllamaChat(unittest.TestCase):
     def _make_client(self, num_ctx=None, api_key='not-needed'):
-        from llm_client import OpenAICompatibleClient
-        client = OpenAICompatibleClient(
-            base_url='http://localhost:11434/v1',
-            api_key=api_key,
-            default_model='qwen3',
-            ollama_num_ctx=num_ctx,
-        )
+        from llm_client import OllamaNativeClient, OpenAICompatibleClient
+        if num_ctx:
+            client = OllamaNativeClient(
+                base_url='http://localhost:11434/v1',
+                api_key=api_key,
+                default_model='qwen3',
+                ollama_num_ctx=num_ctx,
+            )
+        else:
+            client = OpenAICompatibleClient(
+                base_url='http://localhost:11434/v1',
+                api_key=api_key,
+                default_model='qwen3',
+            )
         client._token_param_cache.clear()
         client._client = MagicMock()
         return client
@@ -263,16 +270,17 @@ class TestBuildClientOllamaNumCtx(unittest.TestCase):
     @patch('llm_client._get_cached_secret', return_value=None)
     @patch('llm_client.get_effective_ollama_num_ctx', return_value=32768)
     def test_ollama_provider_gets_num_ctx(self, _mock_ctx, _mock_secret):
-        from llm_client import _build_client, PROVIDER_OLLAMA
+        from llm_client import _build_client, OllamaNativeClient, PROVIDER_OLLAMA
         client = _build_client(PROVIDER_OLLAMA, base_url='http://localhost:11434/v1')
+        self.assertIsInstance(client, OllamaNativeClient)
         self.assertEqual(client._ollama_num_ctx, 32768)
 
     @patch('llm_client._get_cached_secret', return_value=None)
     @patch('llm_client.get_effective_ollama_num_ctx', return_value=32768)
     def test_openai_compatible_provider_does_not_get_num_ctx(self, _mock_ctx, _mock_secret):
-        from llm_client import _build_client, PROVIDER_OPENAI_COMPATIBLE
+        from llm_client import _build_client, OllamaNativeClient, PROVIDER_OPENAI_COMPATIBLE
         client = _build_client(PROVIDER_OPENAI_COMPATIBLE, base_url='http://localhost:8000/v1')
-        self.assertIsNone(client._ollama_num_ctx)
+        self.assertNotIsInstance(client, OllamaNativeClient)
 
 
 if __name__ == '__main__':

@@ -37,7 +37,7 @@ class TestFeed304Refresh(unittest.TestCase):
             'channel_metadata_at': '2026-07-26T00:00:00Z',
         }
         # Episodes exist
-        db.get_episodes.return_value = ([], 5)
+        db.has_episodes.return_value = True
 
         # Upstream returns 304 (feed_content=None, but etag present)
         rss_parser.fetch_feed_conditional.return_value = (None, '"abc123"', None)
@@ -70,7 +70,7 @@ class TestFeed304Refresh(unittest.TestCase):
             'etag': '"abc123"', 'last_modified': None,
             'artwork_cached': False
         }
-        db.get_episodes.return_value = ([], 5)
+        db.has_episodes.return_value = True
 
         # First call returns 304, second call (forced full fetch) returns content
         rss_parser.fetch_feed_conditional.side_effect = [
@@ -112,7 +112,7 @@ class TestFeed304Refresh(unittest.TestCase):
             'podping_checked_at': '2026-07-26T00:00:00Z',
             'channel_metadata_at': '2026-07-26T00:00:00Z',
         }
-        db.get_episodes.return_value = ([], 100)
+        db.has_episodes.return_value = True
         rss_parser.fetch_feed_conditional.return_value = (None, '"abc123"', None)
         storage.load_data_json.return_value = {'feed_url': 'https://example.com/rss'}
 
@@ -120,7 +120,7 @@ class TestFeed304Refresh(unittest.TestCase):
 
         self.assertEqual(outcome.status, 'not_modified')
         rss_parser.fetch_feed_conditional.assert_called_once()
-        db.get_episodes.assert_called_once_with('test-podcast', limit=1)
+        db.has_episodes.assert_called_once_with('test-podcast')
 
     @patch('main_app.feeds.pattern_service')
     @patch('main_app.feeds.status_service')
@@ -135,7 +135,7 @@ class TestFeed304Refresh(unittest.TestCase):
             'etag': '"abc123"', 'last_modified': None,
             'artwork_cached': True,
         }
-        db.get_episodes.return_value = ([], 0)
+        db.has_episodes.return_value = False
         rss_parser.fetch_feed_conditional.side_effect = [
             (None, '"abc123"', None),
             ('<rss>full</rss>', '"abc123"', None),

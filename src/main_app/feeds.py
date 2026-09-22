@@ -285,9 +285,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         # Handle 304 Not Modified - feed hasn't changed
         if feed_content is None and (new_etag or new_last_modified):
             # If no episodes exist yet (pre-v1.0.41 feed), force full fetch for initial
-            # discovery; a fully-processed feed still has rows here, so count any status.
-            _, episode_count = db.get_episodes(slug, limit=1)
-            if episode_count > 0:
+            # discovery; a fully-processed feed still has rows here, of any status.
+            if db.has_episodes(slug):
                 # Even on 304, ensure artwork is cached (may be missing after DB restore)
                 podcast = db.get_podcast_row(slug)
                 # A 304 carries no body, so a steady-state feed would never
