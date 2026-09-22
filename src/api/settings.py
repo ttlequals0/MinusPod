@@ -180,10 +180,9 @@ def _clamped_int(raw, default, lo, hi):
 
 # ========== Settings Endpoints ==========
 
-@api.route('/settings', methods=['GET'])
-@log_request
-def get_settings():
-    """Get all settings."""
+def _build_settings_payload():
+    """Build the full settings payload returned by GET /settings, reused by
+    GET /system/config-export so the two never drift."""
     db = get_database()
     from database import (
         DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT,
@@ -632,7 +631,7 @@ def get_settings():
     silence_snap_min_duration = _cue_num('silence_snap_min_duration_seconds', SILENCE_SNAP_MIN_DURATION_SECONDS)
     silence_snap_max_distance = _cue_num('silence_snap_max_distance_seconds', SILENCE_SNAP_MAX_DISTANCE_SECONDS)
 
-    return json_response({
+    return {
         'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT) or DEFAULT_SYSTEM_PROMPT),
         'verificationPrompt': _sv('verification_prompt', _setting_value(settings, 'verification_prompt', DEFAULT_VERIFICATION_PROMPT) or DEFAULT_VERIFICATION_PROMPT),
         'enableAdReview': _sv('enable_ad_review', enable_ad_review),
@@ -829,7 +828,14 @@ def get_settings():
                for key, spec in SETTINGS_REGISTRY.items() if spec.payload_key},
             'openrouterBaseUrl': OPENROUTER_BASE_URL,
         }
-    })
+    }
+
+
+@api.route('/settings', methods=['GET'])
+@log_request
+def get_settings():
+    """Get all settings."""
+    return json_response(_build_settings_payload())
 
 
 class _PhaseRejected(Exception):

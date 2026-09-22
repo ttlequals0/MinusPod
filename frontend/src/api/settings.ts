@@ -361,6 +361,13 @@ export async function downloadBackup(encrypted = true): Promise<void> {
   downloadBlob(blob, filename);
 }
 
+export async function downloadConfig(): Promise<void> {
+  const { blob, filename } = await apiFileRequest('/system/config-export', {
+    fallbackFilename: 'minuspod-config.json',
+  });
+  downloadBlob(blob, filename);
+}
+
 // Scheduled DB backups
 
 export interface DatabaseBackupSettings {
