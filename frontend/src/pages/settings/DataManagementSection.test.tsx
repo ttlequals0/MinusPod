@@ -83,7 +83,7 @@ describe('DataManagementSection configuration export', () => {
     let resolveDownload: () => void = () => {};
     mockDownloadConfig.mockReturnValue(new Promise<void>((resolve) => { resolveDownload = resolve; }));
     renderSection();
-    const button = screen.getByRole('button', { name: 'Download configuration' });
+    const button = screen.getByRole('button', { name: 'Download Configuration' });
 
     await userEvent.click(button);
 
@@ -92,7 +92,7 @@ describe('DataManagementSection configuration export', () => {
     expect((button as HTMLButtonElement).disabled).toBe(true);
 
     resolveDownload();
-    await waitFor(() => expect(button.textContent).toBe('Download configuration'));
+    await waitFor(() => expect(button.textContent).toBe('Download Configuration'));
     expect(mockDownloadConfig).toHaveBeenCalledOnce();
   });
 
@@ -100,7 +100,7 @@ describe('DataManagementSection configuration export', () => {
     mockDownloadConfig.mockRejectedValue(new Error('boom'));
     renderSection();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Download configuration' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Download Configuration' }));
 
     expect(await screen.findByText('boom')).toBeDefined();
   });

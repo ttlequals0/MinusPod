@@ -177,7 +177,7 @@ function DataManagementSection({
         </div>
 
         {/* Database Backup Card */}
-        <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
+        <div className="p-4 rounded-lg border border-border bg-background flex flex-col sm:row-span-2">
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 rounded bg-secondary shrink-0">
               <svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -229,7 +229,7 @@ function DataManagementSection({
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-foreground">Configuration export</h4>
+              <h4 className="text-sm font-semibold text-foreground">Configuration Export</h4>
               <p className="text-xs text-muted-foreground mt-1">
                 Download this instance&apos;s settings and feed configuration as JSON with every key, token, and password removed, ready to attach to a bug report.
               </p>
@@ -240,7 +240,7 @@ function DataManagementSection({
             disabled={configStatus === 'loading'}
             className={`mt-auto min-h-[44px] w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
           >
-            {configStatus === 'loading' ? 'Preparing download' : 'Download configuration'}
+            {configStatus === 'loading' ? 'Preparing download' : 'Download Configuration'}
           </button>
           {renderStatusIndicator(configStatus, configError)}
         </div>
