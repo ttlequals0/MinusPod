@@ -16,6 +16,7 @@ def seeded_feed(app_client):
     from api import get_database
     db = get_database()
     slug = 'config-export-api-feed'
+    prior = {key: db.get_setting(key) for key in ('feed_auth_enabled', 'feed_auth_key', 'webhooks')}
     db.create_podcast(slug, 'https://user:pass@example.com/feed.xml?key=upstream-secret', 'Config Export API Test')
     db.set_setting('feed_auth_enabled', 'true')
     db.set_setting('feed_auth_key', 'super-secret-feed-key')
@@ -28,8 +29,15 @@ def seeded_feed(app_client):
         'payloadTemplate': None,
         'contentType': 'application/json',
     }]))
-    yield {'slug': slug, 'db': db}
-    db.delete_podcast(slug)
+    try:
+        yield {'slug': slug, 'db': db}
+    finally:
+        db.delete_podcast(slug)
+        for key, value in prior.items():
+            if value is None:
+                db.clear_setting(key)
+            else:
+                db.set_setting(key, value)
 
 
 def _authed(client):
