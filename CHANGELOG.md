@@ -13,7 +13,7 @@ release notes.
 
 ### Added
 
-- Settings > Data Management has a Configuration export card. It downloads the instance settings, feed configuration, and webhooks as JSON with every API key, token, password, and feed key removed, ready to attach to a bug report (#781).
+- Settings > Data Management has a Configuration Export card. It downloads the instance settings, feed configuration, and webhooks as JSON with every API key, token, password, and feed key removed, ready to attach to a bug report (#781).
 - Processing run history shows chapter generation as its own timing row. It is included in the assets stage total, and reads "Unavailable" when chapters were not generated.
 
 ### Fixed
