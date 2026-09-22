@@ -23,6 +23,21 @@ def test_drops_known_secret_keys():
     assert result == {'claudeModel': 'claude-3'}
 
 
+def test_drops_secret_shaped_keys_not_in_exact_name_list():
+    doc = {
+        'smtpPassword': 'hunter2',
+        'openaiApiKey': 'sk-xyz',
+        'slackToken': 'xoxb-1',
+        'chapterKeywords': ['ad', 'sponsor'],
+        'apiKeyConfigured': True,
+    }
+    result = redact_config(doc)
+    assert result == {
+        'chapterKeywords': ['ad', 'sponsor'],
+        'apiKeyConfigured': True,
+    }
+
+
 def test_keeps_configured_booleans_even_with_matching_names():
     doc = {'apiKeyConfigured': True, 'secret': False}
     result = redact_config(doc)

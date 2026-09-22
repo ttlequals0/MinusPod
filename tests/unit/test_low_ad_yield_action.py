@@ -526,3 +526,26 @@ class TestPublishStatusRunIdForwarding:
 
         mock_status_service.complete_job.assert_called_once_with(
             'a-feed', 'ep1', run_id='run-2')
+
+    def test_signature_is_inspected_once_per_method(self):
+        import inspect as inspect_mod
+        import run_context
+        import status_service as status_service_mod
+        mock_status_service = create_autospec(status_service_mod.StatusService,
+                                              instance=True)
+        processing._method_accepts_run_id.cache_clear()
+
+        ctx = run_context.begin('a-feed', 'ep1', run_id='run-3')
+        try:
+            with patch.object(processing, 'status_service', mock_status_service), \
+                 patch.object(processing, '_require_publication_owner'), \
+                 patch.object(processing.inspect, 'signature',
+                              wraps=inspect_mod.signature) as sig:
+                processing._publish_status('complete_job', 'a-feed', 'ep1')
+                processing._publish_status('complete_job', 'a-feed', 'ep1')
+        finally:
+            run_context.end(ctx)
+            processing._method_accepts_run_id.cache_clear()
+
+        assert sig.call_count == 1
+        assert mock_status_service.complete_job.call_count == 2

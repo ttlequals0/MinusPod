@@ -468,7 +468,9 @@ class TestLostWindowSweep:
     def test_sweep_hold_defers_instead_of_crashing(self):
         """A rate limit hit mid-sweep must defer the episode like a held
         window in the main loop, not raise out of the pass. Whatever the
-        sweep already recovered before the hold still gets merged in."""
+        sweep already recovered before the hold still gets merged in.
+        `_process_single_window` reports the hold as a failed WindowResult
+        rather than raising, so the sweep must read it off `last_error`."""
         held = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
         results = [_failed_window(0, _ProviderError('bad gateway', 502)),
                    _failed_window(1, _ProviderError('bad gateway', 502))]
@@ -478,7 +480,7 @@ class TestLostWindowSweep:
         def stub(*, window_idx, window, total_windows, **_kwargs):
             if window_idx == 0:
                 return _recovered_window(0)
-            raise held
+            return _failed_window(1, held)
 
         with patch.object(detector, '_run_windows', return_value=results), \
              patch.object(detector, '_client_for_pass', return_value=SimpleNamespace()), \
@@ -521,3 +523,36 @@ class TestLostWindowSweep:
 
         repaired_labels = [c.kwargs['window_label'] for c in repair_mock.call_args_list]
         assert 'Window 1' in repaired_labels
+
+    def test_repair_hold_still_counts_windows_judged_for_that_window(self):
+        """Addressing stats fold in before category repair runs, so a repair
+        hold still counts the window towards windows_judged."""
+        import ad_detector as ad_detector_module
+
+        held = ProviderRateLimitedError('resets in 60s', retry_after_seconds=60.0)
+        results = [WindowResult(
+            window_idx=0, window_start=0.0, window_end=60.0, ads=[],
+            raw_response='w0', failed=False, last_error=None,
+            compliant=True, ads_proposed=1)]
+        detector = AdDetector(api_key='test-key')
+        captured = []
+        real_cls = ad_detector_module.AddressingStats
+
+        def spy(*args, **kwargs):
+            instance = real_cls(*args, **kwargs)
+            captured.append(instance)
+            return instance
+
+        with patch.object(detector, '_run_windows', return_value=results), \
+             patch.object(detector, '_client_for_pass', return_value=SimpleNamespace()), \
+             patch.object(detector, '_repair_window_categories', side_effect=held), \
+             patch.object(ad_detector_module, 'AddressingStats', side_effect=spy):
+            detector._run_detection_pass(
+                _windows(1), pass_label='Detection', model='x',
+                system_prompt='x', description_section='x', podcast_name='p',
+                episode_title='e', audio_analysis=None, progress_callback=None,
+                progress_base=0, progress_range=100, slug='s', episode_id='1',
+                pass_name=PASS_AD_DETECTION_1, window_label_prefix='Window',
+                validate_timestamps=False, category_repair_enabled=True)
+
+        assert captured[0].windows_judged == 1

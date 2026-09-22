@@ -5,9 +5,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from utils.http import safe_url_for_log
 
-_REDACT_KEY_NAMES = frozenset((
-    'feedauthkey', 'apikey', 'secret', 'password', 'passphrase', 'token', 'key',
-))
+_REDACT_KEY_SUBSTRINGS = ('secret', 'password', 'passphrase', 'token', 'apikey')
 _STRIP_QUERY_PARAMS = frozenset(('key', 'token', 'auth', 'api_key', 'apikey'))
 # Fields present on a webhook dict but not on other URL-carrying entries
 # (feeds, source URLs), used to tell "this dict's url is a webhook target".
@@ -16,6 +14,12 @@ _WEBHOOK_MARKER_KEYS = frozenset(('events', 'contenttype', 'payloadtemplate'))
 
 def _normalize_key(key: str) -> str:
     return key.replace('_', '').lower()
+
+
+def _is_secret_key(key: str) -> bool:
+    normalized = _normalize_key(key)
+    return normalized.endswith('key') or any(
+        s in normalized for s in _REDACT_KEY_SUBSTRINGS)
 
 
 def _is_webhook_entry(entry: dict) -> bool:
@@ -54,7 +58,7 @@ def redact_config(value):
             if isinstance(v, bool):
                 out[k] = v
                 continue
-            if _normalize_key(k) in _REDACT_KEY_NAMES:
+            if _is_secret_key(k):
                 continue
             if webhook and k == 'url' and isinstance(v, str):
                 out[k] = safe_url_for_log(v)

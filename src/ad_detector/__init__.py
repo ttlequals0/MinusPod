@@ -1432,6 +1432,14 @@ class AdDetector:
                 if hold_error is None:
                     hold_error = e
                 return
+            if result.failed and isinstance(result.last_error, ProviderRateLimitedError):
+                logger.warning(
+                    f"[{slug}:{episode_id}] Sweep: window {idx + 1}/{total_windows} "
+                    "hit a rate-limit hold; deferring the episode"
+                )
+                if hold_error is None:
+                    hold_error = result.last_error
+                return
             if not result.failed:
                 logger.info(
                     f"[{slug}:{episode_id}] Window {idx + 1}/{total_windows} "
@@ -1568,10 +1576,20 @@ class AdDetector:
         addressing = AddressingStats()
 
         def _merge_window_result(result):
-            """Repair missing categories (if enabled), then fold a non-failed
-            WindowResult into the pass totals. Returns True when repair hit a
-            rate-limit hold, so the caller stops merging further results."""
+            """Fold addressing stats for a non-failed WindowResult, then repair
+            missing categories (if enabled). Returns True when repair hit a
+            rate-limit hold, so the caller stops merging further results; the
+            addressing stats above are still recorded for this window."""
             nonlocal category_repaired, hold_error
+            if result.compliant is not None:
+                addressing.windows_judged += 1
+                if result.compliant:
+                    addressing.windows_compliant += 1
+                addressing.ads_proposed += result.ads_proposed
+                addressing.ads_kept += len(result.ads)
+                addressing.dropped_invalid_ref += result.dropped_invalid_ref
+                addressing.dropped_out_of_window += result.dropped_out_of_window
+                addressing.dropped_too_long += result.dropped_too_long
             if category_repair_enabled:
                 # _repair_window_categories no-ops when nothing here is
                 # missing a category; checking first would just scan `ads`
@@ -1593,15 +1611,6 @@ class AdDetector:
                     # Same rule as a held window: the hold defers the episode.
                     hold_error = e
                     return True
-            if result.compliant is not None:
-                addressing.windows_judged += 1
-                if result.compliant:
-                    addressing.windows_compliant += 1
-                addressing.ads_proposed += result.ads_proposed
-                addressing.ads_kept += len(result.ads)
-                addressing.dropped_invalid_ref += result.dropped_invalid_ref
-                addressing.dropped_out_of_window += result.dropped_out_of_window
-                addressing.dropped_too_long += result.dropped_too_long
             if result.raw_response:
                 all_raw_responses.append(result.raw_response)
             all_window_ads.extend(result.ads)

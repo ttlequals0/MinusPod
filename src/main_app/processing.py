@@ -1,4 +1,5 @@
 """Processing pipeline: _process_episode_background, all pipeline stages."""
+import functools
 import inspect
 import json
 import logging
@@ -203,11 +204,18 @@ def _require_publication_owner(slug: str, episode_id: str) -> None:
         _check_cancel(None, slug, episode_id, run_id)
 
 
+@functools.lru_cache(maxsize=None)
+def _method_accepts_run_id(method: str) -> bool:
+    params = inspect.signature(getattr(status_service, method)).parameters
+    return 'run_id' in params or any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 def _publish_status(method: str, slug: str, episode_id: str, *args):
     _require_publication_owner(slug, episode_id)
     run_id = getattr(run_context.current(), 'run_id', None)
     fn = getattr(status_service, method)
-    if run_id and 'run_id' in inspect.signature(fn).parameters:
+    if run_id and _method_accepts_run_id(method):
         return fn(slug, episode_id, *args, run_id=run_id)
     return fn(slug, episode_id, *args)
 
