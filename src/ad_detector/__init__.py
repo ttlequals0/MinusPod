@@ -1576,10 +1576,8 @@ class AdDetector:
         addressing = AddressingStats()
 
         def _merge_window_result(result):
-            """Fold addressing stats for a non-failed WindowResult, then repair
-            missing categories (if enabled). Returns True when repair hit a
-            rate-limit hold, so the caller stops merging further results; the
-            addressing stats above are still recorded for this window."""
+            """Fold a non-failed WindowResult into the pass totals; returns True when
+            category repair hit a rate-limit hold (addressing stats already counted)."""
             nonlocal category_repaired, hold_error
             if result.compliant is not None:
                 addressing.windows_judged += 1
