@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.13] - 2026-09-22
+
+### Fixed
+
+- The configuration export also masks email addresses and any mention of this instance's domain outside URLs, and leaves out feed author and Podcasting 2.0 owner fields.
+
 ## [2.97.12] - 2026-09-22
 
 ### Changed

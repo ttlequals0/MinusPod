@@ -79,6 +79,7 @@ def test_authenticated_export_is_redacted_json_attachment(app_client, seeded_fee
     assert 'user:pass@' not in body_text
     assert 'wh-secret' not in body_text
     assert 'upstream-secret' not in body_text
+    assert '@' not in body_text
 
     data = response.get_json()
     assert set(data.keys()) == {'settings', 'feeds', 'webhooks', 'system'}
@@ -88,6 +89,8 @@ def test_authenticated_export_is_redacted_json_attachment(app_client, seeded_fee
 
     feed = next(feed for feed in data['feeds'] if feed['slug'] == seeded_feed['slug'])
     assert feed['sourceFeedUrl'] == 'https://example.com/feed.xml'
+    assert 'author' not in feed
+    assert 'p20' not in feed
 
     base_host = urlsplit(os.environ.get('BASE_URL', 'http://localhost:8000')).hostname
     assert base_host not in body_text

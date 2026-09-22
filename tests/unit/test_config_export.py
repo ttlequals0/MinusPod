@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from utils.config_export import redact_config
+from utils.config_export import DomainIdentity, redact_config
 
 
 def test_drops_known_secret_keys():
@@ -146,6 +146,46 @@ def test_private_host_masked_outside_settings_too():
     doc = {'feeds': [{'sourceFeedUrl': 'http://localhost:9000/feed.xml'}]}
     result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
     assert result == {'feeds': [{'sourceFeedUrl': 'http://<private-host>/feed.xml'}]}
+
+
+def test_masks_email_in_settings_value():
+    doc = {'settings': {'smtpFrom': 'Alerts <alerts@example.com>'}}
+    result = redact_config(doc)
+    assert result == {'settings': {'smtpFrom': 'Alerts <<email>>'}}
+
+
+def test_masks_email_in_nested_list():
+    doc = {'feeds': [{'detectionNotes': 'contact ops@example.com for help'}]}
+    result = redact_config(doc)
+    assert result == {'feeds': [{'detectionNotes': 'contact <email> for help'}]}
+
+
+def test_masks_domain_host_mention_outside_url():
+    doc = {'feeds': [{'detectionNotes': 'Hosted by feeds.example.com'}]}
+    identity = DomainIdentity(host='feeds.example.com', registrable_domain='example.com')
+    result = redact_config(doc, domain_identity=identity)
+    assert result == {'feeds': [{'detectionNotes': 'Hosted by <domain>'}]}
+
+
+def test_masks_bare_registrable_domain():
+    doc = {'feeds': [{'author': 'example.com'}]}
+    identity = DomainIdentity(host='feeds.example.com', registrable_domain='example.com')
+    result = redact_config(doc, domain_identity=identity)
+    assert result == {'feeds': [{'author': '<domain>'}]}
+
+
+def test_masks_bare_first_label_when_long_enough():
+    doc = {'feeds': [{'author': 'example'}]}
+    identity = DomainIdentity(host='feeds.example.com', registrable_domain='example.com')
+    result = redact_config(doc, domain_identity=identity)
+    assert result == {'feeds': [{'author': '<domain>'}]}
+
+
+def test_short_first_label_not_masked():
+    doc = {'feeds': [{'author': 'ab'}]}
+    identity = DomainIdentity(host='ab.io', registrable_domain='ab.io')
+    result = redact_config(doc, domain_identity=identity)
+    assert result == {'feeds': [{'author': 'ab'}]}
 
 
 def test_handles_nested_lists():

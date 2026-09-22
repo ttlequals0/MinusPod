@@ -512,12 +512,13 @@ def export_config():
 
     from api.feeds import get_feeds_export_list
     from api.settings import _build_settings_payload
-    from utils.config_export import redact_config
+    from utils.config_export import build_domain_identity, redact_config
     from utils.gpu import get_gpu_device_name
     from webhook_service import load_webhooks
 
     base_host = (urlsplit(os.environ.get('BASE_URL', 'http://localhost:8000')).hostname or '').lower()
     instance_hosts = frozenset({h for h in (base_host, 'localhost') if h})
+    domain_identity = build_domain_identity(base_host)
 
     db = get_database()
     whisper = _effective_whisper_config(db)
@@ -535,7 +536,7 @@ def export_config():
             'platform': platform.machine(),
         },
     }
-    redacted = redact_config(document, instance_hosts=instance_hosts)
+    redacted = redact_config(document, instance_hosts=instance_hosts, domain_identity=domain_identity)
 
     timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     filename = f"minuspod-config-{timestamp}.json"
