@@ -25,6 +25,7 @@ dist
 .pytest_cache
 .coverage
 .coverage.*
+coverage*
 htmlcov
 .tox
 .nox
