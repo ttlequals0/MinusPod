@@ -557,7 +557,7 @@ export interface AdSegment {
   silence_snap?: { start?: Record<string, unknown>; end?: Record<string, unknown> };
   validation?: AdValidation;
   // Ad reviewer (issue #197) -- populated only when the reviewer ran on this ad.
-  reviewer_verdict?: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure';
+  reviewer_verdict?: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure' | 'inconclusive';
   reviewer_original_start?: number;
   reviewer_original_end?: number;
   reviewer_reasoning?: string;
@@ -1485,6 +1485,7 @@ export interface ReviewerStats {
     adjust: number;
     reject: number;
     resurrect: number;
+    inconclusive: number;
     failure: number;
   };
   pass1AdjustmentCount: number;
@@ -1597,7 +1598,7 @@ export interface SpendAttempt {
   credentialSlot: string;
   model: string;
   returnedModel: string | null;
-  status: string;
+  status: 'success' | 'failure' | 'inconclusive';
   inputTokens: number | null;
   outputTokens: number | null;
   costUsd: string | null;

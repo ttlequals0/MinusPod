@@ -2128,6 +2128,7 @@ def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
         f"{sum(1 for v in verdicts if v.verdict == 'adjust')} adjusted, "
         f"{sum(1 for v in verdicts if v.verdict == 'reject')} rejected, "
         f"{sum(1 for v in verdicts if v.verdict == 'resurrect')} resurrected, "
+        f"{sum(1 for v in verdicts if v.verdict == 'inconclusive')} inconclusive, "
         f"{sum(1 for v in verdicts if v.verdict == 'failure')} failed"
     )
 

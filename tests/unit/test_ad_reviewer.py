@@ -13,6 +13,7 @@ from ad_reviewer import (
     BOUNDARY_SNAP_TOLERANCE_S,
     RESURRECT_BAND_WIDTH,
     _first_num,
+    _review_inconclusive_reason,
     split_resurrection_pool,
 )
 
@@ -718,6 +719,60 @@ def test_llm_call_failure_falls_through():
     assert result.accepted_after_review == [ad]  # unchanged
     assert result.verdicts[0].verdict == 'failure'
     assert result.verdicts[0].success is False
+
+
+def test_inconclusive_review_retains_marker_and_reason():
+    class InconclusiveError(Exception):
+        status_code = 422
+        body = {
+            'error': {
+                'code': 'jev_review_inconclusive',
+                'reason': 'transcript_gap',
+                'stage': 'choice_rank',
+                'score': 0.41,
+                'threshold': 0.7,
+            },
+        }
+
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+    })
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    with patch('ad_reviewer.call_llm_for_window',
+               return_value=(None, InconclusiveError('inconclusive'))):
+        result = reviewer.review(
+            accepted_ads=[ad], resurrection_eligible=[],
+            segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+            pass_num=1, pass_model='claude-test',
+        )
+
+    assert result.accepted_after_review == [ad]
+    assert result.verdicts[0].verdict == 'inconclusive'
+    assert result.verdicts[0].success is True
+    assert 'Reviewer abstained: transcript gap.' in result.verdicts[0].reasoning
+    assert 'Stage: choice rank;' in result.verdicts[0].reasoning
+    assert 'score: 0.41;' in result.verdicts[0].reasoning
+    assert 'threshold: 0.7.' in result.verdicts[0].reasoning
+    assert result.verdicts[0].reasoning.endswith('Original marker retained.')
+
+
+def test_inconclusive_reason_does_not_expose_unknown_provider_text():
+    class InconclusiveError(Exception):
+        status_code = 422
+        body = {
+            'error': {
+                'code': 'jev_review_inconclusive',
+                'reason': ['provider-internal-details'],
+                'message': 'secret prompt text',
+                'stage': ['internal-debug'],
+                'score': 0.2,
+            },
+        }
+
+    assert _review_inconclusive_reason(InconclusiveError()) == (
+        'Reviewer abstained. score: 0.2. Original marker retained.'
+    )
 
 
 def test_per_ad_failure_does_not_block_other_ads():

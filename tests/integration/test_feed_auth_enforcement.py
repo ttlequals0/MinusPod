@@ -84,6 +84,13 @@ def recents_subscriber_feed(db):
     feeds_mod.invalidate_feed_cache()
 
 
+@pytest.fixture
+def duration_cache_feed_cleanup(db):
+    yield
+    db.delete_podcast('duration-cache-feed')
+    feeds_mod.invalidate_feed_cache()
+
+
 def _seed_feed(db, slug, key=None):
     if not db.get_podcast_by_slug(slug):
         db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
@@ -349,7 +356,8 @@ def test_serve_rss_no_refresh_when_key_matches(client, db):
     spy.assert_not_called()
 
 
-def test_serve_rss_repairs_unversioned_cache_with_processed_duration(client, db):
+def test_serve_rss_repairs_unversioned_cache_with_processed_duration(
+        client, db, duration_cache_feed_cleanup):
     slug = 'duration-cache-feed'
     source = """<?xml version="1.0"?>
 <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">

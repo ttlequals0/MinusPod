@@ -24,6 +24,7 @@ import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
 import { selectBase, inputBase, focusRing } from '../components/fieldStyles';
 import { btnSecondary } from '../components/buttonStyles';
+import { badgeBase, tint } from '../components/badgeStyles';
 import { getErrorMessage } from '../api/client';
 import { EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
 import { CalendarDays } from 'lucide-react';
@@ -337,7 +338,9 @@ const ATTEMPT_COLUMNS: {
     render: (a) => `${a.phase}${a.invokingPass ? ` (pass ${a.invokingPass})` : ''}` },
   { label: 'Provider', align: 'left', render: (a) => `${a.provider} / ${a.credentialSlot}` },
   { label: 'Model', align: 'left', render: (a) => a.returnedModel ?? a.model },
-  { label: 'Status', align: 'left', render: (a) => a.status },
+  { label: 'Status', align: 'left', render: (a) => a.status === 'inconclusive'
+    ? <span className={`${badgeBase} font-medium ${tint.neutral}`}>Abstained</span>
+    : a.status },
   { label: 'Tokens', align: 'right',
     render: (a) => formatTokenCount((a.inputTokens ?? 0) + (a.outputTokens ?? 0)) },
   { label: 'Cost', align: 'right',
@@ -1049,6 +1052,7 @@ export default function StatsPage() {
             <ReviewerStatCard label="Rejected" value={reviewer.verdictCounts.reject} />
             <ReviewerStatCard label="Resurrected" value={reviewer.verdictCounts.resurrect} />
             <ReviewerStatCard label="Failed" value={reviewer.verdictCounts.failure} />
+            <ReviewerStatCard label="Abstained" value={reviewer.verdictCounts.inconclusive} />
             <ReviewerStatCard label="Pass 1 adjusts" value={reviewer.pass1AdjustmentCount} />
             <ReviewerStatCard label="Pass 2 adjusts" value={reviewer.pass2AdjustmentCount} />
             <ReviewerStatCard label="Avg shift" value={`${reviewer.avgBoundaryShiftSeconds}s`} />

@@ -173,6 +173,41 @@ class TestCircuitCooldownRetries:
         assert waits == [2]
         assert client.calls == 2
 
+    def test_review_inconclusive_is_not_logged_as_lost_window(self, run_ctx, caplog):
+        error = _ProviderError('Review is inconclusive', 422)
+        error.body = {'error': {'code': 'jev_review_inconclusive'}}
+        client = _FakeLLMClient([error])
+
+        with caplog.at_level('WARNING'):
+            response, last_error = _window_call(client, max_retries=0)
+
+        assert response is None
+        assert last_error is error
+        assert client.calls == 1
+        assert 'lost after all retries' not in caplog.text
+
+    def test_inconclusive_after_transient_error_is_not_retried(self, run_ctx, monkeypatch):
+        waits = []
+        inconclusive = _ProviderError('Review is inconclusive', 422)
+        inconclusive.body = {'error': {'code': 'jev_review_inconclusive'}}
+        client = _FakeLLMClient([
+            _ProviderError('upstream invalid response', 503),
+            inconclusive,
+        ])
+        monkeypatch.setattr(
+            'utils.llm_call._sleep_before_retry',
+            lambda delay: waits.append(delay) or True,
+        )
+        monkeypatch.setattr('utils.llm_call.random.uniform', lambda _a, _b: 0.0)
+        monkeypatch.setattr('utils.retry.random.random', lambda: 0.5)
+
+        response, last_error = _window_call(client, max_retries=1)
+
+        assert response is None
+        assert last_error is inconclusive
+        assert waits == [2]
+        assert client.calls == 2
+
 
 def _windows(n):
     return [{'start': i * 60.0, 'end': i * 60.0 + 60.0,

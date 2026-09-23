@@ -19,6 +19,7 @@ release notes.
 ### Fixed
 
 - Served RSS now reports the processed audio duration for completed episodes.
+- Reviewer abstentions on inconclusive HTTP 422 responses retain the original marker, show a bounded reason, and avoid retries or breaker failures.
 
 ## [2.97.16] - 2026-09-23
 

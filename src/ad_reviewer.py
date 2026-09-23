@@ -1,4 +1,5 @@
 """Opt-in LLM ad reviewer."""
+import json
 import logging
 import math
 import re
@@ -35,9 +36,11 @@ from llm_route import (
 )
 from run_context import route_for_phase, run_in_worker_thread
 from llm_client import (
+    extract_error_body,
     get_effective_provider,
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
-    ProviderRateLimitedError, StructuralRateLimitError,
+    is_review_inconclusive_error, ProviderRateLimitedError,
+    StructuralRateLimitError,
 )
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
@@ -57,7 +60,7 @@ from utils.text import (
 )
 
 
-Verdict = Literal["confirmed", "adjust", "reject", "resurrect", "failure"]
+Verdict = Literal["confirmed", "adjust", "reject", "resurrect", "inconclusive", "failure"]
 
 # Structured-output schema for review calls (#694), gated like detection.
 # Wrapped under "ads" so extract_json_ads_array parses the envelope unchanged.
@@ -97,6 +100,48 @@ def _review_failure_reason(error: Exception) -> str:
     if is_rate_limit_error(error):
         return "Review unavailable: LLM rate limit reached"
     return "Review unavailable: LLM call failed"
+
+
+_INCONCLUSIVE_REASONS = frozenset({
+    'transcript_gap', 'ambiguous_spans', 'insufficient_evidence',
+    'no_valid_pairs', 'choice_inconclusive', 'invalid_pair',
+    'proposed_range_not_confirmed', 'original_range_not_confirmed',
+})
+_INCONCLUSIVE_STAGES = frozenset({
+    'context', 'evidence', 'choice_rank', 'focused_validation',
+})
+
+
+def _review_inconclusive_reason(error: Exception) -> str:
+    """Return a bounded, allowlisted reason from an inconclusive response."""
+    body = extract_error_body(error)
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except (TypeError, ValueError):
+            body = None
+    if not isinstance(body, dict):
+        return "Review inconclusive"
+    details = body.get('error') if isinstance(body.get('error'), dict) else body
+    reason = details.get('reason')
+    if not isinstance(reason, str) or reason not in _INCONCLUSIVE_REASONS:
+        reason = None
+    parts = [
+        f"Reviewer abstained: {reason.replace('_', ' ')}."
+        if reason else "Reviewer abstained."
+    ]
+    for key in ('stage', 'score', 'threshold'):
+        value = details.get(key)
+        if key == 'stage':
+            value = value if isinstance(value, str) and value in _INCONCLUSIVE_STAGES else None
+            if value:
+                parts.append(f"Stage: {value.replace('_', ' ')};")
+        elif isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+            parts.append(f"{key}: {value};")
+        else:
+            value = None
+    parts.append("Original marker retained.")
+    return " ".join(parts).replace('; Original', ". Original")
 
 
 # Verdict/reasoning contradiction guard (spec 1.4). Verdicts come from
@@ -1207,6 +1252,16 @@ class AdReviewer:
             if isinstance(error, ProviderRateLimitedError):
                 # A held 429 must defer the episode, not skip the review.
                 raise error
+            if is_review_inconclusive_error(error):
+                return (
+                    ReviewVerdict(
+                        pool=pool, pass_num=pass_num, verdict="inconclusive",
+                        original_start=original_start, original_end=original_end,
+                        reasoning=_review_inconclusive_reason(error),
+                        model_used=model, latency_ms=latency_ms, success=True,
+                    ),
+                    ad,
+                )
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} "
                 f"@ {original_start:.1f}s failed: {error}. Falling through "

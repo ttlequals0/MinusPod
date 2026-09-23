@@ -2871,6 +2871,7 @@ paths:
                       adjust: { type: integer }
                       reject: { type: integer }
                       resurrect: { type: integer }
+                      inconclusive: { type: integer }
                       failure: { type: integer }
                   pass1AdjustmentCount:
                     type: integer
@@ -3213,7 +3214,8 @@ paths:
                             - 'null'
                         status:
                           type: string
-                          description: Ledger state, e.g. success or failure.
+                          description: Ledger state. Inconclusive means the reviewer abstained and the original marker was retained.
+                          enum: [success, failure, inconclusive]
                         inputTokens:
                           type:
                             - integer
@@ -12674,10 +12676,11 @@ components:
           nullable: true
           description: >-
             Ad reviewer verdict on this marker, or null when the reviewer did
-            not run. adjust alone does not mean the span moved: a held
+            not run. inconclusive means the reviewer abstained and the
+            original marker was retained. adjust alone does not mean the span moved: a held
             contradiction keeps the pass-1 bounds and a split piece drops the
             originals, and neither records reviewerOriginalStart/End.
-          enum: [confirmed, adjust, reject, resurrect, failure, null]
+          enum: [confirmed, adjust, reject, resurrect, inconclusive, failure, null]
         reviewerOriginalStart:
           type: number
           nullable: true

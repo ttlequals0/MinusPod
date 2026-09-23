@@ -23,6 +23,20 @@ class _FakeLLMClient:
         return item
 
 
+class _InconclusiveError(Exception):
+    status_code = 422
+    body = {'error': {'code': 'jev_review_inconclusive'}}
+
+    def __init__(self, response=None):
+        super().__init__('abstained')
+        self.response = response
+
+
+class _Other422Error(Exception):
+    status_code = 422
+    body = {'error': {'code': 'other_provider_error'}}
+
+
 def _rows_for_episode(db, episode_id):
     return db.get_connection().execute(
         "SELECT * FROM llm_call_usage WHERE episode_id = ? ORDER BY created_at",
@@ -69,7 +83,7 @@ def test_failure_after_billable_partial_creates_one_failure_row(temp_db):
     temp_db.create_podcast('show-b', 'https://example.com/b.xml', 'Show B')
     ctx = run_context.begin('show-b', 'ep-failure', run_id='run-failure')
     try:
-        client = _FakeLLMClient([ValueError('non-retryable provider error')])
+        client = _FakeLLMClient([_Other422Error('non-retryable provider error')])
         response, error = call_llm(
             llm_client=client, model='claude-x', system_prompt='s', prompt='p',
             llm_timeout=30, max_retries=0, max_tokens=100,
@@ -78,12 +92,45 @@ def test_failure_after_billable_partial_creates_one_failure_row(temp_db):
             provider='anthropic',
         )
         assert response is None
-        assert isinstance(error, ValueError)
+        assert isinstance(error, _Other422Error)
 
         rows = _rows_for_episode(temp_db, 'ep-failure')
         assert len(rows) == 1
         assert rows[0]['state'] == 'failure'
         assert client.calls == 1
+    finally:
+        run_context.end(ctx)
+
+
+def test_inconclusive_call_creates_inconclusive_ledger_row(temp_db):
+    temp_db.create_podcast('show-inconclusive', 'https://example.com/i.xml', 'Show I')
+    ctx = run_context.begin('show-inconclusive', 'ep-inconclusive', run_id='run-inconclusive')
+    try:
+        billed = LLMResponse(
+            content='', model='claude-x',
+            usage={'input_tokens': 10, 'output_tokens': 5},
+            provider_reported_cost_usd=0.42,
+        )
+        response, error = call_llm(
+            llm_client=_FakeLLMClient([_InconclusiveError(billed)]),
+            model='claude-x', system_prompt='s', prompt='p', llm_timeout=30,
+            max_retries=2, max_tokens=100, slug='show-inconclusive',
+            episode_id='ep-inconclusive', call_label='review window 1',
+            phase_key='review', pass_name='ad_review_pass_1', provider='anthropic',
+        )
+
+        assert response is None
+        assert isinstance(error, _InconclusiveError)
+        rows = _rows_for_episode(temp_db, 'ep-inconclusive')
+        assert len(rows) == 1
+        assert rows[0]['state'] == 'inconclusive'
+        assert rows[0]['finalized_at'] is not None
+        totals = temp_db.get_run_usage_totals('run-inconclusive')
+        assert totals['input_tokens'] == 10
+        assert totals['output_tokens'] == 5
+        assert totals['cost_usd'] == '0.42'
+        assert temp_db.get_run_provider_spend(
+            'run-inconclusive', 'anthropic') == 420_000
     finally:
         run_context.end(ctx)
 
