@@ -7,7 +7,8 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* frontend/.npmrc ./
 
 # Install dependencies
-RUN npm ci
+RUN --mount=type=cache,id=npmcache,target=/root/.npm \
+    npm ci
 
 # Copy frontend source
 COPY frontend/ ./
@@ -67,12 +68,10 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0 \
+RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
+    pip install --upgrade pip==26.2.1 setuptools==84.0.0 \
     && rm -rf /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/jaraco* \
               /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/wheel*
-
-# Set working directory
-WORKDIR /app
 
 # Pre-install PyTorch 2.13.0 with CUDA 12.9 (bundled cuDNN 9 / cuBLAS via
 # pip nvidia-* deps). Stay on CUDA 12.x wheels: they run on driver >= 525,
@@ -80,13 +79,17 @@ WORKDIR /app
 # cu129 over cu126 for Blackwell (sm_120, RTX 50-series). It trades away the
 # sm_50/60/70 kernels cu126 carried, which only costs Maxwell/Pascal/Volta
 # their VRAM readings here: torch reports memory, ctranslate2 transcribes.
-RUN pip install --no-cache-dir \
-    torch==2.13.0+cu129 \
+RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
+    pip install torch==2.13.0+cu129 \
     --extra-index-url https://download.pytorch.org/whl/cu129
+
+# Set working directory
+WORKDIR /app
 
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 # Build headers only needed for pip C-extension builds above; linux-libc-dev
 # carries a stream of unfixed kernel-header CVEs the runtime never touches.
 RUN apt-get purge -y linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
