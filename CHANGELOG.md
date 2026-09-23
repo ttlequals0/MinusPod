@@ -11,9 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.97.17] - 2026-09-23
+
 ### Changed
 
-- Settings now groups configuration and diagnostic exports in a Troubleshooting section with a responsive two-card layout.
+- Settings groups configuration and diagnostic exports in a Troubleshooting section with two cards that fit smaller screens.
 - Existing cached RSS feeds re-render once after a renderer update so stored metadata catches up.
 
 ### Fixed
