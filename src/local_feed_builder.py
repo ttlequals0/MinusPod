@@ -23,6 +23,7 @@ from chapter_notes import append_chapters, chapter_notes_for
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
+from rss_parser import RSS_RENDER_VERSION
 from utils.episode_paths import episode_public_url
 from utils.feed_guid import compute_feed_guid
 from utils.time import utc_now_iso
@@ -164,6 +165,7 @@ def _enclosure_length_attr(slug: str, ep: dict, storage_, version) -> str:
 def _channel_open(title: str, channel_link: str, description: str, language: str = 'en') -> list[str]:
     """XML prologue through <generator>, shared by the local and recents renderers."""
     return ['<?xml version="1.0" encoding="UTF-8"?>',
+            f'<!-- minuspod-rss-render-version:{RSS_RENDER_VERSION} -->',
             '<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
             f'xmlns:podcast="{_PODCAST_NS}">',
             '<channel>',

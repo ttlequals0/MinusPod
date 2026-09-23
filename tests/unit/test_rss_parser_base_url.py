@@ -12,7 +12,7 @@ import re
 import defusedxml
 defusedxml.defuse_stdlib()
 
-from rss_parser import RSSParser, extract_cached_base_url
+from rss_parser import RSSParser, RSS_RENDER_VERSION, extract_cached_base_url, extract_cached_render_version
 
 
 def _build_rss():
@@ -75,3 +75,11 @@ class TestExtractCachedBaseUrl:
 
     def test_returns_none_when_no_enclosure(self):
         assert extract_cached_base_url("<rss><channel></channel></rss>") is None
+
+    def test_rendered_feed_records_renderer_version(self):
+        rendered = RSSParser(base_url="https://feed.example.test").modify_feed(
+            _build_rss(), "test-pod")
+        assert extract_cached_render_version(rendered) == RSS_RENDER_VERSION
+
+    def test_unversioned_cached_feed_needs_refresh(self):
+        assert extract_cached_render_version("<rss><channel></channel></rss>") is None

@@ -9,6 +9,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Changed
+
+- Settings now groups configuration and diagnostic exports in a Troubleshooting section with a responsive two-card layout.
+- Existing cached RSS feeds re-render once after a renderer update so stored metadata catches up.
+
+### Fixed
+
+- Served RSS now reports the processed audio duration for completed episodes.
+
 ## [2.97.16] - 2026-09-23
 
 ### Added

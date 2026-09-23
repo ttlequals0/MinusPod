@@ -6,13 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DataManagementSection from './DataManagementSection';
 
 const mockDownloadBackup = vi.fn();
-const mockDownloadConfig = vi.fn();
-const mockDownloadDiagnostics = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   downloadBackup: (...args: unknown[]) => mockDownloadBackup(...args),
-  downloadConfig: (...args: unknown[]) => mockDownloadConfig(...args),
-  downloadDiagnostics: (...args: unknown[]) => mockDownloadDiagnostics(...args),
   exportOpml: vi.fn(),
   getSettings: vi.fn().mockResolvedValue({}),
 }));
@@ -39,8 +35,6 @@ describe('DataManagementSection backup export', () => {
     vi.clearAllMocks();
     localStorage.setItem('settings-section-data-management', 'true');
     mockDownloadBackup.mockResolvedValue(undefined);
-    mockDownloadConfig.mockResolvedValue(undefined);
-    mockDownloadDiagnostics.mockResolvedValue(undefined);
   });
 
   it('requests encryption from the primary backup action', async () => {
@@ -72,63 +66,5 @@ describe('DataManagementSection backup export', () => {
     expect(await screen.findByText(
       'Encrypted backup unavailable. Set MINUSPOD_MASTER_PASSPHRASE and restart, or download plaintext below.',
     )).toBeDefined();
-  });
-});
-
-describe('DataManagementSection configuration export', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    localStorage.setItem('settings-section-data-management', 'true');
-    mockDownloadConfig.mockResolvedValue(undefined);
-  });
-
-  it('downloads the configuration once and shows the busy state', async () => {
-    let resolveDownload: () => void = () => {};
-    mockDownloadConfig.mockReturnValue(new Promise<void>((resolve) => { resolveDownload = resolve; }));
-    renderSection();
-    const button = screen.getByRole('button', { name: 'Download Configuration' });
-
-    await userEvent.click(button);
-
-    expect(mockDownloadConfig).toHaveBeenCalledOnce();
-    expect(button.textContent).toBe('Preparing download');
-    expect((button as HTMLButtonElement).disabled).toBe(true);
-
-    resolveDownload();
-    await waitFor(() => expect(button.textContent).toBe('Download Configuration'));
-    expect(mockDownloadConfig).toHaveBeenCalledOnce();
-  });
-
-  it('shows an error toast when the export fails', async () => {
-    mockDownloadConfig.mockRejectedValue(new Error('boom'));
-    renderSection();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Download Configuration' }));
-
-    expect(await screen.findByText('boom')).toBeDefined();
-  });
-});
-
-describe('DataManagementSection diagnostic export', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    localStorage.setItem('settings-section-data-management', 'true');
-    mockDownloadDiagnostics.mockResolvedValue(undefined);
-  });
-
-  it('sends the selected UTC time range', async () => {
-    renderSection();
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Diagnostic time range' }), '6');
-    await userEvent.click(screen.getByRole('button', { name: 'Download Diagnostics' }));
-    await waitFor(() => expect(mockDownloadDiagnostics).toHaveBeenCalledOnce());
-    const [start, end] = mockDownloadDiagnostics.mock.calls[0] as [string, string];
-    expect(new Date(end).getTime() - new Date(start).getTime()).toBe(6 * 60 * 60 * 1000);
-  });
-
-  it('shows a download error', async () => {
-    mockDownloadDiagnostics.mockRejectedValue(new Error('range rejected'));
-    renderSection();
-    await userEvent.click(screen.getByRole('button', { name: 'Download Diagnostics' }));
-    expect(await screen.findByText('range rejected')).toBeDefined();
   });
 });

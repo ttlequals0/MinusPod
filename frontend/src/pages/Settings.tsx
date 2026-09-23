@@ -16,6 +16,7 @@ import { LLM_PROVIDERS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
 import DataManagementSection from './settings/DataManagementSection';
+import TroubleshootingSection from './settings/TroubleshootingSection';
 import DatabaseStatsSection from './settings/DatabaseStatsSection';
 import NotificationsSection from './settings/NotificationsSection';
 import AuthenticatedFeedsSection from './settings/AuthenticatedFeedsSection';
@@ -1485,6 +1486,8 @@ function Settings() {
         maxRssBytes={maxRssBytes}
         onMaxRssBytesChange={setMaxRssBytes}
       />
+
+      <TroubleshootingSection />
 
       <DatabaseStatsSection database={status?.database} />
 
