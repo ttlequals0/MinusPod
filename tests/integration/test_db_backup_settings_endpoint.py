@@ -14,6 +14,8 @@ storage-failure case patches a write.
 - New routes absent from the auth-exempt allowlist.
 """
 import os
+import json
+import logging
 import sqlite3
 import sys
 import tempfile
@@ -63,6 +65,31 @@ def test_get_defaults(app_client, db):
     assert body['lastRun'] is None
     assert body['lastError'] is None
     assert body['lastSummary'] is None
+
+
+def test_diagnostic_export_is_bounded_and_payload_free(app_client, db):
+    from diagnostic_log import DiagnosticHandler
+    handler = DiagnosticHandler(db.data_dir)
+    record = logging.LogRecord(
+        'podcast.api', logging.WARNING, __file__, 1,
+        'private message %s', ('value',), None)
+    handler.emit(record)
+
+    response = app_client.get('/api/v1/system/diagnostic-export')
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['coverage']['description'] == 'structured operational metadata only'
+    assert body['coverage']['version']
+    assert all('message' not in event for event in body['events'])
+    assert all('private' not in json.dumps(event) for event in body['events'])
+
+
+def test_diagnostic_export_rejects_long_ranges(app_client, db):
+    response = app_client.get(
+        '/api/v1/system/diagnostic-export?start=2026-01-01T00:00:00Z&end=2026-01-03T00:00:01Z')
+
+    assert response.status_code == 400
 
 
 # -- PUT full + partial roundtrip --

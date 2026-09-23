@@ -1,6 +1,7 @@
 """TracedConnection names the holder of a long write transaction and slow lock waits."""
 import logging
 import sqlite3
+import threading
 import time
 
 import pytest
@@ -14,7 +15,7 @@ def traced_pair(tmp_path, monkeypatch):
     monkeypatch.setattr(database, 'SLOW_SQLITE_SECONDS', 0.05)
     path = str(tmp_path / 't.db')
     holder = sqlite3.connect(path, factory=TracedConnection, timeout=0.2)
-    waiter = sqlite3.connect(path, factory=TracedConnection, timeout=0.2)
+    waiter = sqlite3.connect(path, factory=TracedConnection, timeout=0.2, check_same_thread=False)
     holder.execute("CREATE TABLE t (x INTEGER)")
     holder.commit()
     yield holder, waiter
@@ -49,6 +50,34 @@ def test_lock_wait_is_logged_even_when_the_statement_fails(traced_pair, caplog):
     holder.rollback()
     assert 'SQLite statement took' in caplog.text
     assert 'INSERT INTO t VALUES (2)' in caplog.text
+
+
+def test_begin_wait_is_not_counted_as_held_transaction(traced_pair, caplog):
+    holder, waiter = traced_pair
+    holder.execute("INSERT INTO t VALUES (1)")
+    attempting = threading.Event()
+    acquired = threading.Event()
+    result = {}
+
+    def begin():
+        attempting.set()
+        with caplog.at_level(logging.WARNING, logger='database'):
+            waiter.execute('BEGIN IMMEDIATE')
+        result['started'] = waiter._tx_started
+        acquired.set()
+
+    thread = threading.Thread(target=begin, name='begin-waiter')
+    thread.start()
+    assert attempting.wait(timeout=1)
+    time.sleep(0.08)
+    holder.rollback()
+    thread.join(timeout=1)
+    assert acquired.is_set()
+    assert result['started'] is not None
+    waiter.commit()
+    waiter_records = [record for record in caplog.records if record.threadName == 'begin-waiter']
+    assert any('SQLite statement took' in record.message for record in waiter_records)
+    assert not any('write transaction held' in record.message for record in waiter_records)
 
 
 def test_failed_commit_keeps_transaction_origin_for_rollback(tmp_path):

@@ -615,6 +615,58 @@ class TestConfirmedCorrections:
         assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
         assert result.ads[0]['validation']['user_confirmed'] is True
 
+    def test_confirmed_span_survives_small_redetection_drift_and_splice_veto(self):
+        validator = AdValidator(
+            episode_duration=12000.0,
+            segments=[],
+            confirmed_corrections=[{'start': 100.4, 'end': 290.4}],
+            splice_veto_enabled=True,
+            veto_min_cut_seconds=60.0,
+        )
+        ad = {
+            'start': 100.38,
+            'end': 290.36,
+            'confidence': 0.97,
+            'reason': 'Confirmed sponsor segment',
+            'detection_stage': 'claude',
+        }
+
+        result = validator.validate([ad], audio_analysis={
+            'splice_evidence': {'calibration': {'status': 'calibrated'}, 'events': []},
+        })
+
+        assert result.accepted == 1
+        assert result.ads[0]['validation']['user_confirmed'] is True
+        assert result.ads[0]['start'] == 100.4
+        assert result.ads[0]['end'] == 290.36
+        assert result.ads[0]['validation']['confirmed_span'] == {
+            'start': 100.4, 'end': 290.36}
+        assert not result.ads[0].get('held_for_review')
+
+    def test_confirmed_span_does_not_authorize_boundary_drift_beyond_rounding(self):
+        validator = AdValidator(
+            episode_duration=12000.0,
+            segments=[],
+            confirmed_corrections=[{'start': 100.4, 'end': 290.4}],
+            splice_veto_enabled=True,
+            veto_min_cut_seconds=60.0,
+        )
+        ad = {
+            'start': 100.34,
+            'end': 290.4,
+            'confidence': 0.97,
+            'reason': 'Confirmed sponsor segment',
+            'detection_stage': 'claude',
+        }
+
+        result = validator.validate([ad], audio_analysis={
+            'splice_evidence': {'calibration': {'status': 'calibrated'}, 'events': []},
+        })
+
+        assert result.ads[0]['validation']['decision'] == Decision.REVIEW.value
+        assert 'user_confirmed' not in result.ads[0]['validation']
+        assert result.ads[0]['hold_reason'] == 'no_splice_evidence'
+
     def test_plain_confirm_does_not_authorize_restored_dai_edges(self):
         validator = AdValidator(
             episode_duration=300.0,

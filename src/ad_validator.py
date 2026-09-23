@@ -664,10 +664,11 @@ class AdValidator:
                     clip_merge_spans(ad, approved_start, approved_end)
             if auto_accept:
                 approved = span or confirmed
-                tolerance = 0.01
+                # Allow drift below the displayed precision, then clamp to approved bounds.
+                tolerance = 0.05
                 fully_authorized = (
-                    ad['start'] >= approved['start'] - tolerance
-                    and ad['end'] <= approved['end'] + tolerance
+                    ad['start'] >= approved['start'] - tolerance - 1e-9
+                    and ad['end'] <= approved['end'] + tolerance + 1e-9
                 )
                 if not fully_authorized:
                     # A new detection may extend beyond the confirmed ad even
@@ -677,6 +678,15 @@ class AdValidator:
                     flags.append(
                         "INFO: User confirmation covers only part of segment")
             if auto_accept:
+                approved_start = max(0.0, approved['start'])
+                approved_end = approved['end']
+                if self.episode_duration > 0:
+                    approved_end = min(approved_end, self.episode_duration)
+                ad['start'] = max(ad['start'], approved_start)
+                ad['end'] = min(ad['end'], approved_end)
+                invalidate_tail_provenance(ad, ad['end'])
+                clip_dai_core_spans(ad, ad['start'], ad['end'])
+                clip_merge_spans(ad, ad['start'], ad['end'])
                 flags.append("INFO: User confirmed as ad")
                 logger.info(
                     f"Auto-accepting segment {ad['start']:.1f}s-{ad['end']:.1f}s: "
@@ -696,15 +706,12 @@ class AdValidator:
                     # loop: its stored bounds can go stale on a DAI feed
                     # whose ad timing drifts between fetches.
                     validation['user_confirmed'] = True
-                if span:
-                    # Carry the exact approved bounds through late reviewer
-                    # and tail mutations. Re-matching against a marker after
-                    # it has grown can fall below the correction overlap
-                    # threshold and lose the user's trim.
-                    validation['confirmed_span'] = {
-                        'start': approved_start,
-                        'end': approved_end,
-                    }
+                # Carry the exact approved bounds through late reviewer and
+                # tail mutations, including plain confirmations.
+                validation['confirmed_span'] = {
+                    'start': approved_start if span else ad['start'],
+                    'end': approved_end if span else ad['end'],
+                }
                 ad['validation'] = validation
                 return ad
             duration = ad['end'] - ad['start']

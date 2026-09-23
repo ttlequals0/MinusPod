@@ -6265,6 +6265,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # uncompressed dynamics.
             normalize_raw = db.get_setting('audio_normalize_enabled')
             if (normalize_raw or 'false').lower() == 'true':
+                run_stats['normalization_skipped'] = False
                 intensity = db.get_setting('audio_normalize_intensity') or 'normal'
                 with _measure_run_stage('normalization'):
                     normalized_path = local_audio_processor.normalize_audio(
@@ -6286,6 +6287,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     audio_logger.warning(
                         f"[{slug}:{episode_id}] Normalize pass failed, keeping un-normalized output"
                     )
+            else:
+                run_stats['normalization_skipped'] = True
             _check_cancel(cancel_event, slug, episode_id)
 
             # Merge pass 2 ads into combined list for UI.

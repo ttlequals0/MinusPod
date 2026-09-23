@@ -134,7 +134,10 @@ class TracedConnection(sqlite3.Connection):
             # Autocommit, or a C-level commit (`with conn:`, executescript) ended it.
             self._tx_started = self._tx_opener = None
         elif not was_in_tx:
-            self._tx_started = started
+            # BEGIN IMMEDIATE may spend most of its time waiting for the lock.
+            # Start held-time after acquisition, while implicit DML keeps its execution time.
+            normalized = str(sql).lstrip().upper()
+            self._tx_started = time.monotonic() if normalized.startswith('BEGIN IMMEDIATE') else started
             self._tx_opener = _sql_head(sql)
 
     def _note_transaction_end(self, how, tx_started=None, tx_opener=None):

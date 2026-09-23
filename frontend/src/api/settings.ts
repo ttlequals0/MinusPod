@@ -368,6 +368,14 @@ export async function downloadConfig(): Promise<void> {
   downloadBlob(blob, filename);
 }
 
+export async function downloadDiagnostics(start: string, end: string): Promise<void> {
+  const query = new URLSearchParams({ start, end }).toString();
+  const { blob, filename } = await apiFileRequest(`/system/diagnostic-export?${query}`, {
+    fallbackFilename: 'minuspod-diagnostics.json',
+  });
+  downloadBlob(blob, filename);
+}
+
 // Scheduled DB backups
 
 export interface DatabaseBackupSettings {

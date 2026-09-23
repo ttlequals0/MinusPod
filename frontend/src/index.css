@@ -95,6 +95,12 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  input[type="date"] {
+    color-scheme: light;
+  }
+  .dark input[type="date"] {
+    color-scheme: dark;
+  }
   /* Suppress native pull-to-refresh so pulltorefreshjs is the only handler. */
   html {
     overscroll-behavior-y: contain;

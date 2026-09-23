@@ -176,6 +176,16 @@ describe('ProcessingRunsTable', () => {
     expect(table.getAllByText('Unavailable').length).toBeGreaterThan(0);
   });
 
+  it('labels an explicitly disabled normalization pass as skipped', () => {
+    const run = {
+      ...statsRun,
+      stats: { ...statsRun.stats, normalizationSkipped: true },
+    };
+    const table = renderTable([run]);
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #2/i }));
+    expect(table.getByText('Skipped')).toBeTruthy();
+  });
+
   it('shows the Chapters row with a value, and Unavailable when absent', () => {
     const withChapters: EpisodeProcessingRun = {
       ...statsRun,

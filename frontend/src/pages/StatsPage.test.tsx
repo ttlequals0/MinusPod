@@ -323,8 +323,18 @@ describe('StatsPage LLM cost ledger', () => {
     expect(await screen.findByText('Lifetime spend (all recorded runs)')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
+    fireEvent.blur(screen.getByLabelText('From'));
     await waitFor(() => {
       expect(screen.getByText(/Interval spend from 2026-01-01/)).toBeTruthy();
+    });
+  });
+
+  it('commits a date picked while the field remains focused', async () => {
+    renderPage();
+    const from = await screen.findByLabelText('From');
+    fireEvent.change(from, { target: { value: '2026-01-01' } });
+    await waitFor(() => {
+      expect(lastMainListParams()).toMatchObject({ from: '2026-01-01' });
     });
   });
 });
@@ -465,6 +475,8 @@ describe('StatsPage ledger filters', () => {
 
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-01-31' } });
+    fireEvent.blur(screen.getByLabelText('From'));
+    fireEvent.blur(screen.getByLabelText('To'));
 
     await waitFor(() => {
       const calls = mockGetEpisodeCostStats.mock.calls;
@@ -575,6 +587,20 @@ describe('StatsPage spend section: copy, labels and table chrome', () => {
     expect(screen.getByLabelText('To').getAttribute('type')).toBe('date');
     expect(from.id).toBeTruthy();
     expect(document.querySelector(`label[for="${from.id}"]`)?.textContent).toBe('From');
+    expect(screen.getByRole('button', { name: 'Open from date picker' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open to date picker' })).toBeTruthy();
+  });
+
+  it('opens the native picker from the calendar button', async () => {
+    const showPicker = vi.fn();
+    Object.defineProperty(HTMLInputElement.prototype, 'showPicker', {
+      configurable: true,
+      value: showPicker,
+    });
+    renderPage();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Open from date picker' }));
+    expect(showPicker).toHaveBeenCalledOnce();
+    delete (HTMLInputElement.prototype as unknown as { showPicker?: unknown }).showPicker;
   });
 
   it('sizes the spend-table placeholders to rows, not to a chart', async () => {

@@ -406,6 +406,8 @@ export interface ProcessingRunStats {
   cueOnly?: boolean;
   // Cue-only mode with transcription skipped: no transcript, chapters, or subtitles.
   transcriptionSkipped?: boolean;
+  // Explicitly records that normalization was disabled for this run.
+  normalizationSkipped?: boolean;
   downloadedDuration?: number | null;
   transcriptSegments?: number;
   // failureClasses is absent when no window was lost; see CoverageGap for the

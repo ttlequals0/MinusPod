@@ -9,6 +9,23 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- Settings can export 1, 6, or 24 hours of application event metadata without log messages or identifying content.
+
+### Changed
+
+- Runtime, frontend, and CPU image build dependencies were updated to reviewed upstream releases.
+
+### Fixed
+
+- Previously confirmed ads stay approved after small boundary shifts on re-detection, without cutting beyond the approved span.
+- Processing history shows Skipped when normalization was disabled for that run.
+- Spend date filters accept full years on desktop and provide a visible calendar button.
+- SQLite diagnostics separate lock-acquisition wait time from time held after a transaction begins.
+
 ## [2.97.15] - 2026-09-22
 
 ### Fixed

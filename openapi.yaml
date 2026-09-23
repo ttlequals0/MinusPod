@@ -7075,6 +7075,83 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /system/diagnostic-export:
+    get:
+      tags: [System]
+      summary: Download bounded operational diagnostics
+      description: >-
+        Downloads payload-free structured diagnostics for an optional UTC ISO
+        8601 start/end range. The range is limited to 24 hours and the export
+        omits prompts, transcripts, descriptions, responses, identifiers,
+        secrets, URLs, and exception text. Rate limited to 6/hour.
+      operationId: exportDiagnosticLog
+      parameters:
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Structured diagnostic metadata file download
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events, truncated, start, end, coverage]
+                properties:
+                  events:
+                    type: array
+                    items:
+                      type: object
+                  truncated:
+                    type: boolean
+                  start:
+                    type: string
+                    format: date-time
+                  end:
+                    type: string
+                    format: date-time
+                  coverage:
+                    type: object
+                    required: [description, firstEvent, lastEvent, version]
+                    properties:
+                      description:
+                        type: string
+                      firstEvent:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      lastEvent:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      version:
+                        type: string
+        '400':
+          description: Invalid or oversized time range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /system/db-backup/run:
     post:
       summary: Run a scheduled-style DB backup now
@@ -12130,6 +12207,11 @@ components:
                 - boolean
                 - 'null'
               description: True when the run skipped transcription; no transcript, generated chapters, or subtitles.
+            normalizationSkipped:
+              type:
+                - boolean
+                - 'null'
+              description: True when the run did not apply the optional loudness normalization pass.
             downloadedDuration:
               type: number
               description: ffprobe duration of the downloaded copy, in seconds

@@ -268,6 +268,11 @@ class TestProcessEpisodeModePlumbing:
         assert m['detect'].call_args.kwargs['keep_content'] is None
         assert m['verify'].call_args.kwargs['skip_verification'] is False
 
+    def test_records_disabled_normalization_in_run_stats(self):
+        m = _run_pipeline(_row())
+        assert m['result'] is True
+        assert m['finalize'].call_args.kwargs['run_stats']['normalization_skipped'] is True
+
     def test_provider_denial_happens_after_transcription_before_detection(self):
         m = _run_pipeline(
             _row(), admission={'allowed': False, 'reason': 'daily limit'})

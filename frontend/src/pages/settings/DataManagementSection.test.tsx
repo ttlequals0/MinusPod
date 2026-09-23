@@ -7,10 +7,12 @@ import DataManagementSection from './DataManagementSection';
 
 const mockDownloadBackup = vi.fn();
 const mockDownloadConfig = vi.fn();
+const mockDownloadDiagnostics = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   downloadBackup: (...args: unknown[]) => mockDownloadBackup(...args),
   downloadConfig: (...args: unknown[]) => mockDownloadConfig(...args),
+  downloadDiagnostics: (...args: unknown[]) => mockDownloadDiagnostics(...args),
   exportOpml: vi.fn(),
   getSettings: vi.fn().mockResolvedValue({}),
 }));
@@ -38,6 +40,7 @@ describe('DataManagementSection backup export', () => {
     localStorage.setItem('settings-section-data-management', 'true');
     mockDownloadBackup.mockResolvedValue(undefined);
     mockDownloadConfig.mockResolvedValue(undefined);
+    mockDownloadDiagnostics.mockResolvedValue(undefined);
   });
 
   it('requests encryption from the primary backup action', async () => {
@@ -103,5 +106,29 @@ describe('DataManagementSection configuration export', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Download Configuration' }));
 
     expect(await screen.findByText('boom')).toBeDefined();
+  });
+});
+
+describe('DataManagementSection diagnostic export', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('settings-section-data-management', 'true');
+    mockDownloadDiagnostics.mockResolvedValue(undefined);
+  });
+
+  it('sends the selected UTC time range', async () => {
+    renderSection();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Diagnostic time range' }), '6');
+    await userEvent.click(screen.getByRole('button', { name: 'Download Diagnostics' }));
+    await waitFor(() => expect(mockDownloadDiagnostics).toHaveBeenCalledOnce());
+    const [start, end] = mockDownloadDiagnostics.mock.calls[0] as [string, string];
+    expect(new Date(end).getTime() - new Date(start).getTime()).toBe(6 * 60 * 60 * 1000);
+  });
+
+  it('shows a download error', async () => {
+    mockDownloadDiagnostics.mockRejectedValue(new Error('range rejected'));
+    renderSection();
+    await userEvent.click(screen.getByRole('button', { name: 'Download Diagnostics' }));
+    expect(await screen.findByText('range rejected')).toBeDefined();
   });
 });

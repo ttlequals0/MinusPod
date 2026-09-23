@@ -176,6 +176,7 @@ audio_logger = logging.getLogger('podcast.audio')
 # Import components
 from maintenance_lock import acquire_runtime_lock
 from storage import Storage
+from diagnostic_log import install as install_diagnostic_log
 from rss_parser import RSSParser
 from transcriber import Transcriber
 from ad_detector import AdDetector
@@ -192,6 +193,7 @@ from utils.subprocess_registry import terminate_all
 # Initialize components
 _runtime_lock_fd = acquire_runtime_lock(resolve_data_dir())
 storage = Storage()
+install_diagnostic_log(storage.data_dir)
 rss_parser = RSSParser()
 transcriber = Transcriber()
 ad_detector = AdDetector()

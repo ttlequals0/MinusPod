@@ -173,6 +173,40 @@ def test_final_confirmed_bounds_sync_cut_and_master(monkeypatch):
     assert len(saves) == 1
 
 
+def test_plain_confirmed_fragments_keep_their_own_bounds(monkeypatch):
+    first = {
+        'start': 100.4,
+        'end': 120.0,
+        'validation': {
+            'decision': 'ACCEPT',
+            'user_confirmed': True,
+            'confirmed_span': {'start': 100.4, 'end': 120.0},
+            'flags': [],
+        },
+    }
+    second = {
+        'start': 150.0,
+        'end': 170.0,
+        'validation': {
+            'decision': 'ACCEPT',
+            'user_confirmed': True,
+            'confirmed_span': {'start': 150.0, 'end': 170.0},
+            'flags': [],
+        },
+    }
+    saves = []
+    monkeypatch.setattr(
+        processing.storage, 'save_combined_ads',
+        lambda *args: saves.append(args))
+
+    result = processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [first, second], [first, second], [])
+
+    assert [(ad['start'], ad['end']) for ad in result] == [
+        (100.4, 120.0), (150.0, 170.0)]
+    assert len(saves) == 1
+
+
 def test_final_confirmed_bounds_ignores_untrusted_marker(monkeypatch):
     marker = {
         'start': 1361.5,

@@ -32,9 +32,9 @@ body:
     attributes:
       label: Logs
       description: >
-        Relevant container log lines or an episode run log. Scrub anything
-        private before pasting: API keys, feed auth keys, your domain, and
-        private feed URLs.
+        Attach the Settings diagnostic export when available, or paste relevant
+        container log lines or an episode run log. Scrub anything private before
+        pasting: API keys, feed auth keys, your domain, and private feed URLs.
       render: text
   - type: textarea
     id: setup
