@@ -9,6 +9,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Changed
+
+- Introduces a more intelligent truncation method for descriptions that clips content from the middle, ensuring that important information from both the beginning and end of the text is retained for analysis. This reduces token usage in prompts without losing critical context.
+- Updates the documentation and unit tests for the `strip_comments_from_prompt` utility to preserve literal single-line comments (indented by 4+ spaces).
+- Improve Docker build performance by utilizing BuildKit's cache mounts for npm and pip dependency installations in Dockerfiles. Also updates the `cpu-image` workflow to save/use the cache mounts.
+
+### Fixed
+
+- Moves the `scrub_description` calls to an earlier stage in the processing pipeline, ensuring descriptions are consistently scrubbed and truncated before being passed to AdDetector and AdReviewer modules. This prevents the operator notes (e.g. "Detection notes") from being lost or inconsistently applied.
+
 ## [2.97.15] - 2026-09-22
 
 ### Fixed

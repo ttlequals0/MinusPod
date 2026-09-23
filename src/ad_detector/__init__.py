@@ -39,7 +39,7 @@ from utils.markers import (
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
-    scrub_description, strip_comments_from_prompt
+    strip_comments_from_prompt
 )
 from utils.text import truncate
 from utils.time import overlap_ratio, ranges_overlap
@@ -1841,14 +1841,13 @@ class AdDetector:
 
             # Prepare description section (shared across windows)
             description_section = ""
-            podcast_description = scrub_description(podcast_description, max_length=800)
             if podcast_description:
+                # Note: The podcast description may also contain podcast operator notes
+                # formatted as "{description}\n\nOperator notes for this show:\n{notes}".
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
                 logger.info(f"[{slug}:{episode_id}] Including scrubbed podcast description ({len(podcast_description)} chars)")
-
-            episode_description = scrub_description(episode_description, max_length=4000)
             if episode_description:
-                description_section += f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
+                description_section += f"Episode Description:\n{episode_description}\n\n"
                 logger.info(f"[{slug}:{episode_id}] Including scrubbed episode description ({len(episode_description)} chars)")
 
             # Add podcast-specific known-pattern hint from ad_patterns
@@ -2371,6 +2370,7 @@ class AdDetector:
                     model = self.get_model()
                     kc_desc = ""
                     if podcast_description:
+                        # Note: The podcast description may also contain podcast operator notes.
                         kc_desc += f"Podcast Description:\n{podcast_description}\n\n"
                     if episode_description:
                         kc_desc += f"Episode Description:\n{episode_description}\n"
@@ -3265,16 +3265,11 @@ class AdDetector:
 
             # Prepare description section
             description_section = ""
-            podcast_description = scrub_description(podcast_description, max_length=800)
             if podcast_description:
+                # Note: The podcast description may also contain podcast operator notes.
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
-            
-            episode_description = scrub_description(episode_description, max_length=4000)
             if episode_description:
-                description_section += (
-                    f"Episode Description (this describes the actual content topics discussed; "
-                    f"it may also list episode sponsors):\n{episode_description}\n"
-                )
+                description_section += f"Episode Description:\n{episode_description}\n\n"
 
             sponsor_history = self._build_known_pattern_hint(slug)
             if sponsor_history:

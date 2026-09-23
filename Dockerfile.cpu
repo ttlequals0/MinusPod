@@ -38,7 +38,8 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* frontend/.npmrc ./
 
 # Install dependencies
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 # Copy frontend source
 COPY frontend/ ./
@@ -97,17 +98,19 @@ RUN pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0 \
     && rm -rf /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/jaraco* \
               /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/wheel*
 
-# Set working directory
-WORKDIR /app
-
 # Pre-install PyTorch 2.13.0 CPU-only wheels (no CUDA, no bundled cuDNN/cuBLAS)
-RUN pip install --no-cache-dir \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
     torch==2.13.0 \
     --index-url https://download.pytorch.org/whl/cpu
 
+# Set working directory
+WORKDIR /app
+
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 # Mirrors the GPU Dockerfile: purge build headers (unfixed kernel-header CVEs).
 RUN apt-get purge -y linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
     && apt-get autoremove -y \
@@ -164,7 +167,7 @@ RUN find ./src -type f -name '*.py' -exec chmod 644 {} \; && \
     chown -R minuspod:minuspod /app
 
 # Keep release-varying metadata after dependency and application layers so a
-# version-only change does not invalidate the PyTorch layer.
+# version-only change does not invalidate the multi-gigabyte PyTorch layer.
 ARG MINUSPOD_VERSION=dev
 LABEL org.opencontainers.image.version="${MINUSPOD_VERSION}"
 

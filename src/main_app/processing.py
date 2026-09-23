@@ -55,6 +55,7 @@ from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import (clip_dai_core_spans, clip_merge_spans,
                            fold_marker_pair, foldable_twin,
                            invalidate_tail_provenance, spans_match)
+from utils.prompt import scrub_description
 from utils.time import (
     adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now_iso,
@@ -5224,15 +5225,20 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")
 
 
-def build_podcast_context(podcast_settings):
+def build_podcast_description(podcast_settings, max_desc_length=500) -> str | None:
     """Podcast description plus operator detection notes (#709), or None."""
     if not podcast_settings:
         return None
-    description = podcast_settings.get('description') or ''
-    notes = podcast_settings.get('detection_notes')
-    if not notes:
-        return description or None
-    return f"{description}\n\nOperator notes for this show:\n{notes}".strip()
+    description = scrub_description(podcast_settings.get('description'), max_length=max_desc_length)
+
+    notes = (podcast_settings.get('detection_notes') or "").strip()
+    if notes:
+        # Ensure description is never empty when concatenating with operator
+        # notes since this string will eventually be appended to the full
+        # podcast context which starts with "Podcast description:\n".
+        description = f"{description or 'None'}\n\nOperator notes for this show:\n{notes}"
+
+    return description or None
 
 
 def _load_route_snapshot(run_id: str) -> dict | None:
@@ -5619,6 +5625,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     # Only 'full' skips the learned-pattern DB. 'reprocess', 'llm' (#349) and the
     # default first run all keep patterns; any new mode keeps them unless added here.
     skip_patterns = reprocess_mode == 'full'
+    episode_description = scrub_description(episode_description, max_length=1000)
 
     if reprocess_mode:
         audio_logger.info(f"[{slug}:{episode_id}] Reprocess mode: {reprocess_mode} (skip_patterns={skip_patterns})")
@@ -5631,7 +5638,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                               episode_description, start_time, cancel_event)
 
     podcast_settings = db.get_podcast_by_slug(slug)
-    podcast_description = build_podcast_context(podcast_settings)
+    podcast_description = build_podcast_description(podcast_settings)
     notes = (podcast_settings or {}).get('detection_notes')
     if notes:
         audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(notes)} chars)")

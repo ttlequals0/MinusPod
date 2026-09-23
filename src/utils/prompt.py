@@ -68,7 +68,7 @@ def apply_override(prompt: str, override: str) -> str:
         return prompt.replace('{override}', override)
     return prompt + OVERRIDE_HEADER + override
 
-def strip_html(text: str|None) -> str|None:
+def strip_html(text: str|None) -> str:
     """Convert simple HTML to plain text for show-note timestamp parsing.
 
     Block-level tags must be turned into newlines (not just stripped) so the
@@ -77,7 +77,7 @@ def strip_html(text: str|None) -> str|None:
     into `00:00 A05:30 B` and miss every anchor after the first.
     """
     if not text:
-        return text
+        return ""
     text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
     text = re.sub(r'</(p|li|div)>', '\n', text, flags=re.IGNORECASE)
     text = re.sub(r'<[^>]+>', '', text)
@@ -87,15 +87,23 @@ def strip_html(text: str|None) -> str|None:
     text = re.sub(r'[ \t]+', ' ', text)
     return text.strip()
 
-def scrub_description(description: str|None, max_length: int = 800) -> str:
+def scrub_description(description: str|None, max_length: int = -1, split_location: float = 0.67) -> str:
     """Scrub the description of HTML, timestamps, URLs, excessive whitespace,
-    and then truncate to the first `max_length` characters, splitting on a
-    word boundary and appending ellipsis if needed.
+    and then truncate to `max_length` characters by splitting on a word
+    boundary at the specified location and inserting ellipsis.
+
+    Args:
+        description: The text to be scrubbed and truncated.
+        max_length: The maximum allowed length of the output string. Use -1 for no limit.
+        split_location: When truncating, this indicates how much of `max_length`
+          should be taken from the beginning, with the remainder from the end
+          and an ellipsis in between. Default is 0.67 (ellipsis inserted at 2/3
+          of `max_length`).
     """
     if not description:
         return ""
-    if max_length <= 0:
-        return "..."
+    if max_length < 0:
+        max_length = 100000 # effectively no limit
     description = strip_html(description)
     # replace timestamps with 'XX:XX' to avoid hallucinations
     description = re.sub(r'(?:\d+:)?\d{1,2}:\d{2}', 'XX:XX', description)
@@ -104,18 +112,28 @@ def scrub_description(description: str|None, max_length: int = 800) -> str:
     # remove trailing whitespace and empty lines
     description = re.sub(r'(?:\s*\n)+', '\n', description)
     if len(description) > max_length:
-        description = description[:max_length]
-        last_space = description.rfind(' ')
-        if last_space > 0:
-            description = description[:last_space]
-        description += "..."
+        # truncate to max_length at the specified split location
+        if max_length <= 3:
+            return "..."
+        # calc split points, taking into account the ellipsis length (3)
+        split_location = max(0.0, min(1.0, split_location))
+        clip_begin = round((max_length - 3) * split_location)
+        clip_end = len(description) - (max_length - 3 - clip_begin)
+        # adjust to word boundaries...
+        if description[clip_begin] != ' ':
+            word_begin = description.rfind(' ', 0, clip_begin)
+            if word_begin >= 0:
+                clip_begin = word_begin + 1 # include space
+        if description[clip_end - 1] != ' ':
+            clip_end = max(clip_end, description.find(' ', clip_end))
+        description = description[:clip_begin] + "..." + description[clip_end:]
     return description
 
-def strip_comments_from_prompt(prompt: str|None) -> str|None:
+def strip_comments_from_prompt(prompt: str|None) -> str:
     """Remove HTML-style comments from the prompt following markdown
     conventions.
 
-    Multi-line comments can start at the beginning of a line (up to three
+    Multiline comments can start at the beginning of a line (up to three
     leading spaces allowed), and single-line comments can appear anywhere.
     If a ML comment ends with a line break, the line break is also removed.
 
@@ -123,16 +141,19 @@ def strip_comments_from_prompt(prompt: str|None) -> str|None:
     terminate the outer comment).
 
     Examples:
-        Fooo <!-- This is a single-line comment -->
+        Text <!-- This is a single-line comment -->
         <!--
-        This is a multi-line comment
+        This is a multiline comment
         -->
+           <!-- This is a [multiline] comment (<=3 spaces after BOL) -->
+            <!-- Not a comment (>3 spaces after BOL) -->
+        Text <!--
+            Not a comment (text before multiline comment)
+            -->
     """
     if not prompt:
-        return prompt
-    # A comment indented four or more spaces is markdown code and stays.
-    pattern = (r'^([ ]{0,3})<!--(?:.|\n)*?-->(?:\r?\n)?'
-               r'|^([ ]{4,}<!--.*?-->)'
-               r'|<!--.*?-->')
-    return re.sub(pattern, lambda m: m.group(1) or m.group(2) or '',
-                  prompt, flags=re.MULTILINE)
+        return ""
+    pattern = (r'^([ ]{0,3})<!--(?:.|\n)*?-->(?:\r?\n)?' # multiline (1 or more) comment
+               r'|^([ ]{4,}<!--.*?-->)' # keep literal single-line comment
+               r'|<!--.*?-->') # single-line comment (dot does NOT match newlines)
+    return re.sub(pattern, r'\1\2', prompt, flags=re.MULTILINE)
