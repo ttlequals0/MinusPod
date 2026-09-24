@@ -9,6 +9,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.19] - 2026-09-24
+
+### Fixed
+
+- Estimated text-pattern spans can use a corroborating detection's boundary instead of a stored duration.
+- Markers split around a conflicting action no longer repeat an excluded ad's reason or sponsor.
+
 ## [2.97.18] - 2026-09-24
 
 ### Changed

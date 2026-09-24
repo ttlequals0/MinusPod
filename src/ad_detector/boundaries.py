@@ -11,6 +11,7 @@ import re
 from utils.markers import (
     carve_fragment,
     clip_dai_core_spans,
+    estimated_text_bounds,
     invalidate_tail_provenance,
     mark_distinct_merge,
     note_fold,
@@ -681,6 +682,52 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
     detection is dropped as covered. Mutates the region and its marker.
     """
     for region in pattern_matched_regions:
+        marker = next((m for m in all_ads
+                       if m.get('pattern_id') == region.get('pattern_id')
+                       and abs(m['start'] - region['start']) < 0.01
+                       and abs(m['end'] - region['end']) < 0.01), None)
+        if marker and marker.get('span_estimated'):
+            text = estimated_text_bounds(marker)
+            if text is None:
+                continue
+            text_start, text_end = text
+            if text_end <= text_start:
+                continue
+            estimated_end = (text_start <= marker['start'] + 1.0
+                             and text_end < marker['end'] - 1.0)
+            estimated_start = (text_start > marker['start'] + 1.0
+                               and text_end >= marker['end'] - 1.0)
+            if not (estimated_start or estimated_end):
+                continue
+            anchors = [a for a in claude_ads
+                       if (a.get('confidence') or 0) >= PATTERN_TIGHTEN_MIN_CONFIDENCE
+                       and (action_map is None
+                            or resolve_category_action(a.get('category'), action_map)
+                            == DEFAULT_SEGMENT_ACTION)
+                       and a['start'] <= text_start + 1.0
+                       and a['end'] >= text_end - 1.0]
+            if len(anchors) != 1:
+                continue
+            anchor = anchors[0]
+            matched_seconds = text_end - text_start
+            if estimated_end:
+                new_end = max(text_end, anchor['end'])
+                if (region['end'] - new_end < PATTERN_TIGHTEN_MIN_EXCESS_SECONDS
+                        or (matched_seconds < MIN_AD_DURATION_FOR_REMOVAL
+                            and anchor['end'] - text_end < MIN_AD_DURATION_FOR_REMOVAL)):
+                    continue
+                marker['end'] = region['end'] = new_end
+            else:
+                new_start = min(text_start, anchor['start'])
+                if (new_start - region['start'] < PATTERN_TIGHTEN_MIN_EXCESS_SECONDS
+                        or (matched_seconds < MIN_AD_DURATION_FOR_REMOVAL
+                            and text_start - anchor['start'] < MIN_AD_DURATION_FOR_REMOVAL)):
+                    continue
+                marker['start'] = region['start'] = new_start
+            logger.info(
+                f"[{slug}:{episode_id}] Tightened estimated pattern marker "
+                f"to LLM bound (pattern #{region.get('pattern_id')})")
+            continue
         inside = [
             a for a in claude_ads
             if a['start'] >= region['start'] - 1.0
@@ -1250,7 +1297,12 @@ def split_conflicting_action_span(last: dict, current: dict,
         return fragment
 
     def carve(parent, s, e):
-        return mark_measured_fragment(carve_fragment(parent, s, e), parent)
+        fragment = carve_fragment(parent, s, e)
+        fragment['reason'] = (
+            'A larger detection was split at a conflicting action boundary.')
+        fragment.pop('sponsor', None)
+        fragment.pop('end_text', None)
+        return mark_measured_fragment(fragment, parent)
 
     priority = {'remove': 0, 'beep': 1, 'keep': 2}
     last_pattern = bool(last.get('pattern_defined'))

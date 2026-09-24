@@ -790,6 +790,56 @@ class TestSplitConflictingActionSpan:
         assert entries[1]['start'] == 60.0 and entries[1]['end'] == 100.0
         assert entries[1]['category'] == 'sponsor'
 
+    def test_carved_fragments_do_not_inherit_excluded_ad_explanation(self):
+        last = {
+            'start': 0.0, 'end': 100.0, 'category': 'sponsor',
+            'reason': 'Acme advertising: "Visit Acme.com"',
+            'sponsor': 'Acme', 'end_text': 'Visit Acme.com',
+            'confidence': 0.91, 'pattern_id': 12, 'pattern_defined': True,
+        }
+        current = {
+            'start': 40.0, 'end': 60.0, 'category': 'intro',
+            'reason': 'Show introduction', 'sponsor': None,
+        }
+
+        before, entries = split_conflicting_action_span(
+            last, current, 'remove', 'keep')
+
+        assert entries[0] == current
+        assert last['reason'] == 'Acme advertising: "Visit Acme.com"'
+        for fragment, bounds in ((before, (0.0, 40.0)),
+                                 (entries[1], (60.0, 100.0))):
+            assert (fragment['start'], fragment['end']) == bounds
+            assert 'split at a conflicting action boundary' in fragment['reason']
+            assert 'Acme' not in fragment['reason']
+            assert 'sponsor' not in fragment
+            assert 'end_text' not in fragment
+            assert fragment['category'] == 'sponsor'
+            assert fragment['pattern_id'] == 12
+            assert fragment['pattern_defined'] is True
+            assert fragment['confidence'] == 0.91
+            assert extract_sponsor_names('', fragment['reason']) == set()
+            assert _extract_ad_keywords(fragment) == []
+
+    def test_carved_losing_tail_drops_parent_ad_explanation(self):
+        last = {'start': 0.0, 'end': 40.0, 'category': 'intro'}
+        current = {
+            'start': 30.0, 'end': 70.0, 'category': 'sponsor',
+            'reason': 'Acme advertising: "Visit Acme.com"',
+            'sponsor': 'Acme', 'end_text': 'Visit Acme.com',
+        }
+
+        unchanged, entries = split_conflicting_action_span(
+            last, current, 'keep', 'remove')
+
+        assert unchanged == last
+        assert (entries[0]['start'], entries[0]['end']) == (40.0, 70.0)
+        assert 'Acme' not in entries[0]['reason']
+        assert 'sponsor' not in entries[0]
+        assert 'end_text' not in entries[0]
+        assert extract_sponsor_names('', entries[0]['reason']) == set()
+        assert _extract_ad_keywords(entries[0]) == []
+
     def test_current_same_start_as_last_consumes_last(self):
         last = {'start': 0.0, 'end': 100.0, 'category': 'sponsor'}
         current = {'start': 0.0, 'end': 50.0, 'category': 'outro'}

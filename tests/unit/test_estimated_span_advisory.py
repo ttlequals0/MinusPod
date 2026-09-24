@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from ad_detector import AdDetector, _label_reach
-from ad_detector.boundaries import tighten_pattern_regions
+from ad_detector.boundaries import get_uncovered_portions, tighten_pattern_regions
 from text_pattern_matcher import TextPatternMatcher, AdPattern, TextMatch
 from utils.markers import note_fold
 
@@ -116,6 +116,85 @@ def test_tightening_moves_the_span_but_not_the_label_reach():
     assert (marker['start'], marker['end']) == (501.1, 539.2)
     assert marker['span_estimated'] is True
     assert _label_reach(marker) == pytest.approx(8.9)
+
+
+@pytest.mark.parametrize('pattern_first', [False, True])
+def test_bundled_llm_bound_stops_estimated_pattern_tail(pattern_first):
+    claude = {'start': 100.0, 'end': 222.0, 'confidence': 0.98,
+              'category': 'sponsor', 'detection_stage': 'claude',
+              'reason': 'Two ad reads'}
+    marker = {'start': 185.0, 'end': 295.0, 'confidence': 0.85,
+              'category': 'sponsor', 'detection_stage': 'text_pattern',
+              'pattern_id': 600, 'span_estimated': True,
+              'text_start': 185.0, 'text_end': 222.0,
+              'reason': 'Matched second ad'}
+    region = {'start': 185.0, 'end': 295.0, 'pattern_id': 600,
+              'category': 'sponsor'}
+
+    tighten_pattern_regions([claude], [region], [marker], None)
+    uncovered = get_uncovered_portions(claude, [region])
+    candidates = [marker, *uncovered] if pattern_first else [*uncovered, marker]
+    merged = AdDetector.__new__(AdDetector)._merge_detection_results(
+        candidates, action_map=None)
+
+    assert (marker['start'], marker['end']) == (185.0, 222.0)
+    assert (region['start'], region['end']) == (185.0, 222.0)
+    assert [(m['start'], m['end']) for m in merged] == [(100.0, 222.0)]
+    assert merged[0]['merged_member_spans'] == [
+        {'start': 100.0, 'end': 222.0, 'stage': 'claude'},
+        {'start': 185.0, 'end': 222.0, 'stage': 'text_pattern'},
+    ]
+
+
+def test_bundled_llm_bound_stops_estimated_pattern_head():
+    marker = {'start': 100.0, 'end': 222.0, 'pattern_id': 600,
+              'span_estimated': True, 'text_start': 185.0,
+              'text_end': 222.0}
+    region = {'start': 100.0, 'end': 222.0, 'pattern_id': 600}
+    claude = [{'start': 150.0, 'end': 250.0, 'confidence': 0.98,
+               'category': 'sponsor'}]
+
+    tighten_pattern_regions(claude, [region], [marker], None)
+
+    assert (marker['start'], marker['end']) == (150.0, 222.0)
+    assert (region['start'], region['end']) == (150.0, 222.0)
+
+
+@pytest.mark.parametrize('claude,text_end', [
+    ([], 222.0),
+    ([{'start': 225.0, 'end': 260.0, 'confidence': 0.98,
+       'category': 'sponsor'}], 222.0),
+    ([{'start': 100.0, 'end': 222.0, 'confidence': 0.98,
+       'category': 'sponsor'},
+      {'start': 184.0, 'end': 223.0, 'confidence': 0.98,
+       'category': 'sponsor'}], 222.0),
+    ([{'start': 100.0, 'end': 191.0, 'confidence': 0.98,
+       'category': 'sponsor'}], 191.0),
+])
+def test_estimated_pattern_stays_advisory_without_full_anchor(claude, text_end):
+    marker = {'start': 185.0, 'end': 295.0, 'pattern_id': 600,
+              'span_estimated': True, 'text_start': 185.0,
+              'text_end': text_end}
+    region = {'start': 185.0, 'end': 295.0, 'pattern_id': 600}
+
+    tighten_pattern_regions(claude, [region], [marker], None)
+
+    assert marker['end'] == 295.0
+    assert region['end'] == 295.0
+
+
+def test_estimated_pattern_without_in_span_text_stays_advisory():
+    marker = {'start': 185.0, 'end': 295.0, 'pattern_id': 600,
+              'span_estimated': True, 'text_start': 100.0,
+              'text_end': 120.0}
+    region = {'start': 185.0, 'end': 295.0, 'pattern_id': 600}
+    claude = [{'start': 100.0, 'end': 220.0, 'confidence': 0.98,
+               'category': 'sponsor'}]
+
+    tighten_pattern_regions(claude, [region], [marker], None)
+
+    assert marker['end'] == 295.0
+    assert region['end'] == 295.0
 
 
 def test_label_reach_is_clipped_to_the_entry_span():
