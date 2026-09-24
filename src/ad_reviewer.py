@@ -106,9 +106,11 @@ _INCONCLUSIVE_REASONS = frozenset({
     'transcript_gap', 'ambiguous_spans', 'insufficient_evidence',
     'no_valid_pairs', 'choice_inconclusive', 'invalid_pair',
     'proposed_range_not_confirmed', 'original_range_not_confirmed',
+    'missing_boundary_coverage',
 })
 _INCONCLUSIVE_STAGES = frozenset({
     'context', 'evidence', 'choice_rank', 'focused_validation',
+    'boundary_coverage',
 })
 
 

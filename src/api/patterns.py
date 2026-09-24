@@ -22,7 +22,9 @@ from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S, extract_timed_spans_in_range,
     parse_transcript_segments,
 )
-from text_pattern_matcher import split_template_text, MAX_PATTERN_CHARS, TextPatternMatcher
+from text_pattern_matcher import (
+    split_template_text, can_split_pattern, MAX_PATTERN_CHARS, TextPatternMatcher,
+)
 
 from flask import Response, request
 
@@ -67,6 +69,7 @@ def list_patterns():
     now = utc_now()
     for pattern in patterns:
         pattern['trust'] = compute_pattern_trust(pattern, now)
+        pattern['can_split'] = can_split_pattern(pattern)
 
     return json_response({'patterns': patterns})
 

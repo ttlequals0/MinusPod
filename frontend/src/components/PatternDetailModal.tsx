@@ -347,16 +347,24 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
       </div>
 
       {/* Footer */}
-      <div className="flex justify-between gap-2 p-4 border-t border-border">
+      <div className="flex flex-wrap justify-between gap-2 p-4 border-t border-border">
         <div className="flex items-center gap-2">
           {pattern.is_active && (
-            <button
-              onClick={() => splitMutation.mutate()}
-              disabled={splitMutation.isPending}
-              className={`px-3 py-1.5 text-sm ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
-            >
-              {splitMutation.isPending ? 'Splitting...' : 'Split'}
-            </button>
+            <div className="flex flex-col gap-1">
+              <button
+                onClick={() => splitMutation.mutate()}
+                disabled={!pattern.can_split || splitMutation.isPending}
+                aria-describedby={!pattern.can_split ? `split-reason-${pattern.id}` : undefined}
+                className={`px-3 py-1.5 text-sm ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
+              >
+                {splitMutation.isPending ? 'Splitting...' : 'Split'}
+              </button>
+              {!pattern.can_split && (
+                <span id={`split-reason-${pattern.id}`} className="text-xs text-muted-foreground">
+                  No reliable ad boundary found.
+                </span>
+              )}
+            </div>
           )}
           {showDeleteConfirm ? (
             <div className="flex items-center gap-2">

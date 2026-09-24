@@ -74,6 +74,40 @@ def test_each_member_piece_is_learned_under_its_own_sponsor(db):
     assert {rows[c['id']]['sponsor'] for c in created} == {'Acme Tools', 'Beta Corp'}
 
 
+def test_distinct_same_sponsor_members_do_not_learn_one_bundle(db):
+    second_read = (
+        "Acme Tools builds garden sheds that arrive ready to assemble. "
+        "A kit from Acme Tools includes every panel and fitting you need. "
+        "Choose a size online and Acme Tools delivers it to your door."
+    )
+    matcher = TextPatternMatcher(db=db)
+    created = matcher.create_patterns_from_ad(
+        segments=_segments(ACME_READ, 0.0, 55.0)
+                 + _segments(second_read, 55.0, 110.0),
+        start=0.0, end=110.0, sponsor='Acme Tools',
+        podcast_id='example-podcast',
+        ad={'merged_distinct_ads': True, 'merged_member_spans': [
+            {'start': 0.0, 'end': 55.0, 'sponsor': 'Acme Tools'},
+            {'start': 55.0, 'end': 110.0, 'sponsor': 'Acme Tools'},
+        ]},
+    )
+    assert [(round(c['start']), round(c['end'])) for c in created] == [
+        (0, 55), (55, 110)]
+    assert all(len(db.get_ad_pattern_by_id(c['id'])['text_template']) <
+               len(ACME_READ + second_read) for c in created)
+
+
+def test_distinct_merge_without_a_reliable_divider_learns_nothing(db):
+    matcher = TextPatternMatcher(db=db)
+    created = matcher.create_patterns_from_ad(
+        segments=_segments(ACME_READ, 0.0, 95.0), start=0.0, end=95.0,
+        sponsor='Acme Tools', podcast_id='example-podcast',
+        ad={'merged_distinct_ads': True},
+    )
+    assert created == []
+    assert db.get_ad_patterns(podcast_id='example-podcast') == []
+
+
 def test_a_brand_change_splits_a_span_with_no_merge_record(db):
     """The registry is the only evidence here: no phrase, no members."""
     matcher = TextPatternMatcher(db=db)

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.97.17
+  version: 2.97.18
   contact:
     name: MinusPod
   license:
@@ -14657,6 +14657,9 @@ components:
         is_active:
           type: boolean
           description: Whether the pattern is currently active
+        can_split:
+          type: boolean
+          description: Whether the active pattern has at least two usable text pieces for splitting
         disabled_reason:
           type:
             - string

@@ -28,8 +28,8 @@ from utils.paths import resolve_data_dir
 
 logger = logging.getLogger(__name__)
 
-# Statements that wait this long on the lock, and write transactions held open
-# this long, are logged so a "database is locked" burst names its holder.
+# Slow statements and transactions are logged at this threshold.
+# Implicit transaction timing includes the opening statement's lock wait.
 SLOW_SQLITE_SECONDS = 5.0
 
 # How long a writer waits for the lock. 30s left almost no margin: ordinary
@@ -63,10 +63,11 @@ def _record_sqlite_metric(name: str, value: float | None = None) -> None:
 
 
 class TracedConnection(sqlite3.Connection):
-    """sqlite3.Connection that logs slow lock waits and long-held write transactions."""
+    """sqlite3.Connection that logs slow statements and long transactions."""
 
     _tx_started = None
     _tx_opener = None
+    _tx_start_includes_wait = False
 
     def execute(self, sql, *args):
         return self._traced(super().execute, sql, *args)
@@ -133,11 +134,13 @@ class TracedConnection(sqlite3.Connection):
         if not self.in_transaction:
             # Autocommit, or a C-level commit (`with conn:`, executescript) ended it.
             self._tx_started = self._tx_opener = None
+            self._tx_start_includes_wait = False
         elif not was_in_tx:
             # BEGIN IMMEDIATE may spend most of its time waiting for the lock.
-            # Start held-time after acquisition, while implicit DML keeps its execution time.
             normalized = str(sql).lstrip().upper()
-            self._tx_started = time.monotonic() if normalized.startswith('BEGIN IMMEDIATE') else started
+            immediate = normalized.startswith('BEGIN IMMEDIATE')
+            self._tx_started = time.monotonic() if immediate else started
+            self._tx_start_includes_wait = not immediate
             self._tx_opener = _sql_head(sql)
 
     def _note_transaction_end(self, how, tx_started=None, tx_opener=None):
@@ -146,11 +149,17 @@ class TracedConnection(sqlite3.Connection):
         held = time.monotonic() - tx_started
         if held >= SLOW_SQLITE_SECONDS:
             _record_sqlite_metric('longTransactions')
-            logger.warning(
-                "SQLite write transaction held %.1fs before %s on thread %s; opened by: %s",
-                held, how, threading.current_thread().name, tx_opener)
+            if self._tx_start_includes_wait:
+                logger.warning(
+                    "SQLite transaction elapsed %.1fs (opening statement and possible lock wait included) before %s on thread %s; opened by: %s",
+                    held, how, threading.current_thread().name, tx_opener)
+            else:
+                logger.warning(
+                    "SQLite write transaction held %.1fs before %s on thread %s; opened by: %s",
+                    held, how, threading.current_thread().name, tx_opener)
         self._tx_started = None
         self._tx_opener = None
+        self._tx_start_includes_wait = False
 
 
 def _sql_head(sql):

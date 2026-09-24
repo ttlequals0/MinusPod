@@ -38,6 +38,7 @@ from utils.constants import (
 from utils.community_tags import UNIVERSAL_TAG
 from utils.language import get_pattern_language
 from utils.pattern_similarity import similarity, canonicalize_for_dedupe
+from utils.time import utc_now_iso
 
 logger = logging.getLogger('podcast.textmatch')
 
@@ -275,6 +276,12 @@ def split_template_text(text: str) -> list[dict]:
         return [{'text': text, 'sponsor': None}]
 
     return segments
+
+
+def can_split_pattern(pattern: dict) -> bool:
+    """Whether the pattern has at least two usable text pieces."""
+    return bool(pattern.get('is_active')) and len(
+        split_template_text(pattern.get('text_template') or '')) > 1
 
 
 @dataclass
@@ -1367,11 +1374,12 @@ class TextPatternMatcher:
         members, cuts, brands = self.split_sources(ad or {}, sponsor, rows)
         member_sponsors = {(m.get('sponsor') or '').strip().lower()
                            for m in members if (m.get('sponsor') or '').strip()}
+        merged_distinct = bool((ad or {}).get('merged_distinct_ads'))
         contaminated = (len(member_sponsors) > 1
                         or bool(self._contaminating_brands(ad_text, sponsor, rows)))
         if (end - start <= max_duration
                 and len(find_transition_offsets(ad_text)) <= 1
-                and not contaminated):
+                and not contaminated and not merged_distinct):
             return create(start, end, sponsor)
 
         spans = timed_spans_from_segments(segments, start, end)
@@ -1380,6 +1388,9 @@ class TextPatternMatcher:
             spans, start, end, members=members, brands=brands, cuts=cuts,
             compiled=patterns)]
         if not times:
+            if merged_distinct:
+                logger.info("Skipping pattern learning: merged ads have no reliable divider")
+                return []
             # Nothing to split on; create_pattern_from_ad logs why it declines.
             return create(start, end, sponsor)
 
@@ -1648,71 +1659,66 @@ class TextPatternMatcher:
             return []
 
         pattern = self.db.get_ad_pattern_by_id(pattern_id)
-        if not pattern:
-            logger.error(f"Pattern {pattern_id} not found")
+        if not pattern or not can_split_pattern(pattern):
             return []
 
-        text = pattern.get('text_template', '')
-        if not text:
-            logger.warning(f"Pattern {pattern_id} has no text_template")
-            return []
-
-        new_ids = []
+        text = pattern['text_template']
         segments = split_template_text(text)
+        try:
+            prepared = []
+            for seg in segments:
+                segment = seg['text']
+                sponsor = seg['sponsor']
+                intro = _extract_intro_phrase(segment)
+                outro = _extract_outro_phrase(segment)
+                prepared.append({
+                    'text_template': segment,
+                    'intro_variants': [intro] if intro else [],
+                    'outro_variants': [outro] if outro else [],
+                    'sponsor': sponsor,
+                })
 
-        if len(segments) < 2:
-            logger.info(f"Pattern {pattern_id} doesn't need splitting "
-                       f"(only {len(segments)} segment found)")
+            with self.db.transaction(immediate=True) as conn:
+                current = conn.execute(
+                    "SELECT * FROM ad_patterns WHERE id = ?",
+                    (pattern_id,)
+                ).fetchone()
+                if (not current or not current['is_active']
+                        or current['text_template'] != text):
+                    return []
+                new_ids = []
+                for piece in prepared:
+                    sponsor = piece.pop('sponsor')
+                    piece['sponsor_id'] = (
+                        get_or_create_known_sponsor(self.db, sponsor, conn=conn)
+                        if sponsor else None)
+                    new_id = self.db._create_ad_pattern_conn(
+                        conn,
+                        scope=current['scope'],
+                        podcast_id=current['podcast_id'],
+                        network_id=current['network_id'],
+                        dai_platform=current['dai_platform'],
+                        created_from_episode_id=current['created_from_episode_id'],
+                        source_language=current['source_language'],
+                        category=current['category'],
+                        created_by=current['created_by'] or 'auto',
+                        protected_from_sync=current['protected_from_sync'] or 0,
+                        **piece,
+                    )
+                    if not new_id:
+                        raise RuntimeError("Split did not create every pattern")
+                    new_ids.append(new_id)
+                self.db._update_ad_pattern_conn(
+                    conn, pattern_id,
+                    is_active=0,
+                    disabled_at=utc_now_iso(),
+                    disabled_reason=f"Split into patterns: {new_ids}",
+                )
+        except Exception:
+            logger.exception("Failed to split pattern %s", pattern_id)
             return []
 
-        logger.info(f"Pattern {pattern_id}: splitting into {len(segments)} separate patterns")
-
-        # Create new patterns for each segment
-        for seg in segments:
-            segment = seg['text']
-            sponsor = seg['sponsor']
-
-            # Create intro/outro for new pattern
-            intro = _extract_intro_phrase(segment)
-            outro = _extract_outro_phrase(segment)
-
-            try:
-                split_sponsor_id = (
-                    get_or_create_known_sponsor(self.db, sponsor) if sponsor else None
-                )
-                new_id = self.db.create_ad_pattern(
-                    scope=pattern.get('scope', 'podcast'),
-                    text_template=segment,
-                    intro_variants=[intro] if intro else [],
-                    outro_variants=[outro] if outro else [],
-                    sponsor_id=split_sponsor_id,
-                    podcast_id=pattern.get('podcast_id'),
-                    network_id=pattern.get('network_id'),
-                    created_from_episode_id=pattern.get('created_from_episode_id'),
-                    source_language=pattern.get('source_language'),
-                )
-                if new_id:
-                    new_ids.append(new_id)
-                    logger.info(f"Created split pattern {new_id} with sponsor '{sponsor}' "
-                               f"({len(segment)} chars)")
-            except Exception as e:
-                logger.error(f"Failed to create split pattern: {e}")
-
-        # Disable original pattern if we created new ones
-        if new_ids:
-            from utils.time import utc_now_iso
-            self.db.update_ad_pattern(
-                pattern_id,
-                is_active=0,
-                disabled_at=utc_now_iso(),
-                disabled_reason=f"Split into patterns: {new_ids}"
-            )
-            logger.info(f"Disabled original pattern {pattern_id}, "
-                       f"replaced with {len(new_ids)} split patterns: {new_ids}")
-
-            # Reload patterns
-            self._load_patterns()
-
+        self._load_patterns()
         return new_ids
 
     def matches_false_positive(

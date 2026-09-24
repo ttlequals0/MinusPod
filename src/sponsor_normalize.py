@@ -42,7 +42,7 @@ def _possessive_base(name):
     return bases[0] if bases else None
 
 
-def get_or_create_known_sponsor(db, name):
+def get_or_create_known_sponsor(db, name, conn=None):
     """Resolve a free-text sponsor name to a `known_sponsors.id`.
 
     Sanitization, in order:
@@ -73,19 +73,19 @@ def get_or_create_known_sponsor(db, name):
         return None
     if is_non_brand_name(s) or is_hosting_platform_name(s):
         return None
-    existing = db.get_known_sponsor_by_name(s)
+    existing = db.get_known_sponsor_by_name(s, conn=conn)
     if existing:
         return existing['id']
     base = _possessive_base(s)
     if base:
-        base_row = db.get_known_sponsor_by_name(base)
+        base_row = db.get_known_sponsor_by_name(base, conn=conn)
         if base_row:
             return base_row['id']
     else:
         # Symmetric: a possessive brand keeps its own spelling, so the row it
         # created has to be found when the base name arrives later.
         for spelling in _POSSESSIVE_SPELLINGS:
-            possessive_row = db.get_known_sponsor_by_name(s + spelling)
+            possessive_row = db.get_known_sponsor_by_name(s + spelling, conn=conn)
             if possessive_row:
                 return possessive_row['id']
-    return db.create_known_sponsor(name=s)
+    return db.create_known_sponsor(name=s, conn=conn)

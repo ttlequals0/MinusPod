@@ -43,6 +43,7 @@ export interface AdPattern {
   created_at: string;
   created_from_episode_id: string | null;
   is_active: boolean;
+  can_split: boolean;
   disabled_at: string | null;
   disabled_reason: string | null;
   created_by?: string | null;

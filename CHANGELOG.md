@@ -9,7 +9,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.97.18] - 2026-09-24
+
+### Changed
+
+- Pattern learning uses recorded boundaries to make separate patterns from ads combined for cutting.
+
+### Fixed
+
+- Split is disabled when no reliable boundary exists. Failed splits leave the original pattern active.
+- Reviewer abstentions report missing boundary coverage and retain the original marker.
+- SQLite transaction warnings distinguish elapsed time that may include a lock wait from time spent holding a write lock.
 
 ## [2.97.17] - 2026-09-23
 

@@ -38,6 +38,7 @@ function makePattern(overrides: Partial<AdPattern> = {}): AdPattern {
     created_at: '2026-01-01T00:00:00Z',
     created_from_episode_id: null,
     is_active: true,
+    can_split: true,
     disabled_at: null,
     disabled_reason: null,
     ...overrides,
@@ -68,6 +69,15 @@ describe('Split button', () => {
   it('does not render for an inactive pattern', () => {
     renderModal(makePattern({ is_active: false }));
     expect(screen.queryByRole('button', { name: 'Split' })).toBeNull();
+  });
+
+  it('explains why an active pattern cannot be split', async () => {
+    renderModal(makePattern({ can_split: false }));
+    const button = screen.getByRole('button', { name: 'Split' });
+    expect(button).toHaveProperty('disabled', true);
+    expect(screen.getByText('No reliable ad boundary found.')).toBeDefined();
+    await userEvent.click(button);
+    expect(mockSplitPattern).not.toHaveBeenCalled();
   });
 
   it('splits successfully, invalidates the patterns query, and closes', async () => {

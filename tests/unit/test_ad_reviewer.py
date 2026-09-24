@@ -775,6 +775,23 @@ def test_inconclusive_reason_does_not_expose_unknown_provider_text():
     )
 
 
+def test_inconclusive_reason_preserves_boundary_coverage_details():
+    class InconclusiveError(Exception):
+        status_code = 422
+        body = {
+            'error': {
+                'code': 'jev_review_inconclusive',
+                'reason': 'missing_boundary_coverage',
+                'stage': 'boundary_coverage',
+            },
+        }
+
+    assert _review_inconclusive_reason(InconclusiveError()) == (
+        'Reviewer abstained: missing boundary coverage. '
+        'Stage: boundary coverage. Original marker retained.'
+    )
+
+
 def test_per_ad_failure_does_not_block_other_ads():
     """One failing ad does not prevent the rest from being reviewed."""
     reviewer = _build_reviewer({

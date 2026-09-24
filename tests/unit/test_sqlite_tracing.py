@@ -26,11 +26,12 @@ def traced_pair(tmp_path, monkeypatch):
 def test_long_held_write_transaction_is_logged_with_opener(traced_pair, caplog):
     holder, _ = traced_pair
     with caplog.at_level(logging.WARNING, logger='database'):
+        holder.execute('BEGIN IMMEDIATE')
         holder.execute("INSERT INTO t VALUES (1)")
         time.sleep(0.08)
         holder.commit()
     assert 'write transaction held' in caplog.text
-    assert 'opened by: INSERT INTO t VALUES (1)' in caplog.text
+    assert 'opened by: BEGIN IMMEDIATE' in caplog.text
 
 
 def test_short_transaction_is_quiet(traced_pair, caplog):
@@ -78,6 +79,33 @@ def test_begin_wait_is_not_counted_as_held_transaction(traced_pair, caplog):
     waiter_records = [record for record in caplog.records if record.threadName == 'begin-waiter']
     assert any('SQLite statement took' in record.message for record in waiter_records)
     assert not any('write transaction held' in record.message for record in waiter_records)
+
+
+def test_implicit_write_wait_is_logged_as_elapsed_not_held(traced_pair, caplog):
+    holder, waiter = traced_pair
+    holder.execute("INSERT INTO t VALUES (1)")
+    attempting = threading.Event()
+    completed = threading.Event()
+
+    def write():
+        attempting.set()
+        with caplog.at_level(logging.WARNING, logger='database'):
+            waiter.execute("INSERT INTO t VALUES (2)")
+            waiter.commit()
+        completed.set()
+
+    thread = threading.Thread(target=write, name='implicit-waiter')
+    thread.start()
+    assert attempting.wait(timeout=1)
+    time.sleep(0.08)
+    holder.rollback()
+    thread.join(timeout=1)
+    assert completed.is_set()
+    waiter_records = [record.message for record in caplog.records
+                      if record.threadName == 'implicit-waiter']
+    assert any('SQLite transaction elapsed' in message for message in waiter_records)
+    assert any('possible lock wait included' in message for message in waiter_records)
+    assert not any('write transaction held' in message for message in waiter_records)
 
 
 def test_failed_commit_keeps_transaction_origin_for_rollback(tmp_path):
