@@ -1714,13 +1714,7 @@ def _partition_cut_actions(ads_to_remove, actions_map):
 
 
 def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
-    """Feed keep-action markers into pattern learning (issue #565).
-
-    keep_ads bypasses validation entirely (_partition_keep_ads), so it never
-    reaches the learn_from_detections call inside _refine_and_validate; this
-    applies that same call separately to the withheld markers. No-op when
-    there is nothing to learn from or no slug.
-    """
+    """Learn from keep-action markers that bypassed validation."""
     if not keep_ads or not slug:
         return 0
     patterns_learned = ad_detector.learn_from_detections(
@@ -1731,6 +1725,32 @@ def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
             f"[{slug}:{episode_id}] Learned {patterns_learned} new patterns "
             f"from kept ads"
         )
+    return patterns_learned
+
+
+def _learn_from_applied_cut_ads(slug, episode_id, cut_ads, markers,
+                                applied_cuts, original_duration, segments,
+                                audio_path):
+    """Learn only reviewer-final pass-1 markers present in the rendered cuts."""
+    if not slug:
+        return 0
+    learnable = []
+    for ad in cut_ads:
+        marker = _find_master(markers, ad)
+        if (marker is None or not ad.get('was_cut') or not marker.get('was_cut')
+                or is_pending_review(marker)
+                or marker.get('action_applied') not in ('remove', 'beep')
+                or marker['start'] != ad['start'] or marker['end'] != ad['end']
+                or not _covered_by_cuts(marker, applied_cuts, original_duration)):
+            continue
+        learnable.append(marker)
+    if not learnable:
+        return 0
+    patterns_learned = ad_detector.learn_from_detections(
+        learnable, segments, slug, episode_id, audio_path=audio_path)
+    if patterns_learned > 0:
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Learned {patterns_learned} new patterns from cut ads")
     return patterns_learned
 
 
@@ -2071,15 +2091,6 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
 
     all_ads_with_validation = validation_result.ads
     storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
-
-    # Learn patterns from cut ads
-    cut_ads = [a for a in all_ads_with_validation if a.get('was_cut')]
-    if cut_ads and slug:
-        patterns_learned = ad_detector.learn_from_detections(
-            cut_ads, segments, slug, episode_id, audio_path=audio_path
-        )
-        if patterns_learned > 0:
-            audio_logger.info(f"[{slug}:{episode_id}] Learned {patterns_learned} new patterns from cut ads")
 
     rejected_count = validation_result.rejected
     if rejected_count > 0 or low_confidence_count > 0:
@@ -6112,9 +6123,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 all_ads_with_validation = list(all_ads_with_validation) + keep_ads
                 all_ads_with_validation.sort(key=lambda x: x['start'])
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
-                # Kept markers bypass validation entirely, so they never
-                # reach _refine_and_validate's own learn-from-cut-ads call;
-                # feed them into pattern learning separately here.
+                # Kept markers bypass validation and cut-ad learning.
                 _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path)
 
             # Terminal boundary snap (spec 2.3b): after the reviewer so a
@@ -6318,6 +6327,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Fence first: resolving the path mkdirs the podcast tree, which
             # would recreate the directory of a feed deleted mid-run.
             _require_publication_owner(slug, episode_id)
+            _learn_from_applied_cut_ads(
+                slug, episode_id, ads_to_remove, all_ads_with_validation,
+                applied_cuts, episode_duration, segments, audio_path)
             final_path = storage.get_episode_path(slug, episode_id, version=new_version)
             shutil.move(processed_path, final_path)
 

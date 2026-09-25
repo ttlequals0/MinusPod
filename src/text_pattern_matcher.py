@@ -6,6 +6,7 @@ RapidFuzz for fuzzy intro/outro phrase detection. This is effective
 for host-read ads that follow similar scripts but aren't identical.
 """
 import logging
+import math
 import re
 from dataclasses import dataclass, field, replace
 import json
@@ -41,6 +42,63 @@ from utils.pattern_similarity import similarity, canonicalize_for_dedupe
 from utils.time import utc_now_iso
 
 logger = logging.getLogger('podcast.textmatch')
+
+
+def _segments_for_pattern_learning(segments, start, end):
+    """Use timed words where available and decline ambiguous boundary text."""
+    clipped = []
+    for segment in segments:
+        seg_start = segment.get('start', 0)
+        seg_end = segment.get('end', 0)
+        if seg_end <= start or seg_start >= end:
+            continue
+        partial = seg_start < start or seg_end > end
+        words = segment.get('words')
+        if not words and not partial:
+            clipped.append(segment)
+            continue
+        source = segment.get('text') or ''
+        if not isinstance(words, list) or not words or not source:
+            return None
+        cursor = 0
+        previous_end = seg_start
+        aligned = []
+        for word in words:
+            if not isinstance(word, dict):
+                return None
+            word_start = word.get('start')
+            word_end = word.get('end')
+            token = word.get('word')
+            if (not isinstance(word_start, (int, float))
+                    or not isinstance(word_end, (int, float))
+                    or not isinstance(token, str) or not token.strip()
+                    or not all(map(math.isfinite, (word_start, word_end)))
+                    or word_start < seg_start - 0.01
+                    or word_end > seg_end + 0.01
+                    or word_start < previous_end - 0.01
+                    or word_end <= word_start):
+                return None
+            match = re.search(re.escape(token.strip()), source[cursor:], re.IGNORECASE)
+            if not match or re.search(r'\w', source[cursor:cursor + match.start()]):
+                return None
+            char_start = cursor + match.start()
+            char_end = cursor + match.end()
+            cursor = char_end
+            previous_end = word_end
+            aligned.append((word_start, word_end, char_start))
+        if re.search(r'\w', source[cursor:]):
+            return None
+        for index, (word_start, word_end, char_start) in enumerate(aligned):
+            if (word_start < start - 0.01 or word_end > end + 0.01
+                    or word_end <= start or word_start >= end):
+                continue
+            char_end = aligned[index + 1][2] if index + 1 < len(aligned) else len(source)
+            clipped.append({
+                'start': max(start, word_start),
+                'end': min(end, word_end),
+                'text': source[char_start:char_end].strip(),
+            })
+    return clipped
 
 
 def is_defined_pattern(pattern: dict) -> bool:
@@ -1359,15 +1417,18 @@ class TextPatternMatcher:
         def create(piece_start, piece_end, piece_sponsor,
                    from_split=False, piece_text=None):
             pattern_id = self.create_pattern_from_ad(
-                segments, piece_start, piece_end, sponsor=piece_sponsor,
+                learning_segments, piece_start, piece_end, sponsor=piece_sponsor,
                 scope=scope, podcast_id=podcast_id, network_id=network_id,
                 episode_id=episode_id, category=category,
                 from_split=from_split, ad_text=piece_text, brand_rows=rows)
             return ([{'id': pattern_id, 'start': piece_start, 'end': piece_end}]
                     if pattern_id else [])
 
+        learning_segments = _segments_for_pattern_learning(segments, start, end)
+        if learning_segments is None:
+            return []
         _, max_duration = self._pattern_duration_bounds()
-        ad_text = self._get_text_around_time(segments, start, end)
+        ad_text = self._get_text_around_time(learning_segments, start, end)
         # Registry rows once per span: every gate and divider source below
         # matches against the same list.
         rows = self._brand_rows()
@@ -1380,9 +1441,9 @@ class TextPatternMatcher:
         if (end - start <= max_duration
                 and len(find_transition_offsets(ad_text)) <= 1
                 and not contaminated and not merged_distinct):
-            return create(start, end, sponsor)
+            return create(start, end, sponsor, piece_text=ad_text)
 
-        spans = timed_spans_from_segments(segments, start, end)
+        spans = timed_spans_from_segments(learning_segments, start, end)
         patterns = self.brand_patterns()
         times = [c['time'] for c in build_split_candidates(
             spans, start, end, members=members, brands=brands, cuts=cuts,
@@ -1392,7 +1453,11 @@ class TextPatternMatcher:
                 logger.info("Skipping pattern learning: merged ads have no reliable divider")
                 return []
             # Nothing to split on; create_pattern_from_ad logs why it declines.
-            return create(start, end, sponsor)
+            return create(start, end, sponsor, piece_text=ad_text)
+        if any(span['start'] < cut < span['end']
+               for cut in times for span in spans):
+            logger.info("Skipping pattern learning: divider crosses untimed speech")
+            return []
 
         pieces = build_split_pieces(spans, start, end, times, brands=brands,
                                     compiled=patterns)
@@ -1506,7 +1571,10 @@ class TextPatternMatcher:
         # overlap and this extractor includes a segment that merely touches the
         # boundary, so re-extracting would pull in the next piece's opening line.
         if ad_text is None:
-            ad_text = self._get_text_around_time(segments, start, end)
+            learning_segments = _segments_for_pattern_learning(segments, start, end)
+            if learning_segments is None:
+                return None
+            ad_text = self._get_text_around_time(learning_segments, start, end)
 
         if len(ad_text) < MIN_TEXT_LENGTH:
             logger.debug("Ad text too short for pattern creation")

@@ -9,6 +9,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.20] - 2026-09-24
+
+### Fixed
+
+- Ad boundary extension uses word times to recover supported calls to action. Unclear tails stay at their reviewed boundary.
+- Learned patterns use the final cut and exclude words outside it.
+
 ## [2.97.19] - 2026-09-24
 
 ### Fixed
