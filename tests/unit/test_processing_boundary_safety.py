@@ -6,14 +6,70 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('processing_boundary_safety_test_')
 
-from ad_reviewer import AdReviewer
+from ad_reviewer import AdReviewer, split_resurrection_pool
 from ad_detector.boundaries import _merge_ad_pair
-from ad_validator import AdValidator
+from ad_validator import AdValidator, Decision, user_trimmed_keep_ranges
+from audio_processor import AudioProcessor
 from config import (HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
                     PASS2_AUTOAPPROVE_HOLD_REASONS, is_pending_review)
 from main_app import processing
 from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
 from tests.unit.test_keep_bypass import _run_pipeline
+
+
+def test_saved_trim_protects_audio_inside_longer_new_detection():
+    corrections = [{
+        'start': 100.0, 'end': 160.0,
+        'confirmed_span': {'start': 101.7, 'end': 160.0},
+        'correction_type': 'confirm',
+    }]
+    validator = AdValidator(
+        episode_duration=600.0, segments=[],
+        confirmed_corrections=corrections,
+    )
+    detected = {
+        'start': 100.0, 'end': 290.0, 'confidence': 0.98,
+        'reason': 'Host-read sponsor offer with a discount code',
+        'detection_stage': 'claude',
+        'dai_core_spans': [{'start': 100.0, 'end': 290.0}],
+        '_saved_was_cut': True,
+    }
+    result = validator.validate([detected])
+    kept = [ad for ad in result.ads if ad.get('_user_kept_by_trim')]
+    assert [(ad['start'], ad['end']) for ad in kept] == [(100.0, 101.7)]
+    assert kept[0]['validation']['decision'] == Decision.REJECT.value
+    assert kept[0]['_skip_pattern_learning']
+    assert split_resurrection_pool(result.ads, [], 0.1) == []
+    accepted = [ad for ad in result.ads
+                if ad['validation']['decision'] == Decision.ACCEPT.value]
+    assert accepted and accepted[0]['start'] >= 101.7
+    assert max(ad['end'] for ad in accepted) == 290.0
+
+    accepted[0]['start'] = 100.0
+    ranges = user_trimmed_keep_ranges(corrections)
+    final = processing._protect_user_trimmed_cuts(accepted, result.ads, ranges)
+    applied = AudioProcessor().compute_applied_cuts(
+        final, 600.0, cut_barriers=ranges)
+    assert applied[0]['start'] == 101.7
+    assert applied[-1]['end'] == 290.0
+    assert all(not (cut['start'] < 101.7 and cut['end'] > 100.0)
+               for cut in applied)
+
+
+def test_verification_keeps_trim_but_checks_remaining_ad():
+    processed = [{'start': 100.0, 'end': 290.0, 'confidence': 0.98,
+                  'dai_core_spans': [{'start': 100.0, 'end': 290.0}]}]
+    original = [dict(processed[0])]
+    kept = [{'start': 100.0, 'end': 101.7}]
+    remaining, mapped = processing._split_pass2_candidates_around_spans(
+        processed, original, kept, [], 'user-trimmed audio')
+    assert [(ad['start'], ad['end']) for ad in remaining] == [
+        (101.7, 290.0)]
+    assert [(ad['start'], ad['end']) for ad in mapped] == [
+        (101.7, 290.0)]
+    assert remaining[0]['dai_core_spans'][0]['start'] == 101.7
+    assert mapped[0]['dai_core_spans'][0]['start'] == 101.7
+    assert remaining[0]['_measured_split_fragment']
 
 
 class InconclusiveError(Exception):

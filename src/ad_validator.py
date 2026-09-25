@@ -51,6 +51,40 @@ from utils.time import overlap_ratio
 logger = logging.getLogger(__name__)
 
 
+def user_trimmed_keep_ranges(corrections: list[dict]) -> list[dict]:
+    """Return saved trim exclusions after newer approvals take precedence."""
+    protected = []
+    newer_approvals = []
+    for correction in corrections:
+        start = finite_number(correction.get('start'))
+        end = finite_number(correction.get('end'))
+        span = correction.get('confirmed_span')
+        approved_start = finite_number(span.get('start')) if isinstance(span, dict) else None
+        approved_end = finite_number(span.get('end')) if isinstance(span, dict) else None
+        if start is None or end is None or end <= start:
+            continue
+        if approved_start is not None and approved_end is not None and approved_end > approved_start:
+            for lo, hi in ((start, min(end, approved_start)),
+                           (max(start, approved_end), end)):
+                pieces = [(lo, hi)] if hi > lo else []
+                for newer_start, newer_end in newer_approvals:
+                    pieces = [part for a, b in pieces
+                              for part in ((a, min(b, newer_start)),
+                                           (max(a, newer_end), b))
+                              if part[1] > part[0]]
+                protected.extend({'start': a, 'end': b} for a, b in pieces)
+            newer_approvals.append((approved_start, approved_end))
+        else:
+            newer_approvals.append((start, end))
+    merged = []
+    for item in sorted(protected, key=lambda item: item['start']):
+        if merged and item['start'] <= merged[-1]['end']:
+            merged[-1]['end'] = max(merged[-1]['end'], item['end'])
+        else:
+            merged.append(item)
+    return merged
+
+
 def _vad_gap_adjacency_extension_seconds(ad: dict) -> float:
     """Return an ad's accumulated adjacency-only VAD extension."""
     value = ad.get('vad_gap_adjacency_extension_seconds', 0.0)
@@ -531,6 +565,30 @@ class AdValidator:
         # this staying shallow: _validate_verification_ads attaches an
         # _orig_twin reference that must survive into the validated output.
         ads = [ad.copy() for ad in ads]
+        for ad in ads:
+            ad.pop('_user_kept_by_trim', None)
+        for protected in user_trimmed_keep_ranges(self.confirmed_corrections):
+            split_ads = []
+            for ad in ads:
+                matched = self._matching_confirmed(ad['start'], ad['end'])
+                if matched is not None and matched.get('confirmed_span'):
+                    split_ads.append(ad)
+                    continue
+                lo = max(ad['start'], protected['start'])
+                hi = min(ad['end'], protected['end'])
+                if hi <= lo:
+                    split_ads.append(ad)
+                    continue
+                if ad['start'] < lo:
+                    split_ads.append(carve_fragment(ad, ad['start'], lo))
+                kept = carve_fragment(ad, lo, hi)
+                kept['_user_kept_by_trim'] = True
+                kept['_skip_pattern_learning'] = True
+                kept.pop('_measured_split_fragment', None)
+                split_ads.append(kept)
+                if hi < ad['end']:
+                    split_ads.append(carve_fragment(ad, hi, ad['end']))
+            ads = split_ads
 
         # Human false-positive decisions apply to the detected span the user
         # actually reviewed. Preserve that match before measured DAI bounds
@@ -542,6 +600,8 @@ class AdValidator:
         for ad in ads:
             ad['_matches_false_positive_correction'] = (
                 self._overlaps_false_positive(ad['start'], ad['end']))
+            if ad.get('_user_kept_by_trim'):
+                continue
             confirmed = self._matching_confirmed(ad['start'], ad['end'])
             if confirmed is None:
                 continue
@@ -741,6 +801,15 @@ class AdValidator:
         confirmed = ad.pop('_confirmed_correction', None)
         duplicate_confirmed = ad.pop(
             '_has_confirmed_correction_candidate', False) and confirmed is None
+        if ad.get('_user_kept_by_trim'):
+            ad['validation'] = {
+                'decision': Decision.REJECT.value,
+                'adjusted_confidence': 0.0,
+                'original_confidence': ad.get('confidence', 1.0),
+                'flags': ['INFO: User excluded from ad boundary'],
+                'corrections': corrections,
+            }
+            return ad
         if (matched_false_positive
                 or self._overlaps_false_positive(ad['start'], ad['end'])):
             flags.append("INFO: User marked as false positive")
@@ -1390,7 +1459,8 @@ class AdValidator:
 
         # A held marker has not been approved for cutting. Extending it could
         # absorb post-gap speech that was not part of the reviewed span.
-        if last_ad.get('held_for_review') or last_ad.get('vad_gap_requires_review'):
+        if (last_ad.get('_user_kept_by_trim') or last_ad.get('held_for_review')
+                or last_ad.get('vad_gap_requires_review')):
             return ads
 
         if (quote_edge_valid(last_ad, 'end')
@@ -1474,7 +1544,9 @@ class AdValidator:
             # describing exactly the span the human rejected. A confirmed
             # correction on either marker also blocks the merge: even a
             # shared correction must not authorize the adjacent audio.
-            if (last.get('held_for_review')
+            if (last.get('_user_kept_by_trim')
+                    or current.get('_user_kept_by_trim')
+                    or last.get('held_for_review')
                     or current.get('held_for_review')
                     or last.get('vad_gap_requires_review')
                     or current.get('vad_gap_requires_review')

@@ -61,6 +61,7 @@ AD_START_PHRASES = [
     "brought to you by",
     "thanks to our sponsor",
     "thank our sponsor",
+    "our sponsor for",
     "sponsored by",
     "a word from",
     "support comes from",
@@ -333,6 +334,28 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
             search_words.extend(prev_seg.get('words', []))
         current_seg = segments[start_seg_idx]
         search_words.extend(current_seg.get('words', []))
+
+        # A word-timed line can begin with show speech before the sponsor cue.
+        if (word_timed_edge_valid(ad, 'start')
+                and not is_edge_cue_snapped(ad, 'start')
+                and not _quote_edge_valid(ad, 'start')):
+            inward_words = list(current_seg.get('words', []))
+            if start_seg_idx + 1 < len(segments):
+                inward_words.extend(segments[start_seg_idx + 1].get('words', []))
+            inward_match = find_phrase_in_words(
+                inward_words,
+                ['word from our sponsor', 'brought to you by',
+                 'thanks to our sponsor', 'our sponsor for',
+                 'sponsored by', 'support comes from'],
+            )
+            if (inward_match
+                    and original_start < inward_match['start'] < original_end
+                    and inward_match['start'] <= original_start + BOUNDARY_EXTENSION_WINDOW
+                    and original_end - inward_match['start'] >= MIN_AD_DURATION_FOR_REMOVAL):
+                refined['start'] = inward_match['start']
+                refined['word_timed_start'] = inward_match['start']
+                refined['start_refined'] = True
+                refined['start_phrase'] = inward_match['phrase']
 
         # Search for start transition phrases (never move a cue-snapped edge)
         start_match = (None if (is_edge_cue_snapped(ad, 'start')

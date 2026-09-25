@@ -5,7 +5,8 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from ad_validator import AdValidator, Decision, ValidationResult
+from ad_validator import AdValidator, Decision, ValidationResult, user_trimmed_keep_ranges
+from audio_processor import AudioProcessor
 from sponsor_service import SponsorService
 from utils.text import word_boundary_re
 from config import (
@@ -14,6 +15,54 @@ from config import (
     HOLD_REASON_ESTIMATED_PATTERN,
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
 )
+
+
+def test_newer_confirmation_supersedes_only_reviewed_trim_audio():
+    corrections = [
+        {'start': 100.5, 'end': 101.2},
+        {'start': 100.0, 'end': 160.0,
+         'confirmed_span': {'start': 101.7, 'end': 160.0}},
+    ]
+    assert user_trimmed_keep_ranges(corrections) == [
+        {'start': 100.0, 'end': 100.5},
+        {'start': 101.2, 'end': 101.7},
+    ]
+    assert user_trimmed_keep_ranges(corrections[1:]) == [
+        {'start': 100.0, 'end': 101.7},
+    ]
+    extended = [
+        {'start': 101.4, 'end': 102.0,
+         'confirmed_span': {'start': 100.4, 'end': 102.0}},
+        corrections[1],
+    ]
+    assert user_trimmed_keep_ranges(extended) == [
+        {'start': 100.0, 'end': 100.4},
+    ]
+    later_approved = [
+        {'start': 100.0, 'end': 101.7}, corrections[1],
+    ]
+    result = AdValidator(
+        episode_duration=600.0, confirmed_corrections=later_approved,
+    ).validate([{
+        'start': 100.0, 'end': 101.7, 'confidence': 0.2,
+        'reason': 'A newly approved sponsor read',
+        '_user_kept_by_trim': True,
+    }])
+    assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+
+
+def test_saved_trim_blocks_subsecond_render_merge():
+    ranges = user_trimmed_keep_ranges([{
+        'start': 100.0, 'end': 160.0,
+        'confirmed_span': {'start': 100.0, 'end': 159.7},
+    }])
+    cuts = AudioProcessor().compute_applied_cuts(
+        [{'start': 100.0, 'end': 159.7},
+         {'start': 160.0, 'end': 190.0}],
+        600.0, cut_barriers=ranges)
+    assert [(cut['start'], cut['end']) for cut in cuts] == [
+        (100.0, 159.7), (160.0, 190.0),
+    ]
 
 
 class TestAdValidatorDuration:

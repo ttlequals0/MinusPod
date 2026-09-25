@@ -11,6 +11,13 @@ release notes.
 
 ## [Unreleased]
 
+## [2.97.24] - 2026-09-25
+
+### Fixed
+
+- Saved boundary trims keep excluded speech in the audio when a later detection spans several ads, including after reviewer adjustments and verification.
+- A word-timed ad start moves past preceding show speech when a nearby explicit sponsor introduction marks the actual boundary.
+
 ## [2.97.23] - 2026-09-25
 
 ### Fixed

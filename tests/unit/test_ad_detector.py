@@ -151,6 +151,39 @@ class TestRefineBoundaries:
 
         assert refined == []
 
+    def test_word_timed_overlap_starts_at_later_explicit_sponsor_cue(self):
+        def segment(start, words):
+            timed = [{'word': word, 'start': start + i * 0.4,
+                      'end': start + (i + 1) * 0.4}
+                     for i, word in enumerate(words.split())]
+            return {'start': start, 'end': timed[-1]['end'],
+                    'text': words, 'words': timed}
+
+        segments = [
+            segment(95.0, 'We will return after this break'),
+            segment(102.0, 'Then we will discuss the next topic'),
+            segment(106.0, 'Our sponsor for this segment is Acme'),
+            segment(110.0, 'Acme has an offer for listeners today'),
+        ]
+        ads = [
+            {'start': 103.2, 'end': 113.0, 'word_timed_start': 103.2,
+             'confidence': 0.93, 'reason': 'Acme sponsor read'},
+            {'start': 106.0, 'end': 124.0, 'word_timed_start': 106.0,
+             'confidence': 0.98, 'reason': 'Acme sponsor read'},
+        ]
+        merged = deduplicate_window_ads(ads)
+        assert merged[0]['start'] == 103.2
+        refined = refine_ad_boundaries(merged, segments)
+        assert len(refined) == 1
+        assert refined[0]['start'] == 106.0
+        assert refined[0]['word_timed_start'] == 106.0
+
+        segments[1] = segment(102.0, 'Brought to you by Acme today')
+        assert refine_ad_boundaries(ads[:1], segments)[0]['start'] == 103.2
+        segments[1] = segment(102.0, 'Then we will discuss the next topic')
+        short = dict(ads[0], end=105.0)
+        assert refine_ad_boundaries([short], segments)[0]['start'] == 103.2
+
     def test_refine_empty_segments(self):
         """Empty segments should return ads unchanged."""
         ads = [
