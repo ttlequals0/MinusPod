@@ -184,6 +184,28 @@ class TestRefineBoundaries:
         short = dict(ads[0], end=105.0)
         assert refine_ad_boundaries([short], segments)[0]['start'] == 103.2
 
+        intro = segment(
+            100.0, 'This portion of the program is brought to you by Acme.')
+        intro_ad = dict(ads[0], start=100.0, end=130.0,
+                        word_timed_start=100.0)
+        assert refine_ad_boundaries([intro_ad], [intro])[0]['start'] == 100.0
+
+        continued = segment(
+            100.0, ' '.join(['description'] * 25)
+            + ' This portion is brought to you by Acme.')
+        continued_ad = dict(ads[0], start=110.0, end=130.0,
+                            word_timed_start=110.0)
+        assert refine_ad_boundaries([continued_ad], [continued])[0]['start'] == 110.0
+
+        mixed = segment(
+            100.0, 'A show teaser ends. This portion is brought to you by Acme.')
+        mixed_ad = dict(ads[0], start=100.0, end=130.0,
+                        word_timed_start=100.0)
+        assert refine_ad_boundaries([mixed_ad], [mixed])[0]['start'] == 101.6
+
+        unreliable = dict(mixed, text='Transcript does not match its words.')
+        assert refine_ad_boundaries([mixed_ad], [unreliable])[0]['start'] == 100.0
+
     def test_refine_empty_segments(self):
         """Empty segments should return ads unchanged."""
         ads = [

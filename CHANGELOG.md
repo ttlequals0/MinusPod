@@ -11,6 +11,12 @@ release notes.
 
 ## [Unreleased]
 
+## [2.97.25] - 2026-09-25
+
+### Fixed
+
+- Sponsor-cue alignment keeps the full introduction when the cue occurs mid-sentence.
+
 ## [2.97.24] - 2026-09-25
 
 ### Fixed

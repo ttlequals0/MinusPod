@@ -348,12 +348,20 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
                  'thanks to our sponsor', 'our sponsor for',
                  'sponsored by', 'support comes from'],
             )
-            if (inward_match
-                    and original_start < inward_match['start'] < original_end
-                    and inward_match['start'] <= original_start + BOUNDARY_EXTENSION_WINDOW
-                    and original_end - inward_match['start'] >= MIN_AD_DURATION_FOR_REMOVAL):
-                refined['start'] = inward_match['start']
-                refined['word_timed_start'] = inward_match['start']
+            intro_start = None
+            if inward_match:
+                intro_start = next(
+                    (utterance['start']
+                     for seg in segments[start_seg_idx:start_seg_idx + 2]
+                     for utterance in (_timed_utterances(seg) or [])
+                     if utterance['start'] <= inward_match['start']
+                     < inward_match['end'] <= utterance['end']), None)
+            if (intro_start is not None
+                    and original_start < intro_start < original_end
+                    and intro_start <= original_start + BOUNDARY_EXTENSION_WINDOW
+                    and original_end - intro_start >= MIN_AD_DURATION_FOR_REMOVAL):
+                refined['start'] = intro_start
+                refined['word_timed_start'] = intro_start
                 refined['start_refined'] = True
                 refined['start_phrase'] = inward_match['phrase']
 
