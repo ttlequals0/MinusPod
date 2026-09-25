@@ -3,6 +3,7 @@ import logging
 import sqlite3
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -34,11 +35,14 @@ def test_long_held_write_transaction_is_logged_with_opener(traced_pair, caplog):
     assert 'opened by: BEGIN IMMEDIATE' in caplog.text
 
 
-def test_short_transaction_is_quiet(traced_pair, caplog):
+def test_short_transaction_is_quiet(traced_pair, caplog, monkeypatch):
     holder, _ = traced_pair
+    monkeypatch.setattr(database, 'time',
+                        SimpleNamespace(monotonic=lambda: 100.0))
     with caplog.at_level(logging.WARNING, logger='database'):
         holder.execute("INSERT INTO t VALUES (1)")
         holder.commit()
+    assert holder.execute('SELECT COUNT(*) FROM t').fetchone()[0] == 1
     assert caplog.text == ''
 
 
