@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.21] - 2026-09-24
+
+### Fixed
+
+- Refresh system packages for each image version so cached Docker layers do not retain available updates.
+
 ## [2.97.20] - 2026-09-24
 
 ### Fixed

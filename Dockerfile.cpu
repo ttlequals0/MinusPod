@@ -56,6 +56,7 @@ RUN mkdir -p /app/static/ui/swagger \
 
 # Stage 2: Python application (CPU-only base; no NVIDIA runtime layer)
 FROM ubuntu:26.04
+ARG MINUSPOD_VERSION=dev
 
 # Install Python 3.12 from deadsnakes PPA and system dependencies
 # Ubuntu 26.04 ships Python 3.14; deadsnakes pins 3.12 (cp312 is the
@@ -63,7 +64,7 @@ FROM ubuntu:26.04
 # setpriv (from util-linux, present in the base image) is used by
 # entrypoint.sh to drop privileges after the root-only chown step that
 # migrates the data volume on first boot.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN : "$MINUSPOD_VERSION" && apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y --no-install-recommends \
@@ -163,9 +164,6 @@ RUN find ./src -type f -name '*.py' -exec chmod 644 {} \; && \
             --shell /sbin/nologin minuspod && \
     chown -R minuspod:minuspod /app
 
-# Keep release-varying metadata after dependency and application layers so a
-# version-only change does not invalidate the PyTorch layer.
-ARG MINUSPOD_VERSION=dev
 LABEL org.opencontainers.image.version="${MINUSPOD_VERSION}"
 
 # Expose port
