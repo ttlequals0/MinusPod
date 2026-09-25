@@ -200,6 +200,13 @@ SEGMENT_ID_WINDOW_RULES = (
 )
 
 
+AD_QUOTE_ANCHOR_SECTION = """
+
+AD-ONLY WORD ANCHORS:
+Every ad object must include start_text and end_text. Copy 5-12 consecutive spoken words from the transcript at each edge. start_text begins with the first words of the ad or its explicit sponsor handoff. end_text ends with the last words of the ad, including its final sponsor thanks or call to action. Exclude ordinary show setup before the sponsor and return-to-show speech after it. Do not use a whole transcript line when it contains both ad and show speech. If either ad edge is unclear, use an empty string for that quote. Keep the required start/end timestamps or segment IDs; the quotes only locate words inside those coarse lines.
+"""
+
+
 def get_static_system_prompt() -> str:
     """Return DEFAULT_SYSTEM_PROMPT with the static SEED_SPONSORS list substituted.
 
@@ -488,6 +495,7 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
         'end': end,
         'confidence': norm_conf,
         'reason': reason,
+        'start_text': _as_text(ad.get('start_text')),
         'end_text': _as_text(ad.get('end_text'))
     }
     # Store sponsor name separately for UI display
@@ -693,6 +701,10 @@ def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
                 f"(ids {lo}-{hi}): {e}")
             continue
         if ad_entry is not None:
+            if seg_lo.get('word_timed_line'):
+                ad_entry['word_timed_start'] = start
+            if seg_hi.get('word_timed_line'):
+                ad_entry['word_timed_end'] = end
             resolved.append(ad_entry)
     return resolved
 
@@ -773,6 +785,7 @@ AD_DETECTION_JSON_SCHEMA = {
                     "end": {"type": "number"},
                     "start_id": {"type": "integer"},
                     "end_id": {"type": "integer"},
+                    "start_text": {"type": "string"},
                     # The prompt requires end_text on every segment and the
                     # sponsor extractors read these names; a schema-enforcing
                     # decoder would silently strip anything absent here.

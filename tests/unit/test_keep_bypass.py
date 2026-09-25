@@ -46,7 +46,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                   real_sweeps=False, audio_analysis_result=None, segments=None,
                   verification_return=None, held_categories=None,
                   reviewer_side_effect=None, render_fails=False,
-                  verification_side_effect=None, real_refine_reviewer=False):
+                  verification_side_effect=None, real_refine_reviewer=False,
+                  confirmed_corrections=None):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks for inspection.
 
@@ -119,7 +120,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                                if real_refine_reviewer else _fake_refine_and_validate))
         reviewer = p(processing, '_run_ad_reviewer',
                      side_effect=(processing._run_ad_reviewer
-                                  if real_refine_reviewer else _fake_run_ad_reviewer))
+                                  if real_refine_reviewer and reviewer_side_effect is None
+                                  else _fake_run_ad_reviewer))
         if real_refine_reviewer:
             p(processing, '_apply_heuristic_rolls')
         if not real_sweeps:
@@ -141,12 +143,13 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
+        db.get_podcast_cue_settings_overrides.return_value = {}
         db.get_setting.side_effect = lambda key: (
             'true' if real_refine_reviewer and key == 'enable_ad_review'
             else 'false')
         db.get_setting_bool.return_value = False
         db.get_false_positive_corrections.return_value = []
-        db.get_confirmed_corrections.return_value = []
+        db.get_confirmed_corrections.return_value = confirmed_corrections or []
         db.get_setting_float.side_effect = lambda key, default=None: default
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = segment_actions

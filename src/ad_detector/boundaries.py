@@ -13,8 +13,12 @@ from utils.markers import (
     clip_dai_core_spans,
     estimated_text_bounds,
     invalidate_tail_provenance,
+    invalidate_quote_alignment,
+    invalidate_word_timed_edges,
     mark_distinct_merge,
     note_fold,
+    quote_edge_valid as _quote_edge_valid,
+    word_timed_edge_valid,
 )
 from utils.text import get_transcript_text_for_range
 from utils.time import overlap_seconds, ranges_overlap
@@ -91,6 +95,104 @@ AD_END_PHRASES = [
 # Module-level alias preserved so existing in-file references and any
 # external test introspection continue to work.
 _NON_BRAND_WORDS = NON_BRAND_WORDS
+
+
+def estimated_pattern_replaced_by_precise_ad(marker, claude_ads, action_map):
+    if (marker.get('detection_stage') != 'text_pattern'
+            or not marker.get('span_estimated')
+            or marker.get('pattern_defined')):
+        return False
+    text = estimated_text_bounds(marker)
+    if text is None or text[1] <= text[0]:
+        return False
+    matches = [ad for ad in claude_ads
+               if ad.get('detection_stage') in (None, 'claude')
+               and (ad.get('confidence') or 0) >= PATTERN_TIGHTEN_MIN_CONFIDENCE
+               and all(_quote_edge_valid(ad, edge)
+                       or word_timed_edge_valid(ad, edge)
+                       for edge in ('start', 'end'))
+               and ad['start'] <= text[0] + 0.05
+               and ad['end'] >= text[1] - 0.05
+               and (not marker.get('sponsor') or not ad.get('sponsor')
+                    or marker['sponsor'].casefold() == ad['sponsor'].casefold())
+               and (action_map is None
+                    or effective_resolved_action(marker, action_map)
+                    == effective_resolved_action(ad, action_map))]
+    return len(matches) == 1
+
+
+def align_ad_quote_bounds(ads: list[dict], segments: list[dict]) -> list[dict]:
+    """Align exact ad-edge quotes to word times before detections merge."""
+    aligned = []
+    for ad in ads:
+        start = ad.get('start')
+        end = ad.get('end')
+        if (not isinstance(start, (int, float)) or not math.isfinite(start)
+                or not isinstance(end, (int, float)) or not math.isfinite(end)
+                or end <= start):
+            aligned.append(ad)
+            continue
+        start_quote = re.findall(r'[^\W_]+', str(ad.get('start_text') or '').casefold())
+        end_quote = re.findall(r'[^\W_]+', str(ad.get('end_text') or '').casefold())
+        if not (4 <= len(start_quote) <= 30 and 4 <= len(end_quote) <= 30):
+            aligned.append(ad)
+            continue
+
+        words = []
+        for segment in segments:
+            if segment['end'] < start - 60 or segment['start'] > end + 60:
+                continue
+            utterances = _timed_utterances(segment)
+            if utterances is None:
+                words = []
+                break
+            words.extend(word for utterance in utterances
+                         for word in utterance['words'])
+        tokens = []
+        for index, word in enumerate(words):
+            parts = re.findall(r'[^\W_]+', word['word'].casefold())
+            tokens.extend((part, index, part_index, len(parts))
+                          for part_index, part in enumerate(parts))
+
+        def match(quote):
+            hits = []
+            for index in range(len(tokens) - len(quote) + 1):
+                group = tokens[index:index + len(quote)]
+                if (group[0][2] == 0
+                        and group[-1][2] == group[-1][3] - 1
+                        and [part[0] for part in group] == quote):
+                    hits.append((group[0][1], group[-1][1]))
+            return hits[0] if len(hits) == 1 else None
+
+        first = match(start_quote)
+        last = match(end_quote)
+        if first is None or last is None or first[1] >= last[0]:
+            aligned.append(ad)
+            continue
+        if any(words[index + 1]['start'] < words[index]['end'] - 0.05
+               for lo, hi in (first, last) for index in range(lo, hi)):
+            aligned.append(ad)
+            continue
+        if (first[0] > 0
+                and words[first[0]]['start'] < words[first[0] - 1]['end'] - 0.05
+                or last[1] + 1 < len(words)
+                and words[last[1] + 1]['start'] < words[last[1]]['end'] - 0.05):
+            aligned.append(ad)
+            continue
+        new_start = words[first[0]]['start']
+        new_end = words[last[1]]['end']
+        if (new_start < start - 0.05 or new_end > end + 0.05
+                or new_start - start > 60 or end - new_end > 60
+                or new_end - new_start < MIN_AD_DURATION_FOR_REMOVAL):
+            aligned.append(ad)
+            continue
+        aligned_ad = dict(ad, start=new_start, end=new_end,
+                          quote_aligned_start=True, quote_aligned_end=True,
+                          quote_start=new_start, quote_end=new_end,
+                          quote_original_start=start, quote_original_end=end)
+        invalidate_word_timed_edges(aligned_ad)
+        aligned.append(aligned_ad)
+    return aligned
 
 
 def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
@@ -233,7 +335,9 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
         search_words.extend(current_seg.get('words', []))
 
         # Search for start transition phrases (never move a cue-snapped edge)
-        start_match = (None if is_edge_cue_snapped(ad, 'start') else
+        start_match = (None if (is_edge_cue_snapped(ad, 'start')
+                                or _quote_edge_valid(ad, 'start')
+                                or word_timed_edge_valid(ad, 'start')) else
                        find_phrase_in_words(search_words, AD_START_PHRASES, search_start=True))
         if start_match:
             new_start = start_match['start']
@@ -260,7 +364,9 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
             search_words.extend(next_seg.get('words', []))
 
         # Search for end transition phrases (never move a cue-snapped edge)
-        end_match = (None if is_edge_cue_snapped(ad, 'end') else
+        end_match = (None if (is_edge_cue_snapped(ad, 'end')
+                              or _quote_edge_valid(ad, 'end')
+                              or word_timed_edge_valid(ad, 'end')) else
                      find_phrase_in_words(search_words, AD_END_PHRASES, search_start=False))
         if end_match:
             # For end phrases, we want the time AFTER the phrase (when content resumes)
@@ -302,7 +408,9 @@ def snap_early_ads_to_zero(ads: list[dict], threshold: float = EARLY_AD_SNAP_THR
     snapped = []
     for ad in ads:
         ad_copy = ad.copy()
-        if ad_copy['start'] > 0 and ad_copy['start'] <= threshold:
+        if (ad_copy['start'] > 0 and ad_copy['start'] <= threshold
+                and not _quote_edge_valid(ad_copy, 'start')
+                and not word_timed_edge_valid(ad_copy, 'start')):
             original_start = ad_copy['start']
             ad_copy['start'] = 0.0
             ad_copy['start_snapped'] = True
@@ -363,6 +471,28 @@ def _timed_utterances(segment: dict) -> list[dict] | None:
         }
         for group in utterances
     ]
+
+
+def timed_line_segments(segments: list[dict]) -> list[dict]:
+    """Split reliable word timing into transcript lines without losing words."""
+    lines = []
+    for seg in segments:
+        utterances = _timed_utterances(seg)
+        if utterances is None:
+            lines.append(seg.copy())
+            continue
+        for utterance in utterances:
+            words = utterance['words']
+            for offset in range(0, len(words), 25):
+                group = words[offset:offset + 25]
+                lines.append({
+                    'start': group[0]['start'],
+                    'end': group[-1]['end'],
+                    'text': ' '.join(word['word'].strip() for word in group),
+                    'words': group,
+                    'word_timed_line': True,
+                })
+    return lines
 
 
 def _timed_ad_evidence_end(utterance: dict,
@@ -532,7 +662,8 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                                             exclude=own_site)
 
         # Check timed words after the ad for a supported CTA continuation.
-        if not is_edge_cue_snapped(ad, 'end'):
+        if not (is_edge_cue_snapped(ad, 'end') or _quote_edge_valid(ad, 'end')
+                or word_timed_edge_valid(ad, 'end')):
             # A short sponsor thank-you can connect two supported CTA lines.
             new_end = ad_end
             skipped = 0
@@ -608,7 +739,9 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                 ad_copy['end_extended_by_content'] = True
 
         # Check text BEFORE ad start for continuation
-        if extend_start and not is_edge_cue_snapped(ad, 'start'):
+        if (extend_start and not is_edge_cue_snapped(ad, 'start')
+                and not _quote_edge_valid(ad, 'start')
+                and not word_timed_edge_valid(ad, 'start')):
             if ad_start > start_cap:
                 new_start = ad_start
                 # Walk backwards through segments
@@ -1073,7 +1206,17 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
     """
     mark_distinct_merge(current_ad, next_ad)
     invalidate_tail_provenance(current_ad, next_ad['end'])
+    if _quote_edge_valid(next_ad, 'end'):
+        for field in ('quote_aligned_end', 'quote_end', 'quote_original_end'):
+            if field in next_ad:
+                current_ad[field] = next_ad[field]
+            else:
+                current_ad.pop(field, None)
+    if word_timed_edge_valid(next_ad, 'end'):
+        current_ad['word_timed_end'] = next_ad['word_timed_end']
     current_ad['end'] = next_ad['end']
+    invalidate_quote_alignment(current_ad)
+    invalidate_word_timed_edges(current_ad)
     # The tail-sweep marker describes how the *current end* was reached. Once
     # this merge replaces that edge, only the later fragment's flag remains
     # meaningful; retaining the earlier fragment's flag could snap past an
@@ -1500,6 +1643,8 @@ def split_conflicting_action_span(last: dict, current: dict,
 
     def carve(parent, s, e):
         fragment = carve_fragment(parent, s, e)
+        invalidate_quote_alignment(fragment)
+        invalidate_word_timed_edges(fragment)
         fragment['reason'] = (
             'A larger detection was split at a conflicting action boundary.')
         fragment.pop('sponsor', None)
@@ -1614,7 +1759,17 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
             note_fold(last, current)
             # Merge: extend end time if current goes further
             if current['end'] > last['end']:
+                if _quote_edge_valid(current, 'end'):
+                    for field in ('quote_aligned_end', 'quote_end', 'quote_original_end'):
+                        if field in current:
+                            last[field] = current[field]
+                        else:
+                            last.pop(field, None)
+                if word_timed_edge_valid(current, 'end'):
+                    last['word_timed_end'] = current['word_timed_end']
                 last['end'] = current['end']
+                invalidate_quote_alignment(last)
+                invalidate_word_timed_edges(last)
                 if current.get('end_text'):
                     last['end_text'] = current['end_text']
             # Keep higher confidence

@@ -34,8 +34,12 @@ from utils.markers import (
     dai_core_bounds,
     finite_number,
     invalidate_tail_provenance,
+    invalidate_quote_alignment,
+    invalidate_word_timed_edges,
     mark_distinct_merge,
     note_fold,
+    quote_edge_valid,
+    word_timed_edge_valid,
 )
 from differential_fetcher import differential_region_overlapping
 from community_export import brand_match_candidates
@@ -58,7 +62,17 @@ def _adopt_later_marker_end(target: dict, source: dict) -> None:
     if source['end'] <= target['end']:
         return
     invalidate_tail_provenance(target, source['end'])
+    if quote_edge_valid(source, 'end'):
+        for field in ('quote_aligned_end', 'quote_end', 'quote_original_end'):
+            if field in source:
+                target[field] = source[field]
+            else:
+                target.pop(field, None)
+    if word_timed_edge_valid(source, 'end'):
+        target['word_timed_end'] = source['word_timed_end']
     target['end'] = source['end']
+    invalidate_quote_alignment(target)
+    invalidate_word_timed_edges(target)
     if source.get('end_extended_by_content'):
         target['end_extended_by_content'] = True
     if source.get('tail_splice_snap') is not None:
@@ -524,6 +538,7 @@ class AdValidator:
         # non-matching markers separate so a nearby real ad is not rejected
         # as collateral damage during the tiny-gap merge below.
         confirmed_candidates = {}
+        plain_candidates = {}
         for ad in ads:
             ad['_matches_false_positive_correction'] = (
                 self._overlaps_false_positive(ad['start'], ad['end']))
@@ -531,12 +546,21 @@ class AdValidator:
             if confirmed is None:
                 continue
             span = confirmed.get('confirmed_span')
+            plain_key = None
             if span is None:
-                # A plain confirmation names no exact sub-span, so there is
-                # nothing to deduplicate against: every matching fragment
-                # keeps its own auto-accept, as before span-bearing dedup.
-                ad['_confirmed_correction'] = confirmed
-                continue
+                if (confirmed.get('correction_type') != 'boundary_adjustment'
+                        and not ad['_matches_false_positive_correction']):
+                    start = max(ad['start'], confirmed['start'])
+                    end = min(ad['end'], confirmed['end'])
+                    if end > start:
+                        plain_key = id(confirmed)
+                        confirmed = dict(confirmed, confirmed_span={
+                            'start': start, 'end': end})
+                        span = confirmed['confirmed_span']
+                if span is None:
+                    # Multiple in-bounds fragments can share a plain approval.
+                    ad['_confirmed_correction'] = confirmed
+                    continue
             if not (ad['start'] < span['end']
                     and ad['end'] > span['start']):
                 # Fragment lies wholly in trimmed-out (user-kept) content:
@@ -563,17 +587,47 @@ class AdValidator:
                 restored_end = min(restored_end, self.episode_duration)
             if self._overlaps_false_positive(restored_start, restored_end):
                 continue
+            if plain_key is not None:
+                plain_candidates.setdefault(plain_key, []).append((confirmed, ad))
+                continue
             existing = confirmed_candidates.get(id(confirmed))
             if (existing is None
                     or (ad['start'], ad['end']) < (
                         existing[1]['start'], existing[1]['end'])):
                 confirmed_candidates[id(confirmed)] = (confirmed, ad)
 
-        for confirmed, ad in confirmed_candidates.values():
+        selected_candidates = list(confirmed_candidates.values())
+        plain_sources = []
+        extra_approved_ads = []
+        for candidates in plain_candidates.values():
+            selected = []
+            for confirmed, ad in sorted(candidates, key=lambda pair: pair[1]['start']):
+                plain_sources.append((confirmed, ad))
+                span = confirmed['confirmed_span']
+                available = [(span['start'], span['end'])]
+                for prior in selected:
+                    available = [piece for lo, hi in available
+                                 for piece in ((lo, min(hi, prior['start'])),
+                                               (max(lo, prior['end']), hi))
+                                 if piece[1] > piece[0]]
+                if available == [(span['start'], span['end'])]:
+                    selected.append(span)
+                    selected_candidates.append((confirmed, ad))
+                    continue
+                for lo, hi in available:
+                    fragment = carve_fragment(ad, lo, hi)
+                    fragment['_has_confirmed_correction_candidate'] = True
+                    narrowed = dict(confirmed, confirmed_span={
+                        'start': lo, 'end': hi})
+                    selected.append(narrowed['confirmed_span'])
+                    selected_candidates.append((narrowed, fragment))
+                    extra_approved_ads.append(fragment)
+
+        for confirmed, ad in selected_candidates:
             ad['_confirmed_correction'] = confirmed
 
         residue_ads = []
-        for confirmed, ad in confirmed_candidates.values():
+        for confirmed, ad in list(confirmed_candidates.values()) + plain_sources:
             if confirmed.get('confirmed_span') is None or '_orig_twin' in ad:
                 continue
             # The clamp below discards audio outside the approved span. The
@@ -595,9 +649,10 @@ class AdValidator:
                     residue.pop(key, None)
                 residue['reason'] = (
                     f"{ad.get('reason', 'ad')} (beyond reviewed bounds)")
+                residue['_skip_pattern_learning'] = True
                 residue_ads.append(residue)
-        if residue_ads:
-            ads.extend(residue_ads)
+        if residue_ads or extra_approved_ads:
+            ads.extend(residue_ads + extra_approved_ads)
             ads.sort(key=lambda a: a['start'])
 
         for ad in ads:
@@ -1272,12 +1327,16 @@ class AdValidator:
             # authoritative and clips the core in _validate_ad.
             core_start, core_end = dai_core_bounds(ad)
             if core_start is not None:
-                if core_start < ad['start']:
+                if (core_start < ad['start']
+                        and not quote_edge_valid(ad, 'start')
+                        and not word_timed_edge_valid(ad, 'start')):
                     result.corrections.append(
                         f"Restored start {ad['start']:.1f}s to measured DAI "
                         f"core {core_start:.1f}s")
                     ad['start'] = core_start
-                if core_end > ad['end']:
+                if (core_end > ad['end']
+                        and not quote_edge_valid(ad, 'end')
+                        and not word_timed_edge_valid(ad, 'end')):
                     result.corrections.append(
                         f"Restored end {ad['end']:.1f}s to measured DAI "
                         f"core {core_end:.1f}s")
@@ -1295,6 +1354,8 @@ class AdValidator:
                 result.corrections.append(
                     f"Clamped end {original:.1f}s to duration {self.episode_duration:.1f}s"
                 )
+            invalidate_quote_alignment(ad)
+            invalidate_word_timed_edges(ad)
             # Merge records written before this clamp must not let the
             # reviewer re-expand an edge past the file.
             file_end = (self.episode_duration if self.episode_duration > 0
@@ -1330,6 +1391,10 @@ class AdValidator:
         # A held marker has not been approved for cutting. Extending it could
         # absorb post-gap speech that was not part of the reviewed span.
         if last_ad.get('held_for_review') or last_ad.get('vad_gap_requires_review'):
+            return ads
+
+        if (quote_edge_valid(last_ad, 'end')
+                or word_timed_edge_valid(last_ad, 'end')):
             return ads
 
         gap_to_end = self.episode_duration - last_ad['end']

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.97.22
+  version: 2.97.23
   contact:
     name: MinusPod
   license:
@@ -2059,8 +2059,9 @@ paths:
         - Episodes
       summary: Force reprocess an episode
       description: |
-        Deletes cached data and reprocesses the episode.
-        Supports three modes:
+        Queues an episode for reprocessing. Full and default reprocesses retain
+        the saved transcript until fresh transcription begins.
+        Supports four modes:
         - `reprocess` (default): Uses learned patterns from the pattern database plus AI analysis
         - `full`: Skips the pattern database entirely for a fresh AI-only analysis
         - `llm`: Re-runs ad detection and re-cut using the SAVED transcript,
@@ -2101,6 +2102,8 @@ paths:
                 type: object
                 properties:
                   message:
+                    type: string
+                  episodeId:
                     type: string
                   mode:
                     type: string
@@ -2295,15 +2298,26 @@ paths:
         - Processing
       summary: Force reprocess an episode (legacy)
       description: |
-        Legacy reprocess endpoint. Prefer `/episodes/{slug}/{episode_id}/reprocess`,
-        which supports `mode=reprocess`, `mode=full`, and `mode=llm`.
+        Legacy URL for the mode-aware reprocess endpoint. Accepts the same modes
+        as `/episodes/{slug}/{episode_id}/reprocess`; the default is `reprocess`.
       operationId: reprocessEpisodeLegacy
       parameters:
         - $ref: '#/components/parameters/slug'
         - $ref: '#/components/parameters/episode_id'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [reprocess, full, llm, recut]
+                  default: reprocess
       responses:
-        '200':
-          description: Episode reprocess queued
+        '202':
+          description: Reprocessing started or queued
           content:
             application/json:
               schema:
@@ -2313,8 +2327,18 @@ paths:
                     type: string
                   episodeId:
                     type: string
-                  slug:
+                  mode:
                     type: string
+                  status:
+                    type: string
+                    enum: [processing, queued]
+                  reason:
+                    type: string
+                  jobState:
+                    type: string
+                    enum: [queued, processing]
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -2323,6 +2347,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /feeds/{slug}/episodes/{episode_id}/original.mp3:
     get:

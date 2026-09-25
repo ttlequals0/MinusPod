@@ -3,6 +3,7 @@ import logging
 from unittest.mock import MagicMock, patch
 
 from ad_detector import AdDetector
+from ad_validator import AdValidator, Decision
 from ad_detector.prompts import (
     SEGMENT_ID_SYSTEM_SECTION, format_window_prompt,
     parse_id_ads_from_response, resolve_segment_id_ads,
@@ -79,6 +80,130 @@ def test_id_transcript_lines():
     assert lines == ['[0] hello', '[1] world']
     ts_lines = AdDetector._format_transcript_lines(segs, 'timestamps')
     assert ts_lines == ['[0.0s - 5.0s] hello', '[5.0s - 9.0s] world']
+
+
+def test_timestamp_transcript_lines_expose_timed_show_and_ad_utterances():
+    tokens = ['Host', 'story.', 'Our', 'sponsor', 'is', 'Acme.',
+              'Visit', 'acme.com.', 'Back', 'to', 'the', 'topic.']
+    segment = {
+        'start': 10.0, 'end': 22.0, 'text': ' '.join(tokens),
+        'words': [
+            {'start': 10.0 + i, 'end': 10.5 + i, 'word': token}
+            for i, token in enumerate(tokens)
+        ],
+    }
+
+    assert AdDetector._format_transcript_lines([segment], 'timestamps') == [
+        '[10.0s - 11.5s] Host story.',
+        '[12.0s - 15.5s] Our sponsor is Acme.',
+        '[16.0s - 17.5s] Visit acme.com.',
+        '[18.0s - 21.5s] Back to the topic.',
+    ]
+    segment['sid'] = 3
+    assert AdDetector._format_transcript_lines([segment], 'segment_ids') == [
+        '[3] ' + ' '.join(tokens)]
+
+
+def test_timestamp_transcript_lines_chunk_unpunctuated_speech_without_word_loss():
+    words = [
+        {'start': float(i), 'end': i + 0.5, 'word': f'word{i}'}
+        for i in range(55)
+    ]
+    segment = {'start': 0.0, 'end': 55.0,
+               'text': ' '.join(word['word'] for word in words), 'words': words}
+
+    lines = AdDetector._format_transcript_lines([segment], 'timestamps')
+    assert len(lines) == 3
+    assert lines[0].startswith('[0.0s - 24.5s] ')
+    assert lines[-1] == '[50.0s - 54.5s] word50 word51 word52 word53 word54'
+    assert ' '.join(line.split('] ', 1)[1] for line in lines) == segment['text']
+
+
+def test_timestamp_transcript_lines_fall_back_for_unaligned_word_timing():
+    segment = {
+        'start': 10.0, 'end': 20.0, 'text': 'The actual transcript.',
+        'words': [{'start': 10.0, 'end': 11.0, 'word': 'Different'}],
+    }
+    assert AdDetector._format_transcript_lines([segment], 'timestamps') == [
+        '[10.0s - 20.0s] The actual transcript.']
+
+
+def test_segment_ids_resolve_word_timed_ad_inside_mixed_segment():
+    tokens = ['Host', 'story.', 'Our', 'sponsor', 'is', 'Acme.',
+              'Visit', 'acme.com.', 'Back', 'to', 'the', 'topic.']
+    segment = {
+        'start': 10.0, 'end': 46.0, 'text': ' '.join(tokens),
+        'words': [
+            {'start': 10.0 + 3 * i, 'end': 12.5 + 3 * i, 'word': token}
+            for i, token in enumerate(tokens)
+        ],
+    }
+    detector = AdDetector(api_key='test-key')
+    lines = detector._detection_line_segments([segment])
+    for sid, line in enumerate(lines):
+        line['sid'] = sid
+    assert [line['text'] for line in lines] == [
+        'Host story.', 'Our sponsor is Acme.',
+        'Visit acme.com.', 'Back to the topic.']
+    assert detector._format_transcript_lines(lines, 'segment_ids') == [
+        '[0] Host story.', '[1] Our sponsor is Acme.',
+        '[2] Visit acme.com.', '[3] Back to the topic.']
+
+    response = (
+        '[{"start_id": 1, "end_id": 2, "confidence": 0.95, '
+        '"category": "sponsor", "sponsor": "Acme", '
+        '"reason": "Acme sponsor read"}]')
+    result = _run_window(
+        detector, addressing_mode='segment_ids', response_text=response,
+        window={'start': 10.0, 'end': 46.0, 'segments': lines})
+    assert result.compliant is True
+    assert len(result.ads) == 1
+    assert result.ads[0]['start'] == 16.0
+    assert result.ads[0]['end'] == 33.5
+    assert result.ads[0]['word_timed_start'] == 16.0
+    assert result.ads[0]['word_timed_end'] == 33.5
+    assert segment['start'] == 10.0 and segment['end'] == 46.0
+    assert 'sid' not in segment
+    validated = AdValidator(60.0, [segment]).validate(result.ads)
+    assert validated.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+
+    numeric = _run_window(
+        detector, addressing_mode='timestamps',
+        response_text='[{"start": 16.0, "end": 33.5, "confidence": 0.95, '
+                      '"category": "sponsor", "sponsor": "Acme", '
+                      '"reason": "Acme sponsor read"}]',
+        window={'start': 10.0, 'end': 46.0, 'segments': lines},
+        validate_timestamps=True)
+    assert numeric.compliant is True
+    assert numeric.ads[0]['start'] == 16.0
+    assert numeric.ads[0]['end'] == 33.5
+    assert numeric.ads[0]['word_timed_start'] == 16.0
+    assert numeric.ads[0]['word_timed_end'] == 33.5
+    assert AdValidator(60.0, [segment]).validate(numeric.ads).ads[0][
+        'validation']['decision'] == Decision.ACCEPT.value
+
+
+def test_numeric_word_edge_provenance_requires_unique_line_boundary():
+    lines = [
+        {'start': 10.0, 'end': 20.0, 'text': 'Acme offer.', 'word_timed_line': True},
+        {'start': 10.0, 'end': 20.0, 'text': 'Repeated audio.', 'word_timed_line': True},
+    ]
+    ambiguous = AdDetector._align_numeric_edges_to_word_lines(
+        [{'start': 10.0, 'end': 20.0}], lines)[0]
+    assert 'word_timed_start' not in ambiguous
+    assert 'word_timed_end' not in ambiguous
+
+    arbitrary = AdDetector._align_numeric_edges_to_word_lines(
+        [{'start': 10.5, 'end': 19.5}], lines)[0]
+    assert 'word_timed_start' not in arbitrary
+    assert 'word_timed_end' not in arbitrary
+
+    rounded = AdDetector._align_numeric_edges_to_word_lines(
+        [{'start': 31.8, 'end': 40.2}], [
+            {'start': 31.75, 'end': 40.25, 'word_timed_line': True},
+        ])[0]
+    assert rounded['start'] == rounded['word_timed_start'] == 31.75
+    assert rounded['end'] == rounded['word_timed_end'] == 40.25
 
 
 def test_system_section_mentions_ids_not_timestamps():
@@ -215,7 +340,8 @@ def _window(start=0.0, end=60.0, with_sid=False):
 
 
 def _run_window(detector, *, addressing_mode, response_text='',
-                 with_sid=False, llm_failed=False):
+                 with_sid=False, llm_failed=False, window=None,
+                 validate_timestamps=False):
     def fake_call(*, prompt, window_label, **_kw):
         if llm_failed:
             return None, RuntimeError('boom')
@@ -223,13 +349,13 @@ def _run_window(detector, *, addressing_mode, response_text='',
 
     with patch.object(detector, '_call_llm_for_window', side_effect=fake_call):
         return detector._process_single_window(
-            window_idx=0, window=_window(with_sid=with_sid), total_windows=1,
+            window_idx=0, window=window or _window(with_sid=with_sid), total_windows=1,
             model='m', system_prompt='sys', description_section='',
             podcast_name='p', episode_title='t',
             audio_enforcer=None, audio_analysis=None,
             llm_timeout=30, max_retries=1,
             slug='s', episode_id='e', pass_name='pass1',
-            window_label_prefix='Window', validate_timestamps=False,
+            window_label_prefix='Window', validate_timestamps=validate_timestamps,
             addressing_mode=addressing_mode,
         )
 

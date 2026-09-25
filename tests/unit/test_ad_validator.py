@@ -646,7 +646,7 @@ class TestConfirmedCorrections:
             'start': 100.4, 'end': 290.36}
         assert not result.ads[0].get('held_for_review')
 
-    def test_confirmed_span_does_not_authorize_boundary_drift_beyond_rounding(self):
+    def test_plain_confirm_clamps_boundary_drift_beyond_rounding(self):
         validator = AdValidator(
             episode_duration=12000.0,
             segments=[],
@@ -666,9 +666,9 @@ class TestConfirmedCorrections:
             'splice_evidence': {'calibration': {'status': 'calibrated'}, 'events': []},
         })
 
-        assert result.ads[0]['validation']['decision'] == Decision.REVIEW.value
-        assert 'user_confirmed' not in result.ads[0]['validation']
-        assert result.ads[0]['hold_reason'] == 'no_splice_evidence'
+        assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+        assert result.ads[0]['validation']['user_confirmed'] is True
+        assert (result.ads[0]['start'], result.ads[0]['end']) == (100.4, 290.4)
 
     def test_plain_confirm_does_not_authorize_restored_dai_edges(self):
         validator = AdValidator(
@@ -687,11 +687,10 @@ class TestConfirmedCorrections:
 
         result = validator.validate([narrowed_ad])
 
-        assert result.ads[0]['start'] == 100.0
-        assert result.ads[0]['end'] == 160.0
-        assert 'user_confirmed' not in result.ads[0]['validation']
-        assert 'INFO: User confirmation covers only part of segment' in (
-            result.ads[0]['validation']['flags'])
+        assert (result.ads[0]['start'], result.ads[0]['end']) == (120.0, 140.0)
+        assert result.ads[0]['dai_core_spans'] == [
+            {'start': 120.0, 'end': 140.0}]
+        assert result.ads[0]['validation']['user_confirmed'] is True
         assert '_pre_dai_restore_confirmed_correction' not in result.ads[0]
 
     def test_trimmed_confirm_remains_authoritative_after_dai_core_restoration(self):
@@ -722,7 +721,7 @@ class TestConfirmedCorrections:
             {'start': 120.0, 'end': 140.0}]
         assert result.ads[0]['validation']['user_confirmed'] is True
 
-    def test_confirm_is_not_preserved_across_unrelated_tail_extension(self):
+    def test_plain_confirm_blocks_unrelated_tail_extension(self):
         validator = AdValidator(
             episode_duration=200.0,
             segments=[],
@@ -737,10 +736,9 @@ class TestConfirmedCorrections:
 
         result = validator.validate([ad])
 
-        assert result.accepted == 0
-        assert result.ads[0]['end'] == 200.0
-        assert 'INFO: User confirmed as ad' not in (
-            result.ads[0]['validation']['flags'])
+        assert result.accepted == 1
+        assert result.ads[0]['end'] == 170.0
+        assert result.ads[0]['validation']['user_confirmed'] is True
 
     def test_trimmed_confirm_survives_trailing_extension(self):
         validator = AdValidator(
@@ -1085,8 +1083,7 @@ class TestConfirmedCorrections:
         assert 'end_extended_by_content' not in out
         assert 'tail_splice_snap' not in out
 
-    def test_plain_confirm_does_not_clamp(self):
-        """A confirm without confirmed_span accepts the ad at its own bounds."""
+    def test_plain_confirm_clamps_outside_audio(self):
         confirmed = [{'start': 100.0, 'end': 200.0}]
 
         validator = AdValidator(
@@ -1099,10 +1096,12 @@ class TestConfirmedCorrections:
         result = validator.validate([ad])
 
         assert result.accepted == 1
-        assert result.ads[0]['start'] == 98.0
-        assert result.ads[0]['end'] == 202.0
+        assert result.ads[0]['start'] == 100.0
+        assert result.ads[0]['end'] == 200.0
+        assert result.ads[0]['validation']['confirmed_span'] == {
+            'start': 100.0, 'end': 200.0}
 
-    def test_plain_confirm_partly_covering_low_confidence_ad_requires_review(self):
+    def test_plain_confirm_preserves_unapproved_low_confidence_audio(self):
         validator = AdValidator(
             episode_duration=600.0,
             segments=[],
@@ -1115,12 +1114,13 @@ class TestConfirmedCorrections:
             'reason': 'Wider low-confidence re-detection',
         }
 
-        out = validator.validate([ad]).ads[0]
+        result = validator.validate([ad])
 
-        assert out['validation']['decision'] == Decision.REVIEW.value
-        assert 'user_confirmed' not in out['validation']
-        assert 'INFO: User confirmation covers only part of segment' in (
-            out['validation']['flags'])
+        assert [(a['start'], a['end']) for a in result.ads] == [
+            (100.0, 130.0), (130.0, 160.0)]
+        assert result.ads[0]['validation']['user_confirmed'] is True
+        assert result.ads[1]['validation']['decision'] != Decision.ACCEPT.value
+        assert not result.ads[1]['validation'].get('user_confirmed')
 
     def test_no_intersection_with_confirmed_span_is_not_auto_accepted(self):
         """A re-detection entirely inside user-kept content must not be
@@ -1209,15 +1209,15 @@ class TestConfirmedCorrections:
              'reason': 'New adjacent candidate'},
         ]
 
-        out = validator.validate(ads).ads[0]
+        approved, adjacent = validator.validate(ads).ads
 
-        assert out['start'] == 100.0
-        assert out['end'] == 160.0
-        assert out['merged_distinct_ads'] is True
-        assert out['validation']['decision'] == Decision.ACCEPT.value
-        assert 'user_confirmed' not in out['validation']
+        assert (approved['start'], approved['end']) == (100.0, 130.0)
+        assert approved['validation']['user_confirmed'] is True
+        assert (adjacent['start'], adjacent['end']) == (132.0, 160.0)
+        assert adjacent['validation']['decision'] == Decision.ACCEPT.value
+        assert not adjacent['validation'].get('user_confirmed')
 
-    def test_partial_confirm_does_not_authorize_wider_unmerged_detection(self):
+    def test_partial_confirm_validates_wider_unmerged_detection_separately(self):
         validator = AdValidator(
             episode_duration=600.0,
             segments=[],
@@ -1230,12 +1230,13 @@ class TestConfirmedCorrections:
             'reason': 'Wider re-detection without merge metadata',
         }
 
-        out = validator.validate([ad]).ads[0]
+        approved, outside = validator.validate([ad]).ads
 
-        assert out['validation']['decision'] == Decision.ACCEPT.value
-        assert 'user_confirmed' not in out['validation']
-        assert 'INFO: User confirmation covers only part of segment' in (
-            out['validation']['flags'])
+        assert (approved['start'], approved['end']) == (100.0, 130.0)
+        assert approved['validation']['user_confirmed'] is True
+        assert (outside['start'], outside['end']) == (130.0, 160.0)
+        assert not outside['validation'].get('user_confirmed')
+        assert outside['_skip_pattern_learning'] is True
 
     def test_newer_trimmed_confirm_preferred_over_older_plain(self):
         """The newest correction is authoritative for the same range."""
@@ -2697,8 +2698,7 @@ class TestClampResidueValidatesSeparately:
 
 
 class TestPlainConfirmMultiFragment:
-    """A plain confirmation (no confirmed_span) names no exact sub-span, so
-    every fragment matching it auto-accepts; there is nothing to dedup."""
+    """A plain confirmation accepts distinct supported pieces once."""
 
     def test_both_fragments_of_a_plain_confirm_auto_accept(self):
         validator = AdValidator(
@@ -2718,6 +2718,85 @@ class TestPlainConfirmMultiFragment:
         assert result.rejected == 0
         assert all(ad['validation']['user_confirmed'] is True
                    for ad in result.ads)
+
+    @pytest.mark.parametrize('reverse', [False, True])
+    def test_overlapping_redetections_share_approval_once(self, reverse):
+        validator = AdValidator(
+            episode_duration=600.0, segments=[],
+            confirmed_corrections=[{'start': 100.0, 'end': 180.0}],
+        )
+        candidates = [
+            {'start': 99.55, 'end': 150.0, 'confidence': 0.95,
+             'reason': 'First ad proposal'},
+            {'start': 140.0, 'end': 190.0, 'confidence': 0.95,
+             'reason': 'Overlapping ad proposal'},
+        ]
+        result = validator.validate(list(reversed(candidates)) if reverse
+                                    else candidates)
+
+        approved = [ad for ad in result.ads
+                    if ad['validation'].get('user_confirmed')]
+        assert [(ad['start'], ad['end']) for ad in approved] == [
+            (100.0, 150.0), (150.0, 180.0)]
+        assert any(ad['validation']['decision'] == Decision.REJECT.value
+                   for ad in result.ads)
+
+    @pytest.mark.parametrize('reverse', [False, True])
+    def test_overlapping_redetections_preserve_approved_union(self, reverse):
+        validator = AdValidator(
+            episode_duration=600.0, segments=[],
+            confirmed_corrections=[{'start': 100.0, 'end': 200.0}],
+        )
+        candidates = [
+            {'start': 95.0, 'end': 150.0, 'confidence': 0.95,
+             'reason': 'First ad proposal'},
+            {'start': 140.0, 'end': 205.0, 'confidence': 0.95,
+             'reason': 'Second ad proposal'},
+        ]
+        result = validator.validate(list(reversed(candidates)) if reverse
+                                    else candidates)
+
+        approved = [ad for ad in result.ads
+                    if ad['validation'].get('user_confirmed')]
+        assert [(ad['start'], ad['end']) for ad in approved] == [
+            (100.0, 150.0), (150.0, 200.0)]
+
+    def test_short_approved_continuation_is_not_lost(self):
+        validator = AdValidator(
+            episode_duration=600.0, segments=[],
+            confirmed_corrections=[{'start': 100.0, 'end': 200.0}],
+        )
+        result = validator.validate([
+            {'start': 95.0, 'end': 195.0, 'confidence': 0.95,
+             'reason': 'First ad proposal'},
+            {'start': 190.0, 'end': 205.0, 'confidence': 0.95,
+             'reason': 'Second ad proposal'},
+        ])
+
+        approved = [ad for ad in result.ads
+                    if ad['validation'].get('user_confirmed')]
+        assert [(ad['start'], ad['end']) for ad in approved] == [
+            (100.0, 195.0), (195.0, 200.0)]
+
+    @pytest.mark.parametrize('reverse', [False, True])
+    def test_disjoint_redetections_keep_unseen_gap(self, reverse):
+        validator = AdValidator(
+            episode_duration=600.0, segments=[],
+            confirmed_corrections=[{'start': 100.0, 'end': 180.0}],
+        )
+        candidates = [
+            {'start': 99.55, 'end': 130.0, 'confidence': 0.95,
+             'reason': 'First ad fragment'},
+            {'start': 150.0, 'end': 190.0, 'confidence': 0.95,
+             'reason': 'Second ad fragment'},
+        ]
+        result = validator.validate(list(reversed(candidates)) if reverse
+                                    else candidates)
+
+        approved = [ad for ad in result.ads
+                    if ad['validation'].get('user_confirmed')]
+        assert [(ad['start'], ad['end']) for ad in approved] == [
+            (100.0, 130.0), (150.0, 180.0)]
 
 
 class TestSponsorConfirmedIsEvidenceNotProse:

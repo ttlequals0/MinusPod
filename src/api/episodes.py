@@ -1192,80 +1192,8 @@ def get_episode_split_candidates(slug, episode_id):
 @limiter.limit("5 per minute")
 @log_request
 def reprocess_episode(slug, episode_id):
-    """Force reprocess an episode by deleting cached data and reprocessing.
-
-    NOTE: This is the legacy endpoint. Prefer /episodes/<slug>/<episode_id>/reprocess
-    which supports reprocess modes (reprocess vs full).
-    """
-    db = get_database()
-
-    episode = db.get_episode(slug, episode_id)
-    if not episode:
-        return error_response('Episode not found', 404)
-
-    if episode['status'] == EpisodeStatus.PROCESSING:
-        return error_response('Episode is currently processing', 409)
-
-    podcast = db.get_podcast_by_slug(slug)
-    if not podcast:
-        return error_response('Podcast not found', 404)
-
-    try:
-        # Keep existing audio: reprocessing writes a new versioned file and
-        # prunes the old one only after it's durable (orchestration-5).
-        db.clear_episode_details(slug, episode_id)
-
-        # Mark as user-initiated so the background drainer honors it
-        # even on auto-process-disabled feeds.
-        db.upsert_episode(
-            slug, episode_id,
-            status=EpisodeStatus.PENDING.value,
-            reprocess_requested_at=utc_now_iso(),
-            retry_count=0,
-            error_message=None,
-            deferred_at=None,
-            deferred_service=None,
-        )
-
-        episode_url = episode.get('original_url')
-        episode_title = episode.get('title', 'Unknown')
-        podcast_name = podcast.get('title', slug)
-        episode_description = episode.get('description')
-        episode_published_at = episode.get('published_at')
-
-        from main_app.processing import start_background_processing
-        logger.info(f"[{slug}:{episode_id}] Starting reprocess (async)")
-
-        started, reason = start_background_processing(
-            slug, episode_id, episode_url, episode_title,
-            podcast_name, episode_description, None, episode_published_at
-        )
-
-        if started:
-            return json_response({
-                'message': 'Episode reprocess started',
-                'episodeId': episode_id,
-                'status': 'processing'
-            }, 202)
-        else:
-            priority = compute_queue_priority(
-                podcast.get('queue_priority'), episode_published_at, manual=True)
-            db.upsert_episode_for_processing(
-                slug, episode_id, episode_url, episode_title,
-                episode_published_at, episode_description, priority=priority
-            )
-            get_status_service().queue_episode(slug, episode_id, episode_title, podcast_name)
-            logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), added to processing queue")
-            return json_response({
-                'message': 'Episode queued for reprocess',
-                'episodeId': episode_id,
-                'status': 'queued',
-                'reason': reason
-            }, 202)
-
-    except Exception:
-        logger.exception(f"Failed to reprocess episode {slug}:{episode_id}")
-        return error_response('Failed to reprocess', 500)
+    """Legacy URL for the mode-aware reprocess handler."""
+    return _reprocess_episode_with_mode(slug, episode_id, legacy=True)
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/regenerate-chapters', methods=['POST'])
@@ -2420,9 +2348,15 @@ def reprocess_episode_with_mode(slug, episode_id):
       transcription or LLM (issue #422). Requires the retained original audio,
       saved segments, and existing ad markers.
     """
+    return _reprocess_episode_with_mode(slug, episode_id)
+
+
+def _reprocess_episode_with_mode(slug, episode_id, legacy=False):
     db = get_database()
 
-    data = request.get_json() or {}
+    data = {} if legacy and not request.get_data() else request.get_json()
+    if not isinstance(data, dict):
+        return error_response('Request body must be a JSON object', 400)
     mode = data.get('mode', 'reprocess')
 
     if not _mode_allowed(mode, 'single'):
@@ -2481,7 +2415,9 @@ def reprocess_episode_with_mode(slug, episode_id):
 
         if started:
             return json_response({
-                'message': f'Episode {mode} reprocess started',
+                'message': ('Episode reprocess started' if legacy and mode == 'reprocess'
+                            else f'Episode {mode} reprocess started'),
+                'episodeId': episode_id,
                 'mode': mode,
                 'status': 'processing',
                 'jobState': _episode_job_state(db, slug, episode_id,
@@ -2497,7 +2433,9 @@ def reprocess_episode_with_mode(slug, episode_id):
             get_status_service().queue_episode(slug, episode_id, episode_title, podcast_name)
             logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), added to processing queue")
             return json_response({
-                'message': f'Episode queued for {mode} reprocess',
+                'message': ('Episode queued for reprocess' if legacy and mode == 'reprocess'
+                            else f'Episode queued for {mode} reprocess'),
+                'episodeId': episode_id,
                 'mode': mode,
                 'status': 'queued',
                 'reason': reason,

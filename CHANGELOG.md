@@ -9,6 +9,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+## [2.97.23] - 2026-09-25
+
+### Fixed
+
+- Detection and review use word-timed transcript lines when available, allowing ad boundaries inside mixed speech segments. Merges and validation preserve these precise edges.
+- An estimated text pattern no longer hides or widens one precise LLM detection covering its matched words.
+- A renewed ad marker that extends beyond a saved confirmation cuts only the overlapping approved audio. Longer outside portions receive independent review.
+- Audio rendering preserves the end of a user-confirmed cut during close-gap merging and end-of-episode trimming.
+- The legacy episode reprocess URL honors the requested mode. LLM reruns keep the saved transcript, and full reruns retain it until fresh transcription begins.
+
 ## [2.97.22] - 2026-09-25
 
 ### Fixed

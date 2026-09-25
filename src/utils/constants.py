@@ -235,7 +235,7 @@ LEARNING_BRAND_ONSET_FRACTION = 0.6
 STRUCTURAL_FIELDS = frozenset({
     'start', 'end', 'start_time', 'end_time', 'start_timestamp', 'end_timestamp',
     'ad_start_timestamp', 'ad_end_timestamp', 'start_time_seconds', 'end_time_seconds',
-    'confidence', 'end_text', 'is_ad', 'type', 'classification',
+    'confidence', 'start_text', 'end_text', 'is_ad', 'type', 'classification',
     'start_seconds', 'end_seconds', 'duration', 'duration_seconds',
     'music_bed', 'music_bed_confidence',
     # 'category' and its aliases: the sponsor scan falls back to any short

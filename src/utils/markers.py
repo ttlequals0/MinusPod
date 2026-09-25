@@ -28,6 +28,35 @@ def finite_number(value) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def quote_edge_valid(marker: dict, edge: str) -> bool:
+    quote_time = finite_number(marker.get(f'quote_{edge}'))
+    edge_time = finite_number(marker.get(edge))
+    return bool(marker.get(f'quote_aligned_{edge}')
+                and quote_time is not None and edge_time is not None
+                and abs(quote_time - edge_time) <= 0.05)
+
+
+def invalidate_quote_alignment(marker: dict) -> None:
+    for edge in ('start', 'end'):
+        if marker.get(f'quote_aligned_{edge}') and not quote_edge_valid(marker, edge):
+            marker.pop(f'quote_aligned_{edge}', None)
+            marker.pop(f'quote_{edge}', None)
+            marker.pop(f'quote_original_{edge}', None)
+
+
+def word_timed_edge_valid(marker: dict, edge: str) -> bool:
+    timed = finite_number(marker.get(f'word_timed_{edge}'))
+    current = finite_number(marker.get(edge))
+    return timed is not None and current is not None and abs(timed - current) <= 0.05
+
+
+def invalidate_word_timed_edges(marker: dict) -> None:
+    for edge in ('start', 'end'):
+        if (f'word_timed_{edge}' in marker
+                and not word_timed_edge_valid(marker, edge)):
+            marker.pop(f'word_timed_{edge}', None)
+
+
 # Both-edges tolerance for treating two markers as the same span. Matches
 # find_marker_in_list, the reject path, and the review listing, so every
 # consumer agrees on what one span means.

@@ -77,6 +77,52 @@ def test_end_of_episode_cut_extends_to_total_duration(processor):
     assert requested[0]['end'] == 580.0
 
 
+def test_confirmed_cut_keeps_unapproved_tail_and_adjacent_candidate_separate(processor):
+    approved = {'start': 80.0, 'end': 100.0,
+                'validation': {'user_confirmed': True,
+                               'confirmed_span': {'start': 80.0, 'end': 100.0}}}
+    cuts = processor.compute_applied_cuts([approved], 115.0)
+    assert [(cut['start'], cut['end']) for cut in cuts] == [(80.0, 100.0)]
+
+    cuts = processor.compute_applied_cuts(
+        [approved, {'start': 100.4, 'end': 111.0}], 200.0)
+    assert [(cut['start'], cut['end']) for cut in cuts] == [
+        (80.0, 100.0), (100.4, 111.0)]
+
+    second_approved = dict(approved, start=99.0, end=110.0,
+                           validation={'user_confirmed': True,
+                                       'confirmed_span': {'start': 99.0,
+                                                          'end': 110.0}})
+    cuts = processor.compute_applied_cuts([approved, second_approved], 200.0)
+    assert [(cut['start'], cut['end']) for cut in cuts] == [(80.0, 110.0)]
+
+    separated = dict(second_approved, start=100.4, end=110.0,
+                     validation={'user_confirmed': True,
+                                 'confirmed_span': {'start': 100.4,
+                                                    'end': 110.0}})
+    cuts = processor.compute_applied_cuts([approved, separated], 200.0)
+    assert [(cut['start'], cut['end']) for cut in cuts] == [
+        (80.0, 100.0), (100.4, 110.0)]
+
+    short = dict(approved, start=95.0, confidence=0.4,
+                 validation={'user_confirmed': True,
+                             'confirmed_span': {'start': 95.0, 'end': 100.0}})
+    cuts = processor.compute_applied_cuts([short], 115.0)
+    assert [(cut['start'], cut['end']) for cut in cuts] == [(95.0, 100.0)]
+
+
+def test_precise_word_end_blocks_render_extension_and_gap_merge(processor):
+    precise = {'start': 80.0, 'end': 100.0, 'confidence': 0.95,
+               'word_timed_end': 100.0}
+    cuts = processor.compute_applied_cuts([precise], 115.0)
+    assert [(cut['start'], cut['end']) for cut in cuts] == [(80.0, 100.0)]
+
+    cuts = processor.compute_applied_cuts(
+        [precise, {'start': 100.4, 'end': 120.0}], 200.0)
+    assert [(cut['start'], cut['end']) for cut in cuts] == [
+        (80.0, 100.0), (100.4, 120.0)]
+
+
 def test_kept_tail_blocks_end_of_episode_extension(processor):
     beep = processor.get_beep_duration()
     cuts = processor.compute_applied_cuts(

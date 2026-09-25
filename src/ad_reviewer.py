@@ -31,6 +31,7 @@ from config import (
     resolve_max_boundary_shift,
 )
 from audio_enforcer import content_anchors
+from ad_detector.boundaries import timed_line_segments
 from text_pattern_matcher import is_defined_pattern
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
@@ -1776,16 +1777,23 @@ class AdReviewer:
         """
         start = float(ad.get("start", 0.0))
         end = float(ad.get("end", 0.0))
+        context_start = max(0.0, start - 60.0)
+        context_end = end + 60.0
+        context_segments = timed_line_segments([
+            seg for seg in segments
+            if seg['end'] >= context_start and seg['start'] <= context_end
+        ])
         # Per-segment timestamps everywhere, context included (#695): the
         # system prompt's examples read trim boundaries out of context lines.
         before_text = get_timestamped_transcript_for_range(
-            segments, max(0.0, start - 60.0), start
+            context_segments, context_start, start
         )
-        ad_text = get_timestamped_transcript_for_range(segments, start, end)
+        ad_text = get_timestamped_transcript_for_range(context_segments, start, end)
         if not ad_text:
             fallback = ad.get("end_text", "") or ""
             ad_text = f"[{start:.1f}s-{end:.1f}s] {fallback}" if fallback else ""
-        after_text = get_timestamped_transcript_for_range(segments, end, end + 60.0)
+        after_text = get_timestamped_transcript_for_range(
+            context_segments, end, context_end)
         start_words = get_timestamped_words_for_range(
             segments, max(0.0, start - max_shift), start + max_shift)
         end_words = get_timestamped_words_for_range(

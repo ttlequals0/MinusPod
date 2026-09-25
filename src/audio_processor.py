@@ -11,6 +11,7 @@ from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.paths import resolve_data_dir
+from utils.markers import quote_edge_valid, word_timed_edge_valid
 from config import (
     FFMPEG_LONG_TIMEOUT,
     MIN_AD_DURATION_FOR_REMOVAL, POST_ROLL_TRIM_THRESHOLD, MERGE_GAP_SECONDS,
@@ -285,12 +286,26 @@ class AudioProcessor:
         merged_ads = []
         current_segment = None
         for ad in sorted_segments:
+            confirmed_cut = bool((ad.get('validation') or {}).get('user_confirmed'))
+            precise_start = (quote_edge_valid(ad, 'start')
+                             or word_timed_edge_valid(ad, 'start'))
+            precise_end = (quote_edge_valid(ad, 'end')
+                           or word_timed_edge_valid(ad, 'end'))
+            gap = (ad['start'] - current_segment['end']
+                   if current_segment else 0.0)
             if (current_segment
-                    and ad['start'] - current_segment['end'] < MERGE_GAP_SECONDS
+                    and gap < MERGE_GAP_SECONDS
                     and not crosses_barrier(current_segment['end'], ad['start'])
+                    and (gap <= 0 or not (confirmed_cut
+                                         or current_segment.get('_confirmed_cut')
+                                         or current_segment.get('_precise_end')
+                                         or precise_start))
                     and ad.get('beep', False) == current_segment.get('beep', False)):
                 # Extend current segment (use max to handle overlapping/contained ads)
-                current_segment['end'] = max(current_segment['end'], ad['end'])
+                if ad['end'] > current_segment['end']:
+                    current_segment['end'] = ad['end']
+                    current_segment['_confirmed_cut'] = confirmed_cut
+                    current_segment['_precise_end'] = precise_end
                 if 'reason' in ad:
                     current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
                 # Carry the strongest trust signal of the merged members so
@@ -304,7 +319,9 @@ class AudioProcessor:
             else:
                 if current_segment:
                     merged_ads.append(current_segment)
-                current_segment = {'start': ad['start'], 'end': ad['end']}
+                current_segment = {'start': ad['start'], 'end': ad['end'],
+                                   '_confirmed_cut': confirmed_cut,
+                                   '_precise_end': precise_end}
                 for key in ('reason', 'confidence', 'detection_stage', 'beep',
                             '_measured_split_fragment'):
                     if key in ad:
@@ -321,7 +338,8 @@ class AudioProcessor:
         for ad in merged_ads:
             duration = ad['end'] - ad['start']
             measured_split = bool(ad.get('_measured_split_fragment'))
-            keep_short = (ad.get('detection_stage') == 'fingerprint'
+            keep_short = (ad.get('_confirmed_cut')
+                          or ad.get('detection_stage') == 'fingerprint'
                           or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
                           or measured_split)
             if duration >= MIN_AD_DURATION_FOR_REMOVAL:
@@ -351,11 +369,17 @@ class AudioProcessor:
                 logger.info(
                     f"End-of-episode cut: preserving content after "
                     f"{ads[-1]['end']:.1f}s because a keep barrier follows")
-            elif (remaining < POST_ROLL_TRIM_THRESHOLD
+            elif (not ads[-1].get('_confirmed_cut')
+                  and not ads[-1].get('_precise_end')
+                  and remaining < POST_ROLL_TRIM_THRESHOLD
                   and ads[-1]['end'] != total_duration):
                 logger.info(f"End-of-episode cut: extending {ads[-1]['end']:.1f}s -> "
                             f"{total_duration:.1f}s ({remaining:.1f}s would remain)")
                 ads[-1]['end'] = total_duration
+
+        for ad in ads:
+            ad.pop('_confirmed_cut', None)
+            ad.pop('_precise_end', None)
 
         # Stamp each ad with 'replacement_duration', the length remove_ads
         # will render it with: 'remove' gets the fixed beep clip; 'beep' is
