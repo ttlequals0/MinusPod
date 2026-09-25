@@ -6,9 +6,12 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_validator import AdValidator, Decision, ValidationResult
+from sponsor_service import SponsorService
+from utils.text import word_boundary_re
 from config import (
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
     HOLD_REASON_UNCORROBORATED_TAIL,
+    HOLD_REASON_ESTIMATED_PATTERN,
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
 )
 
@@ -2403,6 +2406,175 @@ class TestRegistryNeedsMoreThanOneMention:
 
         assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is False
 
+
+def test_registry_confirmation_names_expected_advertiser_in_commercial_text(temp_db):
+    temp_db.create_known_sponsor('Example Cloud')
+    temp_db.create_known_sponsor('Widget Labs')
+    registry = SponsorService(temp_db)
+    segments = [
+        {'start': 100.0, 'end': 120.0,
+         'text': 'Widget Labs launched a product. Widget Labs issued a recall.'},
+        {'start': 120.0, 'end': 140.0,
+         'text': 'The Widget Labs report says visit example.com for details.'},
+    ]
+    validator = AdValidator(3600.0, segments, episode_description='',
+                            sponsor_service=registry)
+    candidate = {'start': 100.0, 'end': 140.0, 'sponsor': 'Example Cloud'}
+    assert validator._registry_confirms(candidate) is False
+
+    segments[0]['text'] = ('Example Cloud makes support simpler. '
+                           'Visit examplecloud.com for a free trial.')
+    segments[1]['text'] = 'Use code PODCAST at Example Cloud to save.'
+    assert validator._registry_confirms(candidate) is True
+
+    segments[0]['text'] = ('Example Cloud announced a filing. '
+                           'Example Cloud shares rose on the news.')
+    segments[1]['text'] = 'The hosts discuss the report and its impact.'
+    assert validator._registry_confirms(candidate) is False
+
+    segments[1]['text'] = 'See the link in our show notes for the report.'
+    assert validator._registry_confirms(candidate) is False
+
+    segments[1]['text'] = 'This next break is sponsored by Widget Labs.'
+    assert validator._registry_confirms(candidate) is False
+
+    segments[1]['text'] = 'Widget Labs offers a free trial this week.'
+    assert validator._registry_confirms(candidate) is False
+
+
+def test_description_confirmation_requires_expected_brand_and_local_pitch(temp_db):
+    temp_db.create_known_sponsor('Example Cloud', aliases=['EC Support'])
+    temp_db.create_known_sponsor('Widget Labs')
+    segments = [
+        {'start': 100.0, 'end': 120.0,
+         'text': 'Example Cloud helps teams. Visit examplecloud.com today.'},
+        {'start': 120.0, 'end': 140.0,
+         'text': 'Widget Labs announced results. Widget Labs shares rose.'},
+    ]
+    validator = AdValidator(3600.0, segments, episode_description='',
+                            sponsor_service=SponsorService(temp_db))
+    validator._description_sponsor_re = word_boundary_re(('Example Cloud',))
+
+    assert validator._sponsor_confirmation_source({
+        'start': 100.0, 'end': 140.0, 'sponsor': 'Widget Labs',
+        'reason': 'Sponsor read'}) is None
+    assert validator._sponsor_confirmation_source({
+        'start': 100.0, 'end': 120.0, 'sponsor': 'EC Support',
+        'reason': 'Sponsor read'}) == 'transcript'
+
+    segments[0]['text'] = ('Example Cloud announced results. '
+                           'Example Cloud shares rose.')
+    assert validator._sponsor_confirmation_source({
+        'start': 100.0, 'end': 120.0, 'sponsor': 'EC Support',
+        'reason': 'Sponsor read'}) is None
+
+
+def test_commercial_signal_before_partial_segment_is_not_confirmation(temp_db):
+    temp_db.create_known_sponsor('Example Cloud')
+    text = ('Visit examplecloud.com today. Example Cloud announced results. '
+            'Example Cloud shares rose.')
+    words = [
+        {'start': 100.0 + index if index < 3 else 120.0 + index - 3,
+         'end': 100.5 + index if index < 3 else 120.5 + index - 3,
+         'word': token}
+        for index, token in enumerate(text.split())
+    ]
+    segments = [{'start': 100.0, 'end': 140.0, 'text': text, 'words': words}]
+    validator = AdValidator(3600.0, segments, episode_description='',
+                            sponsor_service=SponsorService(temp_db))
+    validator._description_sponsor_re = word_boundary_re(('Example Cloud',))
+    candidate = {'start': 115.0, 'end': 140.0, 'sponsor': 'Example Cloud',
+                 'reason': 'Sponsor read'}
+
+    assert validator._registry_confirms(candidate) is False
+    assert validator._sponsor_confirmation_source(candidate) is None
+
+    segments[0].pop('words')
+    assert validator._registry_confirms(candidate) is False
+
+
+def test_brand_mentions_before_partial_segment_do_not_confirm(temp_db):
+    temp_db.create_known_sponsor('Example Cloud')
+    text = ('Example Cloud announced results. Example Cloud helps teams. '
+            'Use code PODCAST for a free trial.')
+    words = [
+        {'start': 100.0 + index if index < 4 else 120.0 + index - 4,
+         'end': 100.5 + index if index < 4 else 120.5 + index - 4,
+         'word': token}
+        for index, token in enumerate(text.split())
+    ]
+    segments = [{'start': 100.0, 'end': 140.0, 'text': text, 'words': words}]
+    validator = AdValidator(3600.0, segments, episode_description='',
+                            sponsor_service=SponsorService(temp_db))
+    candidate = {'start': 115.0, 'end': 140.0, 'sponsor': 'Example Cloud',
+                 'reason': 'Sponsor read'}
+    assert validator._registry_confirms(candidate) is False
+
+    text = 'Example Cloud announced results. Visit widgetlabs.com for details.'
+    segments[0]['text'] = text
+    segments[0]['words'] = [
+        {'start': 100.0 + index if index < 4 else 120.0 + index - 4,
+         'end': 100.5 + index if index < 4 else 120.5 + index - 4,
+         'word': token}
+        for index, token in enumerate(text.split())
+    ]
+    validator._description_sponsor_re = word_boundary_re(('Example Cloud',))
+    assert validator._sponsor_confirmation_source(candidate) is None
+
+def test_auto_pattern_estimated_tail_is_held_without_full_independent_bounds():
+    validator = AdValidator(3600.0, [], splice_veto_enabled=False)
+    ad = {'start': 0.0, 'end': 175.0, 'confidence': 1.0,
+          'reason': 'Acme sponsor read', 'sponsor': 'Acme',
+          'detection_stage': 'fingerprint',
+          'fingerprint_match_start': 0.0, 'fingerprint_match_end': 60.0,
+          'has_estimated_pattern_member': True,
+          'merged_member_spans': [
+              {'start': 0.0, 'end': 60.0, 'stage': 'fingerprint'},
+              {'start': 60.0, 'end': 90.0, 'stage': 'text_pattern'},
+          ]}
+
+    held = validator.validate([ad]).ads[0]
+    assert held['validation']['decision'] == Decision.REVIEW.value
+    assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+    same_brand_wider_fingerprint = {**ad, 'merged_member_spans': [
+        {'start': 0.0, 'end': 175.0, 'stage': 'fingerprint'}]}
+    still_held = validator.validate([same_brand_wider_fingerprint]).ads[0]
+    assert still_held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+def test_validator_merge_preserves_estimated_pattern_risk():
+    validator = AdValidator(3600.0, [], splice_veto_enabled=False)
+    markers = [
+        {'start': 0.0, 'end': 60.0, 'confidence': 1.0,
+         'reason': 'Acme sponsor read', 'detection_stage': 'fingerprint',
+         'fingerprint_match_start': 0.0, 'fingerprint_match_end': 60.0},
+        {'start': 60.0, 'end': 117.0, 'confidence': 1.0,
+         'reason': 'Acme intro phrase', 'detection_stage': 'text_pattern',
+         'span_estimated': True, 'text_start': 60.0, 'text_end': 90.0,
+         'has_estimated_pattern_member': True},
+    ]
+
+    result = validator.validate(markers)
+    assert len(result.ads) == 1
+    assert result.ads[0]['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+def test_estimated_pattern_requires_contiguous_dai_coverage():
+    validator = AdValidator(3600.0, [], splice_veto_enabled=False)
+    ad = {'start': 100.0, 'end': 200.0, 'confidence': 0.95,
+          'reason': 'Acme read', 'detection_stage': 'text_pattern',
+          'span_estimated': True, 'text_start': 100.0, 'text_end': 130.0,
+          'dai_core_spans': [
+              {'start': 100.0, 'end': 145.0},
+              {'start': 155.0, 'end': 200.0},
+          ]}
+    held = validator.validate([ad]).ads[0]
+    assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+    ad['dai_core_spans'] = [{'start': 100.0, 'end': 200.0}]
+    accepted = validator.validate([ad]).ads[0]
+    assert accepted['validation']['decision'] == Decision.ACCEPT.value
 
 class TestAdjustmentClampWithoutBypass:
     """A boundary adjustment clamps and accepts, but keeps the reviewer in

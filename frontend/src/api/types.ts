@@ -572,6 +572,8 @@ export interface AdSegment {
     | 'uncorroborated_tail'
     | 'reviewer_contradiction'
     | 'reviewer_boundary_conflict'
+    | 'reviewer_inconclusive_bounds'
+    | 'estimated_pattern_bounds'
     | 'reviewer_reject_conflict'
     | 'no_splice_evidence'
     | 'verification_miss'

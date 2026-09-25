@@ -16,6 +16,7 @@ from config import (
     HOLD_REASON_NO_SPLICE, VETO_MIN_CUT_SECONDS,
     HOLD_REASON_UNCORROBORATED_TAIL,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    HOLD_REASON_ESTIMATED_PATTERN,
     SPLICE_CORROBORATION_WINDOW_SECONDS,
     CORRECTION_MATCH_MIN_COVERAGE,
     is_cue_backed, is_template_cue, AUDIO_CUE_ROLE_NON_AD,
@@ -31,12 +32,15 @@ from utils.markers import (
     clip_dai_core_spans,
     clip_merge_spans,
     dai_core_bounds,
+    finite_number,
     invalidate_tail_provenance,
     mark_distinct_merge,
     note_fold,
 )
 from differential_fetcher import differential_region_overlapping
-from utils.constants import NON_SPONSOR_LINK_DOMAINS, is_brand_token
+from community_export import brand_match_candidates
+from text_pattern_matcher import _segments_for_pattern_learning
+from utils.constants import NON_SPONSOR_LINK_DOMAINS, is_brand_token, squash_brand
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 
@@ -116,6 +120,18 @@ class AdValidator:
         r'download\s+(the\s+)?app|sign\s+up\s+(today|now)',
         re.IGNORECASE
     )
+
+    COMMERCIAL_CONTEXT_RE = re.compile(
+        r'\b(?:use\s+(?:promo\s+)?code\s+\w+|promo\s+code|'
+        r'(?:\d+\s*%|(?:\d+|ten|fifteen|twenty|thirty|forty|fifty)\s+percent)'
+        r'\s+off|free\s+(?:trial|shipping)|'
+        r'book\s+a\s+call|request\s+a\s+demo)\b', re.IGNORECASE)
+    SPONSOR_FRAMING_RE = re.compile(
+        r'\b(?:sponsored\s+by|brought\s+to\s+you\s+by)\s+'
+        r'([^.!?]{1,80})', re.IGNORECASE)
+    BRAND_LINK_RE = re.compile(
+        r'\b(?:visit|go\s+to|head\s+to|shop\s+at)\s+'
+        r'([a-z0-9-]+)\.(?:com|io|org|net)\b', re.IGNORECASE)
 
     VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
@@ -274,13 +290,12 @@ class AdValidator:
     def _registry_confirms(self, ad: dict) -> bool:
         """Whether the ad's own audio names a sponsor from the registry.
 
-        The transcript is the evidence, not the model's reason. One brand must
-        be named twice: a passing mention of two unrelated brands inside a span
-        of several minutes is conversation, not a read.
+        A repeated name confirms only the marker's advertiser, and only when
+        the same candidate also contains promotional language.
         """
         if not self.sponsor_service:
             return False
-        ad_text = self._get_text_in_range(ad['start'], ad['end'])
+        ad_text = ' '.join(self._bounded_text_segments(ad))
         if not ad_text:
             return False
         try:
@@ -290,6 +305,12 @@ class AdValidator:
             return False
         if not offsets:
             return False
+        expected = ad.get('sponsor')
+        if expected:
+            offsets = {name: positions for name, positions in offsets.items()
+                       if self._matches_expected_sponsor(name, expected)}
+            if not offsets:
+                return False
         found = max(offsets, key=lambda name: (len(offsets[name]),
                                                -offsets[name][0]))
         mentions = len(offsets[found])
@@ -299,10 +320,74 @@ class AdValidator:
                 f"{ad['start']:.1f}s-{ad['end']:.1f}s ({len(offsets)} named once); "
                 f"not treating as confirmed")
             return False
+        if not self._has_local_commercial_context(ad, found):
+            logger.info(
+                f"Registry sponsor '{found}' repeated without commercial "
+                f"language in {ad['start']:.1f}s-{ad['end']:.1f}s")
+            return False
         logger.info(
             f"Registry sponsor '{found}' named {mentions}x in the ad audio "
             f"({ad['start']:.1f}s-{ad['end']:.1f}s); treating as confirmed")
         return True
+
+    def _matches_expected_sponsor(self, found: str, expected: str) -> bool:
+        labels = {squash_brand(part) for part in re.split(
+            r'[,;/:]|\band\b', expected, flags=re.IGNORECASE)}
+        if squash_brand(found) in labels:
+            return True
+        if not self.sponsor_service or not hasattr(self.sponsor_service, 'get_sponsors'):
+            return False
+        for sponsor in self.sponsor_service.get_sponsors():
+            variants = {squash_brand(name) for name in brand_match_candidates(sponsor)}
+            if squash_brand(found) in variants and labels & variants:
+                return True
+        return False
+
+    def _bounded_text_segments(self, ad: dict) -> list[str]:
+        relevant = []
+        for seg in self.segments:
+            if seg.get('start', 0) >= ad['end'] or seg.get('end', 0) <= ad['start']:
+                continue
+            if seg.get('start', 0) >= ad['start'] and seg.get('end', 0) <= ad['end']:
+                relevant.append(seg.get('text', ''))
+            else:
+                clipped = _segments_for_pattern_learning(
+                    [seg], ad['start'], ad['end'])
+                relevant.append(' '.join(word['text'] for word in clipped) if clipped else '')
+        return relevant
+
+    def _has_local_commercial_context(self, ad: dict, sponsor: str) -> bool:
+        relevant = self._bounded_text_segments(ad)
+        for index, text in enumerate(relevant):
+            brand_here = False
+            if self.sponsor_service:
+                try:
+                    brand_here = sponsor in self.sponsor_service.brand_mention_offsets(text)
+                except Exception as e:
+                    logger.debug(f"Sponsor registry lookup failed: {e}")
+            if not brand_here:
+                name = word_boundary_re((sponsor,))
+                brand_here = bool(name and name.search(text))
+            if not brand_here:
+                continue
+            nearby = text + ' ' + (relevant[index + 1] if index + 1 < len(relevant) else '')
+            if self.COMMERCIAL_CONTEXT_RE.search(text):
+                return True
+            for framing in self.SPONSOR_FRAMING_RE.finditer(nearby):
+                framed = framing.group(1)
+                if self.sponsor_service:
+                    try:
+                        if sponsor in self.sponsor_service.brand_mention_offsets(framed):
+                            return True
+                    except Exception as e:
+                        logger.debug(f"Sponsor registry lookup failed: {e}")
+                name = word_boundary_re((sponsor,))
+                if name and name.search(framed):
+                    return True
+            if any(squash_brand(link.group(1)) == squash_brand(sponsor)
+                   for link in self.BRAND_LINK_RE.finditer(nearby)):
+                return True
+        return False
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
         """Where the ad's sponsor was confirmed: 'transcript' (a description
@@ -312,8 +397,10 @@ class AdValidator:
         """
         if self._description_sponsor_re is not None:
             named = self._description_sponsor_re.search(
-                self._get_text_in_range(ad['start'], ad['end']))
-            if named:
+                ' '.join(self._bounded_text_segments(ad)))
+            if (named and (not ad.get('sponsor') or self._matches_expected_sponsor(
+                    named.group(0), ad['sponsor']))
+                    and self._has_local_commercial_context(ad, named.group(0))):
                 logger.info(f"Sponsor '{named.group(0)}' found in ad transcript, "
                             f"confirmed in description")
                 return 'transcript'
@@ -1048,6 +1135,11 @@ class AdValidator:
             self._mark_held(ad, flags, HOLD_REASON_LARGE_VAD_GAP)
             return Decision.REVIEW
 
+        if (decision != Decision.REJECT
+                and self._estimated_pattern_needs_hold(ad)):
+            self._mark_held(ad, flags, HOLD_REASON_ESTIMATED_PATTERN)
+            return Decision.REVIEW
+
         # Rule 1a: per-feed cap holds an ad that would otherwise be cut.
         if (self.max_ad_duration_override is not None
                 and duration > self.max_ad_duration_override
@@ -1129,6 +1221,28 @@ class AdValidator:
             return Decision.REVIEW
 
         return decision
+
+    @staticmethod
+    def _estimated_pattern_needs_hold(ad: dict) -> bool:
+        """An auto pattern's guessed edge needs full independent coverage."""
+        if not (ad.get('has_estimated_pattern_member')
+                or (ad.get('span_estimated') and not ad.get('pattern_defined'))):
+            return False
+        start = finite_number(ad.get('start'))
+        end = finite_number(ad.get('end'))
+        if start is None or end is None or end <= start:
+            return True
+        tolerance = 0.05
+        def covers(span):
+            lo = finite_number(span.get('start'))
+            hi = finite_number(span.get('end'))
+            return (lo is not None and hi is not None
+                    and lo <= start + tolerance and hi >= end - tolerance)
+
+        if any(covers(span) for span in ad.get('dai_core_spans') or []
+               if isinstance(span, dict)):
+            return False
+        return True
 
     def _mark_held(self, ad: dict, flags: list[str], reason: str) -> None:
         """Set held_for_review state on the ad dict and append a flag entry."""

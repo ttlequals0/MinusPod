@@ -8,6 +8,7 @@ for host-read ads that follow similar scripts but aren't identical.
 import logging
 import math
 import re
+import threading
 from dataclasses import dataclass, field, replace
 import json
 
@@ -23,12 +24,13 @@ from community_export import (
     count_brand_occurrences, brand_match_candidates,
     declared_sponsor_names_lower, find_foreign_sponsors,
     first_brand_occurrence, get_sponsor_row_or_stub)
-from utils.text import extract_text_from_segments, timed_spans_from_segments
+from utils.text import extract_text_from_segments, timed_spans_from_segments, word_boundary_re
 from sponsor_normalize import get_or_create_known_sponsor, segment_category_for
 from sponsor_service import SponsorService
 from utils.constants import (
     canonical_sponsor,
     INVALID_SPONSOR_VALUES,
+    squash_brand,
     LEARNING_BRAND_ONSET_FRACTION,
     LEARNING_MAX_PATTERN_DURATION,
     LEARNING_MIN_PATTERN_DURATION,
@@ -178,6 +180,13 @@ FUZZY_DISCRIMINATIVE_LENGTH = 60
 # above every scaled threshold, so a short verbatim-common phrase matched
 # anywhere it appeared; local extraction already floors well above this.
 MIN_FUZZY_VARIANT_CHARS = 20
+
+OUTRO_AD_SIGNAL_RE = re.compile(
+    r'\b(?:use\s+(?:promo\s+)?code|promo\s+code|free\s+trial|'
+    r'(?:\d+|ten|fifteen|twenty|thirty|forty|fifty)\s*percent\s+off|'
+    r'\d+\s*%\s*off)\b', re.IGNORECASE)
+OUTRO_BRAND_LINK_RE = re.compile(
+    r'\b([a-z0-9-]+)\s*(?:dot|\.)\s*(?:com|org|net)\b', re.IGNORECASE)
 
 
 def required_fuzzy_score(phrase_len: int) -> float:
@@ -412,6 +421,7 @@ class TextPatternMatcher:
             sponsor_service: SponsorService for sponsor name lookups
         """
         self.db = db
+        self._match_lock = threading.RLock()
         self.sponsor_service = sponsor_service
         self._vectorizer = None
         self._pattern_vectors = None
@@ -421,6 +431,7 @@ class TextPatternMatcher:
         self._patterns: list[AdPattern] = []
         self._pattern_buckets = {}
         self._initialized = False
+        self._pattern_snapshot = None
         # sponsor_id -> set of tags; populated alongside _load_patterns.
         self._sponsor_tags: dict[int, set] = {}
 
@@ -451,17 +462,39 @@ class TextPatternMatcher:
 
     def is_available(self) -> bool:
         """Check if text pattern matching is available."""
-        self._ensure_initialized()
-        return self._initialized and self._vectorizer is not None
+        with self._match_lock:
+            self._ensure_initialized()
+            return self._initialized and self._vectorizer is not None
 
-    def _load_patterns(self):
+    @staticmethod
+    def _matching_pattern_snapshot(patterns):
+        """Track fields used by matching, excluding match counters."""
+        fields = (
+            'id', 'text_template', 'intro_variants', 'outro_variants',
+            'sponsor_id', 'sponsor', 'scope', 'podcast_id', 'network_id',
+            'avg_duration', 'source', 'source_language', 'category',
+            'sponsor_segment_category', 'sponsor_tags', 'sponsor_active',
+            'created_by',
+        )
+        return tuple(sorted(tuple(p.get(field) for field in fields)
+                            for p in patterns))
+
+    def _load_patterns(self, patterns=None):
+        with self._match_lock:
+            return self._load_patterns_locked(patterns)
+
+    def _load_patterns_locked(self, patterns=None):
         """Load ad patterns from database."""
         if not self.db:
             return
 
         try:
-            patterns = self.db.get_ad_patterns(active_only=True)
+            if patterns is None:
+                patterns = self.db.get_ad_patterns(active_only=True)
             self._patterns = []
+            self._pattern_vectors = None
+            self._pattern_row_index = {}
+            self._pattern_buckets = {}
 
             for p in patterns:
                 # Parse JSON fields
@@ -542,10 +575,25 @@ class TextPatternMatcher:
                     else:
                         logger.warning("Vectorizer unavailable, patterns loaded without TF-IDF indexing")
 
+            self._pattern_snapshot = self._matching_pattern_snapshot(patterns)
+            return True
         except Exception as e:
             logger.error(f"Failed to load patterns: {e}")
+            return False
 
     def find_matches(
+        self,
+        segments: list[dict],
+        podcast_id: str = None,
+        network_id: str = None,
+        podcast_tags: set | None = None,
+        language: str | None = None,
+    ) -> list[TextMatch]:
+        with self._match_lock:
+            return self._find_matches_locked(
+                segments, podcast_id, network_id, podcast_tags, language)
+
+    def _find_matches_locked(
         self,
         segments: list[dict],
         podcast_id: str = None,
@@ -571,7 +619,18 @@ class TextPatternMatcher:
         Returns:
             List of TextMatch objects for found ads
         """
-        if not self.is_available() or not self._patterns:
+        if not self.is_available():
+            return []
+        if self.db:
+            try:
+                patterns = self.db.get_ad_patterns(active_only=True)
+            except Exception as e:
+                logger.warning(f"Pattern catalog refresh failed; skipping text matches: {e}")
+                return []
+            if (self._matching_pattern_snapshot(patterns) != self._pattern_snapshot
+                    and not self._load_patterns(patterns)):
+                return []
+        if not self._patterns:
             return []
 
         matches = []
@@ -605,15 +664,33 @@ class TextPatternMatcher:
         if not applicable_patterns:
             return []
 
+        # An auto-learned outro with no advertiser or call to action can be
+        # show dialogue accidentally stored after the ad. Keep its intro as
+        # advisory evidence, but do not let that outro or its template set a cut.
+        content_patterns = []
+        phrase_patterns = []
+        for pattern in applicable_patterns:
+            if pattern.is_defined or not pattern.outro_variants:
+                content_patterns.append(pattern)
+                phrase_patterns.append(pattern)
+                continue
+            trusted_outros = [
+                phrase for phrase in pattern.outro_variants
+                if self._outro_has_ad_evidence(phrase, pattern.sponsor)
+            ]
+            phrase_patterns.append(replace(pattern, outro_variants=trusted_outros))
+            if len(trusted_outros) == len(pattern.outro_variants):
+                content_patterns.append(pattern)
+
         # Strategy 1: TF-IDF content matching on sliding windows
         content_matches = self._find_content_matches(
-            full_text, segments, segment_map, applicable_patterns
+            full_text, segments, segment_map, content_patterns
         )
         matches.extend(content_matches)
 
         # Strategy 2: Fuzzy intro/outro phrase matching
         phrase_matches = self._find_phrase_matches(
-            full_text, segments, segment_map, applicable_patterns
+            full_text, segments, segment_map, phrase_patterns
         )
         matches.extend(phrase_matches)
 
@@ -621,7 +698,7 @@ class TextPatternMatcher:
         matches = self._merge_matches(matches)
 
         # Refine boundaries using intro/outro phrases
-        matches = self._refine_boundaries(matches, segments, applicable_patterns)
+        matches = self._refine_boundaries(matches, segments, phrase_patterns)
 
         # Trim/reject spans that ran past the real ad into show content
         matches = self._constrain_overlong_spans(matches, segments)
@@ -631,6 +708,24 @@ class TextPatternMatcher:
             f"(of {len(self._patterns)} loaded), matched {len(matches)}"
         )
         return matches
+
+    def _outro_has_ad_evidence(self, phrase: str, sponsor: str | None) -> bool:
+        if not sponsor:
+            return False
+        names = brand_match_candidates(self._get_sponsor_row(sponsor))
+        brand = word_boundary_re(names)
+        if brand is None:
+            return False
+        domains = {squash_brand(name) for name in names}
+        for clause in re.split(r'(?<=[.!?])\s+(?=[A-Z])', phrase):
+            if not brand.search(clause):
+                continue
+            if OUTRO_AD_SIGNAL_RE.search(clause):
+                return True
+            if any(squash_brand(link.group(1)) in domains
+                   for link in OUTRO_BRAND_LINK_RE.finditer(clause)):
+                return True
+        return False
 
     def _filter_patterns_by_scope(
         self,

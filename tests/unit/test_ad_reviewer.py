@@ -721,7 +721,7 @@ def test_llm_call_failure_falls_through():
     assert result.verdicts[0].success is False
 
 
-def test_inconclusive_review_retains_marker_and_reason():
+def test_inconclusive_review_holds_unsupported_bounds_and_reason():
     class InconclusiveError(Exception):
         status_code = 422
         body = {
@@ -747,7 +747,9 @@ def test_inconclusive_review_retains_marker_and_reason():
             pass_num=1, pass_model='claude-test',
         )
 
-    assert result.accepted_after_review == [ad]
+    assert result.accepted_after_review == []
+    assert result.verdicts[0].inconclusive_hold is True
+    assert result.held_by_inconclusive[0]['held_for_review'] is True
     assert result.verdicts[0].verdict == 'inconclusive'
     assert result.verdicts[0].success is True
     assert 'Reviewer abstained: transcript gap.' in result.verdicts[0].reasoning

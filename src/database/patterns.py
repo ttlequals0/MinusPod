@@ -40,6 +40,7 @@ class PatternMixin:
         # (podcast_id stores slugs since v0.1.194; sponsor moved to FK in v2.2.0)
         query = """
             SELECT ap.*, ks.name AS sponsor, ks.segment_category AS sponsor_segment_category,
+                   ks.tags AS sponsor_tags, ks.is_active AS sponsor_active,
                    p.title as podcast_name, p.slug as podcast_slug
             FROM ad_patterns ap
             LEFT JOIN podcasts p ON ap.podcast_id = p.slug

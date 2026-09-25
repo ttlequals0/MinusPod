@@ -1481,6 +1481,10 @@ function EpisodeDetail() {
                 ? 'The reviewer disagreed with the detected boundaries'
                 : segment.hold_reason === 'reviewer_boundary_conflict'
                 ? 'The reviewer proposed a boundary that crosses protected ad evidence'
+                : segment.hold_reason === 'reviewer_inconclusive_bounds'
+                ? 'The reviewer could not verify both cut boundaries'
+                : segment.hold_reason === 'estimated_pattern_bounds'
+                ? 'The pattern found ad text but could not verify the full cut'
                 : segment.hold_reason === 'reviewer_reject_conflict'
                 ? 'The reviewer rejected a span that carries measured ad evidence'
                 : segment.hold_reason === 'no_splice_evidence'
@@ -1498,6 +1502,10 @@ function EpisodeDetail() {
                 : 'Held for manual review';
               const holdLabel = segment.hold_reason === 'verification_miss'
                 ? 'Verification catch'
+                : segment.hold_reason === 'reviewer_inconclusive_bounds'
+                ? 'Unverified bounds'
+                : segment.hold_reason === 'estimated_pattern_bounds'
+                ? 'Estimated bounds'
                 : segment.hold_reason === 'differential_uncorroborated'
                 ? 'Differential hold'
                 : segment.hold_reason === 'large_vad_gap_extension'
@@ -1592,6 +1600,7 @@ function EpisodeDetail() {
                   )}
                   {(segment.hold_reason === 'reviewer_contradiction'
                     || segment.hold_reason === 'reviewer_boundary_conflict'
+                    || segment.hold_reason === 'reviewer_inconclusive_bounds'
                     || segment.hold_reason === 'reviewer_reject_conflict'
                     || segment.reviewer_verdict === 'inconclusive')
                     && segment.reviewer_reasoning && (

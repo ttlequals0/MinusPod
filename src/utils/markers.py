@@ -288,6 +288,8 @@ def note_merged_members(target: dict, other: dict) -> None:
     and [] when no member is anchored) so the reviewer can tell a tracked
     merge from a legacy marker persisted by a pre-tracking release.
     """
+    if other.get('has_estimated_pattern_member'):
+        target['has_estimated_pattern_member'] = True
     merge_dai_core_spans(target, other)
     spans = _coalesce_coarse_members(_member_spans(target) + _member_spans(other))
     target[MERGED_MEMBER_SPANS] = spans

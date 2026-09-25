@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.22] - 2026-09-25
+
+### Fixed
+
+- Text pattern edits, disables, and deletes take effect on the next match without a worker restart.
+- Auto-learned patterns no longer use weak outro text to extend cuts. Estimated pattern spans need full measured coverage before removal. Sponsor registry confirmation requires the marker's advertiser and commercial language in the audio.
+- An inconclusive review holds a cut for manual review when measured evidence does not support both boundaries, in either processing pass.
+
 ## [2.97.21] - 2026-09-24
 
 ### Fixed

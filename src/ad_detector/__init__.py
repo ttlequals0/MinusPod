@@ -2256,7 +2256,7 @@ class AdDetector:
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 2: Text Pattern Matching (skip if skip_patterns=True)
-        if not skip_patterns and self.text_pattern_matcher and self.text_pattern_matcher.is_available():
+        if not skip_patterns and self.text_pattern_matcher:
             try:
                 logger.info(f"[{slug}:{episode_id}] Stage 2: Text pattern matching")
                 text_matches = self.text_pattern_matcher.find_matches(
@@ -2571,6 +2571,12 @@ class AdDetector:
             'text_start': getattr(match, 'text_start', None),
             'text_end': getattr(match, 'text_end', None),
         }
+        if (detection_stage == 'text_pattern' and span_estimated
+                and not getattr(match, 'defined', False)):
+            entry['has_estimated_pattern_member'] = True
+        if detection_stage == 'fingerprint':
+            entry['fingerprint_match_start'] = match.start
+            entry['fingerprint_match_end'] = match.end
         all_ads.append(entry)
         pattern_matched_regions.append({
             'start': match.start,
@@ -3022,6 +3028,9 @@ class AdDetector:
                 if stage_priority.get(current.get('detection_stage'), 2) < stage_priority.get(last.get('detection_stage'), 2):
                     last['detection_stage'] = current['detection_stage']
                     last['pattern_id'] = current.get('pattern_id')
+                    for key in ('fingerprint_match_start', 'fingerprint_match_end'):
+                        if key in current:
+                            last[key] = current[key]
                     # span_estimated travels with the stage: without it a later
                     # fold reads the promoted stage as grounded, not advisory.
                     last['span_estimated'] = current.get('span_estimated', False)

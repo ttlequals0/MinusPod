@@ -855,6 +855,25 @@ describe('New hold reasons: tooltip titles', () => {
     expect(screen.getByText('The candidate starts after the protected boundary.')).toBeDefined();
   });
 
+  it('shows why inconclusive bounds were held', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{
+      ...heldMarker,
+      hold_reason: 'reviewer_inconclusive_bounds',
+      reviewer_reasoning: 'Reviewer abstained: missing boundary coverage.',
+    }] }));
+    await waitFor(() => expect(screen.getByTitle(
+      'The reviewer could not verify both cut boundaries')).toBeDefined());
+    expect(screen.getByText('Reviewer abstained: missing boundary coverage.')).toBeDefined();
+  });
+
+  it('shows why estimated pattern bounds were held', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{
+      ...heldMarker, hold_reason: 'estimated_pattern_bounds',
+    }] }));
+    await waitFor(() => expect(screen.getByTitle(
+      'The pattern found ad text but could not verify the full cut')).toBeDefined());
+  });
+
   it('shows the no_splice_evidence title', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'no_splice_evidence' }] }));
     await waitFor(() => expect(screen.getByTitle('No splice artifact found at either edge')).toBeDefined());

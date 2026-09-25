@@ -17,10 +17,13 @@ from config import (
     resolve_env_backed_default,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+    HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
     HOLD_REASON_REVIEWER_REJECT_CONFLICT,
     AUDIO_CUE_ROLE_DEFAULT,
     AUDIO_CUE_ROLE_NON_AD,
     AUDIO_CUE_TYPE_CONTENT_TRANSITION,
+    AUDIO_CUE_SOURCE_TEMPLATE,
+    is_edge_cue_snapped,
     is_template_cue,
     measured_evidence,
     MIN_AD_DURATION_FOR_REMOVAL,
@@ -28,6 +31,7 @@ from config import (
     resolve_max_boundary_shift,
 )
 from audio_enforcer import content_anchors
+from text_pattern_matcher import is_defined_pattern
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from llm_route import (
@@ -144,6 +148,70 @@ def _review_inconclusive_reason(error: Exception) -> str:
             value = None
     parts.append("Original marker retained.")
     return " ".join(parts).replace('; Original', ". Original")
+
+
+def inconclusive_bounds_supported(ad: dict, db) -> bool:
+    """Whether independent evidence covers both edges of an abstained cut."""
+    start = finite_number(ad.get('start'))
+    end = finite_number(ad.get('end'))
+    if start is None or end is None or end <= start:
+        return False
+    if (ad.get('validation') or {}).get('user_confirmed'):
+        return True
+
+    tolerance = 0.05
+
+    def covers(spans):
+        cursor = start
+        measured = [(finite_number(span.get('start')),
+                     finite_number(span.get('end'))) for span in spans]
+        for lo, hi in sorted((lo, hi) for lo, hi in measured
+                             if lo is not None and hi is not None and hi > lo):
+            if lo > cursor + tolerance:
+                continue
+            cursor = max(cursor, hi)
+            if cursor >= end - tolerance:
+                return True
+        return False
+
+    if covers(ad.get('dai_core_spans') or []):
+        return True
+
+    pair = ad.get('cue_pair') or {}
+    if (finite_number((pair.get('start') or {}).get('cue_end')) is not None
+            and finite_number((pair.get('end') or {}).get('cue_start')) is not None
+            and abs(start - (pair['start']['cue_end'] + 0.05)) <= tolerance
+            and abs(end - (pair['end']['cue_start'] - 0.05)) <= tolerance):
+        return True
+
+    snap = ad.get('cue_snap') or {}
+    if (all(is_edge_cue_snapped(ad, edge)
+            and (snap[edge].get('template_id') is not None)
+            and snap[edge].get('source') == AUDIO_CUE_SOURCE_TEMPLATE
+            and finite_number((snap.get(edge) or {}).get('original')) is not None
+            and finite_number((snap.get(edge) or {}).get('shift_seconds')) is not None
+            for edge in ('start', 'end'))
+            and abs(start - snap['start']['original']
+                    - snap['start']['shift_seconds']) <= tolerance
+            and abs(end - snap['end']['original']
+                    - snap['end']['shift_seconds']) <= tolerance):
+        return True
+
+    pattern_id = ad.get('pattern_id')
+    if (pattern_id is None or db is None
+            or ad.get('detection_stage') != 'fingerprint'
+            or ad.get('merged_distinct_ads')
+            or ad.get('merged_member_spans')
+            or finite_number(ad.get('fingerprint_match_start')) is None
+            or finite_number(ad.get('fingerprint_match_end')) is None
+            or abs(start - ad['fingerprint_match_start']) > tolerance
+            or abs(end - ad['fingerprint_match_end']) > tolerance):
+        return False
+    try:
+        pattern = db.get_ad_pattern_by_id(pattern_id)
+    except Exception:
+        return False
+    return bool(pattern and pattern.get('is_active') and is_defined_pattern(pattern))
 
 
 # Verdict/reasoning contradiction guard (spec 1.4). Verdicts come from
@@ -570,6 +638,7 @@ class ReviewVerdict:
     # Set on a reject the evidence floor turned into a hold; the apply path
     # stamps it as the marker's hold_reason instead of dropping the ad.
     reject_hold_reason: str | None = None
+    inconclusive_hold: bool = False
 
 
 @dataclass
@@ -588,6 +657,7 @@ class ReviewResult:
     held_by_contradiction: list[dict] = field(default_factory=list)
     held_by_boundary_conflict: list[dict] = field(default_factory=list)
     held_by_reject_evidence: list[dict] = field(default_factory=list)
+    held_by_inconclusive: list[dict] = field(default_factory=list)
 
 
 def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
@@ -971,7 +1041,19 @@ class AdReviewer:
                 verdict, model=verdict.model_used,
                 slug=episode_meta.get('slug'),
                 episode_id=episode_meta.get('episode_id'))
-            if verdict.verdict == "reject":
+            if (verdict.verdict == "inconclusive"
+                    and not inconclusive_bounds_supported(updated_ad, self.db)):
+                verdict.inconclusive_hold = True
+                held = dict(updated_ad)
+                held['was_cut'] = False
+                held['held_for_review'] = True
+                held['hold_reason'] = HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS
+                held['reviewer_verdict'] = verdict.verdict
+                held['reviewer_reasoning'] = verdict.reasoning
+                held['reviewer_model'] = verdict.model_used
+                held['source'] = 'reviewer'
+                result.held_by_inconclusive.append(held)
+            elif verdict.verdict == "reject":
                 evidence = reject_hold_evidence(updated_ad)
                 if evidence:
                     # Measured evidence outranks one model's opinion, so a
