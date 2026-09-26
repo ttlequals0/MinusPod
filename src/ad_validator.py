@@ -264,7 +264,8 @@ class AdValidator:
         self.episode_duration = episode_duration
         self.segments = segments or []
         self.episode_description = episode_description or ""
-        self.description_sponsors = self._extract_sponsors_from_description()
+        self.description_sponsors = self.extract_description_sponsors(
+            self.episode_description)
         # One alternation for the whole set: _is_sponsor_confirmed otherwise
         # recompiled a regex per sponsor per ad.
         self._description_sponsor_re = word_boundary_re(self.description_sponsors)
@@ -299,7 +300,8 @@ class AdValidator:
             logger.info(f"Using learned positional prior: "
                         f"{len(self.positional_prior.zones)} zones")
 
-    def _extract_sponsors_from_description(self) -> set:
+    @classmethod
+    def extract_description_sponsors(cls, episode_description: str | None) -> set:
         """Extract sponsor names from episode description.
 
         Looks for sponsors in:
@@ -311,14 +313,14 @@ class AdValidator:
             Set of lowercase sponsor names
         """
         sponsors = set()
-        if not self.episode_description:
+        if not episode_description:
             return sponsors
 
-        description = self.episode_description.lower()
+        description = episode_description.lower()
 
         # Extract domains from href URLs (e.g., "bitwarden.com/twit" -> "bitwarden")
         href_pattern = re.compile(r'href=["\']?(?:https?://)?(?:www\.)?([a-z0-9-]+)\.(?:com|io|co|net|org)', re.IGNORECASE)
-        for match in href_pattern.finditer(self.episode_description):
+        for match in href_pattern.finditer(episode_description):
             domain = match.group(1).lower()
             # A description links to its host, its apps, and its socials next
             # to its sponsors, and a short outlet token matches normal speech.
@@ -329,7 +331,7 @@ class AdValidator:
         # Check for known sponsor patterns in description text. Both the
         # spoken form and the squashed one are kept, so "liquid iv" confirms
         # against a transcript however the brand is written.
-        for match in self.SPONSOR_PATTERNS.finditer(description):
+        for match in cls.SPONSOR_PATTERNS.finditer(description):
             sponsor = match.group(0).lower()
             sponsors.add(sponsor)
             sponsors.add(sponsor.replace(' ', ''))

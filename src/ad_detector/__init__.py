@@ -84,6 +84,7 @@ from config import (
 from ad_detector.cue_boundary_snap import _cue_role
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
+from ad_validator import AdValidator
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
 from text_pattern_matcher import is_defined_pattern
@@ -634,6 +635,19 @@ def _pattern_match_evidence(match, kind: str) -> str:
     return f'{kind} {pct}'
 
 
+_SPONSOR_MATCH_STAGES = ('fingerprint', 'text_pattern')
+
+
+def _known_episode_sponsors(all_ads, episode_description) -> list[str]:
+    """Sponsors of this episode's pattern and fingerprint matches plus its description sponsors."""
+    names = {ad['sponsor'] for ad in all_ads
+             if ad.get('detection_stage') in _SPONSOR_MATCH_STAGES
+             and ad.get('sponsor')
+             and ad['sponsor'].strip().lower() not in INVALID_SPONSOR_VALUES}
+    names |= AdValidator.extract_description_sponsors(episode_description)
+    return sorted(names)
+
+
 def _phase_for_pass(pass_name: str) -> str:
     """Route-snapshot phase key for a detection pass_name."""
     if pass_name == PASS_AD_DETECTION_1:
@@ -1153,7 +1167,8 @@ class AdDetector:
                                 slug, episode_id, pass_name,
                                 window_label_prefix, validate_timestamps,
                                 recurrence_spans=None,
-                                addressing_mode='timestamps'):
+                                addressing_mode='timestamps',
+                                episode_sponsor_names=None):
         """Run one window through prompt-build + LLM call + parse + filter.
 
         Returns a ``WindowResult``. Thread-safe: writes nothing to shared
@@ -1258,7 +1273,8 @@ class AdDetector:
             if used_ids:
                 window_ads = resolve_segment_id_ads(
                     id_ads, window_segments, slug, episode_id,
-                    sponsor_service=self.sponsor_service)
+                    sponsor_service=self.sponsor_service,
+                    episode_sponsor_names=episode_sponsor_names)
                 # Everything resolve_segment_id_ads discarded referenced a
                 # segment id that does not exist in this window. That is the
                 # hallucination this mode exists to catch, so count it rather
@@ -1271,7 +1287,8 @@ class AdDetector:
                     f"segment-id contract, falling back to timestamp parsing")
                 window_ads = parse_ads_from_response(
                     response_text, slug, episode_id,
-                    sponsor_service=self.sponsor_service)
+                    sponsor_service=self.sponsor_service,
+                    episode_sponsor_names=episode_sponsor_names)
                 ads_proposed = len(window_ads)
                 if validate_timestamps:
                     window_ads = validate_ad_timestamps(
@@ -1281,7 +1298,8 @@ class AdDetector:
             window_ads = parse_ads_from_response(
                 response_text, slug, episode_id,
                 sponsor_service=self.sponsor_service,
-                compliance_meta=compliance_meta)
+                compliance_meta=compliance_meta,
+                episode_sponsor_names=episode_sponsor_names)
             compliant = not compliance_meta['extraction_failed']
             ads_proposed = len(window_ads)
             if validate_timestamps:
@@ -1526,7 +1544,8 @@ class AdDetector:
                             progress_base, progress_range, slug, episode_id,
                             pass_name, window_label_prefix, validate_timestamps,
                             action_map=None, category_repair_enabled=False,
-                            recurrence_spans=None, addressing_mode='timestamps'):
+                            recurrence_spans=None, addressing_mode='timestamps',
+                            episode_sponsor_names=None):
         """Shared window orchestration for the detection and verification passes.
 
         Runs every window through ``_run_windows``, merges results in window
@@ -1613,6 +1632,7 @@ class AdDetector:
             validate_timestamps=validate_timestamps,
             recurrence_spans=recurrence_spans,
             addressing_mode=addressing_mode,
+            episode_sponsor_names=episode_sponsor_names,
         )
 
         category_repaired = 0
@@ -1695,6 +1715,7 @@ class AdDetector:
                     validate_timestamps=validate_timestamps,
                     recurrence_spans=recurrence_spans,
                     addressing_mode=addressing_mode,
+                    episode_sponsor_names=episode_sponsor_names,
                 )
                 recovered_results, sweep_hold_error = self._sweep_lost_windows(
                     windows=windows, lost_results=lost_results,
@@ -1823,7 +1844,8 @@ class AdDetector:
                    progress_callback=None,
                    audio_analysis=None,
                    positional_prior_hint: str = "",
-                   recurrence_spans: list | None = None) -> dict | None:
+                   recurrence_spans: list | None = None,
+                   episode_sponsor_names: list[str] | None = None) -> dict | None:
         """Detect ad segments using Claude API with sliding window approach.
 
         Processes transcript in overlapping windows to ensure ads at chunk
@@ -1836,6 +1858,8 @@ class AdDetector:
                                    hint for the per-window prompt (issue #360)
             recurrence_spans: Optional cross-episode text-recurrence spans
                                    (hushpod adoption); rendered per-window.
+            episode_sponsor_names: Sponsors already known for this episode;
+                                   a long window naming one passes the content gate.
         """
         if not self.api_key:
             logger.warning("Skipping ad detection - no API key")
@@ -1948,6 +1972,7 @@ class AdDetector:
                 category_repair_enabled=segment_categories_configured,
                 recurrence_spans=recurrence_spans,
                 addressing_mode=addressing_mode,
+                episode_sponsor_names=episode_sponsor_names,
             )
             if failure is not None:
                 return failure
@@ -2442,6 +2467,8 @@ class AdDetector:
                     audio_analysis=audio_analysis,
                     positional_prior_hint=positional_prior_hint,
                     recurrence_spans=recurrence_spans,
+                    episode_sponsor_names=_known_episode_sponsors(
+                        all_ads, episode_description),
                 )
 
         if result is None:
