@@ -6,3 +6,8 @@ def member_bases(members):
     if isinstance(members, dict):
         return {k: members[k] for k in ('start', 'end', 'stage')}
     return [member_bases(m) for m in members]
+
+
+def _ad(start, end, stage, **extra):
+    """Minimal marker dict for a detection stage."""
+    return {'start': start, 'end': end, 'detection_stage': stage, **extra}

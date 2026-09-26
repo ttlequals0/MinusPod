@@ -103,23 +103,17 @@ def _valid_spans(marker: dict, key: str, extra_field: str | None = None,
     return spans
 
 
-def _clip_spans(marker: dict, key: str, start: float, end: float,
-                extra_field: str | None = None,
-                keep_empty: bool = False,
-                optional_fields: tuple = ()) -> None:
-    """Clip the spans stored under `key` into [start, end], dropping collapsed
+def _clip_spans(marker: dict, key: str, spans: list[dict], start: float,
+                end: float, keep_empty: bool = False) -> None:
+    """Store `spans` under `key` clipped into [start, end], dropping collapsed
     ones; `keep_empty` writes an empty list instead of removing the key."""
     if keep_empty and key not in marker:
         return
     clipped = []
-    for span in _valid_spans(marker, key, extra_field, optional_fields):
+    for span in spans:
         lo = max(start, span['start'])
         hi = min(end, span['end'])
         if hi > lo:
-            # A moved edge is no longer the one that was measured.
-            for edge, new in (('start', lo), ('end', hi)):
-                if new != span[edge] and f'precise_{edge}' in span:
-                    span[f'precise_{edge}'] = False
             span['start'], span['end'] = lo, hi
             clipped.append(span)
     if clipped or keep_empty:
@@ -150,7 +144,7 @@ def merge_dai_core_spans(target: dict, other: dict) -> None:
 
 def clip_dai_core_spans(marker: dict, start: float, end: float) -> None:
     """Clip a marker's DAI evidence to a newly split/clamped range."""
-    _clip_spans(marker, DAI_CORE_SPANS, start, end)
+    _clip_spans(marker, DAI_CORE_SPANS, _valid_dai_core_spans(marker), start, end)
 
 
 def span_bounds(spans) -> tuple[float | None, float | None]:
@@ -191,8 +185,12 @@ _MEMBER_FIELDS = ('confidence', 'precise_start', 'precise_end',
                   'fingerprint_match_start', 'fingerprint_match_end',
                   'span_estimated')
 
-# Stages whose member span is measured regardless of confidence.
-_MEASURED_MEMBER_STAGES = frozenset({'cue_pair', 'manual', 'text_pattern'})
+# Stages measured from audio or matched transcript text, not proposed by a model.
+# dai_differential is not one: a cross-fetch diff earns KeepDifferentialOverride
+# but never outranks a reviewer reject by itself.
+MEASURED_EVIDENCE_STAGES = frozenset({
+    'fingerprint', 'cue_pair', 'text_pattern', 'manual',
+})
 
 # Merge bookkeeping a split fragment must drop: it describes the merged
 # span, not the narrower piece the split just carved out.
@@ -255,10 +253,15 @@ def protected_member_spans(marker: dict, fallback_start=None,
 
 def clip_member_spans(marker: dict, start: float, end: float) -> None:
     """Clip recorded member spans to a range, dropping collapsed members."""
+    spans = recorded_member_spans(marker)
+    for span in spans:
+        # A moved edge is no longer the one that was measured.
+        for edge, moved in (('start', span['start'] < start),
+                            ('end', span['end'] > end)):
+            if moved and f'precise_{edge}' in span:
+                span[f'precise_{edge}'] = False
     # keep_empty: the key's presence is what marks a tracked merge.
-    _clip_spans(marker, MERGED_MEMBER_SPANS, start, end,
-                extra_field='stage', keep_empty=True,
-                optional_fields=_MEMBER_FIELDS)
+    _clip_spans(marker, MERGED_MEMBER_SPANS, spans, start, end, keep_empty=True)
 
 
 def clip_merge_spans(marker: dict, lo: float, hi: float) -> None:
@@ -382,15 +385,12 @@ def note_merged_members(target: dict, other: dict) -> None:
         target.get('merged_protected_end'), hi, max)
 
 
-def measured_member_spans(marker: dict, min_conf: float,
-                          anchors_only: bool = False) -> list[tuple[float, float]]:
-    """Spans of audio a marker's members measured, sorted by start."""
+def measured_member_spans(marker: dict,
+                          min_conf: float) -> list[tuple[float, float, bool]]:
+    """Measured (start, end, is_anchor) spans of a marker, sorted by start."""
     # Anchors are independent member evidence: no DAI core, no estimate's own text.
-    spans = ([] if anchors_only
-             else [(s['start'], s['end']) for s in _valid_dai_core_spans(marker)])
+    spans = [(s['start'], s['end'], False) for s in _valid_dai_core_spans(marker)]
     for member in _member_spans(marker):
-        if anchors_only and member.get('span_estimated'):
-            continue
         stage = member.get('stage')
         lo, hi = member['start'], member['end']
         if stage == 'fingerprint':
@@ -403,10 +403,10 @@ def measured_member_spans(marker: dict, min_conf: float,
             confidence = finite_number(member.get('confidence'))
             if confidence is None or confidence < min_conf:
                 continue
-        elif stage not in _MEASURED_MEMBER_STAGES:
+        elif stage not in MEASURED_EVIDENCE_STAGES:
             continue
         if hi > lo:
-            spans.append((lo, hi))
+            spans.append((lo, hi, not member.get('span_estimated')))
     return sorted(spans)
 
 

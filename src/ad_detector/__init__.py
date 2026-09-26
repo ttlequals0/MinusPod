@@ -638,13 +638,11 @@ def _pattern_match_evidence(match, kind: str) -> str:
 _SPONSOR_MATCH_STAGES = ('fingerprint', 'text_pattern')
 
 
-def _known_sponsor_pattern(ads: list[dict], episode_description: str | None,
-                           any_stage: bool = False) -> re.Pattern | None:
-    """Matcher for sponsors already known via pattern/fingerprint or the description, or None."""
-    # Pass-1 cuts are validated ads; merge priority can relabel a pattern cut's stage.
+def _known_sponsor_pattern(ads: list[dict],
+                           episode_description: str | None) -> re.Pattern | None:
+    """Matcher for the sponsors of ads or the description, or None."""
     names = {ad['sponsor'] for ad in ads
-             if (any_stage or ad.get('detection_stage') in _SPONSOR_MATCH_STAGES)
-             and ad.get('sponsor') and is_brand_token(ad['sponsor'])}
+             if ad.get('sponsor') and is_brand_token(ad['sponsor'])}
     names |= extract_description_sponsors(episode_description)
     return word_boundary_re(names)
 
@@ -2469,7 +2467,9 @@ class AdDetector:
                     positional_prior_hint=positional_prior_hint,
                     recurrence_spans=recurrence_spans,
                     episode_sponsor_re=_known_sponsor_pattern(
-                        all_ads, episode_description),
+                        [ad for ad in all_ads
+                         if ad.get('detection_stage') in _SPONSOR_MATCH_STAGES],
+                        episode_description),
                 )
 
         if result is None:
@@ -3392,8 +3392,9 @@ class AdDetector:
             logger.info(f"[{slug}:{episode_id}] Verification using model: {model}")
 
             # Before the scrub: href sponsor links live in the raw description.
+            # Every stage counts: merge priority can relabel a validated pattern cut.
             episode_sponsor_re = _known_sponsor_pattern(
-                pass1_cuts or [], episode_description, any_stage=True)
+                pass1_cuts or [], episode_description)
 
             # Prepare description section
             description_section = ""

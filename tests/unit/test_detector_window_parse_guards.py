@@ -273,7 +273,6 @@ def test_known_sponsor_pattern_collects_matches_and_description():
         {'detection_stage': 'text_pattern', 'sponsor': 'Globex'},
         {'detection_stage': 'text_pattern', 'sponsor': None},
         {'detection_stage': 'text_pattern', 'sponsor': 'Today'},
-        {'detection_stage': 'dai_differential', 'sponsor': 'Initech'},
     ]
     description = 'Sponsored by <a href="https://www.umbrellacorp.com/show">Umbrella</a>'
 
@@ -281,20 +280,18 @@ def test_known_sponsor_pattern_collects_matches_and_description():
 
     for name in ('acme pet food', 'Globex', 'UMBRELLACORP'):
         assert pattern.search(f'thanks to {name} today')
-    assert not pattern.search('Initech is hiring')
     # A common word stored as a sponsor must not admit a content window.
     assert not pattern.search('what happened today')
 
 
 def test_pass2_sponsor_pattern_takes_every_pass1_cut_sponsor():
-    extract_description_sponsors.cache_clear()
-    cuts = [{'detection_stage': 'dai_differential', 'sponsor': 'Initech'},
-            {'detection_stage': 'claude', 'sponsor': 'Today'}]
+    response = ('[{"start": 20.0, "end": 179.0, "confidence": 0.99, '
+                '"reason": "Host talks through the Initech hiring platform"}]')
+    pass1_cuts = [{'start': 3492.9, 'end': 3544.2,
+                   'detection_stage': 'dai_differential', 'sponsor': 'Initech'}]
 
-    assert _known_sponsor_pattern(cuts, None) is None
-    pattern = _known_sponsor_pattern(cuts, None, any_stage=True)
-    assert pattern.search('Initech is hiring')
-    assert not pattern.search('what happened today')
+    kept = _run_verification(response, pass1_cuts=pass1_cuts)
+    assert [(a['start'], a['end']) for a in kept['ads']] == [(20.0, 179.0)]
 
 
 def test_description_sponsors_are_whole_words():
@@ -345,6 +342,7 @@ class _AcmeMatcher:
 
 
 def test_process_transcript_hands_known_sponsors_to_the_llm_pass():
+    extract_description_sponsors.cache_clear()
     detector = AdDetector(api_key='test-key')
     detector.db = _PatternDb()
     detector.audio_fingerprinter = None
@@ -352,7 +350,12 @@ def test_process_transcript_hands_known_sponsors_to_the_llm_pass():
     detector.pattern_service = None
     segments = [{'start': 3400.0, 'end': 3700.0, 'text': 'show talk'}]
 
+    # Pass 1 trusts only pattern and fingerprint sponsors, not a differential ad's.
+    differential = {'start': 3600.0, 'end': 3650.0, 'confidence': 0.9,
+                    'detection_stage': 'dai_differential', 'sponsor': 'Initech'}
+
     with patch.object(detector, 'initialize_client'), \
+         patch('ad_detector.dai_differential_ads', return_value=[differential]), \
          patch.object(detector, 'detect_ads',
                       return_value={'ads': [], 'status': 'success'}) as detect:
         detector.process_transcript(
@@ -360,10 +363,11 @@ def test_process_transcript_hands_known_sponsors_to_the_llm_pass():
             slug='example-podcast', episode_id='a1b2c3d4e5f6',
             episode_description='Thanks to <a href="https://globex.com/show">Globex</a>',
             podcast_id='example-podcast', skip_patterns=False,
-            audio_path=None, dai_differential=None, keep_content=False)
+            audio_path=None, dai_differential=MagicMock(), keep_content=False)
 
     pattern = detect.call_args.kwargs['episode_sponsor_re']
     assert pattern.search('Acme Pet Food') and pattern.search('globex')
+    assert not pattern.search('Initech is hiring')
 
 
 def _run_verification(response_text, **kwargs):

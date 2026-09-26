@@ -311,20 +311,11 @@ def is_cue_backed(ad) -> bool:
             or ad.get('detection_stage') in ('cue_pair', 'manual'))
 
 
-# Stages whose spans are measured from the audio or from matched transcript
-# text rather than proposed by a model. dai_differential is deliberately not
-# one: a cross-fetch diff earns KeepDifferentialOverride but never outranks a
-# reviewer reject by itself.
-MEASURED_EVIDENCE_STAGES = frozenset({
-    'fingerprint', 'cue_pair', 'text_pattern', 'manual',
-})
-
-
 def measured_evidence(ad) -> list[str]:
     """Every measured signal backing an ad: its own stage, the measured stages
     it merged in, a cue snap, and a validator-confirmed sponsor."""
     # Lazy: utils/__init__ imports utils.audio, which imports this module.
-    from utils.markers import recorded_member_spans
+    from utils.markers import MEASURED_EVIDENCE_STAGES, recorded_member_spans
     stages = {ad.get('detection_stage')}
     stages.update(span.get('stage') for span in recorded_member_spans(ad))
     evidence = sorted(s for s in stages if s in MEASURED_EVIDENCE_STAGES)

@@ -3,6 +3,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('measured_test_')
 
 from ad_detector import AdDetector
+from tests.unit.marker_test_utils import _ad
 from utils.markers import (
     COVERAGE_GAP_TOLERANCE,
     EDGE_TOLERANCE,
@@ -12,10 +13,6 @@ from utils.markers import (
     recorded_member_spans,
     union_cover,
 )
-
-
-def _ad(start, end, stage, **extra):
-    return {'start': start, 'end': end, 'detection_stage': stage, **extra}
 
 
 def test_tolerance_constants():
@@ -117,27 +114,32 @@ def _estimated_tail_marker():
 
 def test_measured_member_spans_excludes_estimated_tail():
     marker = _estimated_tail_marker()
-    assert measured_member_spans(marker, 0.8) == [(0.0, 60.0), (60.4, 89.0)]
+    expected = [(0.0, 60.0, True), (60.4, 89.0, False)]
+    assert measured_member_spans(marker, 0.8) == expected
 
     note_merged_members(marker, _ad(100.0, 170.0, 'claude', confidence=0.6))
-    assert measured_member_spans(marker, 0.8) == [(0.0, 60.0), (60.4, 89.0)]
+    assert measured_member_spans(marker, 0.8) == expected
 
     fp = _ad(0.0, 175.0, 'fingerprint', confidence=0.9,
              fingerprint_match_start=0.0, fingerprint_match_end=60.0)
     note_merged_members(fp, _ad(176.0, 190.0, 'claude', confidence=0.5))
-    assert measured_member_spans(fp, 0.8) == [(0.0, 60.0)]
+    assert measured_member_spans(fp, 0.8) == [(0.0, 60.0, True)]
+
+
+def _anchors(marker):
+    return [(a, b) for a, b, anchor in measured_member_spans(marker, 0.8) if anchor]
 
 
 def test_anchors_exclude_dai_core_and_auto_estimates():
     marker = _estimated_tail_marker()
     marker['dai_core_spans'] = [{'start': 150.0, 'end': 170.0}]
-    assert measured_member_spans(marker, 0.8, anchors_only=True) == [(0.0, 60.0)]
+    assert _anchors(marker) == [(0.0, 60.0)]
 
     defined = _ad(0.0, 30.0, 'claude', confidence=0.5)
     note_merged_members(defined, _ad(30.0, 90.0, 'text_pattern',
                                      span_estimated=True, pattern_defined=True,
                                      text_start=30.0, text_end=50.0))
-    assert measured_member_spans(defined, 0.8, anchors_only=True) == [(30.0, 50.0)]
+    assert _anchors(defined) == [(30.0, 50.0)]
 
 
 def test_estimate_without_text_bounds_contributes_nothing():
@@ -145,7 +147,7 @@ def test_estimate_without_text_bounds_contributes_nothing():
     note_merged_members(marker, _ad(60.0, 175.0, 'text_pattern',
                                     span_estimated=True))
     marker['end'] = 175.0
-    assert measured_member_spans(marker, 0.8) == [(0.0, 60.0)]
+    assert measured_member_spans(marker, 0.8) == [(0.0, 60.0, True)]
 
 
 def test_measured_member_spans_evidence_kinds():
@@ -157,12 +159,13 @@ def test_measured_member_spans_evidence_kinds():
         note_merged_members(marker, other)
     marker['dai_core_spans'] = [{'start': 32.0, 'end': 38.0}]
     assert measured_member_spans(marker, 0.8) == [
-        (0.0, 10.0), (12.0, 20.0), (32.0, 38.0), (42.0, 50.0)]
+        (0.0, 10.0, True), (12.0, 20.0, True), (32.0, 38.0, False),
+        (42.0, 50.0, True)]
 
 
 def test_measured_member_spans_on_an_unmerged_marker():
     assert measured_member_spans(_ad(5.0, 25.0, 'claude', confidence=0.9),
-                                 0.8) == [(5.0, 25.0)]
+                                 0.8) == [(5.0, 25.0, True)]
     assert measured_member_spans(_ad(5.0, 25.0, 'claude', confidence=0.5),
                                  0.8) == []
 
@@ -176,4 +179,4 @@ def test_coalesced_coarse_member_keeps_the_weakest_confidence():
 
     marker = _ad(0.0, 60.0, 'claude', confidence=0.96)
     note_merged_members(marker, _ad(50.0, 175.0, 'claude', confidence=0.85))
-    assert measured_member_spans(marker, 0.8) == [(0.0, 175.0)]
+    assert measured_member_spans(marker, 0.8) == [(0.0, 175.0, True)]

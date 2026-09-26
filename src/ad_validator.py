@@ -31,6 +31,7 @@ from utils.markers import (
     carve_fragment,
     clip_dai_core_spans,
     clip_merge_spans,
+    COVERAGE_GAP_TOLERANCE,
     EDGE_TOLERANCE,
     dai_core_bounds,
     finite_number,
@@ -659,13 +660,9 @@ class AdValidator:
                            (seen_end, ad['end'])):
                 if hi - lo < MIN_AD_DURATION:
                     continue
-                # Clipped members let the estimated-remainder split judge it;
-                # otherwise the parent's merge records describe nothing here.
-                residue = ad
-                if self._has_estimated_edge(ad):
-                    residue = self._narrowed(ad, lo, hi, keep_members=True)
-                if residue is ad or not recorded_member_spans(residue):
-                    residue = carve_fragment(residue, lo, hi)
+                # Clipped members let the estimated-remainder split judge it.
+                residue = self._narrowed(
+                    ad, lo, hi, keep_members=self._has_estimated_edge(ad))
                 for key in ('_confirmed_correction',
                             '_has_confirmed_correction_candidate',
                             '_matches_false_positive_correction'):
@@ -1327,32 +1324,33 @@ class AdValidator:
         end = finite_number(ad.get('end'))
         if start is None or end is None or end <= start:
             return True
-        tolerance = EDGE_TOLERANCE
-        def covers(span):
-            lo = finite_number(span.get('start'))
-            hi = finite_number(span.get('end'))
-            return (lo is not None and hi is not None
-                    and lo <= start + tolerance and hi >= end - tolerance)
+        core = [(span.get('start'), span.get('end'))
+                for span in ad.get('dai_core_spans') or [] if isinstance(span, dict)]
+        return union_cover(core, start, end, gap_tol=EDGE_TOLERANCE) != (start, end)
 
-        if any(covers(span) for span in ad.get('dai_core_spans') or []
-               if isinstance(span, dict)):
-            return False
-        return True
+    def _gap_merges(self, left_end: float, right_start: float) -> bool:
+        """Whether the merge step folds two ads across this gap."""
+        gap = right_start - left_end
+        return gap < MERGE_GAP_THRESHOLD or (
+            gap < MAX_SILENT_GAP
+            and not self._has_speech_in_range(left_end, right_start))
 
     def _measured_cover(self, spans: list[tuple[float, float]], start: float,
                         end: float) -> tuple[float | None, float | None]:
         """Measured run from the first span, bridging gaps the merge step folds."""
-        lo, hi = union_cover(spans, start, end)
-        while lo is not None and hi < end:
-            nxt = min((s for s, _ in spans if hi < s < end), default=None)
-            if nxt is None:
+        clipped = sorted((max(a, start), min(b, end)) for a, b in spans
+                         if min(b, end) > max(a, start))
+        if not clipped:
+            return None, None
+        lo, hi = clipped[0]
+        for a, b in clipped[1:]:
+            if a > hi + COVERAGE_GAP_TOLERANCE and not self._gap_merges(hi, a):
                 break
-            gap = nxt - hi
-            if not (gap < MERGE_GAP_THRESHOLD
-                    or (gap < MAX_SILENT_GAP
-                        and not self._has_speech_in_range(hi, nxt))):
-                break
-            _, hi = union_cover(spans, nxt, end)
+            hi = max(hi, b)
+        if lo <= start + EDGE_TOLERANCE:
+            lo = start
+        if hi >= end - EDGE_TOLERANCE:
+            hi = end
         return lo, hi
 
     def _narrowed(self, ad: dict, lo: float, hi: float, keep_members: bool) -> dict:
@@ -1367,7 +1365,8 @@ class AdValidator:
             piece['start'], piece['end'] = lo, hi
             clip_dai_core_spans(piece, lo, hi)
             clip_merge_spans(piece, lo, hi)
-        else:
+        # Without surviving members the parent's merge records describe nothing here.
+        if not keep_members or not recorded_member_spans(piece):
             piece = carve_fragment(piece, lo, hi)
         invalidate_quote_alignment(piece)
         invalidate_word_timed_edges(piece)
@@ -1386,9 +1385,9 @@ class AdValidator:
                     or '_orig_twin' in ad):
                 out.append(ad)
                 continue
-            anchors = measured_member_spans(
-                ad, self.min_cut_confidence, anchors_only=True)
-            spans = measured_member_spans(ad, self.min_cut_confidence)
+            measured = measured_member_spans(ad, self.min_cut_confidence)
+            spans = [(a, b) for a, b, _ in measured]
+            anchors = [(a, b) for a, b, anchor in measured if anchor]
             lo, hi = self._measured_cover(spans, ad['start'], ad['end'])
             # The cut run must hold independent evidence, not just the estimate's text.
             if lo is None or not any(a < hi and b > lo for a, b in anchors):
@@ -1635,8 +1634,8 @@ class AdValidator:
                 merged.append(current.copy())
                 continue
 
-            if 0 <= gap < MERGE_GAP_THRESHOLD:
-                # Always merge small gaps (< 5s)
+            # Small gaps always merge; larger ones only across silence.
+            if 0 <= gap and self._gap_merges(last['end'], current['start']):
                 mark_distinct_merge(last, current)
                 merge_original_twins(last, current)
                 _adopt_later_marker_end(last, current)
@@ -1650,23 +1649,9 @@ class AdValidator:
                     last['pattern_defined'] = True
                 if current.get('_measured_split_fragment'):
                     last['_measured_split_fragment'] = True
-                result.corrections.append(f"Merged ads with {gap:.1f}s gap")
-            elif 0 <= gap < MAX_SILENT_GAP and not self._has_speech_in_range(last['end'], current['start']):
-                # Merge larger gaps if no speech in between
-                mark_distinct_merge(last, current)
-                merge_original_twins(last, current)
-                _adopt_later_marker_end(last, current)
-                if adjacency_extension:
-                    last['vad_gap_adjacency_extension_seconds'] = adjacency_extension
-                if current.get('reason') and current['reason'] != last.get('reason'):
-                    last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
-                if current.get('confidence', 0) > last.get('confidence', 0):
-                    last['confidence'] = current['confidence']
-                if current.get('pattern_defined'):
-                    last['pattern_defined'] = True
-                if current.get('_measured_split_fragment'):
-                    last['_measured_split_fragment'] = True
-                result.corrections.append(f"Merged ads across {gap:.1f}s silent gap")
+                result.corrections.append(
+                    f"Merged ads with {gap:.1f}s gap" if gap < MERGE_GAP_THRESHOLD
+                    else f"Merged ads across {gap:.1f}s silent gap")
             else:
                 merged.append(current.copy())
 

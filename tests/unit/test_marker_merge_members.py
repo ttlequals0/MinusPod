@@ -12,7 +12,7 @@ from ad_detector.boundaries import (
     deduplicate_window_ads,
     split_conflicting_action_span,
 )
-from tests.unit.marker_test_utils import member_bases
+from tests.unit.marker_test_utils import _ad, member_bases
 from utils.markers import (
     carve_fragment,
     clip_dai_core_spans,
@@ -24,10 +24,6 @@ from utils.markers import (
     note_merged_members,
     protected_member_spans,
 )
-
-
-def _ad(start, end, stage, **extra):
-    return {'start': start, 'end': end, 'detection_stage': stage, **extra}
 
 
 def _estimated(start, end, text_start, text_end):
