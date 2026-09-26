@@ -20,6 +20,12 @@ from ad_detector.boundaries import deduplicate_window_ads
 from utils.markers import mark_distinct_merge, note_fold
 
 
+def _base(members):
+    """Member spans reduced to start, end and stage."""
+    if isinstance(members, dict):
+        return {k: members[k] for k in ('start', 'end', 'stage')}
+    return [_base(m) for m in members]
+
 def _mock_segments():
     return [
         {'start': 0.0, 'end': 60.0, 'text': 'show content'},
@@ -291,7 +297,7 @@ def _distinct_merged_ad():
 
 def test_members_recorded_by_a_real_merge_are_honored():
     ad = _distinct_merged_ad()
-    assert ad['merged_member_spans'] == [
+    assert _base(ad['merged_member_spans']) == [
         {'start': 100.0, 'end': 130.0, 'stage': 'claude'},
         {'start': 160.0, 'end': 200.0, 'stage': 'text_pattern'},
     ]

@@ -52,7 +52,7 @@ from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import (
     COARSE_MEMBER_STAGES, dai_core_bounds, finite_number,
     invalidate_tail_provenance, protected_member_spans, span_bounds,
-    spans_match,
+    spans_match, union_cover,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -162,20 +162,10 @@ def inconclusive_bounds_supported(ad: dict, db) -> bool:
 
     tolerance = 0.05
 
-    def covers(spans):
-        cursor = start
-        measured = [(finite_number(span.get('start')),
-                     finite_number(span.get('end'))) for span in spans]
-        for lo, hi in sorted((lo, hi) for lo, hi in measured
-                             if lo is not None and hi is not None and hi > lo):
-            if lo > cursor + tolerance:
-                continue
-            cursor = max(cursor, hi)
-            if cursor >= end - tolerance:
-                return True
-        return False
-
-    if covers(ad.get('dai_core_spans') or []):
+    core = [(span.get('start'), span.get('end'))
+            for span in ad.get('dai_core_spans') or []]
+    if union_cover(core, start, end, gap_tol=tolerance,
+                   edge_tol=tolerance) == (start, end):
         return True
 
     pair = ad.get('cue_pair') or {}

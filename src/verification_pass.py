@@ -296,8 +296,9 @@ def _map_ad_to_original(ad: dict, timestamp_map: list[tuple],
             continue
         for span in spans:
             if isinstance(span, dict):
-                map_field(span, 'start')
-                map_field(span, 'end')
+                for key in ('start', 'end', 'fingerprint_match_start',
+                            'fingerprint_match_end'):
+                    map_field(span, key)
     return mapped
 
 

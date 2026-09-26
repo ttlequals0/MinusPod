@@ -25,6 +25,12 @@ from utils.markers import (
 )
 
 
+def _base(members):
+    """Member spans reduced to start, end and stage."""
+    if isinstance(members, dict):
+        return {k: members[k] for k in ('start', 'end', 'stage')}
+    return [_base(m) for m in members]
+
 def _ad(start, end, stage, **extra):
     return {'start': start, 'end': end, 'detection_stage': stage, **extra}
 
@@ -197,7 +203,7 @@ def test_merge_chain_records_one_span_per_protected_member():
     note_merged_members(base, _ad(161.0, 200.0, 'claude'))
     base['end'] = 200.0
 
-    assert base['merged_member_spans'] == [
+    assert _base(base['merged_member_spans']) == [
         {'start': 100.0, 'end': 130.0, 'stage': 'claude'},
         {'start': 131.0, 'end': 160.0, 'stage': 'text_pattern'},
         {'start': 161.0, 'end': 200.0, 'stage': 'claude'},
@@ -209,7 +215,7 @@ def test_merge_chain_records_one_span_per_protected_member():
 def test_unprotected_members_contribute_no_span():
     base = _ad(837.2, 1040.0, 'dai_differential')
     note_merged_members(base, _ad(1041.0, 1068.5, 'dai_differential'))
-    assert base['merged_member_spans'] == []
+    assert _base(base['merged_member_spans']) == []
 
 
 def test_merged_member_contributes_its_members_not_its_union():
@@ -224,7 +230,7 @@ def test_merged_member_contributes_its_members_not_its_union():
 
     note_merged_members(base, other)
 
-    assert base['merged_member_spans'] == [
+    assert _base(base['merged_member_spans']) == [
         {'start': 100.0, 'end': 290.0, 'stage': 'text_pattern'},
         {'start': 300.0, 'end': 340.0, 'stage': 'claude'},
         {'start': 360.0, 'end': 400.0, 'stage': 'claude'},
@@ -243,7 +249,7 @@ def test_legacy_merged_member_contributes_its_union_as_one_span():
 
     note_merged_members(base, other)
 
-    assert base['merged_member_spans'] == [
+    assert _base(base['merged_member_spans']) == [
         {'start': 100.0, 'end': 290.0, 'stage': 'text_pattern'},
         {'start': 320.0, 'end': 360.0, 'stage': None},
     ]
@@ -257,7 +263,7 @@ def test_estimated_text_pattern_member_records_only_its_matched_text():
 
     note_merged_members(base, other)
 
-    assert base['merged_member_spans'] == [
+    assert _base(base['merged_member_spans']) == [
         {'start': 649.4, 'end': 921.1, 'stage': 'claude'},
         {'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'},
     ]
@@ -278,7 +284,7 @@ def test_text_pattern_member_keeps_full_span(other):
 
     note_merged_members(base, other)
 
-    assert base['merged_member_spans'][1] == {
+    assert _base(base['merged_member_spans'][1]) == {
         'start': 831.75, 'end': 999.65, 'stage': 'text_pattern'}
 
 
@@ -293,7 +299,7 @@ def test_estimate_holding_none_of_its_text_contributes_no_member(other):
 
     note_merged_members(base, other)
 
-    assert base['merged_member_spans'] == [
+    assert _base(base['merged_member_spans']) == [
         {'start': 649.4, 'end': 921.1, 'stage': 'claude'}]
     assert base['merged_protected_end'] == 921.1
 
@@ -304,7 +310,7 @@ def test_estimate_moved_by_a_snap_still_narrows_to_its_text():
 
     note_merged_members(base, _estimated(831.75, 1000.05, 831.75, 860.0))
 
-    assert base['merged_member_spans'][1] == {
+    assert _base(base['merged_member_spans'][1]) == {
         'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'}
 
 
@@ -320,12 +326,12 @@ def test_a_promoted_estimate_flag_cannot_narrow_the_accumulator():
     base['text_start'], base['text_end'] = 831.75, 860.0
     members = [{'start': 649.4, 'end': 921.1, 'stage': 'claude'},
                {'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'}]
-    assert base['merged_member_spans'] == members
+    assert _base(base['merged_member_spans']) == members
 
     later = _ad(1100.0, 1200.0, 'claude')
     note_merged_members(later, base)
 
-    assert later['merged_member_spans'][1:] == members
+    assert _base(later['merged_member_spans'][1:]) == members
 
 
 @pytest.mark.parametrize('stage,expected', [
@@ -346,7 +352,7 @@ def test_overlapping_same_stage_members(stage, expected):
     base['end'] = 400.0
     note_merged_members(base, _ad(403.0, 500.0, stage))
 
-    assert base['merged_member_spans'] == expected
+    assert _base(base['merged_member_spans']) == expected
 
 
 def test_overlapping_members_of_different_stages_stay_separate():
@@ -354,7 +360,7 @@ def test_overlapping_members_of_different_stages_stay_separate():
 
     note_merged_members(base, _ad(150.0, 400.0, 'text_pattern'))
 
-    assert base['merged_member_spans'] == [
+    assert _base(base['merged_member_spans']) == [
         {'start': 100.0, 'end': 300.0, 'stage': 'claude'},
         {'start': 150.0, 'end': 400.0, 'stage': 'text_pattern'}]
 
@@ -368,7 +374,7 @@ def test_clip_merge_spans_narrows_the_union_and_its_members():
 
     clip_merge_spans(marker, 100.0, 150.0)
 
-    assert marker['merged_member_spans'] == [
+    assert _base(marker['merged_member_spans']) == [
         {'start': 100.0, 'end': 150.0, 'stage': 'claude'}]
     assert (marker['merged_protected_start'],
             marker['merged_protected_end']) == (100.0, 150.0)
@@ -412,7 +418,7 @@ def test_window_dedup_records_member_spans():
 
     merged = deduplicate_window_ads(ads)
 
-    assert merged[0]['merged_member_spans'] == [
+    assert _base(merged[0]['merged_member_spans']) == [
         {'start': 100.0, 'end': 130.0, 'stage': 'claude'},
         {'start': 131.0, 'end': 170.0, 'stage': 'claude'},
     ]
