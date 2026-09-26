@@ -574,6 +574,13 @@ def _supported_edge_floor(ad: dict, edge: str, value: float,
     return min([value] + [lo for lo, hi in spans if lo < min(hi, value)])
 
 
+def _floor_source(floor: float, proposed: float, core_edge: float) -> str:
+    """Name what stopped a reviewer edge, for the DAI core clamp log."""
+    if floor == proposed:
+        return 'none'
+    return 'DAI core' if floor == core_edge else 'independent span'
+
+
 # How far a reviewer proposal may cut into a measured merge member before the
 # ad is held. Tuned on its own: matching BOUNDARY_SNAP_TOLERANCE_S is chance.
 _MEASURED_MEMBER_TOLERANCE_S = 3.0
@@ -1651,18 +1658,16 @@ class AdReviewer:
                                           original_end):
                 floor_end = _supported_edge_floor(
                     ad, 'end', clamped_end, original_start, original_end)
-            if floor_start > core_start or floor_end < core_end:
+            if ((floor_start, floor_end) != (clamped_start, clamped_end)
+                    or floor_start > core_start or floor_end < core_end):
                 logger.info(
-                    f"[{slug}:{episode_id}] Reviewer supported trim crossed "
-                    f"DAI core {core_start:.1f}-{core_end:.1f}s: "
-                    f"{floor_start:.1f}-{floor_end:.1f}"
-                )
-            if floor_start != clamped_start or floor_end != clamped_end:
-                logger.info(
-                    f"[{slug}:{episode_id}] Reviewer inward shrink clamped "
-                    f"to DAI core @ {core_start:.1f}-{core_end:.1f}s: "
+                    f"[{slug}:{episode_id}] Reviewer trim vs DAI core "
+                    f"{core_start:.1f}-{core_end:.1f}s: "
                     f"{clamped_start:.1f}-{clamped_end:.1f} -> "
-                    f"{floor_start:.1f}-{floor_end:.1f}"
+                    f"{floor_start:.1f}-{floor_end:.1f} "
+                    f"(start floored by "
+                    f"{_floor_source(floor_start, clamped_start, core_start)}, "
+                    f"end floored by {_floor_source(floor_end, clamped_end, core_end)})"
                 )
             clamped_start, clamped_end = floor_start, floor_end
 

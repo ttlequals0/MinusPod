@@ -72,7 +72,7 @@ def test_no_candidate_restores_confirmed_interval(monkeypatch):
     run['learning'].assert_not_called()
 
 
-def test_confirmed_candidate_rejected_by_reviewer_still_cuts(monkeypatch):
+def test_confirmed_candidate_force_accepted_past_reviewer(monkeypatch):
     _, cuts = _run(monkeypatch, [_candidate(120.0, 160.0)])
     assert cuts == [(120.0, 160.0)]
 
@@ -133,7 +133,7 @@ def test_partial_false_positive_is_excluded(monkeypatch):
 
 
 def test_saved_trim_keep_range_wins(monkeypatch):
-    # A newer trimmed confirm keeps 40-60 in the audio.
+    # A newer trimmed confirm keeps 140-160 in the audio.
     trimmed = {'start': 140.0, 'end': 170.0, 'correction_type': 'confirm',
                'confirmed_span': {'start': 160.0, 'end': 170.0}}
     _, cuts = _run(monkeypatch, [], confirmed=[trimmed, CONFIRM])
@@ -204,6 +204,28 @@ def test_helper_promotes_rejected_marker_with_same_bounds():
     assert rejected['was_cut'] is True
     assert rejected['validation']['user_confirmed'] is True
     assert rejected['_skip_pattern_learning'] is True
+
+
+def test_helper_promote_resets_moved_edge_provenance():
+    held = _ad(119.7, 160.3, was_cut=False, held_for_review=True, hold_reason='estimated',
+               validation={'decision': 'REVIEW'}, quote_aligned_end=True, quote_end=160.3,
+               word_timed_end=160.3, end_extended_by_content=True)
+    result = _restore([], [held], [CONFIRM])
+    assert result == [held] and (held['start'], held['end']) == (120.0, 160.0)
+    for key in ('quote_aligned_end', 'quote_end', 'word_timed_end',
+                'end_extended_by_content', 'held_for_review', 'hold_reason'):
+        assert key not in held
+    assert 'INFO: Restored over prior REVIEW' in held['validation']['flags']
+
+
+def test_helper_logs_consumed_held_marker(caplog):
+    held = _ad(125.0, 150.0, was_cut=False, held_for_review=True, hold_reason='estimated')
+    markers = [held]
+    with caplog.at_level('INFO', logger='ad_validator'):
+        _restore([], markers, [CONFIRM])
+    assert held not in markers
+    assert any('consumed held marker 125.0s-150.0s (hold_reason=estimated)' in r.getMessage()
+               for r in caplog.records)
 
 
 def test_helper_keeps_keep_action_markers():

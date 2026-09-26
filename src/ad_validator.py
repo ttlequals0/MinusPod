@@ -136,9 +136,16 @@ def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_p
             }
             marker = find_marker_in_list(all_ads, lo, hi)
             if marker is not None:
+                prior = (marker.get('validation') or {}).get('decision')
+                if prior:
+                    validation['flags'].append(f"INFO: Restored over prior {prior}")
                 marker.pop('held_for_review', None)
                 marker.pop('hold_reason', None)
-                marker.update(start=lo, end=hi)
+                if (marker['start'], marker['end']) != (lo, hi):
+                    invalidate_tail_provenance(marker, hi)
+                    marker.update(start=lo, end=hi)
+                    invalidate_quote_alignment(marker)
+                    invalidate_word_timed_edges(marker)
             else:
                 marker = {'start': lo, 'end': hi, 'detection_stage': 'manual',
                           'confidence': 1.0,
@@ -151,6 +158,11 @@ def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_p
                          and m['start'] < hi and m['end'] > lo]:
                 # Approving a wider held marker must not re-confirm the restored audio.
                 all_ads.remove(held)
+                if lo <= held['start'] and held['end'] <= hi:
+                    logger.info(
+                        f"Restored confirmed span {lo:.1f}s-{hi:.1f}s consumed held marker "
+                        f"{held['start']:.1f}s-{held['end']:.1f}s "
+                        f"(hold_reason={held.get('hold_reason')})")
                 all_ads.extend(carve_fragment(held, a, b) for a, b in
                                _subtract_spans([(held['start'], held['end'])], [(lo, hi)])
                                if b - a >= MERGE_GAP_SECONDS)

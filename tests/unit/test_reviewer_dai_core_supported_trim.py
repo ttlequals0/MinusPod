@@ -44,6 +44,7 @@ def _marker(**overrides):
             'start': 23.6, 'end': 29.82, 'stage': 'fingerprint',
             'fingerprint_match_start': 0.0, 'fingerprint_match_end': 63.8}],
         'merged_protected_start': 23.6, 'merged_protected_end': 29.82,
+        'merged_distinct_ads': True,
     }
     marker.update(overrides)
     return marker
@@ -80,9 +81,10 @@ def test_supported_trim_crosses_unmeasured_region_end(monkeypatch):
 def test_fingerprint_match_over_region_floors_supported_end(monkeypatch):
     member = {'start': 0.0, 'end': 73.2, 'stage': 'fingerprint',
               'fingerprint_match_start': 0.0, 'fingerprint_match_end': 73.2}
+    # Unmerged, so the supported-edge floor runs; merged, the member-conflict hold fires first.
     _, cuts = _run(monkeypatch, _marker(
         merged_member_spans=[member], merged_protected_start=0.0,
-        merged_protected_end=73.2))
+        merged_protected_end=73.2, merged_distinct_ads=False))
     assert cuts == [(0.0, 73.2)]
 
 
@@ -192,3 +194,16 @@ def test_clamp_with_segments_lets_supported_end_cross_core():
     bounds = reviewer._clamp_proposed_bounds(
         _marker(), 3.2, 58.2, 0.0, 73.2, 60, 'slug', 'ep', segments=SEGMENTS)
     assert bounds == pytest.approx((0.0, 58.2))
+
+
+def test_clamp_log_names_what_floored_each_edge(caplog):
+    marker = _marker(cue_pair={'start': {'cue_end': -0.05}, 'end': {'cue_start': 63.85}})
+    reviewer = AdReviewer.__new__(AdReviewer)
+    with caplog.at_level('INFO', logger='ad_reviewer'):
+        bounds = reviewer._clamp_proposed_bounds(
+            marker, 3.2, 58.2, 0.0, 73.2, 60,
+            'slug', 'ep', segments=SEGMENTS)
+    assert bounds == pytest.approx((0.0, 63.8))
+    lines = [r.getMessage() for r in caplog.records if 'DAI core' in r.getMessage()]
+    assert len(lines) == 1
+    assert 'start floored by DAI core, end floored by independent span' in lines[0]
