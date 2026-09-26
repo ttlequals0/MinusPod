@@ -240,7 +240,7 @@ _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERN
 # a contradiction hold, even when a negation appears later in the same
 # prose. Boundary notes like "that interview material is not advertising"
 # refer to a sub-span the reviewer wants trimmed, not the candidate
-# (tosh-show 6e9f8a115e24, daily-tech-news-show 0b79e6e6c143 both held
+# (example-podcast a1b2c3d4e5f6, another-podcast f6e5d4c3b2a1 both held
 # real ad breaks this way). Assertion-shaped, like the negations above.
 #
 # TODO(structural): this affirmation/negation/trim-language regex triad is a
@@ -532,7 +532,7 @@ def _speech_units(segments) -> list[tuple[float, float]]:
 
 
 def _edge_matches(value: float, new: float) -> bool:
-    return abs(value - new) <= EDGE_TOLERANCE or float(f"{value:.1f}") == new
+    return abs(value - new) <= EDGE_TOLERANCE
 
 
 def _edge_transcript_supported(units, edge: str, new: float, old: float) -> bool:

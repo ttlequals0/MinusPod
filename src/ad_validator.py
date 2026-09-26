@@ -120,8 +120,9 @@ def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_p
                for start, end in fp_spans):
             continue
         for lo, hi in subtract_spans([(span_start, span_end)], claimed + barriers):
-            # The per-feed opening exclusion outranks a saved confirm.
-            if hi - lo < MERGE_GAP_SECONDS or lo < exclude_start_seconds:
+            # The per-feed opening exclusion clips a saved confirm.
+            lo = max(lo, exclude_start_seconds)
+            if hi - lo < MERGE_GAP_SECONDS:
                 continue
             validation = {
                 'decision': Decision.ACCEPT.value, 'adjusted_confidence': 1.0,
@@ -140,6 +141,9 @@ def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_p
                     marker.update(start=lo, end=hi)
                     invalidate_quote_alignment(marker)
                     invalidate_word_timed_edges(marker)
+                # Stale wider evidence must not let a later clamp re-expand it.
+                clip_dai_core_spans(marker, lo, hi)
+                clip_merge_spans(marker, lo, hi)
             else:
                 marker = {'start': lo, 'end': hi, 'detection_stage': 'manual',
                           'confidence': 1.0,

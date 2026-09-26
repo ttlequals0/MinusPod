@@ -8,7 +8,8 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('confirmed_span_restore_test_')
 
-from ad_validator import restore_uncovered_confirmed_spans, user_trimmed_keep_ranges
+from ad_validator import (AdValidator, ValidationResult, restore_uncovered_confirmed_spans,
+                          user_trimmed_keep_ranges)
 from config import is_pending_review
 from main_app import processing
 from tests.unit.marker_test_utils import _ad
@@ -158,8 +159,8 @@ def test_held_marker_is_carved_around_restored_piece(monkeypatch):
 
 
 @pytest.mark.parametrize('exclusion, expected', [
-    (100.0, [(120.0, 160.0)]), (130.0, []), (200.0, [])])
-def test_opening_exclusion_wins_over_confirm(monkeypatch, exclusion, expected):
+    (100.0, [(120.0, 160.0)]), (130.0, [(130.0, 160.0)]), (200.0, [])])
+def test_opening_exclusion_clips_confirm(monkeypatch, exclusion, expected):
     monkeypatch.setattr(processing, 'resolve_ad_detection_exclude_start_seconds',
                         lambda db, podcast_id: exclusion)
     _, cuts = _run(monkeypatch, [])
@@ -171,7 +172,7 @@ def test_recut_respects_opening_exclusion(monkeypatch):
                         lambda db, podcast_id: 40.0)
     confirm = {'start': 30.0, 'end': 50.0, 'correction_type': 'confirm'}
     cuts, _ = _run_recut([], [], ALL_REMOVE, confirmed_corrections=[confirm])
-    assert cuts == []
+    assert [(c['start'], c['end']) for c in cuts] == [(40.0, 50.0)]
 
 
 def test_recut_restores_confirmed_interval():
@@ -256,10 +257,27 @@ def test_helper_keeps_keep_action_markers():
     assert [(a['start'], a['end']) for a in result] == [(120.0, 130.0), (140.0, 160.0)]
 
 
-def test_helper_skips_piece_starting_inside_opening_exclusion():
-    confirmed = [CONFIRM]
+def test_helper_clips_piece_at_opening_exclusion():
+    result = restore_uncovered_confirmed_spans(
+        [], [], [CONFIRM], [], [], DURATION, exclude_start_seconds=130.0)
+    assert [(a['start'], a['end']) for a in result] == [(130.0, 160.0)]
+    assert result[0]['validation']['confirmed_span'] == {'start': 130.0, 'end': 160.0}
     assert restore_uncovered_confirmed_spans(
-        [], [], confirmed, [], [], DURATION, exclude_start_seconds=130.0) == []
+        [], [], [CONFIRM], [], [], DURATION, exclude_start_seconds=159.5) == []
+
+
+def test_helper_promote_clips_stale_dai_core_and_members():
+    marker = _ad(119.7, 160.3, 'claude', was_cut=False, validation={'decision': 'REJECT'},
+                 dai_core_spans=[{'start': 105.0, 'end': 175.0}],
+                 merged_protected_start=105.0, merged_protected_end=175.0,
+                 merged_member_spans=[{'start': 105.0, 'end': 175.0, 'stage': 'claude'}])
+    _restore([], [marker], [CONFIRM])
+    assert (marker['start'], marker['end']) == (120.0, 160.0)
+    assert marker['dai_core_spans'] == [{'start': 120.0, 'end': 160.0}]
+    assert (marker['merged_protected_start'], marker['merged_protected_end']) == (120.0, 160.0)
+    AdValidator(episode_duration=DURATION, segments=[])._clamp_boundaries(
+        [marker], ValidationResult(ads=[]))
+    assert (marker['start'], marker['end']) == (120.0, 160.0)
 
 
 def test_helper_false_positive_majority_skips_confirm():

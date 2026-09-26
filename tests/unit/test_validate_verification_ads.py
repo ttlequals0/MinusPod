@@ -809,13 +809,13 @@ def test_no_cue_hold_is_never_corroborated():
 
 
 def test_padded_hold_tail_still_corroborates_and_records_span():
-    """tosh-show 6e9f8a115e24: a 239.9s hold with a 24.3s alignment-padding
-    tail scored 0.899 coverage and missed the old 0.9 bar; the ZocDoc break
+    """example-podcast a1b2c3d4e5f6: a 239.9s hold with a 24.3s alignment-padding
+    tail scored 0.899 coverage and missed the old 0.9 bar; the Acme break
     shipped audible. Under the 0.75 bar it stamps, and the corroborated
     sub-span (what pass 2 actually attested, clamped into the hold) is
     recorded for the trimmed auto-approve confirm."""
     proc = [_plain_proc(100.0, 317.9)]
-    orig = [_orig(835.1, 1053.0, 'pestease')]
+    orig = [_orig(835.1, 1053.0, 'acme')]
     hold = _diff_hold(837.4, 1077.3)
 
     _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
@@ -837,11 +837,11 @@ def _contradiction_hold(start, end, p_start, p_end):
 
 
 def test_proposed_span_agreement_corroborates_despite_low_coverage():
-    # tosh-show 6e9f8a115e24 Lincoln Tech: hold 3872.9-3933.3, reviewer
+    # example-podcast a1b2c3d4e5f6 Acme: hold 3872.9-3933.3, reviewer
     # proposed 3895.8-3929.9, pass 2 found the same span. Coverage of the
     # padded hold is 56 percent, but the two sub-spans agree exactly.
     proc = [_plain_proc(100.0, 134.1)]
-    orig = [_orig(3895.8, 3929.9, 'lincoln')]
+    orig = [_orig(3895.8, 3929.9, 'acme')]
     hold = _contradiction_hold(3872.9, 3933.3, 3895.8, 3929.9)
     _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])

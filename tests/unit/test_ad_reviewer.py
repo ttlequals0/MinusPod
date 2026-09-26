@@ -1024,7 +1024,7 @@ def _merged_ad(start, end, p_start='absent', p_end='absent'):
 
 
 def test_clamp_trims_differential_tail_when_no_protected_members():
-    # Tosh 6e9f8a115e24: two differential regions merged; reviewer trims
+    # example-podcast a1b2c3d4e5f6: two differential regions merged; reviewer trims
     # the imprecise tail. Null protection means fully trimmable.
     r = _build_reviewer()
     ad = _merged_ad(837.2, 1068.5, p_start=None, p_end=None)

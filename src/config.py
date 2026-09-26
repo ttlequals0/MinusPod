@@ -285,7 +285,7 @@ PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE = 0.5
 # short ad inside a long hold must not approve the whole hold. The bar is
 # deliberately below 0.9: differential hold tails carry alignment padding
 # the detection rightly excludes (a 240s hold with 24s of padding scored
-# 0.899 and stayed audible, tosh-show 6e9f8a115e24), and the auto-approve
+# 0.899 and stayed audible, example-podcast a1b2c3d4e5f6), and the auto-approve
 # confirm is trimmed to the corroborated span, so the uncovered remainder
 # is never cut on the strength of this threshold.
 PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.75
