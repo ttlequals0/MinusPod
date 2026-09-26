@@ -25,17 +25,21 @@ _POSSESSIVE_SUFFIXES = ("'s",)
 _POSSESSIVE_SPELLINGS = ("'s", "\u2019s")
 
 
-# Whole words only, so "keeps" and "romance" do not yield sponsors.
-DESCRIPTION_SPONSOR_PATTERNS = re.compile(
-    r'(?<!\w)(?:betterhelp|athletic\s*greens|ag1|squarespace|nordvpn|'
+# Substring match: the validator's confidence boost relies on hits like "visitacme.com".
+SPONSOR_SUBSTRING_PATTERNS = re.compile(
+    r'(?:betterhelp|athletic\s*greens|ag1|squarespace|nordvpn|'
     r'expressvpn|hellofresh|audible|masterclass|ziprecruiter|'
     r'raycon|manscaped|stamps\.com|indeed|linkedin|'
     r'casper|helix|brooklinen|bombas|calm|headspace|'
     r'better\s*help|honey|simplisafe|wix|shopify|'
     r'bluechew|roman|hims|keeps|factor|noom|'
-    r'magic\s*spoon|athletic\s*brewing|liquid\s*iv)(?!\w)',
+    r'magic\s*spoon|athletic\s*brewing|liquid\s*iv)',
     re.IGNORECASE
 )
+
+# Whole words only, so "keeps" and "romance" do not yield description sponsors.
+DESCRIPTION_SPONSOR_PATTERNS = re.compile(
+    rf'(?<!\w){SPONSOR_SUBSTRING_PATTERNS.pattern}(?!\w)', re.IGNORECASE)
 
 # Domains from href URLs (e.g., "bitwarden.com/twit" -> "bitwarden").
 _DESCRIPTION_HREF_RE = re.compile(

@@ -6,8 +6,8 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('window_guards_test_')
 
-from ad_detector import AdDetector, _known_sponsor_pattern
-from ad_detector.prompts import _normalize_ad, parse_ads_from_response
+from ad_detector import AdDetector, _known_sponsor_matchers
+from ad_detector.prompts import EpisodeSponsors, _normalize_ad, parse_ads_from_response
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_normalize import extract_description_sponsors
 from text_pattern_matcher import TextMatch
@@ -186,7 +186,7 @@ def test_null_ad_object_is_discarded():
 
 # Production shape: a 159 s window at 0.99 whose reason names the brand.
 _LONG_START, _LONG_END = 3521.7, 3680.7
-_ACME = word_boundary_re(['Acme Pet Food'])
+_ACME = EpisodeSponsors(word_boundary_re(['Acme Pet Food']), None)
 
 
 def _long_window(**fields):
@@ -205,13 +205,13 @@ def _registry(*names):
 
 def test_normalize_ad_accepts_episode_pattern_sponsor(caplog):
     kept = _normalize_ad(_long_window(), _LONG_START, _LONG_END,
-                         episode_sponsor_re=_ACME)
+                         episode_sponsors=_ACME)
     assert kept is not None
     assert (kept['start'], kept['end']) == (_LONG_START, _LONG_END)
 
     with caplog.at_level(logging.INFO, logger='podcast.claude'):
         dropped = _normalize_ad(_long_window(), _LONG_START, _LONG_END,
-                                episode_sponsor_re=None)
+                                episode_sponsors=None)
     assert dropped is None
     assert 'no sponsor identified in reason' in caplog.text
 
@@ -220,7 +220,7 @@ def test_normalize_ad_episode_sponsor_in_start_text_counts():
     ad = _long_window(reason='Host talks through a kibble lineup',
                       start_text='acme pet food makes it easy')
     assert _normalize_ad(ad, _LONG_START, _LONG_END,
-                         episode_sponsor_re=_ACME) is not None
+                         episode_sponsors=_ACME) is not None
 
 
 def test_registry_name_in_a_quote_does_not_admit_a_long_window():
@@ -238,13 +238,13 @@ def test_episode_sponsor_in_end_text_counts():
     ad = _long_window(reason='Host talks through a kibble lineup',
                       end_text='that is Acme Pet Food dot com')
     assert _normalize_ad(ad, _LONG_START, _LONG_END,
-                         episode_sponsor_re=_ACME) is not None
+                         episode_sponsors=_ACME) is not None
 
 
 def test_episode_sponsor_match_is_whole_word():
     ad = _long_window(reason='Hosts recap what happened on Sunday at length')
     assert _normalize_ad(ad, _LONG_START, _LONG_END,
-                         episode_sponsor_re=word_boundary_re(['Sun'])) is None
+                         episode_sponsors=EpisodeSponsors(word_boundary_re(['Sun']), None)) is None
 
 
 def test_parse_ads_from_response_forwards_episode_sponsors():
@@ -252,7 +252,7 @@ def test_parse_ads_from_response_forwards_episode_sponsors():
                 '"reason": "Host talks through the Acme Pet Food kibble lineup"}]')
     assert parse_ads_from_response(response) == []
     assert len(parse_ads_from_response(
-        response, episode_sponsor_re=_ACME)) == 1
+        response, episode_sponsors=_ACME)) == 1
 
 
 def test_window_passes_episode_sponsors_to_the_gate():
@@ -262,11 +262,11 @@ def test_window_passes_episode_sponsors_to_the_gate():
 
     assert _run_window(response, window=window).ads == []
     kept = _run_window(response, window=window,
-                       episode_sponsor_re=_ACME)
+                       episode_sponsors=_ACME)
     assert len(kept.ads) == 1
 
 
-def test_known_sponsor_pattern_collects_matches_and_description():
+def test_known_sponsor_matchers_collects_matches_and_description():
     extract_description_sponsors.cache_clear()
     ads = [
         {'detection_stage': 'fingerprint', 'sponsor': 'Acme Pet Food'},
@@ -276,12 +276,38 @@ def test_known_sponsor_pattern_collects_matches_and_description():
     ]
     description = 'Sponsored by <a href="https://www.umbrellacorp.com/show">Umbrella</a>'
 
-    pattern = _known_sponsor_pattern(ads, description)
+    matchers = _known_sponsor_matchers(ads, description)
 
-    for name in ('acme pet food', 'Globex', 'UMBRELLACORP'):
-        assert pattern.search(f'thanks to {name} today')
+    for name in ('acme pet food', 'Globex'):
+        assert matchers.audio_re.search(f'thanks to {name} today')
+    assert not matchers.audio_re.search('thanks to umbrellacorp')
+    assert matchers.summary_re.search('thanks to UMBRELLACORP today')
     # A common word stored as a sponsor must not admit a content window.
-    assert not pattern.search('what happened today')
+    assert not matchers.audio_re.search('what happened today')
+
+
+def test_description_sponsors_skip_non_brand_tokens():
+    extract_description_sponsors.cache_clear()
+    assert _known_sponsor_matchers([], 'Brought to you by Wix') is None
+
+
+def test_description_sponsor_in_a_quote_does_not_admit_a_long_window():
+    extract_description_sponsors.cache_clear()
+    matchers = _known_sponsor_matchers([], 'This episode is brought to you by Calm.')
+    ad = _long_window(reason='Hosts recap the week in review at length',
+                      end_text='just stay calm and carry on')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=matchers) is None
+
+    ad['reason'] = 'Calm meditation app read'
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=matchers) is not None
+
+
+def test_audio_matched_sponsor_in_a_quote_admits_a_long_window():
+    matchers = _known_sponsor_matchers(
+        [{'detection_stage': 'text_pattern', 'sponsor': 'Globex'}], None)
+    ad = _long_window(reason='Hosts recap the week in review at length',
+                      end_text='head over to globex dot com')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=matchers) is not None
 
 
 def test_pass2_sponsor_pattern_takes_every_pass1_cut_sponsor():
@@ -301,16 +327,16 @@ def test_description_sponsors_are_whole_words():
     assert extract_description_sponsors(description) == frozenset({'squarespace'})
 
 
-def test_known_sponsor_pattern_is_none_without_sponsors():
-    assert _known_sponsor_pattern([], None) is None
+def test_known_sponsor_matchers_is_none_without_sponsors():
+    assert _known_sponsor_matchers([], None) is None
 
 
 def test_description_sponsors_extract_once_per_description(caplog):
     extract_description_sponsors.cache_clear()
     description = 'Thanks to <a href="https://globex.com/show">Globex</a>'
     with caplog.at_level(logging.INFO):
-        _known_sponsor_pattern([], description)
-        _known_sponsor_pattern([], description)
+        _known_sponsor_matchers([], description)
+        _known_sponsor_matchers([], description)
     assert caplog.text.count('Extracted sponsors from description') == 1
 
 
@@ -365,9 +391,10 @@ def test_process_transcript_hands_known_sponsors_to_the_llm_pass():
             podcast_id='example-podcast', skip_patterns=False,
             audio_path=None, dai_differential=MagicMock(), keep_content=False)
 
-    pattern = detect.call_args.kwargs['episode_sponsor_re']
-    assert pattern.search('Acme Pet Food') and pattern.search('globex')
-    assert not pattern.search('Initech is hiring')
+    matchers = detect.call_args.kwargs['episode_sponsors']
+    assert matchers.audio_re.search('Acme Pet Food')
+    assert matchers.summary_re.search('globex')
+    assert not any(m.search('Initech is hiring') for m in matchers)
 
 
 def _run_verification(response_text, **kwargs):
@@ -417,3 +444,10 @@ def test_verification_pass_forwards_pass1_cuts():
         original_segments=[{'start': 0.0, 'end': 100.0, 'text': 'hello'}])
 
     assert detector.run_verification_detection.call_args.kwargs['pass1_cuts'] is cuts
+
+
+def test_unmerged_description_field_still_reaches_the_gate():
+    ad = _long_window(reason='Hosts recap the week',
+                      description='Acme Pet Food read',
+                      notes='A much longer free-text note that wins the merge slot')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=_ACME) is not None

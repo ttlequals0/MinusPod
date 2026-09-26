@@ -49,7 +49,7 @@ from utils.markers import (
 from differential_fetcher import differential_region_overlapping
 from community_export import brand_match_candidates
 from text_pattern_matcher import _segments_for_pattern_learning
-from sponsor_normalize import DESCRIPTION_SPONSOR_PATTERNS, extract_description_sponsors
+from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS, extract_description_sponsors
 from utils.constants import squash_brand
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
@@ -154,7 +154,7 @@ class AdValidator:
     # POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN, MERGE_GAP_THRESHOLD
 
     # Sponsor patterns for verification
-    SPONSOR_PATTERNS = DESCRIPTION_SPONSOR_PATTERNS
+    SPONSOR_PATTERNS = SPONSOR_SUBSTRING_PATTERNS
 
     AD_SIGNAL_PATTERNS = re.compile(
         r'promo\s*code|use\s+code\s+\w+|\.com\/\w+|'

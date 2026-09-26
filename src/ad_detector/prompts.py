@@ -7,6 +7,7 @@ for readability; behavior is unchanged from the pre-split module.
 import logging
 import json
 import re
+from typing import NamedTuple
 
 from sponsor_service import SponsorService
 from utils.prompt import (
@@ -360,13 +361,22 @@ def _extract_sponsor_name(ad: dict) -> str:
     return 'Advertisement detected'
 
 
+class EpisodeSponsors(NamedTuple):
+    """Sponsor matchers for one episode, split by where a name may match."""
+    audio_re: re.Pattern | None  # heard in this episode's audio: summary and quotes
+    summary_re: re.Pattern | None  # description-derived: summary only
+
+
 def _names_known_sponsor(summary: list[str], quotes: list[str],
-                         episode_sponsor_re: re.Pattern | None,
+                         episode_sponsors: EpisodeSponsors | None,
                          sponsor_service) -> bool:
     """Whether any text names a known episode sponsor, or the summary a registry sponsor."""
-    if episode_sponsor_re is not None and any(
-            episode_sponsor_re.search(t) for t in summary + quotes):
-        return True
+    if episode_sponsors is not None:
+        audio_re, summary_re = episode_sponsors
+        if audio_re is not None and any(audio_re.search(t) for t in summary + quotes):
+            return True
+        if summary_re is not None and any(summary_re.search(t) for t in summary):
+            return True
     # Quotes are excluded: registry names like "Indeed" are common words.
     return bool(sponsor_service) and any(
         sponsor_service.find_sponsor_in_text(t) for t in summary)
@@ -374,7 +384,7 @@ def _names_known_sponsor(summary: list[str], quotes: list[str],
 
 def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
                    episode_id: str = None, sponsor_service=None,
-                   episode_sponsor_re: re.Pattern | None = None) -> dict | None:
+                   episode_sponsors: EpisodeSponsors | None = None) -> dict | None:
     """Post-parse normalization shared by the timestamp-mode and segment-id-mode
     parsers: degenerate-range rejection, is_ad/classification filters, sponsor
     name + reason/description extraction, confidence normalization, the
@@ -422,7 +432,7 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     # Extract description from Claude's response to enrich the reason
     # Dynamic scan: check ALL non-structural string fields > 10 chars
     # Skip 'reason' (already used above); duplication with sponsor handled at combine time
-    description = None
+    description = description_key = None
     for key, val in ad.items():
         if key.lower() in STRUCTURAL_FIELDS:
             continue
@@ -431,7 +441,7 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
         if isinstance(val, str) and len(val) > 10:
             # Prefer longer descriptive text over short values
             if description is None or len(val) > len(description):
-                description = val
+                description, description_key = val, key
     # Kept whole (#591); the old 300/150 caps put a literal
     # "..." in the UI with no fuller text to expand to.
     description = truncate(
@@ -473,11 +483,14 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     # Checked only when cheaper evidence is missing: the registry scan is costly.
     has_known_sponsor = False
     if not has_sponsor_field and not has_ad_language:
-        summary = [t for t in (reason, _as_text(ad.get('description'))) if t]
+        # The reason already carries the description when it was the one merged in.
+        raw_description = (_as_text(ad.get('description'))
+                           if description_key != 'description' else '')
+        summary = [t for t in (reason, raw_description) if t]
         quotes = [t for t in (_as_text(ad.get('start_text')),
                               _as_text(ad.get('end_text'))) if t]
         has_known_sponsor = _names_known_sponsor(
-            summary, quotes, episode_sponsor_re, sponsor_service)
+            summary, quotes, episode_sponsors, sponsor_service)
 
     if not has_sponsor_field and not has_known_sponsor and not has_ad_language:
         # Low confidence + no evidence = reject regardless of duration
@@ -531,7 +544,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                               episode_id: str = None,
                               sponsor_service=None,
                               compliance_meta: dict | None = None,
-                              episode_sponsor_re: re.Pattern | None = None) -> list[dict]:
+                              episode_sponsors: EpisodeSponsors | None = None) -> list[dict]:
     """Parse ad segments from Claude's JSON response.
 
     ``compliance_meta``: optional out-param dict (same pattern as
@@ -600,7 +613,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                     end = parse_timestamp(end_val)
                     ad_entry = _normalize_ad(
                         ad, start, end, slug, episode_id, sponsor_service,
-                        episode_sponsor_re)
+                        episode_sponsors)
                     if ad_entry is not None:
                         valid_ads.append(ad_entry)
                 except ValueError as e:
@@ -689,7 +702,7 @@ def parse_id_ads_from_response(response_text: str, slug: str = None,
 def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
                             slug: str = None, episode_id: str = None,
                             sponsor_service=None,
-                            episode_sponsor_re: re.Pattern | None = None) -> list[dict]:
+                            episode_sponsors: EpisodeSponsors | None = None) -> list[dict]:
     """Map start_id/end_id to exact segment start/end seconds, then run the
     resolved ads through the same post-parse normalization
     ``parse_ads_from_response`` applies (confidence normalization, sponsor
@@ -715,7 +728,7 @@ def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
         end = seg_hi['end']
         try:
             ad_entry = _normalize_ad(raw, start, end, slug, episode_id,
-                                     sponsor_service, episode_sponsor_re)
+                                     sponsor_service, episode_sponsors)
         except (ValueError, TypeError) as e:
             logger.warning(
                 f"[{slug}:{episode_id}] Skipping ad with invalid field "
