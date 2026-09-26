@@ -10,6 +10,7 @@ from ad_detector import AdDetector, _known_sponsor_matchers
 from ad_detector.prompts import EpisodeSponsors, _normalize_ad, parse_ads_from_response
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_normalize import extract_description_sponsors
+from utils.constants import REASON_DESCRIPTION_MAX
 from text_pattern_matcher import TextMatch
 from utils.text import word_boundary_re
 from verification_pass import VerificationPass
@@ -451,3 +452,11 @@ def test_unmerged_description_field_still_reaches_the_gate():
                       description='Acme Pet Food read',
                       notes='A much longer free-text note that wins the merge slot')
     assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=_ACME) is not None
+
+
+def test_sponsor_past_the_description_cap_still_reaches_the_gate():
+    matchers = EpisodeSponsors(None, word_boundary_re(['Globex']))
+    long_text = 'The hosts talk through the week at length. ' * (REASON_DESCRIPTION_MAX // 40)
+    ad = _long_window(reason='Hosts recap the week',
+                      description=f'{long_text}Then a Globex read closes it out.')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=matchers) is not None

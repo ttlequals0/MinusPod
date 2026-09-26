@@ -428,6 +428,7 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     elif existing_reason and isinstance(existing_reason, str) and len(existing_reason) > len(reason) + 5:
         # Claude's reason is substantially more descriptive than the bare sponsor name
         reason = existing_reason
+    base_reason = reason
 
     # Extract description from Claude's response to enrich the reason
     # Dynamic scan: check ALL non-structural string fields > 10 chars
@@ -444,9 +445,8 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
                 description, description_key = val, key
     # Kept whole (#591); the old 300/150 caps put a literal
     # "..." in the UI with no fuller text to expand to.
-    description = truncate(
-        _strip_continuation_prefix(description),
-        REASON_DESCRIPTION_MAX)
+    full_description = _strip_continuation_prefix(description)
+    description = truncate(full_description, REASON_DESCRIPTION_MAX)
 
     # Combine sponsor + description in reason field
     if description:
@@ -483,10 +483,10 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     # Checked only when cheaper evidence is missing: the registry scan is costly.
     has_known_sponsor = False
     if not has_sponsor_field and not has_ad_language:
-        # The reason already carries the description when it was the one merged in.
+        # Untruncated pieces, so a sponsor past the reason's length cap still counts.
         raw_description = (_as_text(ad.get('description'))
                            if description_key != 'description' else '')
-        summary = [t for t in (reason, raw_description) if t]
+        summary = [t for t in (base_reason, full_description, raw_description) if t]
         quotes = [t for t in (_as_text(ad.get('start_text')),
                               _as_text(ad.get('end_text'))) if t]
         has_known_sponsor = _names_known_sponsor(
