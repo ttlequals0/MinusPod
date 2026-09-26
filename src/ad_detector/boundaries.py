@@ -1134,8 +1134,8 @@ def region_matches_marker(region: dict, marker: dict) -> bool:
 def record_absorbed_detection(ad: dict, coverage_regions: list,
                               all_ads: list[dict]) -> None:
     """Record a covered LLM ad as a member of each pattern marker absorbing it."""
-    member = dict(ad, detection_stage=(
-        'keep_content' if ad.get('detection_stage') == 'keep_content' else 'claude'))
+    stage = ad.get('detection_stage')
+    member = dict(ad, detection_stage=stage if stage == 'keep_content' else 'claude')
     for region in coverage_regions:
         if not isinstance(region, dict):
             continue

@@ -2,6 +2,8 @@
 from dataclasses import dataclass
 from unittest.mock import patch
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 bootstrap('confirmed_span_restore_test_')
@@ -9,6 +11,7 @@ bootstrap('confirmed_span_restore_test_')
 from ad_validator import restore_uncovered_confirmed_spans, user_trimmed_keep_ranges
 from config import is_pending_review
 from main_app import processing
+from tests.unit.marker_test_utils import _ad
 from tests.unit.test_keep_bypass import _run_pipeline
 from tests.unit.test_processing_boundary_safety import InconclusiveError, _reviewer
 from tests.unit.test_segment_rerender import ALL_REMOVE, _run_recut
@@ -64,12 +67,18 @@ def _restored(markers):
     return [m for m in markers if m.get('detection_stage') == 'manual']
 
 
+def _learnable(run):
+    """Markers handed to learning that the detector's own filter accepts."""
+    return [ad for call in run['learning'].call_args_list for ad in call.args[0]
+            if processing.ad_detector._ad_passes_learning_filters(ad, 0.0)]
+
+
 def test_no_candidate_restores_confirmed_interval(monkeypatch):
     run, cuts = _run(monkeypatch, [])
     assert cuts == [(120.0, 160.0)]
     restored = _restored(run['local_ap'].process_episode.call_args.args[1])
     assert restored[0]['validation']['user_confirmed'] is True
-    run['learning'].assert_not_called()
+    assert _learnable(run) == []
 
 
 def test_confirmed_candidate_force_accepted_past_reviewer(monkeypatch):
@@ -86,7 +95,7 @@ def test_trimmed_confirm_restores_only_approved_span(monkeypatch):
 def test_wide_candidate_rejected_by_reviewer_restores_interval(monkeypatch):
     run, cuts = _run(monkeypatch, [_candidate(110.0, 195.0)])
     assert cuts == [(120.0, 160.0)]
-    run['learning'].assert_not_called()
+    assert _learnable(run) == []
 
 
 def test_reviewer_trim_restores_uncovered_remainder(monkeypatch):
@@ -148,17 +157,30 @@ def test_held_marker_is_carved_around_restored_piece(monkeypatch):
     assert sorted((m['start'], m['end']) for m in held) == [(110.0, 120.0), (160.0, 195.0)]
 
 
+@pytest.mark.parametrize('exclusion, expected', [
+    (100.0, [(120.0, 160.0)]), (130.0, []), (200.0, [])])
+def test_opening_exclusion_wins_over_confirm(monkeypatch, exclusion, expected):
+    monkeypatch.setattr(processing, 'resolve_ad_detection_exclude_start_seconds',
+                        lambda db, podcast_id: exclusion)
+    _, cuts = _run(monkeypatch, [])
+    assert cuts == expected
+
+
+def test_recut_respects_opening_exclusion(monkeypatch):
+    monkeypatch.setattr(processing, 'resolve_ad_detection_exclude_start_seconds',
+                        lambda db, podcast_id: 40.0)
+    confirm = {'start': 30.0, 'end': 50.0, 'correction_type': 'confirm'}
+    cuts, _ = _run_recut([], [], ALL_REMOVE, confirmed_corrections=[confirm])
+    assert cuts == []
+
+
 def test_recut_restores_confirmed_interval():
-    rejected = {'start': 10.0, 'end': 50.0, 'was_cut': False, 'category': 'sponsor',
-                'detection_stage': 'claude', 'validation': {'decision': 'REJECT'}}
+    rejected = _ad(10.0, 50.0, 'claude', was_cut=False, category='sponsor',
+                   validation={'decision': 'REJECT'})
     confirm = {'start': 30.0, 'end': 50.0, 'correction_type': 'confirm'}
     cuts, saved = _run_recut([], [rejected], ALL_REMOVE, confirmed_corrections=[confirm])
     assert [(c['start'], c['end']) for c in cuts] == [(30.0, 50.0)]
     assert [(m['start'], m['end']) for m in _restored(saved)] == [(30.0, 50.0)]
-
-
-def _ad(start, end, **extra):
-    return dict({'start': start, 'end': end, 'was_cut': True}, **extra)
 
 
 def _restore(cuts, markers, confirmed, fps=(), duration=DURATION):
@@ -168,7 +190,7 @@ def _restore(cuts, markers, confirmed, fps=(), duration=DURATION):
 
 
 def test_helper_fills_only_uncovered_pieces():
-    cut = _ad(130.0, 140.0)
+    cut = _ad(130.0, 140.0, was_cut=True)
     markers = [cut]
     result = _restore([cut], markers, [CONFIRM])
     assert [(a['start'], a['end']) for a in result] == [
@@ -182,7 +204,7 @@ def test_helper_fills_only_uncovered_pieces():
 
 
 def test_helper_skips_slivers_and_clamps_to_duration():
-    cuts = [_ad(120.5, 159.7)]
+    cuts = [_ad(120.5, 159.7, was_cut=True)]
     assert _restore(cuts, list(cuts), [CONFIRM]) == cuts
     result = _restore([], [], [CONFIRM], duration=145.0)
     assert [(a['start'], a['end']) for a in result] == [(120.0, 145.0)]
@@ -196,14 +218,14 @@ def test_helper_ignores_adjustments_and_auto_filed_confirms():
 
 
 def test_helper_promotes_rejected_marker_with_same_bounds():
-    rejected = _ad(120.0, 160.0, was_cut=False, detection_stage='claude',
+    rejected = _ad(120.0, 160.0, 'claude', was_cut=False,
                    validation={'decision': 'REJECT'})
     markers = [rejected]
     result = _restore([], markers, [CONFIRM])
     assert result == [rejected] and markers == [rejected]
     assert rejected['was_cut'] is True
     assert rejected['validation']['user_confirmed'] is True
-    assert rejected['_skip_pattern_learning'] is True
+    assert not processing.ad_detector._ad_passes_learning_filters(rejected, 0.0)
 
 
 def test_helper_promote_resets_moved_edge_provenance():
@@ -232,6 +254,12 @@ def test_helper_keeps_keep_action_markers():
     kept = _ad(130.0, 140.0, was_cut=False, action_applied='keep')
     result = _restore([], [kept], [CONFIRM])
     assert [(a['start'], a['end']) for a in result] == [(120.0, 130.0), (140.0, 160.0)]
+
+
+def test_helper_skips_piece_starting_inside_opening_exclusion():
+    confirmed = [CONFIRM]
+    assert restore_uncovered_confirmed_spans(
+        [], [], confirmed, [], [], DURATION, exclude_start_seconds=130.0) == []
 
 
 def test_helper_false_positive_majority_skips_confirm():

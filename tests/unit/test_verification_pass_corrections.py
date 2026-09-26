@@ -104,3 +104,10 @@ def test_map_ad_to_original_maps_fingerprint_match_fields():
     member = mapped['merged_member_spans'][0]
     assert member['fingerprint_match_start'] == 100.0
     assert member['fingerprint_match_end'] == 110.0
+
+
+def test_map_ad_to_original_maps_dai_probe_spans():
+    mapped = _map_ad_to_original(
+        {'start': 82.0, 'end': 92.0, 'dai_probe_spans': [{'start': 82.0, 'end': 86.0}]},
+        [(50.0, 20.0)], 2.0)
+    assert mapped['dai_probe_spans'] == [{'start': 100.0, 'end': 104.0}]

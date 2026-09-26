@@ -2669,7 +2669,7 @@ def test_estimated_tail_split_at_measured_claude_end():
     assert held['validation']['decision'] == Decision.REVIEW.value
     assert held['held_for_review'] is True
     assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
-    assert held['_skip_pattern_learning'] is True
+    assert held['_skip_pattern_learning'] is True and held['_estimated_remainder'] is True
     assert held['reason'].endswith(' (estimated pattern remainder)')
 
 

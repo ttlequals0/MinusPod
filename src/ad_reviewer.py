@@ -535,9 +535,8 @@ def _edge_matches(value: float, new: float) -> bool:
     return abs(value - new) <= EDGE_TOLERANCE or float(f"{value:.1f}") == new
 
 
-def _edge_transcript_supported(segments, edge: str, new: float, old: float) -> bool:
+def _edge_transcript_supported(units, edge: str, new: float, old: float) -> bool:
     """Whether an inward edge lands on a transcript pause with speech dropped past it."""
-    units = _speech_units(segments)
     if edge == 'end':
         matched = [hi for _, hi in units if _edge_matches(hi, new)]
         if (new >= old - EDGE_TOLERANCE or not matched
@@ -559,10 +558,10 @@ def _edge_transcript_supported(segments, edge: str, new: float, old: float) -> b
     return not crossed and gap >= _SUPPORTED_EDGE_GAP_S
 
 
-def _supported_edge_floor(ad: dict, edge: str, value: float,
+def _supported_edge_floor(ad: dict, independent, edge: str, value: float,
                           lo_bound: float, hi_bound: float) -> float:
     """Where a supported edge stops: short of any independent span it would enter."""
-    spans = reviewer_independent_spans(ad)
+    spans = list(independent)
     cores = dai_core_spans(ad)
     for p_lo, p_hi in dai_probe_spans(ad):
         if (p_hi > value) if edge == 'end' else (p_lo < value):
@@ -1650,14 +1649,16 @@ class AdReviewer:
             floor_end = max(clamped_end, core_end)
             # Only the probe windows of a region are measured, so an edge on a
             # transcript pause may cross the rest, stopping at independent evidence.
-            if _edge_transcript_supported(segments, 'start', clamped_start,
+            units = _speech_units(segments)
+            independent = reviewer_independent_spans(ad)
+            if _edge_transcript_supported(units, 'start', clamped_start,
                                           original_start):
                 floor_start = _supported_edge_floor(
-                    ad, 'start', clamped_start, original_start, original_end)
-            if _edge_transcript_supported(segments, 'end', clamped_end,
+                    ad, independent, 'start', clamped_start, original_start, original_end)
+            if _edge_transcript_supported(units, 'end', clamped_end,
                                           original_end):
                 floor_end = _supported_edge_floor(
-                    ad, 'end', clamped_end, original_start, original_end)
+                    ad, independent, 'end', clamped_end, original_start, original_end)
             if ((floor_start, floor_end) != (clamped_start, clamped_end)
                     or floor_start > core_start or floor_end < core_end):
                 logger.info(

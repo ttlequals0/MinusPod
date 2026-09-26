@@ -44,6 +44,7 @@ from utils.markers import (
     note_fold,
     quote_edge_valid,
     recorded_member_spans,
+    subtract_spans,
     union_cover,
     word_timed_edge_valid,
 )
@@ -95,17 +96,9 @@ def user_trimmed_keep_ranges(corrections: list[dict]) -> list[dict]:
     return merged
 
 
-def _subtract_spans(pieces, spans):
-    """Remove each (start, end) in spans from the (lo, hi) pieces."""
-    for start, end in spans:
-        pieces = [part for lo, hi in pieces
-                  for part in ((lo, min(hi, start)), (max(lo, end), hi))
-                  if part[1] > part[0]]
-    return pieces
-
-
 def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_positives,
-                                      trim_ranges, episode_duration):
+                                      trim_ranges, episode_duration,
+                                      exclude_start_seconds=0.0):
     """Cut user-confirmed audio that no surviving marker covers."""
     claimed = [(ad['start'], ad['end']) for ad in ads_to_remove]
     fp_spans = [(fp['start'], fp['end']) for fp in false_positives or []]
@@ -126,8 +119,9 @@ def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_p
         if any(overlap_ratio(start, end, span_start, span_end) >= CORRECTION_MATCH_MIN_COVERAGE
                for start, end in fp_spans):
             continue
-        for lo, hi in _subtract_spans([(span_start, span_end)], claimed + barriers):
-            if hi - lo < MERGE_GAP_SECONDS:
+        for lo, hi in subtract_spans([(span_start, span_end)], claimed + barriers):
+            # The per-feed opening exclusion outranks a saved confirm.
+            if hi - lo < MERGE_GAP_SECONDS or lo < exclude_start_seconds:
                 continue
             validation = {
                 'decision': Decision.ACCEPT.value, 'adjusted_confidence': 1.0,
@@ -154,18 +148,22 @@ def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_p
             marker.update(was_cut=True, _skip_pattern_learning=True, validation=validation)
             restored.append(marker)
             claimed.append((lo, hi))
-            for held in [m for m in all_ads if is_pending_review(m)
-                         and m['start'] < hi and m['end'] > lo]:
-                # Approving a wider held marker must not re-confirm the restored audio.
-                all_ads.remove(held)
+            overlapping = [m for m in all_ads if is_pending_review(m)
+                           and m['start'] < hi and m['end'] > lo]
+            # Approving a wider held marker must not re-confirm the restored audio.
+            carved = []
+            for held in overlapping:
                 if lo <= held['start'] and held['end'] <= hi:
                     logger.info(
                         f"Restored confirmed span {lo:.1f}s-{hi:.1f}s consumed held marker "
                         f"{held['start']:.1f}s-{held['end']:.1f}s "
                         f"(hold_reason={held.get('hold_reason')})")
-                all_ads.extend(carve_fragment(held, a, b) for a, b in
-                               _subtract_spans([(held['start'], held['end'])], [(lo, hi)])
-                               if b - a >= MERGE_GAP_SECONDS)
+                carved.extend(carve_fragment(held, a, b) for a, b in
+                              subtract_spans([(held['start'], held['end'])], [(lo, hi)])
+                              if b - a >= MERGE_GAP_SECONDS)
+            if overlapping:
+                dropped = {id(m) for m in overlapping}
+                all_ads[:] = [m for m in all_ads if id(m) not in dropped] + carved
             logger.info(
                 f"Restored confirmed span {lo:.1f}s-{hi:.1f}s (no surviving candidate)")
     if not restored:
@@ -1492,6 +1490,7 @@ class AdValidator:
                         continue
                     remainder = self._narrowed(ad, a, b, keep_members=False)
                     remainder['_skip_pattern_learning'] = True
+                    remainder['_estimated_remainder'] = True
                     remainder['reason'] = (
                         f"{ad.get('reason', 'ad')} (estimated pattern remainder)")
                     out.append(remainder)
@@ -1517,7 +1516,7 @@ class AdValidator:
         flags.append(f"INFO: Held for review ({reason})")
         # Split remainders keep the same hold_reason; tag the log line only.
         log_reason = reason
-        if ad.get('reason', '').endswith('(estimated pattern remainder)'):
+        if ad.get('_estimated_remainder'):
             log_reason = f"{reason} (remainder)"
         logger.info(
             f"Holding ad {ad['start']:.1f}s-{ad['end']:.1f}s for review: {log_reason}"

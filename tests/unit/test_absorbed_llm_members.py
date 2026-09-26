@@ -12,6 +12,7 @@ from ad_detector.boundaries import record_absorbed_detection
 from ad_validator import AdValidator, Decision
 from config import HOLD_REASON_ESTIMATED_PATTERN
 from text_pattern_matcher import TextMatch
+from tests.unit.marker_test_utils import _ad
 from utils.markers import measured_member_spans
 
 SEGMENTS = [
@@ -105,15 +106,13 @@ def test_low_confidence_absorbed_llm_ad_is_not_an_anchor(segments):
 
 
 def test_ad_straddling_two_markers_clipped_to_each():
-    markers = [{'start': 100.0, 'end': 150.0, 'pattern_id': 1,
-                'detection_stage': 'fingerprint'},
-               {'start': 150.0, 'end': 200.0, 'pattern_id': 2,
-                'detection_stage': 'text_pattern'}]
+    markers = [_ad(100.0, 150.0, 'fingerprint', pattern_id=1),
+               _ad(150.0, 200.0, 'text_pattern', pattern_id=2)]
     regions = [{'start': m['start'], 'end': m['end'],
                 'pattern_id': m['pattern_id']} for m in markers]
-    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9,
-          'quote_aligned_start': True, 'quote_start': 120.0,
-          'quote_aligned_end': True, 'quote_end': 180.0}
+    ad = _ad(120.0, 180.0, confidence=0.9,
+             quote_aligned_start=True, quote_start=120.0,
+             quote_aligned_end=True, quote_end=180.0)
 
     record_absorbed_detection(ad, regions, markers)
 

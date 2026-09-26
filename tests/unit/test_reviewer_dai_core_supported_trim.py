@@ -8,7 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('reviewer_dai_core_supported_trim_test_')
 
 from ad_detector import dai_differential_ads
-from ad_reviewer import AdReviewer, _edge_transcript_supported
+from ad_reviewer import AdReviewer, _edge_transcript_supported, _speech_units
 from ad_validator import AdValidator, ValidationResult
 from main_app import processing
 from utils.markers import (DAI_PROBE_SPANS, carve_fragment, clip_dai_core_spans,
@@ -107,25 +107,25 @@ def test_unsupported_end_keeps_core_clamp(monkeypatch):
 
 
 def test_end_edge_supported_by_segment_end_and_gap():
-    assert _edge_transcript_supported(SEGMENTS, 'end', 58.2, 73.2)
+    assert _edge_transcript_supported(_speech_units(SEGMENTS), 'end', 58.2, 73.2)
     # 3.2 is no segment edge; 20.42 is followed 0.26 s later by speech.
-    assert not _edge_transcript_supported(SEGMENTS, 'start', 3.2, 0.0)
-    assert not _edge_transcript_supported(SEGMENTS, 'end', 20.42, 73.2)
+    assert not _edge_transcript_supported(_speech_units(SEGMENTS), 'start', 3.2, 0.0)
+    assert not _edge_transcript_supported(_speech_units(SEGMENTS), 'end', 20.42, 73.2)
     # Not inward, or no speech between the new and old edge.
-    assert not _edge_transcript_supported(SEGMENTS, 'end', 58.2, 58.2)
-    assert not _edge_transcript_supported(SEGMENTS, 'end', 58.2, 60.0)
+    assert not _edge_transcript_supported(_speech_units(SEGMENTS), 'end', 58.2, 58.2)
+    assert not _edge_transcript_supported(_speech_units(SEGMENTS), 'end', 58.2, 60.0)
     # Rounded to one decimal, as the prompt shows it.
     rounded = [dict(SEGMENTS[2], end=58.23), SEGMENTS[3]]
-    assert _edge_transcript_supported(rounded, 'end', 58.2, 73.2)
+    assert _edge_transcript_supported(_speech_units(rounded), 'end', 58.2, 73.2)
 
 
 def test_start_edge_supported_mirrors_end():
     segments = [{'start': 0.0, 'end': 10.0, 'text': 'Show talk.'},
                 {'start': 11.0, 'end': 40.0, 'text': 'Brought to you by Acme.'}]
-    assert _edge_transcript_supported(segments, 'start', 11.0, 0.0)
-    assert not _edge_transcript_supported(segments, 'start', 11.0, 10.5)
+    assert _edge_transcript_supported(_speech_units(segments), 'start', 11.0, 0.0)
+    assert not _edge_transcript_supported(_speech_units(segments), 'start', 11.0, 10.5)
     close = [dict(segments[0], end=10.9), segments[1]]
-    assert not _edge_transcript_supported(close, 'start', 11.0, 0.0)
+    assert not _edge_transcript_supported(_speech_units(close), 'start', 11.0, 0.0)
 
 
 def test_word_edges_support_a_trim_inside_a_segment():
@@ -134,7 +134,7 @@ def test_word_edges_support_a_trim_inside_a_segment():
                            {'word': 'rocks.', 'start': 5.0, 'end': 12.0},
                            {'word': 'Welcome', 'start': 14.0, 'end': 20.0},
                            {'word': 'back.', 'start': 20.0, 'end': 30.0}]}]
-    assert _edge_transcript_supported(segments, 'end', 12.0, 30.0)
+    assert _edge_transcript_supported(_speech_units(segments), 'end', 12.0, 30.0)
 
 
 def test_independent_spans_cover_measured_evidence():

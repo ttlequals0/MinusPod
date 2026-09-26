@@ -8,6 +8,6 @@ def member_bases(members):
     return [member_bases(m) for m in members]
 
 
-def _ad(start, end, stage, **extra):
+def _ad(start, end, stage=None, **extra):
     """Minimal marker dict for a detection stage."""
     return {'start': start, 'end': end, 'detection_stage': stage, **extra}

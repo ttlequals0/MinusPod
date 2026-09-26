@@ -499,6 +499,15 @@ def union_cover(spans, start: float, end: float,
     return lo, cursor
 
 
+def subtract_spans(pieces, spans):
+    """Remove each (start, end) in spans from the (lo, hi) pieces."""
+    for start, end in spans:
+        pieces = [part for lo, hi in pieces
+                  for part in ((lo, min(hi, start)), (max(lo, end), hi))
+                  if part[1] > part[0]]
+    return pieces
+
+
 def mark_distinct_merge(target: dict, other: dict) -> None:
     """The one primitive every distinct-ad merge site calls: records the
     protected-member union and sets the merged_distinct_ads flag together,
