@@ -640,8 +640,7 @@ _SPONSOR_MATCH_STAGES = ('fingerprint', 'text_pattern')
 
 def _known_sponsor_pattern(ads: list[dict],
                            episode_description: str | None) -> re.Pattern | None:
-    """One matcher for the sponsors of this episode's pattern and fingerprint
-    matches plus its description sponsors, or None when there are none."""
+    """Matcher for sponsors already known via pattern/fingerprint or the description, or None."""
     names = {ad['sponsor'] for ad in ads
              if ad.get('detection_stage') in _SPONSOR_MATCH_STAGES
              and ad.get('sponsor') and is_brand_token(ad['sponsor'])}

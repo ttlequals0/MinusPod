@@ -44,10 +44,7 @@ _DESCRIPTION_HREF_RE = re.compile(
 
 @lru_cache(maxsize=64)
 def extract_description_sponsors(episode_description: str | None) -> frozenset:
-    """Lowercase sponsor names linked or named in an episode description.
-
-    Cached so the detector passes and the validator share one extraction per episode.
-    """
+    """Lowercase sponsor names linked or named in an episode description; cached per description."""
     sponsors = set()
     if not episode_description:
         return frozenset()

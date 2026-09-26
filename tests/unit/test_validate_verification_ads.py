@@ -488,9 +488,7 @@ def test_non_releasable_hold_never_stamped():
 
 
 def test_pass2_corroborates_estimated_tail():
-    """estimated_pattern_bounds is releasable: pass 2 re-detecting the held
-    remainder on its own is the independent corroboration the hold was
-    waiting for, so it stamps and clips to the pass-2 span."""
+    """Pass 2 re-detecting the held remainder is corroboration: stamp and clip to it."""
     proc = [_plain_proc(3494.0, 3572.0)]
     orig = [_orig(3494.0, 3572.0, 'estimated')]
     hold = _held_marker(3492.9, 3573.2, hold_reason='estimated_pattern_bounds')
@@ -506,8 +504,7 @@ def test_pass2_corroborates_estimated_tail():
 
 
 def test_pass2_low_confidence_does_not_corroborate_estimated_tail():
-    """Same overlap, but pass-2 confidence is below min_cut_confidence: no
-    independent corroboration, hold stays open."""
+    """Pass-2 confidence below min_cut_confidence: no corroboration, hold stays open."""
     proc = [_plain_proc(3494.0, 3572.0, confidence=0.5)]
     orig = [_orig(3494.0, 3572.0, 'estimated')]
     hold = _held_marker(3492.9, 3573.2, hold_reason='estimated_pattern_bounds')
